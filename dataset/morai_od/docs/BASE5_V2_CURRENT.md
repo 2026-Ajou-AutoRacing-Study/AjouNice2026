@@ -5,7 +5,24 @@ Base3 추가분이 아닌 독립 Base5이며 temporal/velocity head 학습용이
 **v45 본수집은 시작했다가 물리 충돌로 중단됐다. 체크포인트 32장은 보존했다.
 새 코드의 소량 검증은 통과했지만 본수집은 자동 재시작하지 않았다. 본 학습도 미시작이다.**
 
-## 최신 v72 — 원거리 정적 검증·원본 재검사 / 추가 촬영 감소
+## 최신 v77 — 보조 객체 원거리 검증·복합/동적 재확인
+
+2026-10-07. 원거리 missing-ground 보완을 primary뿐 아니라 static secondary UID까지
+확장했다. 단독 근접 calibration에서 동일 payload/실제 pose/rigid transform을 검증하며
+원본 혼합 장면·GT는 그대로다. 복합 actor의 여러 component를 single-rigid로 인증하지 않는다.
+구 readiness 도구의 natural-target→one-way-slow 덮어쓰기를 수정했고, 구형 이동 deck은
+calibration 전에 거부한다.
+
+초기 혼합4조건0통과→후속2통과/2review, 최종 secondary2/2(35.61초),
+가까운 탑승자·유모차2/2(12.30초),
+지형/정적 기준 준비를 포함한 실제 이동2/2(47.14초/6촬영)를 확인했다.
+tuple/list QA 비교로 resume가 불필요한 보충 촬영을 하던 문제를 수정했다.
+최종 완료resume1.104초/추가촬영0/hash불변/선택2장 유지, CPU 총6장/GT12개,
+단위회귀183 tests PASS다.
+먼 유모차 복합/혼합Dog2 ground 보완은 아직 미완료다. 본10K·학습은 미재개다.
+[코드·실제 결과·비용·보류 조건](261007_base5_mixed_motion_ground_evidence.md).
+
+## v72 — 원거리 정적 검증·원본 재검사 / 추가 촬영 감소
 
 2026-10-07. 가까운 검증 plane과 같은 정적 rigid annotation의 전체 상대 R/T를 연결한다.
 동일 actor payload/hash와 실제 XYZ/heading/size/정지 여부, Ego 수평 위치/yaw/tilt,

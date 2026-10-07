@@ -10,17 +10,28 @@ from base5_capture_safety import atomic_json,sha256
 from base5_motion_ground import moving_actors
 
 
-def prepare(source,index,output):
+def prepare(source,index,output,target_uid=None):
     if output.exists():raise FileExistsError('New reference output required')
     deck=gen.geo.load_json(source);old=deck['scenes'][index]
     scene=gen.geo.load_json(Path(old['scenario']));meta=gen.geo.load_json(Path(old['metadata']))
     if moving_actors(meta) or not meta['runtime_actors']:raise ValueError('Static actor required')
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
-    pose=target_probe_pose(ctx['links'],meta['runtime_actors'][0])
+    target=next((a for a in meta['runtime_actors'] if a['unique_id']==target_uid),None) if target_uid is not None else meta['runtime_actors'][0]
+    if target is None:raise ValueError('Reference target UID absent')
+    pose=target_probe_pose(ctx['links'],target)
     gen.geo.set_ego_pose(scene['egoVehicle'],pose,initial_speed_kph=0.)
     meta=copy.deepcopy(meta);meta.update(ego=pose,base=pose,calibration_only=True,
         static_height_reference=dict(source_scenario_sha256=old['scenario_sha256'],
-            source_metadata_sha256=sha256(Path(old['metadata'])),policy='same actor payload, nearby observation only'))
+            source_metadata_sha256=sha256(Path(old['metadata'])),target_uid=target['unique_id'],
+            policy='same actor payload, nearby observation only'))
+    if target_uid is not None:
+        # Calibration observes only this target. Other quota actors remain in the
+        # original raw scene; removing them here cannot fill training quota.
+        for container in {a['source_list'] for a in meta['runtime_actors']}:
+            scene[container]=[a for a in scene[container] if a['UNIQUEID']==target_uid]
+        meta['runtime_actors']=[a for a in meta['runtime_actors'] if a['unique_id']==target_uid]
+        meta['ground_support_check']['required_uids']=[target_uid]
+        meta.pop('static_ground_references',None)
     meta['spec']['distance_bounds']=[0.,100.]
     for actor in meta['runtime_actors']:
         center=actor['geometric_center_estimate'];actor['planned_center_distance_m']=math.hypot(center[0]-pose['x'],center[1]-pose['y'])
@@ -35,4 +46,5 @@ def prepare(source,index,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True)
     p.add_argument('--index',type=int,required=True);p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();print(prepare(a.manifest,a.index,a.output))
+    p.add_argument('--target-uid',type=int,help='Observe one unchanged static actor; calibration only')
+    a=p.parse_args();print(prepare(a.manifest,a.index,a.output,target_uid=a.target_uid))

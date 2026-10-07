@@ -10,6 +10,19 @@ from build_base5_bevfusion_infos import convert
 
 
 class QualityLoopTest(unittest.TestCase):
+    def test_legacy_motion_rejected_before_any_calibration_load(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'source.json';meta=root/'meta.json'
+            loop.atomic_json(meta,dict(runtime_actors=[dict(motion='walking',
+                motion_path=dict(policy='one-way-slow-v1'))]))
+            loop.atomic_json(source,dict(scenes=[dict(id='a',metadata=str(meta))]))
+            with patch.object(loop.subprocess,'Popen') as popen:
+                self.assertEqual(loop.execute(source,[0],root/'out'),1)
+                popen.assert_not_called()
+            report=json.loads((root/'out/report.json').read_text())
+            self.assertIn('before calibration',report['error'])
+            self.assertEqual(report['attempts'],[])
+
     def test_collision_child_continues_only_after_verified_exit(self):
         for safe,expected in ((True,0),(False,1)):
             class Child:

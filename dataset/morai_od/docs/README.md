@@ -4,6 +4,11 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **최신 v77: static secondary 지면 검증/복합·동적 확인.** 초기 혼합2/4→최종2/2,
+  근접 복합2/2·동적2/2(준비 포함47.14초), 구 readiness 이동 계약 수정.
+  완료resume 추가촬영0/183tests PASS. 먼 복합/혼합Dog2 보류, 본10K 미재개.
+  [현재](BASE5_V2_CURRENT.md), [근거·한계](261007_base5_mixed_motion_ground_evidence.md).
+
 - **최신 v72: 원거리 rigid 정적 ground 검증·원본 재검사.** 동일 배치/실제 pose/hash와
   전체 상대 R/T를 확인해 sparse ground를 보완. 거리44/97/후방88/대형53m4조건 통과,
   같은4조건78.62→53.60초/재촬영4회 생략. 완료resume 추가촬영0/179tests PASS.

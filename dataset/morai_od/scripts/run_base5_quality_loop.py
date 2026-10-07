@@ -201,6 +201,10 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             else:
                 metadata=gen.geo.load_json(Path(original['metadata'])) if original.get('metadata') else {}
                 if motion_ground.moving_actors(metadata):
+                    for actor in motion_ground.moving_actors(metadata):
+                        path=actor.get('motion_path',{})
+                        if path.get('policy')!='natural-target-v1' or 'target_position' not in path:
+                            raise ValueError('Moving pilot requires natural-target-v1 metadata before calibration')
                     # Observe terrain and this asset at the target before loading
                     # an animated path. Calibration frames never fill training quota.
                     probes=prepared(base/'motion_terrain_deck'/'manifest.json',
@@ -246,11 +250,13 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             and probe_meta.get('runtime_actors') else None)
                         terrain_deck=base/f'terrain_deck_{ordinal}';terrain_root=base/f'terrain_{ordinal}'
                         retry_deck=base/f'probed_deck_{ordinal}'
-                        primary=probe_meta['runtime_actors'][0] if probe_meta.get('runtime_actors') else None
-                        if (reasons=={'actor_ground_plane_unverified'} and primary and target_uid==primary['unique_id']
-                                and primary['planned_center_distance_m']>20. and not motion_ground.moving_actors(probe_meta)):
+                        target=next((a for a in probe_meta.get('runtime_actors',[]) if a['unique_id']==target_uid),None)
+                        components=[c for c in result['audit'].get('components',[]) if c['parent_uid']==target_uid]
+                        if (reasons=={'actor_ground_plane_unverified'} and target
+                                and len(components)==1 and target['planned_center_distance_m']>20.
+                                and not motion_ground.moving_actors(probe_meta)):
                             near_deck=base/f'static_near_deck_{ordinal}';near_root=base/f'static_near_{ordinal}'
-                            probes=prepared(near_deck/'manifest.json',lambda:static_height_reference(manifest,0,near_deck))
+                            probes=prepared(near_deck/'manifest.json',lambda:static_height_reference(manifest,0,near_deck,target_uid=target_uid))
                             reference=capture(probes,near_root,cell,'static_near_ground_reference')
                             if is_collision_failure(reference):result=reference;break
                             next_manifest=prepared(retry_deck/'manifest.json',lambda:static_reference_retry(manifest,near_root,retry_deck))

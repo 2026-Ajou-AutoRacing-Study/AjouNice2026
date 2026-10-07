@@ -57,9 +57,12 @@ def prepare(source,output,retry_indices=None,retry_offset=0):
         if not 1<=retry_offset<=16:raise ValueError('Diagnostic retry offset required')
         ids=retry_indices
     else:ids=choose(manifest['scenes'],metadata)
-    config=manifest['config'];config['capture'].update(dynamic_path_policy='one-way-slow-v1',
-        one_way_setup_budget_sec=6.,one_way_appearance_profile=True)
-    config['gt_policy']=gen.geo.load_json(gen.CONFIG)['gt_policy']
+    config=manifest['config'];current=gen.geo.load_json(gen.CONFIG)
+    # Historical one-way appearance probes lack the target-position contract
+    # required by terrain preparation. Never downgrade a natural-target source.
+    config['capture']['dynamic_path_policy']=current['capture']['dynamic_path_policy']
+    config['capture']['asset_appearance_policy']=current['capture']['asset_appearance_policy']
+    config['gt_policy']=current['gt_policy']
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     output.mkdir(parents=True);entries=[]
     for index in ids:

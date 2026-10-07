@@ -62,7 +62,9 @@ def prepare(source,reference_session,output):
         witnesses.append(dict(uid=actor['unique_id'],capture_root=str(root),
             sha256={str(p):sha256(p) for p in files}))
     if not witnesses:raise ValueError('Reference has no verified local plane')
-    current['static_ground_references']=witnesses;sid=entry['id']+'_rigidground';output.mkdir(parents=True)
+    updated={w['uid']:w for w in current.get('static_ground_references',[])}
+    updated.update({w['uid']:w for w in witnesses})
+    current['static_ground_references']=list(updated.values());sid=entry['id']+'_rigidground';output.mkdir(parents=True)
     sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
     atomic_json(sp,json.loads(Path(entry['scenario']).read_text()));atomic_json(mp,current)
     deck.update(count=1,scenes=[dict(entry,id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp))])
@@ -144,8 +146,8 @@ def reaudit_original(row,manifest,output):
         raise ValueError('Only isolated missing-ground review may reuse raw')
     source=Path(row['capture_root']);entry=json.loads(manifest.read_text())['scenes'][0]
     if json.loads((source/'audit.json').read_text())!=row['audit']:
-        raise ValueError('Original audit differs from authoritative row')
-    if sha256(source/'scenario.json')!=entry['scenario_sha256']:raise ValueError('Re-audit actor/scenario payload changed')
+        raise RuntimeError('Original audit differs from authoritative row')
+    if sha256(source/'scenario.json')!=entry['scenario_sha256']:raise RuntimeError('Re-audit actor/scenario payload changed')
     metadata=json.loads((source/'metadata.json').read_text())
     requested=json.loads(Path(entry['metadata']).read_text())
     metadata['static_ground_references']=requested['static_ground_references']
@@ -158,11 +160,14 @@ def reaudit_original(row,manifest,output):
         stored=json.loads((output/'metadata.json').read_text())
         if (result['raw_source_capture']!=str(source) or result['scenario_sha256']!=row['scenario_sha256']
                 or stored['static_ground_references']!=metadata['static_ground_references']):
-            raise ValueError('Existing re-audit source/reference changed')
+            raise RuntimeError('Existing re-audit source/reference changed')
         for p,digest in stored['static_ground_reaudit']['raw_sha256'].items():
-            if sha256(output/p)!=digest or sha256(source/p)!=digest:raise ValueError('Re-audit raw changed')
+            if sha256(output/p)!=digest or sha256(source/p)!=digest:raise RuntimeError('Re-audit raw changed')
         from base5_capture_audit import audit_capture
-        if audit_capture(output,stored)!=result['audit']:raise ValueError('Re-audit verification changed')
+        # JSON changes Shapely hull tuples to lists. Compare persisted values,
+        # not Python container types; never weaken numeric/proof comparisons.
+        actual=json.loads(json.dumps(audit_capture(output,stored)))
+        if actual!=result['audit']:raise RuntimeError('Re-audit verification changed')
         return result
     metadata['static_ground_reaudit']=dict(source_capture_root=str(source),
         source_metadata_sha256=sha256(source/'metadata.json'),source_audit_sha256=sha256(source/'audit.json'),

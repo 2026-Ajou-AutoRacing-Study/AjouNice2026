@@ -1,15 +1,63 @@
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from base5_static_ground_reference import transfer_plane,matching_status,actor_payload,prepare,validate_view_transform,apply_reference,reaudit_original
-from base5_capture_safety import atomic_json
+from base5_capture_safety import atomic_json,sha256
 from base5_capture_audit import rotation_matrix
+from prepare_base5_static_height_reference import prepare as nearby_reference
 
 
 class StaticRigidReferenceTest(unittest.TestCase):
+    def test_existing_reaudit_compares_json_values_and_halts_on_real_difference(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'source';output=root/'out';source.mkdir();output.mkdir()
+            audit=dict(review_reasons=['actor_ground_plane_unverified'])
+            atomic_json(source/'audit.json',audit);atomic_json(source/'scenario.json',{})
+            atomic_json(source/'metadata.json',{})
+            atomic_json(source/'telemetry.json',dict(objects_before={},objects_after={},ego_before={}))
+            atomic_json(root/'request.json',dict(static_ground_references=[]))
+            digest=sha256(source/'scenario.json')
+            atomic_json(root/'manifest.json',dict(scenes=[dict(metadata=str(root/'request.json'),scenario_sha256=digest)]))
+            result=dict(raw_source_capture=str(source),scenario_sha256=digest,audit=dict(polygon=[[1.,2.]]))
+            atomic_json(output/'reaudit_result.json',result)
+            atomic_json(output/'metadata.json',dict(static_ground_references=[],static_ground_reaudit=dict(raw_sha256={})))
+            row=dict(status='review',audit=audit,capture_root=str(source),scenario_sha256=digest)
+            with patch('base5_capture_audit.audit_capture',return_value=dict(polygon=[(1.,2.)])):
+                self.assertEqual(reaudit_original(row,root/'manifest.json',output),result)
+            with patch('base5_capture_audit.audit_capture',return_value=dict(polygon=[(1.,2.01)])):
+                with self.assertRaisesRegex(RuntimeError,'verification changed'):
+                    reaudit_original(row,root/'manifest.json',output)
+
+    def test_secondary_calibration_keeps_exact_target_and_excludes_other_actors(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);scene=dict(egoVehicle={},objectList=[dict(UNIQUEID=1,pos=dict(z=28))],
+                vehicleList=[dict(UNIQUEID=2,pos=dict(z=29))])
+            actors=[dict(unique_id=u,source_list=c,motion='static',geometric_center_estimate=[u*10,0])
+                for u,c in ((1,'objectList'),(2,'vehicleList'))]
+            meta=dict(runtime_actors=actors,spec={},ground_support_check=dict(required_uids=[1,2]))
+            atomic_json(root/'scene.json',scene);atomic_json(root/'meta.json',meta)
+            atomic_json(root/'manifest.json',dict(scenes=[dict(id='test',scenario=str(root/'scene.json'),
+                metadata=str(root/'meta.json'),scenario_sha256='source')]))
+            pose=dict(x=15,y=0,z=28,yaw=0)
+            with patch('prepare_base5_static_height_reference.gen.context',return_value={'links':[]}), \
+                 patch('prepare_base5_static_height_reference.target_probe_pose',return_value=pose), \
+                 patch('prepare_base5_static_height_reference.gen.geo.set_ego_pose'):
+                result=nearby_reference(root/'manifest.json',0,root/'out',target_uid=2)
+            import json
+            row=json.loads(result.read_text())['scenes'][0]
+            new_scene=json.loads(Path(row['scenario']).read_text());new_meta=json.loads(Path(row['metadata']).read_text())
+            self.assertEqual(new_scene['objectList'],[])
+            self.assertEqual(new_scene['vehicleList'],scene['vehicleList'])
+            self.assertEqual(new_meta['ground_support_check']['required_uids'],[2])
+            self.assertTrue(new_meta['calibration_only'])
+            self.assertEqual(new_meta['runtime_actors'][0]['unique_id'],2)
+            self.assertEqual(json.loads((root/'scene.json').read_text()),scene)
+
     def test_full_rotation_preserves_ground_gap_at_long_range(self):
         near=dict(center=np.array([6.,0.,1.]),rotation_rpy=[0,0,0],size=np.array([4.,2.,2.]))
         # Current sensor is pitched; a yaw-only cross-view transform is wrong.
