@@ -24,12 +24,18 @@ def audit(manifest_path):
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
     height_ctx=None;height_assets=None;dynamic_ctx=None;dynamic_phases=Counter();dynamic_crossings=Counter()
     generic_close=Counter();vehicle_close_phases=Counter();vehicle_close_gaps=[]
+    stationary_pools=Counter();stationary_primary=Counter()
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
         digest=gen.geo.sha256(Path(entry['scenario']))
         if digest!=entry['scenario_sha256']:errors.append((entry['id'],'checksum'))
         if digest in hashes:errors.append((entry['id'],'duplicate scene payload'))
         hashes.add(digest);families[r['family']]+=1;missions[r['family']]+=int(r['mission']);splits[meta['split']]+=1
+        if r.get('stationary_mission_pool'):
+            stationary_pools[r['stationary_mission_pool']]+=1
+            if meta['runtime_actors']:stationary_primary[meta['runtime_actors'][0]['data_id']]+=1
+            if meta.get('details',{}).get('spatial_stratum')!='static_obstacle' or s['waypointDataList']:
+                errors.append((entry['id'],'static mission context/path mismatch'))
         bins[str((r['family'],r['role'],r.get('distance_bounds')))]+=1;groups[str((r['family'],r['asset_group']))]+=1
         if s['egoVehicle']['currentVelocity']!=0 or s['egoVehicle']['initPosition']['vehicleSaveData']['velocity']!=0:
             errors.append((entry['id'],'nonzero ego'))
@@ -85,6 +91,9 @@ def audit(manifest_path):
                         avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
         ego_poly=gen.rectangle([e['x']+1.35*gen.math.cos(ea),e['y']+1.35*gen.math.sin(ea)],[4.8,2.],e['yaw'])
         for i,a in enumerate(meta['runtime_actors']):
+            if r.get('stationary_mission_pool'):
+                if a['motion'] not in ('static','standing') or a.get('motion_path'):
+                    errors.append((entry['id'],'static mission actor has motion'))
             if a['data_id'] in gen.catalog.COMPETITION_EXCLUDED_IDS:
                 errors.append((entry['id'],'official competition-excluded asset'))
             if m['config']['capture'].get('asset_appearance_policy',False):
@@ -105,6 +114,11 @@ def audit(manifest_path):
             if a['planned_surface_clearance_m']<minimum-1e-6:errors.append((entry['id'],'ego collision'))
             # Actual generated rot is authoritative, not an independent random estimate.
             actor=next(t for k in ('vehicleList','objectList','pedestrianList','aiPedstrianList') for t in s.get(k,[]) if t['UNIQUEID']==a['unique_id'])
+            if r.get('stationary_mission_pool'):
+                if any(float(actor.get(k,0))!=0 for k in ('speed','moveSpeed','customSpeed','currentVelocity')) or actor.get('isWaypointMode'):
+                    errors.append((entry['id'],'static mission runtime movement enabled'))
+                if actor.get('initPosition',{}).get('vehicleSaveData',{}).get('velocity',0)!=0:
+                    errors.append((entry['id'],'static mission saved vehicle velocity'))
             bounded=r['family']=='highway' and r['mission'] and a['source_list']=='vehicleList'
             placement=a.get('sample_highway_placement')
             if bounded:
@@ -214,6 +228,14 @@ def audit(manifest_path):
                 if not lo<=a['planned_center_distance_m']<hi:errors.append((entry['id'],'distance quota'))
         retries.append(meta['retry'])
     if m['count']==m['config']['target_scenes']:
+        if m['config'].get('stationary_mission_assets'):
+            expected_pools=Counter(m['config']['stationary_mission_assets']['primary_pool_counts'])
+            expected_pools['static_vehicle']+=m['config']['mission_counts']['other_vehicle']
+            if stationary_pools!=expected_pools:errors.append(('all','stationary mission pool quota'))
+            ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+            eligible={a['data_id'] for key in expected_pools for a in ctx['pools'][key]}
+            if any(stationary_primary[uid]<3 for uid in eligible):
+                errors.append(('all','stationary mission primary coverage'))
         if dict(families)!=m['config']['families']:errors.append(('all','family quota'))
         if dict(missions)!=m['config']['mission_counts']:errors.append(('all','mission quota'))
         if m['config'].get('mission_vehicle_close'):
@@ -237,6 +259,8 @@ def audit(manifest_path):
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
+        stationary_mission_pool_counts=dict(stationary_pools),
+        stationary_mission_primary_assets=len(stationary_primary),
         avoidance_phase_side_counts=dict(avoidance_phases),generic_close_counts=dict(generic_close),
         vehicle_close_phase_counts=dict(vehicle_close_phases),
         vehicle_close_gap_min_max_m=[min(vehicle_close_gaps),max(vehicle_close_gaps)] if vehicle_close_gaps else [],

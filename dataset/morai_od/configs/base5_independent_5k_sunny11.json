@@ -2,6 +2,20 @@
   "schema_version": 2,
   "dataset_id": "base5_independent_5k_sunny13_261007",
   "seed": 261006,
+  "stationary_mission_assets": {
+    "policy": "all-positive-pools-stationary-v111",
+    "primary_pool_counts": {
+      "obstacle": 224,
+      "static_vehicle": 16,
+      "vehicle": 180,
+      "person": 90,
+      "dummy": 12,
+      "animal": 18,
+      "pet_person": 12,
+      "stroller": 18,
+      "rider": 30
+    }
+  },
   "target_scenes": 5000,
   "families": {
     "highway": 1500,

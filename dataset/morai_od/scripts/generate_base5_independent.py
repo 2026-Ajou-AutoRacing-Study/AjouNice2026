@@ -181,7 +181,29 @@ def specs(config):
                     avoidance_gap_bounds_m=bounds,distance_bounds=[0.,30.],distance_bin='generic_surface_gap',
                     role='right' if side=='left' else 'left')
     vehicle_close.assign(sys.modules[__name__],output,config)
+    assign_stationary_mission_pools(output,config)
     return output
+
+def assign_stationary_mission_pools(rows,config):
+    """Static mission is an observation context, not the Obstacle label class."""
+    plan=config.get('stationary_mission_assets')
+    if not plan:return
+    eligible=[r for r in rows if r['mission'] and r['family']=='obstacle']
+    counts=plan['primary_pool_counts']
+    allowed={'vehicle','static_vehicle','obstacle','person','dummy','animal','pet_person','stroller','rider'}
+    if set(counts)!=allowed or any(type(n) is not int or n<1 for n in counts.values()):
+        raise ValueError('Static mission requires all nine positive asset pools')
+    if sum(counts.values())!=len(eligible):
+        raise ValueError('Static mission pool quotas must equal obstacle mission scene count')
+    pools=exact_deck(list(counts.items()),len(eligible),random.Random(config['seed']+110))
+    counters=Counter()
+    for row,pool in zip(eligible,pools):
+        row.update(stationary_mission_pool=pool,asset_index=counters[pool],motion='static')
+        counters[pool]+=1
+    # The original index counter also included generic cars. A sparse shuffled
+    # subset can under-cover a static asset; cycle the 50 mission slots directly.
+    for index,row in enumerate(r for r in rows if r['mission'] and r['family']=='other_vehicle'):
+        row.update(stationary_mission_pool='static_vehicle',asset_index=index,motion='static')
 
 def context(runtime, mgeo):
     inventory=json.loads(catalog.DEFAULT_CATALOG.read_text())
@@ -439,6 +461,10 @@ def build(row,config,ctx,attempt=0):
     poolkey=row['subfamily'] if row['family']=='pedestrian_related' else 'obstacle' if row['family']=='obstacle' else 'vehicle'
     if row['family']=='other_vehicle' and row['static_vehicle']: poolkey='static_vehicle'
     if row['family']=='obstacle': poolkey='obstacle_'+row['asset_group']
+    if row.get('stationary_mission_pool'):
+        if not row['mission'] or row['family'] not in ('obstacle','other_vehicle') or row['motion']!='static':
+            raise ValueError('Expanded stationary pool is restricted to the static mission')
+        poolkey=row['stationary_mission_pool']
     asset=ctx['pools'][poolkey][row['asset_index']%len(ctx['pools'][poolkey])]
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
     base=dict(base);dynamic_crossing=None;dynamic_target=None
@@ -520,6 +546,7 @@ def build(row,config,ctx,attempt=0):
         if i:
             selected_pool=next(k for k in (poolkey,'vehicle','obstacle','person') if asset in ctx['pools'][k])
         actor_motion=row['motion'] if selected_pool in ('person','animal','pet_person','stroller','rider') else 'static'
+        if row.get('stationary_mission_pool'):actor_motion='static'
         requested_motion=actor_motion
         actor_motion,motion_decision=population_appearance(asset,actor_motion,row,i,
             sum(a['motion'] not in ('static','standing') for a in actor_records),config,

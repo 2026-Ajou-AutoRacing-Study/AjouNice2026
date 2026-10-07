@@ -2,6 +2,10 @@
 
 ## 현재 Base5 기본 환경
 
+v111의 `stationary_mission_assets`가 정적 회피 슬롯의 자산 범위를 정한다.
+기존600 obstacle 미션 슬롯에9개 pool을 할당하고, other_vehicle50 슬롯은 정적 차량으로 유지한다.
+모든122종이 정적 미션에 들어가며 속도0/이동경로없음이다. family를 GT 클래스로 해석하지 않는다.
+
 2026-10-07: Sunny13시가 현재 기본값이다.
 `base5_independent_5k_sunny13.json`을 명시적 config로 사용한다.
 `base5_independent_5k_sunny11.json`은 기존 generator/resume 경로 호환을 위해 이름만

@@ -4,6 +4,12 @@
 
 ## Base5 근접·원거리 보강 — CURRENT PILOT
 
+- **v111 정적 미션 전체 자산:** 650개 정적 회피 슬롯에 122종 모두 정지 배치한다.
+  일반 차량43종·사람·동물·복합도 포함하며 GT 클래스는 원본대로 유지한다.
+  나머지4350장면 불변, 새5K OFFLINE_PASS/전체 planned-primary 최소4장이다.
+  새 manifest/output 및 대표 live 범위는 [CURRENT](BASE5_V2_CURRENT.md)를 따른다.
+  구 output의 resume에 새 runtime을 섞지 않는다.
+
 - **현재 진입점:** [Base5 CURRENT](BASE5_V2_CURRENT.md) →
   [Sunny13시 직접5K 구성](261007_base5_direct_5k_current_plan.md) →
   [5K 운영 런북](261007_base5_5k_capture_runbook.md).

@@ -1,11 +1,61 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-07 / 환경 header v109·runtime v108. Base5 생성·수집·변환의 현재 진입점이다.
+2026-10-07 / 정적 미션 확장 v111. Base5 생성·수집·변환의 현재 진입점이다.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 5K 시나리오 생성·전수 검사와 대표 live/resume/CPU 검증은 완료했다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
+
+## 정적 장애물 미션의 전체 자산 대응 — v111
+
+정적 장애물 구간은 Obstacle 클래스만 나오는 구간이 아니다. 공식 출제 범위에 맞춰
+일반 차량 43종을 정지시킨 경우, 정지 사람·동물·유모차·탑승자·반려동물 동반 사람도 포함한다.
+정적 미션에서는 보조 actor까지 속도 0, waypoint 이동 없음이다. 원본 Instance의
+Vehicle/Pedestrian/Obstacle/Animal 및 복합 component 분류를 유지하며 모두 Obstacle로 바꾸지 않는다.
+
+| 정적 미션 주 객체 그룹 | 장면 |
+|---|---:|
+| 실체 장애물 19종 |224|
+| 일반 차량 43종의 정지 배치 |180|
+| 정적 차량 에셋 16종 |66|
+| 일반 사람 25종 |90|
+| dummy 3종 |12|
+| 동물 3종 |18|
+| 반려동물 동반 사람 1종 |12|
+| 유모차 3종 |18|
+| 탑승자·이륜차 복합 9종 |30|
+| 합계 |650|
+
+기존 obstacle 미션 600과 other_vehicle 미션 50의 슬롯 안에서 변경한다.
+위 그룹은 GT 클래스별 총량이 아니라 **주 객체 배치 quota**다. family는 장면 맥락이다.
+전체 5K 중 650장면만 새로 생성하고 기존 4350 scene row/payload는 그대로 재사용했다.
+회피 approach/entry/alongside/clearing, 좌우·경계 간격·1–3 actor 정책을 유지한다.
+122종 모두 정적 미션 primary 최소 3장, dataset 전체 planned-primary 최소 4장이다.
+새 split은 train4381/val619/test0이며 실제 가시성·접지는 별도 capture gate를 통과해야 한다.
+
+새 manifest: `~/morai_cap/base5_v2_261007/final_5k_static_all_v111_ready/manifest.json`.
+전수 OFFLINE_PASS/5000 unique, planned coverage PASS다. 대표 live 결과는 아래 후속 기록을 따른다.
+기존 v105/v109 output·캡처·contract는 보존한다. 생성기 코드 변경으로 **새 runtime을
+기존 output에 resume하지 않는다**. 기존 수집을 재개할 때는 원래 revision을 사용한다.
+본 수집은 자동 시작하지 않았다. 이전 비용 표본의 13.4h/45.7h는 새 분포의 확정 ETA가 아니다.
+
+### v111 대표 검증 결과
+
+- `static_mission_all_v111_smoke9`:9장면 중7승인/2부족,145.136초.
+  Scooter_01/K5/정적Grandeur/Woman5/NCAP_EPTa/Dog2/BabyStroller2가 통과했다.
+  Ped_Pet1·ElectricScooter2의 접근 장면은 bounded 재배치 후에도 지면 관측 근거가 부족했다.
+  부유가 확정된 것이 아니며, 해당 장면을 성공으로 세지 않았다.
+- `static_mission_composite_close_v111`:같은 두 자산의 별도 alongside 장면2/2,
+  11.291초. 원래 접근 장면을 복구한 것으로 합산하지 않는다.
+- 승인9장 모두 정지 설정·ground gate·실제 CollisionData no-contact 근거를 유지했다.
+  122종 전체 live 인증은 아니며, 모든 새로운 접근/근접 지형이 해결됐다는 뜻도 아니다.
+- 첫7승인 CPU 변환:7frame/8GT(Vehicle2/Pedestrian3/Obstacle2/Animal1).
+  가시성 근거가 부족한 Pedestrian component1개 제외,raw 보존. 정적 미션이라고 GT를 Obstacle로 덮어쓰지 않았다.
+- 새manifest SHA256:`499ba5663ef824d3ebbdb2a5c25a132fa303a12baacbe8c361ee833f5599ab56`.
+- 단위검사246개 PASS. 완료 smoke9 resume에서 selected ledger SHA와 누적145.136초가
+  불변이며 추가 촬영0이었다. 전체 audit 및 신규/기존 output 구분을 확인했다.
+  Production detector/tracker/학습은 미변경이다.
 
 ## 읽을 문서
 
@@ -90,7 +140,8 @@ WoodBox/CargoBox 및 MR 복구 자산을 포함한다. 배경 나무/시설은 �
 - 신규 수집용13시 정정본:
   `~/morai_cap/base5_v2_261007/final_5k_ordered_sunny13_v109/manifest.json`.
   SHA256:`1b8a6ced7d2af06631e1cbd2897a4464adc897ef833023f6f4f373e5c0d04523`.
-- 현재config:`base5_independent_5k_sunny13.json`,
+- v109 당시 config:`base5_independent_5k_sunny13.json`의 아래 SHA는 당시 버전이다.
+  현재 v111은 정적 미션 policy가 추가돼 이 SHA와 다르다.
   SHA256:`d58e15791a32005655da1e343e109a718646b0859bcd4fdb2918d85e03d35948`.
   기존 generator 기본 경로의 `sunny11` 파일은 동일한 13시 내용의 호환 alias다.
 - 5000 scene row/geometry/metadata/split은 정정 전후 불변이다.
