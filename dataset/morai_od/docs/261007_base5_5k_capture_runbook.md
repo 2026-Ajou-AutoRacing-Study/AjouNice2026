@@ -1,8 +1,16 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
-2026-10-08 / v124 완료 후 통합 보충 runtime + v123 regional 5K·six-environment suite + v119 parked NPC + v117 endpoint-linear + v115 advisory.
+2026-10-08 / v125 진단 metadata + v124 완료 후 통합 보충 runtime + v123 regional 5K·six-environment suite + v119 parked NPC + v117 endpoint-linear + v115 advisory.
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
+
+2026-10-08 13:05 KST v125: 기존 객체 trace에 원문 velocity/heading/source timestamp만 추가했다.
+정지/달리기 새2셀 승인·CPU2/2GT·완료resume raw68파일 불변/추가capture0·375tests PASS다.
+속도 학습/평가 GT가 아니며 추가 통신 설정·대기·촬영은 없다. 아래 본수집 명령/manifest는 그대로다.
+`telemetry.json` schema3의 `object_motion_sample_contract`를 따른다.
+runtime hash가 바뀌었으므로 이미 시작한 v124 output은 원래 revision `4d4fdb06`에서 재개하고,
+새 코드로 강제 resume하지 않는다. 현재 본5K root는 미생성으로 확인했다.
+[v125 기록 계약·검증](261008_base5_motion_metadata_v125.md)이 아래 v124 준비 기록보다 우선한다.
 
 2026-10-08 12:14 KST 최종 확인: 현재runtime에서 새대표33/33·CPU/완료resume 및370tests 통과.
 본수집 root는 아직 없다. [최종 EVIDENCE](261008_base5_prebulk_v124_final.md)를 따른다.

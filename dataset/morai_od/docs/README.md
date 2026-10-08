@@ -2,6 +2,12 @@
 
 마지막 정리: 2026-10-08.
 
+- **2026-10-08 13:05 KST 진단 메타데이터 — runtime v125:** 기존 bounded Object 위치 trace에
+  원문 velocity/heading/메시지 시각을 추가했다. 동기 속도 GT가 아니며 학습·평가에는 사용하지 않는다.
+  추가 wait/topic/촬영 없이 새 MR 정지1+달리기1 승인, CPU2/2GT·완료resume 추가capture0·375tests PASS다.
+  [기록 계약·비용·검증](261008_base5_motion_metadata_v125.md), [CURRENT](BASE5_V2_CURRENT.md),
+  [런북](261007_base5_5k_capture_runbook.md)이 아래 v124 준비 기록보다 우선한다. 배치 입력은 v123 그대로다.
+
 - **2026-10-08 12:14 KST 본수집 전 마무리:** v124 runtime/v123 입력 전수5000/6환경 확인,
   새MR33/33·CPU33/72GT·완료resume 추가capture0·370tests PASS다.
   [최종 확인](261008_base5_prebulk_v124_final.md), [CURRENT](BASE5_V2_CURRENT.md),

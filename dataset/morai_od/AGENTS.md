@@ -13,6 +13,11 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   2026-10-08 13:05 KST runtime v125는 아래v124 위의진단metadata 추가다.
+   `docs/261008_base5_motion_metadata_v125.md`를읽는다. bounded위치trace에원문velocity/heading/
+   source stamp/seq를추가했으나동기속도GT가아니며7D/velocity off·rosbag평가를유지한다.
+   새MR정지1+달리기1/CPU2/2GT/완료resume68raw불변/375tests PASS다. 추가wait/topic/촬영없음.
+   v123배치/명령은동일,본5K미시작이다. 구v124output은`4d4fdb06`에서재현하며새runtime resume금지다.
    2026-10-08 v123가 아래 v122보다 우선한다. current는 `regions_5k_v123_release`다.
    v124는같은v123배치의완료후보충runtime이다. `--resume --replenish`는부족원래셀만같은
    primary/spec/split/group/config로재배치하며성공/raw를보존하고통합ledger를갱신한다.

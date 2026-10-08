@@ -48,6 +48,28 @@ def actor_position(objects, uid):
     return None
 
 
+def object_motion_samples(objects, received_at):
+    """Enrich the existing bounded position trace; raw diagnostics, never speed GT."""
+    header=objects.get('header') or {}
+    stamp=header.get('stamp') or {}
+    source_stamp=None
+    try:
+        source_stamp=float(stamp['secs'])+float(stamp['nsecs'])*1e-9
+        if not math.isfinite(source_stamp):source_stamp=None
+    except (KeyError,TypeError,ValueError):pass
+    exact_stamp={k:stamp[k] for k in ('secs','nsecs') if k in stamp} or None
+    rows=[]
+    for key in ('npc_list','pedestrian_list','obstacle_list'):
+        for actor in objects.get(key,[]):
+            velocity=actor.get('velocity')
+            rows.append(dict(t=received_at,uid=actor['unique_id'],**actor['position'],
+                velocity=dict(velocity) if velocity is not None else None,
+                heading=actor.get('heading'),source_seq=header.get('seq'),
+                source_stamp=source_stamp,
+                source_stamp_ros=dict(exact_stamp) if exact_stamp is not None else None))
+    return rows
+
+
 def acquire_live_master_lock(master, directory=None):
     """Different output folders must not concurrently control the same MR."""
     import hashlib
@@ -149,9 +171,7 @@ def main():
         with lock:
             now=time.monotonic();objects=message_dict(m)
             state.update(objects=objects,object_t=now)
-            for key in ('npc_list','pedestrian_list','obstacle_list'):
-                for actor in objects.get(key,[]):
-                    object_traces.append(dict(t=now,uid=actor['unique_id'],**actor['position']))
+            object_traces.extend(object_motion_samples(objects,now))
             if len(object_traces)>10000:del object_traces[:5000]
     def collision_cb(m):
         with lock:
@@ -585,7 +605,7 @@ def main():
                 audit['accepted_candidate']=not audit['review_reasons']
                 drift=math.hypot(e2['x']-e1['x'],e2['y']-e1['y'])
                 if drift>.08: audit['review_reasons'].append('capture_ego_drift');audit['accepted_candidate']=False
-                atomic_json(dest/'telemetry.json',dict(schema_version=2,
+                atomic_json(dest/'telemetry.json',dict(schema_version=3,
                     ego_sample_window='stationary_confirmation_to_telemetry_recovery; complete load history in ego_load_samples',
                     ego_before=e1,ego_after=e2,objects_before=objects_before,
                     ego_baseline=e0,park_confirmed_monotonic=park_confirmed,
@@ -594,6 +614,16 @@ def main():
                     post_park_stationary_witness=settle,pre_capture_stationary_witness=before_capture,
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
                     primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
+                    object_motion_sample_contract=dict(
+                        purpose='diagnostic_only; not a training or evaluation velocity target',
+                        source_topic='/Object_topic',velocity='as received; no unit/frame/pivot conversion',
+                        heading='as received; no heading correction',
+                        t='host monotonic receive time; same clock as capture_requested_at_monotonic',
+                        source_stamp='ROS message header; not proven synchronized with native sensor capture',
+                        history='shared bounded actor trace: trim 10000 rows to last 5000; scene window starts at load',
+                        limitation='Missing fields remain null. No interpolation, extra wait or sensor capture. '
+                            'Requested static/moving mode is metadata.runtime_actors[].motion; '
+                            'actual displacement witness remains motion_capture_actors.'),
                     capture_requested_at_monotonic=capture_requested_at,motion_capture=motion_evidence,
                     motion_probe_arrival=arrival_evidence,
                     motion_capture_actors=motion_actors))

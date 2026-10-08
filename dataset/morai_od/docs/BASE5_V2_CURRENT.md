@@ -1,6 +1,6 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 완료 후 부족분 보충 runtime v124 + 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
+2026-10-08 / 진단 메타데이터 runtime v125 + 완료 후 부족분 보충 v124 + 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
 새 v121 5K는 v119의 보호된 미션/근접을 유지하고 범용500셀을 음영 관측으로 재배정한다.
@@ -9,7 +9,23 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 12:14 KST 본수집 직전 최종 확인
+## 2026-10-08 13:05 KST 가벼운 객체 이동 진단 기록 — runtime v125 우선
+
+사용자 요청으로 기존 bounded `object_position_samples`에 원문 velocity/heading과
+source header 시각/seq를 추가했다. 요청 motion은 기존 runtime_actors에, 실제 변위 witness는
+기존 motion_capture_actors에 유지한다. 단위/좌표계/heading/pivot 보정이나 속도 보간은 하지 않는다.
+이는 **참고용 메타데이터이지 동기 속도 GT가 아니다.** Base5 4class/7D/velocity off는 그대로이며
+속도·tracking·prediction 평가는 별도 실주행 rosbag으로 수행한다.
+
+새 MR 정지 차량1+달리기 사람1 승인2/2, CPU2프레임/2GT, 완료resume raw68파일·event2로그
+불변/추가capture0,375tests PASS다. trace를 위한 새 topic/추가 wait/촬영은 없다.
+두 표본의 추가 JSON은 약48/95KiB이며 전체5K 비용 인증은 아니다.
+v123의5000 배치/6환경/GT/거리/quota/노출 표 및 v124 보충/안전 gate는 변경하지 않았다.
+본5K는 미시작이며 현재런북의fresh output을 쓴다. 구 v124 output을 새 코드로 resume하지 않는다.
+아래 v124의33/33은 당시 코드의 근거이며 v125에서33셀을 다시 찍었다는 뜻이 아니다.
+[구현·검증·저장 계약](261008_base5_motion_metadata_v125.md)을 참고한다.
+
+## 2026-10-08 12:14 KST 본수집 직전 최종 확인 — v124 이력
 
 v124 runtime/v123 입력으로 준비를 마쳤으며 **다음은 사용자 승인 후 Sunny13 본5K 시작**이다.
 본수집은 아직 시작하지 않았다. 현재 코드로 전수5000 OFFLINE_PASS/오류0,
