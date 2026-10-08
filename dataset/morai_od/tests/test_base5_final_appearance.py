@@ -15,7 +15,9 @@ from base5_static_yaw import FINAL_POLICY,sample
 from base5_placement_geometry import POLICY,configure
 from base5_capture_safety import atomic_json,sha256
 from calibrate_base5_parent_envelopes import parent_envelope
-from revise_base5_final_appearance import assign_shadow_direction,assign_yaw,scope
+from revise_base5_final_appearance import assign_shadow_direction,assign_yaw,scope,assign_composite_spawn_gap
+from audit_base5_scenarios import original_character_gap_bounds
+from report_base5_final_appearance import release_status
 import generate_base5_independent as gen
 
 
@@ -113,6 +115,25 @@ class FinalAppearanceTests(unittest.TestCase):
                   runtime_actors=[dict(motion='static')])
         self.assertEqual(scope(base),'shadow_static')
         base['spec']['shadow_moving']=True;self.assertIsNone(scope(base))
+
+    def test_offline_or_deficit_is_not_live_release_pass(self):
+        self.assertEqual(release_status({}),'FINAL_APPEARANCE_OFFLINE_PASS')
+        live=dict(stage='complete_with_deficit',requested=55,accepted=53,deficit=2)
+        self.assertEqual(release_status(live),'FINAL_APPEARANCE_LIVE_WITH_DEFICIT')
+        self.assertEqual(release_status(dict(live,stage='complete',accepted=55,deficit=0)),
+                         'FINAL_APPEARANCE_RELEASE_PASS')
+
+    def test_compound_spawn_gap_is_explicit_pet_only_and_preserves_original_bin(self):
+        rows=[dict(index=i,family='obstacle',mission=True,avoidance_phase='alongside',
+                   avoidance_gap_bounds_m=[.1,.2]) for i in range(3)]
+        metas=[dict(runtime_actors=[dict(population_pool=p)]) for p in ('pet_person','animal','stroller')]
+        self.assertEqual(assign_composite_spawn_gap(rows,metas),[0])
+        config=dict(stationary_composite_spawn=dict(policy='near-pet-person-spawn-envelope-v132',
+            primary_pool='pet_person',phase='alongside',minimum_requested_surface_gap_m=.8,
+            maximum_requested_surface_gap_m=1.))
+        self.assertEqual(original_character_gap_bounds(rows[0],'pet_person',config),[.1,.2])
+        self.assertEqual(rows[1]['avoidance_gap_bounds_m'],[.1,.2])
+        with self.assertRaises(ValueError):original_character_gap_bounds(rows[0],'animal',config)
 
 
 if __name__=='__main__':unittest.main()

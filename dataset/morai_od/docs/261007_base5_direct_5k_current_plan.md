@@ -4,7 +4,18 @@
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
 본수집은 아직 시작하지 않는다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
 
-## 최신 / 2026-10-08 v129 — 정지 외관 방향 보강
+## 최신 / 2026-10-09 v132 — 최종 자유 yaw·배치 형상
+
+현재 입력 `final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json`,
+새output `collection_5k_final_v132_sunny13`이다. 구본수집763승인과 v129/v130 검증 raw는 보존한다.
+정지 실체/사람/동물/복합360°, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30이며,
+고주로/로터리 NPC·횡단 맥락·실제 이동은 경로 yaw다. 41종 static parent 형상은 배치용, native GT는 그대로다.
+5K family 비율·122종 primary 횟수·거리/개수budget·4822정적/178이동·6환경30K 유지.
+음영24이동은 걷기/달리기별 접근6/이탈6, 계획 parent노출10738/64428이다.
+[현재12카테고리·검증·한계](261009_base5_final_appearance_v132.md),
+[실행 런북](261007_base5_5k_capture_runbook.md)을 따른다. 본수집은 승인 후다.
+
+## 이전 / 2026-10-08 v129 — 정지 외관 방향 보강
 
 아래v123/v125의현재경로·미시작기록은당시이력이다. 구Sunny13 수집은사용자가중단했고763승인/raw를
 원본·압축백업으로유지했다. 새입력 `yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,

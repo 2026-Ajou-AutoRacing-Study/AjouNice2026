@@ -1,9 +1,29 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 정지 외관 yaw v128 + 일반사람 근접 spawn 보완 v129. 이전 v125/v124 운영·v123 구역별 구성 유지.
+2026-10-09 / v132 정지 자유 yaw·실측 배치 형상·음영 이동 방향 균형. v125/v124 운영·v123 구역별 구성 유지.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 
-## 최신 상태 — v129 / 사용자 중단 후 새 입력
+## 최신 상태 — v132
+
+현재 release는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`다.
+Sunny13 입력 `environment_suite/sunny13/manifest.json`, 새output `collection_5k_final_v132_sunny13`.
+정지 실체·사람·동물·복합의 yaw를360° 연속 각도로, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30으로
+보완했다. 실제 이동·고주로/로터리 NPC·횡단 맥락은 경로 yaw를 유지한다. 음영24이동은 walk/run별 접근6/이탈6이다.
+41종 승인 정지 native component의 parent envelope는 배치 간격·budget용이며 학습GT를 바꾸지 않는다.
+범용 requested walking/running→actual standing에서도 적용되도록 수정했다. police1은 미검증 pivot fallback 유지다.
+실제 누락 대조를 근거로 정적 alongside의 반려동물 동반 primary3셀만gap0.8–1.0m로 보완했다.
+원래 bin과 yaw/좌우/자산 quota는 보존하며 다른 근접 조건은 유지한다.
+2810셀 재생성/2190payload 보존,122종 primary 횟수·최소5·기존 family/거리/혼합·4822정적→178이동·6환경30K 유지.
+계획 parent노출10738/64428은 **2026-10-09 v132 입력 한정**이다. 과거10079/10081표는 이력으로 보존한다.
+전수5K/6환경 검사와 실제 MR·CPU/resume 최종 근거는
+[v132 검증 및12카테고리 계약](261009_base5_final_appearance_v132.md)을 따른다.
+대표55/55·CPU55/107GT·완료resume추가0/raw1858불변·45session Park·416tests PASS다.
+가중 시간외삽9.635h/5K·운영10–13h, 저장외삽32.572GiB/5K·195.429GiB/30K다.
+후처리·학습·복제공간은별도이며본수집누적rate/디스크로갱신한다.
+구Sunny13763승인 및 v129/v130 raw/manifest를 보존하고 새runtime으로 강제resume하지 않는다.
+본5K는 아직 재시작하지 않았고 production E25/threshold/tracker/planning/localization은 미변경이다.
+
+## 이전 상태 — v129 / 사용자 중단 후 새 입력
 
 아래 v123/v125 '현재/본수집 미시작' 문구는 당시 이력이다. 사용자가 구Sunny13 수집을 중단했고
 finished780/승인763/review17을 원본과 약3.3GiB tar.zst로 보존했다. 새 코드로 구output을 resume하지 않는다.

@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-08.
+마지막 갱신: 2026-10-09.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -48,6 +48,13 @@
 [`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
+
+- **Base5 현재는 v132**이다. [최종 외관·배치·12카테고리/검증](../dataset/morai_od/docs/261009_base5_final_appearance_v132.md),
+  [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md), [실행 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다.
+  root `final_appearance_5k_v132_release`, Sunny13 5K 승인 후 시작→같은6환경30K.
+  자유yaw·static parent 형상·음영 접근/이탈 균형만 보완했고 production은 그대로다.
+  구수집763승인과v129/v130 raw를보존했다. 아래v123/v125/v129 경로/숫자는당시이력이다.
+  수집 후 실제 가시 자산 coverage·새학습/held-out mission rosbag 검증이 남는다.
 
 - 최신[MORAI 답변](../dataset/morai_od/docs/260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준)에서
   F2 전체 객체가 미션 후보이며 정적 자산의 이동 예외는 없다고 확인했다.

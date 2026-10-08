@@ -16,6 +16,13 @@ import generate_base5_independent as gen
 def read(path):return json.loads(Path(path).read_text())
 
 
+def release_status(live):
+    if not live:return 'FINAL_APPEARANCE_OFFLINE_PASS'
+    if (live['stage']!='complete' or live['deficit'] or live['accepted']!=live['requested']):
+        return 'FINAL_APPEARANCE_LIVE_WITH_DEFICIT'
+    return 'FINAL_APPEARANCE_RELEASE_PASS'
+
+
 def report(source,manifest,campaign=None):
     old=read(source);deck=read(manifest);oldrows={e['id']:e for e in old['scenes']}
     if len(deck['scenes'])!=5000:raise ValueError('Exactly 5K required')
@@ -110,7 +117,7 @@ def report(source,manifest,campaign=None):
             annotation_clearance_m={k:dict(min=min(v),max=max(v),count=len(v)) for k,v in gaps.items()},
             shutdown_sessions=len(shutdown),park_verified=all(shutdown),
             limitation='Representative pilot; not 5K success rate, all-asset collider validation or learned-model accuracy')
-    return dict(status='FINAL_APPEARANCE_RELEASE_PASS',manifest_sha256=sha256(manifest),
+    return dict(status=release_status(live),manifest_sha256=sha256(manifest),
         protected_payload_counts=dict(protected),motion_counts=dict(motions),family_mission_counts=dict(population),
         planned_parent_exposure_5k=dict(exposure),planned_parent_exposure_30k={k:v*6 for k,v in exposure.items()},
         planned_parent_total=sum(exposure.values()),primary_assets=len(primary),primary_floor=min(primary.values()),

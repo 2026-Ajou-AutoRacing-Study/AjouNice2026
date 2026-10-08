@@ -13,7 +13,24 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
-   **2026-10-08 v129가 아래 모든 v123/v125 기록보다 우선한다.**
+   **2026-10-09 v132가 아래 모든 v123/v125/v129 기록보다 우선한다.**
+   `docs/261009_base5_final_appearance_v132.md`를 읽는다.
+   current root는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`,
+   입력 `environment_suite/sunny13/manifest.json`, 새output `collection_5k_final_v132_sunny13`이다.
+   정지 비차량 자유360°/primary12sector연속, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30.
+   실제 moving/고주로/로터리/횡단맥락 경로yaw는 유지한다. 음영24는 walk/run별 접근6/이탈6이다.
+   41종 승인 정지 raw parent envelope는 배치 간격/budget용이며 native component GT 수정 금지다.
+   범용 requested walking/running→actual standing에도 적용한다. police1 pivot 미검증은 fallback이다.
+   matched gap 대조를 근거로 pet_person 정적미션alongside3셀만gap0.8–1.0m로 보완한다.
+   `composite_spawn_gap_original_bounds_m`에 원래bin을보존하며 audit는 explicit policy/pool만허용한다.
+   2810재생성/2190payload보존·122종primary횟수/최소5·정적4822→이동178·6환경30K 유지.
+   계획 parent노출10738/64428은v132시각/manifest한정. 과거표와실제visible GT를구분한다.
+   v130 pilot은16/16후 PAUSE/Park종료했다. 구763/raw/v129/v130을보존하고새runtime강제resume금지다.
+   전수/실제MR/CPU/resume/backup/한계는최신EVIDENCE를따른다. 본5K는승인후이며미시작이다.
+   v132 대표55/55·추가compound1/1·CPU55/107GT·완료resume1858raw불변/추가0·416tests PASS다.
+   가중ETA9.635h/운영10–13h·저장32.572GiB/5K,6환경195.429GiB.후처리공간별도다.
+   production E25/threshold/tracker/planning/localization을이번배치변경으로수정하지않는다.
+   **아래 v129 및 이전 기록은 당시 이력이다.**
    `docs/261008_base5_static_yaw_and_randomization_review.md`를 읽는다.
    사용자가 구Sunny13수집을 중단했다. 기존763승인/raw/output은 원본과 tar.zst로 보존하며 강제resume하지 않는다.
    현재입력은 `~/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,

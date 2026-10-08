@@ -14,6 +14,8 @@ Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENC
 0.5m depth간격을유지하므로coverage확대에따라118→198bin이다.
 
 독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다.
+2026-10-09 현재 [v132 최종 외관/배치 설계](../../dataset/morai_od/docs/261009_base5_final_appearance_v132.md)를
+준비한다. Base5-only5K→6환경30K, 정지 자유yaw/배치 형상 보완이며 native GT와 production E25는 그대로다.
 현재는 Sunny13 직접5K `roundabout_release_5k_v119`이며 로터리 미션250셀의 실제 경로 관측과
 정적 NPC Park 초기화를 포함한다. [실제51셀 검증/한계](../../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)와
 [본수집 런북](../../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다. 본수집/새 학습은 승인 대기다.

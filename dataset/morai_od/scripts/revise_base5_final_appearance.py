@@ -66,6 +66,20 @@ def assign_shadow_direction(rows,metas):
             r['shadow_relative_motion_policy']='longitudinal-approach-recede-balanced-v130'
 
 
+def assign_composite_spawn_gap(rows,metas):
+    changed=[]
+    for row,meta in zip(rows,metas):
+        if (row.get('family')=='obstacle' and row.get('mission')
+                and row.get('avoidance_phase')=='alongside' and meta['runtime_actors']
+                and meta['runtime_actors'][0]['population_pool']=='pet_person'
+                and row['avoidance_gap_bounds_m'][0]<.8):
+            row['composite_spawn_gap_original_bounds_m']=list(row['avoidance_gap_bounds_m'])
+            row['composite_spawn_gap_policy']='near-pet-person-spawn-envelope-v132'
+            row['avoidance_gap_bounds_m']=[.8,1.0]
+            changed.append(row['index'])
+    return changed
+
+
 def pilot_strata(entries,metas):
     pairs=list(zip(entries,metas));conditions=[]
     for sc in ('generic','stationary_avoidance','shadow_static'):
@@ -124,7 +138,10 @@ def revise(source,reference,output):
     for e in original['scenes']:
         if sha256(e['scenario'])!=e['scenario_sha256']:raise ValueError('Old input modified')
         old.append(gen.geo.load_json(Path(e['metadata'])))
-    config=copy.deepcopy(original['config']);config['dataset_id']='base5_independent_5k_sunny13_final_v131'
+    config=copy.deepcopy(original['config']);config['dataset_id']='base5_independent_5k_sunny13_final_v132'
+    config['stationary_composite_spawn']=dict(policy='near-pet-person-spawn-envelope-v132',
+        primary_pool='pet_person',phase='alongside',minimum_requested_surface_gap_m=.8,
+        maximum_requested_surface_gap_m=1.,evidence='Matched Ped_Pet1 probe: .30/.45/.60 missing, .80 captured; not collider certification.')
     config['static_appearance_yaw']=dict(policy=FINAL_POLICY,free_sectors=12,sector_width_deg=30,
         rigid_and_stationary_character_uniform_percent=100,obj_vehicle_uniform_percent=70,
         parked_vehicle_road_aligned_percent=70,road_aligned_jitter_deg=15,
@@ -134,6 +151,7 @@ def revise(source,reference,output):
     configure(ctx,config.get('placement_ground'))
     rows=[copy.deepcopy(m['spec']) for m in old]
     assign_yaw(rows,old,ctx);assign_shadow_direction(rows,old)
+    composite_gap_changes=assign_composite_spawn_gap(rows,old)
     output.mkdir(parents=True);directory=output/'scenarios_5k';directory.mkdir()
     copied=output/'placement_geometry.json';atomic_json(copied,gen.geo.load_json(reference))
     config['static_placement_geometry']=dict(policy=GEOMETRY_POLICY,path=str(copied.resolve()),sha256=sha256(copied))
@@ -169,21 +187,22 @@ def revise(source,reference,output):
     config.update(frozen_specs_path=str(frozen.resolve()),frozen_specs_sha256=sha256(frozen))
     config['shadow_observation']['spec_overrides']=[m['spec'] for m in metas if m['spec'].get('shadow_phase')]
     deck=copy.deepcopy(original);deck.update(config=config,dataset_id=config['dataset_id'],scenes=entries,
-        status='FINAL_V131_OFFLINE_GENERATED; representative live pending; bulk not started')
+        status='FINAL_V132_OFFLINE_GENERATED; representative live pending; bulk not started')
     deck['provenance'].update(final_source_manifest_sha256=sha256(source),final_revision_sha256=sha256(__file__),
         generator_sha256=sha256(gen.__file__),static_yaw_sha256=sha256(Path(__file__).with_name('base5_static_yaw.py')),
         placement_geometry_sha256=sha256(copied),config_sha256=gen.hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest())
     manifest=directory/'manifest.json';atomic_json(manifest,deck);atomic_json(output/'config.json',config)
     strata,missing=pilot_strata(entries,metas)
     by_id={e['id']:e for e in entries};pilot=copy.deepcopy(deck)
-    pilot.update(scenes=[by_id[s['id']] for s in strata],count=len(strata),status='PREREGISTERED_FINAL_V131_PILOT')
+    pilot.update(scenes=[by_id[s['id']] for s in strata],count=len(strata),status='PREREGISTERED_FINAL_V132_PILOT')
     atomic_json(output/'pilot_manifest.json',pilot);atomic_json(output/'pilot_strata.json',dict(strata=strata,unavailable=missing))
     ordered=prepare_order(manifest,output/'ordered')
-    prepare_suite(ordered,output/'environment_suite','base5_final_v131','collection_5k_final_v131')
+    prepare_suite(ordered,output/'environment_suite','base5_final_v132','collection_5k_final_v132')
     report=dict(changed_cells=len(changed),preserved_payloads=len(preserved),changed_ids=changed,
         primary_assets=len(primary(metas)),primary_floor=min(primary(metas).values()),primary_coverage_unchanged=True,
         quotas=quotas,rejections=dict(rejections),retry_steps=dict(tries),pilot_cells=len(strata),unavailable_pilot_strata=missing,
         split_changes=sum(a['split']!=b['split'] for a,b in zip(old,metas)),
+        composite_gap_changed_indices=composite_gap_changes,
         bulk_started=False,manifest_sha256=sha256(manifest))
     atomic_json(output/'revision_report.json',report)
     return report

@@ -1,10 +1,25 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
-2026-10-08 / v129 정지 외관 yaw·사람근접 보완 + v125 진단 metadata + v124 완료 후 통합 보충 + v123 regional 구성 유지.
+2026-10-09 / v132 정지 자유 yaw·실측 parent 배치 형상·음영 접근/이탈 균형. v125 진단 metadata·v124 보충 유지.
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
 
-## 최신 준비 — v129
+## 최신 준비 — v132
+
+현재 release: `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`.
+본수집 manifest는 `environment_suite/sunny13/manifest.json`, 새 output은
+`collection_5k_final_v132_sunny13`이다. 구 v123/v129/v130/v131 output을 새 코드로 resume하지 않는다.
+5K/122종/정적4822→이동178/6환경30K, Park·정지·CollisionData·Z·visibility gate를 유지한다.
+정지 비차량360° 연속 각도, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30,
+실제 이동/교통 NPC·횡단 맥락은 경로 yaw다. 형상 reference는 배치 계산용이며 native GT는 그대로다.
+일반사람33셀gap0.6–0.8m 및반려동물동반3셀gap0.8–1.0m는실제spawn대조를근거로한제한prior다.
+전수5K/6환경 및 최종 live·CPU/resume/비용/한계는
+[v132 최종 근거](261009_base5_final_appearance_v132.md)를 따른다.
+대표MR55/55·CPU55/107GT·완료resume추가0/raw1858불변·416tests PASS다.
+가중시간외삽9.635h/5K, 운영예산10–13h·raw/QA가중32.572GiB/5K다. 후처리/복제공간은별도다.
+8075는 새 root의 수집 전 상태로 전환한다. 아래 실행 명령은 v132만 사용한다.
+
+### 이전 v129 준비 이력
 
 사용자가 구Sunny13 수집을 중단했다. 기존763승인은 원본과 압축백업에 유지하며 강제resume하지 않는다.
 현재는 새 `yaw_5k_v129_release` 입력과 **새 output**을 사용한다. 새본5K는 아직 재시작하지 않았다.
@@ -38,7 +53,7 @@ localhost8075 대시보드는 현재 root로 이미 실행해 `수집 전`을 �
 살아 있으면 중복 실행하지 않는다. 같은 설정을 유지하고 승인 후 터미널3만 시작하면 된다.
 환경 manifest가 실제 MR UI 날씨/시간/센서를 자동 확인하는 것은 아니다.
 
-## 현재 입력/6환경 계약 — v129
+## 이전 입력/6환경 계약 — v129 이력
 
 Release root: `~/morai_cap/base5_v2_261008/yaw_5k_v129_release`.
 Sunny13부터 시작하며 같은5K 배치를 sunny11/15, foggy11/13/15에 반복해30K를 만든다.
@@ -46,7 +61,7 @@ Sunny13부터 시작하며 같은5K 배치를 sunny11/15, foggy11/13/15에 반�
 manifest만 바꿔도 실제 날씨가 바뀌는 기능은 없다. 다른 환경을 같은 output에 resume하지 않는다.
 `environment_suite/suite.json`에6manifest/output이 기록돼 있다.
 
-현재 전수검사/구성/실제 검증 결과는 [v129 EVIDENCE](261008_base5_static_yaw_and_randomization_review.md)다.
+당시 전수검사/구성/실제 검증 결과는 [v129 EVIDENCE](261008_base5_static_yaw_and_randomization_review.md)다.
 고주로/로터리 전actor 차량만, 로터리350미션, 사람계열830범용·혼합장애물 보충,
 독립음영500geometry유지·122종 primary 최소5회다. 정적4822부터 취득하고 이동178을 마지막에 둔다.
 같은scene의6환경을 동일split으로 묶으며 독립geometry는5K이지30K가 아니다.
@@ -54,7 +69,7 @@ v129 대표live35/35·CPU35/91GT, 기존 완료 후 보충을 유지한다.
 구output에 새runtime을 혼합하지 않고 본수집은 fresh output을 쓴다.
 5K실측외삽9.326h/운영예산10–13h,6환경60–78h(후처리·학습별도)다. 첫100–200셀rate로갱신한다.
 raw/QA외삽5K약26.81GiB/30K약160.86GiB이며캐시/압축복제/재시도공간은별도다.
-아래 이전 실행계약/실측은 해당 revision의 이력이다. 본수집 명령은 이 문서의v129경로만 사용한다.
+위 수치는 해당 revision의 이력이다. 아래 본수집 명령은 v132 새 경로만 사용한다.
 
 ## 유지하는 실행 계약 / 과거 검증 범위
 
@@ -136,15 +151,15 @@ Ego/Object/CollisionData·ScenarioLoad·SaveSensorData·제어 서비스의7-int
 ```bash
 ajou
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json" \
-  --output "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json" \
+  --output "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13" \
   --limit 5000 \
   --chunk-size 4 \
   --approve-bulk-capture \
   --resume
 ```
 
-- limit: 이번 campaign의 설계 셀 수. v129 환경manifest는 정적4822/이동178순서다. 5000으로 전체를 수집한다.
+- limit: 이번 campaign의 설계 셀 수. v132 환경manifest는 정적4822/이동178순서다. 5000으로 전체를 수집한다.
   실행 도중 limit를 바꾸면 같은output resume계약이 달라진다. 정적만 따로 하려면 시작 전 별도manifest/output을 준비한다.
 - chunk-size: 공유 ROS child당 scene 수. 네트워크는 각scene reload하며 boundary/final Park를 확인한다.
 - approve-bulk-capture: 64셀 초과를 승인한 실행용. 작은 smoke에서는 사용하지 않는다.
@@ -163,9 +178,9 @@ hardlink단위검사까지 포함했다. dashboard만 변경할 때는 수집 ru
 ```bash
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13" \
-  --manifest "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json" \
-  --suite "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/suite.json" \
+  --capture-root "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json" \
+  --suite "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/environment_suite/suite.json" \
   --port 8075
 ```
 
@@ -191,14 +206,14 @@ waiting_stationary_ego는 정상 정지 검사 단계다. 준비 중 ETA0만으�
 
 ```bash
 ajou
-touch "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13/PAUSE"
+touch "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13/PAUSE"
 ```
 
 paused 확인 후 파일을 제거하고 터미널3의 **동일한 명령**으로 재개한다.
 
 ```bash
 ajou
-rm "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13/PAUSE"
+rm "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13/PAUSE"
 ```
 
 급히 중단하려면 부모터미널 Ctrl-C/STOP 경로를 사용한다. 종료 Park 확인 전 다른 수집기를 켜지 않는다.
@@ -212,10 +227,10 @@ rm "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_s
 
 ```bash
 ajou
-BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release"
+BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
   --manifest "$BASE5_ROOT/environment_suite/sunny13/manifest.json" \
-  --output "$BASE5_ROOT/collection_5k_yaw_v129_sunny13" \
+  --output "$BASE5_ROOT/collection_5k_final_v132_sunny13" \
   --limit 5000 --chunk-size 4 --approve-bulk-capture \
   --resume --replenish --replenish-rounds 2
 ```
@@ -246,9 +261,9 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 ```bash
 ajou
 python3 dataset/morai_od/scripts/report_base5_final_coverage.py \
-  --manifest "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json" \
-  --ledger "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13/effective_coverage.json" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json" \
+  --ledger "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13/effective_coverage.json" \
   --require-effective-complete
 ```
 
@@ -260,8 +275,8 @@ accepted·review없음·calibration아님만 전달한다.
 ```bash
 ajou
 python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
-  --ledger "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/collection_5k_yaw_v129_sunny13/selected_ledger.jsonl" \
-  --output "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/infos_sunny13" \
+  --ledger "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_final_v132_sunny13/selected_ledger.jsonl" \
+  --output "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/infos_sunny13" \
   --sensor-config configs/sensors/Sensor_competition_local.json \
   --environment-tag sunny13
 ```
@@ -275,10 +290,10 @@ Sunny13을 마치면 MR UI를 다음 환경으로 바꾸고 Capture Mode/센서/
 ```bash
 ajou
 ENV_TAG=foggy11
-BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release"
+BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
 python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
   --manifest "$BASE5_ROOT/environment_suite/$ENV_TAG/manifest.json" \
-  --output "$BASE5_ROOT/collection_5k_yaw_v129_$ENV_TAG" \
+  --output "$BASE5_ROOT/collection_5k_final_v132_$ENV_TAG" \
   --limit 5000 --chunk-size 4 --approve-bulk-capture --resume
 ```
 
@@ -286,7 +301,7 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 
 ```bash
 ajou
-BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release"
+BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
 python3 dataset/morai_od/scripts/merge_base5_environment_infos.py \
   --infos "$BASE5_ROOT/infos_sunny13" "$BASE5_ROOT/infos_sunny11" "$BASE5_ROOT/infos_sunny15" \
           "$BASE5_ROOT/infos_foggy11" "$BASE5_ROOT/infos_foggy13" "$BASE5_ROOT/infos_foggy15" \
@@ -298,6 +313,19 @@ python3 dataset/morai_od/scripts/merge_base5_environment_infos.py \
 원본보존+변환캐시+재시도로공간이증가하므로각환경시작전디스크를확인한다.
 
 ## 재현용생성 (본수집명령아님)
+
+v132는 보존된 v129 입력과 승인 정지 raw에서 복원한 placement reference를 사용한다.
+아래 output은 존재하지 않는 새 경로여야 한다. 기존 release를 덮어쓰지 않는다.
+
+```bash
+ajou
+python3 dataset/morai_od/scripts/revise_base5_final_appearance.py \
+  --source "$HOME/morai_cap/base5_v2_261008/yaw_5k_v129_release/scenarios_5k/manifest.json" \
+  --reference "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/placement_geometry.json" \
+  --output "$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_reproduction"
+```
+
+### 과거 v129 생성 이력
 
 v129는 보존한v123에서 **존재하지 않는 새output**에 생성한다. 원본/현재release는 덮어쓰지 않는다.
 

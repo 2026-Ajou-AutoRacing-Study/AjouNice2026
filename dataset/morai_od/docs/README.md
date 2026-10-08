@@ -1,6 +1,13 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-10-08.
+마지막 정리: 2026-10-09.
+
+- **현재 / 2026-10-09 v132 최종 정지 외관·배치 형상:**
+  [12카테고리·새 yaw·실험·노출 스냅샷·한계](261009_base5_final_appearance_v132.md)가 아래v129보다 우선한다.
+  root `final_appearance_5k_v132_release`, 정지 비차량360°·OBJ/일반 정적 차량 prior,
+  static parent 형상41종·음영walk/run 접근/이탈 균형을 적용한다. native GT/5K/122종/6환경30K 유지.
+  구763승인/raw와v129/v130을보존하며본5K는재시작하지않았다.
+  [CURRENT](BASE5_V2_CURRENT.md), [현재 실행 런북](261007_base5_5k_capture_runbook.md)을 따른다.
 
 - **현재 / 2026-10-08 v129 정지 외관 yaw 재설계:** 아래v123/v125의 '현재/미시작' 표기는 당시 이력이다.
   사용자가 중단한 구Sunny13 수집763승인은 원본/압축백업 보존, 새입력은 `yaw_5k_v129_release`다.

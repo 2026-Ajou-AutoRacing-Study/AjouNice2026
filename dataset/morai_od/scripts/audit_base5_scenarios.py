@@ -9,6 +9,18 @@ import generate_base5_independent as gen
 
 
 def original_character_gap_bounds(row,pool,config):
+    composite=row.get('composite_spawn_gap_original_bounds_m')
+    if composite is not None:
+        policy=config.get('stationary_composite_spawn',{})
+        if (policy.get('policy')!='near-pet-person-spawn-envelope-v132'
+                or row.get('composite_spawn_gap_policy')!=policy['policy']
+                or not row.get('mission') or row.get('family')!='obstacle'
+                or row.get('avoidance_phase')!=policy.get('phase') or pool!=policy.get('primary_pool')
+                or composite[0]>=policy.get('minimum_requested_surface_gap_m',0.)
+                or row['avoidance_gap_bounds_m']!=[policy['minimum_requested_surface_gap_m'],
+                                                  policy['maximum_requested_surface_gap_m']]):
+            raise ValueError('Unauthorized composite gap override')
+        return composite
     original=row.get('character_spawn_gap_original_bounds_m')
     if original is None:return row['avoidance_gap_bounds_m']
     policy=config.get('stationary_character_spawn',{})
