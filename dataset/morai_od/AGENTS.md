@@ -13,6 +13,14 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   2026-10-08 v123가 아래 v122보다 우선한다. current는 `regions_5k_v123_release`다.
+   고주로740/600·로터리0/350·기타차량80/50·장애물770/600·사람830/250·음영500·배경230이다.
+   고주로/로터리 보조actor까지 일반차량만, 비차량 범용은 other구역으로 제한한다. 음영은 독립family다.
+   범용30/50/20·거리/근접quota·희귀primary를 유지하며 혼합사람270셀에서 장애물 노출을 보충한다.
+   122종 primary 최소5, 정적4822/이동178, 음영500geometry불변이다.
+   sunny/foggy×11/13/15로 같은5K를 반복해30K. 환경UI수동확인·별도output/명시token,
+   같은scene_group_id/split유지·merge leakage거부. 첫수집은 environment_suite/sunny13/manifest.json이다.
+   `docs/261008_base5_region_release_evidence.md`와 최신런북을 따르며 구output 새runtime resume금지다.
    `docs/261007_base5_sunny13_environment_correction.md`의 정정이 11시 오표기보다 우선한다.
    진행 중인 수집의 manifest/계약은 덮어쓰지 않는다. 기존 sunny11 config는 13시 내용의 호환 alias다.
    v111부터 정적 미션에도122종 전체를 정지 배치한다. family와 GT class를 혼동하지 않는다.

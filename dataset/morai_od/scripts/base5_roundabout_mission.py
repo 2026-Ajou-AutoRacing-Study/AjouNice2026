@@ -61,7 +61,8 @@ def assign(gen,rows,config):
     rng=random.Random(config['seed']+118)
     phases=gen.exact_deck(list(plan['phase_counts'].items()),len(selected),rng)
     for row,phase in zip(selected,phases):
-        for key in ('vehicle_close_phase','vehicle_close_side','original_vehicle_distance_bounds','original_vehicle_role'):
+        for key in ('vehicle_close_phase','vehicle_close_side','original_vehicle_distance_bounds','original_vehicle_role',
+                    'roundabout_observation_state'):
             row.pop(key,None)
         row.update(roundabout_phase=phase, distance_bounds=[0.,60.],distance_bin='roundabout_route_snapshot',
                    yaw_limit=3,asset_index=0,motion='static',population_layout='mission')

@@ -19,18 +19,22 @@ def cost(size):
 def choose(primary, poolkey, pools, geometry, row, rng):
     """Keep primary identity; exact budget band sampled once in specs, not retries."""
     mode = row.get('population_mode', 'legacy')
+    vehicle_only = row.get('vehicle_only_population', False)
+    if vehicle_only and (poolkey != 'vehicle' or primary not in pools['vehicle']):
+        raise ValueError('Vehicle-only population requires vehicle primary')
     if row.get('actors') == 0:
         return []
     if mode not in ('generic_regular', 'generic_dense'):
         result = [primary]
         for _ in range(1, row['actors']):
-            key = poolkey if mode == 'mission_situation' else rng.choices(
+            key = poolkey if mode == 'mission_situation' or vehicle_only else rng.choices(
                 [poolkey, 'vehicle', 'obstacle', 'person'], weights=[6, 1, 2, 1])[0]
             result.append(rng.choice(pools[key]))
         return result
     lower, upper = row['population_budget_bounds']
     candidates = []
-    for key, weight in ((poolkey, 6), ('vehicle', 1), ('obstacle', 2), ('person', 1)):
+    for key, weight in (((poolkey, 1),) if vehicle_only else
+                        ((poolkey, 6), ('vehicle', 1), ('obstacle', 2), ('person', 1))):
         for asset in pools[key]:
             candidates.append((asset, weight / len(pools[key]), cost(geometry(asset)[0])))
     result, spent = [primary], cost(geometry(primary)[0])
@@ -38,6 +42,10 @@ def choose(primary, poolkey, pools, geometry, row, rng):
         if len(result) >= 2 and spent >= lower:
             break
         viable = [(a, w, c) for a, w, c in candidates if spent + c <= upper]
+        required = row.get('required_secondary_pool')
+        if len(result)==1 and required:
+            if required not in pools:raise ValueError('Unknown required secondary pool')
+            viable = [(a,w,c) for a,w,c in viable if a in pools[required]]
         if not viable:
             raise ValueError('Population budget cannot be filled')
         asset, _, charge = rng.choices(viable, weights=[v[1] for v in viable])[0]

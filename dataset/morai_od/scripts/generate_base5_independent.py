@@ -71,6 +71,10 @@ def exact_deck(weighted, count, rng):
     return values
 
 def specs(config):
+    if config.get('frozen_specs_path'):
+        path=Path(config['frozen_specs_path'])
+        if geo.sha256(path)!=config['frozen_specs_sha256']:raise ValueError('Frozen specs changed')
+        return copy.deepcopy(geo.load_json(path))
     if sum(config['families'].values()) != config['target_scenes'] or config['capture']['per_scene'] != 1:
         raise ValueError('Independent scene count contract violated')
     output = []
@@ -563,6 +567,8 @@ def build(row,config,ctx,attempt=0):
         if not row['mission'] or row['family'] not in ('obstacle','other_vehicle') or row['motion']!='static':
             raise ValueError('Expanded stationary pool is restricted to the static mission')
         poolkey=row['stationary_mission_pool']
+    if row.get('primary_pool_override'):
+        poolkey=row['primary_pool_override']
     asset_index=row['asset_index']
     if row.get('dynamic_mission_pool'):
         asset_index=asset_index*len(ctx['pools'][poolkey])//config['mission_dynamic_observation']['vehicle_primary_scenes']
@@ -570,6 +576,9 @@ def build(row,config,ctx,attempt=0):
     if row.get('shadow_primary_pool'):
         poolkey=row['shadow_primary_pool']
         asset=ctx['pools'][poolkey][row['shadow_primary_index']]
+    if row.get('primary_identity'):
+        requested=row['primary_identity']
+        asset=next(a for a in ctx['pools'][poolkey] if a['data_id']==requested)
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
     if row.get('roundabout_phase'):
         route,arc,base,details=roundabout_mission.anchor(sys.modules[__name__],ctx,row,config,rng)
@@ -733,9 +742,12 @@ def build(row,config,ctx,attempt=0):
             elif row['family']=='other_vehicle' and role in ('left','right'):
                 source=ctx['links'][base['link_idx']]
                 destination=source.get(role+'_lane_change_dst_link_idx')
-                if not source.get('can_move_'+role+'_lane') or destination not in ctx['links']:
+                parallel=details.get('ordinary_two_lane_parallel_route') if config.get('regional_policy') else None
+                if parallel:
+                    pose=geo.legal_path_pose_near_target(ctx['links'],parallel,base,rng.uniform(-distance,distance))
+                elif not source.get('can_move_'+role+'_lane') or destination not in ctx['links']:
                     raise ValueError('No legal requested ordinary adjacent lane')
-                pose=geo.legal_path_pose_near_target(ctx['links'],(destination,),base,rng.uniform(-distance,distance))
+                else:pose=geo.legal_path_pose_near_target(ctx['links'],(destination,),base,rng.uniform(-distance,distance))
             elif row['family']=='roundabout' and (row['mission'] or (size[0]>8. and upper<=10.)):
                 nr,na=geo.route_from_link_path(ctx['links'],geo.ROUNDABOUT_NPC_LINK_PATH)
                 candidates=[]
@@ -747,6 +759,11 @@ def build(row,config,ctx,attempt=0):
                 pose=rng.choice(candidates)
             else:
                 origin=base['route_arc_m']; goal=origin+direction*distance
+                # Regional release quotas describe geometric centers, not the
+                # rear-axle pivot. Long vehicles otherwise cannot fill near
+                # rings even when a collision-free placement is feasible.
+                if config.get('regional_policy') and not row['mission']:
+                    goal-=off[0]
                 if not 0<=goal<=arc[-1]: raise ValueError('Actor outside legal route')
                 pose=geo.continuous_route_pose_at_arc(route,arc,goal)
             # Independent real neighboring lane only; no lateral jitter of route NPC.
@@ -859,6 +876,7 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
+        if config.get('regional_policy'):actor_records[-1]['placement_yaw_deg']=pose['yaw']
         if stationary_policy and asset['source_list']=='vehicleList':
             actor_records[-1]['stationary_vehicle_policy']=stationary_policy
         if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer
@@ -907,6 +925,9 @@ def build(row,config,ctx,attempt=0):
     if row.get('shadow_observation_stage'):
         from base5_shadow_observation import validate_approach
         meta['shadow_approach_geometry']=validate_approach(sys.modules[__name__],ctx,meta)
+    from base5_region_contract import validate as validate_region
+    region_proof=validate_region(sys.modules[__name__],ctx,meta,config)
+    if region_proof:meta['regional_placement']=region_proof
     from base5_intersection_placement import finish_metadata
     return scene,finish_metadata(meta)
 

@@ -125,7 +125,8 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     missing = sorted(set(actors)-{b['unique_id'] for b in boxes})
     primary_uid=metadata['runtime_actors'][0]['unique_id'] if metadata['runtime_actors'] else None
     primary = [r for r in results if r['parent_uid']==primary_uid]
-    background = metadata['spec']['family']=='background'
+    background = metadata['spec']['family']=='background' or (
+        metadata['spec'].get('shadow_phase') and metadata['spec'].get('actors')==0 and not actors)
     # Raw is retained even when primary is invisible. Such frames are NOT silently accepted as empty.
     supported = background or any(r['positive_lidar1_camera0'] for r in primary)
     reasons=[]

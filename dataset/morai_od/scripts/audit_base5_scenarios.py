@@ -36,6 +36,11 @@ def audit(manifest_path):
     roundabout_phases=Counter();roundabout_density=Counter();roundabout_ctx=None
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
+        if m['config'].get('regional_policy'):
+            from base5_region_contract import validate as validate_region
+            if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+            try:validate_region(gen,dynamic_ctx,meta,m['config'])
+            except ValueError as exc:errors.append((entry['id'],'region '+str(exc)))
         if r.get('shadow_observation_stage'):
             from base5_shadow_observation import validate_approach
             if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
@@ -64,6 +69,11 @@ def audit(manifest_path):
             errors.append((entry['id'],'nonzero ego'))
         if s['spawnPointList'] or s['pedspawnPointList']:errors.append((entry['id'],'traffic spawn'))
         if len(meta['runtime_actors'])!=r['actors']:errors.append((entry['id'],'actor count'))
+        if r.get('required_secondary_pool'):
+            if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+            required={x['name'] for x in dynamic_ctx['pools'][r['required_secondary_pool']]}
+            if not any(a['name'] in required for a in meta['runtime_actors'][1:]):
+                errors.append((entry['id'],'required mixed secondary missing'))
         pop=meta.get('population_budget')
         if pop:
             costs=[gen.population.cost(a['estimated_size']) for a in meta['runtime_actors']]

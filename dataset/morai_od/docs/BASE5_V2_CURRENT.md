@@ -1,6 +1,6 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 음영 사전 접근 v122 + 정적 NPC Park v119 + 로터리 경로 관측 + 사거리 2점 v117 + 정적 QA v115.
+2026-10-08 / 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
 새 v121 5K는 v119의 보호된 미션/근접을 유지하고 범용500셀을 음영 관측으로 재배정한다.
@@ -9,7 +9,55 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 음영 밖→내부 사전 관측 — v122 우선
+## 2026-10-08 구역별 5K + 동일 구성 6환경 — v123 우선
+
+현재 release는 `~/morai_cap/base5_v2_261008/regions_5k_v123_release/`다.
+본수집 입력은 `environment_suite/sunny13/manifest.json`, 정적4822셀 우선/이동178셀 후순이다.
+아래 v122 이하 경로·당시 비율은 이력이며 새 runtime으로 구 output을 resume하지 않는다.
+
+| 배치 카테고리 | 범용 | 미션 | 합계 |
+|---|---:|---:|---:|
+| 고주로 |740|600|1340|
+| 로터리 |0|350|350|
+| 기타 차량 |80|50|130|
+| 장애물 |770|600|1370|
+| 사람·동물·복합 |830|250|1080|
+| 독립 음영 관측 |—|—|500|
+| 빈 배경 |230|0|230|
+| 전체 | | |5000|
+
+- 고주로·로터리의 모든 신규 actor는 일반 차량43종만 사용한다. 범용 보조 객체에도 적용한다.
+  이는 생성 prior이지 실주행 클래스 마스킹/GT 삭제가 아니다. 비차량 범용 Ego는 그 구역과 음영 밖이다.
+  actor 실제 XY도 MGeo corridor proxy로 따로 검사한다. 공식 출제 구역의 완전한 polygon 인증은 아니다.
+- 로터리 범용100셀을 미션으로 흡수해 접근70(이동관측30/대기40), 진입80, 원형130, 탈출70이다.
+  NPC 공식5link 경로/앞뒤 밀집·Ego road support·정적 Park 계약을 유지한다.
+- 범용 positive2420셀의 단일/일반/밀집30/50/20 크기 예산과 최대8개를 유지한다.
+  사람 계열830셀의 front/left/right/rear50/20/20/10 유지, 다른 허용 구역에서는 혼합이 가능하다.
+  혼합 사람 계열 중270셀은 보조 실체 장애물 최소1개를 조건으로 넣어 제거된 장애물 노출을 보충한다.
+  모든 사람 장면에 장애물을 강제하지 않으며 주 객체·희귀 자산을 교체하지 않는다.
+- 거리 deck 및 경계 간격 기반 근접 quota를 유지한다. 긴 버스의 불가능한 전방6–10m ring2개는
+  같은 family/front의 작은 차량 ring과 교환해 자산·거리 총량 모두 보존한다.
+- 음영500개 scenario geometry는 v122와 동일하다. family를 독립 `shadow`로 명시해 고주로 장부와 섞지 않는다.
+  코드상 mission=false는 기존 이동 adapter 호환용이며 일반 고주로 제한의 대상이 아니다.
+- 122종을 primary로 최소5회 배치한다. 계획한 parent 노출은5K당10079개이며 실제 positive GT 개수와 다르다.
+  복합 객체는 여러 native component를 만들고 보이지 않는 객체는 유지 조건을 만족하지 않을 수 있다.
+- 첫 live검증의 고주로 완전가림 부족분을 분석해 generic highway에 초기 footprint 각도 proxy를 추가했다.
+  주 차량보다 완전히 가까운 보조 차량이 주 차량 수평각의95% 이상을 덮으면 초기 재생성한다.
+  부분 가림은 유지하며 실제3D가시성/여러 blocker의 합성 가림은 여전히 native 센서검사 대상이다.
+- sunny/foggy ×11/13/15의6manifest를 준비했다. 첫 Sunny13의5K+다른5환경25K=30K 관측이다.
+  독립 geometry는5000개이며 모든 날씨 변형이 같은 `scene_group_id`/split을 유지한다.
+  변환 시 `--environment-tag`로 token만 구분하고 merge에서 split leakage/중복을 거부한다.
+  manifest는 MR 날씨/시간을 적용하지 않는다. 환경별 UI 확인·새 output이 필수다.
+- 수집/GT 정책은 native Instance/4class/7D/velocity off/ROI±100m·횡±30m 그대로다.
+  정지/Park·CollisionData·심한 높이 이상·가시성·bounded 대체/부족분·resume 안전 계약도 유지한다.
+
+실제 검증 결과·비용·실패 근거는 [v123 EVIDENCE](261008_base5_region_release_evidence.md),
+수집/대시보드/환경별 변환 명령은 [운영 런북](261007_base5_5k_capture_runbook.md)을 따른다.
+최종live33/33(실제34capture/부족분0), CPU33/72GT·오류0, 완료resume1182raw불변/추가capture0,
+355tests PASS다. 실측5K외삽9.24h, 운영예산10–13h/6환경60–78h이며누적rate로갱신한다.
+본5K 자동 시작/모델 학습/production 변경은 이번 준비 작업에 포함하지 않는다.
+
+## 2026-10-08 음영 밖→내부 사전 관측 — v122 이력
 
 현재 `~/morai_cap/base5_v2_261008/shadow_approach_5k_v122_b/scenarios_5k/manifest.json`이다.
 아래 v121 입구120/내부260/출구120 및 해당 명령은 이력이다.

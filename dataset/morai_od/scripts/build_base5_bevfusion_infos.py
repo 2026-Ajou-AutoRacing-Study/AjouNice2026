@@ -18,7 +18,7 @@ def in_roi(center,roi=DEFAULT_ROI):
     return bool((center>=bounds[:3]).all() and (center<bounds[3:]).all())
 
 
-def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None,roi=DEFAULT_ROI):
+def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None,roi=DEFAULT_ROI,environment_tag=None):
     roi=list(map(float,roi))
     if len(roi)!=6 or not np.isfinite(roi).all() or any(a>=b for a,b in zip(roi[:3],roi[3:])):
         raise ValueError('Invalid LiDAR-frame training ROI')
@@ -72,7 +72,10 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
             images[name]=dict(img_path=mapped(paths[0]),height=cam['resolution_px'][1],width=cam['resolution_px'][0],
                 cam2img=intrinsic.tolist(),lidar2cam=lidar2cam.tolist(),
                 lidar2img=(intrinsic@lidar2cam[:3]).tolist(),cam2lidar=np.linalg.inv(lidar2cam).tolist())
-        splits[meta['split']].append(dict(sample_idx=scene_id,token=scene_id,scene_id=scene_id,timestamp=0.,
+        group=meta.get('scene_group_id',entry.get('source_cell_id',scene_id))
+        token=f'{environment_tag}:{group}' if environment_tag else scene_id
+        splits[meta['split']].append(dict(sample_idx=token,token=token,scene_id=group,
+            scene_group_id=group,environment_tag=environment_tag,timestamp=0.,
             lidar_points=dict(lidar_path=mapped(lidar[0]),num_pts_feats=4,lidar2ego=lidar2ego.tolist()),
             images=images,instances=instances))
     metainfo=dict(dataset='base5_independent',classes=CLASSES,box_dim=7,positive_policy=policy,
@@ -95,4 +98,5 @@ if __name__=='__main__':
     p.add_argument('--policy',choices=['lidar5','lidar1','lidar1_camera0'],default='lidar1_camera0')
     p.add_argument('--serialized-root',type=Path)
     p.add_argument('--point-cloud-range',type=float,nargs=6,default=DEFAULT_ROI)
-    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range),indent=2))
+    p.add_argument('--environment-tag',help='Unique sample tokens while preserving scene groups across six environments')
+    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range,a.environment_tag),indent=2))
