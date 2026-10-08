@@ -46,6 +46,9 @@ class MotionGroundTest(unittest.TestCase):
             ground.atomic_json(root/'meta.json',meta);ground.atomic_json(root/'scene.json',dict(egoVehicle={}))
             ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),
                 scenario=str(root/'scene.json'),scenario_sha256=ground.sha256(root/'scene.json'))]))
+            with self.assertRaisesRegex(ValueError,'Explicit departure'):
+                probe.prepare(root/'manifest.json',[0],root/'bad',target_uid=1,
+                              target_departure=True,target_standoff=8.)
             with patch.object(probe.gen,'context',return_value=dict(links={})), \
                  patch.object(probe,'target_probe_pose',return_value=dict(x=2.,y=2.,z=28.,yaw=0.)) as pose, \
                  patch.object(probe.gen.geo,'clear_actor_lists'),patch.object(probe.gen.geo,'set_ego_pose'):
@@ -56,6 +59,27 @@ class MotionGroundTest(unittest.TestCase):
             self.assertEqual(output['ground_probe_source']['targets'],[actor])
             self.assertEqual(gen.geo.load_json(root/'meta.json'),meta)
 
+    def test_tunnel_near_probe_standoff_is_bounded_and_recorded(self):
+        import prepare_base5_empty_ground_probe as probe
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);target=dict(x=18.,y=0.,z=28.)
+            actor=dict(unique_id=1,position=dict(x=25.,y=0.,z=28.),motion_path=dict(target_position=target))
+            meta=dict(runtime_actors=[actor],spec=dict(shadow_moving=True))
+            ground.atomic_json(root/'meta.json',meta);ground.atomic_json(root/'scene.json',dict(egoVehicle={}))
+            ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),
+                scenario=str(root/'scene.json'),scenario_sha256=ground.sha256(root/'scene.json'))]))
+            with patch.object(probe.gen,'context',return_value=dict(links={})), \
+                 patch.object(probe,'target_probe_pose',side_effect=[ValueError('short link'),
+                     dict(x=8.,y=0.,z=28.,yaw=0.)]) as pose, \
+                 patch.object(probe.gen.geo,'clear_actor_lists'),patch.object(probe.gen.geo,'set_ego_pose'):
+                manifest=probe.prepare(root/'manifest.json',[0],root/'out',target_uid=1,target_motion=True)
+            self.assertEqual([call.kwargs['backward'] for call in pose.call_args_list],[12.,10.])
+            row=gen.geo.load_json(manifest)['scenes'][0]
+            result=gen.geo.load_json(Path(row['metadata']))
+            self.assertEqual(result['ground_probe_source']['target_backward_route_m'],10.)
+            self.assertEqual(pose.call_args.args[1]['position'],target)
+            self.assertEqual(gen.geo.load_json(root/'meta.json'),meta)
+
     def test_additional_motion_terrain_is_bounded(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
@@ -64,6 +88,26 @@ class MotionGroundTest(unittest.TestCase):
             ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),scenario=str(root/'scene.json'))]))
             with self.assertRaisesRegex(ValueError,'nine sessions'):
                 ground.prepare(root/'manifest.json',root/'t',root/'r',root/'out',additional_terrain=[root/'t']*9)
+
+    def test_shadow_departure_witness_uses_departure_not_target(self):
+        import prepare_base5_empty_ground_probe as probe
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);departure=dict(x=25.,y=0.,z=28.)
+            actor=dict(unique_id=1,position=departure,motion_path=dict(points=[departure],
+                       target_position=dict(x=12.,y=0.,z=28.)))
+            ground.atomic_json(root/'meta.json',dict(runtime_actors=[actor],spec=dict(shadow_moving=True)))
+            ground.atomic_json(root/'scene.json',dict(egoVehicle={}))
+            ground.atomic_json(root/'manifest.json',dict(scenes=[dict(id='a',metadata=str(root/'meta.json'),
+                scenario=str(root/'scene.json'),scenario_sha256=ground.sha256(root/'scene.json'))]))
+            with patch.object(probe.gen,'context',return_value=dict(links={})), \
+                 patch.object(probe,'target_probe_pose',return_value=dict(x=13.,y=0.,z=28.,yaw=0.)) as pose, \
+                 patch.object(probe.gen.geo,'clear_actor_lists'),patch.object(probe.gen.geo,'set_ego_pose'):
+                output=probe.prepare(root/'manifest.json',[0],root/'out',target_uid=1,
+                                     target_motion=True,target_departure=True)
+            self.assertEqual(pose.call_args.args[1]['position'],departure)
+            self.assertEqual(pose.call_args.kwargs['backward'],16.)
+            row=gen.geo.load_json(output)['scenes'][0]
+            self.assertTrue(gen.geo.load_json(Path(row['metadata']))['ground_probe_source']['target_departure'])
 
     def test_near_probes_support_population_of_eight_without_waiving_ground(self):
         actors=[dict(unique_id=i,motion='walking') for i in range(8)]

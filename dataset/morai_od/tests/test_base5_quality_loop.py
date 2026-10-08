@@ -118,6 +118,17 @@ class QualityLoopTest(unittest.TestCase):
             self.assertEqual(r['selected'],[])
             self.assertEqual((root/'out/selected_ledger.jsonl').read_text(),'')
 
+    def test_shadow_path_has_bounded_complementary_departure_witnesses(self):
+        actor=dict(unique_id=1,motion='running',motion_path=dict(
+            points=[dict(x=13.2,y=0),dict(x=-3,y=0)],target_position=dict(x=0,y=0)))
+        meta=dict(spec=dict(shadow_moving=True),runtime_actors=[actor])
+        self.assertEqual(loop.near_motion_probe_requests(meta),[(actor,0.),(actor,16.),(actor,12.)])
+        meta['spec']={}
+        self.assertEqual(loop.near_motion_probe_requests(meta),[(actor,0.)])
+        meta['spec']['shadow_moving']=True
+        actor['motion_path']['points'][0]['x']=6.6
+        self.assertEqual(loop.near_motion_probe_requests(meta),[(actor,0.),(actor,16.),(actor,12.)])
+
     def test_empty_probe_cannot_become_training_negative(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);cap=root/'capture';cap.mkdir()

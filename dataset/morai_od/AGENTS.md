@@ -62,6 +62,17 @@
    v118 초기47승인 중3셀은 후속 정지 검사 FAIL로 보존하고 최종 검증본으로 쓰지 않는다.
    `docs/261008_base5_roundabout_route_mission_evidence.md`를 읽고 런북 v119 새 경로를 사용한다.
    구v117/v118개발 output에 새runtime resume 금지, 기본config만으로 현재release가 재생성되지는 않는다.
+   v121 현재 release는 shadow_release_5k_v121이다. `docs/261008_base5_shadow_observation_evidence.md`가 우선한다.
+   위 사거리 이동 한정/음영 보류는 당시 이력이다. 기존 범용500셀을 음영 입구120/내부260/출구120으로
+   재배정하며 전체5K/122종 최소4·음영122종 최소1을 유지한다. 기존1750미션/근접/로터리 범용과4500entry 불변이다.
+   전체4822정적/178이동(사거리154+음영24)이다. 음영의 static476에는 추가지면촬영이 없다.
+   터널 movers는 사거리lookup 인증을 빌리지 않고 independent terrain/static-reference/10–12m witness를 쓴다.
+   부족한 경로만 departure16m/12m 상보witness를 조건부추가한다. 전체근거가 확인되면 즉시멈추고8near 상한 유지다.
+   AI 이동 미검증은 standing, rigid 정적 자산은 정지, 차량은 Park 외관이며 실제 traffic rollout이 아니다.
+   원본GT/ROI/가시성·CollisionData·Park/실제정지·Z gate를 유지한다. 실패/부족분/oldraw는 보존한다.
+   본5K는 사용자 승인 후 새output으로 시작하며 개발 pilot에 새runtime으로 resume하지 않는다.
+   v121 실제정적25/25·이동6/7, Woman3 running1ground deficit이다. final_validation은1누락 FAIL이며
+   CPU31/54GT·최종runtime resume481raw불변/추가capture0·334tests PASS와 구분한다. 모든moving 성공 보장은 아니다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

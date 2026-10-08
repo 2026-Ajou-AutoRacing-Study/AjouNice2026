@@ -1,15 +1,54 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 정적 NPC Park v119 + 로터리 경로 관측 v118 + 출발→도착 2점 v117 + 정적 single-capture QA v115.
+2026-10-08 / 음영 관측 v121 + 정적 NPC Park v119 + 로터리 경로 관측 + 사거리 2점 v117 + 정적 QA v115.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
-새 v119 5K는 로터리 미션250셀 geometry를 교체하고 정적 NPC 기어를 Park로 맞춘다.
+새 v121 5K는 v119의 보호된 미션/근접을 유지하고 범용500셀을 음영 관측으로 재배정한다.
 본수집 승인 전에는 실행하지 않는다.
 사용자가 현재 MR 기본값과 수집 환경을 Sunny 13시로 확인했다.
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 로터리 미션 실제 경로 관측 + 정적 NPC Park — v119 우선
+## 2026-10-08 음영 구간 관측 — v121 우선
+
+사용자 전달10/06 공식 답변: 고주로에는 정차 차량/정적 장애물을 배치하지 않지만 터널은
+현재 F2 객체 전체가 등장할 수 있다. 동적 객체를 기다렸다 재출발하는 것도 페널티가 없다.
+Vehicle/Spawn에는 activation distance가 없으며 MGeo 역주행은 불가능하다.
+개별 NPC waypoint 차로 침범은 가능하다. 기존 rigid 정적 자산 이동/G80 열린 문 제외 정책은 유지한다.
+
+전체5000 중 범용positive480/배경20을 입구120/내부260/출구120으로 교체한다.
+기존1750미션·로터리 범용100·초근접 quota는 보존하고 나머지4500 entry/source 참조는 불변이다.
+별도 공간 overlay이므로 기존 family 장부의 총량은 유지된다. 실질 구성은 범용positive2520/
+범용배경230/기존미션1750/음영positive480/음영배경20이다. Base3 데이터를 섞지 않는다.
+음영 primary122종 최소1, 전체122종 최소4를 유지한다. 거리3–10/10–30/30–60/60–100m는
+40/240/160/40 positive셀이다. 한/두/세 객체208/185/87셀과 빈 배경20셀이다.
+
+샘플 shadedArea와 실제 MGeo 경로의 교집합 약97m를 관측 anchor로 쓴다.
+내부 primary가 범위를 벗어나면 초기 재생성한다. 실제 어둠은 native 카메라에서도 따로 확인한다.
+차량은 정지 Park 외관 snapshot으로 반대 방향/비스듬한 차로 침범 자세도 포함한다.
+실제 NPC 끼어들기 제어 성공이나 traffic rollout을 검증했다는 뜻은 아니다.
+사람·동물·반려동물 동반24셀은 실제 이동 외관이며 나머지 음영476셀은 정지 배치다.
+전체 정적4822/이동178(기존 사거리154+음영24)이다. AI 보행자는 카탈로그에서 제외하지 않고
+미검증 이동 quota에만 사용하지 않는다. Dog1/Dog2/Deer1 모두 실제 이동 시험 대상이다.
+
+사거리 수동 높이 lookup/두 waypoint 인증을 터널에 재사용하지 않는다. 음영 mover만 독립
+empty terrain+static reference+10–12m target witness로 경로를 준비한다. 부족하면 조건부departure
+16m/12m 상보 관측을 추가하고 매 단계 전체 경로가 확인되면 멈춘다. 도로 중앙에 배치하고
+짧은 접근 방향 이동을 사용하며 plane/hull/실제 이동/Z/CollisionData gate를 유지한다.
+정적476셀에는 추가 지면 촬영을 하지 않는다. GT/raw는 변경하지 않고 동일 Instance component를 쓴다.
+기존 ROI±100m/횡±30m·lidar1_camera0·4class·Ego 정지/Park/실제 무접촉 계약은 유지한다.
+
+현재 생성본: `~/morai_cap/base5_v2_261008/shadow_release_5k_v121/scenarios_5k/manifest.json`.
+전수5000고유payload OFFLINE_PASS. 새runtime으로 구pilot/output resume하지 않는다.
+실제 센서/CPU/resume 검증 결과와 남은 한계는
+[음영 EVIDENCE](261008_base5_shadow_observation_evidence.md)를 따른다. 본5K는 아직 미시작/승인 대기다.
+실제 정적25/25·이동6/7 승인, CPU31프레임/54GT 및 최종runtime resume481raw불변/추가capture0,
+334tests PASS다. Woman3 running1셀은 지면 근거 부족으로 남았으며 최종32셀검증은1누락 FAIL이다.
+floating이나 모델 탐지 실패로 단정하지 않는다. collector는 bounded 대체 후 부족분/다음셀로 처리한다.
+따라서 모든동적배치 해결/5K자동승인으로 해석하지 않는다. 부족분은 본수집 뒤 같은-quota 보충 대상이다.
+음영 추가 준비를 포함한 운영 예산은10–13h다. 첫100–200셀 실측으로 갱신하며 성공률/ETA 보장이 아니다.
+
+## 2026-10-08 로터리 미션 실제 경로 관측 + 정적 NPC Park — v119 유지
 
 사용자가 제공한 MORAI 답변: 본선의 지정 경로·차선변경 비활성화·회전 궤적은 샘플과 같은 방식이다.
 생성 주기·속도·차량 수는 미공개/샘플과 다를 수 있으며 Ego와 상호작용해 감속·정차할 수 있다.
@@ -41,7 +80,7 @@ Base5 전체 비율·정적4846/이동154·122종 primary 최소4 및 나머지4
 추가 대기나 촬영은 없다. 과거 v118의 초기47승인 중3셀은 이 엄격한 후속 검사에서 실패했으므로
 원본/실패 근거만 보존하고 최종 검증본으로 사용하지 않는다.
 
-현재 release: `~/morai_cap/base5_v2_261008/roundabout_release_5k_v119/scenarios_5k/manifest.json`.
+v119 당시 release: `~/morai_cap/base5_v2_261008/roundabout_release_5k_v119/scenarios_5k/manifest.json`.
 `revise_base5_roundabout_mission.py`가 v117 동결본에서250셀 geometry/정적 NPC 기어를 fresh output에 갱신한다.
 기본 sunny13/호환sunny11 config는 과거 재현을 위해 덮어쓰지 않으며 v118 경로 plan/v119 Park config는 release에 포함된다.
 옵션없는 기본 생성기를 바로 실행해서 현재 release와 같은 계획을 만든다고 해석하지 않는다.

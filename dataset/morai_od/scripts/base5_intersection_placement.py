@@ -14,6 +14,13 @@ def regional_motion(asset,requested,row,config):
     scope=config.get('capture',{}).get('dynamic_region')
     if scope is None:return None
     if scope!=SCOPE:raise ValueError('Unknown dynamic region policy')
+    if row.get('shadow_phase'):
+        from base5_shadow_observation import POLICY as SHADOW_POLICY
+        if config.get('shadow_observation',{}).get('policy')!=SHADOW_POLICY:
+            raise ValueError('Shadow motion without opt-in contract')
+        if row.get('shadow_moving') and requested not in ('static','standing'):
+            return None  # Never reuse intersection/editor Z proof inside tunnel.
+        return ('static' if requested=='static' else 'standing','tunnel-static-appearance-snapshot-v120')
     # Observation family is not runtime class. Preserve the asset and quota;
     # only its capture motion changes outside the designated intersection.
     if not (row.get('mission') and row.get('dynamic_observation_phase')):

@@ -185,6 +185,8 @@ def specs(config):
     assign_stationary_mission_pools(output,config)
     assign_dynamic_mission_vehicles(output,config)
     roundabout_mission.assign(sys.modules[__name__],output,config)
+    from base5_shadow_observation import assign as shadow_assign
+    shadow_assign(output,config)
     return output
 
 def assign_dynamic_mission_vehicles(rows,config):
@@ -565,6 +567,9 @@ def build(row,config,ctx,attempt=0):
     if row.get('dynamic_mission_pool'):
         asset_index=asset_index*len(ctx['pools'][poolkey])//config['mission_dynamic_observation']['vehicle_primary_scenes']
     asset=ctx['pools'][poolkey][asset_index%len(ctx['pools'][poolkey])]
+    if row.get('shadow_primary_pool'):
+        poolkey=row['shadow_primary_pool']
+        asset=ctx['pools'][poolkey][row['shadow_primary_index']]
     route,arc,base,details=rng.choice(anchor_bank(ctx,row['topology']))
     if row.get('roundabout_phase'):
         route,arc,base,details=roundabout_mission.anchor(sys.modules[__name__],ctx,row,config,rng)
@@ -618,6 +623,9 @@ def build(row,config,ctx,attempt=0):
             lo=max(lo,interval[0]);hi=min(hi,interval[1])
         if hi<=lo: raise ValueError('No feasible anchor interval')
         base=geo.continuous_route_pose_at_arc(route,arc,rng.uniform(lo,hi))
+    if row.get('shadow_phase'):
+        from base5_shadow_observation import anchor
+        route,arc,base,details=anchor(sys.modules[__name__],ctx,row,config,rng)
     yaw_floor={3:0.,10:3.,15:10.}[row['yaw_limit']]
     yaw_delta=rng.choice([-1,1])*rng.uniform(yaw_floor,row['yaw_limit'])
     if row.get('roundabout_phase'):
@@ -701,7 +709,10 @@ def build(row,config,ctx,attempt=0):
             mission_target=dynamic_target if i==0 else (dynamic_vehicle_target(ctx,actor_crossing,rng,off)
                 if row.get('dynamic_mission_pool') else crossing_target(actor_crossing,rng,config['mission_dynamic_observation']['target_axis_jitter_m'],
                     row.get('crossing_direction_sign')*((-1)**i) if row.get('crossing_direction_sign') is not None else None))
-        if roundabout_poses is not None:
+        if row.get('shadow_phase'):
+            from base5_shadow_observation import pose as shadow_pose
+            pose=shadow_pose(sys.modules[__name__],ctx,route,arc,base,ego,asset,size,off,row,i,rng)
+        elif roundabout_poses is not None:
             pose=roundabout_poses[i]
         elif mission_target:
             pose=pivot_for_center(mission_target,off,mission_target['yaw'])
@@ -776,11 +787,16 @@ def build(row,config,ctx,attempt=0):
                 if mission_target:
                     # Real crossing axis, not a new Ego-relative tangent on every observation.
                     ma=math.radians(mission_target['yaw']);direction=(math.cos(ma),math.sin(ma))
+                if row.get('shadow_moving'):
+                    ma=math.radians(pose['yaw']);direction=(math.cos(ma),math.sin(ma))
                 motion_path=natural_target_path(pose,center,ego,[lower,upper],actor_motion,asset,
                     config['capture'].get('natural_setup_budget_sec',9.),direction=direction)
                 from base5_intersection_placement import apply_path
-                motion_path,manual_path_decision=apply_path(motion_path,asset,
-                    actor_crossing['crosswalk_id'] if actor_crossing else None,config,ctx)
+                if row.get('shadow_moving'):
+                    manual_path_decision='tunnel-unverified; independent terrain preparation required'
+                else:
+                    motion_path,manual_path_decision=apply_path(motion_path,asset,
+                        actor_crossing['crosswalk_id'] if actor_crossing else None,config,ctx)
                 # Rotate the target pivot before departure so the geometric quota remains exact.
                 pa=math.radians(motion_path['departure_yaw_deg']);pose=dict(pose,yaw=motion_path['departure_yaw_deg'])
                 center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]

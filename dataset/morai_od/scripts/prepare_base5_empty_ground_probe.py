@@ -25,10 +25,13 @@ def target_probe_pose(links, actor, backward=6.,maximum_road_distance=8.):
     return min(candidates,key=lambda x:x[:3])[3]
 
 
-def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_motion=False):
+def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_motion=False,
+            target_departure=False,target_standoff=None):
     if output.exists():raise FileExistsError('Probe overwrite refused')
     if not 1<=len(indices)<=8 or len(indices)!=len(set(indices)):raise ValueError('Ground probe limited to 1–8 cells')
     if not 0<=backward_route_m<=20:raise ValueError('Ground probe backward offset must be 0–20m')
+    if target_standoff is not None and (not target_departure or target_standoff not in (12.,16.)):
+        raise ValueError('Explicit departure witness standoff must be 12m or 16m')
     m=gen.geo.load_json(source);ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     output.mkdir(parents=True);rows=[]
     for i in indices:
@@ -37,9 +40,25 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_mo
         # an unrelated route rather than silently move to a different road level.
         if target_uid is not None:
             actor=next(a for a in original['runtime_actors'] if a['unique_id']==target_uid)
-            if target_motion:
+            if target_departure:
+                if not original['spec'].get('shadow_moving') or not actor.get('motion_path'):
+                    raise ValueError('Departure terrain witness is restricted to a shadow mover')
+                actor=dict(actor,position=actor['motion_path']['points'][0])
+            elif target_motion:
                 actor=dict(actor,position=actor['motion_path']['target_position'])
-            pose=target_probe_pose(ctx['links'],actor)
+            if original['spec'].get('shadow_moving'):
+                # A 6m standoff leaves the tunnel target in the downward-ray
+                # blind annulus. Keep the same road-level constraints and
+                # plane/hull gates, only change the empty calibration view.
+                # The second, conditional departure view must not leave a
+                # mid-path sample on this witness's bonnet/blind annulus.
+                choices=((target_standoff,) if target_standoff is not None else
+                         (16.,14.) if target_departure else (12.,10.))
+                for standoff in choices:
+                    try:pose=target_probe_pose(ctx['links'],actor,backward=standoff);break
+                    except ValueError:continue
+                else:raise ValueError('No mapped tunnel ground witness at bounded standoff')
+            else:pose=target_probe_pose(ctx['links'],actor)
         else:
             arc=original['base']['route_arc_m']
             ref=gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],arc)
@@ -55,7 +74,8 @@ def prepare(source,indices,output,backward_route_m=12.,target_uid=None,target_mo
             calibration_only=True,ground_probe_source=dict(id=old['id'],scenario_sha256=old['scenario_sha256'],
                 scenario=old['scenario'],metadata=old['metadata'],targets=original['runtime_actors'],
                 source_manifest_sha256=gen.geo.sha256(source),ego_backward_route_m=backward_route_m if target_uid is None else None,
-                target_uid=target_uid,target_motion=target_motion,
+                target_uid=target_uid,target_motion=target_motion,target_departure=target_departure,
+                target_backward_route_m=standoff if target_uid is not None and original['spec'].get('shadow_moving') else 6. if target_uid is not None else None,
                 placement_policy=('target-near-mapped-road' if target_uid is not None else
                                   'source-ego-exact' if backward_route_m==0. else 'source-route-backward')))
         meta['spec'].update(actors=0,family='background',motion='static')

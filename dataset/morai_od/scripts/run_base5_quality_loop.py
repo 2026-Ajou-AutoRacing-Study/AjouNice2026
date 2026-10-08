@@ -126,6 +126,23 @@ class StaticQualityBudget:
         return True
 
 
+def near_motion_probe_requests(metadata):
+    """Existing target witnesses first; conditional departure view for tunnel paths."""
+    targets=motion_ground.near_probe_actors(metadata)
+    requests=[(actor,0.) for actor in targets]
+    if metadata.get('spec',{}).get('shadow_moving'):
+        for actor in targets:
+            path=actor.get('motion_path')
+            if path:
+                first=path['points'][0];target=path['target_position']
+                if gen.math.hypot(first['x']-target['x'],first['y']-target['y'])>.1:
+                    # Complementary views fill disjoint bonnet/near-ray holes.
+                    # The second departure view runs ONLY if prior proof fails.
+                    requests.extend([(actor,16.),(actor,12.)])
+    if len(requests)>8:raise ValueError('Near terrain witnesses bounded to eight views')
+    return requests
+
+
 def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None):
     started=time.monotonic()
     if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
@@ -267,12 +284,13 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         # Add bounded empty near-target observations; never extrapolate/waive support.
                         additional=[];contact=None
                         try:
-                            targets=motion_ground.near_probe_actors(metadata)
-                            for n,actor in enumerate(targets):
+                            requests=near_motion_probe_requests(metadata)
+                            for n,(actor,standoff) in enumerate(requests):
                                 near_deck=base/f'motion_near_terrain_deck_{n}';near_root=base/f'motion_near_terrain_{n}'
-                                probes=prepared(near_deck/'manifest.json',lambda actor=actor:
+                                probes=prepared(near_deck/'manifest.json',lambda actor=actor,standoff=standoff:
                                     empty_probe(manifest,[0],near_deck,target_uid=actor['unique_id'],
-                                        target_motion=bool(actor.get('motion_path'))))
+                                        target_motion=bool(actor.get('motion_path')),
+                                        target_departure=bool(standoff),target_standoff=standoff or None))
                                 witness=capture(probes,near_root,cell,'motion_near_empty_terrain')
                                 if is_collision_failure(witness):contact=witness;break
                                 additional.append(near_root)
