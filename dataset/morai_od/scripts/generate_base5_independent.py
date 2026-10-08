@@ -545,6 +545,8 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehic
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    from base5_placement_geometry import configure as configure_static_geometry
+    ctx=configure_static_geometry(ctx,config,row)
     from base5_map_surface import configure
     ctx=configure(ctx,config.get('placement_ground'))
     from base5_map_surface import MapSurface,ego_road_support
@@ -720,7 +722,7 @@ def build(row,config,ctx,attempt=0):
                     row.get('crossing_direction_sign')*((-1)**i) if row.get('crossing_direction_sign') is not None else None))
         if row.get('shadow_phase'):
             from base5_shadow_observation import pose as shadow_pose
-            pose=shadow_pose(sys.modules[__name__],ctx,route,arc,base,ego,asset,size,off,row,i,rng)
+            pose=shadow_pose(sys.modules[__name__],ctx,route,arc,base,ego,asset,size,off,dict(row,_yaw_attempt=attempt),i,rng)
         elif roundabout_poses is not None:
             pose=roundabout_poses[i]
         elif mission_target:
@@ -792,7 +794,7 @@ def build(row,config,ctx,attempt=0):
             pose=dict(pose,yaw=actor_yaw)
             if asset['source_list']!='objectList': pose['yaw']=base['yaw']+rng.choice([-90.,90.])
         from base5_static_yaw import sample as sample_static_yaw
-        yaw_policy=sample_static_yaw(asset,row,actor_motion,i,base['yaw'],attempt)
+        yaw_policy=sample_static_yaw(asset,row,actor_motion,i,pose.get('_static_yaw_road_deg',base['yaw']),attempt)
         if yaw_policy is not None:
             # Primary avoidance yaw must be selected before the gap solver.
             # Moving/crossing/vehicle rows have no opt-in and retain path yaw.
@@ -884,6 +886,9 @@ def build(row,config,ctx,attempt=0):
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
         if config.get('regional_policy'):actor_records[-1]['placement_yaw_deg']=pose['yaw']
         if yaw_policy is not None:actor_records[-1]['static_yaw_policy']=yaw_policy
+        if asset['name'] in ctx.get('geometry',{}) and ctx.get('static_placement_geometry_reference'):
+            if ctx['geometry'][asset['name']].get('stationary_only'):
+                actor_records[-1]['static_placement_geometry_reference']=ctx['static_placement_geometry_reference']
         if stationary_policy and asset['source_list']=='vehicleList':
             actor_records[-1]['stationary_vehicle_policy']=stationary_policy
         if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer

@@ -194,8 +194,10 @@ def audit(manifest_path):
                     raw=actor['initPosition'] if 'initPosition' in actor else actor
                     pose=dict(a['position'],z=proof['previous_reference_z_m'],yaw=float(raw['rot']['yaw']),link_idx=proof.get('preferred_link'))
                     # Footprint offsets are geometry-derived, never trust metadata.
-                    size,offset,_=gen.geometry(height_assets[a['data_id']],height_ctx)
-                    expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,height_ctx)
+                    from base5_placement_geometry import configure as configure_static_geometry
+                    actor_ctx=configure_static_geometry(height_ctx,m['config'],r)
+                    size,offset,_=gen.geometry(height_assets[a['data_id']],actor_ctx)
+                    expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,actor_ctx)
                     if not equivalent(expected_init,a.get('static_height_initializer')) or not equivalent(expected_ground,proof):
                         errors.append((entry['id'],'final XY map height differs from sources'))
                     legacy=.36 if a['source_list']=='vehicleList' else 0.
