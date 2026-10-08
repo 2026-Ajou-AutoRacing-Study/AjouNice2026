@@ -13,6 +13,18 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   **2026-10-08 v129가 아래 모든 v123/v125 기록보다 우선한다.**
+   `docs/261008_base5_static_yaw_and_randomization_review.md`를 읽는다.
+   사용자가 구Sunny13수집을 중단했다. 기존763승인/raw/output은 원본과 tar.zst로 보존하며 강제resume하지 않는다.
+   현재입력은 `~/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,
+   새output은 같은root의 `collection_5k_yaw_v129_sunny13`다. 새본5K는 아직 미시작이다.
+   범용 정지ped/AI와정적회피ped계열만70%네방향±15°/30%360° yaw. yaw먼저→회피gap계산,
+   재시도attempt마다angle재표본화·mode유지·새helper runtime hash를 적용한다.
+   일반사람 정적미션alongside33셀만요청gap0.6–0.8m; 원래bin/probe근거보존·다른근접quota유지.
+   고주로/로터리/음영/이동178 payload·122종primary횟수·정적4822우선·6환경30K계약은유지한다.
+   새계획parent노출10081/60486이며구10079표는v123이력이다. live대표35/35·CPU35/91GT 검증이다.
+   완료resume886raw불변/추가capture0·10session Park·403tests PASS,8075는새root의not_started다.
+   아래 본수집미시작/현재root/v125상태는당시이력이며현재상태는v129문서와최신런북을따른다.
    2026-10-08 dashboard준비후사용자확인은Sunny13 5K→기존6환경30K다(50K아님).
    `docs/261008_base5_dashboard_and_launch_ready.md`를읽는다. 캡처runtime v125/배치v123은유지한다.
    8075에graph/분모/사유/환경suite를연결했고dashboard-only cachejournal은capture밖에쓴다.

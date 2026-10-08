@@ -32,12 +32,15 @@ def road_supported_pair(ego,target,support,surface):
     return fixed,moved,proof
 
 
-def observation(gen,ctx,route,arc,base,asset,row,rng):
+def observation(gen,ctx,route,arc,base,asset,row,rng,yaw_attempt=0):
     size,off,known=gen.geometry(asset,ctx)
     road_yaw=base['yaw']
     actor_yaw=road_yaw
     if row['family']=='obstacle':
         actor_yaw+=rng.choice([0.,90.,-90.])+rng.uniform(-8.,8.)
+    from base5_static_yaw import sample
+    yaw_policy=sample(asset,row,'static',0,road_yaw,yaw_attempt)
+    if yaw_policy is not None:actor_yaw=yaw_policy['placement_yaw_deg']
     angle=math.radians(actor_yaw)
     center=[base['x']+math.cos(angle)*off[0]-math.sin(angle)*off[1],
             base['y']+math.sin(angle)*off[0]+math.cos(angle)*off[1]]

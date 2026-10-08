@@ -30,7 +30,7 @@ def contract(source, indices, rounds):
         'base5_static_ground_reference.py','prepare_base5_static_height_reference.py','base5_population_budget.py',
         'base5_avoidance_geometry.py','base5_vehicle_close.py','base5_roundabout_mission.py','base5_static_vehicle.py','base5_map_surface.py',
         'base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py',
-        'base5_region_contract.py'])
+        'base5_region_contract.py','base5_static_yaw.py'])
     sources=[]
     for i in indices:
         row=data['scenes'][i]

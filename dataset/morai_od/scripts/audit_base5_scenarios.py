@@ -8,6 +8,19 @@ from pathlib import Path
 import generate_base5_independent as gen
 
 
+def original_character_gap_bounds(row,pool,config):
+    original=row.get('character_spawn_gap_original_bounds_m')
+    if original is None:return row['avoidance_gap_bounds_m']
+    policy=config.get('stationary_character_spawn',{})
+    floor=policy.get('minimum_requested_surface_gap_m',0.)
+    if (policy.get('policy')!='near-person-spawn-envelope-v129' or row.get('character_spawn_gap_policy')!=policy['policy']
+            or not row.get('mission') or row.get('family')!='obstacle' or row.get('avoidance_phase')!=policy.get('phase')
+            or pool!=policy.get('primary_pool') or original[0]>=floor
+            or row['avoidance_gap_bounds_m']!=[floor,max(.8,original[1])]):
+        raise ValueError('Unauthorized character gap override')
+    return original
+
+
 def equivalent(a,b):
     if isinstance(a,dict) and isinstance(b,dict):return a.keys()==b.keys() and all(equivalent(a[k],b[k]) for k in a)
     if isinstance(a,list) and isinstance(b,list):return len(a)==len(b) and all(equivalent(x,y) for x,y in zip(a,b))
@@ -26,7 +39,7 @@ def audit(manifest_path):
     groups=Counter();assets=Counter();roles=Counter();splits=Counter();retries=[];unknown=Counter();hashes=set();errors=[]
     links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
     corridors={c['spawn_uid']:c for c in gen.sample_highway_corridors(links)}
-    bounded_vehicles=0;avoidance_phases=Counter();avoidance_gaps=[];avoidance_bins=Counter()
+    bounded_vehicles=0;avoidance_phases=Counter();avoidance_gaps=[];avoidance_bins=Counter();original_avoidance_bins=Counter()
     primary_assets=Counter();primary_roles=Counter();motion_counts=Counter();motion_decisions=Counter()
     inventory={r['data_id']:r for r in gen.geo.load_json(gen.catalog.DEFAULT_CATALOG)['assets']}
     appearance=gen.geo.load_json(gen.APPEARANCE_POLICY)
@@ -141,6 +154,10 @@ def audit(manifest_path):
                     avoidance_gaps.append(avoidance['actual_surface_gap_m'])
                     if r.get('avoidance_origin')!='generic_close':
                         avoidance_bins[str((r['family'],r['avoidance_gap_bounds_m']))]+=1
+                        try:
+                            prior=original_character_gap_bounds(r,meta['runtime_actors'][0]['population_pool'],m['config'])
+                            original_avoidance_bins[str((r['family'],prior))]+=1
+                        except ValueError as exc:errors.append((entry['id'],str(exc)))
         ego_poly=gen.rectangle([e['x']+1.35*gen.math.cos(ea),e['y']+1.35*gen.math.sin(ea)],[4.8,2.],e['yaw'])
         for i,a in enumerate(meta['runtime_actors']):
             if r.get('stationary_mission_pool'):
@@ -343,8 +360,12 @@ def audit(manifest_path):
                             errors.append(('all','avoidance phase/side quota'))
                 alongside=total*plan['phases']['alongside']//100
                 for lo,hi,weight in plan['alongside_gap_bins_m']:
-                    if avoidance_bins[str((family,[lo,hi]))]!=alongside*weight//100:
+                    if original_avoidance_bins[str((family,[lo,hi]))]!=alongside*weight//100:
                         errors.append(('all','avoidance gap-bin quota'))
+            if m['config'].get('stationary_character_spawn'):
+                expected=Counter(str((r['family'],r['avoidance_gap_bounds_m'])) for r in gen.specs(m['config'])
+                    if r.get('avoidance_phase')=='alongside' and r.get('avoidance_origin')!='generic_close')
+                if avoidance_bins!=expected:errors.append(('all','character adjusted frozen gap-bin quota'))
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,
@@ -355,6 +376,7 @@ def audit(manifest_path):
         vehicle_close_phase_counts=dict(vehicle_close_phases),
         vehicle_close_gap_min_max_m=[min(vehicle_close_gaps),max(vehicle_close_gaps)] if vehicle_close_gaps else [],
         avoidance_gap_bin_counts=dict(avoidance_bins),
+        original_avoidance_gap_bin_counts=dict(original_avoidance_bins),
         alongside_gap_min_max_m=[min(avoidance_gaps),max(avoidance_gaps)] if avoidance_gaps else [],
         distance_direction_bins=dict(bins),asset_groups=dict(groups),asset_counts=dict(assets),splits=dict(splits),
         actual_actor_directions=dict(roles),geometry_without_capture_reference=dict(unknown),

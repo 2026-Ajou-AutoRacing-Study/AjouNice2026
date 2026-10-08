@@ -14,6 +14,16 @@ from dynamic_capture_metadata import normalized_sensor_calibration
 
 
 class EnvironmentTests(unittest.TestCase):
+    def test_revision_prefixes_and_invalid_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);source=root/'source.json'
+            atomic_json(source,dict(scenes=[dict(id=str(i)) for i in range(5000)],config={},provenance={}))
+            path=prepare(source,root/'suite','base5_yaw_v127','collection_5k_yaw_v127')
+            report=json.loads(path.read_text());item=report['environments'][1]
+            self.assertTrue(item['capture_output'].endswith('collection_5k_yaw_v127_sunny13'))
+            self.assertEqual(json.loads(Path(item['manifest']).read_text())['dataset_id'],'base5_yaw_v127_sunny13')
+            with self.assertRaises(ValueError):prepare(source,root/'bad','../bad','ok')
+
     def test_six_manifests_preserve_geometry_and_split(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td);source=root/'source.json'

@@ -5,6 +5,7 @@ from collections import Counter,deque
 import hashlib
 import json
 import shutil
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
@@ -77,7 +78,7 @@ def reason_counts(cells):
 
 
 class Dashboard:
-    """Cache small status/plan files; never walk sensors or parse the large ledger."""
+    """Cache status/plan files; disk usage is sampled separately every five minutes."""
     def __init__(self,root,manifest=None,suite=None,history_file=None):
         self.root=Path(root);self.manifest=Path(manifest) if manifest else None
         self.deck=json.loads(self.manifest.read_text()) if self.manifest else None
@@ -97,6 +98,7 @@ class Dashboard:
                     self.motion_modes.append('animated' if movers or row.get('motion') not in ('static','standing') else 'stationary')
         self.history=deque(maxlen=20000);self.history_file=Path(history_file) if history_file else None
         self.last_sample_wall=0.;self.last_signature=None;self.cache={};self.lock=threading.RLock()
+        self.storage_sample=None;self.storage_error=None
         if self.history_file:
             if self.history_file.resolve()==self.root.resolve() or self.root.resolve() in self.history_file.resolve().parents:
                 raise ValueError('Dashboard history must live outside the capture root')
@@ -128,6 +130,20 @@ class Dashboard:
 
     def payload(self,now=None):
         with self.lock:return self._payload(time.time() if now is None else now)
+
+    def sample_storage(self):
+        """Read-only allocated-size scan, off the HTTP thread; hardlinks counted once."""
+        if not self.root.exists():return
+        status=read_optional(self.root/'status.json') or {}
+        approved=status.get('accepted_candidate',0)
+        try:
+            result=subprocess.run(['du','-sk','--',str(self.root)],capture_output=True,
+                text=True,timeout=60,check=True)
+            sample=dict(bytes=int(result.stdout.split()[0])*1024,accepted=approved,
+                observed_at=time.time())
+            with self.lock:self.storage_sample=sample;self.storage_error=None
+        except (OSError,ValueError,IndexError,subprocess.SubprocessError) as exc:
+            with self.lock:self.storage_error=str(exc)
 
     def _payload(self,now):
         status=status_payload(self.root);warnings=[]
@@ -220,6 +236,17 @@ class Dashboard:
             status['suite_target']=sum(e['requested'] for e in status['suite_progress'])
             status['suite_accepted']=sum(e['accepted'] for e in status['suite_progress'])
         status['capture_root']=str(self.root.resolve());status['diagnostic_warnings']=warnings
+        sample=self.storage_sample
+        storage=dict(sampled_at=sample['observed_at'] if sample else None,
+            used_gib=sample['bytes']/1024**3 if sample else None,
+            total_gib=None,additional_gib=None,free_after_gib=None,
+            sample_accepted=sample['accepted'] if sample else 0,error=self.storage_error)
+        if sample and sample['accepted']>0 and status.get('requested',0)>0:
+            per_approved=sample['bytes']/sample['accepted']/1024**3
+            storage['total_gib']=per_approved*status['requested']
+            storage['additional_gib']=per_approved*max(0,status['requested']-accepted)
+            storage['free_after_gib']=status['disk_free_gib']-storage['additional_gib']
+        status['storage_estimate']=storage
         return status
 
 
@@ -238,6 +265,10 @@ def main():
             try:dashboard.payload()
             except Exception:pass # HTTP retries expose read errors; never control MR
             time.sleep(15)
+    def sample_disk():
+        while True:
+            dashboard.sample_storage()
+            time.sleep(300)
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path=='/': body=HTML.encode();mime='text/html; charset=utf-8'
@@ -254,6 +285,7 @@ def main():
     print(f'http://127.0.0.1:{a.port}',flush=True)
     server=ThreadingHTTPServer(('127.0.0.1',a.port),Handler)
     threading.Thread(target=sample,daemon=True).start()
+    threading.Thread(target=sample_disk,daemon=True).start()
     try:server.serve_forever()
     finally:server.server_close()
 

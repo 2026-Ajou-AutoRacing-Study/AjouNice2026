@@ -652,7 +652,7 @@ def build(row,config,ctx,attempt=0):
     ego=dict(base,x=base['x']-math.sin(a)*offset,y=base['y']+math.cos(a)*offset,yaw=base['yaw']+yaw_delta)
     avoidance_ref=None;primary_pose=None
     if row.get('avoidance_phase'):
-        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng)
+        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng,yaw_attempt=attempt)
         yaw_delta=ego['yaw']-base['yaw']
         offset=0. if row.get('avoidance_origin')=='generic_close' else avoidance_ref['lateral_center_offset_m']
         if avoidance_ref.get('road_relocation'):
@@ -791,6 +791,12 @@ def build(row,config,ctx,attempt=0):
                 if rng.random()<.5: actor_yaw=base['yaw']+rng.choice([0.,90.])+rng.uniform(-8.,8.)
             pose=dict(pose,yaw=actor_yaw)
             if asset['source_list']!='objectList': pose['yaw']=base['yaw']+rng.choice([-90.,90.])
+        from base5_static_yaw import sample as sample_static_yaw
+        yaw_policy=sample_static_yaw(asset,row,actor_motion,i,base['yaw'],attempt)
+        if yaw_policy is not None:
+            # Primary avoidance yaw must be selected before the gap solver.
+            # Moving/crossing/vehicle rows have no opt-in and retain path yaw.
+            pose=dict(pose,yaw=yaw_policy['placement_yaw_deg'])
         pa=math.radians(pose['yaw']); center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
         box=rectangle(center,size,pose['yaw'])
         gap=footprint.distance(box)
@@ -877,6 +883,7 @@ def build(row,config,ctx,attempt=0):
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
         if config.get('regional_policy'):actor_records[-1]['placement_yaw_deg']=pose['yaw']
+        if yaw_policy is not None:actor_records[-1]['static_yaw_policy']=yaw_policy
         if stationary_policy and asset['source_list']=='vehicleList':
             actor_records[-1]['stationary_vehicle_policy']=stationary_policy
         if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer

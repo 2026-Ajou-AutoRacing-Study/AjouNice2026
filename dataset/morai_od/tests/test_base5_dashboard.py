@@ -30,6 +30,32 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(result['eta_label'],'수집 전')
             self.assertFalse((Path(folder)/'future').exists())
 
+    def test_storage_estimate_and_zero_approved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);capture,manifest=self.fixture(root);capture.mkdir()
+            (capture/'status.json').write_text(json.dumps(dict(stage='running',requested=5000,
+                finished=1000,accepted_candidate=900,elapsed_sec=600,updated_at=0)))
+            d=Dashboard(capture,manifest)
+            self.assertIsNone(d.payload()['storage_estimate']['total_gib'])
+            d.storage_sample=dict(bytes=9*1024**3,accepted=900,observed_at=123)
+            s=d.payload()['storage_estimate']
+            self.assertAlmostEqual(s['total_gib'],50)
+            self.assertAlmostEqual(s['additional_gib'],41)
+            self.assertAlmostEqual(s['free_after_gib'],d.payload()['disk_free_gib']-41,places=3)
+            d.storage_sample['accepted']=0
+            self.assertIsNone(d.payload()['storage_estimate']['total_gib'])
+
+    def test_storage_scan_counts_hardlinks_once_and_preserves_status(self):
+        import os
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);capture,manifest=self.fixture(root);capture.mkdir()
+            state=capture/'status.json';state.write_text('{"accepted_candidate":1}')
+            before=state.read_bytes();blob=capture/'raw';blob.write_bytes(bytes(65536))
+            d=Dashboard(capture,manifest);d.sample_storage();size=d.storage_sample['bytes']
+            os.link(blob,capture/'qa_hardlink');d.sample_storage()
+            self.assertEqual(d.storage_sample['bytes'],size)
+            self.assertEqual(state.read_bytes(),before)
+
     def test_zero_eta_does_not_claim_completion_for_running_or_halted(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)

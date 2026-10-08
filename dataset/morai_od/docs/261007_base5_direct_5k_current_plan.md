@@ -4,6 +4,18 @@
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
 본수집은 아직 시작하지 않는다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
 
+## 최신 / 2026-10-08 v129 — 정지 외관 방향 보강
+
+아래v123/v125의현재경로·미시작기록은당시이력이다. 구Sunny13 수집은사용자가중단했고763승인/raw를
+원본·압축백업으로유지했다. 새입력 `yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,
+새output `collection_5k_yaw_v129_sunny13`를사용한다. 새본5K는재시작하지않았다.
+5K패밀리비율·122종primary배분·거리/혼합budget·이동178/6환경30K는유지한다.
+범용정지ped/AI와정적회피ped계열만70%네방향±15°/30%360°로보강하고retry에서도재표본화한다.
+일반사람alongside33셀만spawn여유0.6–0.8m로조절한다. 새계획parent노출10081/60486이다.
+전수5K·6환경·대표live35/35·CPU35/91GT확인,실패근거/기존raw보존이다.
+[최신 변경과 검증](261008_base5_static_yaw_and_randomization_review.md),
+[현재 명령](261007_base5_5k_capture_runbook.md)이이하계획보다우선한다.
+
 ## 2026-10-08 완료 후 보충 — runtime v124
 
 v123의5K 배치/거리/자산/6환경 계획은 유지한다. 완료 부족분에만 명시적 `--resume --replenish`를 사용해

@@ -1,7 +1,38 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 진단 메타데이터 runtime v125 + 완료 후 부족분 보충 v124 + 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
+2026-10-08 / 정지 외관 yaw v128 + 일반사람 근접 spawn 보완 v129. 이전 v125/v124 운영·v123 구역별 구성 유지.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
+
+## 최신 상태 — v129 / 사용자 중단 후 새 입력
+
+아래 v123/v125 '현재/본수집 미시작' 문구는 당시 이력이다. 사용자가 구Sunny13 수집을 중단했고
+finished780/승인763/review17을 원본과 약3.3GiB tar.zst로 보존했다. 새 코드로 구output을 resume하지 않는다.
+현재 release는 `~/morai_cap/base5_v2_261008/yaw_5k_v129_release`이며,
+본수집 입력은 `environment_suite/sunny13/manifest.json`, 새output은 `collection_5k_yaw_v129_sunny13`다.
+새5K는 생성·검증만 마쳤으며 사용자 재시작 전이다.
+
+- 범용 정지pedestrian/AI 및 정적회피 사람·동물·복합 계열의 외관yaw:70%네축±15°/30%360°.
+  기존 범용 실체장애물의 자유각도/길쭉한장애물bias는 유지하며 걷기·달리기·NPC경로yaw는 변경하지 않는다.
+  yaw를 먼저 뽑고 회피 경계간격을 계산한다. 같은quota 재시도에서mode는 유지하고angle은 재표본화한다.
+- 일반사람 정적미션alongside33셀만gap0.6–0.8m. Man2 기존gap0.30/0.45 누락·0.60/0.80 승인 대조를
+  근거로 한 제한적 생성prior다. 내부collider 크기확인이나전체사람물리인증은 아니다.
+- 변경1082셀/3918payload불변, 보호된 고주로/로터리/음영/이동payload 불변.
+  5K 패밀리구성·122종primary횟수·정적4822→이동178·6환경30K계약은 유지한다.
+  새계획parent노출10081/60486. [v129 스냅샷 및 전면검토](261008_base5_static_yaw_and_randomization_review.md)가
+  아래v123의10079/60474표보다 우선하며 구표는 당시이력으로 보존한다.
+- 전수5000 OFFLINE_PASS/6환경hash·split·정적우선 검증, 실제MR35/35 승인/부족0,
+  CPU35프레임/91GT다. 초기실패/재배치/raw를보존하며5K전수성공/학습성능향상을주장하지않는다.
+- 완료resume추가capture0/raw886파일불변·ledger/누적시간불변·10session Park·403tests PASS다.
+  8075는새output의not_started/5000/6환경30000을표시하며수집폴더는아직없다.
+- 실측외삽9.326h/5K, 운영10–13h/5K·60–78h/30K 유지. raw/QA저장외삽26.81GiB/160.86GiB,
+  변환·복제·구백업은별도다. 누적rate와dashboard 저장계측으로갱신한다.
+- production E25/threshold/tracker/planning/localization은미변경이다.
+
+[변경·실험·한계](261008_base5_static_yaw_and_randomization_review.md),
+[현재 런북](261007_base5_5k_capture_runbook.md)을 따른다. 이후 항목은 revision별 이력이다.
+
+## 이전 준비 이력
+
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
 새 v121 5K는 v119의 보호된 미션/근접을 유지하고 범용500셀을 음영 관측으로 재배정한다.
 본수집 승인 전에는 실행하지 않는다.

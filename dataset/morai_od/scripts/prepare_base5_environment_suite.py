@@ -7,7 +7,10 @@ from pathlib import Path
 from base5_capture_safety import atomic_json, sha256
 
 
-def prepare(source, output):
+def prepare(source, output, dataset_prefix='base5_regions_v123', collection_prefix='collection_5k_regions_v123'):
+    import re
+    if any(not re.fullmatch(r'[A-Za-z0-9_-]+',v) for v in (dataset_prefix,collection_prefix)):
+        raise ValueError('Environment prefixes must be safe single path components')
     if output.exists():raise FileExistsError('Fresh suite output required')
     original=json.loads(source.read_text())
     if len(original['scenes'])!=5000:raise ValueError('Exactly 5K geometry cells required')
@@ -16,7 +19,7 @@ def prepare(source, output):
     for weather in ('sunny','foggy'):
         for hour in (11,13,15):
             tag=f'{weather}{hour}';deck=copy.deepcopy(original)
-            deck['dataset_id']=f'base5_regions_v123_{tag}'
+            deck['dataset_id']=f'{dataset_prefix}_{tag}'
             deck['config']['dataset_id']=deck['dataset_id']
             deck['config']['collection_environment']=dict(weather=weather,hour=hour,
                 policy='Operator UI verification required; this manifest does not apply MORAI weather/time')
@@ -26,7 +29,7 @@ def prepare(source, output):
             deck['status']='ENVIRONMENT_PREPARED; UI confirmation and bulk approval required'
             path=output/tag/'manifest.json';atomic_json(path,deck)
             catalog.append(dict(environment=tag,weather=weather,hour=hour,manifest=str(path.resolve()),
-                manifest_sha256=sha256(path),capture_output=str((output.parent/('collection_5k_regions_v123_'+tag)).resolve()),
+                manifest_sha256=sha256(path),capture_output=str((output.parent/(collection_prefix+'_'+tag)).resolve()),
                 expected_frames=5000))
     for item in catalog:
         deck=json.loads(Path(item['manifest']).read_text())
@@ -41,4 +44,7 @@ def prepare(source, output):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True)
-    p.add_argument('--output',type=Path,required=True);a=p.parse_args();print(prepare(a.manifest,a.output))
+    p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--dataset-prefix',default='base5_regions_v123')
+    p.add_argument('--collection-prefix',default='collection_5k_regions_v123')
+    a=p.parse_args();print(prepare(a.manifest,a.output,a.dataset_prefix,a.collection_prefix))
