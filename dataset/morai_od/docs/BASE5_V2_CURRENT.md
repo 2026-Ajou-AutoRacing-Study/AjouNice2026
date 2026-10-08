@@ -14,6 +14,9 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 현재 release는 `~/morai_cap/base5_v2_261008/regions_5k_v123_release/`다.
 본수집 입력은 `environment_suite/sunny13/manifest.json`, 정적4822셀 우선/이동178셀 후순이다.
 아래 v122 이하 경로·당시 비율은 이력이며 새 runtime으로 구 output을 resume하지 않는다.
+객체군별5K/30K 계획 노출 표는 [v123 동결 스냅샷](261008_base5_region_release_evidence.md#객체군별-계획-노출--v123-동결-스냅샷)에 둔다.
+기준은2026-10-08 11:05:24 KST/커밋`c5ff1baf`/manifest hash `9e1e3816…`다.
+이후구성이변경되면새스냅샷을계산하고이참조를갱신한다. 구버전계획치를현재값이나실제취득GT수로인용하지않는다.
 
 | 배치 카테고리 | 범용 | 미션 | 합계 |
 |---|---:|---:|---:|

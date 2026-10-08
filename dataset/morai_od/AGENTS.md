@@ -21,6 +21,9 @@
    sunny/foggy×11/13/15로 같은5K를 반복해30K. 환경UI수동확인·별도output/명시token,
    같은scene_group_id/split유지·merge leakage거부. 첫수집은 environment_suite/sunny13/manifest.json이다.
    `docs/261008_base5_region_release_evidence.md`와 최신런북을 따르며 구output 새runtime resume금지다.
+   객체군노출10079/60474표는2026-10-08 11:05:24 KST/v123/c5ff1baf/manifest SHA9e1e3816…의동결계획이다.
+   이후배치변경시과거표를현재값으로재사용하지않는다. 새manifest로재계산해시각/버전/hash를기록하고
+   CURRENT참조를갱신하되구스냅샷은보존한다. 계획parent노출과실제가시GT/완료장수를구분한다.
    `docs/261007_base5_sunny13_environment_correction.md`의 정정이 11시 오표기보다 우선한다.
    진행 중인 수집의 manifest/계약은 덮어쓰지 않는다. 기존 sunny11 config는 13시 내용의 호환 alias다.
    v111부터 정적 미션에도122종 전체를 정지 배치한다. family와 GT class를 혼동하지 않는다.
