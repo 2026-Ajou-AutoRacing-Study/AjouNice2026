@@ -904,6 +904,9 @@ def build(row,config,ctx,attempt=0):
         meta['avoidance_observation']=avoidance_ref
     if roundabout_proof is not None:
         meta['roundabout_observation']=roundabout_proof
+    if row.get('shadow_observation_stage'):
+        from base5_shadow_observation import validate_approach
+        meta['shadow_approach_geometry']=validate_approach(sys.modules[__name__],ctx,meta)
     from base5_intersection_placement import finish_metadata
     return scene,finish_metadata(meta)
 

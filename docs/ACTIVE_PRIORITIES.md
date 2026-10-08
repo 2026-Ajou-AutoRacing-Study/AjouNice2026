@@ -64,8 +64,10 @@
   [최종 gate 근거](../dataset/morai_od/docs/261007_base5_final_gates_v105_evidence.md)에 묶었다.
   본수집은 최종 보고 후 사용자 승인까지 대기한다. 이전 v23–v100 시행착오·실측은
   dataset evidence 문서에 보존하며 ACTIVE에 중복 나열하지 않는다.
-  현재 생성본은 `shadow_release_5k_v121`다. 범용500셀을 음영 입구/내부/출구로 재배정하고
-  기존1750미션/근접과4500entry는 보존한다. 음영 이동은 독립 terrain 준비를 사용한다.
+  현재 생성본은 `shadow_approach_5k_v122_b`다. 음영500셀을 바깥 접근150/진입90/내부190/출구70으로
+  보강하고145양성 사전 관측·오른쪽80/왼쪽20·좌우 엇갈림을 joint ROI/bin으로 검사한다.
+  기존1750미션/근접·4500entry와음영24이동을보존한다. 음영 이동은 독립 terrain 준비를 사용한다.
+  [사전 접근 구현·대표 검증](../dataset/morai_od/docs/261008_base5_shadow_approach_evidence.md)이 최신이고,
   [음영 검증·한계](../dataset/morai_od/docs/261008_base5_shadow_observation_evidence.md)와 로터리250/Park의
   [기존 검증 근거](../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)를 따르고
   구 output에 새 runtime으로 resume하지 않는다. 통신 halt는 안전 확인 후 새 output으로 분리한다.

@@ -36,6 +36,11 @@ def audit(manifest_path):
     roundabout_phases=Counter();roundabout_density=Counter();roundabout_ctx=None
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
+        if r.get('shadow_observation_stage'):
+            from base5_shadow_observation import validate_approach
+            if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+            try:validate_approach(gen,dynamic_ctx,meta)
+            except ValueError as exc:errors.append((entry['id'],'shadow '+str(exc)))
         from base5_static_vehicle import validate_serialized
         try:validate_serialized(meta,s,m['config']['capture'].get('static_vehicle_policy'))
         except (ValueError,KeyError,StopIteration) as exc:errors.append((entry['id'],'static vehicle '+str(exc)))

@@ -210,6 +210,9 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     from base5_roundabout_mission import visibility_review as roundabout_visibility_review
     pair_reasons,roundabout_visibility=roundabout_visibility_review(metadata,results,clearances)
     reasons.extend(pair_reasons)
+    from base5_shadow_observation import visibility_review as shadow_visibility_review
+    shadow_reasons, shadow_visibility = shadow_visibility_review(metadata, results)
+    reasons.extend(shadow_reasons)
     from base5_static_vehicle import runtime_review as static_vehicle_review
     static_vehicle_reasons,static_vehicle_evidence=static_vehicle_review(metadata)
     reasons.extend(static_vehicle_reasons)
@@ -228,5 +231,6 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     # and dashboard summaries; never synthesize a successful collision check.
     if live is not None:result['capture_safety']=copy.deepcopy(live)
     if roundabout_visibility is not None:result['roundabout_visibility']=roundabout_visibility
+    if shadow_visibility is not None:result['shadow_observation_visibility']=shadow_visibility
     if static_vehicle_evidence is not None:result['stationary_vehicle_runtime']=static_vehicle_evidence
     return result

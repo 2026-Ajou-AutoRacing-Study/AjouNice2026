@@ -73,6 +73,14 @@
    본5K는 사용자 승인 후 새output으로 시작하며 개발 pilot에 새runtime으로 resume하지 않는다.
    v121 실제정적25/25·이동6/7, Woman3 running1ground deficit이다. final_validation은1누락 FAIL이며
    CPU31/54GT·최종runtime resume481raw불변/추가capture0·334tests PASS와 구분한다. 모든moving 성공 보장은 아니다.
+   v122 current는 shadow_approach_5k_v122_b다. `docs/261008_base5_shadow_approach_evidence.md`가 우선한다.
+   음영500셀은 바깥먼접근60/가까운접근60/직전30/진입90/내부190/출구70이며145바깥positive를
+   Ego밖/target안/전방/100m ROI joint placement로 보장한다. phase 이름만으로 가시성을 인증하지 않는다.
+   정적 primary lane80/20·좌우 엇갈림93셀, 중앙부 집중과 입구 target 예외를 함께 유지한다.
+   음영476정적만 변경/4524entry(기존4500+이동24) 불변이다.178이동/122종 최소4/거리quota는 유지한다.
+   runtime raw primary가 실제전방/ROI positive인지 검사하고 CAMERA_1 여부를 별도기록한다. GT는 그대로다.
+   대표20/20(실제23capture/실패3원본보존), 바깥양성9/9 CAMERA_1, CPU20/29GT·완료resume추가capture0다.
+   구v121 output 새runtime resume금지, 본5K는승인후fresh output이다. 기존running ground deficit 해결로 해석하지 않는다.
 
 CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
 `base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.
