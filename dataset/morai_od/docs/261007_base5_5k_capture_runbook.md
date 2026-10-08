@@ -4,6 +4,12 @@
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
 
+2026-10-08 12:14 KST 최종 확인: 현재runtime에서 새대표33/33·CPU/완료resume 및370tests 통과.
+본수집 root는 아직 없다. [최종 EVIDENCE](261008_base5_prebulk_v124_final.md)를 따른다.
+localhost8075 대시보드는 현재 root로 이미 실행해 `수집 전`을 확인했다. master/bridge/대시보드가
+살아 있으면 중복 실행하지 않는다. 같은 설정을 유지하고 승인 후 터미널3만 시작하면 된다.
+환경 manifest가 실제 MR UI 날씨/시간/센서를 자동 확인하는 것은 아니다.
+
 ## 현재 입력/6환경 계약 — v123
 
 Release root: `~/morai_cap/base5_v2_261008/regions_5k_v123_release`.

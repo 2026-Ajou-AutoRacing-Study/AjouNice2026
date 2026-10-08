@@ -20,6 +20,10 @@
    안전PAUSE재개·기존안전halt/hash계약을유지한다.본5K미시작·freshoutput필수/구v123pilot새runtime재개금지다.
    `docs/261008_base5_completed_replenishment_evidence.md`와런북의완료후보충을읽는다.
    기존`base5_replenishment.py`는소량visibility-only이력도구이고현재통합보충은`base5_campaign_replenishment.py`다.
+   2026-10-08 12:14 KST 최종준비는 `docs/261008_base5_prebulk_v124_final.md`를 먼저 읽는다.
+   현runtime 전수5000/6환경·새MR33/33·CPU/resume·370tests 확인이다. 본5K는 아직 미시작이며
+   다음은 승인 후 런북 터미널3이다. 캡처runtime/입력은 유지, dashboard 미시작/중단 표시만 수정했다.
+   8075는 현재 bulk root를 보고8081은 구10K다. 기존 master/bridge/dashboard를 중복 실행하지 않는다.
    고주로740/600·로터리0/350·기타차량80/50·장애물770/600·사람830/250·음영500·배경230이다.
    고주로/로터리 보조actor까지 일반차량만, 비차량 범용은 other구역으로 제한한다. 음영은 독립family다.
    범용30/50/20·거리/근접quota·희귀primary를 유지하며 혼합사람270셀에서 장애물 노출을 보충한다.

@@ -3,6 +3,7 @@
 import argparse
 import json
 import shutil
+import time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 
@@ -13,9 +14,9 @@ HTML='''<!doctype html><html lang="ko"><meta charset="utf-8"><title>Base5 캡처
 <h2>패밀리·거리·방향별 진행</h2><table><thead><tr><th>패밀리 / 거리 / 방향</th><th>후보 승인</th><th>검토</th><th>실패</th></tr></thead><tbody id="bins"></tbody></table><pre id="error"></pre>
 <script>const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function tick(){try{let s=await(await fetch('/status.json',{cache:'no-store'})).json();
-let stale=(Date.now()/1000-s.updated_at)>20&&!['complete','complete_with_deficit','paused','halted','halted_exit_safety','interrupted','stopped','stopped_for_resume_test','prepared_waiting_for_MR_reconnect'].includes(s.stage);document.getElementById('stage').textContent=`${s.stage} · ${s.current||''} ${s.checkpoint_only?`· 목록 체크포인트 ${s.checkpoint_finished}장`:''} ${stale?'(상태 갱신 지연)':''}`;
+let stale=s.status_stale;document.getElementById('stage').textContent=`${s.stage} · ${s.current||''} ${s.checkpoint_only?`· 목록 체크포인트 ${s.checkpoint_finished}장`:''} ${stale?'(상태 갱신 지연)':''}`;
 if(s.active_capture)document.getElementById('stage').textContent+=` · ${s.active_capture.stage} · ${s.active_capture.current||''}`;
-bar.max=s.requested||1;bar.value=s.mode==='replenishment'?s.accepted_candidate:s.finished;cards.innerHTML=[['검사 완료',`${s.finished}/${s.requested}`],['후보 승인',s.accepted_candidate],['검토·부족분',s.review],...(s.mode==='replenishment'?[['최초 승인',s.initial_accepted],['추가 보충',s.replenished],['보충 회차',`${s.replenish_round}/${s.replenish_round_cap}`],['보충 시도',s.replenishment_attempts]]:[]),['실패',s.failed],['예상 잔여',s.eta_sec>0?`${Math.round(s.eta_sec/60)}분`:(s.review>0?'부족분 남음':s.finished===s.requested?'완료':'계측 중')],['경과',`${Math.round((s.elapsed_sec||0)/60)}분`],['승인 속도',s.accepted_per_hour?`${s.accepted_per_hour.toFixed(1)}장/시간`:'계측 중'],['디스크 여유',`${(s.disk_free_gib||0).toFixed(1)} GiB`],...(s.child_progress?[['진행 중 batch',`${s.child_progress.finished}/${s.child_progress.requested} · ${s.child_progress.stage}`]]:[])].map(([a,b])=>`<div>${esc(a)}<h2>${esc(b)}</h2></div>`).join('');
+bar.max=s.requested||1;bar.value=s.mode==='replenishment'?s.accepted_candidate:s.finished;cards.innerHTML=[['검사 완료',`${s.finished}/${s.requested}`],['후보 승인',s.accepted_candidate],['검토·부족분',s.review],...(s.mode==='replenishment'?[['최초 승인',s.initial_accepted],['추가 보충',s.replenished],['보충 회차',`${s.replenish_round}/${s.replenish_round_cap}`],['보충 시도',s.replenishment_attempts]]:[]),['실패',s.failed],['예상 잔여',s.eta_label],['경과',`${Math.round((s.elapsed_sec||0)/60)}분`],['승인 속도',s.accepted_per_hour?`${s.accepted_per_hour.toFixed(1)}장/시간`:'계측 중'],['디스크 여유',`${(s.disk_free_gib||0).toFixed(1)} GiB`],...(s.child_progress?[['진행 중 batch',`${s.child_progress.finished}/${s.child_progress.requested} · ${s.child_progress.stage}`]]:[])].map(([a,b])=>`<div>${esc(a)}<h2>${esc(b)}</h2></div>`).join('');
 let bins={};for(let r of s.results||[]){let k=`${r.family} / ${(r.distance_bounds||[]).join('–')}m / ${r.role||''}`;bins[k]??={accepted_candidate:0,review:0,failed:0};bins[k][r.status]++;}
 if(s.accepted_bins){bins={};for(let [key,count] of Object.entries(s.accepted_bins)){let [family,distance,role]=JSON.parse(key);bins[`${family} / ${(distance||[]).join('–')}m / ${role||''}`]={accepted_candidate:count,review:0,failed:0};}}
 document.getElementById('bins').innerHTML=Object.entries(bins).sort().map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.accepted_candidate}</td><td>${v.review}</td><td>${v.failed}</td></tr>`).join('');error.textContent=s.error||'';
@@ -47,6 +48,20 @@ def status_payload(root):
     status['disk_free_gib']=shutil.disk_usage(ancestor).free/(1024**3)
     elapsed=status.get('elapsed_sec',0)
     status['accepted_per_hour']=3600*status.get('accepted_candidate',0)/elapsed if elapsed>0 else 0
+    stage=status.get('stage','unknown')
+    idle=('not_started','complete','complete_with_deficit','paused','interrupted',
+          'stopped','stopped_for_resume_test','prepared_waiting_for_MR_reconnect')
+    halted=stage.startswith('halted')
+    status['status_stale']=not (stage in idle or halted) and time.time()-status.get('updated_at',0)>20
+    if stage=='not_started':label='수집 전'
+    elif halted or stage in ('interrupted','stopped'):label='중단 · 확인 필요'
+    elif stage in ('paused','stopped_for_resume_test'):label='일시정지'
+    elif stage=='prepared_waiting_for_MR_reconnect':label='연결 대기'
+    elif stage=='complete_with_deficit':label='부족분 남음'
+    elif stage=='complete':label='완료'
+    elif status.get('eta_sec',0)>0:label=f"{int(status['eta_sec']/60+.5)}분"
+    else:label='계측 중'
+    status['eta_label']=label
     return status
 
 

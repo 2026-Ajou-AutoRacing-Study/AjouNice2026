@@ -14,6 +14,22 @@ class DashboardTests(unittest.TestCase):
             result=status_payload(Path(folder)/'future')
             self.assertEqual(result['stage'],'not_started')
             self.assertGreater(result['disk_free_gib'],0)
+            self.assertFalse(result['status_stale'])
+            self.assertEqual(result['eta_label'],'수집 전')
+            self.assertFalse((Path(folder)/'future').exists())
+
+    def test_zero_eta_does_not_claim_completion_for_running_or_halted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for stage,label,stale in [('running','계측 중',True),
+                    ('halted','중단 · 확인 필요',False),('halted_exit_safety','중단 · 확인 필요',False),
+                    ('paused','일시정지',False),('complete_with_deficit','부족분 남음',False),
+                    ('complete','완료',False)]:
+                (root/'status.json').write_text(json.dumps(dict(stage=stage,requested=2,finished=2,
+                    accepted_candidate=2,eta_sec=0,updated_at=0)))
+                result=status_payload(root)
+                self.assertEqual(result['eta_label'],label)
+                self.assertEqual(result['status_stale'],stale)
 
     def test_rate_and_internal_child_only(self):
         with tempfile.TemporaryDirectory() as folder:

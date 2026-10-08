@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-08.
 
+- **2026-10-08 12:14 KST 본수집 전 마무리:** v124 runtime/v123 입력 전수5000/6환경 확인,
+  새MR33/33·CPU33/72GT·완료resume 추가capture0·370tests PASS다.
+  [최종 확인](261008_base5_prebulk_v124_final.md), [CURRENT](BASE5_V2_CURRENT.md),
+  [런북](261007_base5_5k_capture_runbook.md)을 따른다. 다음은 승인 후 Sunny13 본5K이며 아직 미시작이다.
+
 - **2026-10-08 v124 운영:** v123의5K 배치는 유지하고 완료 부족분만 `--resume --replenish`로 보충한다.
   원래 셀별 누적 상한·성공/raw 보존·통합 ledger·pause/resume·dashboard를 지원한다.
   [보충 EVIDENCE](261008_base5_completed_replenishment_evidence.md), [런북](261007_base5_5k_capture_runbook.md),
