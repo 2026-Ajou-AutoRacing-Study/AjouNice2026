@@ -67,6 +67,20 @@ class QualityLoopTest(unittest.TestCase):
             self.assertEqual(saved['spec'],meta['spec']);self.assertEqual(saved['split'],'train')
             self.assertTrue(saved['replacement']['ground_observation_preflight'])
 
+    def test_empty_replacement_retains_environment_group_across_nested_retry(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);meta=dict(retry=0,spec=dict(family='background'),split='train',
+                runtime_actors=[],scene_group_id='original_group',environment_split_contract='six-environment')
+            loop.atomic_json(root/'meta.json',meta)
+            loop.atomic_json(root/'manifest.json',dict(config={},scenes=[dict(id='a',metadata=str(root/'meta.json'),scenario_sha256='source')]))
+            new=dict(retry=1,spec=meta['spec'],split='train',runtime_actors=[])
+            with patch.object(loop.gen,'context',return_value={}),patch.object(loop.gen,'build',return_value=({},new)):
+                first=loop.replacement(root/'manifest.json',root/'first')
+                second=loop.replacement(first,root/'second')
+            saved=loop.gen.geo.load_json(Path(loop.gen.geo.load_json(second)['scenes'][0]['metadata']))
+            self.assertEqual(saved['scene_group_id'],'original_group')
+            self.assertEqual(saved['environment_split_contract'],'six-environment')
+
     def test_legacy_motion_rejected_before_any_calibration_load(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'source.json';meta=root/'meta.json'

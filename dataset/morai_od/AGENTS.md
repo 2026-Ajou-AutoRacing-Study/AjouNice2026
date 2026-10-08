@@ -14,6 +14,12 @@
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
    2026-10-08 v123가 아래 v122보다 우선한다. current는 `regions_5k_v123_release`다.
+   v124는같은v123배치의완료후보충runtime이다. `--resume --replenish`는부족원래셀만같은
+   primary/spec/split/group/config로재배치하며성공/raw를보존하고통합ledger를갱신한다.
+   기본2/최대3회차는셀당누적상한이고명령반복으로초기화하지않는다. ordinary완료resume은촬영하지않는다.
+   안전PAUSE재개·기존안전halt/hash계약을유지한다.본5K미시작·freshoutput필수/구v123pilot새runtime재개금지다.
+   `docs/261008_base5_completed_replenishment_evidence.md`와런북의완료후보충을읽는다.
+   기존`base5_replenishment.py`는소량visibility-only이력도구이고현재통합보충은`base5_campaign_replenishment.py`다.
    고주로740/600·로터리0/350·기타차량80/50·장애물770/600·사람830/250·음영500·배경230이다.
    고주로/로터리 보조actor까지 일반차량만, 비차량 범용은 other구역으로 제한한다. 음영은 독립family다.
    범용30/50/20·거리/근접quota·희귀primary를 유지하며 혼합사람270셀에서 장애물 노출을 보충한다.

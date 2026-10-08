@@ -4,7 +4,16 @@
 **10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
 본수집은 아직 시작하지 않는다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
 
-## 2026-10-08 구역별 재배정 — v123 우선
+## 2026-10-08 완료 후 보충 — runtime v124
+
+v123의5K 배치/거리/자산/6환경 계획은 유지한다. 완료 부족분에만 명시적 `--resume --replenish`를 사용해
+같은 셀/primary/spec/split/group/config의 새 배치를 취득한다. 성공 raw/원본 manifest는 보존한다.
+기본2회차의 누적 상한(명시적 최대3)과 안전 halt를 유지하며 통합 selected ledger/quota/dashboard를 갱신한다.
+본5K 미시작, 소량 MR 통합/CPU 검증 결과와 한계는
+[v124 EVIDENCE](261008_base5_completed_replenishment_evidence.md), 명령은 [런북](261007_base5_5k_capture_runbook.md)이다.
+구runtime output에 새코드로 resume하지 않는다. 본수집은 현재 코드와 fresh output에서 시작한다.
+
+## 2026-10-08 구역별 재배정 — v123 배치 유지
 
 현재5K는 고주로1340(범용740/미션600), 로터리350(전부미션), 기타차량130(80/50),
 장애물1370(770/600), 사람·동물·복합1080(830/250), 음영500, 배경230이다.

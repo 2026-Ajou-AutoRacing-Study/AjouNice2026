@@ -51,7 +51,8 @@ def replacement(manifest,output,require_ground_observable=False):
         try:scene,new=gen.build(meta['spec'],m['config'],ctx,retry)
         except ValueError:continue
         if new['split']!=meta['split']:continue
-        if new['runtime_actors'][0]['data_id']!=meta['runtime_actors'][0]['data_id']:raise ValueError('Replacement changed primary asset')
+        primary=lambda m:m['runtime_actors'][0]['data_id'] if m['runtime_actors'] else None
+        if primary(new)!=primary(meta):raise ValueError('Replacement changed primary asset')
         if require_ground_observable:
             from prepare_base5_empty_ground_probe import target_probe_pose
             # Animated preparation observes every target through empty probes
@@ -72,8 +73,13 @@ def replacement(manifest,output,require_ground_observable=False):
         policy='same primary asset, family, mission, motion request, role, distance cell and split; no GT rewriting',
         ground_observation_preflight=require_ground_observable,
         ground_observation_limitation='Mapped-road witness pose availability only; actual terrain and visibility still required')
+    # Geometry may change, but environment variants must never acquire a new
+    # split/group identity, even through nested quality-loop replacements.
+    for key in ('scene_group_id','environment_split_contract'):
+        if key in meta:new[key]=copy.deepcopy(meta[key])
     atomic_json(sp,scene);atomic_json(mp,new)
-    old.update(id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp),motion=new['runtime_actors'][0]['motion'])
+    old.update(id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp),
+        motion=new['runtime_actors'][0]['motion'] if new['runtime_actors'] else old.get('motion',meta['spec'].get('motion','static')))
     old['source_cell_id']=new['replacement']['source_cell_id']
     atomic_json(output/'manifest.json',m);return output/'manifest.json'
 

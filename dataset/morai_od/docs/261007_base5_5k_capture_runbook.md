@@ -1,6 +1,6 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
-2026-10-08 / v123 regional 5K·six-environment suite + v119 parked NPC + v117 endpoint-linear + v115 advisory.
+2026-10-08 / v124 완료 후 통합 보충 runtime + v123 regional 5K·six-environment suite + v119 parked NPC + v117 endpoint-linear + v115 advisory.
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
 
@@ -16,7 +16,8 @@ manifest만 바꿔도 실제 날씨가 바뀌는 기능은 없다. 다른 환경
 고주로/로터리 전actor 차량만, 로터리350미션, 사람계열830범용·혼합장애물 보충,
 독립음영500geometry유지·122종 primary 최소5회다. 정적4822부터 취득하고 이동178을 마지막에 둔다.
 같은scene의6환경을 동일split으로 묶으며 독립geometry는5K이지30K가 아니다.
-최종live33/33·CPU33/72GT·완료resume추가capture0·355tests PASS다.
+v123 당시 최종live33/33·CPU33/72GT·완료resume추가capture0·355tests PASS다.
+v124는 아래 완료 후 보충을 추가한다. 구pilot에 새runtime을 혼합하지 않고 본수집은 fresh output을 쓴다.
 5K실측외삽9.24h/운영예산10–13h,6환경60–78h(후처리·학습별도)다. 첫100–200셀rate로갱신한다.
 raw/QA외삽5K약26.5GiB/30K약159GiB이며캐시/압축복제/재시도공간은별도다.
 아래 이전 실행계약/실측은 해당 revision의 이력이다. 본수집 명령은 이 문서의v123경로만 사용한다.
@@ -148,8 +149,44 @@ rm "$HOME/morai_cap/base5_v2_261008/regions_5k_v123_release/collection_5k_region
 ```
 
 급히 중단하려면 부모터미널 Ctrl-C/STOP 경로를 사용한다. 종료 Park 확인 전 다른 수집기를 켜지 않는다.
-부족분은 deficit_manifest/ledger에 남는다. 끝난 뒤 부족 셀의 같은 자산·family/phase·거리 quota로
-별도 bounded 보충을 설계한다. 잘 나온 장면만 골라 전체quota 완료로 표시하지 않는다.
+부족분은 deficit_manifest/quota에 남는다. 끝난 뒤 아래 보충 명령으로 같은 설계 셀을 보충한다.
+잘 나온 장면만 골라 전체quota 완료로 표시하지 않는다.
+
+## 완료 후 부족분 보충 — v124
+
+최초 수집이 `complete_with_deficit`로 끝난 후, MR의 환경/센서/통신을 그대로 유지하고 실행한다.
+새 보충용 output을 만들거나 limit를 부족 장수로 줄이지 않는다. 원래 target5000과 chunk/manifest를 유지한다.
+
+```bash
+ajou
+BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/regions_5k_v123_release"
+python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
+  --manifest "$BASE5_ROOT/environment_suite/sunny13/manifest.json" \
+  --output "$BASE5_ROOT/collection_5k_regions_v123_sunny13" \
+  --limit 5000 --chunk-size 4 --approve-bulk-capture \
+  --resume --replenish --replenish-rounds 2
+```
+
+- ordinary resume: 완료 근거 검증만 한다. 완료 후에도 부족분은 자동 재촬영하지 않는다.
+- replenish: 기존 성공분/raw는 그대로, 부족 원래 셀만 새 geometry로 캡처한다. 동일 primary asset/spec/
+  거리/방향/미션 단계/motion 요청/split/group/환경 config를 유지한다. 보조 배치 및 실제 raw는 달라질 수 있다.
+- replenish-rounds: **셀당 전체 보충 회차의 누적 상한**이다. 기본2, 선택1–3이다.
+  같은 명령을 여러 번 실행해도 상한을 초기화하지 않는다. 2회차 후 남았다면 명시적으로3으로 늘릴 수 있다.
+  한 회차의 child에도 기존 최대2 quota round 및 bounded QA가 있으므로 실제 촬영2회를 뜻하지 않는다.
+- PAUSE는 진행 중인 셀과 안전 종료를 마친 뒤 멈춘다. PAUSE를 제거하고 동일 보충 명령으로 재개한다.
+  STOP/Ctrl-C가 진행 중 child를 끊으면 기존처럼 safety halt일 수 있다. 강제 resume하지 않는다.
+- 완료 후 다시 ordinary resume 또는 동일 보충 명령을 실행해도 성공분/완료 child를 재촬영하지 않는다.
+  상태 journal에 commit된 승인으로 ledger/quota publication을 복원한다. 원본 manifest는 덮어쓰지 않는다.
+- 대시보드는 같은 output을 계속 본다. 최초 승인/추가 보충/잔여 부족/회차가 나오고, 보충 중 bar는 승인 수다.
+  검사 finished5000이 학습 승인5000이라는 뜻은 아니다. `complete_with_deficit`는 부족분이 남은 종료다.
+- `selected_ledger.jsonl`은 통합 결과다. 아래 coverage/CPU 변환 명령을 그대로 사용한다.
+  `replenishment/round_XX/`에는 후보 manifest/child/raw/실패 근거, `state.json`에는 원래 셀 매핑을 남긴다.
+- 환경별 보충은 해당 환경 manifest/output에서만 한다. UI 환경을 다시 확인한다. 보충 geometry가 바뀐
+  환경은 완전히 동일 geometry의 weather A/B라고 주장하지 않지만, 원래 group/split은 유지해 leakage를 막는다.
+- 미완료는 먼저 원래 resume으로 끝낸다. halted/코드·manifest·센서/hash 불일치는 자동 보충 대상이 아니다.
+  이번 v124 도입 이전 output은 해당 revision에서만 검증/재개한다. 새 본수집에는 현재 코드를 쓴다.
+
+[MR 통합 테스트와 보존/변환 근거](261008_base5_completed_replenishment_evidence.md).
 
 ## 최종 감사·CPU 변환
 

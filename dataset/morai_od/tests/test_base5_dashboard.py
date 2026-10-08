@@ -34,5 +34,17 @@ class DashboardTests(unittest.TestCase):
             (root/'status.json').write_text(json.dumps(state))
             self.assertNotIn('child_progress',status_payload(root))
 
+    def test_replenishment_progress_distinguishes_finished_from_approved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            state=dict(stage='replenishing',mode='replenishment',requested=5000,finished=5000,
+                initial_accepted=4900,replenished=20,remaining_deficit=80,review=80,
+                accepted_candidate=4920,elapsed_sec=36000,replenish_round=1,replenish_round_cap=2)
+            (root/'status.json').write_text(json.dumps(state))
+            result=status_payload(root)
+            self.assertEqual(result['remaining_deficit'],80)
+            self.assertEqual(result['replenished'],20)
+            self.assertEqual(result['accepted_candidate'],4920)
+
 
 if __name__=='__main__':unittest.main()

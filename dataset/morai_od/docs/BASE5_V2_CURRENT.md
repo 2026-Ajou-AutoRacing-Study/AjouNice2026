@@ -1,6 +1,6 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-08 / 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
+2026-10-08 / 완료 후 부족분 보충 runtime v124 + 구역별 배치 v123 + 음영 사전 접근 v122 + 정적 NPC Park v119 + 사거리 2점 v117 + 정적 QA v115.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보존한다.
 새 v121 5K는 v119의 보호된 미션/근접을 유지하고 범용500셀을 음영 관측으로 재배정한다.
@@ -9,7 +9,31 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 구역별 5K + 동일 구성 6환경 — v123 우선
+## 2026-10-08 완료 후 부족분 자동 보충 — runtime v124 우선
+
+배치 입력은 아래 v123 release 그대로다. 5K 구성/6환경/GT/거리/계획 노출 표를 변경하지 않았다.
+본5K는 아직 시작하지 않았다. 이번 변경은 완료된 campaign의 부족분을 명시적으로 보충하는 운영 기능이다.
+
+- 본수집 완료 후 동일 명령에 `--resume --replenish`를 사용한다. 미완료/안전 halt는 먼저 보충하지 않는다.
+- 기존 승인 셀/raw와 원본 manifest는 보존한다. 실패한 원래 셀만 동일 primary/spec/거리/방향/
+  phase/motion 요청/split/group/config로 새 배치를 만들며 새 raw에서도 기존 gate를 통과해야 한다.
+- 기본 보충2회차(셀당 누적 상한), 최대3회차를 명시적으로 선택한다. 같은 명령을 반복해 상한을 초기화하지 않는다.
+  각 회차 내부에도 기존 bounded quality recovery가 있으므로 회차 수가 실제 촬영 횟수는 아니다.
+- `selected_ledger.jsonl`에 기존 승인+보충 승인을 원래 셀당1개로 통합한다. quota/부족 manifest/
+  dashboard도 갱신한다. `replenishment/state.json`과 회차별 raw/실패 근거는 보존한다.
+- 보충의 안전한 PAUSE→같은 보충 명령 재개를 지원한다. 보충 이후 ordinary `--resume`은 검증만 한다.
+  완료 ledger가 보충 전 상태로 돌아가지 않으며, 완료 child/성공 셀을 다시 촬영하지 않는다.
+- CollisionData 접촉의 안전 종료 근거가 있는 실패는 부족분이다. 통신/Park/정지 불확실은 여전히 halt다.
+  모든 부족분의 자동 해결/5000장 보장은 아니다. 상한 후 남은 부족분은 보고하고 따로 판단한다.
+- runtime/hash가 바뀌었으므로 구 v123 pilot output은 새 코드로 resume하지 않는다. 과거 근거는 보존하고
+  본수집은 v124 코드에서 fresh output으로 시작한다. 이미 수집을 시작했다면 원래 revision을 유지한다.
+- 기존 `base5_replenishment.py`는 소량 visibility-only 독립 pilot 도구로 보존한다.
+  현재 5K 통합 보충 구현은 `base5_campaign_replenishment.py`와 batch CLI다.
+
+[실제 MR·보존·CPU·한계 근거](261008_base5_completed_replenishment_evidence.md),
+[실행 명령](261007_base5_5k_capture_runbook.md#완료-후-부족분-보충--v124)을 따른다.
+
+## 2026-10-08 구역별 5K + 동일 구성 6환경 — v123 배치 유지
 
 현재 release는 `~/morai_cap/base5_v2_261008/regions_5k_v123_release/`다.
 본수집 입력은 `environment_suite/sunny13/manifest.json`, 정적4822셀 우선/이동178셀 후순이다.

@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-08.
 
+- **2026-10-08 v124 운영:** v123의5K 배치는 유지하고 완료 부족분만 `--resume --replenish`로 보충한다.
+  원래 셀별 누적 상한·성공/raw 보존·통합 ledger·pause/resume·dashboard를 지원한다.
+  [보충 EVIDENCE](261008_base5_completed_replenishment_evidence.md), [런북](261007_base5_5k_capture_runbook.md),
+  [CURRENT](BASE5_V2_CURRENT.md)를 따른다. 본5K는 미시작이며 구output에 새runtime을 혼합하지 않는다.
+
 - **2026-10-08 v123 우선:** 고주로740/600·로터리0/350·기타차량80/50·장애물770/600·
   사람계열830/250·독립음영500·배경230으로5000셀을 준비한다. 고주로/로터리는 모든actor 차량만,
   비차량 범용은 다른 구역에 배치한다. 122종 primary 최소5, 장애물 노출2973개다.

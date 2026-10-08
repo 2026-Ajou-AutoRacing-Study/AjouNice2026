@@ -98,30 +98,75 @@ def needs_independent_preparation(metadata):
     return bool(moving_actors(metadata)) and not editor_prepared(metadata)
 
 
-def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False):
+def verify_recovery(source,index,output):
+    """Read-only reconstruction; never launch a child to verify completed raw."""
+    state=json.loads((output/'status.json').read_text())
+    if state['stage'] not in ('complete','complete_with_deficit'):
+        raise ValueError('Completed recovery evidence missing; no recapture')
+    expected=campaign.contract(source,[index],2)
+    seed=output.parent/(output.name+'_seed.json')
+    if seed.exists():expected['seed_sha256']=sha256(seed)
+    if json.loads((output/'campaign_contract.json').read_text())!=expected:
+        raise ValueError('Recovery contract mismatch')
+    cell=json.loads(source.read_text())['scenes'][index]
+    selected=[]
+    for ordinal in range(2):
+        report=json.loads((output/cell['id']/f'round_{ordinal}'/'report.json').read_text())
+        if report['stage']!='complete':raise ValueError('Incomplete quality report')
+        campaign.validate_selected(report)
+        if report['selected']:
+            if len(report['selected'])!=1:raise ValueError('Single cell selected multiple captures')
+            row=copy.deepcopy(report['selected'][0]);row['source_cell_id']=cell['id']
+            selected=[row];break
+    if load_ledger(output/'selected_ledger.jsonl')!=selected:
+        raise ValueError('Recovery selected ledger changed')
+    quota=json.loads((output/'quota.json').read_text())
+    if quota['accepted']!=len(selected) or quota['deficit']!=1-len(selected) or quota.get('pending'):
+        raise ValueError('Recovery quota does not match evidence')
+    return 0
+
+
+def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False,
+            replenish=False,replenish_rounds=2,_verification=None,_lock_held=False):
     if not indices or len(indices)>(10000 if bulk else 64) or len(set(indices))!=len(indices):
         raise ValueError('Unique 1–64 pilot cells; up to10K only with explicit bulk approval')
     if not 1<=chunk_size<=16:raise ValueError('Chunk must contain 1–16 cells')
+    if replenish and not resume:raise ValueError('--replenish requires --resume')
+    if _verification is None and (replenish or (output/'replenishment/state.json').exists()):
+        import base5_campaign_replenishment
+        return base5_campaign_replenishment.execute(source,indices,output,chunk_size,resume,bulk,
+            replenish,replenish_rounds,stop_after_chunks)
     if output.exists() and not resume:raise FileExistsError('Existing campaign requires --resume')
     expected=campaign.contract(source,indices,2)
-    expected.update(batch_driver_sha256=sha256(__file__),chunk_size=chunk_size,bulk=bulk)
+    expected.update(batch_driver_sha256=sha256(__file__),chunk_size=chunk_size,bulk=bulk,
+        replenishment_driver_sha256=sha256(Path(__file__).with_name('base5_campaign_replenishment.py')))
     output.mkdir(parents=True,exist_ok=True)
-    lock=(output/'.batch.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    lock=None if _lock_held else (output/'.batch.lock').open('a')
+    if lock:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     original=json.loads(source.read_text());selected={};deficits={};started=time.monotonic()
     contract_path=output/'batch_contract.json';stop=output/'STOP'
     if contract_path.exists() and json.loads(contract_path.read_text())!=expected:
-        lock.close();raise ValueError('Batch campaign contract mismatch')
-    atomic_json(contract_path,expected)
+        if lock:lock.close()
+        raise ValueError('Batch campaign contract mismatch')
+    if not contract_path.exists():atomic_json(contract_path,expected)
     status_path=output/'status.json'
     prior_status=json.loads(status_path.read_text()) if status_path.exists() else {}
     if resume and prior_status.get('stage')=='halted':
-        lock.close();raise ValueError('Halted campaign requires manual safety recovery and new output')
+        if lock:lock.close()
+        raise ValueError('Halted campaign requires manual safety recovery and new output')
     completed_stages=('complete','complete_with_deficit')
-    verify_only=resume and prior_status.get('stage') in completed_stages
+    verify_only=_verification is not None or (resume and prior_status.get('stage') in completed_stages)
+    recover_cell=verify_recovery if _verification is not None else None
+    def recover_one(source,index,recovery,stop,heartbeat):
+        return recover_cell(source,index,recovery) if recover_cell else recover(source,index,recovery,stop,heartbeat)
     prior_elapsed=prior_status.get('elapsed_sec',0) if resume else 0
     last_checkpoint=prior_status.get('checkpoint_finished',-1) if resume else -1
     def save(stage,error=None,child=None):
         nonlocal last_checkpoint
+        if _verification is not None:
+            if stage in completed_stages:
+                _verification.update(selected=copy.deepcopy(selected),deficits=copy.deepcopy(deficits))
+            return
         # A completed resume is a verification pass. Do not publish its partial
         # reconstruction to concurrent converters/dashboard readers.
         if verify_only and stage=='running':return
@@ -159,7 +204,10 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
     try:
         for ordinal,start in enumerate(range(0,len(indices),chunk_size)):
             chunk_indices=indices[start:start+chunk_size]
-            folder=output/f'chunk_{ordinal:04d}';folder.mkdir(exist_ok=True)
+            folder=output/f'chunk_{ordinal:04d}'
+            if _verification is not None and not (folder/'manifest.json').exists():
+                raise ValueError('Completed chunk manifest missing; read-only verification cannot recreate it')
+            folder.mkdir(exist_ok=True)
             manifest=folder/'manifest.json';root=folder/'capture'
             if not manifest.exists():atomic_json(manifest,campaign.subset_deck(original,[original['scenes'][i] for i in chunk_indices]))
             needs_ground=any(needs_independent_preparation(json.loads(Path(original['scenes'][i]['metadata']).read_text()))
@@ -172,13 +220,13 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     if verify_only and (not (recovery/'status.json').exists() or
                             json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                         raise ValueError('Completed ground preparation evidence missing; no recapture')
-                    if stop.exists():save('stopped');return 0
-                    if recover(source,index,recovery,stop,lambda child:save('running',child=child)):raise RuntimeError('Ground-prepared isolated capture halted; no next load')
+                    if stop.exists() and _verification is None:save('stopped');return 0
+                    if recover_one(source,index,recovery,stop,lambda child:save('running',child=child)):raise RuntimeError('Ground-prepared isolated capture halted; no next load')
                     accepted=load_ledger(recovery/'selected_ledger.jsonl')
                     if accepted:selected[cell['id']]=accepted[0]
                     else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
                     save('running')
-                if (output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks):
+                if _verification is None and ((output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks)):
                     save('paused');return 0
                 continue
             while True:
@@ -198,14 +246,16 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         if verify_only and (not (recovery/'status.json').exists() or
                                 json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                             raise ValueError('Completed recovery evidence missing; verification cannot recapture')
-                        if stop.exists():save('stopped');return 0
+                        if stop.exists() and _verification is None:save('stopped');return 0
                         seed=recovery.parent/(recovery.name+'_seed.json')
                         seed.parent.mkdir(parents=True,exist_ok=True)
-                        if not seed.exists():atomic_json(seed,dict(capture_root=str(root.resolve()),manifest=str(manifest.resolve()),id=cell['id']))
-                        code=recover(source,index,recovery,stop,lambda child:save('running',child=child))
+                        if not seed.exists():
+                            if _verification is not None:raise ValueError('Completed seed evidence missing')
+                            atomic_json(seed,dict(capture_root=str(root.resolve()),manifest=str(manifest.resolve()),id=cell['id']))
+                        code=recover_one(source,index,recovery,stop,lambda child:save('running',child=child))
                         if code:raise RuntimeError('Single-cell recovery halted; no next load')
                         accepted=load_ledger(recovery/'selected_ledger.jsonl')
-                        if stop.exists():save('stopped');return 0
+                        if stop.exists() and _verification is None:save('stopped');return 0
                         if accepted:selected[cell['id']]=accepted[0]
                         else:deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=json.loads((recovery/'quota.json').read_text())['cells'])
                 save('running')
@@ -216,12 +266,12 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     for index in chunk_indices:
                         cell=original['scenes'][index]
                         if cell['id'] in by_id:continue
-                        if stop.exists():save('stopped');return 0
+                        if stop.exists() and _verification is None:save('stopped');return 0
                         recovery=folder/'recovery'/cell['id']
                         if verify_only and (not (recovery/'status.json').exists() or
                                 json.loads((recovery/'status.json').read_text())['stage'] not in completed_stages):
                             raise ValueError('Completed tail evidence missing; no recapture')
-                        code=recover(source,index,recovery,stop,lambda child:save('running',child=child))
+                        code=recover_one(source,index,recovery,stop,lambda child:save('running',child=child))
                         if code:raise RuntimeError('Post-miss isolated capture halted; no next load')
                         accepted=load_ledger(recovery/'selected_ledger.jsonl')
                         if accepted:selected[cell['id']]=accepted[0]
@@ -229,7 +279,7 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                         save('running')
                     break
                 if len(rows)==len(chunk_indices):break
-                if stop.exists():save('stopped');return 0
+                if stop.exists() and _verification is None:save('stopped');return 0
                 before=len(rows)
                 if verify_only:raise ValueError('Completed batch evidence missing; verification cannot recapture')
                 code=run_child(manifest,root,stop,lambda child:save('running',child=child))
@@ -239,14 +289,15 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     raise RuntimeError('Batch failed outside a verified review/target-miss boundary')
                 # Reviewed raw is preserved in its original safe session; recovery
                 # verifies that evidence rather than repeating the initial capture.
-            if (output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks):
+            if _verification is None and ((output/'PAUSE').exists() or (stop_after_chunks and ordinal+1>=stop_after_chunks)):
                 save('paused');return 0
         save('complete_with_deficit' if deficits else 'complete');return 0
     except KeyboardInterrupt:
         save('halted','Parent interrupted; child STOP issued; inspect Park before recovery');return 130
     except Exception as exc:
         save('halted',str(exc));return 1
-    finally:lock.close()
+    finally:
+        if lock:lock.close()
 
 
 if __name__=='__main__':
@@ -255,7 +306,9 @@ if __name__=='__main__':
     parser.add_argument('--limit',type=int,default=32);parser.add_argument('--indices')
     parser.add_argument('--chunk-size',type=int,default=4);parser.add_argument('--resume',action='store_true')
     parser.add_argument('--stop-after-chunks',type=int,default=0)
+    parser.add_argument('--replenish',action='store_true',help='After completion, replace only deficit cells; requires --resume')
+    parser.add_argument('--replenish-rounds',type=int,default=2,help='Cumulative replenishment cap per deficit cell, 1–3; repeated commands do not reset it')
     parser.add_argument('--approve-bulk-capture',action='store_true',help='Explicit authorization above64 cells; child batches remain bounded')
     args=parser.parse_args();deck=json.loads(args.manifest.read_text())
     indices=[int(i) for i in args.indices.split(',')] if args.indices else list(range(min(args.limit,len(deck['scenes']))))
-    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks,args.approve_bulk_capture))
+    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks,args.approve_bulk_capture,args.replenish,args.replenish_rounds))
