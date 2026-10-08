@@ -4,6 +4,12 @@
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
 **본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
 
+2026-10-08 대시보드 보강/본수집 준비: 사용자 확인은 **이번 Sunny13 5K, 이후6환경30K**다.
+50K는 오타였으며 배치·거리·자산·GT·환경 계약을 변경하지 않았다.
+v125 캡처 runtime은 유지하고 대시보드만 보강했다. 5000 OFFLINE_PASS/6환경 hash·group·split 확인,
+외부 reference를 포함한 입력 백업, 브라우저 그래프 확인을 마쳤다.
+[대시보드·최종 준비 근거](261008_base5_dashboard_and_launch_ready.md)를 따른다.
+
 2026-10-08 13:05 KST v125: 기존 객체 trace에 원문 velocity/heading/source timestamp만 추가했다.
 정지/달리기 새2셀 승인·CPU2/2GT·완료resume raw68파일 불변/추가capture0·375tests PASS다.
 속도 학습/평가 GT가 아니며 추가 통신 설정·대기·촬영은 없다. 아래 본수집 명령/manifest는 그대로다.
@@ -137,12 +143,24 @@ python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
 ajou
 python3 dataset/morai_od/scripts/base5_capture_dashboard.py \
   --capture-root "$HOME/morai_cap/base5_v2_261008/regions_5k_v123_release/collection_5k_regions_v123_sunny13" \
+  --manifest "$HOME/morai_cap/base5_v2_261008/regions_5k_v123_release/environment_suite/sunny13/manifest.json" \
+  --suite "$HOME/morai_cap/base5_v2_261008/regions_5k_v123_release/environment_suite/suite.json" \
   --port 8075
 ```
 
 브라우저 http://127.0.0.1:8075.
 기존8081은구v45수집폴더를보는dashboard이므로이번5K진행률로해석하지않는다.
 승인/부족분·누적 시간·승인 rate·디스크·현재 child/recovery를 확인한다.
+보강 화면은 승인 누적/최근10분 승인속도 그래프, 패밀리별계획대비승인, 거리/방향 bin,
+부족분 사유, 정적4822/이동178 검사 진행, 6환경30K 진행을 분리해 표시한다.
+현재8075에 새 대시보드를 실행했다. 이미 실행 중이면 브라우저에서 새로고침만 한다.
+차트는 대시보드 실행 이후 실제 관측으로만 그린다. 서버가 살아 있으면 탭을 닫아도 계측한다.
+15초 표본을 `~/.cache/ajounice/base5/dashboard_<root-hash>.jsonl`에 남겨 서버 재시작 후 복원한다.
+capture root에는 쓰지 않는다. `--once`는 journal도 쓰지 않는 일회성 확인이다.
+최근 rate는 활성누적시간 최소60초/최근최대10분 기준이며 pause/오프라인 대기를 더하지 않는다.
+큰raw/전체선택ledger를2초마다읽지 않는다. 작은status와quota checkpoint만 읽고manifest계획은시작때캐시한다.
+부족분 사유는 최신quota checkpoint기준이고미반영사유가있을수있다. 여러사유가있는한장면은사유별중복집계한다.
+정적/이동은전actor기준의원래검사순서진행이며이동승인수/속도GT인증이아니다. 보충중에는순서집계를쓰지않는다.
 finished는 승인 수가 아니다. output 생성 전에는 not_started다.
 waiting_stationary_ego는 정상 정지 검사 단계다. 준비 중 ETA0만으로 멈춤을 단정하지 않는다.
 

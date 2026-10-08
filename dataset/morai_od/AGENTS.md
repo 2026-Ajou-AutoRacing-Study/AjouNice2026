@@ -13,6 +13,10 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   2026-10-08 dashboard준비후사용자확인은Sunny13 5K→기존6환경30K다(50K아님).
+   `docs/261008_base5_dashboard_and_launch_ready.md`를읽는다. 캡처runtime v125/배치v123은유지한다.
+   8075에graph/분모/사유/환경suite를연결했고dashboard-only cachejournal은capture밖에쓴다.
+   본수집root미생성/전수5000/6환경/입력backup확인이다. dashboard 변경은capture hash를바꾸지않는다.
    2026-10-08 13:05 KST runtime v125는 아래v124 위의진단metadata 추가다.
    `docs/261008_base5_motion_metadata_v125.md`를읽는다. bounded위치trace에원문velocity/heading/
    source stamp/seq를추가했으나동기속도GT가아니며7D/velocity off·rosbag평가를유지한다.

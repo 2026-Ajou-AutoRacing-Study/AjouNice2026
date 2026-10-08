@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-08.
 
+- **2026-10-08 대시보드 보강/본수집 준비:** 사용자 확인은 Sunny13 5K 뒤 기존6환경30K다.
+  v125 runtime/v123 입력 유지, 전수5000/6환경/입력백업 확인, 8075에 그래프/분포/부족사유/환경 진행을 추가했다.
+  [준비 결과](261008_base5_dashboard_and_launch_ready.md), [현재 명령](261007_base5_5k_capture_runbook.md)을 따른다.
+  본수집·학습은 미시작이다. 대시보드만 바뀌어 캡처resume hash는 v125와 동일하다.
+
 - **2026-10-08 13:05 KST 진단 메타데이터 — runtime v125:** 기존 bounded Object 위치 trace에
   원문 velocity/heading/메시지 시각을 추가했다. 동기 속도 GT가 아니며 학습·평가에는 사용하지 않는다.
   추가 wait/topic/촬영 없이 새 MR 정지1+달리기1 승인, CPU2/2GT·완료resume 추가capture0·375tests PASS다.

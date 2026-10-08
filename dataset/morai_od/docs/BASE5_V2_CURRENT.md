@@ -9,7 +9,21 @@ v113의 5K 생성·전수 검사와 대표 live/resume/CPU 검증 이력은 보�
 아래 미시작/승인 대기 기록은 v108 사전 보고 시점이며 현재 수집 진행률을 뜻하지 않는다.
 이번 환경 정정에서는 기존 수집을 중단·재시작하거나 본학습을 수행하지 않았다.
 
-## 2026-10-08 13:05 KST 가벼운 객체 이동 진단 기록 — runtime v125 우선
+## 2026-10-08 대시보드 보강 / Sunny13 5K 본수집 준비
+
+사용자가 50K가 아니라 이번 Sunny13 5K, 이후 기존6환경30K 유지임을 확인했다.
+배치 입력 v123·캡처 runtime v125는 그대로다. 전수5000고유payload/오류0 및6환경manifest hash/
+동일geometry/group/split/분리output을 확인하고, frozen입력/지도/원래자산목록/외부reference51파일/
+v125코드 백업을 만들었다. 본수집 output6개 모두 미생성이며수집·학습은 시작하지 않았다.
+
+읽기전용8075에 그래프와계획분모를보강했다. 누적승인/최근10분rate·패밀리·거리/방향·
+부족사유·정적/이동검사순서·6환경진행을분리한다. journal은capture밖cache에만저장하며
+UI/대시보드코드는캡처hash에포함되지않는다. 구v124output새runtime resume금지는유지한다.
+예산10–13h/5K·60–78h/30K는소량표본외삽이며첫100–200셀rate로갱신한다.
+[준비·검증·운영 경계](261008_base5_dashboard_and_launch_ready.md),
+[실행 명령](261007_base5_5k_capture_runbook.md)을 따른다.
+
+## 2026-10-08 13:05 KST 가벼운 객체 이동 진단 기록 — runtime v125 유지
 
 사용자 요청으로 기존 bounded `object_position_samples`에 원문 velocity/heading과
 source header 시각/seq를 추가했다. 요청 motion은 기존 runtime_actors에, 실제 변위 witness는
