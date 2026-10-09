@@ -1,5 +1,24 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
+## 2026-10-10 최종 최신 — Sunny13 5K 완결 / v140
+
+**5,000승인 / 부족0 / complete**. [사용자 승인 유연대체·최종 근거](261010_base5_flexible_deficit_replacement.md).
+최종root는 `collection_5k_sunny13_flexible_v140`, 최신목록은 그 `selected_ledger.jsonl` 하나다.
+기존4,974행/raw는 모두 보존했고26개같은패밀리새장면을 캡처했다. 과거ledger와 중복 연결하지 않는다.
+수집기는 종료했고 MR을 꺼도 된다. 8075는v140/5,000/0을 관측한다.
+
+촬영 없는 검증:
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_flexible_completion.py --resume
+```
+
+완료 뒤 `--run`을 붙여도 새촬영0이다. 새 config로 강제resume하거나 아래과거v139/v137
+부족보충명령을 재실행하지 않는다. 실제대체spec은 adopted_manifest/mapping으로 확인한다.
+CPU train4,255/val745·GT10,959·122종floor결손0·507검사PASS이며 crop확정 후 infos는 재변환한다.
+다음은 crop/투영/runtime 실험과 남은5환경의새Ego공간배치다. 기존6환경30K계획은 유지한다.
+
 ## 2026-10-10 최종 — 수집·보충 종료
 
 **최종4,974승인 / 26부족**, `collection_5k_sunny13_motion_contract_v139/selected_ledger.jsonl`을 쓴다.

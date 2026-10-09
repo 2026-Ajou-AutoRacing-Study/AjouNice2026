@@ -1,5 +1,18 @@
 # MORAI perception dataset agent context
 
+2026-10-10 최종 최신은 `docs/261010_base5_flexible_deficit_replacement.md`다.
+사용자가 exact 자산/거리/개수 복원 대신 같은패밀리 정상새장면 대체를 승인했다.
+collection_5k_sunny13_flexible_v140에서 기존4974행 그대로+새26장=5000승인/부족0/complete다.
+26모두첫시도·정적25/실제walking1·추가active567.915초. 실제전체정적4822/이동178이다.
+패밀리/미션맥락/primary semantic pool/split/실제이동mode는유지·자산/거리/방향/개수변경은명시기록이다.
+원래source/부모raw/journal/hash 불변·frozen collector/QA불변. arbitrary GT/검사완화/빈배경대체아니다.
+최종ledger하나만사용·replacement_mapping/adopted_manifest/validation_report로대체추적한다.
+coverage는adopted_manifest의실제primary로확인해야한다. 원래manifest exact셀과다르며거짓동일quota인증금지.
+122종effective floor결손0/PASS·CPU4255/745·GT10959·입력25000누락0/token/group중복0·507testsPASS다.
+최종run+resume 추가시도/raw0·SHA/시간/부모불변, 전child Park. 8075=v140/5000/0, collector종료/MR종료가능.
+현재CPU infos는320crop기반임시본이며crop확정후재변환. 다음crop/투영/runtime·다른5환경연속Ego 다양화다.
+기존30K계획유지·v139/v137집계는아래진행이력. 새flexible driver도state SHA고정·수정후강제resume금지.
+
 2026-10-10 최종 Sunny13 보충 종료: `docs/261010_base5_adaptive_completion.md` 상단 v139가 우선한다.
 최종 canonical은 collection_5k_sunny13_motion_contract_v139/selected_ledger.jsonl, 4974승인/26부족이다.
 v137 4975는 실제 이동 계약 후검사 전 집계다. 02912 walking secondary가 standing으로 바뀌어 제외했다.

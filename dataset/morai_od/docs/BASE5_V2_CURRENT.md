@@ -1,5 +1,19 @@
 # Base5 독립 5K — CURRENT
 
+## 2026-10-10 최종 최신 — Sunny13 5K 완료 / v140
+
+[유연 대체 계약·최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
+사용자 승인으로 exact 실패 셀 복원 대신 같은패밀리 정상 새장면26개를 채택했다.
+**5,000승인 / 부족0 / complete**, canonical root는 `collection_5k_sunny13_flexible_v140`다.
+기존4,974행/raw와 source/runtime/부모 journal은 불변이다. 새ledger에 과거ledger를 붙이지 않는다.
+26개첫시도/추가active567.915초·정적25+walking1, 전체정적4,822/이동178이다.
+패밀리/미션/의미pool/split/실제이동 유지, 자산·거리·방향·수 변경은 replacement_mapping에 기록한다.
+adopted_manifest 기준122종effective floor결손0/PASS, CPU train4,255/val745·GT10,959,
+입력25,000개 누락0/token/group중복0, 507검사PASS·완료resume 추가촬영0이다.
+8075는v140/5,000/0, collector 종료/MR 종료가능이다. 현재CPU infos는crop확정전임시본이다.
+다음은crop·투영/runtime 최적화와 다른5환경 연속Ego 새배치 구현이며 총30K계획은 유지한다.
+아래v139 4,974/26과v137 4,975/25는 당시 이력이며 현재부족분이 아니다.
+
 ## 2026-10-10 최종 — Sunny13 보충·실제 이동 후검사 종료
 
 [최종 결과와 근거](261010_base5_adaptive_completion.md#최종-결과--2026-10-10--v139)를 따른다.
