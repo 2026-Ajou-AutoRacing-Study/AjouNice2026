@@ -2,6 +2,9 @@
 
 마지막 정리: 2026-10-10.
 
+- **최신 작업 / 종료 후 수집기·새 환경:** [전수분포·시간 A/B·연속Ego 구현과 남은 gate](261010_base5_postcollection_collector_work.md).
+  Sunny13 최종5K 보존. 별도root에서 비용 최적화와 환경별새geometry를 검증 중이며 다음25K 본수집은 미시작이다.
+
 - **최종 최신 / Sunny13 5K 완료 v140:** [유연 대체 계약·실제 캡처·최종 검증](261010_base5_flexible_deficit_replacement.md).
   사용자 승인에 따라 남은26셀은 같은패밀리 새장면으로 대체했다. 기존4,974행 보존,
   **5,000승인/부족0**, 26개첫시도·507검사PASS·CPU4,255/745·GT10,959·coverage122종PASS다.

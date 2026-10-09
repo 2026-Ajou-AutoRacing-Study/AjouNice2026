@@ -1,5 +1,14 @@
 # Base5 독립 5K — CURRENT
 
+## 2026-10-10 진행 중 — 종료 후 수집기·새 환경 준비
+
+[현재 구현·실측·남은 gate](261010_base5_postcollection_collector_work.md)를 먼저 읽는다.
+Sunny13 v140 5K는 그대로 보존한다. 현재 관측 전수분포/단계별 비용 집계,
+연속Ego·환경별 새geometry 생성 및 별도guard 수집기 실험을 진행한다.
+구 generator/collector SHA 계약은 수정하지 않았다. 새runtime/출력으로만 검증한다.
+시간최적화는 아직 본수집 승격 전이며 다른25K 실제capture/GPU 모델실험을 시작하지 않았다.
+아래 'collector 종료/MR 종료가능'은 Sunny13 본수집 종료 기록이며 별도pilot 진행 여부는 새문서를 따른다.
+
 ## 2026-10-10 최종 최신 — Sunny13 5K 완료 / v140
 
 [유연 대체 계약·최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.

@@ -1,5 +1,11 @@
 # MORAI perception dataset agent context
 
+2026-10-10 현재 작업은 `docs/261010_base5_postcollection_collector_work.md`부터 복구한다.
+사용자가 종료 후 수집기 쪽 작업을 승인했다. Sunny13 v140/5000/0은 보존한다.
+전수분포/시간 집계·연속Ego 환경별새geometry·별도guard AST adapter/시간 A/B를 진행 중이다.
+기존core generator/collector와 이전resume hash는 불변. 새output만 사용하고 25K 본수집/GPU 작업은 미시작이다.
+v141/v141b/v141c는 중간진단이며 최종환경입력으로 바로쓰지 않는다. 시간20% 승격/200scene·이동/resume gate는 새문서에서 확인한다.
+
 2026-10-10 최종 최신은 `docs/261010_base5_flexible_deficit_replacement.md`다.
 사용자가 exact 자산/거리/개수 복원 대신 같은패밀리 정상새장면 대체를 승인했다.
 collection_5k_sunny13_flexible_v140에서 기존4974행 그대로+새26장=5000승인/부족0/complete다.
