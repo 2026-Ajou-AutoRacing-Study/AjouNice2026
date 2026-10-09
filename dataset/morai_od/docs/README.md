@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-09.
 
+- **2026-10-09 학습·가시성·temporal 결정:** [현재 합의와1771장 가시성 근거](261009_base5_training_split_visibility_and_temporal_decisions.md).
+  5K train4255/val745, 같은6환경 split고정·rosbag dev-val/독립test 분리다. 30K 수집 유지,
+  완료후 필요한조건만보강한다. BabyStroller3의3/21은7parent×3component이며camera대응모호성도포함한다.
+  현재E25/Base5 temporal·OD velocity는미사용, tracker/NMS 개선은유지한다. 본학습은아직미시작이다.
+
 - **현재 본수집 / 2026-10-09 Sunny13 v132 수집 중:** 이번 배치를 유지하고 종료 후 반복 준비 비용을 개선한다.
   [시간 개선 이력·라벨 계약·다음 A/B 실행 계획](261009_base5_collection_cost_and_next_experiments.md)을 읽는다.
   현재 runtime/input 변경 금지, 다음 후보는 상주 worker/준비 대기 중첩이며20% 전체 단축을 검증한다.

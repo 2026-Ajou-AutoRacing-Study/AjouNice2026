@@ -17,6 +17,11 @@
    `docs/261009_base5_collection_cost_and_next_experiments.md`를 읽는다. 이번 runtime/input 고정,
    끝난 뒤 상주 worker/조건부 대기 중첩으로 전체20% 단축 A/B를 검증한다. 아직 최적화 미구현이다.
    collector/보충 종료·최종Park 확인 전 새실험 금지. 음영 동적24장 독립 준비 유지.
+   `docs/261009_base5_training_split_visibility_and_temporal_decisions.md`를함께읽는다.
+   30K수집유지/완료후표적보강, 생성train4255/val745·6환경동일split, rosbag dev-val/독립test다.
+   1771장 단서76.1%는학습충분성인증이아니다. BabyStroller3 3/21은7parent×3GT이며
+   camera대응모호성의과소집계다. camera조건false를실제보이지않음으로단정하지않는다.
+   E25/Base5 single-frame·OD velocity OFF, T1/T2/Q1보존과실제실행을구분한다.
    OBJ는Vehicle, Animal은별도class3 보존. Ped로합치려면 후처리/모델/평가 매핑 변경이며 자동옵션은 없다.
    아래v132 '미시작'은최종준비당시 이력이다. 실제수집완료/전수성공으로해석하지않는다.
    **2026-10-09 v132가 아래 모든 v123/v125/v129 기록보다 우선한다.**

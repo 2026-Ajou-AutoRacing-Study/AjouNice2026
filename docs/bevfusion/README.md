@@ -4,6 +4,12 @@
 
 ## CURRENT
 
+[2026-10-09 학습split·가시성·temporal 결정](../../dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md):
+Base5 train4255/val745·6환경동일split, 반복평가bag은dev-val/새미사용주행은test다.
+현재30K수집유지후필요조건만보강한다. E25와Base5는single-frame이며OD velocity/temporal 연구분기미사용,
+tracker 시간추정/NMS/lifecycle은유지한다. BabyStroller3의3/21은camera대응모호성을포함한component 집계다.
+이번Base5 본학습은아직미시작이며관측단서proxy를모델성능이나학습충분성으로해석하지않는다.
+
 Sunny13 v132 본5K는 사용자가 시작해 수집 중이다. 이번 runtime/input은 고정하고 종료 후
 [반복 준비 비용 최적화 A/B](../../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)를 수행할 계획이다.
 목표는 전체20% 이상 단축이며 GT/안전/resume을 유지한다. 아래 미시작/승인 대기는 과거 준비 상태다.

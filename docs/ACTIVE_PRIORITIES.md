@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-09 합의:** [학습split·가시성·temporal 경계](../dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md).
+  현재6환경30K수집을유지하고완료후필요조건만보강한다. 합성train약85/val약15·동일geometry환경split고정,
+  기존반복bag은dev-val/새독립주행은test다. BabyStroller3 camera대응모호성을실제비가시로단정하지않는다.
+  현재single-frame Base5·OD velocity OFF이며temporal코드는연구용보존이지자동실행이아니다.
+
 - **2026-10-09 Sunny13 v132 본5K 수집 중:** 이번 배치는 유지하며 runtime·input·options를 바꾸지 않는다.
   끝난 뒤 반복 준비 비용을 [상주 worker/대기 중첩 A/B](../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)로
   검증한다. 전체20% 이상 단축과 GT/안전/resume 유지가 승격 조건이며 아직 미구현이다.

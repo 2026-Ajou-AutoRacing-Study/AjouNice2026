@@ -5,6 +5,12 @@
 
 ## 최신 상태 — v132
 
+2026-10-09 [학습split·가시성 해석·temporal 사용 결정](261009_base5_training_split_visibility_and_temporal_decisions.md):
+현재30K 계획은유지하고완료후필요조건만보강한다. 생성train4255/val745·6환경동일split,
+반복사용bag은dev-val/새독립주행은test다. 1771장 풍부한단서76.1%는분석proxy이며학습필터가아니다.
+BabyStroller3의3/21은7parent×3component와camera대응모호성에따른보수적집계다.
+모호한camera/LiDAR0 component 제외한계는남는다. single-frame/velocity off·본학습미시작을유지한다.
+
 2026-10-09 Sunny13 본5K는 사용자가 시작해 수집 중이다. 이번 배치는 그대로 유지한다.
 [현재 수집 스냅샷·라벨 결정·시간 개선 이력·종료 후 반복 비용 실험](261009_base5_collection_cost_and_next_experiments.md)이
 아래 준비 당시의 미시작 표기보다 우선한다. 다음 환경 전에 상주 worker/준비 대기 중첩을 검증할 계획이며
