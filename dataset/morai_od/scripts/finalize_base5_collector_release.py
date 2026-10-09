@@ -31,6 +31,9 @@ def finalize(root,sunny13,output):
     if output.exists():raise FileExistsError('Fresh release proof required')
     summary=read(root/'qualification_comparison.json');live=read(root/'qualification_live_results.json')
     static=read(root/'fresh_geometry_static64/status.json')
+    motion=read(root/'fresh_geometry_animated8/live_motion_validation.json')
+    completion=read(root/'completion_negative_control/live_validation.json')
+    if not motion['qualified']:raise ValueError('New moving geometry qualification not complete')
     if not summary.get('longrun_and_animated_gate') or not summary.get('static64_speed_gate'):
         raise ValueError('Runtime quality/time qualification failed; no automatic promotion')
     if static['stage']!='complete' or static['accepted_candidate']!=64 or static['review']:
@@ -78,7 +81,7 @@ def finalize(root,sunny13,output):
         sunny13_preserved=str(sunny13),sunny13_ledger_sha256=sha256(ledger),
         static64_reduction_fraction=summary['reduction_fraction'],fresh_pilot_accepted=64,
         bounded_completion_policy='Three total fresh proposals per missing slot; 1800s per invocation; finite resume; native QA unchanged',
-        completion_live_qualified=False,
+        completion_live_qualified=completion['parent_review']>0 and completion['attempts']>0 and completion['parent_preserved'] and completion['additional_completed_resume_raw']==0,
         estimated_5k_hours=cost['extrapolated_hours_group_weighted'],estimated_5k_gib=estimate,
         disk_free_gib_at_freeze=free,estimated_remaining_25k_gib=5*estimate if estimate else None,
         estimated_free_after_remaining_25k_gib=free-5*estimate if estimate else None,
@@ -88,7 +91,7 @@ def finalize(root,sunny13,output):
             'Continuous road anchors do not make map background and 100m views geographically disjoint.',
             'CPU infos and rich-cue stats use provisional crop; resolve crop before final learning infos.',
             'Rejected early service-probe overlap is NOT enabled. Confirmed EventCmd/order and per-scene network remain.',
-            'New generic completion requires live deficit/resume qualification before unattended use.'])
+            'New generic completion tested with static negative controls; animated native preparation tested separately, source gait/count policy unit-tested.'])
     atomic_json(output/'release.json',doc);return doc
 
 

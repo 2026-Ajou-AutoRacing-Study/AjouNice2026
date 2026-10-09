@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 from argparse import Namespace
+import shutil
 
 from base5_capture_safety import atomic_json,sha256
 import run_base5_fresh_batch as fresh
@@ -15,6 +16,9 @@ def preflight(release,environment,confirmed=None):
     if not doc.get('collector_qualified'):raise ValueError('Collector qualification not complete')
     for path,digest in doc['runtime_hashes'].items():
         if sha256(path)!=digest:raise ValueError('Qualified runtime changed: '+path)
+    if sha256(doc['suite'])!=doc['suite_sha256']:raise ValueError('Qualified suite changed')
+    if doc.get('recommended_runtime_overlap'):
+        raise ValueError('Rejected service-probe overlap cannot be promoted')
     suite=json.loads(Path(doc['suite']).read_text())
     choices=[e for e in suite['environments'] if e['environment']==environment and environment!='sunny13']
     if len(choices)!=1:raise ValueError('Choose one of the five remaining environments')
@@ -32,6 +36,14 @@ def run(a):
         raise ValueError('Set MR UI weather/hour, then explicitly pass --confirmed-environment '+a.environment)
     output=Path(env['capture_output']);manifest=Path(env['manifest'])
     if not a.prepare_only:
+        ancestor=output
+        while not ancestor.exists():ancestor=ancestor.parent
+        free=shutil.disk_usage(ancestor).free/2**30
+        # A new full environment needs QA/review headroom. On resume use the
+        # remaining fraction, not a second full-5K requirement over saved raw.
+        status_path=output/'status.json';accepted=json.loads(status_path.read_text()).get('accepted_candidate',0) if status_path.exists() else 0
+        required=(doc.get('estimated_5k_gib') or 40.)*max(0,5000-accepted)/5000*1.15+10.
+        if free<required:raise ValueError(f'Insufficient capture headroom: {free:.1f}GiB free, {required:.1f}GiB required; no files deleted')
         output.mkdir(parents=True,exist_ok=True)
         atomic_json(output/'operator_environment_confirmation.json',dict(environment=a.environment,
             weather=env['weather'],hour=env['hour'],manifest_sha256=env['manifest_sha256'],

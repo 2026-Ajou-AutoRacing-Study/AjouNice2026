@@ -61,6 +61,25 @@ primary806(47.7%)/보조2357(51.2%)다. 가시 보조parent2191이며
 
 ## 시간 최적화 실험 구현과 경계
 
+### clean 재측정·장기 회귀 완료
+
+서비스 확인 순서를 유지한 후보의 clean baseline(A2/A3) 평균389.488초 대비
+optimized(F1/F2) 평균301.647초, **22.553% 단축**이다. 모든 반복64/64승인/검토0이다.
+별도200장 장기 검증은955.731초/200승인/검토0이고 actual animated8장도226.109초/8승인이다.
+200장 및64장 완료resume은 ledger/raw 불변·추가촬영0이다. 이 값은 같은payload의 부모전체active이며
+완료resume 검증에 걸린0.4–0.7초를 재촬영시간으로 사용하지 않는다.
+실제 동적 준비는 단축하지 않았고 본5K는 아직 이 runtime으로 수집하지 않았다.
+
+### 25K 생성 중 근접 rider 사례
+
+`fresh_suite_final_v141/sunny15`의02629는3–5m 전방 Bicycle_Female1 quota였다.
+512개 CPU 후보 중 primary 간격실패502개, 보조 간격실패6개, 거리bin실패4개로 성공이 없었다.
+Ego 후륜기준3–5m에는 차체앞끝이 포함돼 collision-free 영역이 좁다. 위치 window를 더 넓히거나
+자산/근접quota를 빼는 것이 해결책은 아니었다. 같은plan/자산/거리/sector/검사를 유지한602번째
+후보가0.348m clearance로 통과했다. 따라서 생성전용 유한예산4096개로 보완하고 후보 수/사유를 기록한다.
+이는 **offline JSON 생성** 비용이며4096번 실제캡처/retry가 아니다. geometry/GT/QA 기준을 완화하지 않는다.
+실패v141은보존하고 `fresh_suite_final_v142`에서 코드동결 후5환경 전수생성을 다시 검사 중이다.
+
 ### 추가 후보 중단 / 2026-10-10
 
 첫 baseline64 두회 평균389.556초, static-ready+chunk16 두회 평균301.620초로22.57% 단축,
@@ -102,7 +121,7 @@ static은검사유지one-shot, actualmoving은독립준비를유지하는 spatia
 
 ## 남은 확인
 
-- 최종code 동결 후5환경25K offline manifest/coverage/token/split/위치 감사.
+- 최종code 동결 후5환경25K offline manifest/coverage/token/split/위치 감사(v142 생성 중).
 - 새 배치 대표 live, quality 재배치/PAUSE/resume/완료resume 검증.
 - runtime 비용 A/B,200scene·이동 회귀, 최종Park/누수/파일완전성 확인.
 - finite 부족분 처리의 환경 일반화: 같은 실패payload 무한 반복 대신 bounded 재배치 후

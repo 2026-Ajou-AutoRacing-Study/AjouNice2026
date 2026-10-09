@@ -17,9 +17,9 @@ class LauncherTests(unittest.TestCase):
             environment='foggy13',manifest=str(manifest),manifest_sha256=launch.sha256(manifest),
             capture_output=str(root/'capture'),weather='foggy',hour=13)])))
         code=root/'runtime.py';code.write_text('frozen')
-        release=root/'release.json';release.write_text(json.dumps(dict(collector_qualified=True,suite=str(suite),
+        release=root/'release.json';release.write_text(json.dumps(dict(collector_qualified=True,suite=str(suite),suite_sha256=launch.sha256(suite),
             runtime_hashes={str(code):launch.sha256(code)},recommended_chunk_size=16,
-            recommended_setup_profile='static-ready',recommended_runtime_overlap=True)))
+            recommended_setup_profile='static-ready',recommended_runtime_overlap=False)))
         return release,code,manifest
     def test_mutated_runtime_cannot_start(self):
         with tempfile.TemporaryDirectory() as d:
@@ -29,6 +29,11 @@ class LauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             release,_,manifest=self.fixture(Path(d));manifest.write_text('changed')
             with self.assertRaises(ValueError):launch.preflight(release,'foggy13','foggy13')
+    def test_mutated_suite_cannot_redirect_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);release,_,_=self.fixture(root)
+            suite=root/'suite.json';doc=json.loads(suite.read_text());doc['environments'][0]['capture_output']='elsewhere';suite.write_text(json.dumps(doc))
+            with self.assertRaisesRegex(ValueError,'suite changed'):launch.preflight(release,'foggy13','foggy13')
     def test_confirmation_must_match(self):
         with tempfile.TemporaryDirectory() as d:
             release,_,_=self.fixture(Path(d))

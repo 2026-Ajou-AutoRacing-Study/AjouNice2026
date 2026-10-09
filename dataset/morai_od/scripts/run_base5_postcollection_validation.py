@@ -72,7 +72,7 @@ def run(a):
     baseline=(clean_baseline+results[-1]['parent_active_sec'])/2
     combined=(results[0]['parent_active_sec']+results[1]['parent_active_sec'])/2
     passed=all(r['accepted']==64 and r['review']==0 for r in results) and combined<.8*baseline
-    summary=dict(cases=results,clean_baseline_mean_sec=baseline,overlap_combined_mean_sec=combined,
+    summary=dict(cases=results,clean_baseline_mean_sec=baseline,optimized_combined_mean_sec=combined,
         reduction_fraction=1-combined/baseline,static64_speed_gate=passed,bulk_promoted=False,
         runtime_overlap=False,overlap_candidate_rejected='Early probe can acknowledge previous SceneNetwork service; e1 failed service unavailable, Park verified. No bypass or unsafe resume.')
     atomic_json(root/'qualification_comparison.json',summary)
@@ -99,7 +99,7 @@ def run(a):
     results.append(verify_resume(bench,'combined_f2',manifest,'run_base5_batch_optimized.py',16,extra=('--setup-profile','static-ready')))
     atomic_json(root/'qualification_live_results.json',dict(cases=results,bulk_started=False))
     # Never run CPU-heavy full generation concurrently with timing comparisons.
-    suite=root/'fresh_suite_final_v141'
+    suite=root/'fresh_suite_final_v142'
     if not (suite/'suite.json').exists():
         code=child([sys.executable,str(Path(__file__).with_name('prepare_base5_fresh_suite.py')),
             '--manifest',str(a.manifest),'--sunny13-collection',str(a.sunny13_collection),

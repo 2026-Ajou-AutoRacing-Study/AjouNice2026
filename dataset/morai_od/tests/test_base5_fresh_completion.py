@@ -94,7 +94,7 @@ class CompletionTests(unittest.TestCase):
             with patch.object(c,'verify_parent',return_value=([],['a'],1)),patch.object(c.adaptive.fa.batch.campaign,'contract',return_value={}),\
                  patch.object(c.spatial.gen,'context',return_value={}),patch.object(c.adaptive,'prewarm',side_effect=lambda v,config:v),\
                  patch.object(c,'pool_map',return_value={1:'obstacle'}),patch.object(c.adaptive.fa,'normalized_sensor_calibration',return_value={}),\
-                 patch.object(c,'prepare',side_effect=proposal),patch.object(c,'run_child',return_value=0) as launch,\
+                 patch.object(c,'prepare',side_effect=proposal),patch.object(c,'run_child',return_value=1) as launch,\
                  patch.object(c,'verify',return_value={'status':'review'}):
                 self.assertEqual(c.execute(a),0);self.assertEqual(launch.call_count,3)
                 self.assertEqual(c.read(output/'status.json')['stage'],'complete_with_deficit')

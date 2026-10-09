@@ -14,10 +14,27 @@ import run_base5_capture_optimized as optimized
 import run_base5_batch_optimized as batch
 import run_base5_capture_overlap as overlap
 import run_base5_fresh_batch as fresh
+import prepare_base5_fresh_environment as environment
+from collections import Counter
 from argparse import Namespace
 
 
 class SpatialTests(unittest.TestCase):
+    def test_offline_generation_budget_is_finite_and_never_relaxes_qa(self):
+        reasons=Counter();reference={'runtime_actors':[],'split':'train'}
+        with patch.object(spatial,'build',side_effect=ValueError('Footprint clearance failure')) as build:
+            with self.assertRaisesRegex(ValueError,'Offline proposal budget exhausted'):
+                environment.bounded_candidate({}, {}, {}, reference,'train',reasons,maximum=3)
+            self.assertEqual(build.call_count,3)
+            self.assertEqual(reasons,{'Footprint clearance failure':3})
+            self.assertEqual([c.args[-1] for c in build.call_args_list],[0,1,2])
+    def test_offline_generation_records_rejections_and_preserves_primary(self):
+        ref={'runtime_actors':[{'data_id':1,'motion':'standing'}],'split':'train'}
+        wrong={'runtime_actors':[{'data_id':2,'motion':'standing'}],'split':'train'}
+        with patch.object(spatial,'build',side_effect=[({},wrong),({},ref)]),patch.object(environment,'motion_matches',return_value=True):
+            _,meta,retry,reasons=environment.bounded_candidate({}, {}, {}, ref,'train',Counter(),maximum=2)
+        self.assertEqual(meta,ref);self.assertEqual(retry,1)
+        self.assertEqual(reasons,{'Original primary assignment changed':1})
     def test_seed_repeatable_and_environment_specific(self):
         self.assertEqual(spatial.seed_for('foggy11','slot',1),spatial.seed_for('foggy11','slot',1))
         self.assertNotEqual(spatial.seed_for('foggy11','slot',1),spatial.seed_for('foggy13','slot',1))

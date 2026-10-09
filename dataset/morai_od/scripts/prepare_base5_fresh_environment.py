@@ -15,6 +15,32 @@ from base5_capture_safety import atomic_json, sha256
 from run_base5_failure_aware_replenishment_fast import prewarm
 from run_base5_motion_contract_repair import motion_matches
 
+MAX_OFFLINE_PROPOSALS = 4096
+
+
+def bounded_candidate(spec, config, ctx, reference, split, reasons, maximum=MAX_OFFLINE_PROPOSALS):
+    """Finite CPU proposals; never relax geometry/quota or perform MR captures.
+
+    Near rings are measured from the rear-axle Ego origin, not its front bumper.
+    Long riders in 3–5m rings have a small collision-free subset. 512 draws can
+    miss it even though the unchanged footprint checks permit valid geometry.
+    More OFFLINE proposals are cheap; do not turn this into 4096 live retries.
+    """
+    local=Counter()
+    for retry in range(maximum):
+        try:
+            scene,meta=spatial.build(spec,config,ctx,retry)
+            if meta['split']!=split:raise ValueError('Original logical-slot split changed')
+            primary=lambda m:m['runtime_actors'][0]['data_id'] if m['runtime_actors'] else None
+            if primary(meta)!=primary(reference):raise ValueError('Original primary assignment changed')
+            moving=lambda m:any(a['motion'] not in ('static','standing') for a in m['runtime_actors'])
+            if moving(reference)!=moving(meta) or not motion_matches(reference,meta):
+                raise ValueError('Actual animated motion contract changed')
+            return scene,meta,retry,dict(local)
+        except ValueError as exc:
+            local[str(exc)]+=1;reasons[str(exc)]+=1
+    raise ValueError('Offline proposal budget exhausted: '+json.dumps(dict(local),sort_keys=True))
+
 
 def generate(source,output,environment,seed=261010,limit=5000):
     if not 1<=limit<=5000:raise ValueError('Generate 1–5000 slots per environment')
@@ -38,23 +64,19 @@ def generate(source,output,environment,seed=261010,limit=5000):
     atomic_json(output/'frozen_specs.json',[spec for _,spec,_ in items])
     config['frozen_specs_path']=str((output/'frozen_specs.json').resolve())
     config['frozen_specs_sha256']=sha256(output/'frozen_specs.json')
-    entries=[];failures=Counter();start=time.monotonic()
+    entries=[];failures=Counter();proposal_counts=[];start=time.monotonic()
     for slot,spec,split in items[:limit]:
         old,reference=references[slot]
-        for retry in range(512):
-            try:
-                scene,meta=spatial.build(spec,config,ctx,retry)
-                if meta['split']!=split:raise ValueError('Original logical-slot split changed')
-                primary=lambda m:m['runtime_actors'][0]['data_id'] if m['runtime_actors'] else None
-                if primary(meta)!=primary(reference):raise ValueError('Original primary assignment changed')
-                moving=lambda m:any(a['motion'] not in ('static','standing') for a in m['runtime_actors'])
-                if moving(reference)!=moving(meta) or not motion_matches(reference,meta):
-                    raise ValueError('Actual animated motion contract changed')
-                break
-            except ValueError as exc:failures[str(exc)]+=1
-        else:
-            atomic_json(output/'failure.json',dict(slot=slot,reasons=dict(failures),completed=len(entries)))
+        try:
+            scene,meta,retry,local=bounded_candidate(spec,config,ctx,reference,split,failures)
+        except ValueError as exc:
+            atomic_json(output/'failure.json',dict(slot=slot,reasons=dict(failures),completed=len(entries),
+                isolated_failure=str(exc),maximum_offline_proposals=MAX_OFFLINE_PROPOSALS))
             raise ValueError('Unfillable fresh-environment slot '+slot)
+        proposal_counts.append(retry+1)
+        meta['offline_generation_proposals']=dict(accepted_attempt=retry,proposals=retry+1,
+            rejected_reasons=local,maximum=MAX_OFFLINE_PROPOSALS,live_capture_retries=False,
+            geometry_or_quota_relaxed=False)
         ident=environment+'_'+slot
         meta['logical_quota_slot_id']=slot;meta['scene_group_id']='fresh_v141:'+ident
         meta['environment_split_contract']=dict(policy='physical-link split + unique geometry identity',
@@ -85,6 +107,8 @@ def generate(source,output,environment,seed=261010,limit=5000):
         splits[m['split']]+=1
     atomic_json(output/'generation_audit.json',dict(source_sha256=source_hash,environment=environment,
         frames=len(entries),elapsed_sec=time.monotonic()-start,rejected_proposals=dict(failures),
+        offline_proposal_counts=dict(maximum=max(proposal_counts),total=sum(proposal_counts),
+            slots_over_512=sum(n>512 for n in proposal_counts),limit_per_slot=MAX_OFFLINE_PROPOSALS),
         split=dict(splits),actual_motion=dict(modes),unique_base_xy_3dp=len(bases),unique_final_xy_3dp=len(finals),
         source_base_overlap_3dp=len(set(bases)&source_bases),
         continuous_generic_slots=sum('spatial_sampling_plan' in s for _,s,_ in items[:limit]),

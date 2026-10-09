@@ -89,7 +89,7 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
             for retry in range(512):
                 try:scene,meta=spatial.build(spec,deck['config'],ctx,retry)
                 except ValueError:continue
-                digest=hashlib.sha256(json.dumps(scene,ensure_ascii=False,indent=2).encode()).hexdigest()
+                digest=hashlib.sha256((json.dumps(scene,ensure_ascii=False,indent=2)+'\n').encode()).hexdigest()
                 if not meta['runtime_actors'] and meta['split']==original['split'] and digest not in known:break
             else:raise ValueError('No distinct background within bounded search')
     # Before raw capture, retain the SOURCE fresh geometry group, not the donor
@@ -129,7 +129,8 @@ def verify(a,deck,source,pools):
     if row['status']=='accepted_candidate':
         meta=read(Path(row['capture_root'])/'metadata.json')
         if source['runtime_actors']:
-            if not compatible(source,meta,pools):raise ValueError('Captured family/motion/split contract changed')
+            if not compatible(source,meta,pools):
+                return dict(status='review',reasons=['fresh_completion_family_motion_contract_changed'],observed_selected=row)
         elif meta['runtime_actors'] or meta['split']!=source['split']:raise ValueError('Background replacement changed context')
     return row
 
@@ -243,8 +244,14 @@ def execute(a):
                     except ValueError as exc:
                         state['unavailable'][ident]=str(exc);missing=save('running');continue
                     state['attempts'].append(v);known.add(v['entry']['scenario_sha256']);save('running')
-                if run_child(v,a.output,heartbeat):raise RuntimeError('Completion child halted; no next load')
-                v['result']=verify(v,deck,originals[ident],pools)
+                code=run_child(v,a.output,heartbeat)
+                # Native shared one-shot exits nonzero after an ordinary QA
+                # review or a witnessed contact. Only its verified ledger AND
+                # boundary/final Park can classify that as a finite deficit.
+                result=verify(v,deck,originals[ident],pools)
+                if code and result['status'] not in ('review','failed'):
+                    raise RuntimeError('Child failed outside a verified quality/contact boundary; no next load')
+                v['result']=result
                 if v['result']['status']=='accepted_candidate':
                     m=read(Path(v['result']['capture_root'])/'metadata.json')
                     if m['runtime_actors']:primary_counts[m['runtime_actors'][0]['data_id']]+=1

@@ -1,5 +1,8 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
+2026-10-10 종료 후 **새5환경 수집**은 [새 환경 단일 진입점](261010_base5_fresh_environment_runbook.md)을 따른다.
+그 경로는 별도qualification/release가 필요하다. 아래 Sunny13/과거 부족분 명령을 다음환경에 재사용하지 않는다.
+
 ## 2026-10-10 최종 최신 — Sunny13 5K 완결 / v140
 
 **5,000승인 / 부족0 / complete**. [사용자 승인 유연대체·최종 근거](261010_base5_flexible_deficit_replacement.md).
