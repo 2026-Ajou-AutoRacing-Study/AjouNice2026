@@ -2,6 +2,11 @@
 
 마지막 정리: 2026-10-09.
 
+- **최신 운영 / runtime v133 정지 실패 복구:** [중단 원인·성공분 import·검증](261009_base5_stationary_failure_recovery_v133.md).
+  입력v132 유지, 기존1887승인 참조+실제다음1장승인. 새root paused/1888승인/24부족/3088미처리.
+  정적 순간 흔들림 최대2초 재확인·검증된 정지 실패만 셀 부족분, 통신/Park 불명확은 중단 유지.
+  [CURRENT](BASE5_V2_CURRENT.md)와 [재개 런북](261007_base5_5k_capture_runbook.md)이 아래 수집 중 표기보다 우선한다.
+
 - **2026-10-09 학습·가시성·temporal 결정:** [현재 합의와1771장 가시성 근거](261009_base5_training_split_visibility_and_temporal_decisions.md).
   5K train4255/val745, 같은6환경 split고정·rosbag dev-val/독립test 분리다. 30K 수집 유지,
   완료후 필요한조건만보강한다. BabyStroller3의3/21은7parent×3component이며camera대응모호성도포함한다.

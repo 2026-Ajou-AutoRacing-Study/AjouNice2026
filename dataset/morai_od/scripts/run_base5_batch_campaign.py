@@ -12,7 +12,7 @@ import sys
 import time
 import run_base5_capture_campaign as campaign
 from base5_intersection_placement import ready as editor_prepared
-from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row,is_collision_failure,validate_collision_failure
+from base5_capture_safety import atomic_json, load_ledger, prepare_session, sha256, status_row,is_collision_failure,validate_collision_failure,is_stationary_failure,validate_stationary_failure
 
 
 def inspect_batch(root, manifest):
@@ -28,6 +28,7 @@ def inspect_batch(root, manifest):
         if not row.get('between_scene_park',{}).get('park_verified'):
             raise ValueError('Batch boundary Park unverified')
         if is_collision_failure(row):validate_collision_failure(row)
+        elif is_stationary_failure(row):validate_stationary_failure(row)
         elif row['status']=='failed':campaign.loop.validate_miss_evidence(row,manifest)
         elif row['status'] not in ('accepted_candidate','review'):
             raise ValueError('Batch capture failure; automatic continuation forbidden')
@@ -127,11 +128,13 @@ def verify_recovery(source,index,output):
 
 
 def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chunks=0,bulk=False,
-            replenish=False,replenish_rounds=2,_verification=None,_lock_held=False):
+            replenish=False,replenish_rounds=2,_verification=None,_lock_held=False,prepare_only=False):
     if not indices or len(indices)>(10000 if bulk else 64) or len(set(indices))!=len(indices):
         raise ValueError('Unique 1–64 pilot cells; up to10K only with explicit bulk approval')
     if not 1<=chunk_size<=16:raise ValueError('Chunk must contain 1–16 cells')
     if replenish and not resume:raise ValueError('--replenish requires --resume')
+    if prepare_only and (replenish or (output/'replenishment/state.json').exists()):
+        raise ValueError('Prepare-only cannot change a replenishment campaign')
     if _verification is None and (replenish or (output/'replenishment/state.json').exists()):
         import base5_campaign_replenishment
         return base5_campaign_replenishment.execute(source,indices,output,chunk_size,resume,bulk,
@@ -140,6 +143,10 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
     expected=campaign.contract(source,indices,2)
     expected.update(batch_driver_sha256=sha256(__file__),chunk_size=chunk_size,bulk=bulk,
         replenishment_driver_sha256=sha256(Path(__file__).with_name('base5_campaign_replenishment.py')))
+    imported=output/'imported_prefix.json'
+    if imported.exists():
+        expected.update(imported_prefix_sha256=sha256(imported),
+            import_driver_sha256=sha256(Path(__file__).with_name('base5_campaign_import.py')))
     output.mkdir(parents=True,exist_ok=True)
     lock=None if _lock_held else (output/'.batch.lock').open('a')
     if lock:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -160,6 +167,12 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
     def recover_one(source,index,recovery,stop,heartbeat):
         return recover_cell(source,index,recovery) if recover_cell else recover(source,index,recovery,stop,heartbeat)
     prior_elapsed=prior_status.get('elapsed_sec',0) if resume else 0
+    if imported.exists():
+        from base5_campaign_import import verify
+        previous,misses,elapsed=verify(imported,source,indices)
+        selected={r['source_cell_id']:r for r in previous};deficits={r['id']:r for r in misses}
+        if not prior_status:prior_elapsed=elapsed
+    imported_ids=set(selected)|set(deficits)
     last_checkpoint=prior_status.get('checkpoint_finished',-1) if resume else -1
     def save(stage,error=None,child=None):
         nonlocal last_checkpoint
@@ -202,8 +215,14 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
             accepted_bins=bins if bulk else None,
             results=[] if bulk else [status_row(row) for row in selected.values()]))
     try:
+        if prepare_only:
+            if prior_status and prior_status.get('stage') not in ('paused','prepared_waiting_for_resume'):
+                raise ValueError('Prepare-only cannot overwrite an active/completed campaign')
+            save('prepared_waiting_for_resume');return 0
         for ordinal,start in enumerate(range(0,len(indices),chunk_size)):
             chunk_indices=indices[start:start+chunk_size]
+            chunk_indices=[i for i in chunk_indices if original['scenes'][i]['id'] not in imported_ids]
+            if not chunk_indices:continue
             folder=output/f'chunk_{ordinal:04d}'
             if _verification is not None and not (folder/'manifest.json').exists():
                 raise ValueError('Completed chunk manifest missing; read-only verification cannot recreate it')
@@ -239,6 +258,9 @@ def execute(source, indices, output, chunk_size=4, resume=False, stop_after_chun
                     if is_collision_failure(row):
                         validate_collision_failure(row)
                         deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=['physical_collision'],evidence=row)
+                    elif is_stationary_failure(row):
+                        validate_stationary_failure(row)
+                        deficits[cell['id']]=dict(id=cell['id'],index=index,reasons=['ego_stationary_support'],evidence=row)
                     elif row['status']=='accepted_candidate':
                         chosen=copy.deepcopy(row);chosen['source_cell_id']=cell['id'];selected[cell['id']]=chosen
                     else:
@@ -305,10 +327,11 @@ if __name__=='__main__':
     parser.add_argument('--manifest',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--limit',type=int,default=32);parser.add_argument('--indices')
     parser.add_argument('--chunk-size',type=int,default=4);parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--prepare-only',action='store_true',help='Validate/import and publish waiting status; no ROS action')
     parser.add_argument('--stop-after-chunks',type=int,default=0)
     parser.add_argument('--replenish',action='store_true',help='After completion, replace only deficit cells; requires --resume')
     parser.add_argument('--replenish-rounds',type=int,default=2,help='Cumulative replenishment cap per deficit cell, 1–3; repeated commands do not reset it')
     parser.add_argument('--approve-bulk-capture',action='store_true',help='Explicit authorization above64 cells; child batches remain bounded')
     args=parser.parse_args();deck=json.loads(args.manifest.read_text())
     indices=[int(i) for i in args.indices.split(',')] if args.indices else list(range(min(args.limit,len(deck['scenes']))))
-    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks,args.approve_bulk_capture,args.replenish,args.replenish_rounds))
+    raise SystemExit(execute(args.manifest,indices,args.output,args.chunk_size,args.resume,args.stop_after_chunks,args.approve_bulk_capture,args.replenish,args.replenish_rounds,prepare_only=args.prepare_only))

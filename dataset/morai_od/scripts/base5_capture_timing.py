@@ -65,6 +65,18 @@ def stationary_witness(samples,now,not_before,window=.30):
         thresholds=dict(xy_span_m=.02,z_span_m=.02,xy_speed_mps=.02,abs_vz_mps=.02),samples=rows)
 
 
+def bounded_stationary_recheck(observe, guard, static, clock=time.monotonic,
+                              sleep=time.sleep, timeout=2.):
+    """No wait on success. Never delay an animated actor past its arrival window."""
+    first=observe();latest=first;started=clock();checks=1
+    while not latest['verified'] and static and clock()-started<timeout:
+        guard()
+        sleep(min(.025,max(0.,timeout-(clock()-started))))
+        latest=observe();checks+=1
+    return latest,dict(initial_witness=first,checks=checks,elapsed_sec=clock()-started,
+                       budget_sec=timeout if static else 0.,static_only=static)
+
+
 class StageTiming:
     def __init__(self, clock=time.perf_counter):
         self.clock = clock

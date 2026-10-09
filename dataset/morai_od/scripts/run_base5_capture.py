@@ -14,7 +14,7 @@ import uuid
 import fcntl
 
 from base5_capture_audit import audit_capture
-from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary
+from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary, bounded_stationary_recheck
 from base5_event_cmd import BoundedServiceCaller
 from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError
 
@@ -264,6 +264,7 @@ def main():
             shutil.copy2(args.network_template,sidecar);owned.append(sidecar)
             timing.mark('scenario_install')
             drift_evidence=None
+            capture_requested_at=None;park_confirmed=None;response=None
             try:
                 from base5_map_surface import MapSurface,ego_road_support
                 from generate_dynamic_object_capture_set import DEFAULT_MGEO
@@ -446,6 +447,13 @@ def main():
                                 object_position_samples=[r for r in failed_trace if r['t']>=load_time],
                                 load_time_monotonic=load_time))
                         raise ValueError('Motion probe target arrival not observed; no capture')
+                def observe_stationary():
+                    with lock:return stationary_witness(list(traces),time.monotonic(),park_confirmed)
+                def guard_stationary():
+                    check_stop();fresh()
+                before_capture,recheck=bounded_stationary_recheck(observe_stationary,guard_stationary,
+                    static=all(a.get('motion') in ('static','standing') for a in meta['runtime_actors']))
+                # Re-read all drift/contact/actor gates after the optional wait.
                 e1=fresh()
                 # Classify verified peer contact before collision-induced drift
                 # can be mistaken for an unrelated stationary-control failure.
@@ -467,12 +475,11 @@ def main():
                         drift_m=math.hypot(e1['x']-e0['x'],e1['y']-e0['y']),
                         threshold_m=manifest['config']['capture']['maximum_ego_drift_m'],ego_samples=ego_samples))
                     raise ValueError('Stationary Ego drift exceeded')
-                with lock:before_capture=stationary_witness(list(traces),time.monotonic(),park_confirmed)
                 if not before_capture['verified']:
                     drift_evidence=args.output/'failures'/(entry['id']+'_ego_pre_capture.json')
                     atomic_json(drift_evidence,dict(reason='ego_pre_capture_not_stationary',no_capture_requested=True,
-                        scenario_sha256=entry['scenario_sha256'],witness=before_capture,ego_baseline=e0))
-                    raise RuntimeError('Ego stationary witness lost before capture; no capture')
+                        scenario_sha256=entry['scenario_sha256'],witness=before_capture,ego_baseline=e0,recheck=recheck))
+                    raise ValueError('Ego stationary witness lost before capture; no capture')
                 with lock: objects_before=state['objects']
                 if meta.get('yaw_probe'):
                     from base5_reference_frames import yaw_runtime_review
@@ -612,6 +619,7 @@ def main():
                     stationary_confirmed_monotonic=stationary_confirmed,
                     ego_load_samples=load_samples,
                     post_park_stationary_witness=settle,pre_capture_stationary_witness=before_capture,
+                    pre_capture_stationary_recheck=recheck,
                     objects_after=objects_after,ego_samples=samples,capture_drift_m=drift,
                     primary_displacement_during_wait_m=movement,object_position_samples=actor_samples,
                     object_motion_sample_contract=dict(
@@ -642,6 +650,21 @@ def main():
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
                 if drift_evidence is not None:
+                    # A scene quality failure cannot mask an outage or missing
+                    # collision history. Such failures still stop the campaign.
+                    if capture_requested_at is None and park_confirmed is not None:
+                        fresh()
+                        with lock:
+                            now=time.monotonic();contacts=[r for r in collisions if r['t']>=load_time]
+                            ego_history=[r for r in traces if r['t']>=load_time]
+                        contacts,epoch=scene_collision_epoch(contacts,load_time,meta['ego'])
+                        safety=collision_window(contacts,epoch['start_monotonic'],now)
+                        evidence=json.loads(drift_evidence.read_text())
+                        evidence.update(ego_load_samples=ego_history,collision_samples=contacts,
+                            continuation_safety=dict(topic_freshness_verified=True,
+                                park_control_verified=response.response.gear==1,
+                                brake_held=True,collision_epoch=epoch,collision=safety))
+                        atomic_json(drift_evidence,evidence)
                     result.update(failure_kind='ego_stationary_support',failure_evidence=str(drift_evidence.resolve()),
                         failure_evidence_sha256=hashlib.sha256(drift_evidence.read_bytes()).hexdigest())
                 if str(exc)=='Natural target arrival not observed for all moving actors; no capture':

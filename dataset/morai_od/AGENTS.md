@@ -13,6 +13,14 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   **2026-10-09 최신 운영은 runtime v133 / 입력 v132다.**
+   `docs/261009_base5_stationary_failure_recovery_v133.md`를 먼저 읽는다.
+   14:20 정지 witness 중단 후 기존1887승인을 원래 runtime으로 검증해 import했다.
+   새output `collection_5k_final_v132_sunny13_recovered_v133`은 실제1장 추가 후 paused/1888승인/24부족/3088pending이다.
+   원래v132 output은 raw 참조 대상이므로 삭제/이름 변경/현재 코드 직접resume 금지다.
+   정적 순간 흔들림 최대2초 재확인, 증명된 정지 실패만 셀 부족분이다. 통신/Park 불명확은 전체 중단 유지.
+   master/bridge/8075는 살아 있고 본수집 계속 실행은 사용자 재개 명령 대기다.
+   아래 '수집 중/실험 금지'는 중단 전 이력이며 최신CURRENT/런북이 우선한다.
    **2026-10-09 후속: 사용자가 v132 Sunny13 본5K를 시작해 수집 중이다.**
    `docs/261009_base5_collection_cost_and_next_experiments.md`를 읽는다. 이번 runtime/input 고정,
    끝난 뒤 상주 worker/조건부 대기 중첩으로 전체20% 단축 A/B를 검증한다. 아직 최적화 미구현이다.

@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 import generate_base5_independent as gen
-from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger,is_collision_failure,validate_collision_failure
+from base5_capture_safety import atomic_json,sha256,prepare_session,load_ledger,is_collision_failure,validate_collision_failure,is_stationary_failure,validate_stationary_failure
 from prepare_base5_ground_retry import prepare as height_retry,prepare_from_near as near_height_retry
 from prepare_base5_empty_ground_probe import prepare as empty_probe
 from prepare_base5_probed_retry import prepare as probed_retry
@@ -19,6 +19,12 @@ from prepare_base5_static_height_reference import prepare as static_height_refer
 from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original,COMPOSITE_ANCHORS
 from base5_static_ground_policy import lightweight_static
 from base5_intersection_placement import ready as editor_prepared
+
+
+def scene_rejection(row):
+    if is_collision_failure(row):validate_collision_failure(row);return 'physical_collision'
+    if is_stationary_failure(row):validate_stationary_failure(row);return 'ego_stationary_support'
+    return None
 
 
 def arrival_retry_eligible(result,manifest):
@@ -226,11 +232,11 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             collision_exit=child_status.get('error') in (
                 'Batch review/failure or unsafe boundary Park; halt before next scene',
                 'Capture halted after connection failure or three consecutive scene failures')
-            if rows and is_collision_failure(rows[-1]) and safety.get('park_verified') and collision_exit:
-                validate_collision_failure(rows[-1])
+            if rows and (is_collision_failure(rows[-1]) or is_stationary_failure(rows[-1])) and safety.get('park_verified') and collision_exit:
+                reason=scene_rejection(rows[-1])
                 row=rows[-1]
                 attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
-                    reasons=['physical_collision'],shutdown=safety))
+                    reasons=[reason],shutdown=safety))
                 save('running');return row
             attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status='failed',
                 reasons=['child_failed_or_exit_unsafe'],shutdown=safety))
@@ -240,7 +246,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
         rows=[json.loads(l) for l in (root/'ledger.jsonl').read_text().splitlines() if l]
         row=rows[-1];attempts.append(dict(cell=cell,kind=kind,capture_root=str(root),status=row['status'],
             reasons=row.get('audit',{}).get('review_reasons',[]),shutdown=safety));save('running')
-        if is_collision_failure(row):validate_collision_failure(row);return row
+        if scene_rejection(row):return row
         if row['status']=='failed' and (kind!='initial' or not arrival_retry_eligible(row,manifest)):
             raise RuntimeError('Scene failed without safe budget-retry evidence; no automatic continuation')
         return row
@@ -271,13 +277,13 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     probes=prepared(base/'motion_terrain_deck'/'manifest.json',
                         lambda:empty_probe(manifest,[0],base/'motion_terrain_deck',backward_route_m=0.))
                     terrain_result=capture(probes,base/'motion_terrain',cell,'motion_empty_terrain')
-                    if is_collision_failure(terrain_result):
-                        unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=terrain_result));save('running');continue
+                    if scene_rejection(terrain_result):
+                        unresolved.append(dict(cell=cell,reasons=[scene_rejection(terrain_result)],evidence=terrain_result));save('running');continue
                     refs=prepared(base/'motion_static_deck'/'manifest.json',
                         lambda:motion_ground.static_reference(manifest,base/'motion_static_deck'))
                     reference=capture(refs,base/'motion_static',cell,'motion_static_reference')
-                    if is_collision_failure(reference):
-                        unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=reference));save('running');continue
+                    if scene_rejection(reference):
+                        unresolved.append(dict(cell=cell,reasons=[scene_rejection(reference)],evidence=reference));save('running');continue
                     try:
                         manifest=prepared(base/'motion_ground_deck'/'manifest.json',
                             lambda:motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',base/'motion_ground_deck'))
@@ -298,7 +304,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                                         target_motion=bool(actor.get('motion_path')),
                                         target_departure=bool(standoff),target_standoff=standoff or None))
                                 witness=capture(probes,near_root,cell,'motion_near_empty_terrain')
-                                if is_collision_failure(witness):contact=witness;break
+                                if scene_rejection(witness):contact=witness;break
                                 additional.append(near_root)
                                 # Stop calibration as soon as every actor/path is
                                 # independently supported, not after probing all eight.
@@ -312,7 +318,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                                             'No independently supported safe motion direction in same target cell'):
                                         raise
                             if contact:
-                                unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=contact))
+                                unresolved.append(dict(cell=cell,reasons=[scene_rejection(contact)],evidence=contact))
                                 save('running');continue
                             manifest=prepared(base/'motion_ground_deck'/'manifest.json',lambda:
                                 motion_ground.prepare(manifest,base/'motion_terrain',base/'motion_static',
@@ -321,14 +327,16 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             unresolved.append(dict(cell=cell,reasons=['motion_ground_preparation_unavailable'],error=str(near_exc)))
                             save('running');continue
                 result=capture(manifest,base/'initial',cell,'initial')
-            if is_collision_failure(result):
-                unresolved.append(dict(cell=cell,reasons=['physical_collision'],evidence=result));save('running');continue
+            if scene_rejection(result):
+                unresolved.append(dict(cell=cell,reasons=[scene_rejection(result)],evidence=result));save('running');continue
             if result['status']=='failed':
                 if not arrival_retry_eligible(result,manifest):
                     raise RuntimeError('Target miss lacks safe evidence or already used 9-second budget')
                 manifest=prepared(base/'budget9_deck'/'manifest.json',
                     lambda:budget_retry(manifest,[0],base/'budget9_deck',9.))
                 result=capture(manifest,base/'budget9',cell,'natural_budget9_retry')
+                if scene_rejection(result):
+                    unresolved.append(dict(cell=cell,reasons=[scene_rejection(result)],evidence=result));save('running');continue
                 if result['status']=='failed':raise RuntimeError('9-second target retry failed; no further loads')
             if result['status']=='review':
                 current_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
@@ -346,7 +354,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
             for ordinal in range(2*motion_ground.MAX_MOVING_ACTORS+2):
                 if result['status']=='accepted_candidate':break
                 reasons=set(result.get('audit',{}).get('review_reasons',[]))
-                if is_collision_failure(result):break
+                if scene_rejection(result):break
                 current_meta=gen.geo.load_json(Path(gen.geo.load_json(manifest)['scenes'][0]['metadata']))
                 if lightweight_static(current_meta):
                     # No terrain witnesses / height recaptures / Ego relocation
@@ -385,7 +393,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                             near_deck=base/f'static_near_deck_{ordinal}';near_root=base/f'static_near_{ordinal}'
                             probes=prepared(near_deck/'manifest.json',lambda:static_height_reference(manifest,0,near_deck,target_uid=target_uid))
                             reference=capture(probes,near_root,cell,'static_near_ground_reference')
-                            if is_collision_failure(reference):result=reference;break
+                            if scene_rejection(reference):result=reference;break
                             if reference['status']=='review' and reference['audit']['review_reasons']==['actor_annotation_above_ground']:
                                 if not budget.spend('height'):break
                                 next_manifest=prepared(retry_deck/'manifest.json',
@@ -405,7 +413,7 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         else:
                             probes=prepared(terrain_deck/'manifest.json',lambda:empty_probe(manifest,[0],terrain_deck,target_uid=target_uid))
                             terrain_result=capture(probes,terrain_root,cell,'empty_terrain')
-                            if is_collision_failure(terrain_result):result=terrain_result;break
+                            if scene_rejection(terrain_result):result=terrain_result;break
                             if not budget.spend('height'):break
                             next_manifest=prepared(retry_deck/'manifest.json',lambda:probed_retry(manifest,current,terrain_root,retry_deck))
                             kind='independent_ground_retry'

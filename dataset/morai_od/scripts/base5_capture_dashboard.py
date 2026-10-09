@@ -43,13 +43,14 @@ def status_payload(root):
     status['accepted_per_hour']=3600*status.get('accepted_candidate',0)/elapsed if elapsed>0 else 0
     stage=status.get('stage','unknown')
     idle=('not_started','complete','complete_with_deficit','paused','interrupted',
-          'stopped','stopped_for_resume_test','prepared_waiting_for_MR_reconnect')
+          'stopped','stopped_for_resume_test','prepared_waiting_for_MR_reconnect','prepared_waiting_for_resume')
     halted=stage.startswith('halted')
     status['status_stale']=not (stage in idle or halted) and time.time()-status.get('updated_at',0)>20
     if stage=='not_started':label='수집 전'
     elif halted or stage in ('interrupted','stopped'):label='중단 · 확인 필요'
     elif stage in ('paused','stopped_for_resume_test'):label='일시정지'
     elif stage=='prepared_waiting_for_MR_reconnect':label='연결 대기'
+    elif stage=='prepared_waiting_for_resume':label='재개 대기'
     elif stage=='complete_with_deficit':label='부족분 남음'
     elif stage=='complete':label='완료'
     elif status.get('eta_sec',0)>0:label=f"{int(status['eta_sec']/60+.5)}분"
@@ -84,6 +85,9 @@ class Dashboard:
         self.deck=json.loads(self.manifest.read_text()) if self.manifest else None
         self.manifest_sha256=hashlib.sha256(self.manifest.read_bytes()).hexdigest() if self.manifest else None
         self.suite=json.loads(Path(suite).read_text()) if suite else None
+        prefix=read_optional(self.root/'imported_prefix.json') or {}
+        self.imported_root=(Path(prefix['original_output']) if prefix.get('manifest_sha256')==self.manifest_sha256
+            and prefix.get('original_output') else None)
         self.motion_modes=[]
         if self.deck:
             rows=self.deck['scenes'];order=self.deck.get('collection_order',{})
@@ -137,9 +141,11 @@ class Dashboard:
         status=read_optional(self.root/'status.json') or {}
         approved=status.get('accepted_candidate',0)
         try:
-            result=subprocess.run(['du','-sk','--',str(self.root)],capture_output=True,
+            roots=[str(self.root)]
+            if self.imported_root and self.imported_root.resolve()!=self.root.resolve():roots.append(str(self.imported_root))
+            result=subprocess.run(['du','-sk','--',*roots],capture_output=True,
                 text=True,timeout=60,check=True)
-            sample=dict(bytes=int(result.stdout.split()[0])*1024,accepted=approved,
+            sample=dict(bytes=sum(int(line.split()[0]) for line in result.stdout.splitlines() if line.strip())*1024,accepted=approved,
                 observed_at=time.time())
             with self.lock:self.storage_sample=sample;self.storage_error=None
         except (OSError,ValueError,IndexError,subprocess.SubprocessError) as exc:
@@ -230,7 +236,9 @@ class Dashboard:
         status['suite_progress']=[]
         if self.suite:
             for env in self.suite.get('environments',[]):
-                s=self.cached_json(Path(env['capture_output'])/'status.json') or {}
+                if self.imported_root and Path(env['capture_output']).resolve()==self.imported_root.resolve():
+                    s=status
+                else:s=self.cached_json(Path(env['capture_output'])/'status.json') or {}
                 status['suite_progress'].append(dict(environment=env['environment'],stage=s.get('stage','not_started'),
                     requested=env['expected_frames'],accepted=s.get('accepted_candidate',0),finished=s.get('finished',0),review=s.get('review',0)))
             status['suite_target']=sum(e['requested'] for e in status['suite_progress'])

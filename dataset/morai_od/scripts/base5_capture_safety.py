@@ -63,6 +63,27 @@ class SceneCollisionError(RuntimeError):
     """Confirmed per-scene contact, not a transport or exit-safety failure."""
 
 
+def is_stationary_failure(row):
+    return row.get('failure_kind')=='ego_stationary_support' and row.get('status')=='failed'
+
+
+def validate_stationary_failure(row):
+    """Only fresh, controlled, no-capture failures may be deferred to quota repair."""
+    if not is_stationary_failure(row):raise ValueError('Not a rejected Ego scene')
+    path=Path(row['failure_evidence'])
+    if sha256(path)!=row['failure_evidence_sha256']:raise ValueError('Ego evidence checksum mismatch')
+    proof=json.loads(path.read_text());safety=proof.get('continuation_safety',{})
+    if (proof.get('scenario_sha256')!=row['scenario_sha256'] or not proof.get('no_capture_requested')
+            or proof.get('reason') not in ('ego_pre_capture_not_stationary','ego_post_park_not_stationary','stationary_ego_drift_exceeded')
+            or not safety.get('topic_freshness_verified') or not safety.get('park_control_verified')
+            or not safety.get('collision_epoch',{}).get('matched')
+            or not safety.get('collision',{}).get('observed')
+            or safety.get('collision',{}).get('non_ego_uids')
+            or not safety.get('brake_held')):
+        raise ValueError('Ego failure lacks safe continuation evidence')
+    return proof
+
+
 def is_collision_failure(row):
     return (row.get('failure_kind')=='physical_collision' or
         'physical_collision_during_capture_window' in row.get('audit',{}).get('review_reasons',[]))

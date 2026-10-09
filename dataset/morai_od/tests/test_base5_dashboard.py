@@ -14,6 +14,21 @@ from base5_capture_dashboard import status_payload,Dashboard,reason_counts,HTML
 
 
 class DashboardTests(unittest.TestCase):
+    def test_imported_raw_and_suite_use_recovered_campaign_without_double_count(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);capture,manifest=self.fixture(root);capture.mkdir();old=root/'old';old.mkdir()
+            (old/'raw').write_bytes(bytes(65536))
+            (old/'status.json').write_text(json.dumps(dict(stage='halted',accepted_candidate=1)))
+            (capture/'status.json').write_text(json.dumps(dict(stage='prepared_waiting_for_resume',requested=2,finished=1,accepted_candidate=1)))
+            (capture/'imported_prefix.json').write_text(json.dumps(dict(original_output=str(old),manifest_sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())))
+            suite=root/'suite.json';suite.write_text(json.dumps(dict(environments=[dict(environment='sunny13',expected_frames=2,capture_output=str(old))])))
+            d=Dashboard(capture,manifest,suite);d.sample_storage();s=d.payload()
+            self.assertGreater(d.storage_sample['bytes'],65536)
+            self.assertEqual(s['suite_progress'][0]['stage'],'prepared_waiting_for_resume')
+            self.assertEqual(s['suite_accepted'],1);self.assertEqual(s['eta_label'],'재개 대기')
+            self.assertFalse(s['status_stale'])
+
     def fixture(self,root):
         capture=root/'capture';manifest=root/'manifest.json'
         manifest.write_text(json.dumps(dict(dataset_id='test_sunny13',

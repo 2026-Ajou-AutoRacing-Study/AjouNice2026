@@ -1,9 +1,20 @@
 # Base5 독립 5K — CURRENT
 
-2026-10-09 / v132 정지 자유 yaw·실측 배치 형상·음영 이동 방향 균형. v125/v124 운영·v123 구역별 구성 유지.
+2026-10-09 / runtime v133 정지 실패 복구, 입력 v132 유지. v125/v124 운영·v123 구역별 구성 유지.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 
-## 최신 상태 — v132
+## 최신 상태 — runtime v133 및 입력 v132
+
+14:20 정지 witness 실패 중단을 복구했다. [원인·변경·MR/단위 검증·성공분 보존](261009_base5_stationary_failure_recovery_v133.md).
+정적 순간 흔들림은 최대2초 재확인, 지속 불안정은 fresh/무접촉/제어/Park 증거를 갖춘 경우만 셀 부족분이다.
+통신/Park 불명확은 계속 전체 중단이다. 정지/드리프트/Z/GT 기준을 완화하지 않았다.
+원래1885승인+미집계2장을 보존해1887을 import했고, 실제 다음1셀 승인 후 새root는
+**paused / 승인1888 / 부족24 / 미처리3088**이다. 사용자 재개 전까지 본수집을 계속 실행하지 않는다.
+새output `collection_5k_final_v132_sunny13_recovered_v133`; 기존v132 output은 raw 참조 대상이므로 보존한다.
+입력·122종·거리/yaw·5K/6환경30K·production은 불변이다. 8075는 새output으로 연결했다.
+이 내용과 [런북](261007_base5_5k_capture_runbook.md)이 아래 당시 '수집 중/runtime 변경 금지'보다 우선한다.
+
+### v132 당시 준비 및 수집 이력
 
 2026-10-09 [학습split·가시성 해석·temporal 사용 결정](261009_base5_training_split_visibility_and_temporal_decisions.md):
 현재30K 계획은유지하고완료후필요조건만보강한다. 생성train4255/val745·6환경동일split,
@@ -11,7 +22,7 @@
 BabyStroller3의3/21은7parent×3component와camera대응모호성에따른보수적집계다.
 모호한camera/LiDAR0 component 제외한계는남는다. single-frame/velocity off·본학습미시작을유지한다.
 
-2026-10-09 Sunny13 본5K는 사용자가 시작해 수집 중이다. 이번 배치는 그대로 유지한다.
+2026-10-09 Sunny13 본5K는 사용자가 시작했고 14:20 중단됐다. 입력은 유지하고 위 v133 경로로 재개한다.
 [현재 수집 스냅샷·라벨 결정·시간 개선 이력·종료 후 반복 비용 실험](261009_base5_collection_cost_and_next_experiments.md)이
 아래 준비 당시의 미시작 표기보다 우선한다. 다음 환경 전에 상주 worker/준비 대기 중첩을 검증할 계획이며
 이번 수집 중 runtime·manifest·설정·실행 계약을 바꾸지 않는다. 최적화는 아직 미구현이다.

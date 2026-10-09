@@ -9,11 +9,32 @@ from PIL import Image
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary
+from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary, bounded_stationary_recheck
 from base5_capture_audit import camera_evidence
 
 
 class TimingTest(unittest.TestCase):
+    def test_bounded_recheck_only_delays_failed_static_witness(self):
+        ticks=[0.]
+        def sleep(dt):ticks[0]+=dt
+        for static in (False,True):
+            with patch('time.sleep') as unused:
+                good,info=bounded_stationary_recheck(lambda:dict(verified=True),lambda:None,static,
+                    clock=lambda:ticks[0],sleep=sleep)
+                self.assertTrue(good['verified']);self.assertEqual(info['checks'],1)
+                self.assertEqual(info['elapsed_sec'],0.)
+        reads=iter([dict(verified=False),dict(verified=True)])
+        good,info=bounded_stationary_recheck(lambda:next(reads),lambda:None,True,clock=lambda:ticks[0],sleep=sleep)
+        self.assertTrue(good['verified']);self.assertEqual(info['checks'],2)
+        bad,info=bounded_stationary_recheck(lambda:dict(verified=False),lambda:None,True,
+            clock=lambda:ticks[0],sleep=sleep,timeout=.10)
+        self.assertFalse(bad['verified']);self.assertAlmostEqual(info['elapsed_sec'],.10)
+        bad,info=bounded_stationary_recheck(lambda:dict(verified=False),lambda:None,False,
+            clock=lambda:ticks[0],sleep=sleep)
+        self.assertEqual(info['checks'],1);self.assertEqual(info['elapsed_sec'],0.)
+        with self.assertRaisesRegex(RuntimeError,'stale'):
+            bounded_stationary_recheck(lambda:dict(verified=False),lambda:(_ for _ in ()).throw(RuntimeError('stale')),True)
+
     def test_network_reuse_bulk_refused_before_output_or_ros(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);manifest=root/'manifest.json'
