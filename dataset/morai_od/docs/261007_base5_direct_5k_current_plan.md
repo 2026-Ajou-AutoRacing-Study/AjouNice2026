@@ -6,6 +6,14 @@
 이번 배치를 유지하고 종료 후 반복 비용 개선을 검증한다.
 [현재 상태·결정·다음 실행 계획](261009_base5_collection_cost_and_next_experiments.md)이 아래 준비 이력보다 우선한다.
 
+## 최신 후속 계획 — Sunny13 완료 후 나머지25K 새 배치
+
+2026-10-09 사용자 합의는 [공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)을 따른다.
+현재Sunny13을 완료·보존하고 구성표·주요자산 할당은 유지한다. 종료/Park 뒤 연속Ego 위치와
+환경별 새공간배치를 구현·검증해 나머지5환경에서5K씩 수집한다. 총30K 뒤 Sunny13 교체 필요성을 판단한다.
+아래 같은geometry6환경과 구split/노출 합계는 해당버전 이력이며 새생성본 확정값이 아니다.
+새생성기는 아직 미구현이다. 현재수집 계약을 바꾸거나 다른환경 구manifest로 바로 수집하지 않는다.
+
 ## 최신 / 2026-10-09 v132 — 최종 자유 yaw·배치 형상
 
 현재 입력 `final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json`,

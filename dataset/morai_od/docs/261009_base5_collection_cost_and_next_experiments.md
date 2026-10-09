@@ -9,8 +9,11 @@
 
 ## 현재 결정과 학습 라벨
 
-- Base5-only 독립 5K를 Sunny13부터 같은 배치의 6환경으로 반복해 30K를 취득한다.
-  같은 장면의 환경별 관측은 같은 group/split이며 30K 독립 배치로 계산하지 않는다.
+- 2026-10-09 최신 합의는 [공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)이다.
+  현재Sunny13 5K는 완료·보존하고, 종료 후 구성표/primary 할당을 유지한 연속Ego 샘플링을 구현·검증한다.
+  나머지5환경은 새배치5K씩 생성한다. 총30K 후 Sunny13 재수집 여부를 판단하며 현재수집을 끊지 않는다.
+  아래 동일geometry6환경 비용은 과거입력의 조건부 외삽이지 새30K 확정값이 아니다.
+  새배치도 공간group/split을 일관되게 유지하고 같은지도/미션의 배경 중복 한계를 명시한다.
 - v132는 yaw뿐 아니라 패밀리별 비율·자산·개수 예산·거리·방향·초근접·Ego 배치·이동 외형·
   지면 초기화·가시성·GT·충돌·보충/resume까지 검토한 현재 설계다.
   [12카테고리와 검증 범위](261009_base5_final_appearance_v132.md)를 유지한다.
@@ -115,6 +118,8 @@ provenance/충돌/센서 audit는 장당0.071초로 현재 주 병목이 아니�
    live collector가 종료됐는지, 최종 Park가 확인됐는지 확인한다. 자동으로 현재 수집을 끊지 않는다.
 2. 현코드·manifest·reference·센서/네트워크·로그·실패/보충 원본을 보존하고 실제 자산/거리/가시성 coverage를 확인한다.
    frozen input/runtime 백업은 v132 근거 문서에 있다. 새 코드로 완료한 본수집을 강제 resume하지 않는다.
+   이후 [Ego 다양화·환경별 새배치 검증](261009_base5_remaining_environments_spatial_diversity_plan.md)을 수행한다.
+   비용 A/B에서는 geometry 변경을 섞지 않고 같은payload의 baseline/후보를 별도 비교한다.
 3. 동일 배치로 baseline을 먼저 재측정한다. 단위는 본수집과 같은 chunk4, 비교 대상은 같은 scenario SHA다.
    결과를 보고 배치를 고르지 않고 사전 표본을 고정한다. 정적64셀을 범용/미션/빈배경,
    작은/큰/복합 객체, 혼합 개수, 근접/원거리, 여러 지도 위치로 나누고 이동8셀은 별도 회귀로 둔다.

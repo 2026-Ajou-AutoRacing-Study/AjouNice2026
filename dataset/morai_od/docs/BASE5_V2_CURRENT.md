@@ -3,6 +3,17 @@
 2026-10-09 / runtime v133 정지 실패 복구, 입력 v132 유지. v125/v124 운영·v123 구역별 구성 유지.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 
+## 최신 합의 — Sunny13 보존 및 나머지25K 공간 다양화
+
+2026-10-09 사용자 합의: 현재Sunny13은 그대로 완료한다. 종료·Park·collector 종료 확인 후
+구성표/주요자산 할당/거리·방향·미션 quota를 유지한 Ego 연속 위치 샘플링을 구현·검증한다.
+나머지5환경은 각각 새배치5K로 생성·수집하고 총30K 뒤 Sunny13 재수집 여부를 판단한다.
+구체적근거·구현경로·검증순서는 [종료 후 공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)이다.
+기존 다른환경 복사manifest는 재현용이며 새검증 전 바로 실행하지 않는다. 현재입력/runtime/output은 그대로다.
+아래 paused/1888 기록은 v133 복구 직후 snapshot이며 사용자 재개 후 현재진행률이 아니다.
+아래 같은5K geometry의6환경 기록은 이전구현/검증 이력이다. 새환경 생성은 아직 미구현이며
+문서 갱신으로 수집·생성·학습을 시작하지 않았다.
+
 ## 최신 상태 — runtime v133 및 입력 v132
 
 14:20 정지 witness 실패 중단을 복구했다. [원인·변경·MR/단위 검증·성공분 보존](261009_base5_stationary_failure_recovery_v133.md).

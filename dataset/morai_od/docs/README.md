@@ -2,6 +2,17 @@
 
 마지막 정리: 2026-10-09.
 
+- **최신 / 2026-10-09 환경별 새 공간 배치 합의:** [Sunny13 완료 후 Ego 다양화·나머지25K 계획](261009_base5_remaining_environments_spatial_diversity_plan.md).
+  현재Sunny13 5K는 완료·보존한다. 종료/Park 뒤 구성표·주요자산 할당을 유지한 연속Ego 샘플러를
+  구현·검증하고, 나머지5환경은 각각 새배치5K로 생성한다. 총30K 후 Sunny13 재수집 필요성을 판단한다.
+  아래 같은geometry6환경 계획은 기존입력 재현 이력이며, 새생성 경로는 아직 미구현이다.
+  기존 다른환경 복사manifest를 바로 수집하지 않는다. 이번 갱신은 문서만 변경한다.
+
+- **2026-10-09 Base5 학습 준비:** [초기화·BEV 연산 최적화 계획](../../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md).
+  crop 확정 후 visibility/info 재변환, 호환 nuScenes 초기화와4-class/depth/grid 로딩 감사,
+  cache A/v2 B 검증 순서다. 작은 CUDA 연산 시험만 제한적으로 검토하며 현재 수집은 유지한다.
+  Base5-only 데이터는 완전 랜덤 초기화 의무가 아니다. 실제 config/collector/production은 이번 정리로 변경하지 않는다.
+
 - **최신 운영 / runtime v133 정지 실패 복구:** [중단 원인·성공분 import·검증](261009_base5_stationary_failure_recovery_v133.md).
   입력v132 유지, 기존1887승인 참조+실제다음1장승인. 새root paused/1888승인/24부족/3088미처리.
   정적 순간 흔들림 최대2초 재확인·검증된 정지 실패만 셀 부족분, 통신/Park 불명확은 중단 유지.

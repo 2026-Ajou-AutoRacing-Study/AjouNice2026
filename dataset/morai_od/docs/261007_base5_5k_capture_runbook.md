@@ -7,6 +7,15 @@ Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹
 [본수집 상태·종료 후 최적화 순서](261009_base5_collection_cost_and_next_experiments.md)를 따른다.
 현재 v133 runtime/input/options는 고정한다. 코드 수정 실험은 수집·보충 종료 및 최종Park 확인 뒤 새output에서 한다.
 
+## 최신 후속 계획 — 다른5환경은 새 배치 생성 후 수집
+
+2026-10-09 합의: 현재Sunny13 5K는 그대로 완료·보존한다. 종료/Park/collector 종료 후
+구성표·primary 할당을 유지한 Ego 연속 위치 샘플링과 환경별 새배치 생성을 구현·검증한다.
+나머지5환경은 각각 새5K를 쓰고 총30K 뒤 Sunny13 재수집 여부를 판단한다.
+[공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)을 따른다.
+아래 과거 suite의 다른환경 복사manifest를 다음수집으로 바로 실행하지 않는다.
+현재Sunny13 재개/보충 명령은 변경하지 않는다. 새생성기는 아직 미구현이다.
+
 ## 최신 준비 — v132
 
 현재 release: `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`.
@@ -288,33 +297,19 @@ python3 dataset/morai_od/scripts/build_base5_bevfusion_infos.py \
 
 ## 다른5환경25K
 
-Sunny13을 마치면 MR UI를 다음 환경으로 바꾸고 Capture Mode/센서/네트워크를 유지한다.
-아래 예시는 foggy11이며 sunny11/sunny15/foggy13/foggy15도 같은 방식이다.
-동시에 여러collector를 켜지 않는다. 각manifest는 같은정적4822/이동178순서이며 split도 같다.
+현재는 [종료 후 공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)의
+구현·live/resume·전수audit가 먼저다. 기존suite는 같은5K를 복사한 과거입력이므로 여기서
+그경로로 다른환경 본수집을 시작하는 명령은 제공하지 않는다. 새release 검증 후 실제경로의 명령으로 갱신한다.
 
-```bash
-ajou
-ENV_TAG=foggy11
-BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
-python3 -u dataset/morai_od/scripts/run_base5_batch_campaign.py \
-  --manifest "$BASE5_ROOT/environment_suite/$ENV_TAG/manifest.json" \
-  --output "$BASE5_ROOT/collection_5k_final_v132_$ENV_TAG" \
-  --limit 5000 --chunk-size 4 --approve-bulk-capture --resume
-```
+- 범위: sunny11/sunny15/foggy11/foggy13/foggy15 각각 새5K, 총25K. 구성표·primary 할당은 유지한다.
+- 환경별 검증된manifest·새output·seed·runtime/reference hash·고유token·공간group/split을 사용한다.
+- UI에서 실제날씨/시간/Capture Mode/센서/네트워크를 확인한다. 동시에collector를 여러개 켜지 않는다.
+- 완료후 bounded 보충, 실제coverage와 CPU변환, 각환경 `--environment-tag`를 유지한다.
+- 기존Sunny13 infos와 새5환경 infos의 converter/merge 계약을 검증하고 새30K 학습본을 만든다.
+  기존group 검사만으로 공간누수까지 보장하지 않으며 split 장수·새노출·디스크·ETA를 다시 계산한다.
+- 현재Sunny13 raw/metadata/split을 수정하거나 삭제하지 않는다. 총30K 후 재수집 필요성을 별도판단한다.
 
-변환도해당환경의 `--environment-tag "$ENV_TAG"`를 지정한다.6개infos를 모두 만든 뒤:
-
-```bash
-ajou
-BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
-python3 dataset/morai_od/scripts/merge_base5_environment_infos.py \
-  --infos "$BASE5_ROOT/infos_sunny13" "$BASE5_ROOT/infos_sunny11" "$BASE5_ROOT/infos_sunny15" \
-          "$BASE5_ROOT/infos_foggy11" "$BASE5_ROOT/infos_foggy13" "$BASE5_ROOT/infos_foggy15" \
-  --output "$BASE5_ROOT/infos_30k"
-```
-
-신뢰하는로컬PKL에만사용한다. 같은group이서로다른split에있거나token이중복이면거부한다.
-최종장수가부족하면부족분을명시한다. 변환/merge가자동으로30K완료를보장하지않는다.
+신뢰하는로컬PKL에만변환/merge를적용한다. 부족장수는명시하며 자동30K완료를보장하지않는다.
 원본보존+변환캐시+재시도로공간이증가하므로각환경시작전디스크를확인한다.
 
 ## 재현용생성 (본수집명령아님)

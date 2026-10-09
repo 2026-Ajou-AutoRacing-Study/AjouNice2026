@@ -49,6 +49,51 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-09 해상도와 최적화 후속 합의:** [13Hz 예산과 입력 선택](bevfusion/261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준).
+  Sunny13 종료 후 crop/투영 → cache/분리 pooling → 동일조건4090 비용 → 세로×가로 학습입력 확정이다.
+  전처리 포함 평균50~60ms는 탐색 목표이며 p95·밀집 장면·입력부터 객체 발행까지의 지연을 확인한다.
+  448×896/512×1056/576×1152 시간은 미측정 최적화 가정이다. TensorRT 성공에 기대어 입력을 키우지 않는다.
+  부분TensorRT는 후속 선택이며 전체전환/원격MORAI 때문에 본학습을 미루지 않는다. 현재수집과runtime은 유지한다.
+
+- **2026-10-09 최신 데이터 수집 합의:** [Sunny13 완료 후 Ego 다양화와 나머지25K](../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md).
+  현재Sunny13 5K는 끝까지 완료·보존한다. 종료/Park 뒤 구성표·primary 할당을 유지한 연속Ego
+  샘플링과 환경별 새배치 생성 경로를 구현·검증한다. 나머지5환경은 새5K씩 수집하며
+  총30K 후 Sunny13 재수집 여부를 판단한다. 아래 동일geometry6환경은 과거계획이다.
+  기존 다른환경 복사manifest는 새검증 전 실행하지 않는다. 현재수집·production은 변경하지 않는다.
+
+- **2026-10-09 최신 실행 순서:** [Sunny13 종료 후 묶음 실험 합의](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#sunny13-수집-종료-후-묶음-실험-합의).
+  이번5K 수집과 MORAI 종료를 먼저 확인하고 사용자 실행 요청 후 진행한다. 무결성/split →
+  입력/crop → cache/분리 pooling → 비용/짧은 학습 → 초기화/smoke/resume 순서다.
+  추천 구성 하나와 fallback 하나를 본학습 직전에 보고한다. 현재 수집은 유지하며 GPU 실험은
+  종료 후로 미룬다. TensorRT/v3 성공을 본학습 필수조건으로 만들지 않는다.
+
+- **2026-10-09 원격 학습 준비:** [Vast.ai 단일4090 임대·5K 학습/추론 계획](bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md).
+  로컬 검증 후 원격4090에서 최종 입력의 latency/VRAM·짧은 학습을 다시 확인한다.
+  임대 전 전달 용량·고정 디스크·registry image와 direct runner를 준비하고,
+  외부 checkpoint 백업/재개를 검증한다. 반복 mission bag은 별도dev-val로 유지한다.
+  아직 임대·전송·원격 실행은 하지 않았으며 장기 학습 전 설정·시간·비용을 보고한다.
+
+- **2026-10-09 CUDA-BEVFusion 검토:** [기존 CUDA 사용·v2/v3·배포 호환 조사](bevfusion/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md).
+  학습 체계는 유지하고 cache/분리 pooling을 우선 이식한다. CUDA-BEVFusion depth-outer는
+  추론 후보이며 NVIDIA v3와 혼칭하지 않는다. 부분 TensorRT는 잔여 병목 실측 후,
+  전체 저장소 이주는 후순위다. 조사만 완료했으며 수집·production·가중치는 변경하지 않았다.
+
+- **2026-10-09 후속 실행 계획:** [Base5 초기화·연산 최적화](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md).
+  다음은 고정 기하/인덱스 cache의 CPU 기준·무효화 검사, 제한된 CUDA 연산 단위 시험이다.
+  이후 기존 pooling/cache A/v2 방식 B를 분리 검증한다. 수집·production은 유지하고 전체 모델/학습/
+  공식 비용 시험은 별도4090 또는 종료 후다. 아직 최적화 구현이나 CUDA 시험을 한 것은 아니다.
+  Base5-only 데이터와 랜덤 초기화를 혼동하지 않는다. E25 fresh는 nuScenes 호환 초기화였고,
+  Base5 후보는 현재load_from=None이다. 호환 pretrained + 새4-class/depth/grid 정책을 추천하며
+  adapter 로딩 감사 후 본학습한다. crop/GT 재선별과 checkpoint resume/외부 업로드 검증도 계획에 포함한다.
+
+- **2026-10-09 다음 작업:** 수집을 유지한 채 [카메라 crop 크기와 위치 조사](bevfusion/261009_BASE5_CAMERA_CROP_INVESTIGATION.md)를 따른다.
+  측방 잘림 snapshot과 12개 조사 항목을 기준으로 픽셀 밀도, 원본 시야, 카메라별 crop,
+  GT visibility와 투영 정합을 먼저 검토한다. CPU 분석 후 우선 후보는 448×896 아래 정렬,
+  비용 대안은 384×896, 원거리 밀도 확대 대안은 512×1056이다. 최종 설정은 미확정이며
+  다음은 학습·Docker·ROS 전처리 정합과 새 입력의 visibility 재구성 검증이다.
+  이후 [4090 비용 시험 계획](bevfusion/261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md)에 후보를 반영해
+  팀원용 딸깍 번들을 준비한다. 새 번들은 미구현, 풀스택 측정은 보류이며 본학습 여러 회는 전제하지 않는다.
+
 - **2026-10-09 합의:** [학습split·가시성·temporal 경계](../dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md).
   현재6환경30K수집을유지하고완료후필요조건만보강한다. 합성train약85/val약15·동일geometry환경split고정,
   기존반복bag은dev-val/새독립주행은test다. BabyStroller3 camera대응모호성을실제비가시로단정하지않는다.

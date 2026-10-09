@@ -4,8 +4,54 @@
 
 ## CURRENT
 
+[2026-10-09 수집 종료 후 해상도 선택](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준):
+crop/투영과 cache·분리 pooling을 검증한 뒤 세로×가로 입력을 비용 실측으로 확정한다.
+13Hz≈76.9ms에서 전처리 포함 평균50~60ms는 탐색 목표이며 p95/발행 지연을 별도 확인한다.
+448×896 약50ms·512×1056 약60ms·576×1152 약70ms는20~30% 최적화 가정의 미측정 예상이다.
+TensorRT는 후속 선택이며 예상 가속을 전제로 큰 입력을 고르지 않는다. 수집·GPU 작업은 이번 정리로 변경하지 않는다.
+
+[2026-10-09 환경별 새 공간 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md):
+현재Sunny13 5K를 완료·보존하고 나머지5환경은 각각 새 배치5K로 생성한다.
+구성표/주요자산 할당 유지·연속Ego 샘플링·공간split 검증이 선행하며 기존 복사manifest를 바로 수집하지 않는다.
+
+[2026-10-09 최신 실행 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#sunny13-수집-종료-후-묶음-실험-합의):
+이번 Sunny13 5K 수집/MORAI 종료 후 사용자 요청으로 무결성·split → 입력/crop → cache/분리 pooling →
+latency/VRAM·짧은 학습 → 초기화/smoke/resume을 묶어서 수행한다. 추천 구성 하나와 fallback 하나로
+좁혀 본학습 직전에 보고한다. TensorRT/v3 전체 적용은 필수가 아니며 최적화 때문에 학습을 무기한
+미루지 않는다. 이 합의만으로 GPU 작업·본학습·다음 환경 수집을 자동 시작하지 않는다.
+
+[2026-10-09 Vast.ai 단일4090 학습·추론 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md):
+로컬 입력·연산 검증 후 임대한4090에서 latency/VRAM·짧은 학습·재개를 확인하고 Sunny13 5K를 학습한다.
+첫5K는 On-demand/200GB, 같은 임대로30K까지 이어가면500GB를 검토한다. 실시간 가격 관측과
+디스크·SSH·직접 실행·외부 checkpoint 백업 계획을 보존한다. 임대·전달·remote runner는 아직 미실행/미구현이다.
+
+[2026-10-09 CUDA-BEVFusion과 BEVPool 배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md):
+우리도 이미 CUDA 신경망·voxelization·sparse encoder·pooling을 사용한다. PyTorch 학습은
+유지하고 geometry cache와 분리 pooling을 선별 이식하는 방향을 추천한다. 공식 코드의
+카메라별 전처리·4채널 LiDAR·7D/class/직사각형 계약 차이 때문에 전체 교체는 후순위다.
+CUDA-BEVFusion depth-outer와 NVIDIA v3를 구분하며 이번에는 조사·문서화만 했다.
+
+[2026-10-09 초기화와 BEV 연산 최적화 실행 계획](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md):
+Base3/E25의 fresh는 nuScenes 호환 가중치 + 새 optimizer였으며 완전 랜덤 초기화가 아니다.
+현재 Base5 후보의 load_from=None과 향후 호환 pretrained 추천을 구분한다. 4-class/depth/grid
+로딩 감사 후 본학습하며, 다음 연산 작업은 기존 CUDA pooling의 기하 cache A → v2 방식 B다.
+수집 중 작은 CUDA 연산 단위 시험만 제한적으로 검토한다. 전체 모델/학습/공식 비용 시험은
+별도4090 또는 수집 종료 후다. adapter/cache/v2/새 번들은 아직 미구현이며 수집·production 유지다.
+
+[2026-10-09 카메라 crop 분석과 입력 후보](261009_BASE5_CAMERA_CROP_INVESTIGATION.md):
+2,586장·121종의 실제 instance mask를 비교했다. 우선 후보는 448×896 아래 정렬,
+비용 대안 384×896, 원거리 밀도 확대 대안 512×1056이다. crop 위치만 올리면 근접
+장애물 아래쪽 손실이 커진다. 최종 입력은 미확정이며 다음은 전처리 정합과 GT 재선별이다.
+수집과 production은 유지한다. 분석 수치와 그래프도 같은 문서에 보존한다.
+
+[2026-10-09 4090 추가 비용 시험 계획](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md):
+crop 분석의 384×896/448×896/512×1056과 320×896 기준을 추론·짧은 학습으로 비교할 계획이다.
+종전 비례 해상도 표는 초기 비용 비교 기록이다. 새 번들은 미구현이며 풀스택은 보류한다.
+기존 실측과 새 해상도 및 학습시간 추정을 구분하고 본학습 여러 회를 전제하지 않는다.
+
 [2026-10-09 학습split·가시성·temporal 결정](../../dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md):
-Base5 train4255/val745·6환경동일split, 반복평가bag은dev-val/새미사용주행은test다.
+Sunny13 train4255/val745 유지, 나머지25K 새 geometry는 공간group 누출을 검사해split 재계산한다.
+반복평가bag은dev-val/새미사용주행은test다.
 현재30K수집유지후필요조건만보강한다. E25와Base5는single-frame이며OD velocity/temporal 연구분기미사용,
 tracker 시간추정/NMS/lifecycle은유지한다. BabyStroller3의3/21은camera대응모호성을포함한component 집계다.
 이번Base5 본학습은아직미시작이며관측단서proxy를모델성능이나학습충분성으로해석하지않는다.
@@ -48,6 +94,11 @@ Base5 E25-init E2 학습과 [E1 보행자·장애물9-bag rosbag A/B](261005_BAS
 | 목적 | 문서 |
 |---|---|
 | Production E25 실행·판단팀 전달 | [`BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
+| Vast.ai 단일4090 임대·5K 전달·원격 학습과 재개 | [`261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| Base5 가중치 초기화·pooling/cache 최적화 순서 | [`261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md`](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md) |
+| 카메라 crop 크기와 위치 조사 | [`261009_BASE5_CAMERA_CROP_INVESTIGATION.md`](261009_BASE5_CAMERA_CROP_INVESTIGATION.md) |
+| 팀원 4090 입력 후보 비용 시험 | [`261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md`](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md) |
+| CUDA-BEVFusion 차용·BEVPoolv2/v3 배포 판단 | [`261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md`](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md) |
 | 현재 개선 우선순위: 근접·원거리·차량 승격·고해상도 | [`261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md`](261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md) |
 | Production E25 rosbag Tracking/Prediction RViz 재생 | [`E25_ROSBAG_RVIZ_RUNBOOK.md`](E25_ROSBAG_RVIZ_RUNBOOK.md) |
 | 팀 공용 Docker 학습 | [`TEAM_DOCKER_TRAINING_HANDOFF.md`](TEAM_DOCKER_TRAINING_HANDOFF.md) |

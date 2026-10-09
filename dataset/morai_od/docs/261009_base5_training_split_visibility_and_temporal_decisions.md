@@ -1,15 +1,19 @@
 # Base5 학습 분리와 가시성 해석 및 temporal 사용 결정
 
 2026-10-09 KST / CURRENT 결정과 EVIDENCE 스냅샷을 구분한다.
-Sunny13 v132 본5K를 유지하고 같은 배치를 6환경으로 반복해30K를 취득한다.
+Sunny13 v132 본5K를 유지한다. 종료 후 구성표·primary 할당을 유지한 Ego 위치 다양화를
+구현·검증하고, 나머지5환경은 새배치5K씩 생성해 총30K를 취득할 계획이다.
+최신 순서와 공간/split 검증은 [종료 후 공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)을 따른다.
 일부 자산의 관측 사례가 적다는 이유만으로 중단하거나 전체를 재수집하지 않는다.
 완료 후 실제 train coverage와 rosbag 성능으로 필요한 자산·조건만 보강한다.
 이번 정리는 문서만 변경하며 캡처 runtime·입력·GT 필터·production 설정을 변경하지 않는다.
 
 ## 현재 수집과 보존 원칙
 
-- Base5-only 독립5K single-frame OD, 같은 geometry의 sunny/foggy ×11/13/15 반복이다.
-  30K는 관측 수이며30K 독립 배치가 아니다. 현재 Sunny13 이외 환경의 완료를 뜻하지 않는다.
+- Base5-only single-frame OD, sunny/foggy ×11/13/15의6환경 총30K 목표다.
+  같은geometry 반복은 기존구현 이력이며, 다음5환경의 새geometry 생성은 아직 미구현이다.
+  새배치도 같은지도/미션을 공유하므로 완전히 독립적인 배경30K라고 부르지 않는다.
+  현재 Sunny13 이외 환경의 완료를 뜻하지 않는다.
 - 기존 raw·native Instance annotation·scenario·자산/parent/component·진단 trace를 보존한다.
   객체 비율은 sampling, 클래스/가시성은 가능한 범위의 재변환, 실패 자산은 제외·교체,
   새로운 hard case는 소량 추가 수집으로 대응한다. 새 수집이 기존 성공분을 덮어쓰지 않는다.
@@ -17,6 +21,8 @@ Sunny13 v132 본5K를 유지하고 같은 배치를 6환경으로 반복해30K�
   crop/클래스/필터 변경이 모두 무조건 재수집 없이 가능하다는 보장은 아니다.
 - 수집 중 동일5060Ti에서 GPU 학습·추론·latency benchmark를 병행하지 않는다.
   별도GPU/PC에서 학습은 가능하다. CPU 분석도 대량I/O로 캡처를 방해하지 않는다.
+  2026-10-09 후속 합의의 예외는 작은 연산 단위 CUDA correctness 시험뿐이다.
+  전체 모델/학습 허용은 아니며 [실행 경계](../../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md)를 따른다.
 - 모델 정확도 상승 폭은 아직 모른다. 과거 소량E25-init pilot이나 offline AP를
   새v132 학습·실주행 성능 보장으로 사용하지 않는다. E25는 fallback으로 보존한다.
 
@@ -29,13 +35,17 @@ Sunny13 v132 본5K를 유지하고 같은 배치를 6환경으로 반복해30K�
 
 split은 수집 후 프레임을 랜덤하게 나누는 것이 아니라 생성 metadata에 이미 정해져 있다.
 변환/환경 merge에서 그 split을 유지한다. 같은 scene의 환경 변형은 반드시 같은 split이다.
+새geometry는 논리적quota slot과 실제scene/group을 구분하고 도로/공간별split을 환경 전체에서
+일관되게 적용한다. 최종XY/link와 인접시야의 중복은 별도감사하며 slot번호만으로 공간누수를 인증하지 않는다.
 
 | 계획 관측 수 | Train | Val | 합성 Test |
 |---|---:|---:|---:|
 | Sunny13 5K |4255|745|0|
-| 같은5K ×6환경 30K |25530|4470|0|
+| 이전 동일geometry ×6환경 계획값 |25530|4470|0|
 
 약85/15이며 실패·review·최종 변환에 따라 실제 학습 장수는 감소할 수 있다.
+새geometry25K를 합친30K의 split 수는 새manifest와 실제변환 결과로 다시 계산한다.
+위25530/4470은 최신계획의 확정장수가 아니다. 현재Sunny13의split은 보존한다.
 현재57개 `split_group` 중 train/val 혼합group은0이다. 분리 anchor는 생성 기준도로link지만
 최종 Ego 배치link는5개가 train/val 양쪽에 등장하고 인접link의100m 시야도 겹칠 수 있다.
 따라서 완전한 지리적 held-out이나 합성val만의 실주행 일반화 인증으로 부르지 않는다.
@@ -161,8 +171,12 @@ T1은recall/latency, T2계열은정확도/비용gate, P7은새bag에서확실한
 
 1. 환경별종료·Park·완료후보충을확인하고 성공raw/실패근거를보존한다.
 2. 자산별train coverage·거리/방향·실제가시parent/component·camera-only 모호성을감사한다.
-   같은배치6환경은관측수는늘지만기하학적각도/거리/가림부족을해결하지않는다.
+   Sunny13 종료 후 Ego 위치 다양화를 구현·검증하고 나머지5환경은 새배치로 생성한다.
+   자산할당/미션quota는 유지하며 실제30K의 위치·각도·거리·가림coverage를 다시 확인한다.
 3. 고정split로Base5 single-frame 학습본을변환한다. 이번Base5 본학습은아직미시작이다.
+   입력 crop 확정 후 visibility/info를 재계산한다. [초기화 계획](../../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md)에 따라
+   호환 nuScenes 가중치 + 새4-class 부분을 추천하며 Base3 데이터를 기본 학습본에 섞지 않는다.
+   현재 Base5 config의 load_from=None은 아직 이 추천으로 변경되지 않았다.
 4. offline val로후보를좁힌뒤 rosbag val에서 Detection/Tracking/Map-CV·거리별누락·첫전달거리·ID연속성을비교한다.
    새모델threshold는현재0.40/0.15/0.10을최적이라고고정하지않고별도선택한다.
 5. 부족이확인된자산/근접/원거리조건만추가수집하고필요하면파인튜닝한다. 전체재수집을기본값으로하지않는다.

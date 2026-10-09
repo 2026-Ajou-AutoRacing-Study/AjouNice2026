@@ -1,5 +1,21 @@
 # MORAI perception dataset agent context
 
+2026-10-09 최신 환경·공간 다양성 합의:
+`docs/261009_base5_remaining_environments_spatial_diversity_plan.md`를 먼저 읽는다.
+현재 Sunny13 v132 입력/runtime v133 수집은 끝까지 유지·보존한다. 종료/Park/collector 종료 뒤
+구성표·primary 자산 할당·거리/방향/미션 quota는 유지하고 Ego 연속 위치 샘플링을 구현·검증한다.
+나머지 sunny11/15·foggy11/13/15는 각환경 새배치5K로 생성한다. 총30K 후 Sunny13 재수집 여부를 판단한다.
+이 합의가 아래 '같은5K를6환경 반복' 계획보다 우선하며 새생성기는 아직 미구현이다.
+기존 suite의 다른5환경 복사manifest를 다음수집으로 바로 실행하지 않는다. 현재Sunny13 계약은 변경 금지다.
+고정192개 bank/사용base98개 한계와 실제간격 약11m를 구분한다. seed만 바꾸면 frozen row/bank가 남는다.
+새식별·공간group/split·finalXY높이·live/resume·전수audit를 함께 검증하고 새release/output을 쓴다.
+
+2026-10-09 후속 사용자 합의: 수집을 유지하면서 작은 pooling 연산의 제한된 CUDA
+correctness 시험은 가능하다. 전체 모델/학습/공식 latency 시험과 collector 변경은 허용 범위가 아니다.
+`../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md`의
+VRAM·캡처 진행 확인/시험만 종료 경계를 따른다. 아래 '새실험 금지'의 예외는 이 범위뿐이다.
+문서 계획을 이미 구현된 cache/v2/adapter/GPU 시험으로 해석하지 않는다.
+
 이 디렉터리의 수집·변환 작업 전 다음을 읽는다.
 
 1. `docs/README.md`
