@@ -1,5 +1,18 @@
 # Base5 독립 5K — CURRENT
 
+## 최신 운영 — 본5K 완료와 실패 기반 보충
+
+2026-10-09 본수집은4,930승인/70부족으로 완료했다. 기존 보충15셀 중3개 승인 뒤
+중복 payload 재캡처를 확인해 paused/4,933승인으로 보존했다. 새 보충은 별도
+`collection_5k_sunny13_supplement_v135`에서 같은 자산/spec/split/group을 유지하며
+여러 후보 선별→정적 one-shot→셀당 누적2회, 시간 예산 PAUSE로 진행한다.
+원본 runtime/hash/raw는 변경하지 않는다. 이동 부족3셀은 지면 준비 없이 우회하지 않는다.
+[원인·구현·검증·현재 실행](261009_base5_failure_aware_replenishment.md)이 아래1888/수집중 기록보다 우선한다.
+v134b의 미촬영 후보 객체 수 계약 오류는v135에서 생성 단계 필터로 보완하고 완료 시도/복구3장을
+검증 import했다. 최종15부족셀/25one-shot에서8복구, **paused/4941승인/59부족**이다.
+원본4933행/ledger/quota/journal 불변·동일payload재촬영0·전세션Park확인이다.
+기존보충이나새collector를켜두지않았다. 본5K 전수 성공으로 해석하지 않는다.
+
 2026-10-09 / runtime v133 정지 실패 복구, 입력 v132 유지. v125/v124 운영·v123 구역별 구성 유지.
 **Sunny13시 직접5K**, Base3 보강이 아닌 Base5-only single-frame OD 학습용이다.
 

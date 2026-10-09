@@ -1,5 +1,21 @@
 # MORAI perception dataset agent context
 
+2026-10-09 최신 운영은 `docs/261009_base5_failure_aware_replenishment.md`다.
+Sunny13 본5K는4930승인/70부족으로 완료, 기존보충15셀중3복구 후paused/4933보존이다.
+내부 quality retry와 다음 quota initial의 동일scenarioSHA 재캡처를 실제 확인했다.
+원본 input/runtime/journal/raw를 수정하거나 기존 --replenish를 다시 시작하지 않는다.
+현재별도output collection_5k_sunny13_supplement_v135는실패상대시야 제외/다후보순위/정적one-shot/
+누적2회/안전시간예산PAUSE 경로다. 같은asset/spec/split/group/config·nativeGT/실제QA를유지한다.
+64정적/3이동 초기부족 중이동3은독립ground준비없이raw우회하지않는다.
+v134b의미촬영혼합후보actors변경계약오류를v135에서생성시필터한다. v134b 완료13시도/복구3장은
+실제raw/캡처계약검증후명시적import하며과거halted journal/hash를강제수정하지않는다.
+fast wrapper는cache선준비+별도hashguard며collector원본불변이다. 원본4933행은새ledger안에이미있다.
+새ledger와원본ledger단순연결금지·기존8075는원본paused만표시한다. 최신실제승인/잔여는새status를읽는다.
+최종실제15부족셀/25one-shot에서8복구, v135현재paused/4941승인/59부족이다.
+원본4933행/ledger/quota/journal불변·새/기존실패payload재촬영0·전세션Park검증했다.
+collector를켜두지않았다. 사용자재개시최신실행문서의새명령을쓴다. 원본/구v134b강제resume금지다.
+아래1888/수집중/미시작기록은당시이력이다. 다음5환경새공간배치합의는유지한다.
+
 2026-10-09 최신 환경·공간 다양성 합의:
 `docs/261009_base5_remaining_environments_spatial_diversity_plan.md`를 먼저 읽는다.
 현재 Sunny13 v132 입력/runtime v133 수집은 끝까지 유지·보존한다. 종료/Park/collector 종료 뒤
