@@ -118,6 +118,9 @@ primary 할당 보존은 같은 위치·객체 조합·정확한 각도까지 �
 ## 종료 후 구현 검증 체크리스트
 
 - [ ] Sunny13 종료/Park/collector 종료, 승인·부족·보충 및 원본 보존 확인.
+- [ ] [점수제의 실제 학습 분포](261009_base5_training_split_visibility_and_temporal_decisions.md#수집-후-점수제에-따른-실제-학습-분포-점검)를
+      자산·크기·거리별로 점검한다. 최종 crop 전에는 잠정값이며 유효 GT 기준으로 재확인한다.
+      편중이 확인될 때만 다음 환경의 보조 자산 선택을 조정하며 현재 raw/점수제를 임의 폐기하지 않는다.
 - [ ] 환경별 새geometry seed·연속 Ego 샘플러·식별/split 경로 구현; 현재입력 재현 경로 보존.
 - [ ] CPU 단위검사: 구간 배분/허용 구역/동일seed 재현/환경간 새geometry/primary quota 보존/
       split 일관성·token 중복/최종XY높이/부족분 보충·완료resume 계약.

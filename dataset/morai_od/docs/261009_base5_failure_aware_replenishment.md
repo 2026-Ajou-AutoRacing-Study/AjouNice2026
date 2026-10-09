@@ -1,5 +1,9 @@
 # Base5 완료 부족분 반복 원인과 새 보충 경로
 
+2026-10-10 후속: 사용자 수동 보충 종료는4,948승인/52부족이다. 이후
+[자동 보충 v137](261010_base5_adaptive_completion.md)이 실행 안내의 최신 기준이다.
+아래4,941/59 및8셀 수동 명령은 초기 검증 당시의 이력이며 지금 재실행하지 않는다.
+
 2026-10-09 Sunny13 입력 v132, 캡처 runtime v133을 유지한다. 원래5K 셀을 모두 처리한 결과는
 4,930승인/70부족이다. 기존 보충에서15셀 중3장을 추가한 뒤 안전하게 일시정지했다.
 원래4,933승인과 모든 성공·실패 raw는 보존하며 현재 보충은 별도 v135 output을 사용한다.
@@ -94,8 +98,25 @@ python3 -u dataset/morai_od/scripts/run_base5_failure_aware_replenishment_fast.p
 `--stop-after-cells 8`은 이번 실행에서 새로 처리하는 부족 셀 수이며 촬영 수가 아니다.
 한 셀은 최대2후보를 찍을 수 있다. 누적 상한을 소진한 셀은 다시 실행하지 않는다.
 새 canonical 선택은 새 output의 `selected_ledger.jsonl`이다. 원본과 새 ledger를 단순 연결하면
-4,933장이 중복되므로 금지한다. 기존8075는 원래 paused 수집을 표시하며 새 진행률이 아니다.
-새 진행률은 새 output의 `status.json`에서 확인한다.
+4,933장이 중복되므로 금지한다. 최초8075는 원래 paused 수집을 보고 있었으나 후속 수정에서
+관측 root를 v135로 변경했다. 현재8075는 새 output의 승인/부족분과 보충 상태를 표시한다.
+환경 suite는 같은 manifest hash의 현재 환경에 최신 선택을 반영한다. 기존 raw를 합산할 때는
+아래 storage root를 명시하며 collector/input/journal은 수정하지 않는다.
+
+```bash
+ajou
+BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
+python3 -u dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$BASE5_ROOT/collection_5k_sunny13_supplement_v135" \
+  --manifest "$BASE5_ROOT/environment_suite/sunny13/manifest.json" \
+  --suite "$BASE5_ROOT/environment_suite/suite.json" \
+  --storage-root "$BASE5_ROOT/collection_5k_final_v132_sunny13" \
+  --storage-root "$BASE5_ROOT/collection_5k_final_v132_sunny13_recovered_v133" \
+  --storage-root "$BASE5_ROOT/collection_5k_sunny13_supplement_v134b" \
+  --port 8075
+```
+
+8075가 이미 실행 중이면 중복 실행하지 않는다. 재연결 시 대시보드만 재시작하고 수집기는 건드리지 않는다.
 `--import-supplement`는 과거 성공·실패 완료 시도의 검증 참조다. resume에서도 같은 경로를
 유지하며 v134b output의 state/ledger/raw를 삭제하거나 변경하지 않는다.
 

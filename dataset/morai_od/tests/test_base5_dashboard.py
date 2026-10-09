@@ -10,10 +10,61 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from base5_capture_dashboard import status_payload,Dashboard,reason_counts,HTML
+from base5_capture_dashboard import status_payload,Dashboard,reason_counts,adaptive_deficit_reasons,HTML
 
 
 class DashboardTests(unittest.TestCase):
+    def test_adaptive_deficits_use_latest_attempt_not_successes_or_history(self):
+        state=dict(source_failure_reasons=dict(c=['initial_reason']),attempts=[
+            dict(id='a',result=dict(audit=dict(review_reasons=['old_reason']))),
+            dict(id='a',result=dict(audit=dict(review_reasons=['visibility','visibility']))),
+            dict(id='b',result=dict(status='accepted_candidate')),
+            dict(id='a',result=None)])
+        self.assertEqual(adaptive_deficit_reasons(state,[dict(id='a'),dict(id='c'),dict(id='d')]),
+            dict(visibility=1,initial_reason=1,not_attempted_in_adaptive_campaign=1))
+
+    def test_adaptive_dashboard_keeps_round_cap_and_reads_reason_without_mutation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);capture,manifest=self.fixture(root);capture.mkdir()
+            status=dict(stage='running',mode='failure_aware_replenishment',adaptive_completion=True,
+                requested=2,finished=2,accepted_candidate=1,review=1,adaptive_round=2,adaptive_round_cap=3,adaptive_attempts=5)
+            (capture/'status.json').write_text(json.dumps(status))
+            (capture/'quota.json').write_text(json.dumps(dict(cells=[dict(id='b')])))
+            (capture/'state.json').write_text(json.dumps(dict(attempts=[dict(id='b',result=dict(reasons=['ground']))])))
+            before={p.name:p.read_bytes() for p in capture.iterdir()}
+            result=Dashboard(capture,manifest).payload()
+            self.assertEqual(result['failure_reasons'],dict(ground=1))
+            self.assertEqual(result['adaptive_round_cap'],3)
+            self.assertEqual(before,{p.name:p.read_bytes() for p in capture.iterdir()})
+
+    def test_supplement_uses_canonical_selection_and_manifest_suite_identity(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);capture,manifest=self.fixture(root);capture.mkdir()
+            state=dict(stage='running',mode='failure_aware_replenishment',requested=2,
+                finished=2,accepted_candidate=1,review=1,updated_at=0)
+            (capture/'status.json').write_text(json.dumps(state))
+            ledger=capture/'selected_ledger.jsonl'
+            row=dict(family='highway',distance_bounds=[10,30],role='front')
+            ledger.write_text(json.dumps(row)+'\n')
+            old=root/'old';old.mkdir();(old/'raw').write_bytes(bytes(65536))
+            (old/'status.json').write_text(json.dumps(dict(stage='paused',accepted_candidate=0)))
+            suite=root/'suite.json';suite.write_text(json.dumps(dict(environments=[dict(
+                environment='sunny13',expected_frames=2,capture_output=str(old),
+                manifest_sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())])))
+            d=Dashboard(capture,manifest,suite,storage_roots=[old,old/'raw'])
+            d.sample_storage();s=d.payload()
+            self.assertGreater(d.storage_sample['bytes'],65536)
+            self.assertEqual(s['suite_accepted'],1)
+            self.assertEqual(s['suite_progress'][0]['stage'],'running')
+            self.assertIsNone(s['motion_checked'])
+            self.assertEqual(s['family_progress'][0]['accepted'],1)
+            self.assertEqual(s['direction_counts'],dict(front=1))
+            ledger.write_text(json.dumps(row)+'\n'+json.dumps(dict(family='obstacle',distance_bounds=[0,10],role='left'))+'\n')
+            state['accepted_candidate']=2;(capture/'status.json').write_text(json.dumps(state))
+            s=d.payload();self.assertEqual(sum(s['direction_counts'].values()),2)
+            self.assertEqual(s['suite_accepted'],2)
+
     def test_imported_raw_and_suite_use_recovered_campaign_without_double_count(self):
         import hashlib
         with tempfile.TemporaryDirectory() as folder:

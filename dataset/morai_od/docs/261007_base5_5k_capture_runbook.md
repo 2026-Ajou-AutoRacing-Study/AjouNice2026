@@ -1,5 +1,21 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
+## 2026-10-10 최신 — 남은 부족분 자동 진행
+
+v135가4,948승인/52부족으로 종료했다. [adaptive v137 안내](261010_base5_adaptive_completion.md)를 따른다.
+기존 성공분과 QA를 보존하고 같은 셀의 새 후보를 최대3회차 자동 시도한다.
+수집기가 실행 중이면 중복 실행하지 않는다. 20분 예산 pause 뒤에는 아래 같은 명령으로 이어간다.
+상한 종료 후 계속 실패하는 셀은 남겨두며 동일 명령으로 상한을 초기화하지 않는다.
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_adaptive_completion.py --resume --run
+```
+
+추가 촬영 없는 검증은 `--run`을 제거한다. 최신 선택은
+`collection_5k_sunny13_adaptive_v137/selected_ledger.jsonl`이다. 8075도 이 출력으로 전환했다.
+아래 v135 수동8셀/구재개 명령과4,941장 수치는 이전 이력이며 지금 다시 실행하지 않는다.
+
 ## 최신 운영 — 완료 부족분의 실패 기반 재배치
 
 2026-10-09 본5K는4,930승인/70부족으로 완료했다. 기존 보충은 안전하게 paused/4,933승인으로

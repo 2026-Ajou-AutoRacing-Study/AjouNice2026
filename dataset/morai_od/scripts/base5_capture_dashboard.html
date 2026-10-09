@@ -46,7 +46,7 @@ function graph(target,points,series){
 function render(s){
  let target=num(s.requested),approved=num(s.accepted_candidate),finished=num(s.finished),review=num(s.review),bad=s.status_stale||String(s.stage).startsWith('halted')||s.stage==='unreadable_status';
  $('connection').className='badge'+(bad?' bad':'');$('connection').textContent=s.status_stale?'상태 갱신 지연':String(s.stage).startsWith('halted')?'안전 중단':s.stage==='not_started'?'시작 대기':s.stage==='unreadable_status'?'파일 읽기 오류':'상태 관측 중';$('updated').textContent='확인 '+new Date().toLocaleTimeString('ko-KR');
- $('stage-title').textContent=stages[s.stage]||(String(s.stage).startsWith('halted')?'안전 중단 · 확인 필요':s.stage);
+ $('stage-title').textContent=s.mode==='failure_aware_replenishment'&&s.stage==='running'?'부족분 보충 중':stages[s.stage]||(String(s.stage).startsWith('halted')?'안전 중단 · 확인 필요':s.stage);
  $('progress-percent').textContent=`승인 ${pct(approved,target).toFixed(1)}%`;
  $('stage').textContent=[s.current,s.child_progress?`현재 세션 ${s.child_progress.finished||0}/${s.child_progress.requested||'?'} · ${s.child_progress.stage||''}`:null,s.active_capture?`${s.active_capture.stage} · ${s.active_capture.current||''}`:null].filter(Boolean).join(' / ')||(s.stage==='not_started'?'준비된 입력을 확인했습니다. 본수집은 아직 시작하지 않았습니다.':'진행 중 세션 없음');
  $('accepted-bar').style.width=pct(approved,target)+'%';$('deficit-bar').style.width=pct(review,target)+'%';
@@ -55,7 +55,8 @@ function render(s){
  let recent=s.recent_accepted_per_hour;
  let metrics=[['확보한 승인 데이터',fmt(approved)+'장',`검사된 장면 중 승인율 ${s.success_fraction==null?'—':(s.success_fraction*100).toFixed(1)+'%'}`],['검토 · 부족분',fmt(review)+'장','실패 원본은 보존 · 완료 후 보충 가능'],['최근 승인 속도',recent==null?'계측 중':fmt(Math.round(recent))+'장/h',`전체 평균 ${num(s.accepted_per_hour).toFixed(1)}장/h`],['예상 잔여',s.eta_sec>0&&['running','replenishing'].includes(s.stage)?duration(s.eta_sec):s.eta_label,'수집기 추정 · 이후 이동 준비/보충 비용은 달라질 수 있음']];
  $('metrics').innerHTML=metrics.map(([a,b,c])=>`<article class="metric"><small>${esc(a)}</small><div class="value">${esc(b)}</div><small>${esc(c)}</small></article>`).join('');
- let ops=[['활성 누적시간',duration(s.elapsed_sec)],['디스크 여유',num(s.disk_free_gib).toFixed(1)+' GiB'],['안전 중단 표시',String(s.stage).startsWith('halted')?'확인 필요':'없음'],...(s.mode==='replenishment'?[['최초 승인',fmt(s.initial_accepted)],['추가 보충',fmt(s.replenished)],['보충 회차',`${s.replenish_round}/${s.replenish_round_cap}`],['보충 시도',fmt(s.replenishment_attempts)]]:[])];
+ let ops=[['활성 누적시간',duration(s.elapsed_sec)],['디스크 여유',num(s.disk_free_gib).toFixed(1)+' GiB'],['안전 중단 표시',String(s.stage).startsWith('halted')?'확인 필요':'없음'],...(s.mode==='replenishment'?[['최초 승인',fmt(s.initial_accepted)],['추가 보충',fmt(s.replenished)],['보충 회차',`${s.replenish_round}/${s.replenish_round_cap}`],['보충 시도',fmt(s.replenishment_attempts)]]:s.mode==='failure_aware_replenishment'?[['보충 전 승인',fmt(s.initial_accepted)],['추가 보충',fmt(s.replenished)],['보충 활성시간',duration(s.replenishment_elapsed_sec)]]:[])];
+ if(s.adaptive_completion)ops.push(['자동 보충 회차',`${s.adaptive_round||0}/${s.adaptive_round_cap}`],['검사한 새 후보',fmt(s.adaptive_attempts)]);
  let disk=s.storage_estimate||{},gib=v=>v==null?'계측 중':Number(v).toFixed(1)+' GiB';
  ops.push(['현재 수집 폴더',gib(disk.used_gib)],['완료 시 예상 총용량',gib(disk.total_gib)],['앞으로 추가 필요',gib(disk.additional_gib)],['완료 후 예상 여유',gib(disk.free_after_gib)]);
  $('operations').innerHTML=ops.map(([a,b])=>`<div><small>${esc(a)}</small><b>${esc(b)}</b></div>`).join('');

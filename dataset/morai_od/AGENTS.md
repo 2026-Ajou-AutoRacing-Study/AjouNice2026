@@ -1,5 +1,15 @@
 # MORAI perception dataset agent context
 
+2026-10-10 최신 운영은 `docs/261010_base5_adaptive_completion.md`다.
+사용자 v135 종료4948승인/52부족(완료50시도)을 frozen validator로 import한 별도
+collection_5k_sunny13_adaptive_v137에서 이유별 새후보/셀당 추가3회차를 자동 진행한다.
+정적one-shot/실제moving 기존지면준비quality경로·동일primary/전체spec/split/group/QA를유지한다.
+첫8셀3복구/4951승인·122종effective primary floor결손0이며 최종수치는v137 status를읽는다.
+원본/v135 raw/journal 불변, canonical ledger에원래4948행포함·재연결금지·8075는v137이다.
+20분예산안전경계pause/동일짧은명령resume·3회차누적상한은반복명령으로초기화되지않는다.
+완료/부족종료resume촬영0, unsafe/partial child는안전검사전재실행금지다.
+v136은offline import준비이력이며새code/hash로강제resume금지다. 아래수동8셀/4941등은과거이력이다.
+
 2026-10-09 최신 운영은 `docs/261009_base5_failure_aware_replenishment.md`다.
 Sunny13 본5K는4930승인/70부족으로 완료, 기존보충15셀중3복구 후paused/4933보존이다.
 내부 quality retry와 다음 quota initial의 동일scenarioSHA 재캡처를 실제 확인했다.

@@ -78,10 +78,27 @@ def reason_counts(cells):
     return dict(counts.most_common(12))
 
 
+def adaptive_deficit_reasons(state,cells):
+    """Latest reason per still-missing cell, never all historical attempts."""
+    latest={a['id']:a['result'] for a in state.get('attempts',[]) if a.get('result') is not None}
+    result=[]
+    for cell in cells:
+        ident=cell['id'];row=latest.get(ident)
+        if row is not None:
+            found=(row.get('audit',{}).get('review_reasons') or row.get('reasons')
+                   or row.get('reason') or ['scene_failure_or_identity_review'])
+        else:
+            found=state.get('source_failure_reasons',{}).get(ident) or ['not_attempted_in_adaptive_campaign']
+        result.append(dict(reasons=found))
+    return reason_counts(result)
+
+
 class Dashboard:
     """Cache status/plan files; disk usage is sampled separately every five minutes."""
-    def __init__(self,root,manifest=None,suite=None,history_file=None):
+    def __init__(self,root,manifest=None,suite=None,history_file=None,storage_roots=()):
         self.root=Path(root);self.manifest=Path(manifest) if manifest else None
+        self.storage_roots=[Path(p) for p in storage_roots]
+        self.selection_signature=None;self.selection_bins={}
         self.deck=json.loads(self.manifest.read_text()) if self.manifest else None
         self.manifest_sha256=hashlib.sha256(self.manifest.read_bytes()).hexdigest() if self.manifest else None
         self.suite=json.loads(Path(suite).read_text()) if suite else None
@@ -141,8 +158,10 @@ class Dashboard:
         status=read_optional(self.root/'status.json') or {}
         approved=status.get('accepted_candidate',0)
         try:
-            roots=[str(self.root)]
-            if self.imported_root and self.imported_root.resolve()!=self.root.resolve():roots.append(str(self.imported_root))
+            candidates=[self.root,*self.storage_roots]
+            if self.imported_root:candidates.append(self.imported_root)
+            unique={p.resolve() for p in candidates}
+            roots=[str(p) for p in sorted(unique) if not any(parent in unique for parent in p.parents)]
             result=subprocess.run(['du','-sk','--',*roots],capture_output=True,
                 text=True,timeout=60,check=True)
             sample=dict(bytes=sum(int(line.split()[0]) for line in result.stdout.splitlines() if line.strip())*1024,accepted=approved,
@@ -195,6 +214,24 @@ class Dashboard:
         if points and status['history'][-1]!=points[-1]:status['history'].append(points[-1]);status['rate_history'].append(rate_points[-1])
         status['history_note']='대시보드 관측 이력 · 활성 누적시간 축 · 실행 이전 이력은 복원하지 않음'
         bins=[];family=Counter();directions=Counter();ranges=Counter()
+        supplement=status.get('mode')=='failure_aware_replenishment'
+        if supplement and status.get('accepted_bins') is None:
+            # The supplement ledger already contains the baseline selection.
+            # Aggregate once per atomic ledger replacement; never add old rows again.
+            ledger=self.root/'selected_ledger.jsonl'
+            try:
+                stat=ledger.stat();signature=(stat.st_ino,stat.st_size,stat.st_mtime_ns)
+                if signature!=self.selection_signature:
+                    counts=Counter()
+                    with ledger.open() as handle:
+                        for line in handle:
+                            row=json.loads(line)
+                            counts[json.dumps([row.get('family'),row.get('distance_bounds'),row.get('role')])]+=1
+                    self.selection_bins=dict(counts);self.selection_signature=signature
+                if sum(self.selection_bins.values())==accepted:
+                    status['accepted_bins']=self.selection_bins
+                else:warnings.append('승인 목록과 상태의 갱신 시점이 달라 다음 갱신에서 재확인함')
+            except (OSError,ValueError):warnings.append('승인 목록 집계 대기')
         if status.get('accepted_bins') is not None:
             for key,count in status['accepted_bins'].items():
                 try:fam,distance,role=json.loads(key)
@@ -218,7 +255,7 @@ class Dashboard:
             status['family_progress']=[dict(family=f,planned=n,accepted=family[f]) for f,n in expected.items()]
             modes=[self.motion_modes[i] for i in indices] if planned else []
             status['motion_plan']=dict(Counter(modes))
-            status['motion_checked']=dict(Counter(modes[:finished])) if status.get('mode')!='replenishment' else None
+            status['motion_checked']=dict(Counter(modes[:finished])) if status.get('mode') not in ('replenishment','failure_aware_replenishment') else None
             status['dataset_id']=self.deck.get('dataset_id');status['environment']=self.deck.get('config',{}).get('collection_environment')
             status['manifest']=str(self.manifest.resolve())
             if len(planned)!=requested:warnings.append('요청 수와 manifest/indices 개수가 다름')
@@ -228,6 +265,10 @@ class Dashboard:
             status['family_progress']=[dict(family=f,planned=None,accepted=n) for f,n in family.items()]
         quota=self.cached_json(self.root/'quota.json')
         status['failure_reasons']=reason_counts((quota or {}).get('cells',[]))
+        if status.get('adaptive_completion'):
+            state=self.cached_json(self.root/'state.json') or {}
+            status['failure_reasons']=adaptive_deficit_reasons(state,(quota or {}).get('cells',[]))
+            status['failure_reason_source']='adaptive_latest_remaining_cell'
         status['failure_checkpoint_finished']=(quota or {}).get('target',0)-(quota or {}).get('pending',0)
         status['pending']=max(0,status.get('requested',0)-finished)
         status['success_fraction']=accepted/finished if finished else None
@@ -236,7 +277,7 @@ class Dashboard:
         status['suite_progress']=[]
         if self.suite:
             for env in self.suite.get('environments',[]):
-                if self.imported_root and Path(env['capture_output']).resolve()==self.imported_root.resolve():
+                if (self.manifest_sha256 and env.get('manifest_sha256')==self.manifest_sha256) or (self.imported_root and Path(env['capture_output']).resolve()==self.imported_root.resolve()):
                     s=status
                 else:s=self.cached_json(Path(env['capture_output'])/'status.json') or {}
                 status['suite_progress'].append(dict(environment=env['environment'],stage=s.get('stage','not_started'),
@@ -263,9 +304,10 @@ def main():
     p.add_argument('--manifest',type=Path,help='Read-only planned denominators; never changes collector inputs')
     p.add_argument('--suite',type=Path,help='Read-only multi-environment progress, e.g. environment_suite/suite.json')
     p.add_argument('--history-file',type=Path,help='Dashboard-only journal OUTSIDE capture root; default ~/.cache/ajounice/base5')
+    p.add_argument('--storage-root',type=Path,action='append',default=[],help='Additional read-only raw roots included in disk estimates; repeat as needed')
     p.add_argument('--port',type=int,default=8075);p.add_argument('--once',action='store_true');a=p.parse_args()
     journal=a.history_file or Path.home()/'.cache/ajounice/base5'/('dashboard_'+hashlib.sha256(str(a.capture_root.resolve()).encode()).hexdigest()[:16]+'.jsonl')
-    dashboard=Dashboard(a.capture_root,a.manifest,a.suite,None if a.once else journal)
+    dashboard=Dashboard(a.capture_root,a.manifest,a.suite,None if a.once else journal,a.storage_root)
     if a.once:
         print(json.dumps(dashboard.payload(),ensure_ascii=False,indent=2));return
     def sample():
