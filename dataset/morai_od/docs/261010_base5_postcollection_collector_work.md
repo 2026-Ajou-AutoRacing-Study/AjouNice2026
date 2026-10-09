@@ -61,6 +61,32 @@ primary806(47.7%)/보조2357(51.2%)다. 가시 보조parent2191이며
 
 ## 시간 최적화 실험 구현과 경계
 
+### 추가 후보 중단 / 2026-10-10
+
+첫 baseline64 두회 평균389.556초, static-ready+chunk16 두회 평균301.620초로22.57% 단축,
+모두64/64다. delay-only chunk4는350.924초다. 이는200scene/이동/새geometry 승격 전 기록이다.
+read-only service 준비를 pose 대기와 겹친 추가후보는 chunk4의64/64 이후 chunk16 e1에서
+`b5v2_03511`의 `service [/Service_MoraiEventCmd] unavailable`로 중단됐다.
+early probe가 이전SceneNetwork 서비스를 확인한 뒤 reload로 사라지는 경쟁 조건으로 추정한다.
+scene boundary/final Park는검증됐으나 unsafe target failure를 부족분으로 자동 건너뛰지 않았다.
+실패원본/32선택/로그/계약을보존하고 강제resume하지 않는다.
+이 후보는 **탈락**이며 새fresh runtime의 `--runtime-overlap`도 실행 전에 거부한다.
+조건부0.7초 대기만 조절하되 service 확인 순서를 유지한 기존후보로 clean 재측정/200장 검증을 이어간다.
+
+### 새 환경 유한 보충·진입점 / 구현, 실제 신규 부족분 검증 전
+
+`run_base5_fresh_completion.py`는 fresh terminal batch를 native read-only로 복원·검증한 뒤
+별도selection을쓴다. oldSunny13 하드코딩 driver를 재사용하여 원래output을수정하지 않는다.
+family/mission/semanticpool/split/실제primary gait·moving mode별최소인원은유지한다.
+자산/거리/방향/개수변경은명시delta와 adopted_manifest에남긴다. 희귀primary floor미달이면
+다른자산대체를금지한다. 같은payload재촬영·knownSHA 재사용·partial/unsafe child 자동reload를금지한다.
+셀당누적3회(최대5), 실행당1800초(최대3600), PAUSE/STOP/완료후resume촬영0이다.
+강제3회review 이후재실행이상한을초기화하지않는 단위검사를추가했다.
+static은검사유지one-shot, actualmoving은독립준비를유지하는 spatial campaign이다.
+`launch_base5_fresh.py`는 qualified release/code/manifest hash, explicit MR UI 환경확인을검사한다.
+한환경의본수집+finite보충을한entrypoint로묶되, 신규보충의live qualification 이전에는
+`--complete`를본수집시작전에거부한다. 현재이구현을실제25K로자동실행하지 않았다.
+
 - `run_base5_capture_optimized.py`는 frozen collector AST의 명시적0.7초 setup 대기만 opt-in 조건부로 바꾼다.
   정적/빈배경+fresh post-load transport일 때만 생략, 동적은 원래 대기를 유지한다.
   fresh service proxy/검증응답/한정 재시도·매scene network reload·Park·실제정지·접촉·0.5초 파일안정화는 그대로다.

@@ -13,6 +13,7 @@ import report_base5_postcollection as report
 import run_base5_capture_optimized as optimized
 import run_base5_batch_optimized as batch
 import run_base5_capture_overlap as overlap
+import run_base5_fresh_batch as fresh
 from argparse import Namespace
 
 
@@ -49,6 +50,8 @@ class SpatialTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_disqualified_overlap_cannot_enter_fresh_collection(self):
+        with self.assertRaises(ValueError):fresh.run(Namespace(runtime_overlap=True))
     def test_overlap_adapter_compiles_without_touching_source(self):
         before=optimized.SOURCE.read_bytes()
         self.assertIsNotNone(overlap.compiled_source())

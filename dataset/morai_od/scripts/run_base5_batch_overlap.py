@@ -35,7 +35,8 @@ def run(a):
                 worker=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
                 return batch.wait_child(worker,root,stop,heartbeat,100*n)
         old=batch.run_child;batch.run_child=child
-        try:return batch.execute(a.manifest,ids,a.output,a.chunk_size,True,a.stop_after_chunks,a.approve_bulk_capture)
+        try:return batch.execute(a.manifest,ids,a.output,a.chunk_size,True,a.stop_after_chunks,a.approve_bulk_capture,
+            prepare_only=getattr(a,'prepare_only',False))
         finally:batch.run_child=old
 
 
@@ -44,4 +45,5 @@ if __name__=='__main__':
     p.add_argument('--output',type=Path,required=True);p.add_argument('--limit',type=int,default=64)
     p.add_argument('--chunk-size',type=int,default=4);p.add_argument('--stop-after-chunks',type=int,default=0)
     p.add_argument('--resume',action='store_true');p.add_argument('--approve-bulk-capture',action='store_true')
+    p.add_argument('--prepare-only',action='store_true')
     raise SystemExit(run(p.parse_args()))

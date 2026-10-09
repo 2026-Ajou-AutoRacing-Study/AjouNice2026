@@ -8,10 +8,13 @@ import subprocess
 import sys
 import run_base5_batch_optimized as optimized
 import base5_spatial_diversity as spatial
+import run_base5_batch_overlap as overlap
 from base5_capture_safety import atomic_json,sha256
 
 
 def run(a):
+    if getattr(a,'runtime_overlap',False):
+        raise ValueError('Early service-probe overlap disqualified by live SceneNetwork race; use static-ready without overlap')
     if a.output.exists() and not a.resume:raise FileExistsError('Fresh output or resume required')
     deck=json.loads(a.manifest.read_text())
     if not deck['config'].get('fresh_geometry_policy'):raise ValueError('Fresh geometry manifest required')
@@ -21,6 +24,9 @@ def run(a):
         guard=a.output/'fresh_runtime_contract.json'
         expected=dict(driver_sha256=sha256(__file__),spatial_sha256=sha256(spatial.__file__),
             recovery_sha256=sha256(Path(__file__).with_name('run_base5_capture_campaign_spatial.py')),
+            runtime_overlap=getattr(a,'runtime_overlap',False),
+            overlap_driver_sha256=sha256(overlap.__file__),
+            overlap_worker_sha256=sha256(Path(__file__).with_name('run_base5_capture_overlap.py')),
             optimized_driver_sha256=sha256(optimized.__file__),manifest_sha256=sha256(a.manifest))
         if guard.exists():
             if json.loads(guard.read_text())!=expected:raise ValueError('Fresh runtime contract mismatch')
@@ -38,7 +44,7 @@ def run(a):
                 return optimized.batch.wait_child(child,output,stop,heartbeat,800)
         previous=optimized.batch.recover;optimized.batch.recover=recover
         a.resume=True
-        try:return optimized.run(a)
+        try:return overlap.run(a) if getattr(a,'runtime_overlap',False) else optimized.run(a)
         finally:optimized.batch.recover=previous
 
 
@@ -48,5 +54,6 @@ if __name__=='__main__':
     p.add_argument('--limit',type=int,default=64);p.add_argument('--chunk-size',type=int,default=4)
     p.add_argument('--setup-profile',choices=['baseline','static-ready'],default='baseline')
     p.add_argument('--resume',action='store_true');p.add_argument('--prepare-only',action='store_true')
+    p.add_argument('--runtime-overlap',action='store_true',help='Use separately qualified static service-preparation overlap')
     p.add_argument('--stop-after-chunks',type=int,default=0);p.add_argument('--approve-bulk-capture',action='store_true')
     raise SystemExit(run(p.parse_args()))
