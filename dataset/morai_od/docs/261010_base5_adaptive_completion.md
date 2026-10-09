@@ -3,6 +3,66 @@
 2026-10-10. 입력 v132 / 실제 캡처 runtime v133을 유지한다. 이 문서가 v135의
 수동 8셀 실행 안내보다 우선한다. 기존 성공·실패 raw와 과거 journal은 보존한다.
 
+## 최종 결과 — 2026-10-10 / v139
+
+**자동 보충과 실제 이동 계약 후검사까지 종료했다. 유효 선택은 4,974장, 부족은 26장(0.52%)이다.**
+최종 canonical root는 release 아래 `collection_5k_sunny13_motion_contract_v139`다.
+v137의 4,975장은 후검사 이전 수치이며 최종 학습 목록으로 사용하지 않는다.
+대시보드 8075도 v139를 관측한다. collector는 종료했으므로 MR을 꺼도 된다.
+
+| 단계 | 유효 선택 / 부족 | 근거 |
+| --- | --- | --- |
+| 사용자 종료 v135 | 4,948 / 52 | 기존 성공 행 검증 import |
+| 자동 3회차 v137 | 4,975 / 25 | 115 outer 시도, 회차별 복구 17 / 7 / 3 |
+| 실제 이동 계약 후검사 v139 | **4,974 / 26** | 이동이 정지로 대체된 1셀 제외, 실제 이동 재시도 3회도 미복구 |
+
+- 추가 보충의 **순증은 26장**이다. v137 active 시간은 약48.5분이며 본수집 전체 시간이 아니다.
+  정적 one-shot 111세션에서 Park 종료를 확인했다. 새 비calibration raw 116개 중
+  동일 payload 중복 및 과거 payload 재촬영은 0이었다(v137 검증 범위).
+- 남은 26셀의 대표 원인을 서로 배타적으로 묶으면 primary 가시성16, 정지 차량 위치4,
+  보조 객체 가시성3, ground+가시성1, runtime 객체 누락1, 실제 이동 계약1이다.
+  여러 사유가 함께 기록된 셀도 있으며 낮은 객체 센서 사각 등을 QA 완화로 통과시키지 않았다.
+- `b5v2_02912`는 원래 standing police1 + walking Man6였으나 내부 quality 대체 후보가
+  standing 경찰 2명으로 바뀌었다. spec/객체 수만 같은 것으로 이동 복구를 인증하면 안 된다.
+  `run_base5_motion_contract_repair.py`는 **원래 primary의 실제 gait와 이동 mode별 최소 인원**을
+  생성 후보와 최종 선택 양쪽에서 검사한다. 보조 객체가 추가로 움직이는 것은 정상 다양성이다.
+  실제 이동 부족3셀 중 2셀은 복구했고 이 1셀은 끝내 남겼다.
+- v138은 이동 인원을 정확히 같게 요구한 과도한 초기 pilot이다. 이동 보조 객체가 늘어난
+  유효2셀은 v139에서 그대로 보존했다. v138 raw/journal/frozen driver는 이력으로 보존하며
+  현재 driver로 강제 resume하지 않는다. v139도 code SHA가 고정되어 수정 후 강제 재개 금지다.
+- 원래 v135의 **4,948행 전부 그대로 보존**했다. 원본 source/runtime, 부모 journal/raw도 보존한다.
+  최종 ledger에는 이 행들이 이미 포함되어 있으므로 과거 ledger를 이어 붙이지 않는다.
+- 단위 검사 **490개 통과**. 완료 후 `--resume --run` 검증에서 추가 시도0·raw0,
+  선택 SHA·active 시간·부모 hash 불변을 확인했다. 상한은 반복 명령으로 초기화되지 않는다.
+- 최종 CPU info: **train4,235 / val739 / test0**, 유효 GT10,921개
+  (Vehicle4,504 / Pedestrian2,934 / Obstacle3,215 / Animal268).
+  train primary122종, val117종, 최소 train primary2장, scene-group split 중복0,
+  token 중복0, 입력 파일24,870개 누락0이다. accepted-visible primary floor 결손0이며
+  coverage 전체 상태는 5K 미달이므로 `PARTIAL`이다.
+
+결과 파일은 v139의 `validation_report.json`, `resume_validation.json`, `coverage_final.json`,
+`remaining_diagnosis.json`, `quota.json`, `exclusions.json`, `selected_ledger.jsonl`이다.
+`cpu_infos_final`은 **현재 320 crop/가시성 정책으로 검증한 임시 변환본**이며 최종 crop 확정 후
+보존 raw에서 다시 변환한다. 이것은 모델 성능 인증이나 최종 학습 configuration 확정이 아니다.
+
+### 다음 실행과 판단
+
+부족26셀을 동일 명령으로 무한 반복하지 않는다. 가시성 증거가 없는 장면을 승인하거나
+5,000장으로 표시하지 않는다. 이번 4,974장을 보존하고 다음 crop·투영·runtime 최적화 및
+남은5환경의 연속 Ego 위치 다양화로 진행하는 것이 권장된다. 다른5환경의 새배치5K / 총30K
+계획은 유지하되 실제 최종 승인 수와 부족분은 별도로 보고한다. 이후 이동 보충에도 실제 gait
+감사를 적용한다. Sunny13 전체 재수집 필요성을 보여주는 무결성 오류는 현재 검사에서 발견되지 않았다.
+
+최종 선택을 촬영 없이 재검증할 때:
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_motion_contract_repair.py --resume
+```
+
+아래 v137 실행 설명과 초기 pilot 수치는 구현·진행 이력이다. 현재 완료 상태에서 재실행해도
+추가 촬영은 없다. 새로운 부족분 재설계는 별도 검토·output 없이 강제 시작하지 않는다.
+
 ## 출발점과 변경 이유
 
 - 본수집 4,930장, 과거 보충 3장, v135의 새 보충 15장으로 **4,948장 / 부족 52셀**이다.
@@ -60,20 +120,22 @@ python3 -u dataset/morai_od/scripts/run_base5_adaptive_completion.py --resume --
 
 ## 대시보드
 
-현재 8075는 adaptive v137을 관측한다. 수집 코드나 journal을 고치는 기능은 없다.
+현재 8075는 최종 motion contract v139를 관측한다. 수집 코드나 journal을 고치는 기능은 없다.
 필요할 때 **기존 대시보드만 종료한 뒤** 다음을 실행한다.
 
 ```bash
 ajou
 BASE5_ROOT="$HOME/morai_cap/base5_v2_261008/final_appearance_5k_v132_release"
 python3 -u dataset/morai_od/scripts/base5_capture_dashboard.py \
-  --capture-root "$BASE5_ROOT/collection_5k_sunny13_adaptive_v137" \
+  --capture-root "$BASE5_ROOT/collection_5k_sunny13_motion_contract_v139" \
   --manifest "$BASE5_ROOT/environment_suite/sunny13/manifest.json" \
   --suite "$BASE5_ROOT/environment_suite/suite.json" \
   --storage-root "$BASE5_ROOT/collection_5k_final_v132_sunny13" \
   --storage-root "$BASE5_ROOT/collection_5k_final_v132_sunny13_recovered_v133" \
   --storage-root "$BASE5_ROOT/collection_5k_sunny13_supplement_v134b" \
   --storage-root "$BASE5_ROOT/collection_5k_sunny13_supplement_v135" \
+  --storage-root "$BASE5_ROOT/collection_5k_sunny13_adaptive_v137" \
+  --storage-root "$BASE5_ROOT/collection_5k_sunny13_motion_contract_v138" \
   --port 8075
 ```
 
@@ -85,14 +147,14 @@ python3 -u dataset/morai_od/scripts/base5_capture_dashboard.py \
 - 첫 실제 정적 pilot 8셀에서 3셀 추가 승인, 4,951장 / 부족 49셀이다.
   복구 셀은 `b5v2_00507`, `b5v2_01241`, `b5v2_01548`이다. 이는 초기 pilot 결과다.
 - 당시 read-only coverage 검사에서 **122종의 accepted-visible primary 최소 quota 결손 0**,
-  unknown source 0, 오류 0이었다. 장면 수가 아직 5,000이므로 완료 상태는 `PARTIAL`이다.
+  unknown source 0, 오류 0이었다. 장면 수가 아직 5,000 미만이므로 완료 상태는 `PARTIAL`이다.
 - 낮은 객체의 근접 사각지대나 먼 거리 센서 해상도 부족은 후보 순위만으로 해결되지 않을 수 있다.
   두 센서 근거가 모두 없는 primary를 빈 배경으로 바꾸거나 정답으로 강제 포함하지 않는다.
 - 터널 일부 ground-only 실패에는 추정 plane의 지붕/원거리 오인 가능성이 있다. 지도 높이는
   비슷한데 plane이 몇 m 높게 예측된 사례를 발견했지만, 원인은 아직 확정하지 않았다.
   이 값을 물체가 실제로 몇 m 지면 아래에 있었다는 증거로 해석하지 않는다.
-- 실제 이동 3셀은 아직 이 초기 pilot 결과에 포함되지 않는다. 별도 live 결과로 갱신한다.
-- 추가 자동 진행과 종료/resume/CPU 변환 결과는 완료 후 아래에 기록한다.
+- 실제 이동 3셀은 이 초기 pilot에는 포함되지 않는다. 최종 결과는 문서 상단 v139를 따른다.
+- 추가 자동 진행과 종료/resume/CPU 변환은 종료했으며 최종 결과는 문서 상단에 기록했다.
 
 기존 production E25, tracker/planning/localization, raw/native annotation은 변경하지 않는다.
 남은 5환경의 새 Ego 공간 배치와 30K 계획도 이번 보충으로 변경하지 않는다.

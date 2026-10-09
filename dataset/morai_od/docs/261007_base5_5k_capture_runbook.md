@@ -1,5 +1,21 @@
 # Base5 Sunny13시 직접 5K — 현재 운영 런북
 
+## 2026-10-10 최종 — 수집·보충 종료
+
+**최종4,974승인 / 26부족**, `collection_5k_sunny13_motion_contract_v139/selected_ledger.jsonl`을 쓴다.
+[최종 원인·검증·다음 단계](261010_base5_adaptive_completion.md#최종-결과--2026-10-10--v139).
+v137 4,975는 실제 이동→정지 대체1셀 제외 전 수치다. 원본4,948행은 최종ledger에 이미 포함된다.
+8075는v139를 관측하고 collector는 종료했다. MR을 꺼도 된다. 아래 재개 명령으로 무한보충하지 않는다.
+최종목록 촬영 없는 검증은 아래다. 완료 상태에서 `--run`을 붙여도 추가 촬영0이다.
+
+```bash
+ajou
+python3 -u dataset/morai_od/scripts/run_base5_motion_contract_repair.py --resume
+```
+
+현재CPU info는 crop확정 전 임시본이다. 다음은 crop·투영/runtime 실험과 남은5환경 연속Ego 다양화다.
+부족26셀은 raw와 이유를 보존한 별도재설계 대상이며 QA를 완화하거나5,000장으로 표시하지 않는다.
+
 ## 2026-10-10 최신 — 남은 부족분 자동 진행
 
 v135가4,948승인/52부족으로 종료했다. [adaptive v137 안내](261010_base5_adaptive_completion.md)를 따른다.

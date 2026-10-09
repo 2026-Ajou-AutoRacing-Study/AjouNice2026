@@ -1,5 +1,18 @@
 # Base5 독립 5K — CURRENT
 
+## 2026-10-10 최종 — Sunny13 보충·실제 이동 후검사 종료
+
+[최종 결과와 근거](261010_base5_adaptive_completion.md#최종-결과--2026-10-10--v139)를 따른다.
+**4,974승인 / 26부족(0.52%)**, canonical root는 `collection_5k_sunny13_motion_contract_v139`다.
+v135 4,948장 대비 순증26장이다. v137 4,975장은 이동이 정지로 대체된1셀을 제외하기 전 집계다.
+원래 성공4,948행/raw와 source/runtime/부모 journal은 그대로 보존한다. ledger 중복 연결 금지다.
+자동3회차 이후 실제 gait 감사·재시도도 종료했으며 같은 명령의 resume은 추가촬영0이다.
+실제 이동 부족3중2복구/1미복구, v138 과도한 정확인원 검사는 폐기하고 보조moving 추가를 허용했다.
+490단위검사PASS, train4,235/val739, GT10,921, train primary122종, 파일누락/split중복0이다.
+현재CPU infos는 crop확정 전 임시 변환본이다. production/QA는 변경하지 않았다.
+8075는v139, collector는 종료했고 MR을 꺼도 된다. 무한보충 대신 crop·투영·runtime 최적화와
+나머지5환경 연속Ego 새배치 준비로 진행한다. 총30K 계획은 유지한다. 아래 진행수치는 당시 이력이다.
+
 ## 2026-10-10 최신 — 자동 보충 v137
 
 [실패 원인별 자동 보충](261010_base5_adaptive_completion.md)이 아래 v135 수동 8셀 안내보다 우선한다.

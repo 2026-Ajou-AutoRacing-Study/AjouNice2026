@@ -1,5 +1,19 @@
 # MORAI perception dataset agent context
 
+2026-10-10 최종 Sunny13 보충 종료: `docs/261010_base5_adaptive_completion.md` 상단 v139가 우선한다.
+최종 canonical은 collection_5k_sunny13_motion_contract_v139/selected_ledger.jsonl, 4974승인/26부족이다.
+v137 4975는 실제 이동 계약 후검사 전 집계다. 02912 walking secondary가 standing으로 바뀌어 제외했다.
+실제 이동 부족3중2복구/1미복구다. primary gait+이동mode별 최소인원 유지, 보조moving 추가는 허용한다.
+v138은 정확한 이동인원 강제의 과도한 pilot으로 보존; 유효2셀은 v139에서 그대로 유지한다.
+원래v135 4948행 전부보존, raw/source/runtime/부모journal 불변. 새ledger에 과거ledger 연결금지.
+자동115시도/3회차+실제motion 재시도3회 종료, 동일 resume 추가촬영0; 반복상한초기화/QA완화금지.
+490단위검사PASS·CPU train4235/val739·GT10921·입력24870누락0·group/token중복0·trainprimary122종이다.
+현재 crop기준 임시CPU infos이며 crop확정후재변환한다. 전수model성능/5000성공 인증이 아니다.
+8075는v139, collector없음/MR종료가능. 다음crop/투영/runtime실험과 남은5환경연속Ego 다양화다.
+30K계획유지·Sunny13전체재수집불필요하다는현재무결성근거와 quota26미달을구분한다.
+adaptive/repair driver SHA는journal고정: 직접수정후강제resume금지. ignored보고서/raw 강제추적금지.
+아래v137/4951/4941 진행기록은과거이력이다.
+
 2026-10-10 최신 운영은 `docs/261010_base5_adaptive_completion.md`다.
 사용자 v135 종료4948승인/52부족(완료50시도)을 frozen validator로 import한 별도
 collection_5k_sunny13_adaptive_v137에서 이유별 새후보/셀당 추가3회차를 자동 진행한다.
