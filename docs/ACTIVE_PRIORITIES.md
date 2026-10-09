@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-09.
+마지막 갱신: 2026-10-10.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -48,6 +48,13 @@
 [`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
+
+- **2026-10-10 다음 실행:** Sunny13 최종 선택은보존하고, 준비된다른5환경의새geometry를
+  UI환경확인후수집한다. [새단일수집/보충/대시보드런북](../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md),
+  [현재수집기근거](../dataset/morai_od/docs/261010_base5_postcollection_collector_work.md)를우선한다.
+  수집기 qualification은완료됐지만실제다른25K/GPU/crop/본학습은미시작이다.
+  GPU 작업은MR 종료후입력/crop·투영→cache/분리pooling→동일조건비용→초기화/학습으로이어간다.
+  아래2026-10-09계획의'수집중/미구현'표기를현재상태로재사용하지않는다.
 
 - **2026-10-09 해상도와 최적화 후속 합의:** [13Hz 예산과 입력 선택](bevfusion/261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준).
   Sunny13 종료 후 crop/투영 → cache/분리 pooling → 동일조건4090 비용 → 세로×가로 학습입력 확정이다.
@@ -99,17 +106,9 @@
   기존반복bag은dev-val/새독립주행은test다. BabyStroller3 camera대응모호성을실제비가시로단정하지않는다.
   현재single-frame Base5·OD velocity OFF이며temporal코드는연구용보존이지자동실행이아니다.
 
-- **2026-10-09 Sunny13 v132 본5K 수집 중:** 이번 배치는 유지하며 runtime·input·options를 바꾸지 않는다.
-  끝난 뒤 반복 준비 비용을 [상주 worker/대기 중첩 A/B](../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)로
-  검증한다. 전체20% 이상 단축과 GT/안전/resume 유지가 승격 조건이며 아직 미구현이다.
-  음영 동적24장 독립 지면 준비는 유지한다. 아래 미시작/승인 대기는 당시 준비 이력이다.
-
-- **Base5 현재는 v132**이다. [최종 외관·배치·12카테고리/검증](../dataset/morai_od/docs/261009_base5_final_appearance_v132.md),
-  [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md), [실행 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다.
-  root `final_appearance_5k_v132_release`, Sunny13 5K 수집 중→같은6환경30K.
-  자유yaw·static parent 형상·음영 접근/이탈 균형만 보완했고 production은 그대로다.
-  구수집763승인과v129/v130 raw를보존했다. 아래v123/v125/v129 경로/숫자는당시이력이다.
-  수집 후 실제 가시 자산 coverage·새학습/held-out mission rosbag 검증이 남는다.
+- 수집후입력확정시actual GT visibility/희귀자산coverage를다시감사한다.
+  현재crop infos는임시본이며새학습/held-out mission rosbag 검증이남는다.
+  [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md)가과거v123/v129/v132운영명령보다우선한다.
 
 - 최신[MORAI 답변](../dataset/morai_od/docs/260920_questions_for_morai.md#최신-추가-답변--객체-범위g80차량-속도-기준)에서
   F2 전체 객체가 미션 후보이며 정적 자산의 이동 예외는 없다고 확인했다.
@@ -118,22 +117,10 @@
   Animal/복합 GT 후보는 유지한다.
   UDP차량velocity 후륜 기준은 확정됐으나 기존R01의변환잔차 검증/새평가 계약 선택은 남는다.
 
-- 독립 Base5의 현재 목표는 **Sunny13시 직접5K**다. 구10K/v45 명령과 시간 추정은
-  현재 실행 기준이 아니다. [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md) →
-  [5K 계획](../dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md) →
-  [단일 운영 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md) 순으로 읽는다.
-  범용 크기 예산·초근접·고주로/로터리 밀집·실제 GT visibility·희귀 자산 coverage를
-  [최종 gate 근거](../dataset/morai_od/docs/261007_base5_final_gates_v105_evidence.md)에 묶었다.
-  본수집은 최종 보고 후 사용자 승인까지 대기한다. 이전 v23–v100 시행착오·실측은
-  dataset evidence 문서에 보존하며 ACTIVE에 중복 나열하지 않는다.
-  현재 생성본은 `regions_5k_v123_release`다. 고주로740/600·로터리0/350·기타차량80/50·장애물770/600·
-  사람830/250·독립음영500·배경230이며 고주로/로터리의 모든 actor는 일반차량만 넣는다.
-  장애물 보조 노출을 다른 허용 혼합 구역에서 보충하고 거리/근접/희귀 quota를 유지한다.
-  sunny/foggy×11/13/15 같은5K의30K관측으로 준비하며 환경별group/split누수를 방지한다.
-  [구역별 구현·검증](../dataset/morai_od/docs/261008_base5_region_release_evidence.md)이 최신이다.
-  음영500geometry/178이동(사거리154+음영24), Park와두점 높이 계약은 이전 검증을 유지하고
-  구 output에 새 runtime으로 resume하지 않는다. 통신 halt는 안전 확인 후 새 output으로 분리한다.
-  Ego Park·독립 지형·CollisionData·실제 Z/가시성 검사는 유지하며 raw GT는 사후 수정하지 않는다.
+- 구output으로새runtime 강제resume하지않는다. 통신/Park halt는안전확인후별도output으로분리한다.
+  기존Sunny13을재수집할지는전체30K와실제coverage를보고판단한다. 5K관측을6회복사하지않는다.
+  새5환경의배치규칙은유지한독립geometry이며인접시야/같은지도배경의중복은남는다.
+  Ego Park·독립지형·CollisionData·실제Z/가시성검사는유지하며raw GT는사후수정하지않는다.
   [5060Ti 비용 근거](bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)는 그대로다.
   4090/확대후보ROS/full-stack은 아직 별도 검증이며 수집 pilot으로 인증하지 않는다.
 

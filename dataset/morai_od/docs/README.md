@@ -2,8 +2,10 @@
 
 마지막 정리: 2026-10-10.
 
-- **최신 작업 / 종료 후 수집기·새 환경:** [전수분포·시간 A/B·연속Ego 구현과 남은 gate](261010_base5_postcollection_collector_work.md).
-  Sunny13 최종5K 보존. 별도root에서 비용 최적화와 환경별새geometry를 검증 중이며 다음25K 본수집은 미시작이다.
+- **최신 / 종료 후 수집기·새 환경 준비 완료:** [전수분포·22.55%정적단축·25K새배치·실제보충검증](261010_base5_postcollection_collector_work.md),
+  [새단일진입점런북/자동canonical대시보드](261010_base5_fresh_environment_runbook.md).
+  Sunny13 최종5K 보존. collector_release_v142·전수25K생성/CPU preflight 완료, 새정적64/이동8실제보충검증이다.
+  다음25K 본수집/GPU/crop/학습은미시작이며pilot은본학습에포함하지않는다. 아래이력보다이항목을우선한다.
 
 - **최종 최신 / Sunny13 5K 완료 v140:** [유연 대체 계약·실제 캡처·최종 검증](261010_base5_flexible_deficit_replacement.md).
   사용자 승인에 따라 남은26셀은 같은패밀리 새장면으로 대체했다. 기존4,974행 보존,

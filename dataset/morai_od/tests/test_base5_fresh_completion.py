@@ -19,6 +19,20 @@ def meta():
 
 
 class CompletionTests(unittest.TestCase):
+    def test_native_selected_row_without_scenario_uses_verified_raw(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);c.atomic_json(root/'scenario.json',{'recovered':True});c.atomic_json(root/'metadata.json',meta())
+            row=dict(source_cell_id='a',capture_root=str(root),scenario_sha256=c.sha256(root/'scenario.json'))
+            got=c.adopted_entry(row,{'a':dict(id='a',scenario='initial_should_not_be_used')})
+            self.assertEqual(got['scenario'],str(root/'scenario.json'))
+            (root/'scenario.json').write_text('changed')
+            with self.assertRaisesRegex(ValueError,'checksum'):c.adopted_entry(row,{'a':dict(id='a',scenario='initial')})
+    def test_background_has_no_distance_bin(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);m=meta();m['spec'].pop('distance_bounds');m['runtime_actors']=[]
+            c.atomic_json(root/'scenario.json',{});c.atomic_json(root/'metadata.json',m)
+            row=dict(source_cell_id='a',capture_root=str(root),scenario_sha256=c.sha256(root/'scenario.json'))
+            self.assertEqual(c.adopted_entry(row,{'a':dict(id='a',distance_bounds=[])})['distance_bounds'],[])
     def test_merge_retains_baseline_and_fresh_group(self):
         original=dict(source_cell_id='a',status='accepted_candidate',capture_root='old')
         state=dict(baseline_selected=[original],source_order=['a','b'],deficits=['b'],attempts=[dict(
@@ -63,6 +77,9 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(c.floor_donors(source,[other],Counter({1:3}),4),[source])
         self.assertEqual(c.floor_donors(source,[source,other],Counter({1:3}),4),[source])
         self.assertEqual(c.floor_donors(source,[source,other],Counter({1:4}),4),[source,other])
+    def test_wrong_split_same_asset_does_not_mask_source_fallback(self):
+        source=meta();source['split']='val';donor=meta()
+        self.assertEqual(c.eligible_floor_donors(source,[donor],Counter({1:1}),4,{1:'obstacle'}),[source])
     def test_no_parent_mutation_destination(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)

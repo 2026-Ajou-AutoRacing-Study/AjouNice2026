@@ -1,10 +1,15 @@
 # MORAI perception dataset agent context
 
 2026-10-10 현재 작업은 `docs/261010_base5_postcollection_collector_work.md`부터 복구한다.
-사용자가 종료 후 수집기 쪽 작업을 승인했다. Sunny13 v140/5000/0은 보존한다.
-전수분포/시간 집계·연속Ego 환경별새geometry·별도guard AST adapter/시간 A/B를 진행 중이다.
+사용자가 종료 후 수집기 쪽 작업을 승인했고 완료했다. Sunny13 v140/5000/0은 보존한다.
+전수분포/시간 집계·연속Ego 5환경25K새geometry·별도guard AST adapter/시간 A/B 완료다.
 기존core generator/collector와 이전resume hash는 불변. 새output만 사용하고 25K 본수집/GPU 작업은 미시작이다.
-v141/v141b/v141c는 중간진단이며 최종환경입력으로 바로쓰지 않는다. 시간20% 승격/200scene·이동/resume gate는 새문서에서 확인한다.
+fresh_suite_final_v142/collector_release_v142가최신이며 구v141/v141b/v141c/실패final_v141은진단용이다.
+clean정적22.553%단축·200/200·구moving8/8·새정적63+보충1=64·새moving7+보충1=8,
+native QA/실제gait/부모불변/완료resume추가0·CPU64/merge5064·5환경prepare-only PASS다.
+새런북261010_base5_fresh_environment_runbook.md·launcher --complete·8082자동선택관측을쓴다.
+early service-probe overlap은실제경쟁실패로탈락/실행거부이며 static-ready 원래service순서가최종이다.
+현재worker종료/Park, 다음25K실제capture와GPU/crop/학습미시작이다. 기존5K/향후30K에pilot섞지않는다.
 
 2026-10-10 최종 최신은 `docs/261010_base5_flexible_deficit_replacement.md`다.
 사용자가 exact 자산/거리/개수 복원 대신 같은패밀리 정상새장면 대체를 승인했다.

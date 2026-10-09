@@ -1,6 +1,6 @@
 # Base5 종료 후 수집기·새 환경 배치 작업
 
-2026-10-10 / 작업 중 EVIDENCE. 최종 Sunny13 5K와 새 실험/생성 경로를 구분한다.
+2026-10-10 / 수집기 작업 완료 EVIDENCE. 최종 Sunny13 5K와 새 실험/생성 경로를 구분한다.
 후속 작업 복구의 시작점이며 GPU 모델/crop/BEVPool 실험은 이 작업에 포함하지 않는다.
 
 ## 보존한 현재 데이터
@@ -70,15 +70,49 @@ optimized(F1/F2) 평균301.647초, **22.553% 단축**이다. 모든 반복64/64�
 완료resume 검증에 걸린0.4–0.7초를 재촬영시간으로 사용하지 않는다.
 실제 동적 준비는 단축하지 않았고 본5K는 아직 이 runtime으로 수집하지 않았다.
 
+| 같은64 payload 반복의 단계 | baseline 초/load | optimized 초/load |
+|---|---:|---:|
+| pose/map 확인 |1.836|1.506|
+| 서비스/제어 준비 |1.920|1.252|
+| session/ROS/preflight |0.138|0.035|
+| 파일 write/안정화 |1.179|1.173|
+| Ego 실제 정지 증거 |0.340|0.341|
+| 충돌·센서·provenance audit |0.078|0.075|
+| native timer 밖 부모 비용 |0.333|0.080|
+
+실측 단계분해이며 pose 차이 전부를 cache의 인과효과로 단정하지 않는다.
+확실한 변경은 조건부0.7초 setup 대기 조정과chunk4→16의 제한된 준비 재사용이다.
+GT·파일안정화·정지검사를 빼서 줄인 시간이 아니다. 기존 최종13.6575시간과 이 pilot의7.224시간
+외삽 차이를 전부22.55% 최적화 효과라고 해석하지 않는다(실패·보충·표본 구성이 다름).
+200정적/8이동을4822정적/154교차로이동/24음영이동으로 가중한 예상은7.224시간,
+실패/보충/새환경 여유를 둔 운영예산8–11시간이다. 확정된 full-5K 소요시간이나 통계적 신뢰구간은 아니다.
+pilot 저장가중27.036GiB/5K, 보수 공간예산35GiB/5K를 별도로 둔다.
+
 ### 25K 생성 중 근접 rider 사례
 
 `fresh_suite_final_v141/sunny15`의02629는3–5m 전방 Bicycle_Female1 quota였다.
 512개 CPU 후보 중 primary 간격실패502개, 보조 간격실패6개, 거리bin실패4개로 성공이 없었다.
 Ego 후륜기준3–5m에는 차체앞끝이 포함돼 collision-free 영역이 좁다. 위치 window를 더 넓히거나
-자산/근접quota를 빼는 것이 해결책은 아니었다. 같은plan/자산/거리/sector/검사를 유지한602번째
-후보가0.348m clearance로 통과했다. 따라서 생성전용 유한예산4096개로 보완하고 후보 수/사유를 기록한다.
+자산/근접quota를 빼는 것이 해결책은 아니었다. 같은plan/자산/거리/sector/검사를 유지한
+attempt602(603번째 후보)가0.348m clearance로 통과했다. 따라서 생성전용 유한예산4096개로 보완하고 후보 수/사유를 기록한다.
 이는 **offline JSON 생성** 비용이며4096번 실제캡처/retry가 아니다. geometry/GT/QA 기준을 완화하지 않는다.
-실패v141은보존하고 `fresh_suite_final_v142`에서 코드동결 후5환경 전수생성을 다시 검사 중이다.
+실패v141은보존하고 `fresh_suite_final_v142`에서 코드동결 후5환경 전수생성을 완료했다.
+25,000개payload/token 중복0, original primary/거리/방향/미션phase/split drift0,
+각환경4255train/745val·정적4822/이동178·122종primary floor 감사PASS다.
+
+| 환경 | unique base XY(3dp) | unique final Ego XY(3dp) | 최대CPU 후보수 |512개 초과slot|
+|---|---:|---:|---:|---:|
+|sunny11|4992|4999|434|0|
+|sunny15|4996|4999|603|1|
+|foggy11|4993|4998|563|1|
+|foggy13|4992|5000|407|0|
+|foggy15|4991|4999|229|0|
+
+매환경1882개 범용slot에 연속arc policy를 적용했다. Sunny11 범용장애물770개와사람계열830개는
+각각기존98base에서770/830base로늘었고 기존base 일치0이다. 고주로740/로터리350 등은 이미
+연속미션/경로 샘플링이므로 그 규칙을 그대로 둔다. base가다르다고 배경까지독립이라고 해석하지 않는다.
+physical-anchor-link split충돌0이나 final support link9개가train/val 양쪽에있다(회피관측재배치).
+인접100m시야의공간중복은남으며, 합성val을실전held-out rosbag 대체로사용하지 않는다.
 
 ### 추가 후보 중단 / 2026-10-10
 
@@ -90,9 +124,9 @@ early probe가 이전SceneNetwork 서비스를 확인한 뒤 reload로 사라지
 scene boundary/final Park는검증됐으나 unsafe target failure를 부족분으로 자동 건너뛰지 않았다.
 실패원본/32선택/로그/계약을보존하고 강제resume하지 않는다.
 이 후보는 **탈락**이며 새fresh runtime의 `--runtime-overlap`도 실행 전에 거부한다.
-조건부0.7초 대기만 조절하되 service 확인 순서를 유지한 기존후보로 clean 재측정/200장 검증을 이어간다.
+조건부0.7초 대기만 조절하되 service 확인 순서를 유지한 기존후보로 clean 재측정/200장 검증을 완료했다.
 
-### 새 환경 유한 보충·진입점 / 구현, 실제 신규 부족분 검증 전
+### 새 환경 유한 보충·진입점 / 실제 신규 부족분 검증 완료
 
 `run_base5_fresh_completion.py`는 fresh terminal batch를 native read-only로 복원·검증한 뒤
 별도selection을쓴다. oldSunny13 하드코딩 driver를 재사용하여 원래output을수정하지 않는다.
@@ -104,7 +138,7 @@ family/mission/semanticpool/split/실제primary gait·moving mode별최소인원
 static은검사유지one-shot, actualmoving은독립준비를유지하는 spatial campaign이다.
 `launch_base5_fresh.py`는 qualified release/code/manifest hash, explicit MR UI 환경확인을검사한다.
 한환경의본수집+finite보충을한entrypoint로묶되, 신규보충의live qualification 이전에는
-`--complete`를본수집시작전에거부한다. 현재이구현을실제25K로자동실행하지 않았다.
+`--complete`를본수집시작전에거부한다. 이번live qualification은완료했으며 실제25K는자동실행하지 않았다.
 
 - `run_base5_capture_optimized.py`는 frozen collector AST의 명시적0.7초 setup 대기만 opt-in 조건부로 바꾼다.
   정적/빈배경+fresh post-load transport일 때만 생략, 동적은 원래 대기를 유지한다.
@@ -114,18 +148,39 @@ static은검사유지one-shot, actualmoving은독립준비를유지하는 spatia
   profile별 새output만 사용한다. 최대16scene chunk의 ROS/map 공유이지 chunk를 넘는 영구상주worker라고 부르지 않는다.
 - 사전정한64정적/8이동 payload 목록은 `runtime_benchmark/registration.json`이다.
   결과/score를 보고 장면을 고르지 않았다. baseline chunk4 → delay-only chunk4 → combined chunk16
-  → combined chunk16 → baseline chunk4의 반복/역순 비교를 수행 중이다.
+  → combined chunk16 → baseline chunk4의 반복/역순 비교를 완료했다.
 - CPU 생성이 초기 baseline/첫delay 일부와 겹쳤으므로 나중의 clean 역순pair와 일치하는지 확인한다.
   20% 이상 full parent 비용 감소와 승인/안전 유지 전에는 자동승격하지 않는다.
-  64scene 합격 후 별도200scene 장기/8이동 회귀와 resume 검사도 필요하다.
+  64scene 합격 후 별도200scene 장기/8이동 회귀와 resume 검사도 모두 통과했다.
 
-## 남은 확인
+## 새 배치 실제 MR·보충·변환 최종 결과
 
-- 최종code 동결 후5환경25K offline manifest/coverage/token/split/위치 감사(v142 생성 중).
-- 새 배치 대표 live, quality 재배치/PAUSE/resume/완료resume 검증.
-- runtime 비용 A/B,200scene·이동 회귀, 최종Park/누수/파일완전성 확인.
-- finite 부족분 처리의 환경 일반화: 같은 실패payload 무한 반복 대신 bounded 재배치 후
-  부족을 명시하고, 사용자 승인한 family/mission/motion/split 보존 대체를 사용한다.
-  과거 Sunny13 전용flex driver의 hardcoded 경로를 새환경에 그대로 적용하지 않는다.
-- 성공근거에 맞춰 새 런북/suite/dashboard와 예상시간·저장공간을 갱신한다.
-  다른25K 실제capture와 GPU/crop 실험은 아직 시작하지 않았다.
+- 새정적64장: 최초63승인/1부족, 부모active421.379초(chunk4, pause/resume 및native quality 재배치포함).
+  01521은native quality 재배치로복구됐고,04635는얇은Lane_Separation_Bar/혼합보조가시성부족이었다.
+  `fresh_geometry_completion_v3`의첫새후보로04635도복구해64/64다. 원래63행·부모/실패raw·journal은보존한다.
+- 새이동8장: 최초7승인/1부족. 음영Dog1의static ground 준비가검사에걸렸고
+  `fresh_geometry_animated_completion_v3`의첫새후보가독립지면준비/실제walking 증거를통과해8/8이다.
+  원래primary gait·moving mode별최소인원과source split을모두검사했다. 지면검사완화나static 대체가아니다.
+- 정적/이동 유한보충은각1시도, parent hashes불변, terminal resume journal/선택/시간/raw불변이다.
+  native batch selected row에`scenario`필드가없는경우의adopted_manifest serializer 오류와
+  background의distance-bin 부재를live roundtrip에서발견해수정했다. 실제보존scenario SHA를검증하며
+  초기manifest payload로잘못대체하지않는다. 같은자산이라도다른split donor가source fallback을막지않게했다.
+  실패preflight v1/v2는보존했고 수정코드로강제resume하지않았다(촬영미실행).
+- CPU infos64장과기존Sunny13 infos5K의compatibility merge5064/중복·group split누수0이다.
+  qualification pilot은본학습/30K에포함하지않는다. 실제새날씨조건을검증한것도아니다.
+- `collector_release_v142/release.json`에최종helper절대경로SHA/입력suiteSHA/profile/유한보충/실측근거를동결했다.
+  5환경`launch_base5_fresh.py --prepare-only`모두PASS이며child/실제본수집미실행이다.
+- `base5_fresh_dashboard.py`는같은source/parent lineage의`_completed` 선택을자동관측한다.
+  parent와보충성공분을더하지않고다른환경의보충도suite에반영한다. 큰5Kstate는8KiB lineage header만읽는다.
+  원래8075관측기/수집runtime은바꾸지않았다. 새8082는전체30K중Sunny13 5K만승인된상태다.
+- 최종Sunny13 ledger SHA는그대로다. MR worker는종료/Park확인, production/GT/threshold/model/GPU 작업변경없다.
+- 최종 `test_base5*.py` 전체 단위 검사: 554개 PASS, 73.771초. `git diff --check`도 통과했다.
+
+## 다음 실행
+
+- 5환경25K offline manifest/coverage/token/split/위치 감사는v142에서완료했다.
+- 수집기/새배치live·200scene·실제이동·보충·resume·최종Park·CPU변환은완료했다.
+- [새단일진입점런북](261010_base5_fresh_environment_runbook.md)으로UI환경확인후새5K씩수집한다.
+  완료resume은상한을초기화하지않으며native QA/안전실패를무시하지않는다. 미래모든부족분의복구를보장하지않는다.
+- 실제다른25K와GPU/crop/BEVPool/cache/초기화실험은미시작이다. GPU 작업전MR을꺼야한다.
+  crop·투영확정후visibility/infos를다시구성하고동일조건4090 비용을검증한뒤본학습한다.

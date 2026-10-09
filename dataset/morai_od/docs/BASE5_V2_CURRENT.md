@@ -1,13 +1,18 @@
 # Base5 독립 5K — CURRENT
 
-## 2026-10-10 진행 중 — 종료 후 수집기·새 환경 준비
+## 2026-10-10 최신 — 종료 후 수집기·새 환경 준비 완료
 
-[현재 구현·실측·남은 gate](261010_base5_postcollection_collector_work.md)를 먼저 읽는다.
-Sunny13 v140 5K는 그대로 보존한다. 현재 관측 전수분포/단계별 비용 집계,
-연속Ego·환경별 새geometry 생성 및 별도guard 수집기 실험을 진행한다.
-구 generator/collector SHA 계약은 수정하지 않았다. 새runtime/출력으로만 검증한다.
-시간최적화는 아직 본수집 승격 전이며 다른25K 실제capture/GPU 모델실험을 시작하지 않았다.
-아래 'collector 종료/MR 종료가능'은 Sunny13 본수집 종료 기록이며 별도pilot 진행 여부는 새문서를 따른다.
+[구현·실측·실제검증](261010_base5_postcollection_collector_work.md),
+[새5환경 단일진입점](261010_base5_fresh_environment_runbook.md)을먼저읽는다.
+Sunny13 v140/5000/0·source/core/runtime/원본raw를보존했다. 별도root의최신은
+`~/morai_cap/base5_postcollection_261010/fresh_suite_final_v142`와`collector_release_v142/release.json`이다.
+5환경새geometry25000·quota/122종/split/identity감사PASS, 범용1882slot에연속arc를적용한다.
+같은64정적부모시간22.553%단축·200/200장기회귀·구이동8/8이다. 새정적63+첫보충1=64,
+새이동7+첫보충1=8이며source gait/지면/충돌/가시성/부모불변/완료resume추가0을검증했다.
+CPU64/merge5064·5환경prepare-only PASS. 새런처resume+유한보충·8082자동canonical관측이준비됐다.
+운영예산5K8–11시간/35GiB(실측가중7.22h/27.04GiB,보장아님). source QA기준은그대로다.
+현재pilot/worker종료·Park확인, 다른25K 실제capture/GPU/crop/학습은미시작이다.
+아래v132/133/139등은과거운영이력이다. 현재crop320 infos는임시본이며입력확정후재변환한다.
 
 ## 2026-10-10 최종 최신 — Sunny13 5K 완료 / v140
 

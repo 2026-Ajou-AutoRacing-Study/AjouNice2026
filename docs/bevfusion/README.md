@@ -1,8 +1,14 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-10-09.
+마지막 정리: 2026-10-10.
 
 ## CURRENT
+
+[2026-10-10 수집기 후속작업 완료](../../dataset/morai_od/docs/261010_base5_postcollection_collector_work.md):
+Sunny13 최종5K 보존·다른5환경새geometry생성/수집기비용·실제정적/이동보충·resume검증은끝났다.
+[새수집런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md)은준비됐지만
+실제나머지25K와GPU/crop/BEVPool/cache/본학습은미시작이다. 아래모델입력·최적화계획이그다음이다.
+수집기22.55%단축은BEVFusion inference latency 개선이나모델성능개선이아니다.
 
 [2026-10-09 수집 종료 후 해상도 선택](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준):
 crop/투영과 cache·분리 pooling을 검증한 뒤 세로×가로 입력을 비용 실측으로 확정한다.

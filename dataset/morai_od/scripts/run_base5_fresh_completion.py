@@ -46,6 +46,13 @@ def compatible(source,candidate,pools):
     return flex.compatible(source,candidate,pools) and motion_matches(source,candidate)
 
 
+def eligible_floor_donors(source,donors,counts,floor,pools):
+    # A same-asset donor from train cannot satisfy a val slot. Filter context
+    # before floor protection, otherwise it masks the valid source fallback.
+    eligible=[d for d in donors if compatible(source,d,pools)]
+    return floor_donors(source,eligible,counts,floor)
+
+
 def verify_parent(manifest,parent):
     status=read(parent/'status.json')
     if status['stage'] not in TERMINAL:raise ValueError('Finish the fresh batch before completion')
@@ -75,6 +82,24 @@ def merged(state):
         selected.append(row);used.add(a['id'])
     order={v:i for i,v in enumerate(state['source_order'])};selected.sort(key=lambda r:order[r['source_cell_id']])
     return selected,[i for i in state['deficits'] if i not in used]
+
+
+def adopted_entry(row,lookup):
+    """Native batch rows need not carry a scenario path; use preserved RAW.
+
+    A recovered scene may differ from the initial manifest. Never substitute
+    that initial payload just to make an adopted manifest serializable.
+    """
+    entry=copy.deepcopy(lookup[row['source_cell_id']]);root=Path(row['capture_root'])
+    scenario=root/'scenario.json'
+    if not scenario.exists():scenario=Path(row.get('scenario') or entry['scenario'])
+    if sha256(scenario)!=row['scenario_sha256']:raise ValueError('Selected raw scenario checksum changed')
+    meta=read(root/'metadata.json')
+    entry.update(scenario=str(scenario.resolve()),scenario_sha256=row['scenario_sha256'],
+        metadata=str((root/'metadata.json').resolve()),role=meta['spec']['role'],
+        distance_bounds=meta['spec'].get('distance_bounds',entry.get('distance_bounds')),
+        scene_group_id=meta['scene_group_id'])
+    return entry
 
 
 def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
@@ -191,12 +216,7 @@ def execute(a):
                 elapsed_sec=elapsed+state['elapsed_sec'],replenishment_elapsed_sec=state['elapsed_sec'],eta_sec=0.,updated_at=time.time(),
                 current=state['current'],attempt_cap=a.attempts,attempts=len(state['attempts']),
                 accepted_bins=dict(Counter(json.dumps([r.get('family'),r.get('distance_bounds'),r.get('role')]) for r in rows))))
-            adopted=[]
-            for row in rows:
-                ident=row['source_cell_id'];entry=copy.deepcopy(lookup[ident]);entry.update(scenario=row['scenario'],scenario_sha256=row['scenario_sha256'],
-                    metadata=str(Path(row['capture_root'])/'metadata.json'))
-                meta=read(entry['metadata']);entry.update(role=meta['spec']['role'],distance_bounds=meta['spec']['distance_bounds'],scene_group_id=meta['scene_group_id'])
-                adopted.append(entry)
+            adopted=[adopted_entry(row,lookup) for row in rows]
             atomic_json(a.output/'adopted_manifest.json',adaptive.fa.batch.campaign.subset_deck(deck,adopted))
             atomic_json(a.output/'replacement_mapping.json',dict(policy=POLICY,raw_preserved=True,exact_original_quota_preserved=False,
                 replacements=[dict(id=v['id'],ordinal=v['ordinal'],delta=v['delta'],status=(v.get('result') or {}).get('status')) for v in state['attempts']]))
@@ -239,7 +259,7 @@ def execute(a):
                     save('paused');return 0
                 state['current']=ident;save('running')
                 if v is None:
-                    options=floor_donors(originals[ident],donors,primary_counts,floor)
+                    options=eligible_floor_donors(originals[ident],donors,primary_counts,floor,pools)
                     try:v=prepare(lookup[ident],originals[ident],options,deck,ctx,cal,ordinal,a.output/'cells'/ident/f'attempt_{ordinal}'/'placement',known,pools)
                     except ValueError as exc:
                         state['unavailable'][ident]=str(exc);missing=save('running');continue
@@ -259,7 +279,10 @@ def execute(a):
                 print(dict(cell=ident,attempt=ordinal,status=v['result']['status'],deficit=len(missing)),flush=True)
         save('complete_with_deficit' if missing else 'complete');return 0
     except BaseException as exc:
-        if state is not None and 'save' in locals():save('halted',str(exc))
+        if state is not None and 'save' in locals():
+            try:save('halted',str(exc))
+            except Exception as secondary:
+                atomic_json(a.output/'preflight_error.json',dict(error=str(exc),failure_record_error=str(secondary)))
         else:atomic_json(a.output/'preflight_error.json',dict(error=str(exc)))
         if isinstance(exc,KeyboardInterrupt):return 130
         if not isinstance(exc,Exception):raise
