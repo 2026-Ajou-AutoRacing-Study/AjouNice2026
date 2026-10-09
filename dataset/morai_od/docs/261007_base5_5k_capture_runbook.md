@@ -2,7 +2,9 @@
 
 2026-10-09 / v132 정지 자유 yaw·실측 parent 배치 형상·음영 접근/이탈 균형. v125 진단 metadata·v124 보충 유지.
 Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹화 명령이 아니다.
-**본5K는 사용자 승인 후 시작한다.** 아래 명령은 준비된 새manifest/output용이며 이번 검증에서 실행하지 않았다.
+**2026-10-09 사용자가 Sunny13 v132 본5K를 시작해 수집 중이다.** 아래 명령으로 별도 중복 수집을 시작하지 않는다.
+[본수집 상태·종료 후 최적화 순서](261009_base5_collection_cost_and_next_experiments.md)를 따른다.
+이번 배치의 runtime/input/options는 고정한다. 코드 수정 실험은 수집·보충 종료 및 최종Park 확인 뒤 새output에서 한다.
 
 ## 최신 준비 — v132
 
@@ -17,7 +19,7 @@ Base5-only single-frame OD 수집이다. E25 추론·temporal 학습·rosbag 녹
 [v132 최종 근거](261009_base5_final_appearance_v132.md)를 따른다.
 대표MR55/55·CPU55/107GT·완료resume추가0/raw1858불변·416tests PASS다.
 가중시간외삽9.635h/5K, 운영예산10–13h·raw/QA가중32.572GiB/5K다. 후처리/복제공간은별도다.
-8075는 새 root의 수집 전 상태로 전환한다. 아래 실행 명령은 v132만 사용한다.
+8075는 같은 root의 현재 수집 상태를 표시한다. 아래 실행 명령은 v132만 사용한다.
 
 ### 이전 v129 준비 이력
 

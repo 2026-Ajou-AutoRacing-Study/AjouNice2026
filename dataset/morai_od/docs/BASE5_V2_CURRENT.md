@@ -5,6 +5,11 @@
 
 ## 최신 상태 — v132
 
+2026-10-09 Sunny13 본5K는 사용자가 시작해 수집 중이다. 이번 배치는 그대로 유지한다.
+[현재 수집 스냅샷·라벨 결정·시간 개선 이력·종료 후 반복 비용 실험](261009_base5_collection_cost_and_next_experiments.md)이
+아래 준비 당시의 미시작 표기보다 우선한다. 다음 환경 전에 상주 worker/준비 대기 중첩을 검증할 계획이며
+이번 수집 중 runtime·manifest·설정·실행 계약을 바꾸지 않는다. 최적화는 아직 미구현이다.
+
 현재 release는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`다.
 Sunny13 입력 `environment_suite/sunny13/manifest.json`, 새output `collection_5k_final_v132_sunny13`.
 정지 실체·사람·동물·복합의 yaw를360° 연속 각도로, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30으로
@@ -21,7 +26,7 @@ Sunny13 입력 `environment_suite/sunny13/manifest.json`, 새output `collection_
 가중 시간외삽9.635h/5K·운영10–13h, 저장외삽32.572GiB/5K·195.429GiB/30K다.
 후처리·학습·복제공간은별도이며본수집누적rate/디스크로갱신한다.
 구Sunny13763승인 및 v129/v130 raw/manifest를 보존하고 새runtime으로 강제resume하지 않는다.
-본5K는 아직 재시작하지 않았고 production E25/threshold/tracker/planning/localization은 미변경이다.
+본5K는 현재 수집 중이며 production E25/threshold/tracker/planning/localization은 미변경이다.
 
 ## 이전 상태 — v129 / 사용자 중단 후 새 입력
 

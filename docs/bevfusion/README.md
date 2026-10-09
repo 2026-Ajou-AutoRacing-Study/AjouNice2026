@@ -1,8 +1,13 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-10-08.
+마지막 정리: 2026-10-09.
 
 ## CURRENT
+
+Sunny13 v132 본5K는 사용자가 시작해 수집 중이다. 이번 runtime/input은 고정하고 종료 후
+[반복 준비 비용 최적화 A/B](../../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)를 수행할 계획이다.
+목표는 전체20% 이상 단축이며 GT/안전/resume을 유지한다. 아래 미시작/승인 대기는 과거 준비 상태다.
+OBJ 차량은Vehicle, Animal은독립라벨로보존하며 재수집없이Pedestrian으로합칠수있으나 후처리/모델설정변경이필요하다.
 
 Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)을 측정했다.
 5060Ti에서E25 offline13.90FPS, 원속도ROS11.47Hz/드롭0, 약98Hz stress 입력에서출력12.97Hz다.
@@ -15,10 +20,10 @@ Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENC
 
 독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다.
 2026-10-09 현재 [v132 최종 외관/배치 설계](../../dataset/morai_od/docs/261009_base5_final_appearance_v132.md)를
-준비한다. Base5-only5K→6환경30K, 정지 자유yaw/배치 형상 보완이며 native GT와 production E25는 그대로다.
-현재는 Sunny13 직접5K `roundabout_release_5k_v119`이며 로터리 미션250셀의 실제 경로 관측과
-정적 NPC Park 초기화를 포함한다. [실제51셀 검증/한계](../../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)와
-[본수집 런북](../../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다. 본수집/새 학습은 승인 대기다.
+사용한다. Base5-only5K→6환경30K, 정지 자유yaw/배치 형상 보완이며 native GT와 production E25는 그대로다.
+현재는 `final_appearance_5k_v132_release`의 Sunny13 직접5K 수집 중이며 로터리 미션350셀을 포함한다.
+로터리 실제 경로 관측과 정적 NPC Park 초기화의 이전 [검증/한계](../../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)를
+유지하고 [본수집 런북](../../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다. 새 학습은 아직 시작하지 않았다.
 구10K/왕복/v25 yaw 근거는 이력이다. 간헐 통신 timeout의 내부 원인은 미해결이며 실패를 보존한다.
 100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
 

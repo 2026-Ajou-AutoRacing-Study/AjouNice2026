@@ -49,9 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-09 Sunny13 v132 본5K 수집 중:** 이번 배치는 유지하며 runtime·input·options를 바꾸지 않는다.
+  끝난 뒤 반복 준비 비용을 [상주 worker/대기 중첩 A/B](../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)로
+  검증한다. 전체20% 이상 단축과 GT/안전/resume 유지가 승격 조건이며 아직 미구현이다.
+  음영 동적24장 독립 지면 준비는 유지한다. 아래 미시작/승인 대기는 당시 준비 이력이다.
+
 - **Base5 현재는 v132**이다. [최종 외관·배치·12카테고리/검증](../dataset/morai_od/docs/261009_base5_final_appearance_v132.md),
   [CURRENT](../dataset/morai_od/docs/BASE5_V2_CURRENT.md), [실행 런북](../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다.
-  root `final_appearance_5k_v132_release`, Sunny13 5K 승인 후 시작→같은6환경30K.
+  root `final_appearance_5k_v132_release`, Sunny13 5K 수집 중→같은6환경30K.
   자유yaw·static parent 형상·음영 접근/이탈 균형만 보완했고 production은 그대로다.
   구수집763승인과v129/v130 raw를보존했다. 아래v123/v125/v129 경로/숫자는당시이력이다.
   수집 후 실제 가시 자산 coverage·새학습/held-out mission rosbag 검증이 남는다.

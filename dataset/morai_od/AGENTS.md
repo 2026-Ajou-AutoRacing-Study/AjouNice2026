@@ -13,6 +13,12 @@
    `docs/261007_base5_5k_capture_runbook.md` →
    `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
    Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   **2026-10-09 후속: 사용자가 v132 Sunny13 본5K를 시작해 수집 중이다.**
+   `docs/261009_base5_collection_cost_and_next_experiments.md`를 읽는다. 이번 runtime/input 고정,
+   끝난 뒤 상주 worker/조건부 대기 중첩으로 전체20% 단축 A/B를 검증한다. 아직 최적화 미구현이다.
+   collector/보충 종료·최종Park 확인 전 새실험 금지. 음영 동적24장 독립 준비 유지.
+   OBJ는Vehicle, Animal은별도class3 보존. Ped로합치려면 후처리/모델/평가 매핑 변경이며 자동옵션은 없다.
+   아래v132 '미시작'은최종준비당시 이력이다. 실제수집완료/전수성공으로해석하지않는다.
    **2026-10-09 v132가 아래 모든 v123/v125/v129 기록보다 우선한다.**
    `docs/261009_base5_final_appearance_v132.md`를 읽는다.
    current root는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`,

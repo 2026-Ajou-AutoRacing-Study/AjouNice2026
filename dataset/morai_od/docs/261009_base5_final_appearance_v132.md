@@ -1,6 +1,8 @@
 # Base5 최종 정지 외관·방향 설계 v132 — CURRENT / EVIDENCE
 
 2026-10-09 00:45 KST 검증 스냅샷.
+같은 날짜 후속: 사용자가 Sunny13 본5K를 시작했다. 아래 미시작 표기는 00:45 준비 시점의 기록이다.
+[수집 중 상태와 종료 후 비용 개선 계획](261009_base5_collection_cost_and_next_experiments.md)을 우선한다.
 사용자 승인에 따라 v129의 부분 yaw 보강을 전면 보완하고 v131 극근접 compound 누락을 보완했다. 본5K 캡처와 학습은 시작하지 않는다.
 최신 release는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`다.
 이 문서는 v123/v129의 당시 경로·노출 표보다 우선하며, 이전 raw·실험은 삭제하지 않는다.
