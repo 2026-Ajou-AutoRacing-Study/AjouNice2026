@@ -24,6 +24,12 @@ Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENC
 이미지확대90.46ms,범위확대96.27ms,둘다확대130.59ms(1.96×)다.
 0.5m depth간격을유지하므로coverage확대에따라118→198bin이다.
 
+[4090 팀원 실측 결과](261009_RTX4090_CAPACITY_RESULTS.md)를 2026-10-09 확인했다.
+동일 고정간격4-case 모델 평균은 기존27.66ms/이미지34.35ms/범위36.19ms/둘다45.86ms다.
+둘다확대의CPU이미지준비포함평균50.93ms,모델p95 46.71ms이며8/8case PASS다.
+5060Ti대비2.40~2.85배이며ROS/full-stack·밀집장면·확대모델정확도 인증은아니다.
+기존5060Ti 문서의4090미측정 표현은해당측정시점의기록이다.
+
 독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다.
 2026-10-09 현재 [v132 최종 외관/배치 설계](../../dataset/morai_od/docs/261009_base5_final_appearance_v132.md)를
 사용한다. Base5-only5K→6환경30K, 정지 자유yaw/배치 형상 보완이며 native GT와 production E25는 그대로다.
@@ -63,6 +69,9 @@ Offline 최고 epoch만으로 production을 바꾸지 않고 detection, tracking
 mission rosbag에서 비교한다.
 
 ## EVIDENCE
+
+- [`261009_RTX4090_CAPACITY_RESULTS.md`](261009_RTX4090_CAPACITY_RESULTS.md)
+  - 팀원 4090 반환 ZIP 무결성, 고정 간격4-case 실측, 5060 Ti 대응 비교와 단계별 비용. 수집/runtime 변경 없음.
 
 - [`261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md`](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)
   - 새 H01/R01 속도 GT A/B 및 최신 공식 후륜 기준 확인. 과거 중심 속도 가설과 회전 보정 잔차 관측을 구분한다.
