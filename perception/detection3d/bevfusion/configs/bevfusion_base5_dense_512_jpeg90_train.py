@@ -1,9 +1,10 @@
-"""Selected Base5 training input policy, 2026-10-10; not production E25.
+"""Historical PNG-to-JPEG conversion policy, 2026-10-10; not production E25.
 
 Single-frame 4-class/7D, +/-100x30m, 512x1056, separated pooling.
 Only native-resolution JPEG Q90 is enabled (100% of all views). Blur, exposure,
 noise remain OFF. Val/test are clean; actual JPEG bags are separate dev-val.
 This is pixel-domain adaptation, not proven AP improvement or training init.
+Current all-JPEG input uses bevfusion_base5_dense_512_native_jpeg90.py instead.
 """
 from copy import deepcopy
 

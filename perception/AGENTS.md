@@ -9,7 +9,11 @@
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`와
 `../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`의
-2026-10-10 준비 결과다. Sunny13 5K 완료, 다른5환경 실제25K/본학습은 아직이다.
+2026-10-11 JPEG 입력 전환 결과다. Sunny13 5K 완료, 다른 5환경 실제 25K/본학습은 아직이다.
+현재 카메라 RGB는 train/val/test/분석 모두 native Q90 JPEG다.
+`bevfusion_base5_dense_512_native_jpeg90.py`와 all-JPEG portable manifest를 사용한다.
+PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무손실 보조 파일은 변환하지 않는다.
+과거 train JPEG/val PNG와 PNG→online Q90 설정은 비교 이력이며 현재 기본값이 아니다.
 Base5-only single-frame·4-class·7D이며 temporal/OD velocity는 OFF다.
 과거 Base3/Base4 config나 HEAD 브랜치를 자동으로 현재 기본값으로 승격하지 않는다.
 

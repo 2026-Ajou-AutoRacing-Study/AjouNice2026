@@ -10,7 +10,8 @@
 
 | 목적 | 최신 기준 |
 |---|---|
-| 전체 5K JPEG 생성 / train PNG 없는 전달본 / PNG vs JPEG 학습 비용 | [20,000개 JPEG·독립 전달·짧은 실제 학습 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011) |
+| 현재 카메라 RGB: train·val·분석 모두 Q90 JPEG / PNG는 로컬 원본 / Drive 교체 | [10-11 입력 통일·전수 검증·전달](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011) |
+| 이전 mixed 전달본 검증 / PNG vs JPEG 짧은 학습 비용 | [20,000개 JPEG·당시 독립 전달·짧은 실제 학습 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011) |
 | 학습용 JPEG Q90 100% / 사전 생성 캐시 추천 / blur·노출·noise OFF | [256장면 픽셀·GT 동등성과 CPU 로더 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010), [실제 JPEG 관측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |
 | Base5 전후방 ±100m·좌우 ±30m 유지 / ±40m 확대 기각 | [5K·고주로 합류·로터리 경로 근거와 재검토 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#lateral-range-decision-261010) |
 | 21시 학습 전 확대 검증 / 512·batch 4 추천 / 외부 백업 미완료 | [300장·실제 5K 로더·745장 val·저장/재개·네트워크 gate](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#6-4090-확대-표본학습-전-검증--2026-10-10-2023-이후), [Vast 후속 절차](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#확대-검증-완료와-네트워크-gate--2026-10-10-21시) |
@@ -18,7 +19,7 @@
 | Vast 템플릿·GPU 후보 추천·블로그용 캡처 원본 | [10-10 설정·캡처 보관 기록](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-vast-템플릿-안내와-블로그용-증거-기록) |
 | 로컬 입력·직사각형 축·CUDA 분리 pooling 검증 | [10-10 실측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md) |
 | 원격 전달본·direct 학습·resume/백업·정리 결과 | [Vast 계획의 10-10 준비 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과) |
-| Sunny13 원본 5K Drive 백업·분할복원·전송시간 | [10-10 검증완료 백업](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-sunny13-5k-drive-원본-백업) |
+| Sunny13 원본 PNG 백업·분할복원·전송시간 이력 / 현재 로컬 보존 | [10-10 당시 백업 기록](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-sunny13-5k-drive-원본-백업) |
 | 다른 5 환경 생성/수집·resume·대시보드 | [새 환경 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md) |
 
 현재 연구는 Base5-only·4-class·single-frame·decoded 7D이며 OD velocity/temporal OFF다.
@@ -26,13 +27,14 @@ production은 E25·threshold 0.40/0.15/0.10이다. 새 학습은 512×1056·batc
 camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 본학습을 시작하지 않는다.
 2026-10-10 미션 경로 검토 후 Base5의 semantic ROI는 전후방 ±100m·좌우 ±30m로 유지한다.
 ±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
-2026-10-10 23:55 KST의 학습 선택 config는 `bevfusion_base5_dense_512_jpeg90_train.py`다.
-사용자 합의로 원본 해상도 JPEG Q90을 네 카메라 모두 100% 적용하고 blur·노출·noise는 끈다.
-학습 환경에서 별도 native JPEG 캐시를 한 번 생성하는 경로를 추천하며, 매번 PNG에서
-변환하는 경로를 대안으로 유지한다. 원본 PNG·infos·GT·split과 val/test·추론은 바꾸지 않는다.
-2026-10-11에는 5K 전체 JPEG 생성과 train PNG 없는 독립 전달본을 완료했다.
-기존 PNG+별도 캐시 경로 또는 manifest에 train JPEG를 명시한 독립 전달본을 사용할 수 있다.
-독립 전달본에는 `--jpeg-cache`를 추가하지 않는다. CPU 로더의 약 두 배 개선을 전체 학습 가속으로 해석하지 않는다.
+2026-10-11 현재 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
+카메라 RGB는 train·val·test·분석 모두 원본 해상도 Q90 JPEG로 통일하고 blur·노출·noise는 끈다.
+`artifacts/handoff/base5_sunny13_jpeg90_portable_261011/`의 all-JPEG manifest를 사용한다.
+RGB PNG는 로컬 백업·변환용이며 mask·depth·native GT 등 보조 PNG는 무손실로 보존한다.
+LiDAR·GT·보정·split·production E25는 바꾸지 않았다. val 픽셀 분포는 의도적으로 Q90으로
+변경했으므로 과거 PNG val 수치를 같은 조건의 결과처럼 합치지 않는다.
+독립 전달본에는 `--jpeg-cache`나 JPEG 재압축을 추가하지 않는다. 기존 mixed 전달본·online
+변환 설정은 이력이며 현재 학습의 fallback이 아니다. CPU 로더 개선을 전체 학습 가속으로 해석하지 않는다.
 5060 Ti의 원본 PNG vs 사전 JPEG 짧은 실제 학습 비교는 약 0.47% 차이로 사실상 같았다.
 종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 요청 후 새 준비 계약과
 외부 백업을 확인한다. JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU만

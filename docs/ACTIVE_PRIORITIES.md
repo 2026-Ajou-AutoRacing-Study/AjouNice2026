@@ -49,21 +49,21 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
-- **2026-10-11 JPEG 생성·전달 경로:** Sunny13 5K의 카메라 20,000개를 native Q90으로
-  생성하고 전수 파일 hash를 검증했다. train JPEG / val PNG 독립 전달본은 원본 train PNG
-  없이 사용할 수 있다. 원본 PNG·GT·분할·production은 보존하며 JPEG 재압축을 차단한다.
-  [산출물·검증·후속 경로](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011)를
-  따른다. 새 환경은 JPEG 전달본을 먼저 만들 수 있지만 LiDAR·라벨·보정·val PNG도 함께
-  전송해야 한다. Vast 재개·외부 checkpoint 백업·본학습은 아직이다.
+- **2026-10-11 현재 JPEG 입력 계약:** 사용자 승인으로 카메라 RGB를 train·val·test·분석
+  모두 native Q90 JPEG로 통일했다. PNG는 로컬 원본·변환용으로 보존하고, mask·depth·native
+  GT·LiDAR·보정은 무손실로 유지한다. 새 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
+  [전수 정합·Drive 교체·Vast 전환](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011)을
+  따른다. 이전 train JPEG / val PNG 및 별도 train 캐시는 비교 이력이다. 이미 준비한 PNG run의
+  hash를 덮어쓰거나 그대로 resume하지 않는다. Vast 재개·외부 checkpoint 백업·본학습은 아직이다.
 
-- **2026-10-10 23:55 KST 이미지 입력 선택:** 사용자 합의로 native JPEG Q90을 네 카메라
+- **이전 선택 — 2026-10-10 23:55 KST:** 사용자 합의로 native JPEG Q90을 네 카메라
   모두 100% 적용한다. blur·노출·noise는 OFF다. 별도 train JPEG 캐시를 추천하고 매번 PNG에서
   변환하는 경로를 대안으로 유지한다. `bevfusion_base5_dense_512_jpeg90_train.py`를 사용하며
   원본 PNG·GT·split·val/test·production은 유지한다.
   [로컬 동등성·로더 비교와 한계](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010)를
   따른다. CPU 준비 개선을 전체 학습 가속으로 환산하지 않는다. AP와 실제 JPEG 적용 후 학습
   시간은 미측정이다. Vast 재개 요청 후 원격 캐시 생성·전수 검증·새 hash 계약과 외부 checkpoint
-  백업 gate를 확인한다. 전체 train 캐시·본학습은 아직이며 23:05의 80%는 이전 결정이다.
+  백업 gate를 확인한다. 당시 '전체 train 캐시 아직'은 이전 기록이며 위 10-11 계약이 우선한다.
 
 - **2026-10-10 22:43 KST 범위 결정:** Base5는 전후방 ±100m·좌우 ±30m를 유지한다.
   ±40m 비용 시험은 보존하되 이번 학습에서는 기각한다. 고주로 합류·로터리 대기의

@@ -62,13 +62,17 @@ def prepare(args):
     jpeg_cache = getattr(args, 'jpeg_cache', None)
     jpeg_cache_identity = None
     image_policy = inventory.get('image_policy')
+    if cfg.get('required_camera_input_policy') == 'native_jpeg90' and image_policy != dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90'):
+        raise ValueError('Current native-JPEG config requires JPEG train/val/test portable data')
     if image_policy:
-        if image_policy != dict(train='native_jpeg90', val='original_png', test='original_png'):
+        if image_policy not in (dict(train='native_jpeg90', val='original_png', test='original_png'),
+                                dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90')):
             raise ValueError('Unsupported portable image policy')
         if jpeg_cache:
             raise ValueError('Preencoded portable data must not use an additional JPEG cache')
         from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import preencoded_train_pipeline
-        cfg.train_dataloader.dataset.pipeline = preencoded_train_pipeline(cfg.train_dataloader.dataset.pipeline)
+        if any(t['type'] == 'MoraiOnlineImageDomainAug3D' for t in cfg.train_dataloader.dataset.pipeline):
+            cfg.train_dataloader.dataset.pipeline = preencoded_train_pipeline(cfg.train_dataloader.dataset.pipeline)
     if jpeg_cache:
         from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import (
             cache_train_pipeline, validate_jpeg_cache)
@@ -174,7 +178,7 @@ def main():
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--data', type=Path, required=True)
     p.add_argument('--jpeg-cache', type=Path,
-                   help='Optional verified native Q90 train cache; original PNG is preserved and val stays clean')
+                   help='Historical PNG-source train-cache route only; current all-JPEG portable must not use it')
     p.add_argument('--profile', choices=['448x896', '512x1056'], required=True)
     p.add_argument('--work-dir', type=Path, required=True)
     p.add_argument('--epochs', type=int, required=True)

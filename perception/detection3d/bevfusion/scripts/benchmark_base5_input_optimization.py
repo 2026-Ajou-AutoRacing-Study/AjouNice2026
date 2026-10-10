@@ -178,7 +178,8 @@ def main():
     p.add_argument('--samples',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
     p.add_argument('--iterations',type=int,default=28);p.add_argument('--shapes',nargs='+',default=['320x896','384x896','448x896','512x1056'])
     p.add_argument('--modes',nargs='+',default=['baseline','cache','separated'])
-    p.add_argument('--codec',choices=['png','jpeg90'],default='png')
+    p.add_argument('--codec',choices=['png','jpeg90'],default='jpeg90',
+                   help='Current Q90 input; png is an explicit historical probe')
     p.add_argument('--lateral-range',type=int,choices=[30,40],default=30,
                    help='Semantic lateral half-range; metric intervals remain unchanged')
     p.add_argument('--shared-parameter-state',type=Path,
@@ -193,6 +194,10 @@ def main():
     if a.codec=='jpeg90':
         for sample in samples:
             for key,blob in sample['images'].items():
+                if blob.startswith(b'\xff\xd8'):
+                    # Native Q90 portable bytes already match ROS input.
+                    # Never add a second generation of JPEG loss.
+                    continue
                 image=cv2.imdecode(np.frombuffer(blob,np.uint8),1)
                 ok,jpeg=cv2.imencode('.jpg',image,[cv2.IMWRITE_JPEG_QUALITY,90])
                 if not ok:raise RuntimeError('JPEG cost sample encoding failed')

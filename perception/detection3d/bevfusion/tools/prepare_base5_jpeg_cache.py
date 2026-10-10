@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Create separate native JPEG Q90 train cache inside the training environment.
+"""Create native JPEG Q90 conversion cache inside the training environment.
 
-Original portable data remains unchanged. Default cache covers train only;
-optional val/test copies are not selected by the training runner. No GPU runs.
+Original portable data remains unchanged. Default covers every split for the
+current all-JPEG portable export; direct cache use is historical. No GPU runs.
 """
 import argparse
 import json
@@ -20,8 +20,8 @@ def main():
     parser.add_argument('--data', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--profile', choices=['448x896', '512x1056'], default='512x1056')
-    parser.add_argument('--splits', nargs='+', choices=['train', 'val', 'test'], default=['train'],
-                        help='Generate optional extra copies; training still uses cache for train only')
+    parser.add_argument('--splits', nargs='+', choices=['train', 'val', 'test'], default=['train','val','test'],
+                        help='Current portable export needs all camera images; historical train-only cache must be explicit')
     parser.add_argument('--verify', action='store_true', help='Verify existing cache only; no overwrite/resume')
     args = parser.parse_args()
     data = args.data.resolve(strict=True)

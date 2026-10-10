@@ -38,9 +38,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--data', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--legacy-png-probe', action='store_true', help='Explicit historical PNG comparison only')
     a = p.parse_args()
     if a.output.exists():
         raise FileExistsError('Use a fresh selection directory')
+    source = json.loads((a.data/'manifest.json').read_text())
+    if not a.legacy_png_probe and source.get('image_policy') != dict.fromkeys(('train','val','test'),'native_jpeg90'):
+        raise ValueError('Current experiments require all-JPEG portable data; PNG probes must be explicit')
     ledger = {r['id']: r for r in (json.loads(x) for x in
               (a.data/'provenance/original_selected_ledger.jsonl').read_text().splitlines())}
     records = []
@@ -63,6 +67,7 @@ def main():
         raise ValueError('Expected complete, distinct 5K')
     selected = choose(records)
     manifest = dict(portable_data_root=str(a.data.resolve()),
+        image_policy=source.get('image_policy'), legacy_png_probe=a.legacy_png_probe,
         source_sha256=hashlib.sha256((a.data/'manifest.json').read_bytes()).hexdigest(),
         scope='300 distinct cost-only samples: 200 deterministic hash-random representative + 100 stress; no learned AP',
         samples=selected, population_families=dict(Counter(r['family'] for r in records)),

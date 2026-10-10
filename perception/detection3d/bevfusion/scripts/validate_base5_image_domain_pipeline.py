@@ -60,10 +60,21 @@ def main():
         python_path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
         from prepare_base5_portable_dataset import validate
         inventory = validate(args.jpeg_portable, verify_hashes=True)
-        if inventory.get('image_policy') != dict(train='native_jpeg90', val='original_png', test='original_png'):
-            raise ValueError('Expected standalone JPEG train / clean val portable')
+        policy = inventory.get('image_policy')
+        if policy not in (dict(train='native_jpeg90', val='original_png', test='original_png'),
+                          dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90')):
+            raise ValueError('Expected standalone native JPEG portable')
         original.train_dataloader.dataset.pipeline = deepcopy(selected.train_dataloader.dataset.pipeline)
         selected.train_dataloader.dataset.pipeline = preencoded_train_pipeline(selected.train_dataloader.dataset.pipeline)
+        if policy['val'] == 'native_jpeg90':
+            # Reference is native PNG -> Q90 -> unchanged validation geometry.
+            # Comparing against clean PNG would incorrectly flag the deliberate
+            # current validation-domain change as a regression.
+            transforms = original.val_dataloader.dataset.pipeline
+            position = next(i for i, t in enumerate(transforms) if t['type'] == 'MoraiImageAug3D')
+            transforms.insert(position, dict(type='MoraiOnlineImageDomainAug3D',
+                jpeg_prob=1., jpeg_quality=[90, 90], blur_prob=0., exposure_prob=0.,
+                noise_prob=0., color_order='rgb', native_resolution=True))
     torch.set_num_threads(1)
     np.random.seed(261010)
     records = []
@@ -132,6 +143,7 @@ def main():
         val_changed_camera_observations=0,
         cache_online_exact_pixel_match=bool(cache_manifest or args.jpeg_portable),
         standalone_portable=bool(args.jpeg_portable),
+        comparison_reference='Native PNG encoded to Q90 before resizing for every JPEG-policy split; historical PNG val unchanged',
         scope='Actual CPU file loading, packing, unchanged GT/points/calibration; BEV randomization frozen for paired comparison. No model forward, training or AP claim.')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')

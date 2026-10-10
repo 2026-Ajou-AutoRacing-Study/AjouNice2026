@@ -24,6 +24,7 @@ class JPEGPortableTest(unittest.TestCase):
             folder = captures / str(i); folder.mkdir()
             (folder / 'points.bin').write_bytes(b'points')
             (folder / 'native_annotation.json').write_text('{"keep":true}')
+            Image.fromarray(np.ones((32,64), np.uint16)).save(folder / 'instance_mask.png')
             cameras = {}
             for c in range(4):
                 path = folder / ('c%d.png' % c)
@@ -49,12 +50,14 @@ class JPEGPortableTest(unittest.TestCase):
         cache = root/'cache'; build_cache(source,native,cache)
         return source, cache
 
-    def test_independent_relocatable_payload_and_clean_val(self):
+    def test_independent_relocatable_all_jpeg_and_lossless_auxiliary(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp); source,cache=self.fixture(root)
             before=(source/'manifest.json').read_bytes()
             result=build(source,cache,root/'jpeg')
             self.assertEqual(result['jpeg_train_image_count'],4)
+            self.assertEqual(result['jpeg_rgb_image_count'],8)
+            self.assertEqual(result['image_policy'],dict.fromkeys(('train','val','test'),'native_jpeg90'))
             self.assertEqual((source/'manifest.json').read_bytes(),before)
             train=pickle.loads((root/'jpeg/infos/512x1056/morai_base5_infos_train.pkl').read_bytes())['data_list'][0]
             original=pickle.loads((source/'infos/512x1056/morai_base5_infos_train.pkl').read_bytes())['data_list'][0]
@@ -62,10 +65,17 @@ class JPEGPortableTest(unittest.TestCase):
             self.assertEqual(train['lidar_points'],original['lidar_points'])
             for camera in train['images'].values(): self.assertTrue(camera['img_path'].endswith('.jpg'))
             for split in ('val','test'):
-                self.assertEqual((root/'jpeg/infos/512x1056'/('morai_base5_infos_'+split+'.pkl')).read_bytes(),
-                                 (source/'infos/512x1056'/('morai_base5_infos_'+split+'.pkl')).read_bytes())
+                converted=pickle.loads((root/'jpeg/infos/512x1056'/('morai_base5_infos_'+split+'.pkl')).read_bytes())
+                prior=pickle.loads((source/'infos/512x1056'/('morai_base5_infos_'+split+'.pkl')).read_bytes())
+                for new,old in zip(converted['data_list'],prior['data_list']):
+                    for name,camera in new['images'].items():
+                        self.assertTrue(camera['img_path'].endswith('.jpg'))
+                        camera['img_path']=old['images'][name]['img_path']
+                self.assertEqual(converted,prior)
             self.assertNotIn('data/s0/c0.png',result['files'])
-            self.assertIn('data/s1/c0.png',result['files'])
+            self.assertNotIn('data/s1/c0.png',result['files'])
+            self.assertEqual((root/'jpeg/data/s1/instance_mask.png').read_bytes(),
+                             (source/'data/s1/instance_mask.png').read_bytes())
             self.assertTrue((root/'jpeg/data/s0/native_annotation.json').is_file())
             source.rename(root/'png_unavailable'); cache.rename(root/'cache_unavailable')
             (root/'jpeg').rename(root/'moved')
@@ -77,7 +87,7 @@ class JPEGPortableTest(unittest.TestCase):
             root=Path(temp); source,cache=self.fixture(root)
             build(source,cache,root/'jpeg')
             source.rename(root/'hidden'); cache.rename(root/'hidden_cache')
-            config=Path(__file__).resolve().parents[1]/'configs/bevfusion_base5_dense_512_jpeg90_train.py'
+            config=Path(__file__).resolve().parents[1]/'configs/bevfusion_base5_dense_512_native_jpeg90.py'
             args=argparse.Namespace(data=root/'jpeg',profile='512x1056',batch=1,accumulate=1,
                 epochs=2,workers=0,lr=1e-4,config=config,warmup_updates=5,seed=1,
                 work_dir=root/'run',disable_val=False,wandb=False,init_checkpoint=None,
@@ -88,6 +98,32 @@ class JPEGPortableTest(unittest.TestCase):
             self.assertEqual(cfg.val_dataloader.dataset.pipeline,Config.fromfile(str(config)).val_dataloader.dataset.pipeline)
             args.jpeg_cache=root/'hidden_cache'
             with self.assertRaisesRegex(ValueError,'additional JPEG cache'): prepare(args)
+
+    def test_historical_mixed_policy_is_explicit_and_current_config_rejects_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); source,cache=self.fixture(root)
+            result=build(source,cache,root/'mixed',keep_val_png=True)
+            self.assertEqual(result['image_policy']['val'],'original_png')
+            self.assertEqual((root/'mixed/infos/512x1056/morai_base5_infos_val.pkl').read_bytes(),
+                             (source/'infos/512x1056/morai_base5_infos_val.pkl').read_bytes())
+            config=Path(__file__).resolve().parents[1]/'configs/bevfusion_base5_dense_512_native_jpeg90.py'
+            args=argparse.Namespace(data=root/'mixed',profile='512x1056',batch=1,accumulate=1,
+                epochs=2,workers=0,lr=1e-4,config=config,warmup_updates=5,seed=1,
+                work_dir=root/'run',disable_val=False,wandb=False,init_checkpoint=None,
+                resume=None,allow_random_init=True,run=True,jpeg_cache=None)
+            with self.assertRaisesRegex(ValueError,'JPEG train/val/test'): prepare(args)
+            args.data=source
+            with self.assertRaisesRegex(ValueError,'JPEG train/val/test'): prepare(args)
+
+    def test_all_jpeg_requires_validation_cache_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); source,cache=self.fixture(root)
+            index=json.loads((cache/'manifest.json').read_text())
+            index['files']={p:v for p,v in index['files'].items() if '/s0/' in p}
+            index['image_count']=len(index['files'])
+            (cache/'manifest.json').write_text(json.dumps(index))
+            with self.assertRaisesRegex(ValueError,'missing required'): build(source,cache,root/'jpeg')
+            self.assertFalse((root/'jpeg').exists())
 
     def test_bad_split_encoding_and_tamper_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

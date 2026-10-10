@@ -148,7 +148,8 @@ def validate(root, verify_hashes=False):
     root = Path(root).resolve(strict=True)
     manifest = json.loads((root / 'manifest.json').read_text())
     policy = manifest.get('image_policy')
-    if policy and policy != dict(train='native_jpeg90', val='original_png', test='original_png'):
+    if policy and policy not in (dict(train='native_jpeg90', val='original_png', test='original_png'),
+                                 dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90')):
         raise ValueError('Unsupported portable image policy')
     for relative, item in manifest['files'].items():
         path = root / safe_relative(relative)
@@ -162,7 +163,7 @@ def validate(root, verify_hashes=False):
             info = pickle.loads((root / 'infos' / profile / ('morai_base5_infos_' + split + '.pkl')).read_bytes())
             for record in info['data_list']:
                 if policy:
-                    expected = '.jpg' if split == 'train' else '.png'
+                    expected = '.jpg' if policy[split] == 'native_jpeg90' else '.png'
                     if any(Path(c['img_path']).suffix.lower() != expected for c in record['images'].values()):
                         raise ValueError('Portable image encoding/split policy differs')
                 paths = [record['lidar_points']['lidar_path']]

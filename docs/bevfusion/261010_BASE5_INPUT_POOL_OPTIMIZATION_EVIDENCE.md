@@ -17,13 +17,12 @@ production E25를 교체하지 않았다. 2026-10-10 17:31~17:34 KST에 임대�
 후속 미션 경로·개발 bag 확인과 사용자 합의에 따라 **이번 Base5 학습은 전후방 ±100m,
 좌우 ±30m를 유지하고 ±40m 확대를 기각한다.** 아래 8절이 현재 범위 선택 기준이다.
 원본 Sunny13/나머지 환경 수집기/runtime/hash 계약과 tracker/planning/localization은 변경하지 않았다.
-2026-10-10 23:05 KST에는 개발용 rosbag과 원본 PNG를 비교해 JPEG Q90을 카메라별
-80% 확률로 적용했다. 이후 사용자 합의와 로컬 비교를 거쳐 **23:55 KST 기준으로 Q90을
-네 카메라 모두 100% 적용하며, 사전 생성 native JPEG 캐시를 추천**한다. 2026-10-11에는
-전체 5K JPEG 생성·독립 전달본과 짧은 PNG/JPEG 실제 학습 비용 비교를 완료했다.
-아래 11절이 최신 산출물과 비용 근거이고 9절의 80%는 이전 결정 이력이다. blur·노출·noise는 OFF다.
-본학습에는 `bevfusion_base5_dense_512_jpeg90_train.py`를 명시한다. 기존 all-OFF 비용
-config와 수치는 비교 이력으로 보존한다. Vast는 재개하지 않았다.
+2026-10-11 현재는 사용자 승인으로 **train·val·test·분석 모두 native Q90 JPEG**를 사용한다.
+선택 config는 `bevfusion_base5_dense_512_native_jpeg90.py`이며 원본 RGB PNG는 로컬
+보존·변환용이다. 아래 12절의 all-JPEG 전달본·Drive 교체가 현재 실행 기준이다.
+mask·depth·LiDAR·GT·보정은 무손실로 유지하고 blur·노출·noise는 OFF다.
+9절의 80%, 10절의 train 캐시, 11절의 train JPEG / val PNG는 비교 이력이다.
+11절의 PNG/JPEG 짧은 학습 비용은 보존한다. 새 입력의 AP는 미검증이며 Vast는 재개하지 않았다.
 
 추론 opt-in cache A와 **depth/feature 분리 pooling B**를 구현했다. B는 학습 역전파도 지원한다.
 공식 BEVPoolv2의 분리 표현을 참고한 로컬 CUDA 구현이며 NVIDIA v3나 TensorRT 전환이 아니다.
@@ -752,7 +751,10 @@ native 해상도를 유지하므로 이후 입력 crop 크기를 바꿔도 캐�
 
 <a id="jpeg-full-build-261011"></a>
 
-## 11. 전체 JPEG 생성과 PNG 없는 train 전달본 — 2026-10-11
+## 11. 전체 JPEG 생성과 PNG 없는 train 전달본 — 2026-10-11 초기 기록
+
+아래 train JPEG / val PNG는 당시 검증 이력이다. 이후 사용자 승인으로 12절의 all-JPEG
+계약으로 변경했다. 수치와 원본은 보존하지만 아래 mixed 전달본을 현재 기본값으로 사용하지 않는다.
 
 사용자 요청으로 로컬 Sunny13 5K의 native 카메라 이미지 **20,000개를 모두 Q90 JPEG로
 생성하고 전수 SHA256 검증**했다. 원본 PNG·GT·split은 보존했다. val JPEG도 참고용으로
@@ -839,3 +841,79 @@ JPEG 선택의 주된 이득은 **전송·저장·CPU 준비 비용 감소와 �
   원본+online Q90와 독립 JPEG의 최종 픽셀·GT·LiDAR·투영 동등성과 val 불변을 확인했다.
 - JPEG portable/원본 portable/캐시/runner/이미지 증강/직사각형 기하 CPU 검사 33개를 통과했다.
   데이터는 ignored 상태이며 본학습·Vast 접속·업로드는 실행하지 않았다.
+
+<a id="all-jpeg-policy-261011"></a>
+
+## 12. 카메라 RGB 입력 통일 — 2026-10-11 현재 기준
+
+사용자 승인으로 **train·val·test·분석·실험의 카메라 RGB는 native Q90 JPEG**를 사용한다.
+PNG는 로컬 원본·JPEG 변환용으로 보존하며 재수집은 필요 없다. instance mask·depth·native
+annotation·LiDAR·보정·메타데이터는 무손실로 그대로 유지한다. 'JPEG only'는 RGB만 뜻한다.
+MORAI capture의 원본 형식이나 production E25의 ROS 입력 계약을 바꾼 것은 아니다.
+
+| 항목 | 현재 결과 |
+|---|---|
+| 선택 장면·분할 | 5,000장면, train 4,255 / val 745, 두 crop profile 유지 |
+| native RGB JPEG | 20,000개, 1,619,725,032 bytes(1.508GiB) |
+| LiDAR·GT·보조 파일을 포함한 전체 payload | 10,424,732,034 bytes(약 9.71GiB), 173,292개 파일 |
+| Drive 전달용 tar.zst | 3,333,160,311 bytes(약 3.10GiB), 1GiB 이하 네 조각 |
+| 기존 PNG tar.zst | 19,438,853,713 bytes(약 18.10GiB), 로컬 보존 |
+| 변하지 않은 lossless 파일 | 153,284개, 원본 파일별 size·SHA256과 동일 |
+
+현재 전달본은 `artifacts/handoff/base5_sunny13_jpeg90_portable_261011/`이며 manifest SHA256은
+`c7df4c47babb1197b871ccd877d5bd95b5a5eb8833781906c5dd6ff36d61a91e`다.
+train/val/test infos의 RGB 경로만 상대경로 JPEG로 바꿨다. 두 profile의 전체 10,000개 record를
+재귀 비교해 **이미지 경로 외 모든 필드가 정확히 같음**을 확인했다. 원본 RGB PNG 20,000개는
+새 payload에서 제외됐으며 auxiliary PNG는 남아 있다. 로컬 hardlink 전달본은 수정하지 않는다.
+
+실제 등록 pipeline의 train 64 / val 64장면에서 PNG→native Q90→resize/crop reference와
+전달본 JPEG의 최종 픽셀·3D GT·LiDAR·투영 행렬이 정확히 일치했다. 이는 **Q90 reference와의
+동등성**이지 PNG val 픽셀이 불변이라는 뜻이 아니다. 기존 PNG val metric과 신규 JPEG val metric은
+입력 조건을 명시해 구분한다. 근거는 `artifacts/evaluation/bevfusion/base5_all_jpeg_261011/`의
+`inventory.json`과 `pipeline.json`이다. JPEG 정책의 AP 이득은 아직 검증하지 않았다.
+
+### 실행·분석 경로
+
+- 현재 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다. train의 재인코딩 transform은
+  제거하고 기존 image/BEV 기하 증강은 유지했다. val/test는 JPEG를 직접 decode한다.
+- direct runner는 현재 config에 PNG/mixed manifest가 들어오면 거부한다. all-JPEG 전달본에는
+  추가 `--jpeg-cache`를 금지하며 source/config/dataset hash로 새 실행 계약을 만든다.
+- `prepare_base5_jpeg_cache.py`는 기본으로 train/val/test 전체를 생성한다. exporter도 기본으로
+  전체 RGB를 바꾸며, 과거 mixed 재현만 명시적 `--keep-val-png`를 사용한다.
+- 새 비용·분석 표본은 `prepare_base5_qualification_samples.py --data "$JPEG_PORTABLE"`로 만든다.
+  PNG 표본은 명시적 `--legacy-png-probe` 비교에만 허용한다. 비용 실행기의 Q90 기본 경로는
+  이미 JPEG인 bytes를 다시 encode하지 않는다. 과거 raw/PNG 비교 도구는 원본 증거용으로 보존한다.
+- 원본·캐시를 숨기고 전달본을 이동한 단위 검사, mixed 거부·val 캐시 누락·hash 변조·lossless mask
+  보존을 포함한 CPU 검사 35개와 archive 검사 2개를 통과했다. GPU·본학습은 이번에 실행하지 않았다.
+
+### Drive 전달 정책
+
+새 기본 경로는 `AjouNice2026/dataset/Base5/sunny13_5k_jpeg90_261011/`이다.
+`share_base5_jpeg_portable.py`는 manifest 전수 SHA256 → 무손실 tar.zst → 모든 archive member의
+size·SHA256 재읽기 → 분할·연결 SHA256 → Drive 조각별 size·MD5/SHA256 metadata 검증을 수행한다.
+원격 검증 후에만 `COMPLETE.json`을 업로드한다. 인증정보·모델·소스·원본 RGB PNG는 포함하지 않는다.
+archive SHA256은 `8094e24386e2d15c77558896a652e6fc44fd08338f6e5fe2e29fc4c1eb4b7fcd`다.
+압축과 분할은 이미 생성된 JPEG bytes를 변경하지 않는다. 손실 압축은 PNG→Q90 변환 한 번뿐이다.
+
+새 공유본 확인 뒤 기존 PNG 공유 조각만 제거하며 로컬 원본·기존 PNG archive는 그대로 보존한다.
+이전 PNG archive SHA256 `ab24307ee17007c4170dacabb00e6c97130e090ddbdb45f0e99c38b244a8374f`를
+다시 계산해 확인했다. 실제 Drive 완료·교체 근거는 아래 후속 검증 기록을 따른다.
+Vast는 재개하거나 접속하지 않았다. 사용자가 재개하면 이미 원격에 있는 PNG로 전체 JPEG를
+생성하고 같은 exporter·새 config·새 hash 계약을 적용한다. 대용량 데이터 재전송은 필수가 아니다.
+
+### Drive 교체 완료 — 2026-10-11 00:42:26 KST
+
+- [현재 Sunny13 5K JPEG 전달본](https://drive.google.com/drive/folders/1Yso9P7f21RWhe7mgU0SMXXp-B824uIhA)을
+  업로드하고 네 조각의 원격 size·MD5·SHA256 metadata를 확인했다. 복원 안내·manifest·체크섬과
+  `COMPLETE.json`을 포함한 전체 8개 파일의 rclone check는 차이 0이었다.
+- 업로드·원격 검증은 127.81초였다. 향후 Vast 다운로드 시간이나 다른 날씨 전송 속도를 보장하지 않는다.
+- 기존 PNG 공유본은 원격 파일별 SHA256이 로컬 백업 목록과 같음을 먼저 확인했다.
+  기존 19개 archive 조각과 6개 부속 파일만 **Drive 휴지통으로 이동**했으며 영구 삭제하지 않았다.
+  원래 폴더에는 `SUPERSEDED_README.txt`로 새 공유본을 안내한다. 알 수 없는 파일은 없었다.
+- `dataset/Base5/CURRENT_BASE5.json`을 새 전달본으로 갱신하고 원격에서 다시 읽어 확인했다.
+  로컬 원본 PNG·PNG portable·18.10GiB PNG archive는 그대로 보존했다.
+- 근거는 `artifacts/backups/base5_sunny13_5k_jpeg90_261011/parts/COMPLETE.json`,
+  `artifacts/evaluation/bevfusion/base5_all_jpeg_261011/drive_replacement.json`이다.
+- 새 JPEG 기반 300장 비용 표본(대표 200 / stress 100)을 생성했다. 512×1056·batch 4·24 epoch
+  설정의 direct runner **prepare-only**도 통과했다. 실학습·새 GPU 비용 측정은 하지 않았다.
+  이 준비 경로는 연결 검사 근거이며 최종 source hash가 바뀌면 새 work-dir에서 다시 준비한다.

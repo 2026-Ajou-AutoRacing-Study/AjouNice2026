@@ -1,6 +1,6 @@
 # Base5 Vast.ai 4090 학습과 추론 시험 계획
 
-2026-10-09에 작성하고 2026-10-10에 진행 상황을 갱신했다. Sunny13 독립 5K를 먼저
+2026-10-09에 작성하고 2026-10-11에 입력 전환까지 갱신했다. Sunny13 독립 5K를 먼저
 학습하고, 이후 나머지 5개 환경에서 새로 배치한 25K를 더해 6개 환경의 30K로 확장한다.
 [환경별 새 공간 배치 합의](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md)가
 과거의 동일 배치 반복 계획보다 우선한다. 첫 임대는 단일 RTX 4090의 On-demand 방식을 권장한다.
@@ -10,7 +10,12 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
-**최신 상태 — 2026-10-10 21시:** Sunny13 5K의 전달·전수 검증 후, 300장 비용 비교,
+**현재 입력 — 2026-10-11:** train·val·test·분석의 카메라 RGB를 native Q90 JPEG로 통일했다.
+[현재 JPEG 공유본](https://drive.google.com/drive/folders/1Yso9P7f21RWhe7mgU0SMXXp-B824uIhA)은
+약 3.10GiB이며 Drive 교체·파일 검증을 완료했다. PNG 원본은 로컬에 보존한다.
+Vast는 중단 상태를 유지했으며 재개 요청 후 기존 원격 PNG에서 변환한다. 아래 절차를 따른다.
+
+**이전 원격 검증 — 2026-10-10 21시:** Sunny13 5K의 전달·전수 검증 후, 300장 비용 비교,
 64장 동등성, 실제 train 로더의 batch 1/2/4/8, 745장 전체 validation과 원격 저장·재개를
 통과했다. 512×1056·batch 4를 추천하며 본학습은 시작하지 않았다.
 **실제 외부 백업만 네트워크 문제로 미완료**다. 원격 Google API DNS 요청과 일부 직접
@@ -19,16 +24,17 @@ TLS 연결이 timeout이었다. 큰 파일을 반복 전송하거나 인스턴�
 
 ## 2026-10-10 원격 검증 진행 — 본학습 시작 전
 
-### 전체 JPEG 생성과 후속 전달 — 2026-10-11
+### 현재 카메라 RGB 계약과 Vast 전환 — 2026-10-11
 
 로컬에서는 Sunny13 5K의 native 이미지 20,000개를 Q90 JPEG로 생성하고 검증했다.
-현재 선택은 train JPEG / val PNG이며, 원본 PNG와 원본 GT·split은 그대로 보존한다.
-[전체 생성·독립 전달본 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011)를 따른다.
-이 결과가 아래 23:55의 '전체 캐시 아직'보다 최신이다. Vast에는 아직 적용하지 않았다.
+현재 선택은 **train·val·test·분석 모두 JPEG Q90**이며 RGB PNG는 로컬 원본·변환용이다.
+원본 GT·split·LiDAR·보정·mask·depth는 그대로 보존한다.
+[현재 입력 통일·독립 전달본 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011)를 따른다.
+아래 train JPEG / val PNG 및 23:55의 '전체 캐시 아직'은 이전 기록이다. Vast는 아직 재개·접속·변경하지 않았다.
 
 ```text
-artifacts/datasets/base5_sunny13_native_jpeg90_261011/          # 전체 이미지 참고용 캐시
-artifacts/handoff/base5_sunny13_jpeg90_train_portable_261011/   # 독립 학습 전달본
+artifacts/datasets/base5_sunny13_native_jpeg90_261011/          # 전체 이미지 변환용 캐시
+artifacts/handoff/base5_sunny13_jpeg90_portable_261011/         # 현재 train/val/test 독립 전달본
 ```
 
 기존 Vast는 PNG가 이미 전달됐으므로 재개 시 아래 `prepare_base5_jpeg_cache.py`로 원격에서
@@ -37,7 +43,7 @@ artifacts/handoff/base5_sunny13_jpeg90_train_portable_261011/   # 독립 학습 
 
 ```bash
 python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_cache.py \
-  --data "$PNG_PORTABLE" --output "$JPEG_CACHE" --profile 512x1056 --splits train val
+  --data "$PNG_PORTABLE" --output "$JPEG_CACHE" --profile 512x1056 --splits train val test
 
 python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_portable.py \
   --data "$PNG_PORTABLE" --cache "$JPEG_CACHE" --output "$JPEG_PORTABLE"
@@ -46,14 +52,34 @@ python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_portable.py \
 캐시와 전달본 생성은 새 출력 경로에서만 수행한다. 로컬 immutable 보관에는 추가로
 `--hardlink`를 쓸 수 있지만 이후 공유 입력 파일을 수정하지 않는다. 실제 원격 전송에는
 JPEG 전달본 전체와 manifest를 포함하고 전송 후 모든 payload SHA256을 검증한다.
-train 이미지의 PNG는 제외되지만 **LiDAR·라벨·보정·메타데이터와 val PNG가 필요**하다.
-현재 전체 payload는 약 11.96GiB이며 archive 크기를 측정한 값은 아니다.
+train·val·test의 RGB PNG는 제외되지만 **LiDAR·라벨·보정·메타데이터와 무손실 보조 PNG가 필요**하다.
+현재 전체 payload는 약 9.71GiB이며 압축 전달본은 약 3.10GiB다.
 
 독립 JPEG 전달본으로 학습 준비 시 `--data`를 그 전달본 root로 선택하고
-`bevfusion_base5_dense_512_jpeg90_train.py`를 사용한다. 이 경우 `--jpeg-cache`를 추가하지 않는다.
-실행기가 manifest의 image policy를 확인해 JPEG 재변환을 제거하고 val pipeline을 유지한다.
+`bevfusion_base5_dense_512_native_jpeg90.py`를 사용한다. 이 경우 `--jpeg-cache`를 추가하지 않는다.
+실행기가 all-JPEG manifest를 요구하며 JPEG를 다시 압축하지 않는다. train/val 기하 처리는 유지한다.
 데이터/config/소스 hash가 달라지므로 기존 PNG 준비 경로를 그대로 resume하지 않는다.
 외부 checkpoint 백업 확인과 사용자 승인 전에는 본학습을 시작하지 않는다.
+
+사용자가 Vast를 다시 켜면 **최신 소스 전달 → 기존 PNG에서 전체 JPEG 생성 → 새 all-JPEG
+portable 생성·전수 검증 → 새 work-dir에서 실행 준비 → 외부 checkpoint 백업 확인** 순서다.
+이미 원격에 전달된 PNG를 쓰므로 3.10GiB를 다시 전송할 필요는 없다. 기존 PNG run과 새 manifest의
+hash를 같게 만들거나 강제 resume하지 않는다. 원격 전환 검증 후 PNG를 지울지는 별도 선택이다.
+원격 생성은 OpenCV 버전도 기록하고 로컬 픽셀 정책과 비교한다. checkpoint를 새 dataset 폴더에 쓰지 않는다.
+
+향후 새 환경은 로컬에서 all-JPEG 전달본을 만들어 다음 도구로 포장·업로드한다.
+
+```bash
+python perception/detection3d/bevfusion/tools/share_base5_jpeg_portable.py \
+  --data "$JPEG_PORTABLE" --output "$NEW_BACKUP_DIR" \
+  --archive-name "$ENV_ARCHIVE_NAME.tar.zst" \
+  --upload --rclone "$RCLONE" --remote "ajou_drive_private:dataset/Base5/$ENV_RELEASE" \
+  --drive-root-id 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP
+```
+
+업로드만 재개할 때는 같은 output에 `--upload-only`를 사용한다. 새 RGB JPEG를 반복 변환하지 않는다.
+새 공유본의 SHA256SUMS·RESTORE.txt·backup_manifest.json·COMPLETE.json을 함께 내려받는다.
+기존 PNG Drive folder의 과거 백업 링크는 아래 10-10 당시 기록이며 현재 전달본은 10-11 JPEG 공유본이다.
 
 로컬 5060 Ti에서 원본 PNG와 사전 JPEG의 실제 학습도 짧게 비교했다. 512×1056·batch 2·
 worker 4, 각각 32 step을 두 번 수행해 warmup 8 step을 제외했다. 반복 전체 평균은
