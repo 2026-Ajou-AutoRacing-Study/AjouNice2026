@@ -14,6 +14,7 @@ from prepare_base5_portable_dataset import build as png_build, validate
 from prepare_base5_jpeg_portable import build
 from benchmark_base5_jpeg_cache import build_cache
 from run_base5_direct_training import prepare
+from smoke_base5_direct_training import jpeg_smoke_subset
 
 
 class JPEGPortableTest(unittest.TestCase):
@@ -136,6 +137,21 @@ class JPEGPortableTest(unittest.TestCase):
             wrong['image_policy']=dict(train='native_jpeg90',val='original_png',test='original_png')
             (source/'manifest.json').write_text(json.dumps(wrong))
             with self.assertRaisesRegex(ValueError,'encoding/split'):validate(source)
+
+    def test_current_smoke_subset_preserves_jpeg_and_auxiliary_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); source,cache=self.fixture(root)
+            build(source,cache,root/'jpeg')
+            data=root/'jpeg'
+            selected=pickle.loads((data/'infos/512x1056/morai_base5_infos_train.pkl').read_bytes())['data_list']
+            result=jpeg_smoke_subset(data,'512x1056',selected,root/'mini')
+            self.assertEqual(result['scenes'],1)
+            self.assertEqual(result['image_policy'],dict.fromkeys(('train','val','test'),'native_jpeg90'))
+            self.assertIn('data/s0/instance_mask.png',result['files'])
+            self.assertNotIn('data/s1/instance_mask.png',result['files'])
+            self.assertEqual(sum(p.endswith('.jpg') for p in result['files']),4)
+            source.rename(root/'hidden_png'); cache.rename(root/'hidden_cache'); data.rename(root/'hidden_jpeg')
+            validate(root/'mini',True)
 
 
 if __name__=='__main__': unittest.main()

@@ -14,6 +14,8 @@ Base5 작업의 현재 실행 기준은
 `bevfusion_base5_dense_512_native_jpeg90.py`와 all-JPEG portable manifest를 사용한다.
 PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무손실 보조 파일은 변환하지 않는다.
 과거 train JPEG/val PNG와 PNG→online Q90 설정은 비교 이력이며 현재 기본값이 아니다.
+2026-10-11 Vast 재개 후 원격 all-JPEG 전환·전수 검증·새 prepare-only 계약을 완료했다.
+최신 원격 경로·검사·외부 백업의 미완료 조건은 EVIDENCE의 13절을 먼저 따른다.
 Base5-only single-frame·4-class·7D이며 temporal/OD velocity는 OFF다.
 과거 Base3/Base4 config나 HEAD 브랜치를 자동으로 현재 기본값으로 승격하지 않는다.
 

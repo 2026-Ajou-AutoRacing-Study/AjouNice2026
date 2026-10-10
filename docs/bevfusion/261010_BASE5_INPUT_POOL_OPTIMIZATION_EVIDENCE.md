@@ -22,7 +22,9 @@ production E25를 교체하지 않았다. 2026-10-10 17:31~17:34 KST에 임대�
 보존·변환용이다. 아래 12절의 all-JPEG 전달본·Drive 교체가 현재 실행 기준이다.
 mask·depth·LiDAR·GT·보정은 무손실로 유지하고 blur·노출·noise는 OFF다.
 9절의 80%, 10절의 train 캐시, 11절의 train JPEG / val PNG는 비교 이력이다.
-11절의 PNG/JPEG 짧은 학습 비용은 보존한다. 새 입력의 AP는 미검증이며 Vast는 재개하지 않았다.
+11절의 PNG/JPEG 짧은 학습 비용은 보존한다. 새 입력의 AP는 미검증이다.
+2026-10-11 사용자 재개 요청으로 Vast에 접속해 전체 JPEG 변환·전수 검증을 완료했다.
+아래 13절이 최신 원격 입력 기준이며, 외부 checkpoint 백업과 본학습은 아직 미완료다.
 
 추론 opt-in cache A와 **depth/feature 분리 pooling B**를 구현했다. B는 학습 역전파도 지원한다.
 공식 BEVPoolv2의 분리 표현을 참고한 로컬 CUDA 구현이며 NVIDIA v3나 TensorRT 전환이 아니다.
@@ -917,3 +919,81 @@ Vast는 재개하거나 접속하지 않았다. 사용자가 재개하면 이미
 - 새 JPEG 기반 300장 비용 표본(대표 200 / stress 100)을 생성했다. 512×1056·batch 4·24 epoch
   설정의 direct runner **prepare-only**도 통과했다. 실학습·새 GPU 비용 측정은 하지 않았다.
   이 준비 경로는 연결 검사 근거이며 최종 source hash가 바뀌면 새 work-dir에서 다시 준비한다.
+
+<a id="vast-jpeg-migration-261011"></a>
+
+## 13. Vast 재개와 전체 JPEG 입력 전환 — 2026-10-11 01:08 KST
+
+사용자가 기존 인스턴스를 다시 켠 뒤 같은 Direct SSH 주소로 접속했다. 기존 소스·원본
+PNG 5K·초기화 가중치·설치가 남아 있었으며, PyTorch 2.7.1+cu128 / CUDA 12.8 /
+OpenCV 4.11.0과 RTX 4090·49140MiB를 확인했다. 새 이미지 설치나 대용량 데이터 재전송은
+하지 않았다. 이전 소스는 별도 snapshot으로 보존하고 최신 인지 소스만 전달했다.
+
+| 원격 전환 검사 | 실제 결과 |
+|---|---|
+| 전체 native Q90 생성 | 20,000개, 441.07초, 1,619,725,032 bytes |
+| 로컬과 원격 JPEG 내용 | 20,000개 이미지의 경로·SHA256·크기·해상도 aggregate 일치 |
+| 장면·분할 | 5,000장면, train 4,255 / val 745 유지 |
+| 두 profile 전체 infos | 10,000개 record를 재귀 비교, RGB 경로 외 모든 필드 동일 |
+| 무손실 데이터 | 153,284개 파일의 size·SHA256 원본과 동일 |
+| 독립 전달본 | 173,292개 payload 파일 전수 SHA256 검증 통과 |
+| 실제 등록 pipeline | train 64 / val 64장면, Q90 reference와 픽셀·GT·점·투영 정확히 일치 |
+| 새 경로 CPU 검사 | 로컬·원격 각각 36개 통과 |
+
+JPEG 내용 aggregate SHA256은
+`c381d8612d7e42e5bc756bb0c7443eefa3ece6e45ec479c322fd13272f978e6a`다.
+원격 portable manifest SHA256은
+`79a0ccfb8b04049cf4892a32d6e54d69246378ff7e0c68a74cc0f5c719cd82b0`이며,
+로컬 manifest와 다르다. 생성 시간 등 cache provenance가 다르기 때문이며 이미지·GT 차이가 아니다.
+원격 payload는 10,424,732,037 bytes로 로컬보다 3 bytes 크다. 새 manifest를 원래 PNG 또는
+로컬 manifest hash로 강제 변경하지 않는다.
+
+```text
+/root/base5_sunny13_portable_261010/                       # 원본 PNG 보존
+/root/base5_sunny13_native_jpeg90_261011/                  # 원격 생성 캐시
+/root/base5_sunny13_jpeg90_portable_261011/                # 현재 원격 입력
+/root/base5_training_sunny13_512_b4_e24_jpeg90_261011/      # prepare-only
+/root/base5_jpeg_qualification_261011/                    # 변환·검증 근거
+```
+
+512×1056·batch 4·24 epoch·worker 4의 새 실행 계약을 준비했으며 `--run`은 주지 않았다.
+기존 PNG 준비 디렉터리를 재사용하지 않는다. 본학습 시간 약 4.8시간은 이전 원격 실측 기반
+추정이며 이번 변환·CPU 검사로 다시 측정한 값이 아니다. JPEG 정책의 정확도도 미검증이다.
+
+### JPEG 실제 모델의 제한된 저장·재개 검사
+
+기존 smoke exporter는 RGB가 `data/<token>` 안에 있는 PNG 구조를 가정해, 현재 JPEG
+portable의 `jpeg_rgb/` 경로를 그대로 쓸 수 없었다. 새 smoke subset은 선택한 두 장면의
+JPEG·LiDAR·보정·무손실 보조 파일을 원래 상대경로와 정책으로 보존하고 각 파일 SHA256을
+확인한다. 기존 PNG smoke 경로는 별도 함수로 유지했으며 본 5K나 분할을 변경하지 않는다.
+원본·캐시·전체 portable 없이도 독립 subset을 읽는 CPU 검사도 추가했다.
+
+실제 512×1056·4클래스 모델에서 AMP 2 iteration 후 epoch 1 checkpoint를 저장하고 의도적으로
+중단했다. 같은 실행 계약으로 재개해 epoch 2 / 누적 4 iteration을 통과했다. 재개 시작의
+optimizer step은 2였고, optimizer·scheduler·AMP scaler·메인 RNG 상태를 확인했다.
+최종 weight의 유한값 검사와 잔여 partial 파일 0개도 통과했다.
+`report.json`과 `smoke.log`가 근거다. worker·prefetch의 완전 재현이나 정확도·수렴 결과는 아니다.
+
+별도의 본학습 준비 경로에는 `run_manifest.json` / `resolved_train.py`만 있고 학습 checkpoint나
+시작 marker는 없다. 본학습 계약 SHA256은
+`bdfaeac31408403a6f7be1a981abfb09df39b4bc482f512dd65a9d503f179d0f`다.
+이 manifest의 인지 소스 파일 137개 hash가 최종 로컬 코드와 같음을 확인했다.
+본학습은 시작하지 않았으며 검사 종료 후 원격 GPU는 사용률 0%, 할당 약 1MiB였다.
+
+### 외부 checkpoint 백업의 제한 검사
+
+이전 DNS 실패와 달리 이번 Google API 읽기 전용 preflight는 성공했다. 기존 검증용 full
+checkpoint 498,641,285 bytes를 대상으로 180초까지만 검사했다. Drive에 파일이 존재하고
+size 및 MD5 `60d1952705a8ac50d82256aa03f46f18`가 원격 원본과 일치함을 확인했다.
+그러나 전체 SHA256 재읽기·완료 marker·최종 pointer 검증을 끝내기 전에 시간 제한으로
+중단했다. **파일 업로드 관측을 자동 백업 완료로 취급하지 않는다.**
+
+`COMPLETE.json` / `LATEST.json`이 없는 이 qualification 경로를 복구 기준으로 자동 선택하지
+않는다. 원격 원본 checkpoint와 5K는 보존했고, 장시간 전송을 자동 반복하지 않았다.
+재개 후 Google API 연결 성공만으로 외부 네트워크 문제가 영구 해결됐다고 단정하지 않는다.
+외부 백업 경로의 완료·반복 watcher 검증과 사용자 본학습 승인은 여전히 남아 있다.
+
+로컬 근거는 `artifacts/evaluation/bevfusion/base5_vast_jpeg_261011/`의
+`inventory.json`, `pipeline.json`, `unit_final.log`, `prepare.log`, `external_backup_probe.jsonl`이다.
+원격 인증에는 단기 access token만 anonymous RAM으로 전달했으며 갱신 토큰·client secret은
+로컬에 보존했다. 인스턴스 중단·삭제, production·tracker·planning 변경은 하지 않았다.

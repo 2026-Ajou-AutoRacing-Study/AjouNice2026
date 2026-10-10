@@ -5,11 +5,12 @@
 ## CURRENT
 
 현재 실행 순서는 **Sunny13 5K 전달·전수 검증 완료 → 확대 비용·실제 로더·재개 검증 완료 →
-원격 외부 연결·checkpoint 백업 복구 → 최종 설정으로 준비 → 승인 후 본학습**이다.
+원격 JPEG 전환·새 저장/재개 검사·최종 설정 준비 완료 → 외부 checkpoint 백업 완료 검증 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| Vast 재개·전체 JPEG 전환·새 prepare-only 계약 / 외부 백업 아직 | [원격 전수 동등성·실제 입력 검증과 남은 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#vast-jpeg-migration-261011) |
 | 현재 카메라 RGB: train·val·분석 모두 Q90 JPEG / PNG는 로컬 원본 / Drive 교체 | [10-11 입력 통일·전수 검증·전달](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011) |
 | 이전 mixed 전달본 검증 / PNG vs JPEG 짧은 학습 비용 | [20,000개 JPEG·당시 독립 전달·짧은 실제 학습 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011) |
 | 학습용 JPEG Q90 100% / 사전 생성 캐시 추천 / blur·노출·noise OFF | [256장면 픽셀·GT 동등성과 CPU 로더 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010), [실제 JPEG 관측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |

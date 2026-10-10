@@ -13,7 +13,8 @@
 **현재 입력 — 2026-10-11:** train·val·test·분석의 카메라 RGB를 native Q90 JPEG로 통일했다.
 [현재 JPEG 공유본](https://drive.google.com/drive/folders/1Yso9P7f21RWhe7mgU0SMXXp-B824uIhA)은
 약 3.10GiB이며 Drive 교체·파일 검증을 완료했다. PNG 원본은 로컬에 보존한다.
-Vast는 중단 상태를 유지했으며 재개 요청 후 기존 원격 PNG에서 변환한다. 아래 절차를 따른다.
+사용자 재개 요청에 따라 2026-10-11에 같은 Direct SSH 주소로 접속했다. 기존 데이터·설치가
+보존됐으며 원격 PNG에서 전체 JPEG를 생성했다. 아래 원격 전환 결과가 이전 미접속 기록보다 우선한다.
 
 **이전 원격 검증 — 2026-10-10 21시:** Sunny13 5K의 전달·전수 검증 후, 300장 비용 비교,
 64장 동등성, 실제 train 로더의 batch 1/2/4/8, 745장 전체 validation과 원격 저장·재개를
@@ -24,13 +25,49 @@ TLS 연결이 timeout이었다. 큰 파일을 반복 전송하거나 인스턴�
 
 ## 2026-10-10 원격 검증 진행 — 본학습 시작 전
 
+### 재개 후 원격 JPEG 전환 완료 — 2026-10-11 01:08 KST
+
+Direct SSH 주소·포트는 유지됐으며 기존 데이터와 실행 환경을 확인했다. 원격에서 native
+Q90 RGB 20,000개를 441.07초에 생성하고 독립 all-JPEG 전달본을 전수 검증했다.
+로컬과 전체 JPEG 내용 해시가 같고, GT·split·LiDAR·보정·무손실 보조 파일은 유지됐다.
+train 64 / val 64장면의 실제 입력 pipeline도 Q90 reference와 정확히 일치했다.
+새 JPEG 상대경로를 보존하는 smoke subset으로 실제 모델의 AMP 4 iteration,
+epoch 1 저장·의도적 중단·epoch 2 재개까지 통과했다. 정확도·본학습 완료를 뜻하지 않는다.
+[원격 경로·manifest·검사·백업 상태](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#vast-jpeg-migration-261011)가
+아래의 재개 전 계획보다 우선한다. 문서와 검사 근거는 로컬에 보존한다.
+
+현재 원격 실행 위치는 `/root/AjouNice2026`이다. `/workspace`로 가정하거나 기존 `docker run`을
+중첩하지 않는다. 다음 명령은 실제로 통과한 **prepare-only** 명령이다.
+
+```bash
+cd /root/AjouNice2026
+export PYTHONPATH="$PWD:$PWD/third_party/mmdetection3d:$PWD/docker/bevfusion:$PYTHONPATH"
+python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
+  --data /root/base5_sunny13_jpeg90_portable_261011 \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py \
+  --profile 512x1056 --epochs 24 --batch 4 --workers 4 \
+  --init-checkpoint /root/base5_nuscenes_camera_only_261010.pth \
+  --work-dir /root/base5_training_sunny13_512_b4_e24_jpeg90_261011
+```
+
+추가 `--jpeg-cache`는 사용하지 않는다. 기존 PNG work-dir의 hash를 수정하거나 그대로
+resume하지 않는다. 새 실행 계약에는 JPEG manifest·최신 실제 소스·초기화·스케줄이 포함된다.
+본학습을 실제로 시작하기 전에는 외부 백업 완료·반복 watcher 검증과 사용자 승인이 필요하다.
+
+Google API preflight는 이번에 성공했으나 498,641,285-byte checkpoint의 외부 백업 검사가
+180초 제한으로 종료됐다. Drive 파일의 size·MD5 일치는 확인했지만 전체 SHA256 재읽기와
+완료 marker·최종 pointer는 미완료다. 시간 제한을 늘려 계속 재전송하지 않았고 원본을 보존했다.
+따라서 외부 백업 gate와 본학습은 완료 상태가 아니다. 이전 약 4.8시간 학습 추정은 유지하며
+이번 JPEG 생성 시간을 본학습 시간으로 해석하지 않는다.
+
 ### 현재 카메라 RGB 계약과 Vast 전환 — 2026-10-11
 
 로컬에서는 Sunny13 5K의 native 이미지 20,000개를 Q90 JPEG로 생성하고 검증했다.
 현재 선택은 **train·val·test·분석 모두 JPEG Q90**이며 RGB PNG는 로컬 원본·변환용이다.
 원본 GT·split·LiDAR·보정·mask·depth는 그대로 보존한다.
 [현재 입력 통일·독립 전달본 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011)를 따른다.
-아래 train JPEG / val PNG 및 23:55의 '전체 캐시 아직'은 이전 기록이다. Vast는 아직 재개·접속·변경하지 않았다.
+아래 train JPEG / val PNG 및 23:55의 '전체 캐시 아직'은 이전 기록이다.
+사용자 재개 이후의 실제 원격 상태는 다음 절과 최신 EVIDENCE를 따른다.
 
 ```text
 artifacts/datasets/base5_sunny13_native_jpeg90_261011/          # 전체 이미지 변환용 캐시

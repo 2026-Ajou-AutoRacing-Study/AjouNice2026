@@ -54,7 +54,9 @@
   GT·LiDAR·보정은 무손실로 유지한다. 새 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
   [전수 정합·Drive 교체·Vast 전환](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011)을
   따른다. 이전 train JPEG / val PNG 및 별도 train 캐시는 비교 이력이다. 이미 준비한 PNG run의
-  hash를 덮어쓰거나 그대로 resume하지 않는다. Vast 재개·외부 checkpoint 백업·본학습은 아직이다.
+  hash를 덮어쓰거나 그대로 resume하지 않는다. 사용자 재개 후 원격 JPEG 생성·전수 검증과
+  새 prepare-only 계약을 완료했다. [원격 입력 전환과 남은 백업 조건](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#vast-jpeg-migration-261011)을
+  먼저 따른다. 외부 checkpoint 백업 완료·본학습은 아직이다.
 
 - **이전 선택 — 2026-10-10 23:55 KST:** 사용자 합의로 native JPEG Q90을 네 카메라
   모두 100% 적용한다. blur·노출·noise는 OFF다. 별도 train JPEG 캐시를 추천하고 매번 PNG에서
