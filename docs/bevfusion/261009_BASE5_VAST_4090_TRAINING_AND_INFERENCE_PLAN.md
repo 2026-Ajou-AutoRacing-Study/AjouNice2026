@@ -10,6 +10,14 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
+**최신 파생 라벨 — 2026-10-11:** native roll/pitch를 버리던 infos 변환을 upright 7D
+enclosure로 보완했다. [라벨 정책과 전수·실제 포인트·GPU 재개 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011)가
+아래 ‘GT 유지’ 이력보다 우선한다. 센서·native GT·클래스·개수·분할은 그대로이고 파생 infos
+크기만 바뀐다. 현재 로컬 입력은 `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
+이번에 Vast/Drive를 변경하지 않았다. 재개 승인 후 최신 소스를 전달하고 기존 원격 JPEG/raw의
+RPY로 같은 변환을 수행한다. 센서 재전송은 불필요하다. 새 work-dir에서 준비·검증하고,
+옛 학습 계약에 새 라벨을 넣어 resume하지 않는다. 현재 config는 옛 yaw-only infos를 거부한다.
+
 **현재 입력 — 2026-10-11:** train·val·test·분석의 카메라 RGB를 native Q90 JPEG로 통일했다.
 [현재 JPEG 공유본](https://drive.google.com/drive/folders/1Yso9P7f21RWhe7mgU0SMXXp-B824uIhA)은
 약 3.10GiB이며 Drive 교체·파일 검증을 완료했다. PNG 원본은 로컬에 보존한다.

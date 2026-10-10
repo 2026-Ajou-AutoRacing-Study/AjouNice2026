@@ -1,6 +1,10 @@
 # MORAI OD dataset 문서 index
 
-마지막 정리: 2026-10-10.
+마지막 정리: 2026-10-11.
+
+- **최신 학습용 파생 GT:** [native RPY → upright 7D·전수·증강·실제 점·GPU 재개](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011).
+  raw와 센서·클래스·GT 수·분할은 보존하고 파생 infos의 크기만 보완한다. 재촬영하지 않는다.
+  최신 입력은 `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
 
 - **현재 학습 준비:** [전수crop/직사각형축/pooling GPU 검증](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md),
   [원격상대경로5K·direct학습/resume/백업·중복파일정리](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과).

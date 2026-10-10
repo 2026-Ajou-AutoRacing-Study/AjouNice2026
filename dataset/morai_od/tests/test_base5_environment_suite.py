@@ -83,5 +83,35 @@ class EnvironmentTests(unittest.TestCase):
             self.assertEqual(row['scene_group_id'],'source-cell')
             self.assertEqual(row['environment_tag'],'sunny13')
 
+    def test_converter_encloses_tilt_without_changing_evidence(self):
+        from PIL import Image
+        from base5_upright_boxes import BOX_GEOMETRY_POLICY, LEGACY_BOX_GEOMETRY_POLICY
+        sensor=Path(__file__).resolve().parents[3]/'configs/sensors/Sensor_competition_local.json'
+        calibration=normalized_sensor_calibration(sensor)
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);cap=root/'capture';cap.mkdir()
+            atomic_json(cap/'metadata.json',dict(runtime_actors=[dict(unique_id=9)],split='train',scene_group_id='cell'))
+            component=dict(parent_uid=9,component_id='9:Obstacle:0',asset='PE_Drum',training_class='obstacle',
+                center_lidar_m=[10,0,-1],size_m=[.5,.5,.8],rotation_rpy=[1.5707963267948966,0,.3],
+                positive_lidar1_camera0=True,lidar_points=2)
+            atomic_json(cap/'audit.json',dict(review_reasons=[],components=[component]))
+            folder=cap/'LIDAR_5';folder.mkdir();(folder/'0_Intensity.bin').write_bytes(bytes(16))
+            for cam in calibration['cameras'].values():
+                folder=cap/('CAMERA_'+str(cam['sensor_unique_id']));folder.mkdir()
+                Image.new('RGB',tuple(cam['resolution_px'])).save(folder/'0_Intensity.png')
+            ledger=root/'ledger.jsonl';ledger.write_text(json.dumps(dict(id='s',status='accepted_candidate',capture_root=str(cap)))+'\n')
+            old_audit=(cap/'audit.json').read_bytes()
+            convert(ledger,root/'new',sensor)
+            convert(ledger,root/'old',sensor,box_geometry_policy=LEGACY_BOX_GEOMETRY_POLICY)
+            new=pickle.loads((root/'new/morai_base5_infos_train.pkl').read_bytes())
+            old=pickle.loads((root/'old/morai_base5_infos_train.pkl').read_bytes())
+            self.assertEqual(new['metainfo']['box_geometry_policy'],BOX_GEOMETRY_POLICY)
+            instance=new['data_list'][0]['instances'][0]
+            self.assertAlmostEqual(instance['bbox_3d'][4],.8)
+            self.assertAlmostEqual(instance['bbox_3d'][5],.5)
+            instance['bbox_3d']=old['data_list'][0]['instances'][0]['bbox_3d']
+            self.assertEqual(new['data_list'],old['data_list'])
+            self.assertEqual((cap/'audit.json').read_bytes(),old_audit)
+
 
 if __name__=='__main__':unittest.main()

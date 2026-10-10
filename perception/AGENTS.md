@@ -10,6 +10,12 @@ Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`와
 `../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`의
 2026-10-11 JPEG 입력 전환 결과다. Sunny13 5K 완료, 다른 5환경 실제 25K/본학습은 아직이다.
+2026-10-11 최신 파생 GT는 EVIDENCE 16절의 `native_rpy_fixed_yaw_enclosure_v1`이다.
+현재 입력은 `../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
+raw·센서·클래스·GT 수·split은 유지하고 파생 infos 크기만 native 8모서리 enclosure로 보완했다.
+현재 native-JPEG config는 old yaw-only manifest를 거부한다. 15절 heatmap 수정도 유지한다.
+Vast/Drive는 이 작업에서 변경하지 않았다. 원격 재개 시 최신 소스·기존 JPEG의 라벨 재변환·
+새 work-dir 준비를 수행하며 센서를 재전송하거나 이전 계약으로 resume하지 않는다.
 현재 카메라 RGB는 train/val/test/분석 모두 native Q90 JPEG다.
 `bevfusion_base5_dense_512_native_jpeg90.py`와 all-JPEG portable manifest를 사용한다.
 PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무손실 보조 파일은 변환하지 않는다.

@@ -8,6 +8,7 @@ import pickle
 
 import numpy as np
 from dynamic_capture_metadata import normalized_sensor_calibration
+from base5_upright_boxes import BOX_GEOMETRY_POLICY, LEGACY_BOX_GEOMETRY_POLICY, component_bbox
 
 CLASSES=('vehicle','pedestrian','obstacle','animal')
 DEFAULT_ROI=(-100.,-30.,-3.,100.,30.,2.)
@@ -18,7 +19,8 @@ def in_roi(center,roi=DEFAULT_ROI):
     return bool((center>=bounds[:3]).all() and (center<bounds[3:]).all())
 
 
-def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None,roi=DEFAULT_ROI,environment_tag=None):
+def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None,roi=DEFAULT_ROI,environment_tag=None,
+            box_geometry_policy=BOX_GEOMETRY_POLICY):
     roi=list(map(float,roi))
     if len(roi)!=6 or not np.isfinite(roi).all() or any(a>=b for a,b in zip(roi[:3],roi[3:])):
         raise ValueError('Invalid LiDAR-frame training ROI')
@@ -55,7 +57,7 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
             if not component['positive_'+policy]: excluded[component['training_class']]+=1;continue
             if not in_roi(component['center_lidar_m'],roi):excluded['outside_lidar_roi']+=1;continue
             cls=component['training_class'];kept[cls]+=1
-            box=component['center_lidar_m']+component['size_m']+[component['rotation_rpy'][2]]
+            box=component_bbox(component, box_geometry_policy)
             instances.append(dict(bbox_3d=box,bbox_label_3d=CLASSES.index(cls),
                 num_lidar_pts=component['lidar_points'],bbox_3d_isvalid=True,
                 instance_id=len(instances),parent_uid=component['parent_uid'],
@@ -79,12 +81,14 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
             lidar_points=dict(lidar_path=mapped(lidar[0]),num_pts_feats=4,lidar2ego=lidar2ego.tolist()),
             images=images,instances=instances))
     metainfo=dict(dataset='base5_independent',classes=CLASSES,box_dim=7,positive_policy=policy,
-        sensor_sha256=calibration['source_sha256'],single_frame=True,velocity_target=False,point_cloud_range=roi,range_frame='lidar')
+        sensor_sha256=calibration['source_sha256'],single_frame=True,velocity_target=False,point_cloud_range=roi,range_frame='lidar',
+        box_geometry_policy=box_geometry_policy)
     for split,rows in splits.items():
         with (output/f'morai_base5_infos_{split}.pkl').open('wb') as f:
             pickle.dump(dict(metainfo=metainfo,data_list=rows),f)
     report=dict(splits={k:len(v) for k,v in splits.items()},kept_gt=dict(kept),excluded_gt=dict(excluded),
         excluded_review_scenes=review,excluded_failed_scenes=failed,policy=policy,raw_preserved=True,
+        box_geometry_policy=box_geometry_policy,
         limitations=['Scene-disjoint link split is not a held-out real-driving test.',
                     'Unsupported components are excluded by explicit evidence policy; all remain in raw audit.'])
     (output/'conversion_audit.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -99,4 +103,5 @@ if __name__=='__main__':
     p.add_argument('--serialized-root',type=Path)
     p.add_argument('--point-cloud-range',type=float,nargs=6,default=DEFAULT_ROI)
     p.add_argument('--environment-tag',help='Unique sample tokens while preserving scene groups across six environments')
-    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range,a.environment_tag),indent=2))
+    p.add_argument('--box-geometry-policy',choices=[BOX_GEOMETRY_POLICY,LEGACY_BOX_GEOMETRY_POLICY],default=BOX_GEOMETRY_POLICY)
+    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range,a.environment_tag,a.box_geometry_policy),indent=2))

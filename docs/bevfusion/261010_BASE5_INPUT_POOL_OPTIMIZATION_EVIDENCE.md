@@ -2,10 +2,10 @@
 
 ## CURRENT / 다음 판단
 
-**2026-10-11 최신: Base5 학습 heatmap 정답 축을 수정하고 로컬 전수·역전파·재개 검증을
-완료했다.** 아래 15절이 최신 학습 정합 기준이다. 이전 feature 축/실행 검사는 학습용
-heatmap 정답 생성까지 보장하지 못했다. 수집 raw·GT·split·E25는 유지하며 재수집하지 않는다.
-Vast에는 14절 입력 변경과 이번 수정이 아직 없다. 다음은 로컬 공간 격자 후보 비용·위험 분석,
+**2026-10-11 최신: heatmap 정답 축 수정에 이어 native roll/pitch를 반영한 upright 7D
+라벨 변환을 완료했다.** 아래 16절이 최신 파생 라벨 기준이며 15절의 축 수정도 유지한다.
+수집 raw·센서·클래스·GT 수·split·E25는 보존하고 파생 infos의 박스 크기만 보완했다.
+재수집하지 않는다. Vast에는 14–16절 변경이 아직 없다. 다음은 로컬 공간 격자 후보 비용·위험 분석,
 선택 격자의 depth 간격 비교이며, 이후 원격 소스 갱신·새 준비·외부 백업 확인을 거쳐 본학습한다.
 
 Sunny13 **수집이 완료된 실제 5K 전체**의 crop 분석과 5060 Ti에서의 원본 입력 비용 검증을 완료했다.
@@ -1218,3 +1218,110 @@ team 이미지에서 `--data artifacts/handoff/base5_sunny13_jpeg90_portable_261
 
 기존 raw/GT는 격자·depth 후보에서도 재사용할 수 있다. 이전 원격 소스·prepare-only 계약은
 이번 정답 수정 이전이므로 덮어쓰거나 그대로 resume하지 않는다. 데이터 재전송은 필요하지 않다.
+
+<a id="base5-upright-native-rpy-261011"></a>
+
+## 16. 기울어진 native BBox의 upright 7D 변환 — 2026-10-11
+
+### 발견과 정책
+
+native `Instance.txt`는 중심·크기·roll/pitch/yaw를 기록하지만 기존 infos 변환은
+roll/pitch를 버리고 크기는 그대로 사용했다. 실제 넘어진 드럼통에도 서 있는 드럼통의
+박스가 생기는 문제다. raw → 기존 infos의 값 복사 자체는 일치했으나 **9D 회전 박스를
+7D 박스로 근사하는 정책이 부족했다.** 카메라로 확인한 드럼통·철제 바리케이드도 실제로
+기울어져 있었다. 지면 배치 버그나 모든 원본 annotation의 정확성을 인증하는 검사는 아니다.
+
+정책 `native_rpy_fixed_yaw_enclosure_v1`은 중심과 native yaw를 유지하고, native 회전 박스의
+8개 모서리를 모두 포함하도록 upright 박스의 길이·폭·높이를 계산한다.
+`R = Rz(yaw) Ry(pitch) Rx(roll)`일 때 크기는 `abs(Ry Rx) @ native_size`다.
+이는 고정 yaw에서의 enclosure이지 최소 부피 박스나 실제 mesh segmentation이 아니다.
+새 공간에는 배경이 더 포함될 수 있다. 9D detector·새 클래스·재촬영은 도입하지 않는다.
+
+5° 같은 임계값으로 일부만 바꾸지 않고 **모든 GT에 동일한 변환**을 적용한다. native R/P가
+정확히 0이면 크기도 정확히 유지한다. 실제 5K에는 미세한 기울기도 있어 모든 GT 크기에
+작은 변화가 생겼다. ‘큰 기울기 55개’와 ‘변환 대상 전체 11,052개’를 혼동하지 않는다.
+가시성 판정과 `num_lidar_pts`는 기존 native full-RPY 박스의 센서 근거 그대로이며,
+확장 박스 안의 새 배경 포인트를 정답 근거로 추가하지 않는다.
+
+### 전수·실제 포인트·증강 결과
+
+현재 512×1056 profile의 고유 GT 기준이다. 기울기는 `acos(abs(R[2,2]))`로 계산했다.
+180° 뒤집힘을 단순히 ‘큰 경사’로 집계하지 않는 측정이다.
+
+| 항목 | 결과 |
+|---|---:|
+| 장면 / train / val | 5,000 / 4,255 / 745 |
+| GT / 클래스·중심·yaw·split 변경 | 11,052 / 없음 |
+| 5° 초과 | 55 GT, 54장면: 장애물 51 / 차량 4 |
+| 20° 초과 | 17 GT: train 16 / val 1 |
+| camera-only / 카메라 component 대응 모호·LiDAR 근거 유지 | 679 / 223 GT, 변동 없음 |
+| 큰 기울기 GT의 native 박스 내부 실제 LiDAR 점 | 8,525개 |
+| 위 점 중 파생 박스 밖으로 빠진 수 | **기존 633 → 수정 0** |
+| 원본 + train 증강 2회, native 모서리 포함 검사 | **29,752회 통과** |
+| ROI 필터 후 실제 학습 정답 peak 검사 | **29,714회 통과** |
+| box coder 왕복 최대 XYZ·크기 절대 오차 | 0.00002289m |
+
+전체 GT의 크기 변화 절대값 중앙값은 길이 6.12mm / 폭 4.46mm / 높이 10.15mm다.
+p95는 28.07 / 21.78 / 79.94mm다. 큰 기울기 사례의 최대 변화는 각각
+0.546 / 0.468 / 1.184m로, 평균적으로 작은 변화라고 넘어진 객체까지 작은 변화인 것은 아니다.
+
+`b5v2_04541`의 PE_Drum은 약 89.86° 기울어졌다. native 박스에 들어 있던 실제 점
+17개 중 기존 파생 박스 밖의 7개가 새 박스에는 모두 포함된다. 이 사례를 실제 좌표로
+그린 `native_and_aug_v1/sideways_barrel_boxes.png`에 native/기존/새 박스를 함께 기록했다.
+
+검사는 actual `MoraiBase5Dataset`, native `Instance.txt`, 8개 모서리, actual
+`BEVFusionGlobalRotScaleTrans`를 사용했다. 기하 증강 검사에서는 모서리 자체를 포인트로
+변환해 GT와 함께 움직이는지 확인했다. 55개 큰 기울기 사례는 실제 LiDAR도 검사했다.
+모든 카메라의 물리적 정합·모든 GT 의미·탐지 AP를 전수 인증했다는 뜻은 아니다.
+
+- 관련 단위·회귀 검사: host 27개 + team 이미지 32개, **총 59개 통과**.
+- 실제 5060 Ti 전체 모델: animal 장면과 넘어진 드럼통이 있는 혼합 장면, 네 클래스,
+  AMP 4 iteration 통과. iteration 2 저장 → iteration 4 재개를 확인했다.
+- optimizer·scheduler·AMP scaler 복구와 유한 weight, 잔여 partial 파일 0개를 확인했다.
+  이는 아주 짧은 학습 경로 검사이며 수렴·성능·학습 처리량 실험은 아니다.
+
+### 현재 입력과 재현·원격 반영
+
+**최신 로컬 학습 입력**은 다음 경로다. 이전 전달본을 덮어쓰지 않았다.
+
+```text
+artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release/
+```
+
+manifest SHA256: `47f208bba79cb4866f64bf6133b06905e246822fc4fa24ccdafb7f90622df039`.
+원본 JPEG portable의 SHA256은 계속
+`c7df4c47babb1197b871ccd877d5bd95b5a5eb8833781906c5dd6ff36d61a91e`다.
+512×1056와 448×896 profile을 모두 변환했고 센서·native annotation·audit는 동일한
+내용의 hardlink로 보존했다. provenance에 이전 manifest와 모든 박스 변경·native RPY를 남겼다.
+`base5_sunny13_jpeg90_upright_v1_261011/`은 host hardlink 권한 문제로 중단된 진단 경로이며
+최신 입력이 아니다. root 권한의 기존 team Docker로 완성한 `_release`만 사용한다.
+
+신규 raw 변환기의 기본값도 같은 정책이다. 이전 방식은 명시적인
+`--box-geometry-policy native_size_yaw_only_legacy`일 때만 재현한다.
+현재 native-JPEG config와 direct runner는 manifest 및 모든 split infos의 정책을 검사해
+old yaw-only 라벨을 실수로 사용하지 못하게 한다. portable exporter와 smoke subset도 정책을 유지한다.
+
+기존 JPEG portable에서의 변환은 CPU-only이며 다음 도구를 사용한다. output은 새 경로여야 한다.
+로컬의 root 소유 payload는 team Docker 안에서, 기존 Vast payload는 root 셸에서 실행한다.
+
+```bash
+python perception/detection3d/bevfusion/tools/prepare_base5_upright_portable.py \
+  --data /path/to/existing/jpeg_portable \
+  --output /path/to/new/jpeg_upright_portable \
+  --hardlink
+```
+
+`--hardlink`는 같은 파일시스템의 불변 payload에만 사용한다. 다른 디스크라면 생략한다.
+전체 SHA 검증은 수행하지만 JPEG/LiDAR 재인코딩·클라우드 전송은 하지 않는다.
+원격 재개 승인을 받으면 최신 소스 전달 → 기존 원격 JPEG에서 이 변환 → 새 준비 계약과
+work-dir → 4090 재검증 순서다. 옛 work-dir의 resume로 라벨을 중간 교체하지 않는다.
+**이번에는 Vast에 접속하지 않았고 Drive 전달본도 수정하지 않았다.** Drive의 기존 JPEG/raw
+자료에는 재변환에 필요한 native RPY가 보존돼 있으므로 재촬영·센서 재전송은 필요 없다.
+
+ignored 검증 근거는 `artifacts/evaluation/bevfusion/base5_upright_targets_261011/`의
+`native_and_aug_v1/report.json`, `heatmap_v1/report.json`, `gpu_resume_smoke/report.json`이다.
+재현 도구는 `audit_base5_upright_targets.py`, `audit_base5_heatmap_targets.py`,
+`smoke_base5_direct_training.py`이며 smoke의 `--capture` 2개로 위 실제 장면을 지정할 수 있다.
+
+다음 순서는 15절의 공간 격자 세 후보 비교 → 선택 격자의 depth 간격 비교 → 승인 후
+4090 최신 소스·새 라벨·비용·외부 백업 검증 → 본학습·rosbag 성능 평가다.

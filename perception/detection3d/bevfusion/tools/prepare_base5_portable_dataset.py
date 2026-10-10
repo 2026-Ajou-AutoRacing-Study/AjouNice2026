@@ -60,7 +60,7 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
         roots[token] = Path(row['capture_root']).resolve(strict=True)
     if len(roots) != expected_scenes:
         raise ValueError('Scene count mismatch')
-    exports = {}; source_infos = {}; reference_split = None
+    exports = {}; source_infos = {}; reference_split = None; geometry_policies = set()
     for profile, folder in profiles.items():
         if not re.fullmatch(r'[A-Za-z0-9_-]+', profile):
             raise ValueError('Invalid profile')
@@ -69,6 +69,7 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
         for split in ('train', 'val', 'test'):
             source = folder / ('morai_base5_infos_' + split + '.pkl')
             info = pickle.loads(source.read_bytes())
+            geometry_policies.add(info['metainfo'].get('box_geometry_policy'))
             source_infos[profile][split] = sha256(source)
             if tuple(info['metainfo']['classes']) != ('vehicle', 'pedestrian', 'obstacle', 'animal'):
                 raise ValueError('Unexpected class contract')
@@ -96,6 +97,8 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
         # an explicit val alias, never silently create independent test data.
         if exports[profile]['test']['data_list'] and exports[profile]['test']['data_list'] != exports[profile]['val']['data_list']:
             raise ValueError('Unexpected test contract; review before exporting')
+    if len(geometry_policies) != 1:
+        raise ValueError('Crop profiles/splits disagree on box geometry policy')
     output.mkdir(parents=True)
     inventory = {}; provenance = {}
     def transfer(source, relative):
@@ -139,6 +142,8 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
         provenance=provenance, training_paths='relative to the package root',
         test_contract='synthetic test infos preserved (empty or val alias); mission held-out bags are separate',
         hardlink_warning='Do not mutate exported inputs; local hardlinks share source inodes.')
+    if next(iter(geometry_policies)) is not None:
+        manifest['box_geometry_policy'] = next(iter(geometry_policies))
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     validate(output)
     return manifest
@@ -161,6 +166,8 @@ def validate(root, verify_hashes=False):
     for profile in manifest['profiles']:
         for split in ('train', 'val', 'test'):
             info = pickle.loads((root / 'infos' / profile / ('morai_base5_infos_' + split + '.pkl')).read_bytes())
+            if manifest.get('box_geometry_policy') != info['metainfo'].get('box_geometry_policy'):
+                raise ValueError('Portable manifest/infos box geometry policy mismatch')
             for record in info['data_list']:
                 if policy:
                     expected = '.jpg' if policy[split] == 'native_jpeg90' else '.png'

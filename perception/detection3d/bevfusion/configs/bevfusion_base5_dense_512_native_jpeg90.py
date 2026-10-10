@@ -9,6 +9,7 @@ from copy import deepcopy
 _base_ = './bevfusion_base5_dense_512_separated_candidate.py'
 
 required_camera_input_policy = 'native_jpeg90'
+required_box_geometry_policy = 'native_rpy_fixed_yaw_enclosure_v1'
 def _base5_input_pipeline(source):
     pipeline = []
     for transform in deepcopy(source):

@@ -4,6 +4,13 @@
 필요한 기술 식별자 외에는 문장으로 풀어 쓴다. 명령·경로·해시·측정 수치는 보존한다.
 아래는 최신 기록부터 쌓인 이력이다. 과거의 ‘최신’, ‘미시작’, ‘미구현’을 현재 상태로 재사용하지 않는다.
 
+2026-10-11 최신 학습용 파생 GT는 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`
+16절이다. `build_base5_bevfusion_infos.py`는 native full RPY의 8모서리를 포함하는 upright 7D
+크기를 기본 생성한다. 중심·yaw·가시성·클래스·split·native 원본은 유지한다.
+이미 수집한 5K의 최신 입력은 `../../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
+센서 재수집은 불필요하며 collector/generator/runtime은 이번에 수정하지 않았다.
+기존 portable는 보존하고 `prepare_base5_upright_portable.py`로 새 infos를 파생한다.
+
 2026-10-10 최신 입력/GPU 후속은 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`다.
 사용자가 MR/master 종료 후 로컬 실험을 승인했다. 완료 5K 전수 crop·448/512 파생 infos·실제 loader/online 정합,
 확대 sparse 축 수정·cache/분리 pooling·14장 전체 모델 동등성·3 step 역전파를 검증했다.

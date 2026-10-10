@@ -38,7 +38,8 @@ class JPEGPortableTest(unittest.TestCase):
         ledger = root / 'ledger.jsonl'; ledger.write_text(''.join(json.dumps(r)+'\n' for r in rows))
         folder = root / 'infos'; folder.mkdir()
         for split in ('train','val','test'):
-            info = dict(metainfo=dict(classes=('vehicle','pedestrian','obstacle','animal')),
+            info = dict(metainfo=dict(classes=('vehicle','pedestrian','obstacle','animal'),
+                                     box_geometry_policy='native_rpy_fixed_yaw_enclosure_v1'),
                         data_list=[records[0]] if split=='train' else [records[1]])
             (folder/('morai_base5_infos_'+split+'.pkl')).write_bytes(pickle.dumps(info))
         (folder/'calibration.json').write_text('{}')

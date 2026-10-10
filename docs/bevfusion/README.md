@@ -4,12 +4,13 @@
 
 ## CURRENT
 
-현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/학습 정답 축 수정·전수·재개 검증 완료 →
+현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
 로컬 공간 격자/depth 후보 검토 → 원격 최신 소스·새 준비·비용/외부 백업 검증 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| 기울어진 native RPY 박스 → upright 7D / 최신 파생 라벨 입력·전수·실제 점·재개 | [10-11 upright 라벨 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | Base5 학습 heatmap 축 수정 / 실제 5K·증강·전체 모델 역전파/재개 / 다음 격자·depth 실험 | [10-11 학습 정답 정합 검증과 후속 순서](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011) |
 | Base5 유효 반사점 필터·uint8 운반 / 기존 증강 유지 / 로컬 검증 | [10-11 정합성·CPU 비용·원격 재개 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-valid-returns-uint8-261011) |
 | Vast 재개·전체 JPEG 전환·새 prepare-only 계약 / 외부 백업 아직 | [원격 전수 동등성·실제 입력 검증과 남은 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#vast-jpeg-migration-261011) |
@@ -32,9 +33,10 @@ camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 
 ±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
 2026-10-11 현재 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
 카메라 RGB는 train·val·test·분석 모두 원본 해상도 Q90 JPEG로 통일하고 blur·노출·noise는 끈다.
-`artifacts/handoff/base5_sunny13_jpeg90_portable_261011/`의 all-JPEG manifest를 사용한다.
+`artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release/`의 all-JPEG/upright manifest를 사용한다.
 RGB PNG는 로컬 백업·변환용이며 mask·depth·native GT 등 보조 PNG는 무손실로 보존한다.
-LiDAR 원본·GT·보정·split·production E25는 바꾸지 않았다. Base5만 0 기록·nonfinite 행을
+LiDAR·native GT·보정·split·production E25는 바꾸지 않았다. 파생 infos의 크기만 native RPY를
+포함하는 upright enclosure로 보완했다. Base5만 0 기록·nonfinite 행을
 증강 전에 제거하고 이미지를 GPU 정규화 전까지 uint8으로 유지한다. 로컬 정합 검사와
 비용 측정을 통과했으며 Vast에는 아직 이 변경을 전달하지 않았다. 기존 원격 prepare-only
 계약을 덮어쓰지 않고 재개 후 새 work-dir을 사용한다. val 픽셀 분포는 의도적으로 Q90으로

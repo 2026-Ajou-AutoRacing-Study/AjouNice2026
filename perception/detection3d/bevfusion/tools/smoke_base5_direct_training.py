@@ -72,6 +72,8 @@ def jpeg_smoke_subset(source, profile, selected, output):
         image_policy=inventory['image_policy'],copy_mode='hardlink',
         source_manifest_sha256=sha256(source/'manifest.json'),
         source_tokens=sorted(tokens),scope='Bounded smoke only; not train/val selection or production data')
+    if inventory.get('box_geometry_policy'):
+        result['box_geometry_policy'] = inventory['box_geometry_policy']
     (output/'manifest.json').write_text(json.dumps(result,indent=2)+'\n')
     validate(output,verify_hashes=True)
     return result
@@ -82,15 +84,21 @@ def main():
     p.add_argument('--data',type=Path,required=True); p.add_argument('--output',type=Path,required=True)
     p.add_argument('--config',type=Path,required=True); p.add_argument('--init-checkpoint',type=Path,required=True)
     p.add_argument('--profile',choices=['448x896','512x1056'],default='448x896')
+    p.add_argument('--capture',action='append',help='Exactly two explicit train tokens for a targeted geometry smoke')
     a=p.parse_args()
     if a.output.exists(): p.error('Use a fresh output')
     a.output.mkdir(parents=True)
     source=a.data/'infos'/a.profile
     info=pickle.loads((source/'morai_base5_infos_train.pkl').read_bytes())
     records=info['data_list']; labels=lambda r:{i['bbox_label_3d'] for i in r['instances']}
-    selected=[next(r for r in records if 3 in labels(r))]
-    missing=set(range(4))-labels(selected[0])
-    selected.append(max((r for r in records if r['token']!=selected[0]['token']),key=lambda r:len(labels(r)&missing)))
+    if a.capture:
+        if len(a.capture)!=2 or len(set(a.capture))!=2:p.error('Provide exactly two distinct train capture tokens')
+        lookup={r['token']:r for r in records}
+        selected=[lookup[token] for token in a.capture]
+    else:
+        selected=[next(r for r in records if 3 in labels(r))]
+        missing=set(range(4))-labels(selected[0])
+        selected.append(max((r for r in records if r['token']!=selected[0]['token']),key=lambda r:len(labels(r)&missing)))
     if set.union(*(labels(r) for r in selected)) != set(range(4)):
         raise ValueError('Selected two captures do not exercise all four classes')
     policy=json.loads((a.data/'manifest.json').read_text()).get('image_policy')

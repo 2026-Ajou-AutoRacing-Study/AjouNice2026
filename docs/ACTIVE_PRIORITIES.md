@@ -49,6 +49,13 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 최신 파생 GT:** native roll/pitch를 버리던 변환을 고정 yaw의 upright
+  enclosure로 보완했다. 기존 센서·native GT·클래스·개수·분할은 보존한다. 현재 학습 입력은
+  `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`이며 아래 heatmap 수정도 유지한다.
+  [라벨 정책·전수·실제 포인트·GPU 재개 검증](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011)을
+  따른다. 다음 격자/depth 비교는 새 라벨로 진행한다. Vast와 Drive는 이번 작업에서 변경하지 않았다.
+  재개 승인 후 원격의 기존 native RPY로 라벨만 재변환하고 새 학습 계약을 만든다.
+
 - **2026-10-11 최신 학습 정합:** Base5 전용 heatmap의 X/Y 교환을 수정했다. 고유 5K의
   11,052 GT와 증강을 포함한 29,714회 정답 peak, 실제 전체 모델 4-iteration 역전파·저장·재개를
   로컬에서 검증했다. 이전 feature 축 검사는 이 target 경로까지 보장하지 못했다.

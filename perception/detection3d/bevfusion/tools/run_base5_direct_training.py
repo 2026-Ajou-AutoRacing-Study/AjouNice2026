@@ -64,6 +64,14 @@ def prepare(args):
     image_policy = inventory.get('image_policy')
     if cfg.get('required_camera_input_policy') == 'native_jpeg90' and image_policy != dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90'):
         raise ValueError('Current native-JPEG config requires JPEG train/val/test portable data')
+    geometry_policy = cfg.get('required_box_geometry_policy')
+    if geometry_policy:
+        if inventory.get('box_geometry_policy') != geometry_policy:
+            raise ValueError('Current Base5 config requires upright native-RPY portable labels')
+        for split in ('train', 'val', 'test'):
+            info = pickle.loads((root/'infos'/args.profile/('morai_base5_infos_'+split+'.pkl')).read_bytes())
+            if info['metainfo'].get('box_geometry_policy') != geometry_policy:
+                raise ValueError('Portable manifest and infos disagree on box geometry policy')
     if image_policy:
         if image_policy not in (dict(train='native_jpeg90', val='original_png', test='original_png'),
                                 dict.fromkeys(('train', 'val', 'test'), 'native_jpeg90')):
@@ -136,6 +144,8 @@ def prepare(args):
         lr=args.lr, warmup_iterations=warmup, seed=args.seed, val_enabled=not args.disable_val,
         train_count=count, iterations_per_epoch=iterations,
         initial_checkpoint_sha256=sha256(args.init_checkpoint) if args.init_checkpoint else None)
+    if geometry_policy:
+        identity['box_geometry_policy'] = geometry_policy
     if jpeg_cache_identity:
         identity['jpeg_cache_manifest_sha256'] = jpeg_cache_identity
     previous_path = args.work_dir / 'run_manifest.json'
