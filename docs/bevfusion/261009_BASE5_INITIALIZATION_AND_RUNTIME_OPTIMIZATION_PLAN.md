@@ -4,6 +4,39 @@
 Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경하지 않는다.
 설명용 원리와 개발 계약을 구분하며, 실측은 연결된 EVIDENCE 문서를 따른다.
 
+<a id="base5-current-plan-hub"></a>
+
+## 현재 계획 허브 — 2026-10-11 06:46 KST
+
+Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
+`README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
+세부 계획·명령·실측을 여러 문서에 복사하지 않고 해당 절을 연결한다.
+아래 날짜별 결정은 이 허브의 근거이며, 과거의 ‘다음 단계’를 현재 지시로 재사용하지 않는다.
+생성기·수집기와 다른 팀의 전체 우선순위는 각 기존 CURRENT 문서를 유지한다.
+
+| 항목 | 현재 결정·상태 | 다음 할 일 / 상세 근거 |
+|---|---|---|
+| 학습 입력·모델 | 512×1056, Q90 JPEG, 공간 7.5/30cm, ROI X±100/Y±30m, 4-class single-frame 7D, temporal/OD velocity OFF | depth 25cm 우선 후보·50cm 대조군. 실제 config·원격 준비본은 아직 50cm다. [후보와 비용](#base5-depth25-local-optimization-plan-261011) |
+| 로컬 가속 | 기존 uint8·분리 pooling·추론 cache 검증 완료, 추가 개선은 계획 단계 | 병목 분리 → 이득 있는 변경만 구현·정합·짧은 A/B → 4090 재확인. [실행 순서](#다음-실행-순서) |
+| 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
+| 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
+| 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. 기존 저장·재개 검사 완료 | 채택한 소스·25cm 후보로 새 config/source hash/work-dir을 만든다. 기존 50cm 계약을 그대로 resume하지 않는다. [원격 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| 체크포인트 보존 | 실제 Drive 병렬 업로드·전체 SHA·복원·중복 재검사 완료. 상주 watcher·본학습은 미시작 | 최종 계약과 사용자 승인 후 watcher·본학습 시작. [EVIDENCE 20절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
+| 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
+| 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 ROS 풀스택 비용은 미검증. production E25는 유지 | 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
+
+현재 우선 순서는 **로컬 추가 가속 → 4090 재확인·새 학습 계약 → 승인 후 Sunny13 본학습**이다.
+고정 이미지 게시 준비와 rosbag-to-val 구현은 별도 후속 작업이며 이번 요청으로 자동 실행하지 않는다.
+다음 임대 전에는 고정 이미지 게시·새 환경 pull 검증을 완료한다.
+
+### 문서 갱신 규칙
+
+- 결정이나 우선순위가 바뀌면 먼저 이 허브의 해당 행을 갱신하고 날짜를 기록한다.
+- 실험 결과는 EVIDENCE에 기록하고 허브에는 완료/미완료와 근거 링크만 남긴다.
+- 원격 명령·이미지 digest·백업 운영 상세는 Vast 문서에 둔다. 코드·실행 계약과 계획을 구분한다.
+- `README.md`와 `docs/ACTIVE_PRIORITIES.md`에는 이 허브의 링크·다음 단계만 갱신한다.
+  새 결정을 매번 여러 곳에 길게 복사하거나 동일 목적의 날짜별 계획 파일을 추가하지 않는다.
+
 <a id="base5-depth25-local-optimization-plan-261011"></a>
 
 ## 2026-10-11 최신 합의: depth 25cm 후보와 본학습 전 로컬 최적화

@@ -49,6 +49,12 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 06:46 KST 계획 통합:** [Base5 현재 계획 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를
+  현재 결정·남은 순서의 단일 기준으로 사용한다. 다음 임대는 고정 팀 이미지를 게시해 재사용한다.
+  이미지 빌드·게시·템플릿 변경은 아직 계획이며 현재 설치된 인스턴스는 유지한다. 이번 학습은
+  기존 train/val로 진행하고 rosbag-to-val 구현·평가는 후속이다. 다음 작업은 로컬 추가 가속 검토다.
+  아래 날짜별 상세는 과거 결정의 근거이며 현재 실행 지시로 재사용하지 않는다.
+
 - **2026-10-11 06:43 KST 최신 합의:** [depth 25cm 후보와 로컬 추가 최적화 계획](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011)을
   우선한다. 512×1056·공간 7.5/30cm를 유지하고 depth 25cm를 우선 학습 후보로 둔다.
   학습 비용 약 +20%를 감수하는 선택이며 성능 개선은 가설이다. 다음은 로컬 병목 분석·

@@ -4,6 +4,11 @@
 
 ## CURRENT
 
+**현재 결정·남은 과제의 단일 기준:** [Base5 현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub).
+이 README는 인덱스이며 상세 계획을 중복 저장하지 않는다. 다음 임대용 고정 팀 이미지 게시와
+이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
+상태이며 최신 실행 결정은 허브를 먼저 따른다.
+
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
 로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
@@ -18,6 +23,8 @@ depth 25cm를 우선 학습 후보로 삼되, 현재 config와 원격 prepare-on
 
 | 목적 | 최신 기준 |
 |---|---|
+| 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 다음 임대: 고정 의존성 이미지 게시·digest 고정·Vast pull 검증 / 아직 계획 | [고정 이미지 게시 상세](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | depth 25cm 우선 후보 / 본학습 전 로컬 학습·추론 추가 가속 / 원격 재확인·새 계약 / 계획만 갱신 | [10-11 06:43 최신 합의와 실행 순서](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011) |
 | 외부 full checkpoint 백업 완료 / 실제 복원·전체 SHA·완료 표시·중복 재검사 / 새 prepare-only | [10-11 병렬 백업 완료와 운영 경로](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
 | 새 4090 이전 / depth 25·50·100cm·높이 점검 완료 / 저장·재개·val·새 준비 완료 / 외부 백업 아직 | [10-11 새 원격 경로와 후속 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |

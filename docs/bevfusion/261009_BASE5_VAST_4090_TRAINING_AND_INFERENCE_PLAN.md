@@ -10,6 +10,49 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
+현재 결정·우선순위의 단일 기준은 [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)다.
+이 문서는 원격 실행 상세·명령·과거 진행 근거를 관리한다.
+
+<a id="base5-fixed-image-publication-plan-261011"></a>
+
+## 다음 임대용 고정 이미지 게시 계획 — 2026-10-11 06:46 KST
+
+사용자는 다음 임대부터 의존성과 custom CUDA 연산을 미리 설치한 팀 이미지를 게시해
+재사용하기로 했다. 이번 요청은 문서화이며 실제 이미지 빌드·업로드·템플릿 변경은 수행하지 않았다.
+현재 설치가 끝난 55272391 인스턴스는 그대로 사용한다. 이미지 교체를 위해 Stop/destroy하거나
+컨테이너 내부에 다시 Docker를 실행하지 않는다.
+
+### 현재 방식과 변경할 방식
+
+- 현재 템플릿은 공개 base `pytorch/pytorch:2.7.1-cuda12.8-cudnn9-devel`을 지정한다.
+  팀 이름으로 템플릿을 저장해도 MMCV·spconv·MMDetection3D fork·BEVFusion CUDA 연산이
+  이미지에 자동 저장되지는 않는다. 기존 접속 때 CUDA/nvcc는 있었고 추가 의존성과 커널을 빌드했다.
+- 로컬 [Dockerfile](../../docker/bevfusion/Dockerfile)은 팀 의존성·CUDA 연산을 설치하는 정의다.
+  [build_team_image.sh](../../docker/bevfusion/scripts/build_team_image.sh)는 로컬 build 도구이며
+  `ajounice/bevfusion:team-cu128-v1` 같은 로컬 tag가 원격 registry에 게시됐다는 뜻은 아니다.
+- 다음에는 로컬에서 검증한 이미지를 Docker Hub 또는 GHCR에 게시하고 Vast의 Image Path를
+  그 게시 주소로 지정한다. registry·저장소·공개/비공개 범위와 인증은 실제 게시 전에 확정한다.
+  [Vast 이미지·인증 공식 설명](https://docs.vast.ai/guides/templates/template-settings)을 따른다.
+
+### 준비·검증 순서
+
+| 순서 | 할 일 | 완료 조건 |
+|---|---|---|
+| 1 | 로컬 최적화에서 채택한 소스와 호환되는 의존성·CUDA 연산을 정리한다. | PyTorch/CUDA/cuDNN·MMCV·MMEngine·MMDetection·spconv·팀 fork revision·custom ops 소스를 고정한다. 실제 4090과 로컬 GPU의 architecture 지원을 확인한다. |
+| 2 | 기존 Dockerfile을 검토해 고정 이미지를 로컬에서 빌드·검증한다. | CUDA NMS·pooling forward/backward·모델 import·짧은 학습·저장/재개를 통과한다. 분리 pooling 확장이 사전 빌드되는지, 최초 JIT가 남는지 확인하고 남으면 시작 전 warmup으로 분리한다. |
+| 3 | 게시 범위·계정 인증을 확정하고 registry에 업로드한다. | 날짜/버전 tag를 재사용해 덮어쓰지 않고 최종 digest를 기록한다. 데이터·checkpoint·SSH 키·Drive 토큰·client secret·W&B 인증을 이미지 레이어와 build context에서 제외한다. |
+| 4 | 다음 임대의 Vast 템플릿을 고정 이미지로 설정하고 새 환경에서 pull 검증한다. | registry 인증과 digest 일치, SSH 접근·driver 호환·CUDA 연산·설치 없이 실행 가능한 학습 경로를 확인한다. image pull·첫 warmup 시간을 별도로 측정한다. |
+| 5 | run manifest와 원격 런북에 재현 정보를 기록한다. | image 주소/tag/digest·라이브러리 버전·fork/ops revision·실행 소스/config/data/init hash를 기록한다. 실패 시 기본 PyTorch + 직접 설치는 명시적 대안으로만 남긴다. |
+
+의존성 이미지와 학습 데이터·가중치·실험 설정은 분리한다. Python 실험 코드나 depth 설정 변경마다
+무조건 이미지를 다시 빌드하지는 않는다. 그러나 fork·custom CUDA 소스·라이브러리 ABI가 바뀌면
+이미지 호환성을 다시 검증하고 필요한 경우 새 버전을 게시한다. `/opt`에 설치한 확장이
+새 `/workspace` 소스에 가려지거나 옛 확장을 로드하지 않도록 import 경로도 검사한다.
+
+이는 반복적인 소스 빌드 시간을 줄이는 계획이지 인스턴스 준비 시간이 0이 된다는 뜻은 아니다.
+이미지 다운로드·데이터 전달·호스트 driver 검사·필요한 warmup은 남는다. 완성 이미지 게시를
+이번 이미 설치된 인스턴스의 본학습 시작 조건에 추가하지 않는다.
+
 **최신 순서 변경 — 2026-10-11 06:43 KST:** 사용자는 공간 7.5/30cm·512×1056을 유지한
 depth 25cm 후보를 계획에 넣고, 본학습 전에 로컬에서 학습·추론 가속을 추가 검토하기로 했다.
 [후속 순서와 성능 기대의 경계](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011)가
