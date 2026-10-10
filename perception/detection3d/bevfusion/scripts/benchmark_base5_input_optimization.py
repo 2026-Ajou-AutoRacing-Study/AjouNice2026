@@ -31,6 +31,15 @@ from profile_base5_stages import configuration,StageRecorder
 
 CLASSES=('vehicle','pedestrian','obstacle','animal')
 FRAMES=('camera_front','camera_front_left','camera_front_right','camera_back')
+GEOMETRY_PARAMETERS={'view_transform.dx','view_transform.bx',
+                     'view_transform.nx','view_transform.frustum'}
+
+
+def named_model_parameters(model):
+    # Upstream stores geometry as requires_grad=False nn.Parameters, not
+    # buffers. These must vary with ROI and must never be copied as weights.
+    return {name:value for name,value in model.named_parameters()
+            if name not in GEOMETRY_PARAMETERS}
 
 
 def summary(values):
@@ -38,8 +47,18 @@ def summary(values):
                     [np.mean(values),*np.percentile(values,[50,95,99])])}
 
 
-def config_for(root,hw):
-    cfg=configuration(root/'perception/detection3d/bevfusion/configs','wide_dense_highres')
+def config_for(root,hw,lateral_range=30):
+    folder=root/'perception/detection3d/bevfusion/configs'
+    if lateral_range==40:
+        cfg=Config.fromfile(folder/'bevfusion_base5_dense_512_lateral40_separated_candidate.py')
+        cfg.model.img_backbone.init_cfg=None
+        # The harness installs each mode itself and compares it against an
+        # unoptimized reference; avoid enabling separated pooling twice.
+        cfg.model.view_transform.type='MoraiRectangularDepthLSSTransform'
+    elif lateral_range==30:
+        cfg=configuration(folder,'wide_dense_highres')
+    else:
+        raise ValueError('Only qualified lateral ranges 30/40 are supported')
     for pipeline in (cfg.train_pipeline,cfg.test_pipeline,cfg.train_dataloader.dataset.pipeline,
                      cfg.val_dataloader.dataset.pipeline,cfg.test_dataloader.dataset.pipeline):
         for aug in pipeline:
@@ -57,6 +76,20 @@ def config_for(root,hw):
 def load_samples(folder):
     meta=json.loads((folder/'manifest.json').read_text())
     samples=[]
+    if 'portable_data_root' in meta:
+        root=Path(meta['portable_data_root']).resolve(strict=True)
+        if hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest()!=meta['source_sha256']:
+            raise ValueError('Portable source identity changed')
+        for item in meta['samples']:
+            def path(value):
+                candidate=(root/value).resolve(strict=True)
+                candidate.relative_to(root)
+                return candidate
+            points=np.fromfile(path(item['lidar_path']),dtype='<f4').reshape(-1,4)
+            samples.append(dict(meta=item,points=points,
+                images={'image/'+frame:path(value).read_bytes()
+                    for frame,value in zip(FRAMES,item['camera_paths'])}))
+        return meta,samples
     for item in meta['samples']:
         path=folder/item['file']
         if hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:
@@ -146,6 +179,11 @@ def main():
     p.add_argument('--iterations',type=int,default=28);p.add_argument('--shapes',nargs='+',default=['320x896','384x896','448x896','512x1056'])
     p.add_argument('--modes',nargs='+',default=['baseline','cache','separated'])
     p.add_argument('--codec',choices=['png','jpeg90'],default='png')
+    p.add_argument('--lateral-range',type=int,choices=[30,40],default=30,
+                   help='Semantic lateral half-range; metric intervals remain unchanged')
+    p.add_argument('--shared-parameter-state',type=Path,
+                   help='Create/reuse random parameters for controlled range comparisons; excludes geometry buffers')
+    p.add_argument('--no-stages',action='store_true',help='Measure service latency without stage instrumentation')
     p.add_argument('--skip-preprocess',action='store_true');a=p.parse_args()
     if a.output.exists():raise ValueError('Use a new output file')
     torch.set_num_threads(4);cv2.setNumThreads(1)
@@ -161,7 +199,8 @@ def main():
                 sample['images'][key]=jpeg.tobytes()
     result=dict(gpu=torch.cuda.get_device_name(),torch=torch.__version__,amp=True,batch=1,codec=a.codec,
                 source=manifest,cost_only=True,preprocessing=[],cases=[],
-                contract='Fresh4-class; 200queries; 0.075m voxel,0.30m cameraBEV,0.50m depth; +/-100x30m label ROI. Same weights within each shape. No ROS/network/AP.')
+                lateral_range=a.lateral_range,
+                contract='Fresh4-class; 200queries; 0.075m voxel,0.30m cameraBEV,0.50m depth; +/-100m longitudinal, +/-%dm lateral label ROI. Same weights within each shape. No ROS/network/AP.'%a.lateral_range)
     def save():
         a.output.parent.mkdir(parents=True,exist_ok=True)
         a.output.write_text(json.dumps(result,indent=2)+'\n')
@@ -171,9 +210,36 @@ def main():
             print('PREPROCESS PASS '+str(hw),flush=True)
     if 'separated' in a.modes:extension()
     for shape in a.shapes:
-        hw=tuple(map(int,shape.split('x')));cfg=config_for(a.root,hw)
+        hw=tuple(map(int,shape.split('x')));cfg=config_for(a.root,hw,a.lateral_range)
         torch.manual_seed(261010);model=init_model(deepcopy(cfg),None,device='cuda:0')
         restore_view_geometry(model.view_transform);model.eval()
+        if a.shared_parameter_state:
+            if a.shared_parameter_state.exists():
+                shared=torch.load(a.shared_parameter_state,map_location='cpu',weights_only=True)
+                parameters=named_model_parameters(model)
+                if set(shared)!=set(parameters):
+                    raise ValueError('Shared parameter names differ')
+                with torch.no_grad():
+                    for name,value in shared.items():
+                        if value.shape!=parameters[name].shape or value.dtype!=parameters[name].dtype:
+                            raise ValueError('Shared parameter shape/dtype differs: '+name)
+                        parameters[name].copy_(value)
+                del shared,parameters
+            else:
+                a.shared_parameter_state.parent.mkdir(parents=True,exist_ok=True)
+                torch.save({name:value.detach().cpu().clone()
+                            for name,value in named_model_parameters(model).items()},a.shared_parameter_state)
+        restore_view_geometry(model.view_transform)
+        expected_nx=[round((bound[1]-bound[0])/bound[2])
+                     for bound in (cfg.model.view_transform.xbound,
+                                   cfg.model.view_transform.ybound,
+                                   cfg.model.view_transform.zbound)]
+        if model.view_transform.nx.detach().cpu().tolist()!=expected_nx:
+            raise ValueError('Model geometry differs from the selected ROI')
+        parameter_hash=hashlib.sha256()
+        for name,parameter in named_model_parameters(model).items():
+            parameter_hash.update(name.encode())
+            parameter_hash.update(parameter.detach().cpu().contiguous().numpy().tobytes())
         pre=Base3OnlinePreprocessor(calibration,camera_workers=4,**preprocessing_options_from_config(cfg))
         baseline_view=None;baseline_pred=None
         captured=[]
@@ -183,7 +249,9 @@ def main():
             baseline_pred=snapshot_prediction(model.test_step(batch)[0]);baseline_view=captured[-1];captured.clear()
         handle.remove()
         for mode in a.modes:
-            case=dict(shape=shape,mode=mode);state=None
+            case=dict(shape=shape,mode=mode,parameter_sha256=parameter_hash.hexdigest(),
+                      parameter_hash_scope='all parameters except dx/bx/nx/frustum geometry',
+                      view_nx=expected_nx);state=None
             if mode!='baseline':state=enable_pool_optimization(model.view_transform,mode)
             rec=StageRecorder()
             original_methods={}
@@ -203,11 +271,12 @@ def main():
                     raise AssertionError('Decoded predictions differ from the baseline')
                 case['correctness']=True
                 # Instrumentation restored explicitly before switching runtime modes.
-                for obj,method,name in [(model.view_transform,'forward','view_total'),
+                stage_methods=[(model.view_transform,'forward','view_total'),
                     (model.view_transform,'get_geometry','geometry'),
                     (model.view_transform,'get_cam_feats','depth_feature'),
                     (model.view_transform,'bev_pool','pool'),(model.img_backbone,'forward','camera_backbone'),
-                    (model.pts_middle_encoder,'forward','lidar_sparse'),(model.bbox_head,'predict','head')]:
+                    (model.pts_middle_encoder,'forward','lidar_sparse'),(model.bbox_head,'predict','head')]
+                for obj,method,name in ([] if a.no_stages else stage_methods):
                     original_methods[(obj,method)]=getattr(obj,method);rec.wrap(obj,method,name)
                 values=[];spans={};torch.cuda.reset_peak_memory_stats()
                 with torch.inference_mode():
@@ -226,12 +295,16 @@ def main():
                                                service_ms=(t3-t)*1000,retained_points=len(batch['inputs']['points'][0])))
                             for name,begin,end,_ in rec.records:
                                 spans.setdefault(name,[]).append(begin.elapsed_time(end))
-                case.update(valid=True,iterations=a.iterations,timing={k:summary([v[k] for v in values])
+                case.update(valid=True,stage_instrumented=not a.no_stages,iterations=a.iterations,timing={k:summary([v[k] for v in values])
                     for k in ('prepare_ms','model_ms','service_ms')},per_sample=values,
                     stages={k:summary(v) for k,v in spans.items()},
                     steady_peak_allocated_mib=torch.cuda.max_memory_allocated()/2**20,
                     depth=list(cfg.model.view_transform.dbound),voxel=list(cfg.model.data_preprocessor.voxelize_cfg.voxel_size),
-                    camera_bev=list(cfg.model.view_transform.xbound),classes=list(cfg.classes))
+                    camera_bev=list(cfg.model.view_transform.xbound),
+                    camera_bev_ybound=list(cfg.model.view_transform.ybound),
+                    semantic_roi=list(cfg.point_cloud_range),
+                    sparse_shape=list(cfg.model.pts_middle_encoder.sparse_shape),
+                    classes=list(cfg.classes))
                 if state:case['cache']={k:state[k] for k in ('hits','misses','bypasses','bytes','limit')}
             except Exception as exc:
                 case.update(valid=False,error=repr(exc));print('FAILED '+str(case),flush=True)

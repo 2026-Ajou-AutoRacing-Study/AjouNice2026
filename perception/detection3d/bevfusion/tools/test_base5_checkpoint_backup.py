@@ -4,6 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
+import io
 
 import torch
 
@@ -46,6 +48,23 @@ class BackupTest(unittest.TestCase):
             self.assertTrue(state['errors']); self.assertFalse((dest/'run1/LATEST.json').exists())
             self.assertFalse(list(run.glob('.backup_stage_*')))
             self.assertEqual(backup.backup_once(run,str(dest),state)['errors'], [])
+
+    def test_dns_error_reason_does_not_expose_raw_stderr(self):
+        failure=SimpleNamespace(returncode=5,stderr='lookup www.googleapis.com: i/o timeout; secret-do-not-log')
+        with patch.object(backup.subprocess,'run',return_value=failure):
+            with self.assertRaises(RuntimeError) as caught:
+                backup.copy_verified(Path('/unused'),'remote:checkpoint.pth')
+        self.assertIn('DNS_lookup_timeout',caught.exception.safe_reasons)
+        self.assertNotIn('secret-do-not-log',str(caught.exception))
+
+    def test_corrupt_remote_readback_is_rejected(self):
+        with tempfile.TemporaryDirectory() as name:
+            source=Path(name)/'payload';source.write_bytes(b'correct payload')
+            process=SimpleNamespace(stdout=io.BytesIO(b'wrong payload'),wait=lambda:0)
+            with patch.object(backup.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+                    patch.object(backup.subprocess,'Popen',return_value=process):
+                with self.assertRaisesRegex(ValueError,'checksum failed'):
+                    backup.copy_verified(source,'remote:checkpoint.pth')
 
 
 if __name__ == '__main__': unittest.main()

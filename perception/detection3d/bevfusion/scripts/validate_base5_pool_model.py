@@ -56,7 +56,9 @@ def main():
     infos={}
     for file in a.infos.glob('*infos_*.pkl'):
         for item in pickle.loads(file.read_bytes())['data_list']:
-            infos[item['scene_id']]=item
+            # Replacement captures retain a parent scene_id for split lineage,
+            # but their actual capture token is the cost sample identity.
+            infos[item.get('token',item['scene_id'])]=item
     missing=[v['meta']['id'] for v in samples if v['meta']['id'] not in infos]
     if missing:raise ValueError('Missing GT: '+str(missing))
     calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')

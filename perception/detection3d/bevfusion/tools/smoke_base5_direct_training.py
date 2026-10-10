@@ -33,10 +33,11 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--data',type=Path,required=True); p.add_argument('--output',type=Path,required=True)
     p.add_argument('--config',type=Path,required=True); p.add_argument('--init-checkpoint',type=Path,required=True)
+    p.add_argument('--profile',choices=['448x896','512x1056'],default='448x896')
     a=p.parse_args()
     if a.output.exists(): p.error('Use a fresh output')
     a.output.mkdir(parents=True)
-    source=a.data/'infos/448x896'
+    source=a.data/'infos'/a.profile
     info=pickle.loads((source/'morai_base5_infos_train.pkl').read_bytes())
     records=info['data_list']; labels=lambda r:{i['bbox_label_3d'] for i in r['instances']}
     selected=[next(r for r in records if 3 in labels(r))]
@@ -57,8 +58,8 @@ def main():
     (source_infos/'morai_base5_infos_train.pkl').write_bytes(pickle.dumps(dict(info,data_list=selected)))
     ledger=a.output/'ledger.jsonl'
     ledger.write_text(''.join(json.dumps(dict(id=r['token'],capture_root=str((a.data/'data'/r['token']).resolve())))+'\n' for r in selected))
-    data=a.output/'mini_portable'; build(ledger,{'448x896':source_infos},data,2,'hardlink')
-    args=argparse.Namespace(data=data,profile='448x896',config=a.config,work_dir=a.output/'training',
+    data=a.output/'mini_portable'; build(ledger,{a.profile:source_infos},data,2,'hardlink')
+    args=argparse.Namespace(data=data,profile=a.profile,config=a.config,work_dir=a.output/'training',
         epochs=2,batch=1,accumulate=1,workers=0,lr=1e-4,warmup_updates=1,seed=261010,
         init_checkpoint=a.init_checkpoint,allow_random_init=False,resume=None,disable_val=True,wandb=False)
     cfg,manifest=prepare(args); import_modules_from_strings(**cfg.custom_imports)
@@ -77,7 +78,7 @@ def main():
         raise ValueError('Optimizer did not update before resume')
     if any(not torch.isfinite(v).all() for v in final['state_dict'].values() if v.is_floating_point()):
         raise ValueError('Nonfinite trained weights')
-    report=dict(valid=True,captures=[r['token'] for r in selected],classes=list(range(4)),
+    report=dict(valid=True,profile=a.profile,captures=[r['token'] for r in selected],classes=list(range(4)),
         first_checkpoint_iteration=2,final_checkpoint_iteration=4,resume_start=evidence,
         checkpoint_sha_contract=manifest['contract_sha256'],
         scope='two real captures, four AMP iterations; not quality or converged model',

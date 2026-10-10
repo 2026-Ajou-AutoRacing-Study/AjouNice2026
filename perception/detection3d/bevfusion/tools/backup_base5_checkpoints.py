@@ -32,8 +32,21 @@ def checkpoint_complete(path, contract):
 
 def copy_verified(source, destination, rclone_options=()):
     if ':' in destination:
-        subprocess.run(['rclone', 'copyto', str(source), destination, *rclone_options, '--retries', '3',
-                        '--low-level-retries', '5'], check=True, capture_output=True, text=True)
+        command=['rclone', 'copyto', str(source), destination, *rclone_options,
+                 '--tpslimit','1','--tpslimit-burst','1','--drive-chunk-size','64M',
+                 '--contimeout','10s','--timeout','60s','--retries','2','--low-level-retries','2']
+        result=subprocess.run(command, capture_output=True, text=True)
+        if result.returncode:
+            # Surface known API reasons, not raw stderr/URLs/credentials.
+            reasons=[reason for reason in ('rateLimitExceeded','userRateLimitExceeded',
+                'insufficientPermissions','storageQuotaExceeded','invalid_grant',
+                'directory not found','permission denied','Illegal seek','operation not permitted')
+                if reason.lower() in result.stderr.lower()]
+            if 'lookup' in result.stderr and 'timeout' in result.stderr:
+                reasons.append('DNS_lookup_timeout')
+            error=RuntimeError('Remote copy failed')
+            error.safe_reasons=reasons or ['unclassified_copy_failure']
+            raise error
         # Read back remote bytes and SHA256; uploading a marker alone would
         # not prove the remote payload survived unchanged.
         process = subprocess.Popen(['rclone', 'cat', destination, *rclone_options], stdout=subprocess.PIPE,
@@ -96,7 +109,8 @@ def backup_once(work_dir, destination, state, rclone_options=()):
                 state['uploaded'][checkpoint.name] = dict(fingerprint=fingerprint, **record)
         except Exception as exc:
             # Keep secrets out of error text from command stderr/environment.
-            state['errors'].append(dict(checkpoint=checkpoint.name, error=type(exc).__name__))
+            state['errors'].append(dict(checkpoint=checkpoint.name, error=type(exc).__name__,
+                                       reasons=getattr(exc,'safe_reasons',[])))
     state['checked_at_unix'] = time.time()
     (work_dir/'backup_status.json').write_text(json.dumps(state, indent=2)+'\n')
     return state
