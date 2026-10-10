@@ -120,6 +120,10 @@ class MoraiOnlineImageDomainAug3D(BaseTransform):
     JPEG-compressed.  This transform changes pixels only; calibration and box
     geometry remain untouched.  One exposure/noise draw is shared by all
     views in a sample, while JPEG quality and blur are sampled per camera.
+    ``native_resolution`` restores each camera's true size before compression;
+    use it BEFORE MoraiImageAug3D to match the live sensor encoding order.
+    Defaults retain the legacy BGR/post-crop experiment interface. Base5's
+    multi-view loader is RGB and must explicitly select ``color_order='rgb'``.
     """
 
     def __init__(self,
@@ -130,7 +134,9 @@ class MoraiOnlineImageDomainAug3D(BaseTransform):
                  gain=(0.92, 1.08),
                  bias=(-6.0, 6.0),
                  noise_prob=0.2,
-                 noise_std=(0.0, 1.5)):
+                 noise_std=(0.0, 1.5),
+                 color_order='bgr',
+                 native_resolution=False):
         self.jpeg_prob = float(jpeg_prob)
         self.jpeg_quality = tuple(int(v) for v in jpeg_quality)
         self.blur_prob = float(blur_prob)
@@ -139,9 +145,40 @@ class MoraiOnlineImageDomainAug3D(BaseTransform):
         self.bias = tuple(float(v) for v in bias)
         self.noise_prob = float(noise_prob)
         self.noise_std = tuple(float(v) for v in noise_std)
+        self.color_order = str(color_order).lower()
+        self.native_resolution = bool(native_resolution)
+        if self.color_order not in ('rgb', 'bgr'):
+            raise ValueError('color_order must be rgb or bgr')
+        for probability in (self.jpeg_prob, self.blur_prob,
+                            self.exposure_prob, self.noise_prob):
+            if not 0.0 <= probability <= 1.0:
+                raise ValueError('Augmentation probabilities must be in [0, 1]')
+        if not 1 <= self.jpeg_quality[0] <= self.jpeg_quality[1] <= 100:
+            raise ValueError('JPEG quality must be an ordered range in [1, 100]')
+
+    def _jpeg_roundtrip(self, image, quality):
+        # OpenCV's encoder expects BGR. Encoding the loader's RGB array as BGR
+        # changes chroma/luma quantization even if decode appears to preserve
+        # channel positions; explicitly convert both ways.
+        encoded_input = (cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                         if self.color_order == 'rgb' else image)
+        ok, encoded = cv2.imencode(
+            '.jpg', encoded_input, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if not ok:
+            raise RuntimeError('JPEG augmentation encoder failed')
+        decoded = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+        if decoded is None:
+            raise RuntimeError('JPEG augmentation decoder failed')
+        return (cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)
+                if self.color_order == 'rgb' else decoded)
 
     def transform(self, data):
         images = data['img']
+        cameras = None
+        if self.native_resolution:
+            cameras = list(data['images'].values())
+            if len(cameras) != len(images):
+                raise ValueError('camera metadata/image count mismatch')
         apply_exposure = np.random.random() < self.exposure_prob
         gain = np.random.uniform(*self.gain) if apply_exposure else 1.0
         bias = np.random.uniform(*self.bias) if apply_exposure else 0.0
@@ -149,8 +186,16 @@ class MoraiOnlineImageDomainAug3D(BaseTransform):
         noise_std = np.random.uniform(*self.noise_std) if apply_noise else 0.0
 
         augmented = []
-        for image in images:
+        for index, image in enumerate(images):
             image = np.asarray(image, dtype=np.float32)
+            padded = image
+            if cameras is not None:
+                camera = cameras[index]
+                height, width = int(camera['height']), int(camera['width'])
+                if not (0 < height <= image.shape[0] and
+                        0 < width <= image.shape[1]):
+                    raise ValueError('Invalid native camera dimensions')
+                image = image[:height, :width]
             if apply_exposure:
                 image = image * gain + bias
             if noise_std > 0.0:
@@ -163,13 +208,11 @@ class MoraiOnlineImageDomainAug3D(BaseTransform):
             if np.random.random() < self.jpeg_prob:
                 quality = int(np.random.randint(
                     self.jpeg_quality[0], self.jpeg_quality[1] + 1))
-                ok, encoded = cv2.imencode(
-                    '.jpg', image,
-                    [cv2.IMWRITE_JPEG_QUALITY, quality])
-                if ok:
-                    decoded = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
-                    if decoded is not None:
-                        image = decoded
+                image = self._jpeg_roundtrip(image, quality)
+            if cameras is not None:
+                restored = padded.copy()
+                restored[:height, :width] = image
+                image = restored
             augmented.append(np.ascontiguousarray(image, dtype=np.float32))
 
         data['img'] = augmented
