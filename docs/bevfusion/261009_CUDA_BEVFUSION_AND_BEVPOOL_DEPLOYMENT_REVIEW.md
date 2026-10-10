@@ -27,7 +27,7 @@ clone은 Git ignore 상태이고 학습·runtime dependency로 연결하지 않�
 - BEVNeXt가 v2를 사용하는 것은 특정 BEVDet 계열의 사례다. 모든 fusion 모델의
   기본 연산이나 baseline 교체 필요성을 증명하지 않는다.
   [CVPR 2024 논문](https://openaccess.thecvf.com/content/CVPR2024/papers/Li_BEVNeXt_Reviving_Dense_BEV_Frameworks_for_3D_Object_Detection_CVPR_2024_paper.pdf).
-- Autoware tensorrt_bevdet은 6-camera camera-only temporal BEVDet의 ROS2 배포 사례다.
+- Autoware tensorrt_bevdet은 6-camera camera-only temporal BEVDet의 ROS2배포 사례다.
   우리 4-camera+LiDAR single-frame ROS1 detector의 대체 모델은 아니다.
   [공식 모델 카드](https://huggingface.co/AutowareFoundation/tensorrt_bevdet).
 
@@ -103,7 +103,7 @@ ground removal, INT8/FP8, interpolation 변경을 성능 최적화에 묶어 무
 
 [기존 4090 실측](261009_RTX4090_CAPACITY_RESULTS.md)의 320×896/±100m 비용 대조는
 모델 45.86ms, CPU 준비 포함 50.93ms다. geometry 6.81ms와 pooling 10.52ms는
-최적화 우선순위를 정할 충분한 근거다. 두 구간 합 17.33ms는 모델 시간의 약38%지만
+최적화 우선순위를 정할 충분한 근거다. 두 구간 합 17.33ms는 모델 시간의 약 38%지만
 CPU 대기를 포함할 수 있는 단계 span이며 순수 kernel 시간이 아니다. 17.33ms를
 그대로 없애거나 전체 모델을 pooling speedup 배수만큼 가속한다고 예상하지 않는다.
 이 측정은 3-class/depth0.5m 비용 대조이며 최종 Base5의 정확도·처리시간 인증도 아니다.
@@ -132,7 +132,7 @@ index, allocator, 다른 activation과 학습 gradient를 사용한다. 그래�
    마지막 interval·경계·직사각형 XY·카메라별 crop·batch를 검사한다.
    non-default CUDA stream과 launch stream도 확인한 뒤 병렬화한다.
 4. 수집 중에는 합의한 작은 bounded CUDA 연산 시험만 가능하다. 공식 속도·VRAM·짧은
-   학습 step은 별도4090/수집 종료 후 baseline/A/A+B/선택 후보를 나눠 측정한다.
+   학습 step은 별도 4090/수집 종료 후 baseline/A/A+B/선택 후보를 나눠 측정한다.
 5. 동일 checkpoint와 mission bag에서 class별 AP·근접 누락·원거리 첫 전달·ID 연속성·
    Tracking/Map-CV를 회귀 검증한다. 모델 평균뿐 아니라 CPU 준비/ROS p95와 drop을 본다.
 6. 병목이 남으면 camera backbone/neck/depthnet의 부분 TensorRT를 검토한다.

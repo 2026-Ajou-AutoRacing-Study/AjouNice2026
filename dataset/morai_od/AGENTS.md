@@ -1,21 +1,27 @@
 # MORAI perception dataset agent context
 
+문서 작성 시 정상적인 한국어 띄어쓰기와 ‘~다’ 문체를 사용한다. 압축된 영어 키워드 나열은
+필요한 기술 식별자 외에는 문장으로 풀어 쓴다. 명령·경로·해시·측정 수치는 보존한다.
+아래는 최신 기록부터 쌓인 이력이다. 과거의 ‘최신’, ‘미시작’, ‘미구현’을 현재 상태로 재사용하지 않는다.
+
 2026-10-10 최신 입력/GPU 후속은 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`다.
-사용자가MR/master종료후로컬실험을승인했다. 완료5K전수crop·448/512derivedinfos/실제loader-online정합,
-확대sparse축수정·cache/분리pooling·14장fullmodel동등성·3step역전파를검증했다.
-아래GPU/crop미시작은과거이력이다. Sunny13/raw/ledger/수집기releasehash/E25는불변이다.
-4090재측정/최종입력/pretrainedadapter/resume백업/본학습/새shapeROS후처리는아직이다.
+사용자가 MR/master 종료 후 로컬 실험을 승인했다. 완료 5K 전수 crop·448/512 파생 infos·실제 loader/online 정합,
+확대 sparse 축 수정·cache/분리 pooling·14장 전체 모델 동등성·3 step 역전파를 검증했다.
+아래의 GPU/crop 미시작 기록은 과거 이력이다. Sunny13/raw/ledger/수집기 release 해시/E25는 불변이다.
+4090 재측정·최종 입력 선택·본학습·새 shape의 ROS 후처리는 남아 있다.
+직접 실행 학습기·초기화 adapter·백업기·로컬 재개 시험은 후속 작업으로 준비했다. 실제 원격 설치·백업·재개는 아직 검증하지 않았다.
+원격 준비와 후보 GPU·스크린샷은 `../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`를 따른다.
 
 2026-10-10 현재 작업은 `docs/261010_base5_postcollection_collector_work.md`부터 복구한다.
 사용자가 종료 후 수집기 쪽 작업을 승인했고 완료했다. Sunny13 v140/5000/0은 보존한다.
-전수분포/시간 집계·연속Ego 5환경25K새geometry·별도guard AST adapter/시간 A/B 완료다.
-기존core generator/collector와 이전resume hash는 불변. 새output만 사용하고 25K 본수집/GPU 작업은 미시작이다.
-fresh_suite_final_v142/collector_release_v142가최신이며 구v141/v141b/v141c/실패final_v141은진단용이다.
-clean정적22.553%단축·200/200·구moving8/8·새정적63+보충1=64·새moving7+보충1=8,
-native QA/실제gait/부모불변/완료resume추가0·CPU64/merge5064·5환경prepare-only PASS다.
-새런북261010_base5_fresh_environment_runbook.md·launcher --complete·8082자동선택관측을쓴다.
-early service-probe overlap은실제경쟁실패로탈락/실행거부이며 static-ready 원래service순서가최종이다.
-현재worker종료/Park, 다음25K실제capture와GPU/crop/학습미시작이다. 기존5K/향후30K에pilot섞지않는다.
+전수 분포·시간 집계, 연속 Ego 위치의 5개 환경 25K 새 배치, 별도 guard AST adapter와 시간 A/B 검증을 완료했다.
+기존 core generator/collector와 이전 resume 해시는 불변이다. 새 output만 사용하며 25K 본 수집은 미시작이다.
+fresh_suite_final_v142/collector_release_v142가 최신이며 구 v141/v141b/v141c/실패 final_v141은 진단용이다.
+clean 정적 비용 22.553% 단축·200/200·구 이동 8/8·새 정적 63+보충 1=64·새 이동 7+보충 1=8,
+native QA·실제 gait·부모 보존·완료 resume 추가 0·CPU 64/merge 5064·5개 환경 prepare-only 검증을 통과했다.
+새 런북 261010_base5_fresh_environment_runbook.md·launcher --complete·8082 자동 선택 관측을 사용한다.
+early service-probe overlap은 실제 경쟁 조건 실패로 탈락했으며 실행을 거부한다. static-ready의 원래 서비스 확인 순서가 최종이다.
+이 수집기 작업 종료 시 worker 종료·Park를 확인했다. 이후 GPU 실험은 위 최신 문서를 따른다. 기존 5K·향후 30K에 pilot을 섞지 않는다.
 
 2026-10-10 최종 최신은 `docs/261010_base5_flexible_deficit_replacement.md`다.
 사용자가 exact 자산/거리/개수 복원 대신 같은패밀리 정상새장면 대체를 승인했다.
