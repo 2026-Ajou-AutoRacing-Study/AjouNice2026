@@ -59,6 +59,17 @@ def prepare(args):
         # These are intentionally single-frame, even if a parent supports sweeps.
         if any('Sweep' in item['type'] or 'Temporal' in item['type'] for item in loader.dataset.pipeline):
             raise ValueError('Unexpected temporal transform')
+    jpeg_cache = getattr(args, 'jpeg_cache', None)
+    jpeg_cache_identity = None
+    if jpeg_cache:
+        from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import (
+            cache_train_pipeline, validate_jpeg_cache)
+        train_rows = pickle.loads(train_info.read_bytes())['data_list']
+        required = [root / camera['img_path'] for row in train_rows for camera in row['images'].values()]
+        validate_jpeg_cache(root, jpeg_cache, required, verify_hashes=getattr(args, 'run', False))
+        cfg.train_dataloader.dataset.pipeline = cache_train_pipeline(
+            cfg.train_dataloader.dataset.pipeline, root, jpeg_cache)
+        jpeg_cache_identity = sha256(Path(jpeg_cache) / 'manifest.json')
     cfg.test_dataloader = None; cfg.test_evaluator = None; cfg.test_cfg = None
     cfg.train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=args.epochs, val_interval=1)
     cfg.optim_wrapper.accumulative_counts = args.accumulate
@@ -113,6 +124,8 @@ def prepare(args):
         lr=args.lr, warmup_iterations=warmup, seed=args.seed, val_enabled=not args.disable_val,
         train_count=count, iterations_per_epoch=iterations,
         initial_checkpoint_sha256=sha256(args.init_checkpoint) if args.init_checkpoint else None)
+    if jpeg_cache_identity:
+        identity['jpeg_cache_manifest_sha256'] = jpeg_cache_identity
     previous_path = args.work_dir / 'run_manifest.json'
     if args.resume:
         if not previous_path.is_file():
@@ -152,6 +165,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--data', type=Path, required=True)
+    p.add_argument('--jpeg-cache', type=Path,
+                   help='Optional verified native Q90 train cache; original PNG is preserved and val stays clean')
     p.add_argument('--profile', choices=['448x896', '512x1056'], required=True)
     p.add_argument('--work-dir', type=Path, required=True)
     p.add_argument('--epochs', type=int, required=True)

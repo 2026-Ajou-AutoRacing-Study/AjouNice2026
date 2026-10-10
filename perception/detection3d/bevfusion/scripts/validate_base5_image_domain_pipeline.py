@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--data', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--per-split', type=int, default=24)
+    parser.add_argument('--jpeg-cache', type=Path,
+                        help='Paired online-Q90 vs sampled cache check; val remains untouched')
     args = parser.parse_args()
     if args.output.exists() or args.per_split < 1:
         raise ValueError('Fresh output and positive sample count required')
@@ -42,6 +44,14 @@ def main():
     selected = Config.fromfile(str(configs / 'bevfusion_base5_dense_512_jpeg90_train.py'))
     register_all_modules(init_default_scope=True)
     import_modules_from_strings(**selected.custom_imports)
+    cache_manifest = None
+    if args.jpeg_cache:
+        from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import (
+            cache_train_pipeline, validate_jpeg_cache)
+        cache_manifest = validate_jpeg_cache(args.data, args.jpeg_cache, verify_hashes=True)
+        original.train_dataloader.dataset.pipeline = deepcopy(selected.train_dataloader.dataset.pipeline)
+        selected.train_dataloader.dataset.pipeline = cache_train_pipeline(
+            selected.train_dataloader.dataset.pipeline, args.data, args.jpeg_cache)
     torch.set_num_threads(1)
     np.random.seed(261010)
     records = []
@@ -53,8 +63,15 @@ def main():
         dataset = DATASETS.build(dataset_cfg)
         before_pipeline = diagnostic_pipeline(original[split + '_dataloader'].dataset.pipeline)
         after_pipeline = diagnostic_pipeline(selected[split + '_dataloader'].dataset.pipeline)
-        indices = sorted(range(len(dataset)), key=lambda i:
+        candidates = list(range(len(dataset)))
+        if cache_manifest and split == 'train':
+            candidates = [i for i in candidates if all(
+                str(Path(c['img_path']).resolve().relative_to(args.data.resolve())) in cache_manifest['files']
+                for c in dataset.get_data_info(i)['images'].values())]
+        indices = sorted(candidates, key=lambda i:
             hashlib.sha256((split + ':' + str(i)).encode()).digest())[:args.per_split]
+        if len(indices) != args.per_split:
+            raise ValueError('Insufficient cached examples for paired check')
         for index in indices:
             data = dataset.get_data_info(index)
             before = before_pipeline(deepcopy(data))
@@ -77,16 +94,19 @@ def main():
             if tuple(image_after.shape) != (4, 3, 512, 1056):
                 raise ValueError('Unexpected model image shape')
             changed = [not torch.equal(left, right) for left, right in zip(image_before, image_after)]
+            if cache_manifest and any(changed):
+                raise ValueError('Cached JPEG pixels differ from on-the-fly Q90')
             if split == 'val' and any(changed):
                 raise ValueError('Validation pixels changed')
             records.append(dict(split=split, index=index, scene_id=str(data.get('scene_id', '')),
                 labels=new_labels.tolist(), gt_count=len(new_labels),
                 changed_cameras=changed, image_shape=list(image_after.shape)))
     changed_train = sum(sum(r['changed_cameras']) for r in records if r['split'] == 'train')
-    if not changed_train:
+    if not cache_manifest and not changed_train:
         raise ValueError('JPEG policy did not change any training image')
     result = dict(valid=True, samples=records, train_changed_camera_observations=changed_train,
         val_changed_camera_observations=0,
+        cache_online_exact_pixel_match=bool(cache_manifest),
         scope='Actual CPU file loading, packing, unchanged GT/points/calibration; BEV randomization frozen for paired comparison. No model forward, training or AP claim.')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')

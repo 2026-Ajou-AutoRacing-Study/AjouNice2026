@@ -17,10 +17,12 @@ production E25를 교체하지 않았다. 2026-10-10 17:31~17:34 KST에 임대�
 후속 미션 경로·개발 bag 확인과 사용자 합의에 따라 **이번 Base5 학습은 전후방 ±100m,
 좌우 ±30m를 유지하고 ±40m 확대를 기각한다.** 아래 8절이 현재 범위 선택 기준이다.
 원본 Sunny13/나머지 환경 수집기/runtime/hash 계약과 tracker/planning/localization은 변경하지 않았다.
-2026-10-10 23:05 KST에는 개발용 rosbag 12개와 원본 PNG를 비교해 **학습용 JPEG Q90만
-카메라별 80% 확률로 활성화**했다. blur·노출·noise는 OFF다. 아래 9절이 최신 이미지 증강
-선택이며, 본학습에는 `bevfusion_base5_dense_512_jpeg90_train.py`를 명시한다.
-기존 all-OFF 비용 config와 비용 수치는 비교 이력으로 보존한다. Vast는 재개하지 않았다.
+2026-10-10 23:05 KST에는 개발용 rosbag과 원본 PNG를 비교해 JPEG Q90을 카메라별
+80% 확률로 적용했다. 이후 사용자 합의와 로컬 비교를 거쳐 **23:55 KST 기준으로 Q90을
+네 카메라 모두 100% 적용하며, 사전 생성 native JPEG 캐시를 추천**한다. 아래 10절이
+현재 실행 기준이고 9절의 80%는 이전 결정 이력이다. blur·노출·noise는 OFF다.
+본학습에는 `bevfusion_base5_dense_512_jpeg90_train.py`를 명시한다. 기존 all-OFF 비용
+config와 수치는 비교 이력으로 보존한다. Vast는 재개하지 않았다.
 
 추론 opt-in cache A와 **depth/feature 분리 pooling B**를 구현했다. B는 학습 역전파도 지원한다.
 공식 BEVPoolv2의 분리 표현을 참고한 로컬 CUDA 구현이며 NVIDIA v3나 TensorRT 전환이 아니다.
@@ -579,6 +581,8 @@ NPC 경로 점은 Ego의 NPC 경로 투영점보다 경로를 따라 약 40.79~5
 
 ## 9. JPEG·blur·노출·noise 증강 결정 — 2026-10-10 23:05 KST
 
+이 절은 당시 80% 선택의 근거다. 현재 확률 100%와 저장 방식은 아래 10절을 따른다.
+
 ### 결정과 근거의 범위
 
 SaveSensorData PNG와 실제 주행 JPEG 사이에 **관측된 압축 차이만 학습에서 재현**한다.
@@ -668,3 +672,79 @@ GPU 실행·본학습·추론 AP 평가를 수행하지 않았다.
 
 기술 참고: [OpenCV JPEG encode 옵션](https://docs.opencv.org/4.x/d8/d6a/group__imgcodecs__flags.html),
 [Pillow JPEG quantization·subsampling](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#jpeg).
+
+<a id="jpeg-cache-decision-261010"></a>
+
+## 10. Q90 100%와 사전 생성 캐시 선택 — 2026-10-10 23:55 KST
+
+### 결정과 비교 범위
+
+사용자 요청으로 Q90을 네 카메라 모두 100% 적용한다. **별도 native JPEG 캐시를 학습
+머신에서 한 번 만드는 경로를 추천**하고 PNG→Q90→decode를 매번 수행하는 경로를 대안으로
+유지한다. 캐시 선택은 다른 모델이나 압축 정책이 아니라 같은 입력을 준비하는 방법의 차이다.
+학습 기회가 제한된 상황에서 저장 방식 때문에 두 모델을 본학습할 필요는 없다.
+Q90 자체의 AP 개선은 별도 rosbag 평가 전까지 미검증이다.
+
+로컬 team-cu128 이미지의 OpenCV 4.11.0으로 실제 train의 7개 패밀리에서 256장면을
+hash 순서로 균등 추출했다. 패밀리별 36~37장이므로 모집단 비율을 그대로 반영한 표본은 아니다.
+모델·GPU·원격 접속 없이 실제 MMDetection3D 로딩, resize/crop, 정규화, GT 변환과
+batch packing을 측정했다. JPEG는 원본 PNG의 RGB를 명시적으로 BGR로 바꿔 Q90으로
+한 번 encode하며 원본 크기를 유지한다. resize/crop 이전에 적용하고 재압축하지 않는다.
+
+### 동등성과 구현 검증
+
+- 256장면·1,024개 카메라의 최종 입력 픽셀이 정확히 같았다. GT 483개
+  (Vehicle 238/Pedestrian 116/Obstacle 117/Animal 12), LiDAR와 투영·증강 행렬도 정확히 같았다.
+- 실제 등록된 캐시 transform과 실행 config로 train 32장면·val 32장면을 별도로 검사했다.
+  train 픽셀 동등성, GT 143개·LiDAR·투영 동등성, val 입력 불변을 통과했다.
+- paired 검사에서만 BEV 증강과 PointShuffle을 고정했다. 비용 검사에서는 정상 train 증강을
+  유지했다. JPEG transform 제거로 난수 소비 순서가 달라지므로 동일 seed의 전체 학습 궤적까지
+  같다고 주장하지 않는다. 증강 분포는 유지하며 기존 준비 계약을 그대로 resume하지 않는다.
+- CPU 단위 검사 27개를 통과했다. 캐시 누락·손상·다른 원본 hash·해상도 불일치와 이중 압축을
+  거부한다. 캐시 생성은 fresh 경로만 허용하고 완료 manifest 이전에 실패한 캐시는 사용하지 않는다.
+- `prepare_base5_jpeg_cache.py`가 train 전체 카메라를 생성·검증하고, direct runner의
+  `--jpeg-cache`가 train에만 연결한다. val/test는 원본 pipeline을 유지한다.
+  cache manifest SHA256은 실행·resume 계약에 포함하며 `--run`에서 실제 파일 hash도 확인한다.
+
+### 로더 비용
+
+batch 4, 두 실행 순서를 뒤집어 반복했고 각 경로에서 첫 epoch를 warmup으로 제외한
+두 epoch를 측정했다. OS 파일 캐시는 warm 상태이며 cold disk·네트워크 성능 시험이 아니다.
+아래 CPU 단독 수치는 동일한 캐시 파일 연결 원리를 쓰는 benchmark adapter로 측정했으며,
+최종 등록 transform의 동등성은 위 64장면 검사로 따로 확인했다.
+
+| CPU 로더 조건 | 매번 PNG→Q90 | 사전 JPEG 캐시 | 해석 |
+|---|---:|---:|---|
+| worker 0, 준비 처리량 | 10.77장/s | 30.42장/s | CPU 준비 약 2.82배 |
+| worker 4, 준비 처리량 | 29.27장/s | 58.64장/s | CPU 준비 약 2.00배 |
+| worker 4, batch 수신 대기 | 136.71ms | 68.20ms | GPU 대기 없이 최대한 소비한 조건 |
+| worker 4, 소비 대기 모사 시 처리량 | 6.02장/s | 6.14장/s | 실제 CUDA 학습이 아닌 CPU 모사 |
+| 같은 모사의 정상 공급 중 수신 대기 | 15.64ms | 15.92ms | 초반 두 batch 제외, 개선 확인 안 됨 |
+
+모사는 과거 4090 batch 4 학습 step 609.57ms를 단순 sleep으로 넣어 prefetch 겹침을
+관찰했다. 초기 준비 대기를 포함한 처리량은 캐시가 약 2% 높았지만, 정상 공급 중에는
+두 방식 모두 충분히 따라갔다. **CPU 준비 두 배 개선을 전체 학습 두 배 개선으로 환산하지
+않는다.** 캐시의 주된 이점은 반복 PNG decode/encode와 읽기 용량·CPU 사용을 줄이는 것이다.
+실제 4090 전체 학습 시간은 이번에 다시 측정하지 않았으며 기존 약 4.8시간 추정을 바꾸지 않는다.
+
+### 생성 시간과 추가 용량
+
+| 항목 | 측정 또는 추정 |
+|---|---|
+| 표본 캐시 생성 | 256장면·1,024개 이미지, 13.52초 실측 |
+| 표본 이미지 용량 | 원본 PNG 915,924,530 bytes → JPEG 83,703,564 bytes |
+| 전체 train 원본 이미지 | 4,255장면·17,020개 이미지, 14.13GiB 실제 manifest 합계 |
+| 전체 train JPEG 캐시 | 약 1.28GiB, 패밀리별 표본 크기로 가중 추정 |
+| 전체 train 생성 시간 | 로컬 약 225초(약 4분), 표본 시간을 선형 외삽 |
+
+원본 PNG를 보존하므로 **디스크를 줄이는 작업이 아니라 약 1.28GiB를 추가하는 작업**이다.
+전체 train 캐시는 아직 생성하지 않았다. 시간은 Vast 실측이 아니고 다른 날씨 25K의 용량도
+보장하지 않는다. 원격에 이미 있는 PNG에서 생성할 수 있어 별도 대용량 업로드는 필요 없다.
+native 해상도를 유지하므로 이후 입력 crop 크기를 바꿔도 캐시를 다시 만들 필요는 없다.
+
+측정 파일은 ignored 경로 `artifacts/evaluation/bevfusion/base5_jpeg_cache_261010/report.json`,
+`base5_jpeg_cache_261010_steady/report.json`, `base5_jpeg_cache_261010/production_pipeline.json`에
+보존했다. 첫 report는 CPU 단독 및 초기 모사, 두 번째는 정상 공급 대기를 분리한 반복 측정이다.
+본학습·Vast 재개·GPU·원본 수정·production 변경은 하지 않았다.
+다음은 사용자 요청으로 Vast를 재개한 뒤 소스 전달 → 원격 train 캐시 생성·검증 →
+새 준비 계약 확정 → 외부 checkpoint 백업 gate 확인 → 승인 후 본학습이다.

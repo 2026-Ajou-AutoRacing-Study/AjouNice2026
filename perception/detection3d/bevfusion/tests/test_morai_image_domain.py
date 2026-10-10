@@ -93,7 +93,7 @@ class ImageDomainTest(unittest.TestCase):
         domain = [t for t in pipeline if t.type == 'MoraiOnlineImageDomainAug3D']
         self.assertEqual(len(domain), 1)
         self.assertEqual(domain[0].jpeg_quality, [90, 90])
-        self.assertEqual(domain[0].jpeg_prob, .8)
+        self.assertEqual(domain[0].jpeg_prob, 1.0)
         self.assertTrue(domain[0].native_resolution)
         self.assertEqual(domain[0].color_order, 'rgb')
         for key in ('blur_prob', 'exposure_prob', 'noise_prob'):

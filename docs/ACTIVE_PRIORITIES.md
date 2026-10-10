@@ -49,13 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
-- **2026-10-10 23:05 KST 이미지 증강 결정:** 12개 개발 bag의 1,536장과 native PNG 672장을
-  비교해 학습용 JPEG Q90만 카메라별 80% 확률로 활성화했다. blur·노출·noise는 OFF다.
-  선택 config는 `bevfusion_base5_dense_512_jpeg90_train.py`이며 val/test·production은 그대로다.
-  CPU 단위 검사 19개, 실제 paired pipeline 48장면, 정상 랜덤 증강 로더 32장면을 통과했다.
-  [측정과 한계](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010)를 따른다.
-  AP 개선과 JPEG 적용 후 학습 시간은 미측정이다. Vast는 재개하지 않았고 기존 약 4.8시간
-  추정은 증강 이전 비용으로 보존한다. 재개 요청 후 새 hash 계약·짧은 비용·백업 gate를 확인한다.
+- **2026-10-10 23:55 KST 이미지 입력 선택:** 사용자 합의로 native JPEG Q90을 네 카메라
+  모두 100% 적용한다. blur·노출·noise는 OFF다. 별도 train JPEG 캐시를 추천하고 매번 PNG에서
+  변환하는 경로를 대안으로 유지한다. `bevfusion_base5_dense_512_jpeg90_train.py`를 사용하며
+  원본 PNG·GT·split·val/test·production은 유지한다.
+  [로컬 동등성·로더 비교와 한계](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010)를
+  따른다. CPU 준비 개선을 전체 학습 가속으로 환산하지 않는다. AP와 실제 JPEG 적용 후 학습
+  시간은 미측정이다. Vast 재개 요청 후 원격 캐시 생성·전수 검증·새 hash 계약과 외부 checkpoint
+  백업 gate를 확인한다. 전체 train 캐시·본학습은 아직이며 23:05의 80%는 이전 결정이다.
 
 - **2026-10-10 22:43 KST 범위 결정:** Base5는 전후방 ±100m·좌우 ±30m를 유지한다.
   ±40m 비용 시험은 보존하되 이번 학습에서는 기각한다. 고주로 합류·로터리 대기의

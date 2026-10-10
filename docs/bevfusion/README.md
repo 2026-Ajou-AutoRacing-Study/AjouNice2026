@@ -10,7 +10,7 @@
 
 | 목적 | 최신 기준 |
 |---|---|
-| 학습용 JPEG Q90만 ON / blur·노출·noise OFF | [12개 개발 bag·1,536장과 native PNG 672장 비교·CPU 로더 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |
+| 학습용 JPEG Q90 100% / 사전 생성 캐시 추천 / blur·노출·noise OFF | [256장면 픽셀·GT 동등성과 CPU 로더 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010), [실제 JPEG 관측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |
 | Base5 전후방 ±100m·좌우 ±30m 유지 / ±40m 확대 기각 | [5K·고주로 합류·로터리 경로 근거와 재검토 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#lateral-range-decision-261010) |
 | 21시 학습 전 확대 검증 / 512·batch 4 추천 / 외부 백업 미완료 | [300장·실제 5K 로더·745장 val·저장/재개·네트워크 gate](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#6-4090-확대-표본학습-전-검증--2026-10-10-2023-이후), [Vast 후속 절차](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#확대-검증-완료와-네트워크-gate--2026-10-10-21시) |
 | 실제 임대 4090 비용 검증 / Sunny13 5K 전달·전수 검증 완료 | [10-10 원격 실측](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#5-vast-4090-실제-검증--2026-10-10-17311734-kst), [19:49 복구·전체 검증 완료](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#부족-조각-복구와-전체-데이터-검증-완료--2026-10-10-1949-kst), [후속 Cloud Sync 선택](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#현재-전송-유지와-cloud-sync-후속-선택--2026-10-10-합의) |
@@ -25,10 +25,13 @@ production은 E25·threshold 0.40/0.15/0.10이다. 새 학습은 512×1056·batc
 camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 본학습을 시작하지 않는다.
 2026-10-10 미션 경로 검토 후 Base5의 semantic ROI는 전후방 ±100m·좌우 ±30m로 유지한다.
 ±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
-2026-10-10 23:05 KST의 학습 선택 config는 `bevfusion_base5_dense_512_jpeg90_train.py`다.
-원본 해상도에서 JPEG Q90을 카메라별 80% 확률로 적용하고 blur·노출·noise는 끈다.
-val/test·추론은 바꾸지 않는다. 종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이므로
-사용자 요청으로 Vast를 재개한 뒤 짧은 학습 비용을 다시 확인한다. 증강의 AP 향상은 미검증이다.
+2026-10-10 23:55 KST의 학습 선택 config는 `bevfusion_base5_dense_512_jpeg90_train.py`다.
+사용자 합의로 원본 해상도 JPEG Q90을 네 카메라 모두 100% 적용하고 blur·노출·noise는 끈다.
+학습 환경에서 별도 native JPEG 캐시를 한 번 생성하는 경로를 추천하며, 매번 PNG에서
+변환하는 경로를 대안으로 유지한다. 원본 PNG·infos·GT·split과 val/test·추론은 바꾸지 않는다.
+전체 train 캐시 생성은 아직이며, CPU 로더의 약 두 배 개선을 전체 학습 가속으로 해석하지 않는다.
+종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 요청 후 새 준비 계약과
+외부 백업을 확인한다. JPEG 정책의 AP 향상은 미검증이며 이번 비교에서는 GPU를 쓰지 않았다.
 아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님

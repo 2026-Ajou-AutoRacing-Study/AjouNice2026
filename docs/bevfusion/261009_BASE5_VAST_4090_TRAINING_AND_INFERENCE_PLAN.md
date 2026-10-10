@@ -19,7 +19,54 @@ TLS 연결이 timeout이었다. 큰 파일을 반복 전송하거나 인스턴�
 
 ## 2026-10-10 원격 검증 진행 — 본학습 시작 전
 
+### Q90 100%와 사전 생성 캐시 — 2026-10-10 23:55 KST
+
+사용자 합의로 Q90을 네 카메라 모두 100% 적용한다. 로컬 256장면·1,024개 카메라에서
+매번 변환하는 경로와 캐시 경로의 픽셀·GT·LiDAR·투영이 정확히 같았다. 실제 등록 pipeline의
+train/val 64장면과 CPU 단위 검사 27개도 통과했다.
+[측정과 저장 방식 결정](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010)을 따른다.
+CPU 준비 비용은 줄었지만 prefetch와 GPU 처리가 겹치므로 전체 학습 두 배 가속은 아니다.
+저장 방식 때문에 별도 모델을 두 번 학습할 필요는 없으며 Q90 정책의 AP는 후속 bag 평가로 확인한다.
+
+**원격에 이미 전달한 PNG에서 train-only native JPEG 캐시를 한 번 생성**하는 경로를 추천한다.
+기존 PNG·infos·GT·split은 보존한다. 전체 train 캐시는 약 1.28GiB 추가로 예상하며 로컬 표본
+기준 생성은 약 4분이다. Vast 생성 시간은 미측정이고 별도 대용량 업로드는 필요 없다.
+val/test와 추론은 바꾸지 않는다. 현재 전체 캐시는 아직이며 Vast도 재개하지 않았다.
+
+사용자가 인스턴스 재개를 요청한 뒤 새 소스를 전달하고, 학습 환경에서 다음을 실행한다.
+아래는 **미실행 후속 명령**이며 저장 방식의 입력만 만든다. 학습·GPU는 실행하지 않는다.
+
+```bash
+cd /root/AjouNice2026
+export PYTHONPATH="$PWD:$PYTHONPATH"
+python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_cache.py \
+  --data /root/base5_sunny13_portable_261010 \
+  --output /root/base5_sunny13_jpeg90_train_cache_261010 \
+  --profile 512x1056
+
+python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_cache.py \
+  --data /root/base5_sunny13_portable_261010 \
+  --output /root/base5_sunny13_jpeg90_train_cache_261010 \
+  --profile 512x1056 --verify
+```
+
+실행 디렉터리는 실제 소스 배치에 맞춘다. 캐시 생성은 새 디렉터리에서만 허용하고
+`--verify`는 기존 캐시 검증만 수행한다. 새 학습 준비에는 다음 설정과 추가 인자를 넘긴다.
+
+```bash
+--config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_jpeg90_train.py
+--jpeg-cache /root/base5_sunny13_jpeg90_train_cache_261010
+```
+
+캐시 누락·손상 시 자동으로 다른 경로로 전환하지 않고 거부한다. 매번 변환하는 대안은
+같은 config에서 `--jpeg-cache`를 생략해 명시적으로 선택한다. cache manifest hash는 resume 계약에 포함한다.
+기존 all-OFF/80% 준비 경로를 그대로 resume하지 않고 새 준비 경로와 소스/config hash를 확정한다.
+외부 checkpoint 백업 gate는 미해결이며 승인 전에 본학습을 시작하지 않는다.
+약 4.8시간은 종전 JPEG 증강 이전 추정이며 이번 CPU 비교만으로 갱신하지 않는다.
+
 ### 이미지 증강 선택 — 2026-10-10 23:05 KST 로컬 검토
+
+이 절의 80%는 당시 선택 이력이다. 현재 선택은 위 23:55의 100%와 train 캐시 기준이다.
 
 개발용 rosbag 12개의 1,536장 모두 JPEG Q90·4:2:0 양자화 표를 확인했다.
 Base5 native PNG 168장면·672개 이미지와 비교해 **JPEG만 학습에서 카메라별 80% 확률로
