@@ -49,6 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 로컬 공간/depth 비교:** 실제 5K의 근거리 voxel 정보·밀집 GT와
+  300장 추론 비용, 짧은 실제 학습 비용을 비교·검증했다.
+  [최신 결과와 후속 선택](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011)이
+  아래 ‘다음은 격자 비교’ 기록보다 우선한다. 현재 7.5/30cm·depth 50cm를 기본으로
+  유지하며 정밀 5/20cm는 4090 비용 확인 후 선택한다. 비교용 공통 padding을 기본
+  ROI로 승격하지 않고, 수집 원본·E25·Vast는 변경하지 않는다. 본학습 AP와 실제
+  ROS 전달 비용, 최신 소스의 원격 비용·외부 백업 완료는 아직이다.
+
 - **2026-10-11 최신 파생 GT:** native roll/pitch를 버리던 변환을 고정 yaw의 upright
   enclosure로 보완했다. 기존 센서·native GT·클래스·개수·분할은 보존한다. 현재 학습 입력은
   `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`이며 아래 heatmap 수정도 유지한다.

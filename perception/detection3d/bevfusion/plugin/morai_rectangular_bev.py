@@ -5,6 +5,7 @@ from mmdet3d.registry import MODELS
 from projects.BEVFusion.bevfusion.depth_lss import DepthLSSTransform
 from projects.BEVFusion.bevfusion.sparse_encoder import BEVFusionSparseEncoder
 from .morai_transfusion_head import MoraiTransFusionHead
+from perception.detection3d.bevfusion.view_geometry import restore_view_geometry
 
 
 @MODELS.register_module()
@@ -22,6 +23,13 @@ class MoraiRectangularSparseEncoder(BEVFusionSparseEncoder):
 
 @MODELS.register_module()
 class MoraiRectangularDepthLSSTransform(DepthLSSTransform):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The inherited constructor truncates fractional floating grid counts.
+        # Fresh Base5 training must own the same rounded grid as inference,
+        # without relying on an inference-only post-checkpoint restoration.
+        restore_view_geometry(self)
+
     def bev_pool(self, geom_feats, x):
         # Upstream camera pool emits [B,C,X,Y]; sparse LiDAR emits [B,C,Y,X].
         # Transpose before learned downsampling, not the metric bounds/coordinates.

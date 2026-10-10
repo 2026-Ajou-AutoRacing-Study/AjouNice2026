@@ -10,6 +10,16 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
+**최신 공간/depth 판단 — 2026-10-11:** 로컬 5060 Ti에서 세 공간 격자의 실제 5K
+정보량·300장 추론 비용과 짧은 학습 비용을 비교했다.
+[공간 격자·depth 근거와 한계](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011)를
+따른다. 기본 7.5/30cm·depth 50cm와 semantic ROI ±100/±30m는 유지한다.
+5/20cm의 근거리 정보 보존 이점은 관측했지만 정확도 향상은 미검증이다. 재개 승인 후
+최신 소스와 upright infos로 기준/정밀 후보의 실제 4090 비용을 확인해 학습 config를
+확정한다. 당시 4090 300장/학습 비용 수치를 최신 소스의 실측으로 재사용하지 않는다.
+25cm depth는 기본 256MiB cache의 budget miss와 bin 연산을 구분한다.
+이번 로컬 비교에서 Vast 접속·재개·본학습·Drive 변경은 하지 않았다.
+
 **최신 파생 라벨 — 2026-10-11:** native roll/pitch를 버리던 infos 변환을 upright 7D
 enclosure로 보완했다. [라벨 정책과 전수·실제 포인트·GPU 재개 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011)가
 아래 ‘GT 유지’ 이력보다 우선한다. 센서·native GT·클래스·개수·분할은 그대로이고 파생 infos

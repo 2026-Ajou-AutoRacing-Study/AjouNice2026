@@ -5,11 +5,12 @@
 ## CURRENT
 
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
-로컬 공간 격자/depth 후보 검토 → 원격 최신 소스·새 준비·비용/외부 백업 검증 → 승인 후 본학습**이다.
+로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·새 준비·비용/외부 백업 검증 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| 공간 5/20·7.5/30·10/40cm / depth 25·50·100cm / 실제 5K 정보량·비용과 선택 근거 | [10-11 로컬 공간 격자·depth 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011) |
 | 기울어진 native RPY 박스 → upright 7D / 최신 파생 라벨 입력·전수·실제 점·재개 | [10-11 upright 라벨 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | Base5 학습 heatmap 축 수정 / 실제 5K·증강·전체 모델 역전파/재개 / 다음 격자·depth 실험 | [10-11 학습 정답 정합 검증과 후속 순서](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011) |
 | Base5 유효 반사점 필터·uint8 운반 / 기존 증강 유지 / 로컬 검증 | [10-11 정합성·CPU 비용·원격 재개 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-valid-returns-uint8-261011) |
@@ -53,7 +54,9 @@ LiDAR·native GT·보정·split·production E25는 바꾸지 않았다. 파생 i
 축 검사에서 빠졌던 target 생성 경로이며 원본 GT 오류가 아니다. 실제 11,052개 GT와 반복
 증강을 포함한 29,714개 정답 위치, 4-iteration 전체 모델 역전파·재개를 로컬에서 통과했다.
 본학습 성능 개선을 측정한 것은 아니다. E25와 prediction 경로는 유지하고 Vast 반영은 아직이다.
-다음은 입력/depth 조건을 고정한 세 공간 격자 후보 비용 비교와 선택 격자의 depth 간격 비교다.
+후속 공간 격자·depth 비교의 결과는 17절을 따른다. 비용 검사를 본학습 AP 개선으로
+해석하지 않는다. 기본 공간 7.5/30cm·depth 50cm를 유지하며, 더 정밀한 5/20cm는
+4090 재개 후 비용을 확인할 선택 후보로 남긴다. coarse 10/40cm를 단순 속도만으로 승격하지 않는다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님
 

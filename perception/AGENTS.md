@@ -14,6 +14,12 @@ Base5 작업의 현재 실행 기준은
 현재 입력은 `../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
 raw·센서·클래스·GT 수·split은 유지하고 파생 infos 크기만 native 8모서리 enclosure로 보완했다.
 현재 native-JPEG config는 old yaw-only manifest를 거부한다. 15절 heatmap 수정도 유지한다.
+2026-10-11 공간 격자·depth 후속 결과는 EVIDENCE 17절을 따른다. 실제 5K 정보량과
+300장 비용·짧은 학습 비용을 비교하며 AP 우위를 주장하지 않는다. 기본 7.5/30cm·
+depth 50cm는 유지하고 5/20cm는 4090 재개 후 비용 확인 후보로 남긴다. 비교용
+공통 padding X±100.8/Y±33.6은 semantic ROI 확대나 기본 config 승격이 아니다.
+Base5 pooling 정수 격자 반올림과 fresh training의 config-owned nx 복원을 보완했다.
+25cm depth의 cache 예산 초과 비용은 실제 depth 연산 비용과 분리한다.
 Vast/Drive는 이 작업에서 변경하지 않았다. 원격 재개 시 최신 소스·기존 JPEG의 라벨 재변환·
 새 work-dir 준비를 수행하며 센서를 재전송하거나 이전 계약으로 resume하지 않는다.
 현재 카메라 RGB는 train/val/test/분석 모두 native Q90 JPEG다.
@@ -31,7 +37,7 @@ PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무�
 학습 heatmap X/Y 교환을 수정했고 고유 11,052 GT·증강 포함 29,714회 peak 검사와 실제
 전체 모델 4-iteration 역전파·저장·재개를 로컬에서 통과했다. 원본 GT·E25는 바꾸지 않는다.
 이전 feature 축/유한 loss 검사가 target 생성까지 보장한 것은 아니다. Vast 반영은 아직이며
-다음은 로컬 공간 격자 5/20·7.5/30·10/40cm 비용/위험 비교, 선택 격자의 depth 간격 비교다.
+당시 다음 작업이었던 공간 격자 5/20·7.5/30·10/40cm와 depth 비교는 최신 17절을 따른다.
 속도만으로 AP 우위를 확정하지 않으며 원격 재개 때 최신 소스와 새 준비 계약을 사용한다.
 Base5-only single-frame·4-class·7D이며 temporal/OD velocity는 OFF다.
 과거 Base3/Base4 config나 HEAD 브랜치를 자동으로 현재 기본값으로 승격하지 않는다.

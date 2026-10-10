@@ -2,11 +2,12 @@
 
 ## CURRENT / 다음 판단
 
-**2026-10-11 최신: heatmap 정답 축 수정에 이어 native roll/pitch를 반영한 upright 7D
-라벨 변환을 완료했다.** 아래 16절이 최신 파생 라벨 기준이며 15절의 축 수정도 유지한다.
+**2026-10-11 최신: upright 라벨·정답 축 보완 후 공간 격자와 depth 비용·위험을 비교했다.**
+아래 17절이 최신 선택 근거이고, 16절의 파생 라벨과 15절의 축 수정도 유지한다.
 수집 raw·센서·클래스·GT 수·split·E25는 보존하고 파생 infos의 박스 크기만 보완했다.
-재수집하지 않는다. Vast에는 14–16절 변경이 아직 없다. 다음은 로컬 공간 격자 후보 비용·위험 분석,
-선택 격자의 depth 간격 비교이며, 이후 원격 소스 갱신·새 준비·외부 백업 확인을 거쳐 본학습한다.
+재수집하지 않는다. Vast에는 14–17절 변경이 아직 없다. 기본 7.5/30cm·depth 50cm를
+유지하며, 다음은 승인 후 원격 소스 갱신·새 라벨·기준/정밀 후보 비용·외부 백업 확인이다.
+정밀 후보의 학습 AP 우위와 최신 소스의 실제 4090 비용을 이미 검증했다고 해석하지 않는다.
 
 Sunny13 **수집이 완료된 실제 5K 전체**의 crop 분석과 5060 Ti에서의 원본 입력 비용 검증을 완료했다.
 추가 원격 검증 이후 추천은 **512×1056 아래 정렬**, 더 빠른 대안은 **448×896**이다.
@@ -1325,3 +1326,260 @@ ignored 검증 근거는 `artifacts/evaluation/bevfusion/base5_upright_targets_2
 
 다음 순서는 15절의 공간 격자 세 후보 비교 → 선택 격자의 depth 간격 비교 → 승인 후
 4090 최신 소스·새 라벨·비용·외부 백업 검증 → 본학습·rosbag 성능 평가다.
+
+<a id="base5-grid-depth-local-261011"></a>
+
+## 17. 공간 격자·depth 간격의 로컬 비교 — 2026-10-11
+
+### 비교 계약과 내부 padding
+
+16절 upright portable와 현재 native-JPEG config를 사용한다. 센서/GT·이미지 512×1056·
+전후방 ±100m/좌우 ±30m semantic ROI·4클래스·200 query·분리 pooling·batch 1 AMP는 고정한다.
+미학습 공유 파라미터로 연산 비용을 비교하며 AP·ROS 네트워크·실제 4090 성능을 측정하는 작업이 아니다.
+공간 비교에서는 비기하 파라미터 390개의 값과 SHA256이 모든 후보에서 동일하다.
+
+| 후보 | LiDAR voxel XY | Camera pooling 간격 | Fusion/head 간격 | 실제 feature Y×X |
+|---|---:|---:|---:|---:|
+| 현재 그대로 대조군 | 7.5cm | 30cm | 60cm | 108×336 |
+| 공통 padding · 정밀 | 5cm | 20cm | 40cm | 168×504 |
+| 공통 padding · 기준 | 7.5cm | 30cm | 60cm | 112×336 |
+| 공통 padding · 경량 | 10cm | 40cm | 80cm | 84×252 |
+
+Camera의 20/30/40cm는 fusion 직전의 최종 간격이 아니다. LiDAR stride 8과 Camera
+downsample 2를 통과하면 양쪽 feature의 간격은 각각 40/60/80cm로 같아진다.
+각 후보의 원점·범위·sparse shape·head train/test/coder metadata를 함께 계산한다.
+
+공통 비교의 내부 범위는 X±100.8/Y±33.6m다. 세 후보 모두 XY stride 16과 나누어떨어지고
+동일한 원점을 사용한다. 현재 내부 X±100.8/Y±32.4m 대조군을 별도로 두어 padding 변경과
+해상도 변경의 영향을 분리한다. **센서/GT의 승인된 semantic ROI를 확대하지 않는다.**
+이 공통 padding은 비교 조건이며 현재 기본 학습 config를 변경하는 승격이 아니다.
+
+### 새 후보에서 발견한 정수 격자 반올림 누락
+
+`201.6/.2`와 `201.6/.4`는 Python float로 각각 `1007.999…`, `503.999…`다.
+분리 pooling의 plan builder가 `int`로 잘라 마지막 padding 열을 하나 잃을 수 있었다.
+stride 2 이후 shape가 같을 수 있어 fusion tensor shape 검사만으로는 발견하지 못한다.
+30cm의 현재 설정에서는 이 X열 누락이 발생하지 않았다.
+
+opt-in pooling plan은 정수 격자로 반올림하고, 실제로 나누어떨어지지 않는 bounds는 거부한다.
+Base5 rectangular view의 새 학습 인스턴스도 config-owned geometry를 즉시 복원해, 추론에서만
+복원하고 학습의 `nx` metadata는 잘린 채 남는 일을 방지한다. E25/third-party 기본 클래스는
+수정하지 않는다. 모서리 최종 열의 point 유지와 CPU/CUDA gradient·cache·stream을 회귀 검사한다.
+기존 `.long()`의 하한 경계 양자화 정책은 이번에 변경하지 않는다.
+
+### 실제 5K 정보량과 밀집 객체
+
+모든 후보에서 고유 11,052개 GT의 target peak·query 위치·coder 왕복이 통과했다.
+현재 실제 BEV 증강 1회까지 후보별 20,385회, 네 후보 합계 81,540회 peak 검사를 통과했다.
+증강마다 train 17개 GT가 semantic ROI 밖으로 나가 제외되는 기존 정책은 동일하다.
+‘peak 검사 횟수’는 중복 셀의 독립 peak 수를 뜻하지 않는다.
+
+| 공통 비교 후보 | 같은 클래스·같은 셀의 중복 GT 초과 수 | 같은 클래스 3×3 이웃 pair 수 | 전체 GT의 native 근거 voxel 합계 |
+|---|---:|---:|---:|
+| 5/20cm | 0 | 25 | 751,907 |
+| 7.5/30cm | 0 | 82 | 619,897 |
+| 10/40cm | 8 | 109 | 529,648 |
+
+이웃 pair는 local-max 후보 간 경쟁 위험이지 반드시 검출 실패한다는 뜻이 아니다.
+동일 높이의 인접 peak는 함께 남을 수 있고, head는 연속 center offset을 회귀한다.
+객체 폭이 한 셀보다 작다고 탐지가 불가능한 것도 아니다. Camera feature·voxel XYZ 평균·
+여러 channel과 query attention이 존재한다. 이 표를 recall/AP로 해석하지 않는다.
+
+native full-RPY 박스 내부이면서 실제 모델 semantic ROI에 들어오는 점만 voxel 통계에 쓴다.
+upright enclosure에 새로 포함된 배경 점을 객체 근거로 추가하지 않는다. 합계는 GT별 점유 합산으로,
+서로 겹치는 component의 물리 포인트 중복을 제거한 dataset 전체 포인트 수는 아니다.
+원본 포인트 수를 변경하지 않았고, camera-only 679개는 세 후보 모두 usable LiDAR 0점이다.
+
+근거리 10m 미만의 native 근거 voxel 중앙값은 다음과 같다.
+
+| 객체군 | 5cm | 7.5cm | 10cm |
+|---|---:|---:|---:|
+| 차량 | 349 | 266 | 215 |
+| 보행자 | 46 | 36 | 30 |
+| 장애물 | 34 | 27.5 | 24 |
+| 동물 | 10.5 | 9 | 8.5 |
+
+반면 60m 이상 차량의 중앙값은 세 후보 모두 **5점 / 5 voxel**이었다.
+16채널의 원거리 희소성은 더 작은 voxel만으로 해소되지 않는다. 정밀 후보의 직접적인
+정보 보존 이점은 원거리 새 반사점 생성이 아니라 근거리 포인트 평균화 감소·BEV 공간 분리에 있다.
+
+### 전체 모델 비용과 병목 — 5060 Ti, 공간 비교
+
+서로 다른 300장(대표 200 + stress 100)을 후보마다 입력했다. 순방향과 역방향 후보 순서를
+바꾼 두 실행에서도 결론은 같았다. 다음 표는 두 실행의 평균이다. 같은 300장을 두 번
+측정했으므로 600개의 독립 장면이라고 하지 않는다. `model`은 test_step이고 `service`는
+CPU JPEG decode/crop + test_step + decoded prediction CPU 복사다. 디스크·ROS·네트워크는 제외한다.
+
+| 후보 | model 평균 | service 평균 | 공통 기준 대비 service |
+|---|---:|---:|---:|
+| 현재 그대로 7.5/30cm | 94.73ms | 104.16ms | 별도 padding 대조군 |
+| 공통 5/20cm | 128.51ms | 138.02ms | +32.2% |
+| 공통 7.5/30cm | 94.80ms | 104.38ms | 기준 |
+| 공통 10/40cm | 84.98ms | 94.44ms | −9.5% |
+
+별도 CUDA event 계측 32장 평균은 다음과 같다. 표 전체를 단순 합산해 service와 비교하지
+않는다. 비계측 비용과 다른 반복이며 view의 하위 span·host 대기·동기화 구간이 존재한다.
+
+| 구간 | 5/20cm | 7.5/30cm 공통 | 10/40cm |
+|---|---:|---:|---:|
+| Camera backbone | 44.94ms | 44.80ms | 44.85ms |
+| Depth/feature 생성 | 8.78ms | 8.67ms | 8.69ms |
+| 분리 pooling | 7.19ms | 2.41ms | 1.35ms |
+| Camera BEV downsample | 8.02ms | 3.41ms | 1.82ms |
+| LiDAR sparse backbone | 13.80ms | 11.59ms | 10.80ms |
+| Fusion | 5.17ms | 2.10ms | 1.06ms |
+| BEV backbone | 9.69ms | 4.00ms | 2.37ms |
+| BEV neck | 2.67ms | 0.81ms | 0.36ms |
+| Detection head/decode | 20.04ms | 8.63ms | 5.49ms |
+
+정밀 격자의 셀 수는 공통 기준의 2.25배지만, 전체 모델을 2.25배로 환산할 수 없다.
+이미지 backbone과 depth 생성은 입력 픽셀·depth 수가 고정돼 거의 같다. 비용 증가는
+dense BEV와 head에 집중되고, sparse 연산은 빈 공간 전체가 아니라 활성 voxel 중심이다.
+컨볼루션 커널 크기·head의 min_radius와 local-max 이웃 수는 셀 단위로 유지했으므로
+실제 미터 단위 receptive field와 최소 Gaussian 크기도 변한다. 이것까지 통제한 순수
+양자화 효과나 정확도 A/B라고 주장하지 않는다.
+
+최종 재실행은 case 사이에 계측용 bound-method 참조를 GC한 뒤 CUDA peak를 초기화한다.
+이전 case의 모델 참조가 남아 VRAM 통계에 합산되는 benchmark 오염을 막는 조치이며,
+production inference를 더 빠르게 만드는 수정은 아니다. `spatial_v4_final`에서도 같은
+속도 결론을 확인했다. 순방향/역방향 실행의 수 ms 변동과 padding 대조를 보존하므로
+1% 내외 차이를 확실한 가속으로 주장하지 않는다.
+
+실제 학습 비용은 camera-only 초기화·같은 24개 장면과 증강·AdamW AMP·batch 1/workers 4다.
+첫 8 step을 제외한 16 step을 측정했고, 네 후보의 scene ID와 증강 후 GT 해시가 모두 같다.
+모든 loss는 유한하며 optimizer는 24회 모두 갱신됐다. 모델 객체를 별도 프로세스에서
+새로 만들어 rounded training geometry를 검사했다. validation·checkpoint·전체 epoch 비용은 제외한다.
+
+| 후보 | 실제 학습 1 step 평균, loader 포함 | steady 학습 allocated peak | steady 추론 allocated peak |
+|---|---:|---:|---:|
+| 현재 그대로 7.5/30cm | 373.39ms | 5,754MiB | 1,022MiB |
+| 공통 5/20cm | 447.03ms | 7,646MiB | 1,427MiB |
+| 공통 7.5/30cm | 365.08ms | 5,800MiB | 1,022MiB |
+| 공통 10/40cm | 346.98ms | 5,161MiB | 1,021MiB |
+
+이 짧은 측정에서 정밀 후보의 학습 비용은 공통 기준보다 약 22%, 경량 후보는 약 5%
+차이였다. loader 대기는 평균 약 3ms로 GPU 역전파보다 작았다. 4090·batch 4·전체 epoch에
+같은 비율/시간을 보장하지 않는다. 초기 cuDNN 알고리즘 탐색의 임시 peak는 추론 약
+3.63–8.60GiB, 학습 약 7.59–12.35GiB로 기록돼 steady 값과 구분해야 한다.
+
+### Depth 후보에서 구분해야 하는 캐시 비용
+
+현재 7.5/30cm와 optical depth 범위 `[1,100)`m를 유지하면 25/50/100cm 간격은
+396/198/99 planes다. 이는 실제 depth 오차가 25/50/100cm라는 뜻이 아니다.
+학습된 soft depth 분포로 feature를 여러 깊이에 보내는 discretization 설정이다.
+
+기본 256MiB 캐시에서 50cm는 plan 약 155MiB, 100cm는 약 78MiB로 들어갔다.
+25cm는 예산을 넘어서 **348회 모두 miss, hit 0회**였다. model 평균은 각각
+94.79/91.75/259.21ms(50/100/25cm)였다. 25cm의 큰 지연은 depth 연산 증가만이 아니라
+geometry 정렬·plan 재계산을 포함한다. 512MiB 대조 실험으로 이 비용을 분리하며,
+기본 모델의 cache 예산과 depth 간격을 자동 변경하지 않는다.
+
+512MiB 대조에서는 세 후보 모두 **hit 347 / miss 1**로 정상 캐시를 사용했다.
+같은 300장 결과는 다음과 같다. depth head 출력의 weight/bias 2개는 bin 수가 바뀌어
+shape를 공유하지 못하며 나머지 388개 비기하 파라미터는 같은 값이다. 학습된 depth의
+정확도 비교가 아니다.
+
+| depth 간격 | planes | model 평균 | service 평균 | 실제 plan payload |
+|---|---:|---:|---:|---:|
+| 25cm | 396 | 93.57ms | 102.92ms | 308.8MiB |
+| 50cm | 198 | 93.44ms | 102.93ms | 154.9MiB |
+| 100cm | 99 | 93.93ms | 103.23ms | 78.0MiB |
+
+이 실행의 전체 비용 차이는 반복 측정 변동 수준이다. 세부 CUDA event에서 25cm의
+depth/feature는 9.44ms, pooling은 2.82ms이고, 50cm는 8.62ms / 2.15ms다.
+하위 연산은 늘지만 전체 비용을 지배하는 image backbone은 같다. ‘25cm는 무료’라고
+일반화하지 않고, 반대로 캐시 없는 259ms를 depth bin 자체의 필연적인 비용으로 쓰지도 않는다.
+추론 cache는 GPU payload 비용이다. 학습은 증강으로 geometry가 바뀌므로 plan cache를
+우회한다. 캐시 hit의 추론 비용을 학습 비용으로 환산하지 않는다.
+
+같은 24개 장면·같은 증강으로 짧은 실제 학습도 비교했다. 기준 50cm는 위
+`train_v2/current075`, 나머지는 `train_depth_v1`이며 모두 24회 optimizer 갱신을 통과했다.
+
+| depth 간격 | 실제 학습 1 step 평균, loader 포함 | 50cm 대비 | steady 학습 allocated peak |
+|---|---:|---:|---:|
+| 25cm | 471.79ms | +26.4% | 5,867MiB |
+| 50cm | 373.39ms | 기준 | 5,754MiB |
+| 100cm | 315.53ms | −15.5% | 5,690MiB |
+
+따라서 이번에는 50cm를 기본 유지한다. 25cm는 추론 지연 때문에 버릴 후보는 아니지만
+학습 비용을 더 들일 만한 AP 근거가 아직 없다. 100cm도 시간이 빠르다는 것만으로
+정확도 손실이 없다고 가정하지 않는다. 이는 5060 Ti·batch 1·16개 측정 step의 짧은
+비용 검사이며 장시간 학습·4090 시간·평가지표를 보장하지 않는다.
+
+### 선택과 다음 실행 조건
+
+1. **기본 유지:** 7.5cm voxel / 30cm Camera pooling / 60cm fusion, depth 50cm다.
+   현재 semantic ROI·512×1056·Q90·BEV 증강·4클래스와 upright GT 정책을 유지한다.
+   기존 값이라는 이유가 아니라 실제 점 보존·밀집 GT·전체 비용을 확인한 뒤 내린 선택이다.
+2. **정밀 후보 보류:** 5/20cm는 근거리 사람·작은 장애물의 정보 보존 측면에서 의미 있는
+   후보다. 단순한 ‘16채널이므로 더 정밀해도 쓸모없다’는 결론은 내리지 않는다.
+   다만 metric receptive field가 작아지고 비용이 늘므로 AP 향상을 보장하지 않는다.
+   사용자 승인으로 Vast를 재개한 뒤 최신 소스·새 라벨로 실제 4090 비용을 확인한다.
+3. **경량 후보 미승격:** 10/40cm의 약 10% 가속만으로 작은 객체·근접 밀집 위험을
+   감수하지 않는다. 실제 시간 예산이 부족할 때 정확도 검증과 함께 재검토할 fallback이다.
+4. **Depth 유지:** 더 작은 간격이 정확한 depth를 자동으로 만들지 않고, 100cm의
+   작은 비용 절감만으로 원거리 feature 표현을 성기게 하지 않는다. 25cm는 512MiB
+   cache를 사용하면 추론 시간 때문에 기각할 후보가 아니다. 다만 본학습 AP는 미검증이고
+   학습 초기화의 depth 출력 shape·메모리·재개 계약도 달라져 기본값을 자동 변경하지 않는다.
+5. **본학습 전 원격 gate:** 최신 소스 전달 → 원격 기존 JPEG/native RPY로 upright infos
+   재변환 → 새 work-dir와 준비 계약 → 실제 4090 비용·짧은 학습·저장/재개 → 외부
+   checkpoint 백업 완료 → 사용자 승인 후 본학습이다. 기존 준비 계약에 라벨을 교체해
+   이어 붙이거나 대규모 센서 재전송을 하지 않는다.
+
+이번 작업에서 수집기·생성기·원본 5K·Drive·Vast·production E25는 변경하지 않았다.
+최종 성능은 학습 후 dev rosbag과 별도 test bag으로 확인한다. 미학습 파라미터의 latency나
+24-step 초기 loss를 탐지 성능으로 해석하지 않는다.
+
+### 최종 검증 근거와 재현
+
+ignored 산출물의 공통 경로는 `artifacts/evaluation/bevfusion/base5_grid_depth_261011/`다.
+
+- `information_v1/report.json`, `objects.json`: 실제 5K·11,052 GT의 target/coder/
+  raw native-RPY 근거 voxel·클래스·거리별 통계다. candidate config 네 개도 함께 보존한다.
+- `augmented_targets_v2/{current075,common050,common075,common100}/report.json`:
+  원본 + 실제 BEV 증강의 정답 peak·coder·query grid와 수정된 physical plot extent다.
+- `spatial_v2`, `spatial_v3_reverse`: 같은 300장·공유 가중치·반대 측정 순서의 비용과
+  CUDA event 하위 span이다. VRAM 최종 판단은 case 간 참조를 정리한 `spatial_v4_final`을 따른다.
+- `depth_v1`: 기본 256MiB cache의 25/50/100cm 결과다. `depth_v2_cache512`는
+  동일 조건에서 cache budget만 512MiB로 바꾼 대조다. 최종 추론 report의 source guard가
+  현재 소스와 일치하고 선택된 300개 센서 파일 SHA256도 전달본 manifest와 같다.
+- `train_v2/{case}/cost.json`, `train_depth_v1/depth{0.25,1.0}/cost.json`:
+  fresh-process 비용 검사 6개다. 같은 24개 scene ID·증강 GT 해시이며 **144회 모두
+  optimizer 갱신**, 모든 loss 유한, 전체 epoch/validation/checkpoint 미실행을 확인했다.
+- `pooling_tests_final.json`: CPU 9개 중 CUDA 전용 3개 skip, 나머지 6개 통과;
+  CUDA 9개 모두 통과했다. fractional 마지막 열·fresh constructor·forward/gradient·
+  cache 무효화·training bypass·nondefault stream을 포함한다.
+- `regression_tests_final.json`: rectangular/heatmap/input/image-domain/격자 계약
+  33개 모두 통과했다. 총 test 실행 51개 중 48개 통과, 정상 skip 3개다.
+- `completion_checks.json`: 최종 소스 guard·같은 학습 scene/증강 GT·144회 optimizer
+  갱신·회귀 결과를 다시 확인한 묶음 검사다. 두 실행의 전체 로그도 같은 경로에 보존한다.
+
+`spatial_v1`은 float 격자 문제를 발견해 중단한 진단 이력이다. `train_v1`은 같은
+Python 프로세스가 이미 import한 constructor를 쓰던 초기 비용 이력이며, fresh
+constructor 검증은 `train_v2`만 따른다. 첫 묶음 실행의 마지막 pool test는 CLI의
+필수 `--output` 누락으로 종료됐고, 위 최종 pool/regression 검사를 올바른 인자로 다시
+실행해 통과했다. 진단 로그와 실패 실행도 숨기거나 최종 성공 결과로 합산하지 않는다.
+
+재현은 team CUDA128 image의 기존 PYTHONPATH 설정에서 다음 도구를 사용한다.
+출력은 매번 새 경로여야 하고, GPU 비교 중 MORAI/다른 학습·추론은 중지한다.
+
+```bash
+python perception/detection3d/bevfusion/tools/audit_base5_grid_information.py \
+  --data "$UPRIGHT_JPEG_PORTABLE" \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py \
+  --output "$NEW_INFORMATION_OUTPUT"
+
+python perception/detection3d/bevfusion/scripts/benchmark_base5_grid_depth.py \
+  --data "$UPRIGHT_JPEG_PORTABLE" \
+  --selection artifacts/evaluation/bevfusion/base5_all_jpeg_261011/qualification_samples/manifest.json \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py \
+  --output "$NEW_COST_OUTPUT" --iterations 300 --stage-iterations 32
+
+python perception/detection3d/bevfusion/scripts/test_pool_optimization.py \
+  --output "$NEW_POOL_TEST_REPORT"
+```
+
+Depth 대조는 cost 명령에 `--cases current075 --depth-steps .5 .25 1.0`을 붙인다.
+512MiB 대조에는 `--pool-cache-mib 512`를 추가한다. 실제 학습 비용은 기존
+`benchmark_base5_real_loader.py`에 audit가 출력한 candidate config를 지정하고
+`--batch 1 --workers 4 --steps 24 --warmup 8`로 제한한다. full epoch 명령이 아니다.

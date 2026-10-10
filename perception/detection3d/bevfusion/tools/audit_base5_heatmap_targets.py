@@ -66,7 +66,8 @@ def draw_examples(head, legacy, output):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     figure, axes = plt.subplots(2, 2, figsize=(12, 5), constrained_layout=True)
-    extent = [-100.8, 100.8, -32.4, 32.4]
+    bounds = head.train_cfg['point_cloud_range']
+    extent = [bounds[0], bounds[3], bounds[1], bounds[4]]
     for row_index, x in enumerate((40., -40.)):
         gt = ground_truth([dict(bbox_3d=[x, 0, 0, 4.5, 1.8, 1.5, 0], bbox_label_3d=0)])
         for column, (name, target) in enumerate((('Before: swapped target', legacy(head, gt)),

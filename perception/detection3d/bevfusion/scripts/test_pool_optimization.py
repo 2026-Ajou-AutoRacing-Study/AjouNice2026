@@ -51,6 +51,26 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(sorted(p['rd'].cpu().tolist()),[0,144])
         self.assertEqual(sorted(p['rb'].cpu().tolist()),[0,95])
 
+    def test_fractional_pitch_does_not_truncate_last_padding_column(self):
+        for pitch,expected in ((.2,1008),(.3,672),(.4,504)):
+            v=DepthLSSTransform(8,4,(32,32),(4,4),(-100.8,100.8,pitch),
+                (-33.6,33.6,pitch),(-10,10,20),(1,4,1)).to(self.device)
+            g=torch.full((1,1,3,4,4,3),200.,device=self.device)
+            g[0,0,0,0,0]=g.new_tensor([100.8-pitch/2,0,0])
+            p=build_plan(v,g)
+            self.assertEqual(p['shape'][2],expected)
+            self.assertEqual(p['rd'].cpu().tolist(),[0])
+            self.assertEqual(int(p['coords'][0,0]),expected-1)
+        v.xbound=(-100.8,100.79,.4)
+        with self.assertRaisesRegex(ValueError,'integral'):build_plan(v,g)
+
+    def test_fresh_rectangular_training_has_rounded_grid_parameters(self):
+        for pitch,nx in ((.2,1008),(.3,672),(.4,504)):
+            view=MoraiRectangularDepthLSSTransform(8,4,(32,32),(4,4),
+                (-100.8,100.8,pitch),(-33.6,33.6,pitch),(-10,10,20),(1,4,1)).to(self.device)
+            self.assertEqual(int(view.nx[0]),nx)
+            self.assertEqual(int(view.nx[1]),round(67.2/pitch))
+
     def test_cache_hit_invalidation_and_training_bypass(self):
         v,_=self.setup_inputs();v.eval()
         state=enable_pool_optimization(v,'cache',rectangular=False)

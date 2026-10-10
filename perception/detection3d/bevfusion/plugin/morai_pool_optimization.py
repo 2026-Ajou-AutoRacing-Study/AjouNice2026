@@ -29,8 +29,14 @@ def extension():
 def build_plan(view, geom):
     """Make compact sorted frustum indices, without an [frustum,C] feature tensor."""
     B, N, D, H, W, _ = geom.shape
-    nx = tuple(int((b[1]-b[0])/b[2]) for b in
-               (view.xbound, view.ybound, view.zbound))
+    # 201.6 / .2 is 1007.9999999999999 in Python. Truncation silently
+    # removes a padding column even when stride-2 output shapes still match.
+    # Follow config-owned integer geometry, as restore_view_geometry does.
+    counts = [(b[1]-b[0])/b[2] for b in
+              (view.xbound, view.ybound, view.zbound)]
+    nx = tuple(round(n) for n in counts)
+    if any(abs(n-rounded)>1e-6 or rounded<=0 for n,rounded in zip(counts,nx)):
+        raise ValueError('Pooling bounds must define an integral positive grid')
     coords = ((geom-(view.bx-view.dx/2))/view.dx).long().reshape(-1, 3)
     valid = ((coords >= 0) & (coords < coords.new_tensor(nx))).all(dim=1)
     rd = torch.where(valid)[0]
