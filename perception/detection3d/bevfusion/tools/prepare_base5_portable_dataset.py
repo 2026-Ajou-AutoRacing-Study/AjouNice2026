@@ -147,6 +147,9 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
 def validate(root, verify_hashes=False):
     root = Path(root).resolve(strict=True)
     manifest = json.loads((root / 'manifest.json').read_text())
+    policy = manifest.get('image_policy')
+    if policy and policy != dict(train='native_jpeg90', val='original_png', test='original_png'):
+        raise ValueError('Unsupported portable image policy')
     for relative, item in manifest['files'].items():
         path = root / safe_relative(relative)
         path.resolve(strict=True).relative_to(root)
@@ -158,6 +161,10 @@ def validate(root, verify_hashes=False):
         for split in ('train', 'val', 'test'):
             info = pickle.loads((root / 'infos' / profile / ('morai_base5_infos_' + split + '.pkl')).read_bytes())
             for record in info['data_list']:
+                if policy:
+                    expected = '.jpg' if split == 'train' else '.png'
+                    if any(Path(c['img_path']).suffix.lower() != expected for c in record['images'].values()):
+                        raise ValueError('Portable image encoding/split policy differs')
                 paths = [record['lidar_points']['lidar_path']]
                 paths += [camera['img_path'] for camera in record['images'].values()]
                 for value in paths:

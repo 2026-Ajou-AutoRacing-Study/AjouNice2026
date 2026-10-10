@@ -2,6 +2,7 @@
 """Bounded actual 5K loader/training cost qualification; never a full epoch."""
 import argparse
 from collections import Counter
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -38,10 +39,16 @@ class Base5BoundedCost(Hook):
     def before_train(self, runner):
         self.started=time.perf_counter(); self.previous=self.started
     def before_train_iter(self, runner, batch_idx, data_batch=None):
+        self.batch_identities=[]; self.batch_gt_hashes=[]
         for sample in data_batch['data_samples']:
             identity=str(sample.metainfo.get('scene_id',sample.metainfo.get('sample_idx','')))
             if not identity: raise ValueError('Missing actual loader sample identity')
             self.seen.add(identity)
+            self.batch_identities.append(identity)
+            digest=hashlib.sha256(sample.gt_instances_3d.bboxes_3d.tensor.cpu().numpy().tobytes())
+            digest.update(sample.gt_instances_3d.labels_3d.cpu().numpy().tobytes())
+            digest.update(np.asarray(sample.metainfo['lidar_aug_matrix']).tobytes())
+            self.batch_gt_hashes.append(digest.hexdigest())
             if batch_idx>=self.warmup: self.measured_seen.add(identity)
             self.label_counts.update(map(int,sample.gt_instances_3d.labels_3d.tolist()))
         torch.cuda.synchronize(); self.begin=time.perf_counter()
@@ -63,7 +70,8 @@ class Base5BoundedCost(Hook):
         if not values or not all(np.isfinite(v) for v in values.values()):
             raise ValueError('Missing/nonfinite training losses')
         self.rows.append(dict(step=batch_idx, loader_wait_ms=self.wait,
-            train_ms=(end-self.begin)*1000, total_ms=(end-self.previous)*1000, losses=values))
+            train_ms=(end-self.begin)*1000, total_ms=(end-self.previous)*1000, losses=values,
+            scene_ids=self.batch_identities, gt_geometry_sha256=self.batch_gt_hashes))
         self.previous=end
         if (batch_idx+1)%16==0: print('COST STEP %d/%d'%(batch_idx+1,self.steps),flush=True)
         if batch_idx+1==self.steps:
@@ -95,6 +103,8 @@ def main():
     p.add_argument('--work-dir',type=Path,required=True); p.add_argument('--init-checkpoint',type=Path,required=True)
     p.add_argument('--batch',type=int,required=True); p.add_argument('--workers',type=int,default=4)
     p.add_argument('--steps',type=int,default=80); p.add_argument('--warmup',type=int,default=16)
+    p.add_argument('--pixel-io-comparison',action='store_true',
+                   help='Remove disabled pixel transform so PNG/JPEG consume the same geometry RNG')
     a=p.parse_args()
     if not 16<a.steps<=160 or not 0<a.warmup<a.steps or a.work_dir.exists():
         p.error('Require fresh output and bounded budget')
@@ -104,14 +114,23 @@ def main():
         seed=261010,init_checkpoint=a.init_checkpoint,allow_random_init=False,resume=None,
         disable_val=True,wandb=False,run=False)
     cfg,manifest=prepare(args); import_modules_from_strings(**cfg.custom_imports)
+    if a.pixel_io_comparison:
+        pipeline=cfg.train_dataloader.dataset.pipeline
+        for item in pipeline:
+            if item['type']=='MoraiOnlineImageDomainAug3D' and any(item[k] for k in
+                    ('jpeg_prob','blur_prob','exposure_prob','noise_prob')):
+                raise ValueError('I/O comparison requires original PNG without augmentation or preencoded JPEG')
+        cfg.train_dataloader.dataset.pipeline=[t for t in pipeline if t['type']!='MoraiOnlineImageDomainAug3D']
     cfg.default_hooks.checkpoint=None
     cfg.default_hooks.logger.interval=16
     cfg.custom_hooks.append(dict(type='Base5BoundedCost',steps=a.steps,warmup=a.warmup,
         output=str(a.work_dir/'cost.json'),batch=a.batch))
+    cfg.dump(str(a.work_dir/'bounded_cost_resolved.py'))
     try: Base5AtomicRunner.from_cfg(cfg).train()
     except PlannedStop:
         result=json.loads((a.work_dir/'cost.json').read_text())
         result.update(profile=a.profile,workers=a.workers,contract_sha256=manifest['contract_sha256'],
+            pixel_io_comparison=a.pixel_io_comparison, image_policy=json.loads((a.data/'manifest.json').read_text()).get('image_policy'),
             full_epoch_training_started=False)
         (a.work_dir/'cost.json').write_text(json.dumps(result,indent=2)+'\n')
         print(json.dumps({k:v for k,v in result.items() if k!='per_step'},indent=2))

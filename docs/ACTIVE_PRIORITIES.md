@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-10.
+마지막 갱신: 2026-10-11.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -48,6 +48,13 @@
 [`localization/260920_lightweight_closed_loop_evidence.md`](localization/260920_lightweight_closed_loop_evidence.md).
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
+
+- **2026-10-11 JPEG 생성·전달 경로:** Sunny13 5K의 카메라 20,000개를 native Q90으로
+  생성하고 전수 파일 hash를 검증했다. train JPEG / val PNG 독립 전달본은 원본 train PNG
+  없이 사용할 수 있다. 원본 PNG·GT·분할·production은 보존하며 JPEG 재압축을 차단한다.
+  [산출물·검증·후속 경로](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011)를
+  따른다. 새 환경은 JPEG 전달본을 먼저 만들 수 있지만 LiDAR·라벨·보정·val PNG도 함께
+  전송해야 한다. Vast 재개·외부 checkpoint 백업·본학습은 아직이다.
 
 - **2026-10-10 23:55 KST 이미지 입력 선택:** 사용자 합의로 native JPEG Q90을 네 카메라
   모두 100% 적용한다. blur·노출·noise는 OFF다. 별도 train JPEG 캐시를 추천하고 매번 PNG에서

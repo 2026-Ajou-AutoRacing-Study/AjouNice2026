@@ -19,6 +19,48 @@ TLS 연결이 timeout이었다. 큰 파일을 반복 전송하거나 인스턴�
 
 ## 2026-10-10 원격 검증 진행 — 본학습 시작 전
 
+### 전체 JPEG 생성과 후속 전달 — 2026-10-11
+
+로컬에서는 Sunny13 5K의 native 이미지 20,000개를 Q90 JPEG로 생성하고 검증했다.
+현재 선택은 train JPEG / val PNG이며, 원본 PNG와 원본 GT·split은 그대로 보존한다.
+[전체 생성·독립 전달본 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011)를 따른다.
+이 결과가 아래 23:55의 '전체 캐시 아직'보다 최신이다. Vast에는 아직 적용하지 않았다.
+
+```text
+artifacts/datasets/base5_sunny13_native_jpeg90_261011/          # 전체 이미지 참고용 캐시
+artifacts/handoff/base5_sunny13_jpeg90_train_portable_261011/   # 독립 학습 전달본
+```
+
+기존 Vast는 PNG가 이미 전달됐으므로 재개 시 아래 `prepare_base5_jpeg_cache.py`로 원격에서
+동일 Q90을 만드는 경로를 유지할 수 있다. 새 환경을 전달할 때는 로컬에서 다음처럼
+생성·포장하고 새 전달본을 전송하면 된다. 실제 데이터 수량에 맞는 원본 portable이 선행해야 한다.
+
+```bash
+python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_cache.py \
+  --data "$PNG_PORTABLE" --output "$JPEG_CACHE" --profile 512x1056 --splits train val
+
+python perception/detection3d/bevfusion/tools/prepare_base5_jpeg_portable.py \
+  --data "$PNG_PORTABLE" --cache "$JPEG_CACHE" --output "$JPEG_PORTABLE"
+```
+
+캐시와 전달본 생성은 새 출력 경로에서만 수행한다. 로컬 immutable 보관에는 추가로
+`--hardlink`를 쓸 수 있지만 이후 공유 입력 파일을 수정하지 않는다. 실제 원격 전송에는
+JPEG 전달본 전체와 manifest를 포함하고 전송 후 모든 payload SHA256을 검증한다.
+train 이미지의 PNG는 제외되지만 **LiDAR·라벨·보정·메타데이터와 val PNG가 필요**하다.
+현재 전체 payload는 약 11.96GiB이며 archive 크기를 측정한 값은 아니다.
+
+독립 JPEG 전달본으로 학습 준비 시 `--data`를 그 전달본 root로 선택하고
+`bevfusion_base5_dense_512_jpeg90_train.py`를 사용한다. 이 경우 `--jpeg-cache`를 추가하지 않는다.
+실행기가 manifest의 image policy를 확인해 JPEG 재변환을 제거하고 val pipeline을 유지한다.
+데이터/config/소스 hash가 달라지므로 기존 PNG 준비 경로를 그대로 resume하지 않는다.
+외부 checkpoint 백업 확인과 사용자 승인 전에는 본학습을 시작하지 않는다.
+
+로컬 5060 Ti에서 원본 PNG와 사전 JPEG의 실제 학습도 짧게 비교했다. 512×1056·batch 2·
+worker 4, 각각 32 step을 두 번 수행해 warmup 8 step을 제외했다. 반복 전체 평균은
+PNG 751.75ms / JPEG 748.22ms로 약 0.47% 차이이며 사실상 같은 수준이다.
+Vast/4090 학습 시간 추정을 바꾸지 않는다. 이 선택의 주된 이득은 용량과 전송 비용이다.
+후속 반복 도구는 `run_base5_png_jpeg_cost_probe.py`이며 4090에는 `--batch 4`를 명시할 수 있다.
+
 ### Q90 100%와 사전 생성 캐시 — 2026-10-10 23:55 KST
 
 사용자 합의로 Q90을 네 카메라 모두 100% 적용한다. 로컬 256장면·1,024개 카메라에서

@@ -93,6 +93,8 @@ def build_cache(data, records, output):
             files[relative] = dict(path=str(destination.relative_to(output)),
                 bytes=len(encoded), sha256=sha_bytes(encoded), source_bytes=len(raw),
                 source_sha256=sha_bytes(raw), height=int(rgb.shape[0]), width=int(rgb.shape[1]))
+            if len(files) % 1000 == 0:
+                print('Encoded %d native Q90 images' % len(files), flush=True)
     report = dict(version=1, complete=True, quality=90, native_resolution=True,
         source_manifest_sha256=sha_bytes(source_manifest_bytes),
         cv2_version=cv2.__version__, source_color_order='rgb', files=files,

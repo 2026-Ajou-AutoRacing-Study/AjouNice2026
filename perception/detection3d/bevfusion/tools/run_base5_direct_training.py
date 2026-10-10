@@ -61,6 +61,14 @@ def prepare(args):
             raise ValueError('Unexpected temporal transform')
     jpeg_cache = getattr(args, 'jpeg_cache', None)
     jpeg_cache_identity = None
+    image_policy = inventory.get('image_policy')
+    if image_policy:
+        if image_policy != dict(train='native_jpeg90', val='original_png', test='original_png'):
+            raise ValueError('Unsupported portable image policy')
+        if jpeg_cache:
+            raise ValueError('Preencoded portable data must not use an additional JPEG cache')
+        from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import preencoded_train_pipeline
+        cfg.train_dataloader.dataset.pipeline = preencoded_train_pipeline(cfg.train_dataloader.dataset.pipeline)
     if jpeg_cache:
         from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import (
             cache_train_pipeline, validate_jpeg_cache)

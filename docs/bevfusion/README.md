@@ -1,6 +1,6 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-10-10.
+마지막 정리: 2026-10-11.
 
 ## CURRENT
 
@@ -10,6 +10,7 @@
 
 | 목적 | 최신 기준 |
 |---|---|
+| 전체 5K JPEG 생성 / train PNG 없는 전달본 / PNG vs JPEG 학습 비용 | [20,000개 JPEG·독립 전달·짧은 실제 학습 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011) |
 | 학습용 JPEG Q90 100% / 사전 생성 캐시 추천 / blur·노출·noise OFF | [256장면 픽셀·GT 동등성과 CPU 로더 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-cache-decision-261010), [실제 JPEG 관측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |
 | Base5 전후방 ±100m·좌우 ±30m 유지 / ±40m 확대 기각 | [5K·고주로 합류·로터리 경로 근거와 재검토 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#lateral-range-decision-261010) |
 | 21시 학습 전 확대 검증 / 512·batch 4 추천 / 외부 백업 미완료 | [300장·실제 5K 로더·745장 val·저장/재개·네트워크 gate](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#6-4090-확대-표본학습-전-검증--2026-10-10-2023-이후), [Vast 후속 절차](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#확대-검증-완료와-네트워크-gate--2026-10-10-21시) |
@@ -29,9 +30,13 @@ camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 
 사용자 합의로 원본 해상도 JPEG Q90을 네 카메라 모두 100% 적용하고 blur·노출·noise는 끈다.
 학습 환경에서 별도 native JPEG 캐시를 한 번 생성하는 경로를 추천하며, 매번 PNG에서
 변환하는 경로를 대안으로 유지한다. 원본 PNG·infos·GT·split과 val/test·추론은 바꾸지 않는다.
-전체 train 캐시 생성은 아직이며, CPU 로더의 약 두 배 개선을 전체 학습 가속으로 해석하지 않는다.
+2026-10-11에는 5K 전체 JPEG 생성과 train PNG 없는 독립 전달본을 완료했다.
+기존 PNG+별도 캐시 경로 또는 manifest에 train JPEG를 명시한 독립 전달본을 사용할 수 있다.
+독립 전달본에는 `--jpeg-cache`를 추가하지 않는다. CPU 로더의 약 두 배 개선을 전체 학습 가속으로 해석하지 않는다.
+5060 Ti의 원본 PNG vs 사전 JPEG 짧은 실제 학습 비교는 약 0.47% 차이로 사실상 같았다.
 종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 요청 후 새 준비 계약과
-외부 백업을 확인한다. JPEG 정책의 AP 향상은 미검증이며 이번 비교에서는 GPU를 쓰지 않았다.
+외부 백업을 확인한다. JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU만
+사용했고 10-11 PNG/JPEG 짧은 학습 비교는 로컬 GPU로 수행했다. 본학습·Vast 재개는 아직이다.
 아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님

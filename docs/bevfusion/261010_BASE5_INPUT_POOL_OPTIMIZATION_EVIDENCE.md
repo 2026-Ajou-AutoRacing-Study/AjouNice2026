@@ -19,8 +19,9 @@ production E25를 교체하지 않았다. 2026-10-10 17:31~17:34 KST에 임대�
 원본 Sunny13/나머지 환경 수집기/runtime/hash 계약과 tracker/planning/localization은 변경하지 않았다.
 2026-10-10 23:05 KST에는 개발용 rosbag과 원본 PNG를 비교해 JPEG Q90을 카메라별
 80% 확률로 적용했다. 이후 사용자 합의와 로컬 비교를 거쳐 **23:55 KST 기준으로 Q90을
-네 카메라 모두 100% 적용하며, 사전 생성 native JPEG 캐시를 추천**한다. 아래 10절이
-현재 실행 기준이고 9절의 80%는 이전 결정 이력이다. blur·노출·noise는 OFF다.
+네 카메라 모두 100% 적용하며, 사전 생성 native JPEG 캐시를 추천**한다. 2026-10-11에는
+전체 5K JPEG 생성·독립 전달본과 짧은 PNG/JPEG 실제 학습 비용 비교를 완료했다.
+아래 11절이 최신 산출물과 비용 근거이고 9절의 80%는 이전 결정 이력이다. blur·노출·noise는 OFF다.
 본학습에는 `bevfusion_base5_dense_512_jpeg90_train.py`를 명시한다. 기존 all-OFF 비용
 config와 수치는 비교 이력으로 보존한다. Vast는 재개하지 않았다.
 
@@ -748,3 +749,93 @@ native 해상도를 유지하므로 이후 입력 crop 크기를 바꿔도 캐�
 본학습·Vast 재개·GPU·원본 수정·production 변경은 하지 않았다.
 다음은 사용자 요청으로 Vast를 재개한 뒤 소스 전달 → 원격 train 캐시 생성·검증 →
 새 준비 계약 확정 → 외부 checkpoint 백업 gate 확인 → 승인 후 본학습이다.
+
+<a id="jpeg-full-build-261011"></a>
+
+## 11. 전체 JPEG 생성과 PNG 없는 train 전달본 — 2026-10-11
+
+사용자 요청으로 로컬 Sunny13 5K의 native 카메라 이미지 **20,000개를 모두 Q90 JPEG로
+생성하고 전수 SHA256 검증**했다. 원본 PNG·GT·split은 보존했다. val JPEG도 참고용으로
+생성했지만 현재 학습/검증 계약은 **train JPEG / val PNG**로 유지한다. production E25는 불변이다.
+
+| 산출물 | 수량·용량·시간 |
+|---|---|
+| 전체 native JPEG 캐시 | 5,000장면·20,000개 이미지, 1,619,725,032 bytes(1.508GiB) |
+| 대응 원본 PNG | 17,827,527,772 bytes(16.603GiB), 보존 |
+| 실제 변환 시간 | 269.72초(약 4.5분), 파일 검증·전달본 포장 시간은 별도 |
+| 실제 train JPEG | 4,255장면·17,020개 이미지, 1,374,346,013 bytes(1.280GiB) |
+| 독립 전달본 전체 payload | 12,838,551,616 bytes(11.957GiB), 현재 manifest 파일 자체는 별도 |
+
+로컬 ignored 경로는 다음과 같다.
+
+```text
+# 전체 5K의 참고용 native JPEG, 원본 PNG를 덮어쓰지 않음
+artifacts/datasets/base5_sunny13_native_jpeg90_261011/
+
+# 독립 전달·학습용: train JPEG / val PNG / LiDAR / native annotation / metadata
+artifacts/handoff/base5_sunny13_jpeg90_train_portable_261011/
+```
+
+`prepare_base5_jpeg_portable.py`가 원본 portable과 검증된 캐시에서 새 전달본을 만든다.
+train infos의 이미지 경로만 상대경로 JPEG로 바꾸고 train PNG는 전달본에서 제외한다.
+LiDAR·3D GT·보정·native annotation·provenance는 보존하며 val/test infos는 byte 그대로다.
+현재 두 crop profile과 train 4,255 / val 745 분할도 유지한다.
+원본 전달본 payload 24.765GiB에서 새 전달본 11.957GiB로 줄었지만 JPEG 이미지 1.280GiB만
+보내서는 학습할 수 없다. **LiDAR·라벨·보정·메타데이터와 val PNG도 함께 전달해야 한다.**
+
+새 manifest의 `image_policy`를 실행기가 확인해 Q90 재변환을 제거한다. 추가 `--jpeg-cache`는
+사용하지 않으며, 원본 PNG 폴더를 옮겨도 새 전달본 자체만으로 준비·학습할 수 있다.
+단위 검사에서는 원본/캐시 폴더를 숨기고 새 전달본을 다시 옮긴 후 검증과 실제 실행 준비를
+통과했다. 자동 fallback이나 기존 PNG manifest 덮어쓰기는 하지 않는다.
+로컬 전달본은 용량 중복을 줄이려고 hardlink를 사용했으므로 immutable로 취급한다.
+수정이 필요하면 새 파생본으로 만들며 모델 체크포인트를 데이터 폴더에 쓰지 않는다.
+
+Vast에는 아직 새 소스·JPEG 전달본을 전송하지 않았다. 기존 Vast에는 PNG가 이미 있으므로
+재개 후 캐시를 원격에서 생성하는 경로가 가장 간단하다. 향후 새 환경 데이터는 로컬에서
+JPEG 전달본을 먼저 만들면 원격으로 train PNG를 보낼 필요가 없다.
+Vast 재개·본학습은 여전히 사용자 요청과 외부 checkpoint 백업 gate 확인 뒤에 진행한다.
+
+### 원본 PNG vs 사전 JPEG의 아주 짧은 실제 학습 비용
+
+이번에는 10절의 '매번 PNG→JPEG 변환' 비교가 아니라 **JPEG 증강 없는 원본 PNG vs
+사전 생성 Q90 JPEG**를 직접 비교했다. 로컬 RTX 5060 Ti에서 512×1056·batch 2·worker 4,
+분리 pooling·AMP AdamW·동일 camera-only 초기 가중치와 seed로 수행했다.
+PNG→JPEG→JPEG→PNG 순서로 네 번 새로 시작해 각 32 step 중 처음 8 step을 제외했다.
+각 조건은 48개의 측정 step이며 같은 64장면을 반복했다. scene 순서와 증강 후 GT·BEV
+행렬 hash가 네 실행에서 정확히 같았다. 픽셀은 JPEG 손실 압축으로 의도적으로 다르다.
+GPU 비용 측정 중 CPU 정합 검사는 일시 대기시켜 부하가 겹치지 않도록 했다.
+
+| batch 2 측정 평균 | 원본 PNG | 사전 Q90 JPEG |
+|---|---:|---:|
+| 데이터 수신·반복 관리 대기 | 11.08ms | 10.47ms |
+| 학습 step: 전처리·forward/backward·optimizer | 740.67ms | 737.75ms |
+| 위 비용을 포함한 반복 전체 | 751.75ms | 748.22ms |
+
+반복 전체 차이는 **약 0.47%**로, 이 짧은 시험에서는 사실상 같은 수준이다.
+GPU에 전달되는 이미지 텐서 크기가 같고 PNG도 이미 충분히 공급돼 JPEG 저장 용량 감소가
+큰 학습 가속으로 이어지지 않았다. 약 3ms의 학습 step 차이를 JPEG가 GPU 연산량을
+줄인 근거로 해석하지 않는다. 단기 반복 편차와 비결정적 CUDA 연산도 포함한 비용이다.
+모든 loss는 유한했고 각 실행에서 optimizer가 32회 정상 진행했다. peak allocation은
+두 경로 모두 약 10.63GiB였다. 모델 수렴·AP·전체 epoch·validation·checkpoint 비용은
+측정하지 않았으며 이 수치로 기존 4090 약 4.8시간 추정을 갱신하지 않는다.
+
+반복 가능한 짧은 실행기는 `run_base5_png_jpeg_cost_probe.py`다. `--png-data`,
+`--jpeg-data`, `--init-checkpoint`, 새 `--output`을 지정하며 기본은 batch 2·32 step이다.
+4090 재개 후 필요하면 같은 도구에 `--batch 4`를 명시해 다시 측정할 수 있다.
+현재 결과는 `artifacts/evaluation/bevfusion/base5_png_vs_jpeg_train_261011/report.json`과
+네 실행의 `cost.json`·log·resolved config에 보존했다. 비교용 가중치는 저장하지 않았다.
+JPEG 선택의 주된 이득은 **전송·저장·CPU 준비 비용 감소와 실제 JPEG 입력 분포에 맞추기**다.
+
+### 추가 정합·무결성 근거
+
+- 원본 portable 전수 SHA256, 생성 JPEG 20,000개 전수 SHA256, 독립 전달본 173,292개
+  payload 전수 SHA256을 통과했다. 원본과 새 manifest를 각각 provenance로 보존했다.
+- 두 crop profile의 전체 10,000개 record를 재귀 비교해 **train 이미지 경로 외의 필드가
+  모두 정확히 같음**을 확인했다. 원본 3D GT·calibration·LiDAR·split 변경은 없다.
+- 독립 전달본 manifest SHA256은
+  `6ed3eb535fa6400136c636f68884053fede85e9085764193ddc8b7e1a614e6b0`이다.
+- 실제 등록 pipeline으로 train 64 / val 64장면을 확인해 통과했다. 결과는
+  `artifacts/evaluation/bevfusion/base5_jpeg_portable_261011/pipeline.json`에 보존한다.
+  원본+online Q90와 독립 JPEG의 최종 픽셀·GT·LiDAR·투영 동등성과 val 불변을 확인했다.
+- JPEG portable/원본 portable/캐시/runner/이미지 증강/직사각형 기하 CPU 검사 33개를 통과했다.
+  데이터는 ignored 상태이며 본학습·Vast 접속·업로드는 실행하지 않았다.

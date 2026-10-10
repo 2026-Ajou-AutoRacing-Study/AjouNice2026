@@ -36,8 +36,10 @@ def main():
     parser.add_argument('--per-split', type=int, default=24)
     parser.add_argument('--jpeg-cache', type=Path,
                         help='Paired online-Q90 vs sampled cache check; val remains untouched')
+    parser.add_argument('--jpeg-portable', type=Path,
+                        help='Paired original+online Q90 vs independent JPEG train portable')
     args = parser.parse_args()
-    if args.output.exists() or args.per_split < 1:
+    if args.output.exists() or args.per_split < 1 or (args.jpeg_cache and args.jpeg_portable):
         raise ValueError('Fresh output and positive sample count required')
     configs = Path(__file__).resolve().parents[1] / 'configs'
     original = Config.fromfile(str(configs / 'bevfusion_base5_dense_512_separated_candidate.py'))
@@ -52,6 +54,16 @@ def main():
         original.train_dataloader.dataset.pipeline = deepcopy(selected.train_dataloader.dataset.pipeline)
         selected.train_dataloader.dataset.pipeline = cache_train_pipeline(
             selected.train_dataloader.dataset.pipeline, args.data, args.jpeg_cache)
+    if args.jpeg_portable:
+        from perception.detection3d.bevfusion.plugin.morai_jpeg_cache import preencoded_train_pipeline
+        from sys import path as python_path
+        python_path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+        from prepare_base5_portable_dataset import validate
+        inventory = validate(args.jpeg_portable, verify_hashes=True)
+        if inventory.get('image_policy') != dict(train='native_jpeg90', val='original_png', test='original_png'):
+            raise ValueError('Expected standalone JPEG train / clean val portable')
+        original.train_dataloader.dataset.pipeline = deepcopy(selected.train_dataloader.dataset.pipeline)
+        selected.train_dataloader.dataset.pipeline = preencoded_train_pipeline(selected.train_dataloader.dataset.pipeline)
     torch.set_num_threads(1)
     np.random.seed(261010)
     records = []
@@ -61,6 +73,15 @@ def main():
             ann_file=str(args.data.resolve() / 'infos/512x1056' /
                          ('morai_base5_infos_' + split + '.pkl')), pipeline=[])
         dataset = DATASETS.build(dataset_cfg)
+        baseline_dataset = dataset
+        if args.jpeg_portable:
+            candidate_cfg = deepcopy(dataset_cfg)
+            candidate_cfg.update(data_root=str(args.jpeg_portable.resolve()),
+                ann_file=str(args.jpeg_portable.resolve() / 'infos/512x1056' /
+                    ('morai_base5_infos_' + split + '.pkl')))
+            dataset = DATASETS.build(candidate_cfg)
+            if len(dataset) != len(baseline_dataset):
+                raise ValueError('Portable split count differs')
         before_pipeline = diagnostic_pipeline(original[split + '_dataloader'].dataset.pipeline)
         after_pipeline = diagnostic_pipeline(selected[split + '_dataloader'].dataset.pipeline)
         candidates = list(range(len(dataset)))
@@ -74,7 +95,10 @@ def main():
             raise ValueError('Insufficient cached examples for paired check')
         for index in indices:
             data = dataset.get_data_info(index)
-            before = before_pipeline(deepcopy(data))
+            baseline = baseline_dataset.get_data_info(index)
+            if data['token'] != baseline['token']:
+                raise ValueError('Portable sample ordering differs')
+            before = before_pipeline(deepcopy(baseline))
             after = after_pipeline(deepcopy(data))
             old, new = before['data_samples'], after['data_samples']
             if split == 'train':
@@ -94,7 +118,7 @@ def main():
             if tuple(image_after.shape) != (4, 3, 512, 1056):
                 raise ValueError('Unexpected model image shape')
             changed = [not torch.equal(left, right) for left, right in zip(image_before, image_after)]
-            if cache_manifest and any(changed):
+            if (cache_manifest or args.jpeg_portable) and any(changed):
                 raise ValueError('Cached JPEG pixels differ from on-the-fly Q90')
             if split == 'val' and any(changed):
                 raise ValueError('Validation pixels changed')
@@ -102,11 +126,12 @@ def main():
                 labels=new_labels.tolist(), gt_count=len(new_labels),
                 changed_cameras=changed, image_shape=list(image_after.shape)))
     changed_train = sum(sum(r['changed_cameras']) for r in records if r['split'] == 'train')
-    if not cache_manifest and not changed_train:
+    if not (cache_manifest or args.jpeg_portable) and not changed_train:
         raise ValueError('JPEG policy did not change any training image')
     result = dict(valid=True, samples=records, train_changed_camera_observations=changed_train,
         val_changed_camera_observations=0,
-        cache_online_exact_pixel_match=bool(cache_manifest),
+        cache_online_exact_pixel_match=bool(cache_manifest or args.jpeg_portable),
+        standalone_portable=bool(args.jpeg_portable),
         scope='Actual CPU file loading, packing, unchanged GT/points/calibration; BEV randomization frozen for paired comparison. No model forward, training or AP claim.')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')

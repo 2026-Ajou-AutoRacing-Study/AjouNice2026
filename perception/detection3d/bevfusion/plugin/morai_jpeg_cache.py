@@ -39,7 +39,8 @@ def validate_jpeg_cache(data_root, cache_root, required_paths=(), verify_hashes=
     return manifest
 
 
-def cache_train_pipeline(pipeline, data_root, cache_root):
+def preencoded_train_pipeline(pipeline):
+    """Validate exact input policy and remove conversion for preencoded files."""
     from copy import deepcopy
     pipeline = deepcopy(pipeline)
     domain = [item for item in pipeline if item['type'] == 'MoraiOnlineImageDomainAug3D']
@@ -48,7 +49,11 @@ def cache_train_pipeline(pipeline, data_root, cache_root):
             not domain[0].get('native_resolution') or domain[0].get('color_order') != 'rgb' or
             any(domain[0][key] != 0 for key in ('blur_prob', 'exposure_prob', 'noise_prob'))):
         raise ValueError('JPEG cache requires native Q90 100% and other pixel augmentation OFF')
-    pipeline = [item for item in pipeline if item['type'] != 'MoraiOnlineImageDomainAug3D']
+    return [item for item in pipeline if item['type'] != 'MoraiOnlineImageDomainAug3D']
+
+
+def cache_train_pipeline(pipeline, data_root, cache_root):
+    pipeline = preencoded_train_pipeline(pipeline)
     index = next(i for i, item in enumerate(pipeline)
                  if item['type'] == 'BEVLoadMultiViewImageFromFiles')
     pipeline.insert(index, dict(type='MoraiUseNativeJPEGCache',
