@@ -8,7 +8,13 @@
 
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
-2026-10-11 최신 로컬 학습 가속은 EVIDENCE 21절이다. 기하 계산·pool backward·int32 plan·
+2026-10-11 최신 로컬 추론 비교는 EVIDENCE 22절이다. 300장 localhost 전체 응답과
+same-instance 수치 통제를 수행했다. camera/neck compile은 비용 이득이 있으나 decoded
+출력 gate가 미완료이므로 기본값으로 승격하지 않는다. Base5 4-class 시험 서버·복원 가능한
+opt-in 옵션을 추가했다. E25·데이터·GT·학습 기본값·ROS 배포는 유지한다. 분리 stream
+prototype은 sparse encoder 오류를 재현해 활성 소스에서 제거했다. Vast에는 접속하지 않았고
+사용자 재개 후 4090 재확인이 다음이다. inference compile을 21절의 학습 후보와 혼동하지 않는다.
+2026-10-11 로컬 학습 가속은 EVIDENCE 21절이다. 기하 계산·pool backward·int32 plan·
 일괄 loss log·fused AdamW의 opt-in 후보와 별도 camera compile 후보를 구현·검사했다.
 기존 기본 config·production E25·데이터·증강을 유지하며 실제 4090 재확인이 다음이다.
 이번에는 Vast에 접속하거나 본학습을 시작하지 않았다. 아래 원격 준비 경로·‘다음 바로

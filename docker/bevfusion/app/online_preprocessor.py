@@ -58,6 +58,7 @@ class Base3OnlinePreprocessor:
         point_cloud_range=(-30.0, -30.0, -3.0, 30.0, 30.0, 2.0),
         remove_zero_returns=False,
         strict_point_range=False,
+        rgb_after_crop=False,
     ):
         self.calibration = calibration
         self.final_dim = tuple(int(value) for value in final_dim)
@@ -69,6 +70,7 @@ class Base3OnlinePreprocessor:
         # Explicitly config-driven for Base5; production E25 stays unchanged.
         self.remove_zero_returns = bool(remove_zero_returns)
         self.strict_point_range = bool(strict_point_range)
+        self.rgb_after_crop = bool(rgb_after_crop)
         if self.point_dim not in (4, 5):
             raise ValueError("BEVFusion runtime point_dim must be 4 or 5")
         self.executor = (
@@ -197,11 +199,14 @@ class Base3OnlinePreprocessor:
                     frame_id, image.shape[:2], expected_shape
                 )
             )
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        if not self.rgb_after_crop:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         resize_dims, crop = self._resize_crop(camera)
         image = cv2.resize(image, resize_dims, interpolation=cv2.INTER_CUBIC)
         left, top, right, bottom = crop
         image = image[top:bottom, left:right]
+        if self.rgb_after_crop:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if image.shape[:2] != self.final_dim:
             raise ValueError(
                 "{} preprocessed shape {} differs from {}".format(

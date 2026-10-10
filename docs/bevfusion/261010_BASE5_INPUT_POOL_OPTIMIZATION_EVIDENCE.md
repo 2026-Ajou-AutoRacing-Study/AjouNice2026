@@ -2133,3 +2133,136 @@ warm 추론의 같은 비율 가속으로 환산하지 않는다.
 4. 최종 depth·runtime 플래그와 optimizer wrapper를 명시해 **새** main config/source hash/
    work-dir을 준비하고 ETA를 보고한다. 기존 50cm 준비 계약의 resume는 하지 않는다.
    사용자가 승인하면 기존 완료된 외부 백업 경로와 연결해 본학습을 시작한다.
+
+<a id="base5-inference-runtime-local-261011"></a>
+
+## 22. 로컬 전체 추론 서비스 비교 — 2026-10-11 KST
+
+사용자는 학습 실행 비용 개선에 이어 추론 개선을 요청했다. 약 07:55~08:35 KST에
+기존 팀 이미지와 RTX 5060 Ti 16GB에서 수행했다. Vast 접속·재개·설치, MORAI 제어,
+본학습·TensorRT·production E25 배포는 수행하지 않았다. 아래 가속 수치는 **비용 후보의
+실측이며 기본값 승격이나 학습 완료 정확도 검증을 뜻하지 않는다.**
+
+### 입력·비교 계약
+
+- upright native-JPEG Sunny13 release와 기존의 고유 300장 선택을 재사용했다.
+  200장 hash-random 대표 표본과 100장 stress 표본이며 선택과 센서 payload SHA를 확인했다.
+  입력 512×1056, batch 1 AMP, depth 25cm, semantic ROI X±100/Y±30m를 고정했다.
+- 모든 후보는 21절의 **4-update smoke full checkpoint** 하나를 strict load한다.
+  이 가중치는 수렴한 탐지 모델이 아니다. camera-only 초기화 파일을 full checkpoint처럼
+  로드하지 않는다. 체크포인트 SHA256은
+  `e02c5dd9cc498d3ceea08b0e8824a3995fcdf941422a8b356f7fa9d935fd7f38`이다.
+- 기존 7.5/30cm는 내부 X±100.8/Y±32.4m, 정밀 5/20cm는 공통 비교 padding
+  X±100.8/Y±33.6m를 사용한다. 각 격자 안의 기존/개선 비교만 가속률로 계산한다.
+  원격 과거의 depth 50cm 비용과 이 로컬 25cm 결과를 직접 비교하지 않는다.
+- 실제 지속 TCP 연결에서 JPEG·점군 요청 → 전처리 → 모델 → CPU 박스 필터·목록 →
+  JSON 응답 수신을 측정했다. localhost RTT이며 ROS callback·LAN·planner/controller가
+  포함된 풀스택 비용은 아니다. 요청은 직렬이고 디스크 읽기는 측정 전에 끝낸다.
+- CPU threads 4, OpenCV threads 1, camera workers 4다. synthetic startup warm-up과
+  실제 입력 16회 warm-up은 정상 300회 통계에서 제외한다. 첫 컴파일 비용은 별도다.
+  CUDA event 구간은 별도 16회 측정하며 host idle이 포함된 실행 경로다.
+  중첩된 view 구간을 더하거나 kernel self-time으로 해석하지 않는다.
+
+### 전체 비용과 병목
+
+| 300장 동일 격자 비교 | GPU 완료 포함 모델 평균 | JPEG부터 응답까지 평균 | RTT p95 | peak allocated |
+|---|---:|---:|---:|---:|
+| 7.5/30cm 기존, 첫 실행 | 94.97ms | 105.62ms | 108.25ms | 3,902MiB |
+| 같은 격자 camera compile | 74.68ms | 85.26ms | 88.22ms | 3,869MiB |
+| 같은 격자 camera + neck compile | 73.84ms | 84.41ms | 87.09ms | 3,840MiB |
+| 같은 격자 기존, 마지막 재실행 | 95.31ms | 105.81ms | 108.23ms | 3,900MiB |
+| 5/20cm 기존 | 129.90ms | 140.34ms | 143.03ms | 8,276MiB |
+| 같은 정밀 격자 camera + neck compile | 108.57ms | 118.87ms | 121.99ms | 8,239MiB |
+
+기존 두 실행 평균 대비 camera+neck 후보의 전체 응답 단축은 약 20.1%다.
+정밀 격자 안에서는 약 15.3%다. **4090의 가속률이나 70ms 달성으로 환산하지 않는다.**
+해상도·depth·head query 수·threshold를 낮춰 얻은 수치가 아니다.
+
+| 별도 계측 구간, 7.5/30cm | 기존 | camera+neck 후보 |
+|---|---:|---:|
+| 카메라 backbone | 44.87ms | 25.64ms |
+| 카메라 neck | 3.61ms | 2.40ms |
+| view transform 전체 | 17.17ms | 17.56ms |
+| voxelization | 1.95ms | 2.04ms |
+| LiDAR sparse encoder | 10.97ms | 11.35ms |
+| fusion / BEV backbone / BEV neck | 2.00 / 3.66 / 0.85ms | 2.11 / 3.75 / 0.90ms |
+| head·decode | 8.24ms | 8.44ms |
+
+가속의 주원인은 고정 camera backbone·neck의 실행 방식이다. 분리 pooling·추론 geometry
+cache는 이미 적용된 상태이며 이번 새 가속으로 다시 계산하지 않는다. 21절의 학습 전용
+기하 계산·pool backward 개선을 추론 가속으로 옮겨 계산하지도 않는다.
+
+### 출력 정합과 미채택 후보
+
+컴파일은 모듈이 아닌 bound forward callable에 적용한다. 원래 파라미터와 checkpoint key를
+유지하며 Torch 2.7.1의 `emulate_precision_casts=True`를 사용했다. 그러나 FP16의 연산
+융합·실행 알고리즘 변화까지 bitwise 같아지는 것은 아니다.
+
+사전 출력 gate는 class별 일대일 대응, 개수 유지, 중심·크기 5cm 이내, yaw 0.02rad 이내,
+score 0.002 이내다. 통과시키려고 이 기준을 사후 완화하지 않았다.
+
+- 일반 300장 비교의 camera/camera+neck 후보는 각각 64/63장의 출력 gate가 실패했다.
+  다만 **변경 없는 모델을 새로 로드한 마지막 기존 실행도 69장 실패**했으므로 이 숫자를
+  전부 컴파일 탓으로 해석하지 않는다. RGB 순서 변경 실행과 마지막 기존 실행도 같은
+  69장 실패했다. 픽셀 동일성 검사는 별도로 아래와 같이 통과했다.
+- 같은 모델에서 LiDAR→image raster를 동일하게 고정한 **수치 검사 전용 통제**를 수행했다.
+  32장 eager 반복은 출력이 동일했지만 camera-only compile은 4장, camera+neck은 7장
+  gate가 실패했다. camera-only의 최대 중심 차이는 약 1.72cm, 크기 차이는 7.23cm,
+  yaw 차이는 0.0322rad였다. 이는 4-update smoke 모델의 실행 차이이며 AP 하락률이 아니다.
+- LayerNorm·GELU를 eager로 남긴 후보도 64장 중 9장, layout optimization·shape padding을
+  끈 후보도 32장 중 5장 실패했다. 현재 **compiler 후보는 기본값으로 승격하지 않는다.**
+  가속 가능성과 출력·학습 완료 정확도 검증을 구분한다.
+- 처음에는 sparse depth의 같은 픽셀 중복 쓰기를 원인 후보로 의심했다. 그러나 실제 한
+  장면의 8회 반복에서는 depth pixel 변화가 0개였다. 이 작업만으로 재로드 차이의 원인을
+  확정하지 않으며 nearest-depth/last-point 정책이나 학습 입력을 임의로 바꾸지 않았다.
+  frozen raster는 수치 통제일 뿐, 서로 다른 추론 프레임에 재사용하는 cache가 아니다.
+- Dense Conv·BatchNorm 26개 folding은 FP32 toy·복원 검사를 통과했지만 실제 출력 gate가
+  실패했고 전체 비용 이득도 작았다. 기본값으로 채택하지 않는다. sparse conv/head는 접지 않는다.
+- Camera CUDA Graph는 예비 48장 출력 gate를 통과했지만 카메라 구간은 약 44.8→44.4ms로
+  큰 이득이 없었다. 직렬 고정 shape의 실험 옵션으로만 보존하며 기본값은 OFF다.
+- 분리 CUDA stream으로 LiDAR 가지를 먼저 실행하는 prototype은 sparse encoder에서
+  `Your points vanished here` 오류를 재현했다. 설치된 voxel CUDA의 global device sync도
+  확인했다. **stream prototype·서버 옵션은 활성 소스에서 제거했다.** 모든 병렬화가
+  불가능하다고 결론내리지는 않지만 이 환경에서 그대로 채택하지 않는다.
+  rejected source snapshot과 전체 오류 로그는 ignored 평가 폴더에 보존한다.
+
+### 전처리와 서버 계약
+
+색 변환을 전체 원본 이미지가 아닌 resize·crop 이후에 수행하는 opt-in을 구현했다.
+실제 300장 × 4camera의 **1,200개 입력 픽셀과 점군이 완전히 같았다.** crop·투영은 유지된다.
+CPU 단독 AB/BA 300회씩의 평균은 기존 8.413ms, 변경 8.334ms로 약 0.079ms 절약이다.
+전체 서비스 측정에서는 확실한 단축을 확인하지 못했으므로 기본값으로 바꾸지 않는다.
+
+기존 서버는 E25의 3-class만 허용했다. `--base5-runtime`을 명시한 시험 경로를 추가하고,
+4-class 순서·single-frame·7D·native-JPEG·upright 계약과 trusted local full checkpoint의
+strict load를 검사한다. training config의 lazy camera compile을 중복 활성화하지 않는다.
+animal은 label 3 / class_name animal로 보존하며 pedestrian으로 자동 변환하지 않는다.
+실제 ROS adapter·planning 배포 완료를 뜻하지 않는다. E25 기본 경로·입력·증강·가중치는 유지한다.
+
+서버 응답에 기존 모델 비용과 구분되는 `postprocess_ms`를 추가했다. `--cpu-threads`,
+`--opencv-threads`도 명시적 옵션이며 기존 기본값은 바꾸지 않는다. 모든 새 최적화는 OFF가
+기본이고 source checkpoint를 덮어쓰지 않는다. inference-only 최적화는 disable 후 복원된다.
+
+### 코드·재현·다음 실행
+
+- `docker/bevfusion/app/inference_optimization.py`: opt-in compile·fold·camera graph와 복원/guard.
+- `benchmark_base5_inference_runtime.py`: 동일 full checkpoint·300장 localhost 서비스 비교,
+  별도 stage 계측·입력/source identity·실패한 출력 gate 보존. `--require-parity`는 실패 시
+  exit 2다. cost 완료의 exit 0을 numerical qualification 통과로 읽지 않는다.
+- `qualify_base5_inference_numerics.py`: 같은 모델의 eager 반복과 frozen raster 통제.
+  `qualify_base5_late_rgb.py`: CPU 픽셀 정합과 AB/BA 전처리 비용.
+- 근거: `artifacts/evaluation/bevfusion/base5_inference_runtime_261011/` 아래
+  `final_300/report.json`, `fine_300/report.json`, `numerics*`, `late_rgb_v2/report.json`,
+  `parallel_failure.log`, `rejected_parallel_source.py`, `unit_tests.log`다.
+  ignored 입력·체크포인트·산출물은 Git에 강제로 추가하지 않는다.
+- Docker runtime 검사 24개(CUDA graph FP32/AMP 포함)와 별도 sensor calibration 1개를
+  통과했다. 이는 실제 학습 완료 AP나 ROS/LAN 폐루프 검증의 대체가 아니다.
+
+다음은 사용자 재개 확인 후 기존 4090 데이터·설치 환경을 재사용해 최신 학습 후보와 추론
+후보를 재확인하는 것이다. `benchmark_base5_inference_runtime.py`의 `--depth-step .25`,
+`--grid current075/common050`, `--variants baseline camera camera_neck baseline`,
+`--iterations 300 --stage-iterations 16`을 사용한다. **해당 depth와 맞는 full checkpoint가
+필요하다.** 현재 smoke 비용 시험만으로 compile·정밀 격자를 채택하지 않는다.
+학습된 checkpoint에서 same-instance 출력 차이·val/rosbag 정확도를 추가 확인하고,
+가속 이득이 없거나 gate가 실패하면 검증된 비컴파일 추론을 사용한다.
+최종 소스·depth·학습 플래그·새 work-dir 계약과 사용자 승인 후 본학습을 시작한다.

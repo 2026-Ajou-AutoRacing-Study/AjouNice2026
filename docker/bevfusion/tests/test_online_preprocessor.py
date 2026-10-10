@@ -30,6 +30,21 @@ def calibration():
 
 
 class OnlinePreprocessorTest(unittest.TestCase):
+    def test_late_rgb_preserves_pixels_and_projection(self):
+        rng = np.random.default_rng(261011)
+        late = Base3OnlinePreprocessor(calibration(), camera_workers=1, rgb_after_crop=True)
+        try:
+            for camera in calibration()['cameras']:
+                image = rng.integers(0, 256, (camera['height'], camera['width'], 3), dtype=np.uint8)
+                ok, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                self.assertTrue(ok)
+                argument = (camera, {'image/' + camera['frame_id']: encoded.tobytes()})
+                np.testing.assert_array_equal(self.preprocessor._decode_resize(argument), late._decode_resize(argument))
+                self.assertEqual(self.preprocessor._resize_crop(camera), late._resize_crop(camera))
+                np.testing.assert_array_equal(self.preprocessor._augmentation_matrix(camera), late._augmentation_matrix(camera))
+        finally:
+            late.close()
+
     def test_config_drives_high_resolution_and_rejects_mismatched_projection(self):
         config = dict(point_cloud_range=[-30, -30, -3, 30, 30, 2],
             model=dict(view_transform=dict(image_size=[320, 896], feature_size=[40, 112])),

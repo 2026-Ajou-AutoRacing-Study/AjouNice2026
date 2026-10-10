@@ -10,6 +10,9 @@ from mmdet3d.apis import init_model
 
 from app.online_preprocessor import Base3OnlinePreprocessor, preprocessing_options_from_config
 from app.view_geometry import restore_view_geometry
+from app.inference_optimization import (
+    BASE5_CLASSES, InferenceOptimization, validate_base5_runtime,
+)
 
 
 DEFAULT_CLASSES = ["vehicle", "pedestrian", "obstacle"]
@@ -52,28 +55,54 @@ class BevFusionModel:
         warmup_iterations=2,
         temporal_feature_cache=False,
         temporal_maximum_age_sec=0.30,
+        base5_runtime=False,
+        compile_parts=(),
+        fuse_dense_bn=False,
+        camera_cuda_graph=False,
+        eager_camera_numerics=False,
+        rgb_after_crop=False,
+        compile_reference_layout=False,
     ):
         config = Config.fromfile(config_path)
         config.model.img_backbone.init_cfg = None
         bbox_head_type = str(config.model.bbox_head.get("type", ""))
         self.requires_query_memory_context = (
             bbox_head_type == "MoraiQueryMemoryTransFusionHead")
-        self.model = init_model(config, checkpoint_path, device=device)
+        self.classes = list(config.get("metainfo", {}).get("classes", DEFAULT_CLASSES))
+        expected_classes = BASE5_CLASSES if base5_runtime else DEFAULT_CLASSES
+        if self.classes != expected_classes:
+            raise ValueError("runtime class contract differs; use explicit --base5-runtime for Base5")
+        if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or rgb_after_crop or compile_reference_layout) and not base5_runtime:
+            raise ValueError("Experimental inference optimization is Base5-only")
+        if base5_runtime:
+            validate_base5_runtime(config)
+            if temporal_feature_cache:
+                raise ValueError("Base5 inference does not enable temporal modeling")
+            # Explicit trusted LOCAL checkpoint: strict full-model load, not a
+            # camera-only initializer or an unsafe remote URL download.
+            from pathlib import Path
+            if not Path(checkpoint_path).is_file():
+                raise ValueError("Base5 requires a trusted local full checkpoint")
+            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+            saved_classes = checkpoint.get("meta", {}).get("dataset_meta", {}).get("classes")
+            if saved_classes is not None and list(saved_classes) != self.classes:
+                raise ValueError("Base5 checkpoint class order differs from config")
+            self.model = init_model(config, None, device=device)
+            self.model.load_state_dict(checkpoint["state_dict"], strict=True)
+            del checkpoint
+        else:
+            self.model = init_model(config, checkpoint_path, device=device)
         restore_view_geometry(self.model.view_transform)
         self.model.eval()
-        self.classes = list(config.get("metainfo", {}).get(
-            "classes", DEFAULT_CLASSES
-        ))
-        if self.classes != DEFAULT_CLASSES:
-            raise ValueError(
-                "runtime requires Base3 classes {}, checkpoint exposes {}".format(
-                    DEFAULT_CLASSES, self.classes
-                )
-            )
+        self.inference_optimization = None
+        if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout:
+            self.inference_optimization = InferenceOptimization(
+                self.model, compile_parts, fuse_dense_bn, camera_cuda_graph=camera_cuda_graph,
+                eager_camera_numerics=eager_camera_numerics, reference_layout=compile_reference_layout)
         # Adapted legacy checkpoints may not carry MMDetection3D 1.x
-        # dataset_meta. The output head is still MORAI 3-class, so the runtime
-        # config is the authoritative label contract.
-        self.model.dataset_meta = dict(self.model.dataset_meta or {})
+        # dataset_meta. The explicitly validated runtime config is the
+        # authoritative label contract; Base5 does not remap animal to person.
+        self.model.dataset_meta = dict(getattr(self.model, "dataset_meta", None) or {})
         self.model.dataset_meta["classes"] = self.classes
         self.point_dim = int(config.model.pts_voxel_encoder.get(
             "num_features", 4))
@@ -98,11 +127,13 @@ class BevFusionModel:
             calibration,
             camera_workers=preprocess_workers,
             point_dim=self.point_dim,
+            rgb_after_crop=rgb_after_crop,
             **preprocessing_options_from_config(config),
         )
         self.warmup_iterations = max(0, int(warmup_iterations))
         self.warmed_up = False
         self.last_query_memory_diagnostics = {}
+        self.last_runtime_timings = {}
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
             torch.backends.cuda.matmul.allow_tf32 = True
@@ -149,6 +180,7 @@ class BevFusionModel:
             torch.cuda.synchronize()
         inference_ms = (time.perf_counter() - start) * 1000.0
         predictions = result.pred_instances_3d
+        postprocess_start = time.perf_counter()
         boxes = predictions.bboxes_3d.tensor.detach().cpu()
         scores = predictions.scores_3d.detach().cpu()
         labels = predictions.labels_3d.detach().cpu()
@@ -172,6 +204,8 @@ class BevFusionModel:
                     "score": float(scores[index]),
                 }
             )
+        self.last_runtime_timings = dict(
+            postprocess_ms=(time.perf_counter() - postprocess_start) * 1000.0)
         return detections, preprocess_ms, inference_ms
 
     def _collect_query_memory_diagnostics(self):

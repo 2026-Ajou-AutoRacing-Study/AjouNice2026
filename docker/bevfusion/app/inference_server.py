@@ -46,6 +46,13 @@ class InferenceServer:
                 warmup_iterations=args.warmup_iterations,
                 temporal_feature_cache=args.temporal_feature_cache,
                 temporal_maximum_age_sec=args.temporal_maximum_age_sec,
+                base5_runtime=getattr(args, "base5_runtime", False),
+                compile_parts=getattr(args, "compile_parts", ()),
+                fuse_dense_bn=getattr(args, "fuse_dense_bn", False),
+                camera_cuda_graph=getattr(args, "camera_cuda_graph", False),
+                eager_camera_numerics=getattr(args, "eager_camera_numerics", False),
+                rgb_after_crop=getattr(args, "rgb_after_crop", False),
+                compile_reference_layout=getattr(args, "compile_reference_layout", False),
             )
             LOGGER.info("BEVFusion model is ready")
 
@@ -80,6 +87,7 @@ class InferenceServer:
                         {
                             "ready": True,
                             "model_loaded": self.model is not None,
+                            "classes": list(getattr(self.model, "classes", ())),
                             "calibration": serializable_calibration(self.calibration),
                         },
                     )
@@ -150,6 +158,7 @@ class InferenceServer:
                     self.model.last_query_memory_diagnostics),
                 "preprocess_ms": preprocess_ms,
                 "inference_ms": inference_ms,
+                "postprocess_ms": getattr(self.model, "last_runtime_timings", {}).get("postprocess_ms", 0.0),
                 "server_ms": (time.monotonic() - request_start) * 1000.0,
             },
         )
@@ -213,6 +222,21 @@ def parse_args():
     parser.add_argument("--warmup-iterations", type=int, default=2)
     parser.add_argument("--temporal-feature-cache", action="store_true")
     parser.add_argument("--temporal-maximum-age-sec", type=float, default=0.30)
+    parser.add_argument("--base5-runtime", action="store_true",
+                        help="Explicit single-frame 4-class Base5 contract; not E25 deployment")
+    parser.add_argument("--compile-parts", nargs="+", choices=("camera", "neck", "bev"), default=())
+    parser.add_argument("--fuse-dense-bn", action="store_true",
+                        help="Experimental eval-only dense Conv/BN folding")
+    parser.add_argument("--camera-cuda-graph", action="store_true",
+                        help="Opt-in serial fixed-shape camera eager-kernel replay")
+    parser.add_argument("--eager-camera-numerics", action="store_true",
+                        help="Keep camera LayerNorm/GELU eager within camera compilation")
+    parser.add_argument("--rgb-after-crop", action="store_true",
+                        help="Base5-only pixel-equivalent late BGR-to-RGB conversion")
+    parser.add_argument("--compile-reference-layout", action="store_true",
+                        help="Disable compiler layout optimization and shape padding")
+    parser.add_argument("--cpu-threads", type=int, default=None)
+    parser.add_argument("--opencv-threads", type=int, default=None)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -243,6 +267,13 @@ def parse_points(metadata, blobs):
 
 def main():
     args = parse_args()
+    if args.cpu_threads is not None:
+        if args.cpu_threads < 1: raise ValueError("cpu-threads must be positive")
+        import torch
+        torch.set_num_threads(args.cpu_threads)
+    if args.opencv_threads is not None:
+        if args.opencv_threads < 1: raise ValueError("opencv-threads must be positive")
+        cv2.setNumThreads(args.opencv_threads)
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

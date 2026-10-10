@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 로컬 추론 비교:** [300장 전체 서비스·수치 통제 검사](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011)를
+  완료했다. compile 비용 후보와 아직 실패하는 출력 gate를 구분하고 기본값은 유지한다.
+  Base5 4-class 시험 경로를 추가했지만 production E25·ROS 배포는 바꾸지 않았다.
+  현재 선택·4090 재확인 순서는 [계획 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
+
 - **2026-10-11 로컬 학습 가속:** [실제 로더 A/B·기하 정합·runtime 검증](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011)을
   완료하고 별도 opt-in 후보를 제공한다. 현재 선택·남은 gate는 [계획 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를
   따른다. Vast 접속·본학습·기본 config 변경은 하지 않았다. 다음은 사용자 재개 후 4090 재확인이다.
