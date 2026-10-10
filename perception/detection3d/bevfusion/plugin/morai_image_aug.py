@@ -20,9 +20,15 @@ class MoraiImageAug3D(ImageAug3D):
     keeps BEVFusion's projection geometry consistent.
     """
 
-    def __init__(self, *args, reference_width=1280, **kwargs):
+    def __init__(self, *args, reference_width=1280,
+                 output_dtype='float32', **kwargs):
         super().__init__(*args, **kwargs)
         self.reference_width = reference_width
+        if output_dtype not in ('float32', 'uint8'):
+            raise ValueError('output_dtype must be float32 or uint8')
+        # Legacy configs retain float32; Base5 transfers RGB8 to the device
+        # and lets Det3DDataPreprocessor cast before mean/std normalization.
+        self.output_dtype = np.dtype(output_dtype)
 
     def img_transform(self, img, rotation, translation, resize, resize_dims,
                       crop, flip, rotate):
@@ -97,6 +103,8 @@ class MoraiImageAug3D(ImageAug3D):
             newW, newH = resize_dims
             crop_h = int((1 - bot_pct) * newH) - fH
             crop_w = int(max(0, newW - fW) / 2)
+            if crop_h < 0 or crop_h + fH > newH or crop_w + fW > newW:
+                raise ValueError('resize/crop cannot produce final_dim')
             crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
             post_rot, post_tran = torch.eye(2), torch.zeros(2)
             new_img, rotation, translation = self.img_transform(
@@ -105,7 +113,7 @@ class MoraiImageAug3D(ImageAug3D):
             transform = torch.eye(4)
             transform[:2, :2] = rotation
             transform[:2, 3] = translation
-            new_imgs.append(np.asarray(new_img, dtype=np.float32))
+            new_imgs.append(np.ascontiguousarray(new_img, dtype=self.output_dtype))
             transforms.append(transform.numpy())
         data['img'] = new_imgs
         data['img_aug_matrix'] = transforms

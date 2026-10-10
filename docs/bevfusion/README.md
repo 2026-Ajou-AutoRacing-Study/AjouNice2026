@@ -10,6 +10,7 @@
 
 | 목적 | 최신 기준 |
 |---|---|
+| Base5 유효 반사점 필터·uint8 운반 / 기존 증강 유지 / 로컬 검증 | [10-11 정합성·CPU 비용·원격 재개 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-valid-returns-uint8-261011) |
 | Vast 재개·전체 JPEG 전환·새 prepare-only 계약 / 외부 백업 아직 | [원격 전수 동등성·실제 입력 검증과 남은 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#vast-jpeg-migration-261011) |
 | 현재 카메라 RGB: train·val·분석 모두 Q90 JPEG / PNG는 로컬 원본 / Drive 교체 | [10-11 입력 통일·전수 검증·전달](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011) |
 | 이전 mixed 전달본 검증 / PNG vs JPEG 짧은 학습 비용 | [20,000개 JPEG·당시 독립 전달·짧은 실제 학습 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#jpeg-full-build-261011) |
@@ -32,7 +33,10 @@ camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 
 카메라 RGB는 train·val·test·분석 모두 원본 해상도 Q90 JPEG로 통일하고 blur·노출·noise는 끈다.
 `artifacts/handoff/base5_sunny13_jpeg90_portable_261011/`의 all-JPEG manifest를 사용한다.
 RGB PNG는 로컬 백업·변환용이며 mask·depth·native GT 등 보조 PNG는 무손실로 보존한다.
-LiDAR·GT·보정·split·production E25는 바꾸지 않았다. val 픽셀 분포는 의도적으로 Q90으로
+LiDAR 원본·GT·보정·split·production E25는 바꾸지 않았다. Base5만 0 기록·nonfinite 행을
+증강 전에 제거하고 이미지를 GPU 정규화 전까지 uint8으로 유지한다. 로컬 정합 검사와
+비용 측정을 통과했으며 Vast에는 아직 이 변경을 전달하지 않았다. 기존 원격 prepare-only
+계약을 덮어쓰지 않고 재개 후 새 work-dir을 사용한다. val 픽셀 분포는 의도적으로 Q90으로
 변경했으므로 과거 PNG val 수치를 같은 조건의 결과처럼 합치지 않는다.
 독립 전달본에는 `--jpeg-cache`나 JPEG 재압축을 추가하지 않는다. 기존 mixed 전달본·online
 변환 설정은 이력이며 현재 학습의 fallback이 아니다. CPU 로더 개선을 전체 학습 가속으로 해석하지 않는다.

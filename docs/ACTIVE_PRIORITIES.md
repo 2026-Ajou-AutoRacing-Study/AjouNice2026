@@ -49,6 +49,13 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 로컬 입력 보완:** Base5에서만 exact XYZ-zero/nonfinite 포인트를 증강 전에
+  제거하고 JPEG decode/crop/pack을 uint8으로 유지한다. 실제 GT·픽셀·정규화·투영 정합을
+  확인했으며 기존 BEV 증강 강도와 수집 원본·production E25는 유지한다.
+  [검사·비용·재개 조건](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-valid-returns-uint8-261011)을
+  따른다. Vast는 사용자 중단 상태이며 변경 전 원격 prepare-only 계약을 재사용하지 않는다.
+  재개 후 최신 소스 전달·새 준비·짧은 검사·외부 백업 완료가 필요하다. 본학습은 미시작이다.
+
 - **2026-10-11 현재 JPEG 입력 계약:** 사용자 승인으로 카메라 RGB를 train·val·test·분석
   모두 native Q90 JPEG로 통일했다. PNG는 로컬 원본·변환용으로 보존하고, mask·depth·native
   GT·LiDAR·보정은 무손실로 유지한다. 새 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.

@@ -25,6 +25,9 @@ mask·depth·LiDAR·GT·보정은 무손실로 유지하고 blur·노출·noise�
 11절의 PNG/JPEG 짧은 학습 비용은 보존한다. 새 입력의 AP는 미검증이다.
 2026-10-11 사용자 재개 요청으로 Vast에 접속해 전체 JPEG 변환·전수 검증을 완료했다.
 아래 13절이 최신 원격 입력 기준이며, 외부 checkpoint 백업과 본학습은 아직 미완료다.
+사용자가 다시 Vast를 중단한 뒤 **로컬에서만** Base5 유효 반사점 필터와 uint8 이미지
+운반 경로를 검증했다. 아래 14절이 최신 로컬 입력 기준이다. 13절의 원격 소스와 준비 계약에는
+아직 이 변경이 없으므로 재개 시 새 소스 전달·새 work-dir 준비·짧은 재검증이 필요하다.
 
 추론 opt-in cache A와 **depth/feature 분리 pooling B**를 구현했다. B는 학습 역전파도 지원한다.
 공식 BEVPoolv2의 분리 표현을 참고한 로컬 CUDA 구현이며 NVIDIA v3나 TensorRT 전환이 아니다.
@@ -997,3 +1000,120 @@ size 및 MD5 `60d1952705a8ac50d82256aa03f46f18`가 원격 원본과 일치함을
 `inventory.json`, `pipeline.json`, `unit_final.log`, `prepare.log`, `external_backup_probe.jsonl`이다.
 원격 인증에는 단기 access token만 anonymous RAM으로 전달했으며 갱신 토큰·client secret은
 로컬에 보존했다. 인스턴스 중단·삭제, production·tracker·planning 변경은 하지 않았다.
+
+<a id="base5-valid-returns-uint8-261011"></a>
+
+## 14. Base5 유효 반사점·uint8 입력과 증강 검토 — 2026-10-11
+
+Vast 중단 후 사용자 승인 범위에서 로컬 CPU와 5060 Ti만 사용했다. 현재 config는
+`bevfusion_base5_dense_512_native_jpeg90.py`이며 수집 데이터·GT·split·production E25는
+유지한다. 본학습·Vast 접속·대용량 전송은 수행하지 않았다.
+
+### 증강 강도는 유지한다
+
+실제 train pipeline은 native Q90 RGB 읽기, 고정 resize/crop, 포인트·GT의 동일 BEV 변환,
+범위 필터와 포인트 shuffle이다. BEV 회전은 ±0.10rad(약 ±5.73°), scale은 0.95–1.05,
+translation은 각 XYZ 축의 표준편차 0.2m인 정규분포다. ±0.2m 상한이 아니다.
+이미지 zoom·회전·flip은 고정 또는 OFF이며 blur·노출·noise·재압축도 추가하지 않는다.
+이미지 고정 변환과 BEV 변환은 투영 행렬에 반영되므로 서로 다른 좌표계를 임의로 섞지 않는다.
+
+기존 검토의 4,255 train 장면·9,350 GT·장면당 64회 변환에서 중심 기준 XY ROI 이탈은
+전체 0.206%, 종방향 80–100m 객체 4.021%, 횡방향 25–30m 객체 4.088%였다.
+원거리 경계의 소수 손실은 남지만 현재 강도를 바꿀 근거는 부족하다. 강한 ±45° 회전은
+직사각형 ROI에서 원거리 GT를 많이 떨어뜨려 도입하지 않는다.
+추론 geometry cache는 학습 중 사용되지 않는다. 증강만 끄면 자동으로 학습 cache가
+켜지는 구조가 아니므로 속도를 이유로 증강을 제거하지 않는다.
+
+### 0 기록을 실제 반사점과 구분한다
+
+5K raw 전수의 96,000,000개 XYZI 기록 중 XYZ가 모두 0인 기록은 44,877,300개,
+**46.7472%**다. 이 기록의 intensity도 모두 0이었다. nonfinite 기록은 0개였고,
+필터 후 빈 클라우드가 된 장면도 0개였다. 이는 객체 미검출률이나 GT 제외율이 아니다.
+
+수집 audit는 이미 0 기록을 빼고 GT의 LiDAR 점 수를 계산했지만 기존 학습 loader는
+beam 슬롯을 모두 읽었다. 그 뒤 이동 증강이 0 기록들을 같은 위치로 옮겨 가짜 밀집
+클러스터가 생길 수 있었다. `MoraiFilterInvalidPoints`를 **포인트 읽기 직후·증강 전**에
+삽입해 exact XYZ-zero 및 nonfinite 행만 제거한다. intensity=0인 실제 점과 근접 점은
+유지하며 거리 cutoff·점 수 sampling·GT 삭제를 추가하지 않는다. 빈 클라우드에 가짜 점을
+넣지 않는다. 온라인 추론은 기존처럼 ROI 내 포인트가 모두 없으면 명시적 오류를 반환한다.
+
+Base5 train/val/test와 config 기반 온라인 전처리가 같은 정책을 따른다. 온라인 범위
+경계도 MMDetection3D의 열린 구간과 맞췄다. E25에는 필터와 경계 변경을 적용하지 않는다.
+raw LiDAR 파일·infos·GT·카탈로그·가시성 조건은 변경하지 않으므로 재수집하지 않는다.
+점 기록이 약 47% 줄어도 sparse convolution 비용이 약 47% 줄어드는 것은 아니다.
+중복 0 기록은 매우 적은 voxel에 모이므로 이 변경의 주목적은 입력 정합이다.
+
+### 픽셀을 바꾸지 않고 float32 변환 시점을 늦춘다
+
+기존 경로는 JPEG uint8 decode → padded float32 → resize용 uint8 → float32 이미지 →
+float32 pack이었다. Base5는 loader와 crop 출력을 uint8으로 유지한다. 실제
+`Det3DDataPreprocessor`가 device 전달 후 float32 변환·mean/std 정규화를 수행한다.
+기존 transform의 기본 output은 float32로 남겨 Base3 설정을 보존한다.
+지원하지 않는 resize/crop이 목표 크기를 만들지 못하면 잘린 작은 tensor를 내보내지 않고
+명시적으로 실패한다. 현재 고정 crop의 픽셀·위치·투영은 변하지 않는다.
+
+같은 64 train + 64 val 장면을 3회 비교했다. 각 split/repeat의 첫 8장면은 비용 집계에서
+제외했고 비교 순서는 순환했다. GPU 학습과 겹치지 않은 CPU 비용이다. GPU 정규화와
+모델 forward/backward 시간은 아래 수치에 포함되지 않는다.
+
+| train CPU 단계 | 기존 float32·0 기록 유지 | 유효점 필터·float32 | 유효점 필터·uint8 |
+|---|---:|---:|---:|
+| JPEG 읽기·decode·padding | 13.73ms | 13.91ms | 10.71ms |
+| 고정 resize/crop | 9.75ms | 9.70ms | 6.93ms |
+| 유효 반사점 필터 | 없음 | 0.46ms | 0.44ms |
+| BEV 회전·이동·scale | 0.62ms | 0.59ms | 0.53ms |
+| 입력 pack | 6.19ms | 6.21ms | 2.11ms |
+| 모든 transform 합계 | **31.39ms** | **31.75ms** | **21.47ms** |
+| val 모든 transform 합계 | 29.81ms | 30.36ms | 20.50ms |
+
+4개 512×1056 이미지의 운반량은 25,952,256 → 6,488,064 bytes로 75% 줄었다.
+이는 로더/IPC/CPU→GPU의 이미지 운반량이며 원본 JPEG 파일 크기나 최종 모델 float feature
+메모리가 75% 줄었다는 뜻은 아니다. 순차 CPU 준비 비용 감소도 전체 학습 시간 감소와 다르다.
+
+### 실제 짧은 학습 비용은 거의 같다
+
+5060 Ti에서 512×1056·batch 2·worker 4·AMP AdamW로 각 32 iteration을 실행했다.
+첫 8 iteration은 제외했다. 같은 64장면을 읽었고, 측정 24 iteration의 48장면과 증강 후
+GT geometry hash·클래스 개수를 대조했다. 두 비교 모두 유효점 필터를 적용했으며 이미지
+float32/uint8 운반만 달랐다. 모델 단독 추론 비용이나 전체 epoch 측정이 아니다.
+
+| 로컬 실제 학습 평균 / batch 2 | 유효점·float32 운반 | 유효점·uint8 운반 |
+|---|---:|---:|
+| 로더 대기 | 10.69ms | 4.94ms |
+| device 전처리·forward·backward·optimizer | 737.80ms | 742.78ms |
+| 전체 iteration | **748.49ms** | **747.72ms** |
+| 측정 구간 peak allocated | 10,879MiB | 10,886MiB |
+
+전체 평균 차이는 약 0.10%로 실질적인 전체 학습 가속을 입증하지 못했다. 로더 대기는
+줄었지만 대부분의 시간은 GPU 학습이며 작은 변동이 그 차이를 상쇄했다. uint8 운반은
+모델 활성값 크기를 바꾸지 않으므로 peak VRAM도 거의 같다. 기존 4090 학습 ETA를
+이 수치나 CPU 비용 감소율로 줄이지 않는다. 단일 짧은 비교의 tail 차이로 우열을 확정하지 않는다.
+근거는 `float_gpu_probe_v2/cost.json`과 `uint8_gpu_probe/cost.json`이다.
+
+### 검증과 재개 조건
+
+관련 단위 검사 41개를 통과했다. actual pipeline 384회 비교에서 픽셀·정규화 결과·GT·
+유효 포인트·변환 행렬이 정확히 일치했다. 별도로 실제 JPEG와 raw를 온라인 메모리 경로에
+넣어 128장면의 픽셀·포인트·정규화 결과가 정확히 같고 보정 행렬은 1e-5 허용 오차 내임을
+확인했다. 수집 manifest SHA256은 기존
+`c7df4c47babb1197b871ccd877d5bd95b5a5eb8833781906c5dd6ff36d61a91e`를 유지한다.
+AP·미션 주행 향상·새 입력 크기의 실제 ROS 풀스택 완료를 의미하지 않는다.
+
+최종 코드에서 실제 2장면·4클래스의 full-model AMP 4 iteration을 별도로 수행했다.
+epoch 1 / iteration 2의 원자적 checkpoint 저장 후 의도적으로 중단하고 같은 계약으로
+epoch 2 / 누적 iteration 4까지 재개했다. optimizer step 2, scheduler·AMP scaler·메인
+RNG 상태의 복구, 최종 weight 유한값, 잔여 partial 파일 0개를 확인했다.
+`gpu_resume_smoke/report.json`이 근거다. worker 0의 제한 검사이며 전체 worker/prefetch
+또는 중간 batch의 정확한 replay, 본학습 수렴을 보장하지 않는다.
+
+재현 도구는 `perception/detection3d/bevfusion/scripts/qualify_base5_input_pipeline.py`다.
+`--online-only`는 비용 측정 없이 파일 기반 입력과 온라인 전처리를 대조한다.
+ignored 근거는 `artifacts/evaluation/bevfusion/base5_input_pipeline_261011/`의
+`cpu_isolated_report.json`, `online_report.json` 및 제한 GPU 실험 결과다.
+처음 GPU 비용 실행은 실험용 Docker의 기본 64MiB shared memory 부족으로 worker가
+실패했다. 새 컨테이너의 `--shm-size=2g`로 수정했다. 실제 Vast의 shared memory는
+접속 후 별도로 확인하며 중첩 Docker 명령을 실행하지 않는다.
+
+다음 Vast 재개 시 기존 JPEG 데이터는 유지하고 최신 소스만 전달한다. 변경 전 prepare-only
+work-dir과 hash를 덮어쓰지 않고 새 경로에서 준비·짧은 학습/재개·외부 백업 검증을 수행한다.
+13절의 원격 입력 내용은 유효하지만 그때의 소스/학습 계약은 현재 코드의 실행 계약이 아니다.

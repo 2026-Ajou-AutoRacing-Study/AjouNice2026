@@ -35,9 +35,13 @@ def preprocessing_options_from_config(config):
         raise ValueError('augmentation and view-transform image sizes differ')
     if tuple(view['feature_size']) != tuple(d // 8 for d in final_dim) or any(d % 8 for d in final_dim):
         raise ValueError('runtime requires stride-8 view-transform features')
+    base5_valid_returns = any(item['type'] == 'MoraiFilterInvalidPoints'
+                             for item in pipeline)
     return dict(final_dim=final_dim, resize=float(resize_lim[0]),
                 reference_width=aug.get('reference_width', 1280),
-                point_cloud_range=config['point_cloud_range'])
+                point_cloud_range=config['point_cloud_range'],
+                remove_zero_returns=base5_valid_returns,
+                strict_point_range=base5_valid_returns)
 
 
 class Base3OnlinePreprocessor:
@@ -52,6 +56,8 @@ class Base3OnlinePreprocessor:
         resize=0.55,
         reference_width=1280,
         point_cloud_range=(-30.0, -30.0, -3.0, 30.0, 30.0, 2.0),
+        remove_zero_returns=False,
+        strict_point_range=False,
     ):
         self.calibration = calibration
         self.final_dim = tuple(int(value) for value in final_dim)
@@ -60,6 +66,9 @@ class Base3OnlinePreprocessor:
         self.point_cloud_range = np.asarray(point_cloud_range, dtype=np.float32)
         self.camera_workers = max(1, int(camera_workers))
         self.point_dim = int(point_dim)
+        # Explicitly config-driven for Base5; production E25 stays unchanged.
+        self.remove_zero_returns = bool(remove_zero_returns)
+        self.strict_point_range = bool(strict_point_range)
         if self.point_dim not in (4, 5):
             raise ValueError("BEVFusion runtime point_dim must be 4 or 5")
         self.executor = (
@@ -260,8 +269,15 @@ class Base3OnlinePreprocessor:
             )
         lower, upper = self.point_cloud_range[:3], self.point_cloud_range[3:]
         keep = np.isfinite(points).all(axis=1)
-        keep &= (points[:, :3] >= lower).all(axis=1)
-        keep &= (points[:, :3] <= upper).all(axis=1)
+        if self.remove_zero_returns:
+            keep &= (points[:, :3] != 0).any(axis=1)
+        if self.strict_point_range:
+            # Match MMDetection3D PointsRangeFilter's open interval exactly.
+            keep &= (points[:, :3] > lower).all(axis=1)
+            keep &= (points[:, :3] < upper).all(axis=1)
+        else:
+            keep &= (points[:, :3] >= lower).all(axis=1)
+            keep &= (points[:, :3] <= upper).all(axis=1)
         filtered = np.ascontiguousarray(points[keep])
         if not len(filtered):
             raise ValueError("no finite LiDAR points remain inside the Base3 range")
