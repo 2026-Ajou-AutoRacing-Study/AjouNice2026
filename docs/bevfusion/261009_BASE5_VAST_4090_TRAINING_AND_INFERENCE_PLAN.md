@@ -1,6 +1,6 @@
 # Base5 Vast.ai 4090 학습과 추론 시험 계획
 
-2026-10-09에 작성하고 2026-10-11에 입력 전환까지 갱신했다. Sunny13 독립 5K를 먼저
+2026-10-09에 작성하고 2026-10-11에 최신 소스·라벨의 원격 격자 검증까지 갱신했다. Sunny13 독립 5K를 먼저
 학습하고, 이후 나머지 5개 환경에서 새로 배치한 25K를 더해 6개 환경의 30K로 확장한다.
 [환경별 새 공간 배치 합의](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md)가
 과거의 동일 배치 반복 계획보다 우선한다. 첫 임대는 단일 RTX 4090의 On-demand 방식을 권장한다.
@@ -9,6 +9,30 @@
 사용자가 임대를 완료했고 2026-10-10에 Direct SSH 접속과 실제 CUDA 연산을 확인했다.
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
+
+**최신 원격 검증 — 2026-10-11 KST:** 사용자 재개 후 `271a2a6c` 실행 소스와 기존
+JPEG/raw에서 만든 upright infos를 반영했다. 센서 재전송 없이 로컬과 같은 train/val infos
+SHA256을 확인했다. [최신 실제 4090 비용·재개·백업 상태](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011)가
+아래 ‘원격 미반영/재개 시 수행’ 기록보다 우선한다. 기본 512×1056·7.5/30cm·depth 50cm·
+batch 4를 유지한다. 기본/정밀 추론·짧은 실제 학습·저장/재개와 745장 검증 로더를 확인하고,
+본학습용 새 prepare-only 계약을 만들었다. **외부 백업 검사는 180초 제한으로 종료되어
+미완료이며 본학습은 시작하지 않았다.** 큰 백업을 계속 재전송하지 않는다.
+원격 입력은 `/root/base5_sunny13_jpeg90_upright_v1_261011`, 새 main 폴더는
+`/root/base5_training_sunny13_512_b4_e24_upright_271a2a6c_261011`이다.
+이전 yaw-only JPEG 입력이나 예전 계약으로 시작하지 않는다. 기본 24 epoch 운영 예산은
+약 4.7~5.3시간이며 단기 측정의 외삽이다. 백업 성공 또는 사용자가 선택한 대체 보존 조건과
+학습 개시 승인을 확인한 뒤 다음 명령에 `--run`을 추가한다. 현재는 준비만 하는 명령이다.
+
+```bash
+cd /root/AjouNice2026
+export PYTHONPATH="$PWD:$PWD/third_party/mmdetection3d:$PWD/docker/bevfusion:$PYTHONPATH"
+python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
+  --data /root/base5_sunny13_jpeg90_upright_v1_261011 \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py \
+  --profile 512x1056 --epochs 24 --batch 4 --workers 4 \
+  --init-checkpoint /root/base5_nuscenes_camera_only_261010.pth \
+  --work-dir /root/base5_training_sunny13_512_b4_e24_upright_271a2a6c_261011
+```
 
 **최신 공간/depth 판단 — 2026-10-11:** 로컬 5060 Ti에서 세 공간 격자의 실제 5K
 정보량·300장 추론 비용과 짧은 학습 비용을 비교했다.

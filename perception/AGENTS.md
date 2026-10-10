@@ -9,19 +9,26 @@
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`와
 `../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`의
-2026-10-11 JPEG 입력 전환 결과다. Sunny13 5K 완료, 다른 5환경 실제 25K/본학습은 아직이다.
+2026-10-11 EVIDENCE 18절의 최신 원격 격자 검증 결과다. Sunny13 5K 완료,
+다른 5환경 실제 25K/본학습은 아직이다.
 2026-10-11 최신 파생 GT는 EVIDENCE 16절의 `native_rpy_fixed_yaw_enclosure_v1`이다.
 현재 입력은 `../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
 raw·센서·클래스·GT 수·split은 유지하고 파생 infos 크기만 native 8모서리 enclosure로 보완했다.
 현재 native-JPEG config는 old yaw-only manifest를 거부한다. 15절 heatmap 수정도 유지한다.
 2026-10-11 공간 격자·depth 후속 결과는 EVIDENCE 17절을 따른다. 실제 5K 정보량과
 300장 비용·짧은 학습 비용을 비교하며 AP 우위를 주장하지 않는다. 기본 7.5/30cm·
-depth 50cm는 유지하고 5/20cm는 4090 재개 후 비용 확인 후보로 남긴다. 비교용
+depth 50cm는 유지하고 5/20cm는 아래 18절에서 원격 비용까지 확인한 후보로 남긴다. 비교용
 공통 padding X±100.8/Y±33.6은 semantic ROI 확대나 기본 config 승격이 아니다.
 Base5 pooling 정수 격자 반올림과 fresh training의 config-owned nx 복원을 보완했다.
 25cm depth의 cache 예산 초과 비용은 실제 depth 연산 비용과 분리한다.
-Vast/Drive는 이 작업에서 변경하지 않았다. 원격 재개 시 최신 소스·기존 JPEG의 라벨 재변환·
-새 work-dir 준비를 수행하며 센서를 재전송하거나 이전 계약으로 resume하지 않는다.
+2026-10-11 사용자 재개 후 최신 원격 상태는 EVIDENCE 18절을 따른다. `271a2a6c` 실행
+소스·기존 JPEG에서 재변환한 upright infos를 반영했고 로컬 train/val infos SHA256과 같다.
+실제 4090 300장 반복·batch 4 비용·저장/재개·전체 val 로더와 새 prepare-only 계약을 검증했다.
+원격 입력은 `/root/base5_sunny13_jpeg90_upright_v1_261011`, main 폴더는
+`/root/base5_training_sunny13_512_b4_e24_upright_271a2a6c_261011`이다.
+기본 7.5/30cm·depth 50cm·512×1056·batch 4를 유지한다. 큰 센서 재전송·예전 계약
+resume은 하지 않는다. 외부 백업은 180초 제한으로 미완료이며 본학습은 시작하지 않았다.
+백업 성공 또는 사용자가 선택한 대체 보존 조건과 본학습 승인을 확인해야 한다.
 현재 카메라 RGB는 train/val/test/분석 모두 native Q90 JPEG다.
 `bevfusion_base5_dense_512_native_jpeg90.py`와 all-JPEG portable manifest를 사용한다.
 PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무손실 보조 파일은 변환하지 않는다.

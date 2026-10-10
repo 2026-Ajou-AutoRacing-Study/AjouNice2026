@@ -5,11 +5,13 @@
 ## CURRENT
 
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
-로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·새 준비·비용/외부 백업 검증 → 승인 후 본학습**이다.
+로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
+외부 백업 gate 해결 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| 최신 소스·upright 라벨의 실제 4090 / 300장 반복·실제 batch 4 학습·재개 / 본학습 아직·외부 백업 미완료 | [10-11 원격 비용·검증과 새 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011) |
 | 공간 5/20·7.5/30·10/40cm / depth 25·50·100cm / 실제 5K 정보량·비용과 선택 근거 | [10-11 로컬 공간 격자·depth 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011) |
 | 기울어진 native RPY 박스 → upright 7D / 최신 파생 라벨 입력·전수·실제 점·재개 | [10-11 upright 라벨 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | Base5 학습 heatmap 축 수정 / 실제 5K·증강·전체 모델 역전파/재개 / 다음 격자·depth 실험 | [10-11 학습 정답 정합 검증과 후속 순서](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011) |
@@ -39,24 +41,26 @@ RGB PNG는 로컬 백업·변환용이며 mask·depth·native GT 등 보조 PNG�
 LiDAR·native GT·보정·split·production E25는 바꾸지 않았다. 파생 infos의 크기만 native RPY를
 포함하는 upright enclosure로 보완했다. Base5만 0 기록·nonfinite 행을
 증강 전에 제거하고 이미지를 GPU 정규화 전까지 uint8으로 유지한다. 로컬 정합 검사와
-비용 측정을 통과했으며 Vast에는 아직 이 변경을 전달하지 않았다. 기존 원격 prepare-only
-계약을 덮어쓰지 않고 재개 후 새 work-dir을 사용한다. val 픽셀 분포는 의도적으로 Q90으로
+비용 측정을 통과했고 18절의 Vast 재개 후 최신 소스와 upright 라벨도 반영했다. 기존 원격
+prepare-only 계약은 유지하고 새 work-dir을 사용했다. val 픽셀 분포는 의도적으로 Q90으로
 변경했으므로 과거 PNG val 수치를 같은 조건의 결과처럼 합치지 않는다.
 독립 전달본에는 `--jpeg-cache`나 JPEG 재압축을 추가하지 않는다. 기존 mixed 전달본·online
 변환 설정은 이력이며 현재 학습의 fallback이 아니다. CPU 로더 개선을 전체 학습 가속으로 해석하지 않는다.
 5060 Ti의 원본 PNG vs 사전 JPEG 짧은 실제 학습 비교는 약 0.47% 차이로 사실상 같았다.
-종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 요청 후 새 준비 계약과
-외부 백업을 확인한다. JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU만
-사용했고 10-11 PNG/JPEG 짧은 학습 비교는 로컬 GPU로 수행했다. 본학습·Vast 재개는 아직이다.
+종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 후 새 준비 계약을
+만들었으며 외부 백업은 아직 미완료다. 현재 실제 4090 비용의 24 epoch 운영 예산은 약 4.7~5.3시간이다.
+JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU만 사용했고 10-11 PNG/JPEG
+짧은 학습 비교는 로컬 GPU로 수행했다. 최신 원격 검증은 18절이며 본학습은 아직이다.
 아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
 
 2026-10-11 추가로 Base5 `[Y,X]` feature에 맞는 학습 heatmap 정답을 수정했다. 이전 feature
 축 검사에서 빠졌던 target 생성 경로이며 원본 GT 오류가 아니다. 실제 11,052개 GT와 반복
 증강을 포함한 29,714개 정답 위치, 4-iteration 전체 모델 역전파·재개를 로컬에서 통과했다.
-본학습 성능 개선을 측정한 것은 아니다. E25와 prediction 경로는 유지하고 Vast 반영은 아직이다.
+본학습 성능 개선을 측정한 것은 아니다. E25와 prediction 경로는 유지하고 Vast에도 수정 소스를 반영했다.
 후속 공간 격자·depth 비교의 결과는 17절을 따른다. 비용 검사를 본학습 AP 개선으로
 해석하지 않는다. 기본 공간 7.5/30cm·depth 50cm를 유지하며, 더 정밀한 5/20cm는
-4090 재개 후 비용을 확인할 선택 후보로 남긴다. coarse 10/40cm를 단순 속도만으로 승격하지 않는다.
+실제 4090에서 추론·짧은 학습 비용을 확인한 선택 후보로 남긴다. AP 우위는 미검증이며
+coarse 10/40cm를 단순 속도만으로 승격하지 않는다. 최신 기본 준비 계약과 외부 백업 미완료 상태는 18절을 따른다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님
 

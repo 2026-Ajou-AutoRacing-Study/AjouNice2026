@@ -1583,3 +1583,152 @@ Depth 대조는 cost 명령에 `--cases current075 --depth-steps .5 .25 1.0`을 
 512MiB 대조에는 `--pool-cache-mib 512`를 추가한다. 실제 학습 비용은 기존
 `benchmark_base5_real_loader.py`에 audit가 출력한 candidate config를 지정하고
 `--batch 1 --workers 4 --steps 24 --warmup 8`로 제한한다. full epoch 명령이 아니다.
+
+<a id="base5-vast-grid-qualification-261011"></a>
+## 18. 최신 소스·upright 라벨의 실제 4090 검증 — 2026-10-11 KST
+
+사용자가 기존 Vast를 재개한 뒤 Direct SSH로 접속했다. RTX 4090 48GB, Torch
+2.7.1+cu128과 기존 5K JPEG·초기화 파일이 보존되어 있었다. 센서는 재전송하지 않았다.
+`271a2a6c`의 tracked 실행 소스와 기존 300장 선택 명세만 약 332KiB로 전달했다.
+전달 archive SHA256은 `94485abadea5d5d7f8f77f52256ff61284779eac1f1d70d9cf3191b848c1d8ab`다.
+원격의 이전 소스를 별도 tar로 보존하고 최신 파일을 반영했다. 원격 `.git`의 revision을
+새 checkout으로 바꾼 것은 아니다. 실행 근거는 전달 소스와 각 report/manifest의 파일 해시다.
+문서와 측정 산출물의 회수·정리는 로컬에서 수행한다. 본학습은 시작하지 않았다.
+
+### 입력·라벨과 실행 계약
+
+- 현재 원격 입력: `/root/base5_sunny13_jpeg90_upright_v1_261011`이다. 이전 원본과
+  yaw-only JPEG 전달본은 유지하고, 센서 hardlink와 새 infos로 별도 파생본을 만들었다.
+- 원격 기존 native RPY에서 `native_rpy_fixed_yaw_enclosure_v1`로 전수 변환하고 입력과
+  출력의 모든 manifest 파일 SHA256을 검사했다. 512 프로필은 train 4,255 / val 745장,
+  GT 9,350 / 1,702개, camera-only 535 / 144개다. 클래스·중심·yaw·분할·센서는 유지했다.
+- 로컬 현재 release와 원격의 **train/val infos 내용 SHA256이 각각 완전히 같다**.
+  train은 `4e16333f4766b67f06651e2d7a9ae2734175869141ec9d1ecf6b870f9208634e`,
+  val은 `93b505edd177d29430b059d71abd73fe83897288530cbd186aec54b5142d3c36`이다.
+- 초기화 파일 SHA256은 `d06ae54d380a7c0ec245936ff394a51e0ff2c36fd1288eb2d7879954c682107b`다.
+  감사한 nuScenes camera-only 초기화이며 새 LiDAR·depth·4-class head는 학습해야 한다.
+  미학습 부분의 missing-key 경고를 전체 모델 가중치 로딩 실패로 해석하지 않는다.
+- 유효 반사점 필터·uint8 운반·heatmap `[Y,X]` 정답·분리 pooling·정수 격자 보완을
+  모두 반영했다. Q90, 512×1056, 4클래스, single-frame 7D, temporal/OD velocity OFF,
+  depth 50cm와 semantic ROI X±100/Y±30m는 유지했다.
+
+### 실제 300장 추론 비용과 반복 확인
+
+200장 대표 표본 + 100장 stress의 동일한 고유 300장을 사용했다. 선택된 센서 SHA256을
+확인하고 warmup 16회 뒤 batch 1 AMP의 비계측 latency를 측정했다. 별도의 32회에서
+CUDA event 하위 span을 수집했다. 비교용 390개 호환 파라미터는 동일하며 비용 검사용
+가중치다. 학습된 정확도나 실제 ROS/full-stack 전달 시간을 측정한 것이 아니다.
+service는 메모리에 있는 센서의 CPU 전처리 + 모델 + decoded CPU transfer이고,
+디스크 읽기·네트워크·ROS 큐 대기는 제외한다.
+
+| 공간 격자 | 모델 평균 | service 평균 | service p95 | steady allocated peak |
+|---|---:|---:|---:|---:|
+| 기본 7.5/30cm, 기존 padding | 49.07ms | 68.20ms | 70.64ms | 1,022MiB |
+| 7.5/30cm, 비교 공통 padding | 49.56ms | 68.57ms | 72.50ms | 1,022MiB |
+| 정밀 5/20cm, 비교 공통 padding | 58.47ms | 78.42ms | 83.57ms | 1,427MiB |
+
+순서를 뒤집어 같은 300장씩 다시 측정했다. 정밀은 모델 59.26 / service 78.74ms,
+기본은 모델 50.60 / service 70.09ms였다. 이 반복의 service p95는 각각 88.46 /
+77.68ms, p99는 116.26 / 99.47ms다. 첫 실행의 낮은 p95만으로 모든 프레임이
+13Hz 주기 76.92ms를 만족한다고 보장하지 않는다. 평균 격자 비용 차이는 반복에서도 유지됐다.
+원격 CPU 전처리는 대략 19~20ms로, 로컬의 CPU 비용과 같은 값이라고 가정하지 않는다.
+
+정밀 격자의 dense fusion cell 수는 공통 기준 대비 2.25배다. 하지만 이미지 입력과
+image backbone은 같고 sparse LiDAR는 빈 모든 voxel을 dense 연산하지 않는다.
+별도 계측에서 camera backbone은 약 14.1ms로 같고, sparse encoder도 약 16ms였다.
+주된 증가 부분은 camera BEV downsample 0.94→2.25ms, fusion 0.63→1.56ms,
+BEV backbone 1.32→2.77ms, neck 0.23→0.69ms, head/decode 5.14→8.06ms다.
+event span은 host idle을 포함할 수 있고 view 내부 span이 중첩되므로 단순 합산하지 않는다.
+추론 warmup의 cuDNN workspace 탐색 peak는 32.9~36.1GiB였다. 이를 steady 모델
+메모리나 24GB GPU에서의 필수 VRAM으로 해석하지 않으며, 실제 대회 GPU의 cold start는 별도 gate다.
+
+### 실제 5K 로더·증강·역전파 비용
+
+각 후보는 fresh process로 batch 4 / workers 4 / AMP AdamW 64회만 갱신했다.
+warmup 16회를 제외한 48회, 실제 192개 고유 장면의 비용이다. 전체 사용 장면은
+각 256개이며 수집한 세 report의 64개 batch 장면 순서·증강 GT 해시는 모두 정확히
+같았다. 전체 epoch나 수렴 성능을 측정한 것이 아니고, batch 8의 이점을 새로 주장하지 않는다.
+
+| 공간 격자 | loader 포함 평균 / step | steady allocated peak | optimizer 갱신 |
+|---|---:|---:|---:|
+| 기본 7.5/30cm | 583.82ms | 21,130MiB | 64/64 |
+| 공통 padding 7.5/30cm | 579.89ms | 21,340MiB | 64/64 |
+| 공통 padding 5/20cm | 703.02ms | 28,679MiB | 64/64 |
+
+정밀 격자는 공통 기준 대비 약 21.2% 느리고 메모리는 약 34.4% 늘었다. 두 후보 모두
+현재 임대한 48GB GPU에서 batch 4가 가능하다. 기본 결과를 24GB에 그대로 적용하거나,
+정밀 batch 4가 24GB에도 들어간다고 가정하지 않는다. 모든 loss는 유한하고 AMP skip 없이
+optimizer가 갱신됐다. 초기 loss 크기를 서로 비교해 최종 탐지 성능을 판정하지 않는다.
+
+기본 설정의 745장 전체 validation은 FP32로 63.14초였다. 1,702 GT의 클래스별 개수는
+vehicle 341 / pedestrian 653 / obstacle 674 / animal 34다. 출력과 metric의 유한성·
+4클래스 범위를 검사했다. 4-iteration smoke checkpoint의 AP는 품질 평가가 아니다.
+기본 24 epoch는 1,064 updates/epoch × 24이며, 짧은 train 평균을 외삽하면 순수
+train 약 4.14시간 + 매 epoch validation 약 0.42시간이다. 저장·초기화·긴 실행 변동을
+포함한 운영 예산은 약 4.7~5.3시간으로 잡는다. 정밀은 train만 약 4.99시간이다.
+정밀 745장 full validation은 FP32로 72.65초였고 기본과 같은 GT 개수·출력/metric 검사를
+통과했다. 이를 매 epoch 수행하면 validation 약 0.48시간, train과 합쳐 약 5.47시간이다.
+전체 운영 예산은 약 5.5~6.2시간으로 잡되 장시간 실측 전에는 확정 시간으로 제시하지 않는다.
+
+### 저장·재개와 외부 백업은 별개의 gate다
+
+기본 설정은 실제 두 train 장면의 네 클래스로 AMP 2회 → atomic epoch 저장 →
+의도적 중단 → epoch 경계 재개 → 누적 4회 갱신을 통과했다. optimizer·scheduler·
+scaler·주 프로세스 RNG와 계약을 복원하고 partial checkpoint가 없음을 검사했다.
+정확한 mid-epoch worker/prefetch replay를 보장하는 기능은 아니다.
+정밀 격자도 같은 두 장면·4클래스로 별도의 2→4 iteration 저장·재개를 통과했다.
+세 비용 실행의 192회와 두 smoke의 8회, 총 200회 optimizer 갱신을 확인했다.
+
+최신 기본 smoke의 full checkpoint 498,641,221 bytes를 access-only 메모리 인증으로
+Drive에 백업하는 검사를 **180초만** 수행했다. preflight는 성공했지만 본 백업 과정이
+기한 내 완료되지 않아 자식 전송을 종료했다. SHA256 read-back·COMPLETE·LATEST·
+중복 재실행 검사를 통과한 report는 없으며 **외부 백업 gate는 미완료**다. 원격 원본은
+보존하고 반복 재전송하지 않았다. 이후 로컬의 metadata-only 목록에는 이전
+`9fb2bc...` checkpoint만 보였고 최신 `860009...` content-addressed payload는 없었다.
+이를 최신 checkpoint 업로드 성공으로 해석하지 않는다. timeout만으로 API quota나
+정확한 네트워크 병목을 확정하지도 않는다.
+종료 후 인증 없는 읽기 요청으로 API 연결만 검사했을 때 Drive 조회 endpoint는 3.17초에
+401, upload endpoint의 GET은 1.50초에 405, OAuth endpoint는 1.64초에 404를 반환했다.
+인증 없이 확인한 정상 HTTP 오류 응답이며 인증·업로드 성공을 뜻하지 않는다. 당시
+DNS/TCP/TLS 전체 단절은 아니었다. 대용량 업로드의 지속 속도나 재시도 원인은 미확정이다.
+
+기본 최신 checkpoint SHA256은
+`860009380c0abbf20bc6e3ad6cfdfa129e3ca98fc929609c03dfabf3257ebdbe`다.
+원격 원본은 `/root/base5_grid_qualification_271a2a6c_261011/smoke/training/epoch_2.pth`에 있다.
+큰 재전송·장시간 재시도·인스턴스 교체를 자동 수행하지 않는다. 본학습은 별도 승인을 받고,
+외부 백업 성공 또는 사용자가 명시적으로 선택한 대체 보존 조건을 확인한 뒤 시작한다.
+
+### 선택과 본학습 준비
+
+이번 단계의 추천은 **512×1056 / 7.5cm voxel / 30cm Camera BEV / depth 50cm /
+batch 4**를 기본으로 유지하는 것이다. 정밀 5/20cm는 충분히 실행 가능한 후보다.
+다만 현재 비용은 더 들고 AP 우위는 아직 없으므로, 학습 기회가 제한된 첫 임시 모델을
+비용 측정만으로 정밀 격자에 고정하지 않는다. 정밀 후보를 성능 한계 때문에 영구 기각하지 않는다.
+공통 padding은 비교용이며 기본 semantic ROI나 기본 config를 자동 확대하지 않았다.
+
+새 main prepare-only 폴더는
+`/root/base5_training_sunny13_512_b4_e24_upright_271a2a6c_261011`이다.
+계약 SHA256은 `22db7bc4afe39205e63181e7733eb9e25f6fa2561bc6b6dd58dba7ca88b3c357`이며,
+24 epoch / batch 4 / workers 4 / LR 1e-4 / warmup 500 updates / cosine / 매 epoch
+val·전체 재개 checkpoint / 최근 3개 보존을 준비했다. `fresh_start.json`, `last_checkpoint`,
+학습 checkpoint가 없는 prepare-only 상태를 확인했다. 예전 실행 계약을 덮어쓰지 않았다.
+
+재개 명령의 데이터·config·초기화·schedule·source hash를 바꾸지 않는다. 단일 Vast
+컨테이너의 Python을 직접 사용하며 Docker를 중첩하지 않는다. 본학습 개시 전 백업 watcher의
+인증/지속 실행을 확인한다. 현 access-only 방식은 로컬 refresh watcher가 살아 있어야 하며,
+로컬 PC가 꺼져도 자동 백업된다고 주장하지 않는다. 이번 검사의 watcher는 종료했다.
+
+로컬 ignored 근거 경로는 `artifacts/evaluation/bevfusion/base5_vast_grid_261011/`이고,
+원격은 `/root/base5_grid_qualification_271a2a6c_261011/`이다. `inference`와
+`inference_reverse` report, `train_{current075,common075,common050}_b4/cost.json`,
+`smoke/report.json`, `validation/validation_cost.json`, `pool_tests.json`,
+`grid_tests.log`, `regression_tests.log`, `external_backup.jsonl`과 실행 로그를 보존한다.
+`smoke_fine/report.json`, `validation_fine/validation_cost.json`,
+`main_preparation/{run_manifest.json,resolved_train.py}`도 회수했다.
+최종 검사에서 원격 main manifest의 실행 소스 **980개가 로컬 내용 SHA256과 모두 같고**,
+두 추론 report의 source guard도 현재 소스와 일치했다. 순서 역전 추론·세 비용 실행의
+같은 장면/증강·두 저장/재개·두 전체 val 검사를 완료했다. 격자 계약 3개, pipeline/
+heatmap/rectangular/image-domain 회귀 30개, pool CPU 9개 중 6개 통과·CUDA 전용 3개 skip,
+pool CUDA 9개 모두 통과했다. 총 51개 실행 중 48개 통과, 정상 skip 3개다.
+2026-10-11 KST 최종 확인에서 GPU 0%·1MiB, 학습/추론/rclone 자식 없음과 main
+prepare-only 상태를 확인했다. 인스턴스를 자동 중단·destroy하지 않았다.

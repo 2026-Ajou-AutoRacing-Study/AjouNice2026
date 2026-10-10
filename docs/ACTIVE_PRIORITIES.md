@@ -49,6 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 최신 실제 4090:** 사용자 재개 후 최신 소스·upright 라벨을 반영했다.
+  센서 재전송 없이 로컬과 같은 infos를 확인하고 300장 추론 반복·실제 5K 로더의
+  batch 4 비용·저장/재개·전체 val 로더를 검증했다.
+  [원격 결과·새 준비 계약·남은 gate](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011)가
+  아래 ‘Vast 미변경/반영 전’ 이력보다 우선한다. 기본 512×1056·7.5/30cm·depth 50cm를
+  유지한다. 24 epoch 운영 예산은 약 4.7~5.3시간이다. 외부 백업 검사는 180초로 제한해
+  중단했으며 아직 미완료다. 본학습 미시작, AP 우위·실제 ROS 전달 비용도 미검증이다.
+
 - **2026-10-11 로컬 공간/depth 비교:** 실제 5K의 근거리 voxel 정보·밀집 GT와
   300장 추론 비용, 짧은 실제 학습 비용을 비교·검증했다.
   [최신 결과와 후속 선택](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011)이
