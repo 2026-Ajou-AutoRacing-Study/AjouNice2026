@@ -5,10 +5,15 @@ here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f /.dockerenv ]] || [[ "${AJOU_DIRECT_CONTAINER:-0}" == 1 ]]; then
     python "$here/run_inside.py" "$@"
 else
+    status=0
     docker run --rm --gpus all --shm-size=4g \
         -v "$here:/bench" \
         -v "$HOME/.cache/torch_extensions:/root/.cache/torch_extensions" \
         -e MAX_JOBS=2 --entrypoint python \
         "${AJOU_BENCH_IMAGE:-ajounice/bevfusion:team-cu128-v1}" \
-        /bench/run_inside.py "$@"
+        /bench/run_inside.py "$@" || status=$?
+    for archive in "$here"/SEND_THIS_*.zip; do
+        [[ -f "$archive" ]] && printf 'HOST RESULT ZIP: %s\n' "$archive"
+    done
+    exit "$status"
 fi

@@ -149,6 +149,13 @@ backbone이나 모델 폭을 줄인 결과가 아니다. B 후에는 camera back
 - Cache A는 upstream pool의 default CUDA stream만 허용한다. B는 current stream을 사용한다.
   single worker instance용이며 concurrent 호출/다중worker를 인증하지 않는다. double backward는 미지원이다.
 
+별도 self-contained bundle의448/512·14회 비용/3-step 전체 실행도 통과했다.
+재실행의 batch1 마지막2step 시간은448 baseline413.1ms→B303.6ms,
+512 baseline544.0ms→B380.7ms였다. 본학습 epoch 추정으로 바로 외삽하지 않는다.
+steady allocated는448 batch1 baseline7759.4MiB→B4678.7MiB,
+512 batch1 baseline10377.2MiB→B5730.0MiB다. B batch2는각8761.0/10871.8MiB였다.
+optimizer step을 건너뛰지 않았으며 실제 depthnet weight 변경도 확인했다.
+
 ## 실행 코드와 전달
 
 새 opt-in config: `perception/detection3d/bevfusion/configs/bevfusion_base5_dense_448_separated_candidate.py`.
@@ -158,6 +165,25 @@ backbone이나 모델 폭을 줄인 결과가 아니다. B 후에는 camera back
 `portable_input_pool/run.sh`는 host팀이미지 또는 이미컨테이너인Vast에서 직접 실행한다.
 Vast 컨테이너 안에서 다시 docker run을 중첩하지 않는다. checksum 검증/로그/JSON/최종ZIP을 남긴다.
 첫 JIT compile은 해당 GPU에서 수행하고 sm120 binary를4090으로 복사하지 않는다.
+실주행에 연결할 때는 최초 JIT compile/모델 warmup을 출발 전에 끝내야 한다.
+측정된74/93ms에 최초 CUDA 컴파일 시간은 포함되지 않는다. 현재 opt-in 타입만 바꿔
+첫 프레임부터 곧바로 그 지연이 나온다고 보장하지 않는다.
+
+최종 local-qualified 묶음:
+`artifacts/handoff/input_pool_gpu_261010_final_v2/ajounice_input_pool_gpu.zip`
+(52,592,101 bytes, SHA256 `9bd2c750a4831a77ecf38214f82e9516025fd6e0d58b4225d93f48c31eef5d62`).
+417개 payload checksum이 일치한다. 별도폴더/마운트에서 다음을 끝까지 검증했다:
+
+```bash
+bash artifacts/handoff/input_pool_gpu_261010_final_v2/ajounice_input_pool_gpu/run.sh \
+  --iterations 14 --shapes 448x896 512x1056
+```
+
+CPU/CUDA unit→6개 비용case→4개 full-model 동등성→6개3-step 성공/2개baseline batch2 OOM 기록,
+runner3개exit0 및 결과ZIP 생성PASS다. default는384도포함한42회시험이며4090에서실행한다.
+초기preview/final(최소 calibration helper 누락으로실패)은진단용보존하고최종v2만전달한다.
+임대/registry image upload/Drive upload는 수행하지 않았다. Vast에 임의 기본 PyTorch 이미지만
+있으면 바로 되는 것이 아니라 team image의 compiled dependency 환경이 필요하다.
 
 남은 순서:
 
