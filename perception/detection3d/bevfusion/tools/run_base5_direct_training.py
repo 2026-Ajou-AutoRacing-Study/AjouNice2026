@@ -46,7 +46,7 @@ def prepare(args):
     if list(cfg.model.view_transform.image_size) != [height, width]:
         raise ValueError('Config/crop infos differ')
     # Regression code has eight channels (yaw is sin/cos), decoded box has 7D.
-    if cfg.model.type != 'BEVFusion' or 'vel' in cfg.model.bbox_head.common_heads or cfg.model.bbox_head.bbox_coder.code_size != 8:
+    if cfg.model.type not in ('BEVFusion', 'MoraiTrainingRuntimeBEVFusion') or 'vel' in cfg.model.bbox_head.common_heads or cfg.model.bbox_head.bbox_coder.code_size != 8:
         raise ValueError('Expected single-frame 7D detector without OD velocity')
     for split in ('train', 'val'):
         loader = cfg[split + '_dataloader']
@@ -139,6 +139,7 @@ def prepare(args):
     identity = dict(dataset_manifest_sha256=sha256(root / 'manifest.json'), profile=args.profile,
         config_sha256=sha256(args.config), source_hashes=source_hashes,
         package_versions={name: version(name) for name in packages}, model=cfg.model.to_dict(),
+        optimizer_wrapper=cfg.optim_wrapper.to_dict(),
         train_pipeline=list(cfg.train_dataloader.dataset.pipeline),
         epochs=args.epochs, batch=args.batch, accumulate=args.accumulate, workers=args.workers,
         lr=args.lr, warmup_iterations=warmup, seed=args.seed, val_enabled=not args.disable_val,

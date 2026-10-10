@@ -49,6 +49,10 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 로컬 학습 가속:** [실제 로더 A/B·기하 정합·runtime 검증](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011)을
+  완료하고 별도 opt-in 후보를 제공한다. 현재 선택·남은 gate는 [계획 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를
+  따른다. Vast 접속·본학습·기본 config 변경은 하지 않았다. 다음은 사용자 재개 후 4090 재확인이다.
+
 - **2026-10-11 06:46 KST 계획 통합:** [Base5 현재 계획 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를
   현재 결정·남은 순서의 단일 기준으로 사용한다. 다음 임대는 고정 팀 이미지를 게시해 재사용한다.
   이미지 빌드·게시·템플릿 변경은 아직 계획이며 현재 설치된 인스턴스는 유지한다. 이번 학습은

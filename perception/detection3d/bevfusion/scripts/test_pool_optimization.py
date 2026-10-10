@@ -11,7 +11,7 @@ from projects.BEVFusion.bevfusion.depth_lss import DepthLSSTransform
 from perception.detection3d.bevfusion.plugin.morai_rectangular_bev import MoraiRectangularDepthLSSTransform
 from perception.detection3d.bevfusion.plugin.morai_pool_optimization import (
     build_plan, separated_reference, SeparatedPool, enable_pool_optimization,
-    disable_pool_optimization, extension)
+    disable_pool_optimization, extension,batched_geometry)
 
 
 class PoolTests(unittest.TestCase):
@@ -50,6 +50,128 @@ class PoolTests(unittest.TestCase):
         p=build_plan(v,g)
         self.assertEqual(sorted(p['rd'].cpu().tolist()),[0,144])
         self.assertEqual(sorted(p['rb'].cpu().tolist()),[0,95])
+
+    def test_warp_backward_empty_and_channel_tails(self):
+        if self.device!='cuda':self.skipTest('CUDA-only')
+        for empty in (False,True):
+            v,g=self.setup_inputs(empty);p=build_plan(v,g)
+            for channels in (1,4,31,32,80,81):
+                d=torch.rand(2,3,3,4,4,device='cuda',requires_grad=True)
+                f=torch.randn(2,3,4,4,channels,device='cuda',requires_grad=True)
+                ref=separated_reference(d,f,p)
+                actual=SeparatedPool.apply(d,f,p,'warp')
+                torch.testing.assert_close(actual,ref,atol=2e-6,rtol=2e-6)
+                grad=torch.randn_like(ref)
+                expected=torch.autograd.grad(ref,(d,f),grad)
+                observed=torch.autograd.grad(actual,(d,f),grad)
+                for a,b in zip(observed,expected):
+                    torch.testing.assert_close(a,b,atol=2e-5,rtol=2e-5)
+
+    def test_invalid_backward_mode(self):
+        v,g=self.setup_inputs()
+        with self.assertRaisesRegex(ValueError,'backward mode'):
+            enable_pool_optimization(v,'separated',backward_mode='unknown')
+
+    def test_grouped_backward_empty_and_channel_tails(self):
+        if self.device!='cuda':self.skipTest('CUDA-only')
+        for empty in (False,True):
+            v,g=self.setup_inputs(empty);p=build_plan(v,g,compact_indices=True)
+            for channels in (1,4,31,32,80,81):
+                d=torch.rand(2,3,3,4,4,device='cuda',requires_grad=True)
+                f=torch.randn(2,3,4,4,channels,device='cuda',requires_grad=True)
+                ref=separated_reference(d,f,p);actual=SeparatedPool.apply(d,f,p,'grouped')
+                torch.testing.assert_close(actual,ref,atol=2e-6,rtol=2e-6)
+                grad=torch.randn_like(ref)
+                expected=torch.autograd.grad(ref,(d,f),grad)
+                observed=torch.autograd.grad(actual,(d,f),grad)
+                for a,b in zip(observed,expected):torch.testing.assert_close(a,b,atol=2e-5,rtol=2e-5)
+
+    def test_compact_plan_matches_legacy(self):
+        for empty in (False,True):
+            v,g=self.setup_inputs(empty)
+            a=build_plan(v,g);b=build_plan(v,g,compact_indices=True)
+            for key in a:
+                if torch.is_tensor(a[key]):
+                    torch.testing.assert_close(a[key],b[key],rtol=0,atol=0)
+                else:self.assertEqual(a[key],b[key])
+
+    def test_compact_plan_rejects_index_overflow(self):
+        v,g=self.setup_inputs();v.xbound=(-2,2,1e-9)
+        with self.assertRaisesRegex(ValueError,'int32 index range'):
+            build_plan(v,g,compact_indices=True)
+
+    def test_batched_geometry_nonsquare_and_extra_transforms(self):
+        v=DepthLSSTransform(8,4,(32,48),(4,6),(-2,2,1),(-3,3,1),
+                            (-1,1,1),(1,4,1)).to(self.device)
+        matrices=torch.eye(3,device=self.device)[None,None].repeat(2,3,1,1)
+        matrices[...,0,0]=1.13;matrices[...,1,1]=.91;matrices[...,0,1]=.12
+        translation=torch.randn(2,3,3,device=self.device)*.1
+        args=(matrices,translation,matrices,matrices,translation)
+        kwargs=dict(extra_rots=matrices[:,0],extra_trans=translation[:,0])
+        expected=v.get_geometry(*args,**kwargs)
+        actual=batched_geometry(v,*args,**kwargs)
+        torch.testing.assert_close(expected,actual,atol=2e-6,rtol=2e-6)
+
+    def test_repaired_geometry_preserves_boundary_and_empty_plans(self):
+        v,_=self.setup_inputs()
+        for shift in (0.,100.):
+            identity=torch.eye(3,device=self.device)[None,None].repeat(2,3,1,1)
+            translation=torch.full((2,3,3),shift,device=self.device)
+            args=(identity,translation,identity,identity,torch.zeros_like(translation))
+            original=v.get_geometry(*args)
+            actual=batched_geometry(v,*args,repair_grid_boundaries=True)
+            a=build_plan(v,original);b=build_plan(v,actual,compact_indices=True)
+            for key in ('rd','rf','rb','starts','lengths','coords'):
+                torch.testing.assert_close(a[key],b[key],rtol=0,atol=0)
+
+    def test_fast_geometry_training_only_and_calibration_gradient_fallback(self):
+        v,_=self.setup_inputs()
+        state=enable_pool_optimization(v,'separated',geometry_mode='batched_checked')
+        identity=torch.eye(3,device=self.device)[None,None]
+        translation=torch.zeros(1,1,3,device=self.device)
+        args=(identity,translation,identity,identity,translation)
+        v.train();v.get_geometry(*args)
+        self.assertEqual(state['fast_geometry_calls'],1)
+        gradient_translation=translation.clone().requires_grad_()
+        actual=v.get_geometry(identity,gradient_translation,identity,identity,translation)
+        self.assertEqual(state['legacy_geometry_calls'],1)
+        actual.sum().backward();self.assertIsNotNone(gradient_translation.grad)
+        v.eval()
+        with torch.no_grad():v.get_geometry(*args)
+        self.assertEqual(state['legacy_geometry_calls'],2)
+
+    def test_fast_geometry_falls_back_with_double_calibration(self):
+        v,_=self.setup_inputs();v.double();v.train()
+        state=enable_pool_optimization(v,'separated',geometry_mode='batched_checked')
+        identity=torch.eye(3,device=self.device,dtype=torch.float64)[None,None]
+        translation=torch.zeros(1,1,3,device=self.device,dtype=torch.float64)
+        v.get_geometry(identity,translation,identity,identity,translation)
+        self.assertEqual(state['fast_geometry_calls'],0)
+        self.assertEqual(state['legacy_geometry_calls'],1)
+
+    def test_fast_geometry_falls_back_with_tf32(self):
+        if self.device!='cuda':self.skipTest('CUDA-only precision guard')
+        v,_=self.setup_inputs();v.train()
+        state=enable_pool_optimization(v,'separated',geometry_mode='batched_checked')
+        identity=torch.eye(3,device='cuda')[None,None];translation=torch.zeros(1,1,3,device='cuda')
+        previous=torch.backends.cuda.matmul.allow_tf32
+        try:
+            torch.backends.cuda.matmul.allow_tf32=True
+            v.get_geometry(identity,translation,identity,identity,translation)
+        finally:torch.backends.cuda.matmul.allow_tf32=previous
+        self.assertEqual(state['fast_geometry_calls'],0)
+        self.assertEqual(state['legacy_geometry_calls'],1)
+
+    def test_fast_geometry_accepts_float32_autocast_but_not_float16(self):
+        if self.device!='cuda':self.skipTest('CUDA-only precision guard')
+        v,_=self.setup_inputs();v.train()
+        state=enable_pool_optimization(v,'separated',geometry_mode='batched_checked')
+        identity=torch.eye(3,device='cuda')[None,None];translation=torch.zeros(1,1,3,device='cuda')
+        args=(identity,translation,identity,identity,translation)
+        with torch.autocast('cuda',dtype=torch.float32):v.get_geometry(*args)
+        self.assertEqual(state['fast_geometry_calls'],1)
+        with torch.autocast('cuda',dtype=torch.float16):v.get_geometry(*args)
+        self.assertEqual(state['legacy_geometry_calls'],1)
 
     def test_fractional_pitch_does_not_truncate_last_padding_column(self):
         for pitch,expected in ((.2,1008),(.3,672),(.4,504)):
@@ -109,12 +231,27 @@ class PoolTests(unittest.TestCase):
             torch.testing.assert_close(actual,ref,atol=2e-6,rtol=2e-6)
             self.assertTrue(torch.isfinite(f.grad).all())
 
+    def test_warp_backward_nondefault_stream(self):
+        if self.device!='cuda':self.skipTest('CUDA-only')
+        stream=torch.cuda.Stream()
+        with torch.cuda.stream(stream):
+            v,g=self.setup_inputs();p=build_plan(v,g)
+            d=torch.rand(2,3,3,4,4,device='cuda',requires_grad=True)
+            f=torch.randn(2,3,4,4,80,device='cuda',requires_grad=True)
+            ref=separated_reference(d,f,p)
+            actual=SeparatedPool.apply(d,f,p,'warp')
+            grad=torch.randn_like(ref)
+            expected=torch.autograd.grad(ref,(d,f),grad)
+            observed=torch.autograd.grad(actual,(d,f),grad)
+        stream.synchronize()
+        for a,b in zip(observed,expected):torch.testing.assert_close(a,b,atol=2e-5,rtol=2e-5)
+
     def test_real_depthnet_forward_backward_and_shape_guard(self):
         if self.device!='cuda':self.skipTest('Legacy pool CUDA-only')
         torch.manual_seed(23)
         v=MoraiRectangularDepthLSSTransform(8,4,(32,32),(4,4),(-8,8,1),
             (-6,6,1),(-8,8,16),(1,4,1)).cuda().train()
-        other=deepcopy(v);state=enable_pool_optimization(other,'separated')
+        other=deepcopy(v);state=enable_pool_optimization(other,'separated',backward_mode='grouped',compact_indices=True)
         identity=torch.eye(3,device='cuda')[None,None].repeat(1,2,1,1)
         tr=torch.zeros(1,2,3,device='cuda');args=[identity,tr,identity,identity,tr]
         img=torch.randn(1,2,8,4,4,device='cuda',requires_grad=True)

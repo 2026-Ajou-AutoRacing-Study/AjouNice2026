@@ -7,6 +7,13 @@
 3. `../dataset/morai_od/docs/README.md`
 
 Base5 작업의 현재 실행 기준은
+`../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
+2026-10-11 최신 로컬 학습 가속은 EVIDENCE 21절이다. 기하 계산·pool backward·int32 plan·
+일괄 loss log·fused AdamW의 opt-in 후보와 별도 camera compile 후보를 구현·검사했다.
+기존 기본 config·production E25·데이터·증강을 유지하며 실제 4090 재확인이 다음이다.
+이번에는 Vast에 접속하거나 본학습을 시작하지 않았다. 아래 원격 준비 경로·‘다음 바로
+본학습’은 이 변경 이전의 이력이며 새 source/config/work-dir 계약을 준비해야 한다.
+실측·원격 상세는
 `../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`와
 `../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`의
 2026-10-11 EVIDENCE 19절의 새 4090 이전·depth·Z 검증 기록이 18절의 기존 원격 경로보다

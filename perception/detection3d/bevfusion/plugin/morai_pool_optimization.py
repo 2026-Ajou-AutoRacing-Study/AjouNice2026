@@ -26,7 +26,7 @@ def extension():
     return _EXT
 
 
-def build_plan(view, geom):
+def build_plan(view, geom, compact_indices=False):
     """Make compact sorted frustum indices, without an [frustum,C] feature tensor."""
     B, N, D, H, W, _ = geom.shape
     # 201.6 / .2 is 1007.9999999999999 in Python. Truncation silently
@@ -37,9 +37,15 @@ def build_plan(view, geom):
     nx = tuple(round(n) for n in counts)
     if any(abs(n-rounded)>1e-6 or rounded<=0 for n,rounded in zip(counts,nx)):
         raise ValueError('Pooling bounds must define an integral positive grid')
-    coords = ((geom-(view.bx-view.dx/2))/view.dx).long().reshape(-1, 3)
+    if compact_indices and (B*N*D*H*W>=2**31 or math.prod(nx)*B>=2**31):
+        raise ValueError('Compact pooling plan exceeds int32 index range')
+    # Integer truncation and rank ordering stay identical for the supported
+    # domain; fewer bytes are moved and radix-sorted in every training batch.
+    values=(geom-(view.bx-view.dx/2))/view.dx
+    coords = (values.int() if compact_indices else values.long()).reshape(-1,3)
     valid = ((coords >= 0) & (coords < coords.new_tensor(nx))).all(dim=1)
     rd = torch.where(valid)[0]
+    if compact_indices:rd=rd.int()
     xyz = coords[rd]
     batch = rd // (N*D*H*W)
     # Existing sort order x,y,z,b (not output-contiguous b,z,x,y).
@@ -70,22 +76,90 @@ def separated_reference(depth, feat, plan):
     return out.index_add(0,rb,values).reshape(*plan['shape'],feat.shape[-1])
 
 
+def batched_geometry(view, camera2lidar_rots, camera2lidar_trans, intrins,
+                     post_rots, post_trans, repair_grid_boundaries=False, **kwargs):
+    """Experimental algebra-preserving layout, without repeated 3x3 matrices.
+
+    BMM kernels can round differently near voxel boundaries. This is NOT the
+    default; qualification must compare cell indices, not only XYZ tolerance.
+    """
+    B,N,_=camera2lidar_trans.shape
+    shape=(B,N,*view.frustum.shape)
+    def apply(matrix,points):
+        values=points.reshape(B*N,-1,3).transpose(1,2)
+        return torch.bmm(matrix.reshape(B*N,3,3),values).transpose(1,2).reshape(shape)
+    inverse_post=torch.inverse(post_rots)
+    combine=camera2lidar_rots.matmul(torch.inverse(intrins))
+    points=view.frustum-post_trans.view(B,N,1,1,1,3)
+    points=apply(inverse_post,points)
+    points=torch.cat((points[...,:2]*points[...,2:3],points[...,2:3]),dim=-1)
+    points=apply(combine,points)
+    points+=camera2lidar_trans.view(B,N,1,1,1,3)
+    if 'extra_rots' in kwargs:
+        points=apply(kwargs['extra_rots'][:,None].expand(B,N,3,3),points)
+    if 'extra_trans' in kwargs:
+        points+=kwargs['extra_trans'].view(B,1,1,1,1,3)
+    if repair_grid_boundaries:
+        # Different GEMM layouts round by a few micrometres. Re-evaluate only
+        # rays within 1mm of a possible grid boundary using the ORIGINAL 3x3
+        # matrix-vector layout, including truncation at the negative boundary.
+        scaled=(points-(view.bx-view.dx/2))/view.dx
+        possible=((scaled>=-1.01)&(scaled<=view.nx+1)).all(dim=-1)
+        near=((scaled-scaled.round()).abs()<=.001/view.dx).any(dim=-1)
+        selected=torch.where((possible&near).reshape(-1))[0]
+        if hasattr(view,'_pool_optimization'):
+            view._pool_optimization['boundary_rays_recomputed']=selected.numel()
+        rays=view.frustum.numel()//3
+        camera=selected//rays;batch=camera//N
+        fixed=view.frustum.reshape(-1,3)[selected%rays]-post_trans.reshape(-1,3)[camera]
+        fixed=inverse_post.reshape(-1,3,3)[camera].matmul(fixed.unsqueeze(-1))
+        fixed=torch.cat((fixed[:,:2]*fixed[:,2:3],fixed[:,2:3]),dim=1)
+        fixed=combine.reshape(-1,3,3)[camera].matmul(fixed).squeeze(-1)
+        fixed+=camera2lidar_trans.reshape(-1,3)[camera]
+        if 'extra_rots' in kwargs:
+            fixed=kwargs['extra_rots'][batch].matmul(fixed.unsqueeze(-1)).squeeze(-1)
+        if 'extra_trans' in kwargs:fixed+=kwargs['extra_trans'][batch]
+        points=points.contiguous()
+        points.reshape(-1,3)[selected]=fixed
+    return points
+
+
 class SeparatedPool(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, depth, feat, plan):
+    def forward(ctx, depth, feat, plan, backward_mode='legacy'):
+        if backward_mode not in ('legacy', 'warp', 'grouped'):
+            raise ValueError('Unknown separated pooling backward mode')
         depth,feat=depth.contiguous().float(),feat.contiguous().float()
         out=extension().forward(depth,feat,*(plan[k] for k in
                  ('rd','rf','rb','starts','lengths')),math.prod(plan['shape']))
-        ctx.save_for_backward(depth,feat,plan['rd'],plan['rf'],plan['rb'])
+        indices=[plan['rd'],plan['rf'],plan['rb']]
+        if backward_mode=='grouped' and any(ctx.needs_input_grad[:2]):
+            # Only training needs this second ordering. Never cache/reuse a
+            # training geometry plan across independently augmented batches.
+            order=plan['rf'].argsort()
+            indices=[index[order].contiguous() for index in indices]
+            if order.numel():
+                keep=torch.ones_like(indices[1],dtype=torch.bool)
+                keep[1:]=indices[1][1:]!=indices[1][:-1]
+                starts=torch.where(keep)[0].int()
+                lengths=torch.diff(torch.cat((starts,starts.new_tensor([order.numel()]))))
+            else:
+                starts=plan['starts'].new_empty(0);lengths=starts.clone()
+            indices.extend((starts.contiguous(),lengths.contiguous()))
+        ctx.save_for_backward(depth,feat,*indices)
         ctx.shape=plan['shape']
+        ctx.backward_mode=backward_mode
         return out.reshape(*plan['shape'],feat.shape[-1])
 
     @staticmethod
     def backward(ctx, grad):
-        depth,feat,rd,rf,rb=ctx.saved_tensors
-        gd,gf=extension().backward(grad.contiguous().reshape(-1,feat.shape[-1]),
-                                 depth,feat,rd,rf,rb)
-        return gd,gf,None
+        depth,feat,*indices=ctx.saved_tensors
+        grad=grad.contiguous().reshape(-1,feat.shape[-1])
+        if ctx.backward_mode=='grouped':
+            gd,gf=extension().backward_grouped(grad,depth,feat,*indices)
+        else:
+            gd,gf=extension().backward(grad,depth,feat,*indices,ctx.backward_mode=='warp')
+        return (gd,gf)+tuple(None for _ in ctx.needs_input_grad[2:])
 
 
 def signature(view, args, kwargs):
@@ -111,13 +185,20 @@ def signature(view, args, kwargs):
 
 
 def enable_pool_optimization(view, mode='cache', cache_limit_bytes=256*2**20,
-                             rectangular=True):
+                             rectangular=True, backward_mode='legacy',compact_indices=False,
+                             geometry_mode='legacy'):
     """Attach reversible, instance-only methods; default model remains untouched."""
     if mode not in ('cache','separated') or hasattr(view,'_pool_optimization'):
         raise ValueError('Invalid mode or already optimized')
+    if backward_mode not in ('legacy','warp','grouped'):
+        raise ValueError('Unknown separated pooling backward mode')
+    if geometry_mode not in ('legacy','batched_checked'):
+        raise ValueError('Unknown geometry execution mode')
     originals={k:getattr(view,k) for k in ('get_geometry','get_cam_feats','bev_pool')}
     state=dict(mode=mode,entries={},hits=0,misses=0,bypasses=0,
-               bytes=0,plan=None,limit=int(cache_limit_bytes),originals=originals)
+               bytes=0,plan=None,limit=int(cache_limit_bytes),originals=originals,
+               backward_mode=backward_mode,compact_indices=bool(compact_indices),geometry_mode=geometry_mode,
+               fast_geometry_calls=0,legacy_geometry_calls=0)
     view._pool_optimization=state
 
     def geometry(self,*args,**kwargs):
@@ -130,8 +211,24 @@ def enable_pool_optimization(view, mode='cache', cache_limit_bytes=256*2**20,
                 return geom
         else:
             state['bypasses']+=1
-        geom=originals['get_geometry'](*args,**kwargs)
-        plan=build_plan(self,geom);state['plan']=plan
+        # The 1mm boundary guard is qualified for FP32, not TF32/FP16 GEMM.
+        # A future precision change must not silently use this fast path.
+        precise=self.frustum.dtype==torch.float32 and all(
+            t.dtype==torch.float32 for t in (*args,*kwargs.values()) if torch.is_tensor(t)) and not (self.frustum.is_cuda and (
+            torch.backends.cuda.matmul.allow_tf32 or (torch.is_autocast_enabled('cuda') and
+                torch.get_autocast_dtype('cuda')!=torch.float32)))
+        state['geometry_guard']=dict(training=self.training,tf32=torch.backends.cuda.matmul.allow_tf32,
+            autocast=torch.is_autocast_enabled('cuda'),autocast_dtype=str(torch.get_autocast_dtype('cuda')),
+            calibration_grad=any(
+                t.requires_grad for t in (*args,*kwargs.values()) if torch.is_tensor(t)))
+        if geometry_mode=='batched_checked' and self.training and precise and not any(
+                t.requires_grad for t in (*args,*kwargs.values()) if torch.is_tensor(t)):
+            geom=batched_geometry(self,*args,repair_grid_boundaries=True,**kwargs)
+            state['fast_geometry_calls']+=1
+        else:
+            geom=originals['get_geometry'](*args,**kwargs)
+            state['legacy_geometry_calls']+=1
+        plan=build_plan(self,geom,compact_indices=state['compact_indices']);state['plan']=plan
         state['misses']+=1
         if cacheable:
             size=geom.numel()*geom.element_size()+sum(v.numel()*v.element_size()
@@ -162,7 +259,7 @@ def enable_pool_optimization(view, mode='cache', cache_limit_bytes=256*2**20,
             if tuple(depth.shape)!=plan['input_shape'] or tuple(feat.shape[:-1])!=(
                     *plan['input_shape'][:2],*plan['input_shape'][3:]):
                 raise ValueError('Depth/feature dimensions differ from geometry plan')
-            out=SeparatedPool.apply(depth,feat,plan)
+            out=SeparatedPool.apply(depth,feat,plan,state['backward_mode'])
         else:
             # The upstream legacy materialized CUDA pool launches on the
             # default stream. Cache A is deliberately restricted to that

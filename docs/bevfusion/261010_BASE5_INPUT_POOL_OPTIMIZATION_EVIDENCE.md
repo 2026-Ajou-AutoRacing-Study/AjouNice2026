@@ -2,12 +2,15 @@
 
 ## CURRENT / 다음 판단
 
-**2026-10-11 최신: upright 라벨·정답 축 보완 후 공간 격자와 depth 비용·위험을 비교했다.**
-아래 17절이 최신 선택 근거이고, 16절의 파생 라벨과 15절의 축 수정도 유지한다.
-수집 raw·센서·클래스·GT 수·split·E25는 보존하고 파생 infos의 박스 크기만 보완했다.
-재수집하지 않는다. Vast에는 14–17절 변경이 아직 없다. 기본 7.5/30cm·depth 50cm를
-유지하며, 다음은 승인 후 원격 소스 갱신·새 라벨·기준/정밀 후보 비용·외부 백업 확인이다.
-정밀 후보의 학습 AP 우위와 최신 소스의 실제 4090 비용을 이미 검증했다고 해석하지 않는다.
+현재 실행 순서는 [단일 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
+최신 로컬 학습 비용 개선은 [21절](#base5-training-runtime-local-261011), 원격 이전·비용은
+19절, 실제 외부 백업 완료는 20절이다. 아래 날짜별 기록의 당시 ‘미완료’를 최신 상태로
+재사용하지 않는다. 본학습·AP 검증은 아직이며, 21절 소스는 아직 4090에 반영하지 않았다.
+raw·센서·클래스·GT 수·split·production E25는 보존한다. 최신 입력은 Q90 JPEG와
+`native_rpy_fixed_yaw_enclosure_v1` 라벨이다. 공간 7.5/30cm·ROI X±100/Y±30m를 유지한다.
+depth 25cm는 우선 후보이고, 기존 원격 준비 계약은 50cm다. 재수집하지 않는다.
+
+## 초기 기록의 요약 — 최신 실행 상태가 아닌 이력
 
 Sunny13 **수집이 완료된 실제 5K 전체**의 crop 분석과 5060 Ti에서의 원본 입력 비용 검증을 완료했다.
 추가 원격 검증 이후 추천은 **512×1056 아래 정렬**, 더 빠른 대안은 **448×896**이다.
@@ -1974,3 +1977,159 @@ metadata·`COMPLETE.json`을 확인했다. [완료된 hash 폴더](https://drive
 실제 `--watch --max-polls 1` 경로도 약 3.87초에 재검사했고 추가 payload 업로드 0건,
 `valid=true`, 오류 0건이었다. watch를 무한 실행하지 않았으며 종료 후 GPU 학습·추론과
 백업 자식 프로세스가 남아 있지 않음을 확인했다. backup/parts/credential 검사 11개를 통과했다.
+
+<a id="base5-training-runtime-local-261011"></a>
+
+## 21. 로컬 학습 실행 비용 개선 — 2026-10-11 KST
+
+사용자는 Vast를 중단하고 로컬에서 학습 비용의 병목과 개선 후보를 구현·실험하도록
+요청했다. 이 작업에서는 Vast 접속·상태 변경·본학습·이미지 게시를 수행하지 않는다.
+실험·최종 기록 구간은 2026-10-11 약 06:49~07:54 KST다.
+기존 `ajounice/bevfusion:team-cu128-v1` 환경과 RTX 5060 Ti 16GB를 사용한다.
+CUDA·의존성을 다시 설치하지 않는다. 컨테이너 로그 시각은 UTC이고 이 문서는 KST다.
+
+### 조건과 비교 방법
+
+- 실제 upright native-JPEG Sunny13 train 4,255장의 로더를 사용한다. 512×1056,
+  공간 7.5/30cm, 원래 증강·AMP·AdamW·clip·스케줄·초기화 정책을 유지한다.
+- 로컬 비교는 물리 batch 2, workers 4다. 각 실행은 같은 camera-only 초기화에서 시작하며
+  64 step 중 앞 16 step을 제외한다. 한 실행의 입력은 서로 다른 128장이다.
+- depth 25cm 최종 대조는 `baseline → geometry → geometry → baseline` 순서다.
+  실제 초기 파라미터 SHA256, 첫 이미지·점군 입력 SHA256, 모든 step의 장면 순서와
+  증강 GT·LiDAR 변환 SHA256이 같다. 짧은 loss를 AP 우위의 근거로 사용하지 않는다.
+- 표의 step은 로더 대기와 GPU 완료 확인을 포함한 벽시계 시간이다. epoch validation,
+  checkpoint·외부 업로드 비용과 첫 컴파일 비용은 정상 step 평균에 포함하지 않는다.
+  CUDA profiler의 CUPTI가 이 Blackwell 장치에서 kernel trace를 제공하지 못하므로
+  별도 CPU trace·CUDA event 구간을 보조 근거로 사용한다. 중첩된 event 구간을 합산하거나
+  CPU의 대기 시간을 해당 연산의 GPU 자체 비용으로 해석하지 않는다.
+
+### 발견과 선택
+
+| 후보 | 발견·검증 결과 | 선택 |
+|---|---|---|
+| 데이터 읽기·전처리 | 첫 진단의 로더 대기 평균 약 5.25ms, 전체 약 735.92ms다. 기존 uint8·JPEG·workers 경로가 주병목은 아니다. | 증강이나 데이터를 줄이지 않는다. |
+| pooling 역전파 warp 병렬화 | 한 thread가 80채널을 순회하던 부분을 warp의 인접 lane에 나눠 coalesced 접근을 사용한다. 동일 목적함수이며 FP32 합산 순서만 달라질 수 있다. | opt-in 후보에 포함한다. |
+| int32 좌표·정렬 키 | 기존 truncation·rank 순서를 유지하고, int32 범위 초과는 거부한다. | opt-in 후보에 포함한다. |
+| loss 로그 일괄 읽기·fused AdamW | scalar 로그의 CPU 읽기를 합치고 optimizer 실행을 융합한다. loss tensor·gradient·학습률·weight decay는 유지한다. 단독 fused 이득은 작다. | 단일 GPU 후보에 포함한다. DDP 로그는 기존 구현으로 돌아간다. |
+| feature별 grouping 역전파 | atomics는 없앨 수 있지만 추가 정렬 비용이 든다. 50cm 비교에서 warp 묶음 697.02ms보다 grouping 묶음 703.62ms가 느렸다. | 기본 후보에서는 제외하고 실험 옵션만 보존한다. |
+| cuDNN autotune | grouping 묶음 703.62→703.77ms로 이득이 없었다. | 이번 후보의 설정을 바꾸지 않는다. |
+| 기하 계산 BMM | 원래는 작은 3×3 행렬을 수많은 깊이 샘플에 broadcast하여 복제한다. 카메라별 큰 점 행렬에 BMM을 적용하면 반복 복제 비용이 줄어든다. | 아래 경계 보완을 통과한 `batched_checked`만 사용한다. |
+
+### 빠른 기하 계산의 경계 보완
+
+보완 없는 BMM은 FP32 계산 순서 차이로 XYZ 최대 약 0.061mm 차이가 났고, 32장면에서
+유효 BEV 셀 23개가 달라졌다. 기하 계산만 141.70→16.81ms로 줄었지만 그대로 채택하지 않았다.
+
+셀 경계 1mm 이내이며 유효 격자에 들어올 가능성이 있는 ray만 원래 3×3 matrix-vector
+방식으로 재계산한다. depth 25cm의 실제 증강 32장면, frustum sample 428,212,224개에서
+유효 셀 배정 차이는 0개다. 재계산은 전체 ray의 약 0.63%이며 기하 계산은
+282.72→52.00ms다. 이는 검사한 센서·증강 범위의 실측 정합이며 임의의 calibration에 대한
+수학적 오차 상한 증명이 아니다. 학습 기하·정렬은 매 batch 다시 계산하며 추론 cache를
+랜덤 증강에 재사용하지 않는다.
+
+실제 학습에는 float32 autocast 문맥이 있다. Torch 2.7에서 `is_autocast_enabled=true`라도
+dtype이 float32일 수 있다. 첫 prototype은 이 조건을 FP16으로 오인해 기존 경로로 돌아갔고,
+단독 계산이 빨라도 전체 step에는 이득이 없었다. dtype까지 검사하도록 보완했으며 최종 비교는
+개선 실행 각각의 `fast_geometry_calls=64`를 확인한다. FP16/BF16·TF32, calibration gradient,
+eval에서는 기존 기하 경로를 유지한다. 기존 warm 추론 cache의 좌표·조건도 바꾸지 않는다.
+
+### 확정된 로컬 전체 학습 비용
+
+| 동일 설정 비교 | 기존 평균 | 개선 평균 | 단축 |
+|---|---:|---:|---:|
+| depth 25cm, batch 2, 각 64 step × 두 번 | 940.69ms | 632.00ms | 32.82% |
+| depth 50cm, batch 2, 각 64 step | 733.32ms | 576.47ms | 21.39% |
+| 정밀 5/20cm, depth 50cm, batch 1, 각 48 step | 450.79ms | 371.33ms | 17.63% |
+
+개선 두 실행은 631.32 / 632.68ms이고 기존 두 실행은 936.62 / 944.75ms다.
+peak allocated는 약 11,110~11,115MiB로 큰 차이가 없다. 이것은 4090의 가속률이나
+epoch 전체 단축률을 측정한 것이 아니다. 검증·저장 비용은 그대로 남는다.
+50cm·정밀 격자 비교도 초기 파라미터·첫 센서 입력·장면 순서·증강 GT가 같다.
+정밀 격자는 로컬 VRAM 제한 때문에 batch 1이며 batch 2 결과와 절대값으로 비교하지 않는다.
+정밀 5/20cm에서도 32장면의 유효 셀 배정 차이 0개, full-frustum forward/gradient 검사를
+통과했다. 기하 계산은 140.44→26.29ms다. 유효 격자 밖의 미세한 셀 차이는 유지된다.
+
+### 카메라 컴파일 후보의 별도 검토
+
+동일 Swin backbone의 bound `forward` callable만 `torch.compile(dynamic=False)`로 감싼다.
+모듈 자체를 교체하지 않아 `state_dict`에 `_orig_mod` 접두사가 생기지 않는다. 실제 학습용
+opt-in config는 초기화·resume 이후 첫 camera forward에서 컴파일한다.
+TF32 변경·해상도 축소·증강 제거·모델 채널 축소나 TensorRT 적용은 하지 않는다.
+
+depth 50cm·batch 2의 64 step 비용은 기하 개선 묶음 576.47ms에서 컴파일 묶음 457.32ms로
+추가 약 20.67% 줄었다. 기존 733.32ms 대비 전체 약 37.64%다. 실제 optimizer 64 update와
+유한 loss를 확인했고 peak allocated는 10,111.6MiB로 비컴파일 후보 10,893.6MiB보다
+약 782MiB 낮았다. 첫 컴파일을 포함한 해당 비용 실행 전체 시간은 95.86초다.
+정상 step 평균과 cold compile 비용은 구분한다. 4090의 compiler cache는 별도로 생성한다.
+
+depth 25cm에서도 같은 64-step 입력으로 비컴파일 후보 632.73ms와 컴파일 후보 509.52ms를
+비교했다. 추가 약 19.47% 단축이며 기존 depth 25cm 두 실행 평균 940.69ms 대비 약
+45.84%다. 기존 실행과도 초기 parameter·첫 센서 입력·전체 64 step의 증강 GT와 장면
+순서가 일치함을 별도로 확인했다. peak allocated는 10,339.2MiB이고 optimizer 64 update,
+fast geometry 64회, 유한 loss를 확인했다. 컴파일 후보는 각 depth에서 한 실행이므로
+비컴파일 25cm의 두 번 반복 검증과 동일한 반복 수로 기록하지 않는다.
+
+최초 수치 비교는 LayerNorm 출력 제곱 평균을 인위적인 loss로 사용했다. forward 상대 L2는
+약 0.1%였지만 전체 parameter gradient 상대 L2 약 4.13%로 사전 기준 0.3%를 통과하지
+못했다. LayerNorm 출력의 제곱 에너지는 거의 상수여서 작은 상쇄 gradient의 상대 오차가
+커질 수 있다. 이 실패를 삭제하거나 tolerance를 넓혀 통과로 바꾸지 않는다.
+별도 고정 upstream sensitivity를 사용한 Jacobian-vector 비교에서는 전체 parameter gradient
+상대 L2 0.1876%로 같은 0.3% 기준을 통과했다. 각 출력 상대 L2도 0.5% 미만이고 missing
+gradient는 없다. 개별 parameter의 최대 상대 L2는 0.6295%이며 이 값도 숨기지 않는다.
+이는 한 실제 장면의 4-camera 입력에 대한 AMP 수치 검사이며 모든 loss 방향·AP 우위나
+eager/compiled DropPath RNG의 bitwise 동일성을 보장하지 않는다. 컴파일은 별도 실험 후보이며
+원래 config의 기본값으로 승격하지 않는다.
+
+동일 검사 입력의 warmed camera backbone eval 비용은 44.63→24.63ms다. pooling·LiDAR·head·
+ROS 전처리가 빠져 있는 **부분 추론**이므로 서비스 전체 70ms 달성으로 해석하지 않는다.
+학습 기하 fast path는 eval에서 사용하지 않으며 pooling backward 개선도 추론에서 실행되지 않는다.
+
+### 저장·재개와 회귀 검사
+
+- pooling·격자·경계·정밀도 guard·stream·역전파 검사 21개는 CUDA 전체 통과,
+  CPU는 CUDA 전용 8개 skip 외 통과했다. 별도 loss/gradient·fused AdamW 상태 검사 3개,
+  기존 직접 학습 prepare/resume guard 검사 5개를 통과했다.
+- 실제 4-class JPEG 두 장면을 사용해 depth 25cm의 비컴파일 후보와 컴파일 후보 각각
+  AMP 2 update → 원자적 epoch 1 저장 → 새 Runner 재개 → iteration 4 완료를 통과했다.
+  optimizer step 2, LR 7.75e-06, AMP scaler 32의 재개 상태와 유한 최종 parameter,
+  partial checkpoint 0개를 확인했다. full optimizer/scheduler/scaler·main-process RNG를
+  보존하며 worker/prefetch의 중간 batch bitwise replay를 보장한다고 기록하지 않는다.
+- smoke 계약은 비컴파일 `95746b3605292f825c3d90eef6202ea2fc0d17fecd9463ca8f986dda12ca2b9f`,
+  컴파일 `05acf8de0e7b05136eee36e49c76ad9df6e00ab7867b5423c638ba7547b75925`다.
+  이 두 계약은 각각 두 장면 검사용이며 본학습의 계약이 아니다.
+- 두 최종 full checkpoint의 `state_dict` key 574개가 같고 `_orig_mod` key는 0개다.
+  실제 저장된 optimizer param group의 `fused=True`와 iteration 4를 별도로 확인했다.
+
+### 코드와 재현 경로
+
+- 후보 config: `perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_training_runtime_candidate.py`.
+  현재 후보 파일 자체의 depth는 50cm다. 비용 시험의 `--depth-step .25`와 구분한다.
+  production E25·기존 native-JPEG 기본 config는 바꾸지 않는다.
+- 실제 로더 비용: `benchmark_base5_real_loader.py`의 opt-in 옵션이다. `--profile-steps`의
+  계측 step은 정상 비용 통계에서 제외한다. `--compile-camera`는 opt-in 비용 실험 옵션이다.
+- 컴파일 후보 config: `bevfusion_base5_dense_512_training_compiled_candidate.py`.
+  비컴파일 후보와 별도 비교하며 체크포인트 key·재개·수치 검사를 통과해야 한다.
+- 순차 대조: `benchmark_base5_training_matrix.py`. 새 output만 받으며 반복 2회째에는
+  순서를 뒤집는다. 입력·초기화 계약이 다르면 비교를 거부한다. full epoch를 실행하지 않는다.
+- 기하·큰 frustum gradient: `qualify_base5_batched_geometry.py`.
+- 근거: `artifacts/evaluation/bevfusion/base5_training_runtime_261011/`의 `cost.json`,
+  `matrix.json`, 기하 검사와 CPU/CUDA 단위 검사다. ignored 산출물을 Git에 강제로 추가하지 않는다.
+
+다음은 채택한 소스만 4090에 전달해 batch 4의 50/25cm 비용·메모리·저장/재개와 기존
+warm 추론 비용을 재확인하고 새 main config/source hash/work-dir을 준비하는 것이다.
+구계약 resume이나 본학습 시작으로 대체하지 않는다. 학습 전용 기하·역전파 개선을
+warm 추론의 같은 비율 가속으로 환산하지 않는다.
+
+### 4090 재개 후 순서
+
+1. 기존 verified JPEG 5K와 camera-only 초기화 파일을 재사용한다. 새 코드의 SHA와
+   `torch/CUDA/spconv`를 확인하며 데이터 재전송이나 의존성 재설치부터 시작하지 않는다.
+2. 먼저 batch 4·depth 25cm의 `baseline/geometry/compiled`를 같은 입력으로 대조한다.
+   `benchmark_base5_training_matrix.py --steps 64 --warmup 16 --repeats 2`를 사용한다.
+   기본 단일 case 제한은 600초이며 실패를 기록하고 후보 채택을 거부한다.
+3. 컴파일의 4090 수치·cold 비용·메모리, 짧은 저장·재개를 확인한다. 전체 추론 비용은
+   현재 warm cache 경로와 별도로 비교한다. 이득이 없거나 검사가 실패하면 비컴파일
+   `batched_checked/warp/int32/log/fused` 후보를 대안으로 사용한다.
+4. 최종 depth·runtime 플래그와 optimizer wrapper를 명시해 **새** main config/source hash/
+   work-dir을 준비하고 ETA를 보고한다. 기존 50cm 준비 계약의 resume는 하지 않는다.
+   사용자가 승인하면 기존 완료된 외부 백업 경로와 연결해 본학습을 시작한다.
