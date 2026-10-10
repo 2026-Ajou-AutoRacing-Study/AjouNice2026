@@ -49,6 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 06:43 KST 최신 합의:** [depth 25cm 후보와 로컬 추가 최적화 계획](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011)을
+  우선한다. 512×1056·공간 7.5/30cm를 유지하고 depth 25cm를 우선 학습 후보로 둔다.
+  학습 비용 약 +20%를 감수하는 선택이며 성능 개선은 가설이다. 다음은 로컬 병목 분석·
+  정합을 유지하는 학습/추론 가속 검토 → 채택 변경의 4090 확인·새 준비 계약 → 승인 후 본학습이다.
+  이번에는 문서만 갱신했고 코드·원격 계약·실험은 변경하지 않았다. 기존 50cm 준비본은
+  비교 이력이며 25cm 실행에 그대로 사용하지 않는다. 외부 백업 완료 상태는 유지한다.
+  아래의 ‘depth 50cm 유지/다음 바로 본학습’은 이 합의 이전의 기록이다.
+
 - **2026-10-11 외부 checkpoint 백업 완료:** [20절의 실제 병렬 업로드·재다운로드·복원 결과](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011)가
   아래의 180초 미완료 이력보다 우선한다. 499MB full checkpoint를 무손실 조각으로
   저장하고 전체 SHA256·실제 복원·metadata·COMPLETE/LATEST·중복 재검사를 통과했다.

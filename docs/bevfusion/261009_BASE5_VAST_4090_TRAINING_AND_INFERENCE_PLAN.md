@@ -10,6 +10,15 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
+**최신 순서 변경 — 2026-10-11 06:43 KST:** 사용자는 공간 7.5/30cm·512×1056을 유지한
+depth 25cm 후보를 계획에 넣고, 본학습 전에 로컬에서 학습·추론 가속을 추가 검토하기로 했다.
+[후속 순서와 성능 기대의 경계](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011)가
+아래의 ‘백업 완료 후 바로 본학습’보다 우선한다. 이번에는 문서만 변경했다. 현재 실제
+config·원격 prepare-only는 depth 50cm이며, 아래 명령은 이 준비 이력을 재현하는 것이다.
+25cm 본학습 명령으로 복사하지 않는다. 채택한 로컬 변경을 원격에서 확인한 뒤 depth 출력
+shape·512MiB 추론 cache·초기화를 명시한 새 준비 계약을 만든다. 기존 학습 계약을 덮어쓰거나
+그대로 resume하지 않는다. 외부 백업·복원 검증은 완료 상태를 유지하며 본학습은 미시작이다.
+
 **최신 인스턴스 이전 — 2026-10-11 KST:** 기존 55165763은 Stop 뒤 GPU가 재할당되어
 재개하지 못했고, 사용자가 새 55272391을 임대했다. 최신 경로·depth/Z 후속 검증은
 [19절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011)을

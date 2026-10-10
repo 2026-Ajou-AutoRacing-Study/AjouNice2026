@@ -7,11 +7,18 @@
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
 로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
-외부 백업·실제 복원 검증 완료 → 승인 후 본학습**이다.
+외부 백업·실제 복원 검증 완료 → depth 25cm 후보로 로컬 추가 가속 검토 →
+채택 변경의 4090 확인·새 학습 계약 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
+
+2026-10-11 06:43 KST 합의는 문서에만 반영했다. 공간 7.5/30cm·512×1056을 유지하고
+depth 25cm를 우선 학습 후보로 삼되, 현재 config와 원격 prepare-only는 아직 50cm다.
+25cm의 AP·tracker 속도 개선은 미검증이며 학습 비용 증가를 감수하는 선택이다.
+아래의 50cm 기본 유지·백업 직후 본학습 안내는 이전 시점 기록으로 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| depth 25cm 우선 후보 / 본학습 전 로컬 학습·추론 추가 가속 / 원격 재확인·새 계약 / 계획만 갱신 | [10-11 06:43 최신 합의와 실행 순서](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011) |
 | 외부 full checkpoint 백업 완료 / 실제 복원·전체 SHA·완료 표시·중복 재검사 / 새 prepare-only | [10-11 병렬 백업 완료와 운영 경로](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
 | 새 4090 이전 / depth 25·50·100cm·높이 점검 완료 / 저장·재개·val·새 준비 완료 / 외부 백업 아직 | [10-11 새 원격 경로와 후속 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |
 | 최신 소스·upright 라벨의 실제 4090 / 300장 반복·실제 batch 4 학습·재개 / 본학습 아직·외부 백업 미완료 | [10-11 원격 비용·검증과 새 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011) |
