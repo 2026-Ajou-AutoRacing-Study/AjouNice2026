@@ -21,6 +21,12 @@ PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무�
 사용자가 Vast를 다시 중단한 뒤 로컬에서 검증했으므로 13절 원격 소스·prepare-only 계약은
 이 변경 이전이다. 재개 시 최신 소스 전달과 새 work-dir·짧은 재검증이 필요하다.
 최신 원격 경로·외부 백업의 미완료 조건은 13절을 함께 따른다.
+2026-10-11 추가 최신 학습 정합은 EVIDENCE 15절이다. Base5-only rectangular head의
+학습 heatmap X/Y 교환을 수정했고 고유 11,052 GT·증강 포함 29,714회 peak 검사와 실제
+전체 모델 4-iteration 역전파·저장·재개를 로컬에서 통과했다. 원본 GT·E25는 바꾸지 않는다.
+이전 feature 축/유한 loss 검사가 target 생성까지 보장한 것은 아니다. Vast 반영은 아직이며
+다음은 로컬 공간 격자 5/20·7.5/30·10/40cm 비용/위험 비교, 선택 격자의 depth 간격 비교다.
+속도만으로 AP 우위를 확정하지 않으며 원격 재개 때 최신 소스와 새 준비 계약을 사용한다.
 Base5-only single-frame·4-class·7D이며 temporal/OD velocity는 OFF다.
 과거 Base3/Base4 config나 HEAD 브랜치를 자동으로 현재 기본값으로 승격하지 않는다.
 

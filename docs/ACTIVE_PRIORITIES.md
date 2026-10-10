@@ -49,6 +49,14 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 최신 학습 정합:** Base5 전용 heatmap의 X/Y 교환을 수정했다. 고유 5K의
+  11,052 GT와 증강을 포함한 29,714회 정답 peak, 실제 전체 모델 4-iteration 역전파·저장·재개를
+  로컬에서 검증했다. 이전 feature 축 검사는 이 target 경로까지 보장하지 못했다.
+  raw·GT·split·E25는 유지하며 재수집하지 않는다.
+  [최신 근거와 실험 순서](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011)를
+  따른다. 다음은 로컬 공간 격자 5/20·7.5/30·10/40cm 비교 → 선택 격자의 depth 25/50/100cm
+  비교 → Vast 최신 소스/새 준비/외부 백업 확인이다. 본학습과 rosbag 성능 검증은 아직이다.
+
 - **2026-10-11 로컬 입력 보완:** Base5에서만 exact XYZ-zero/nonfinite 포인트를 증강 전에
   제거하고 JPEG decode/crop/pack을 uint8으로 유지한다. 실제 GT·픽셀·정규화·투영 정합을
   확인했으며 기존 BEV 증강 강도와 수집 원본·production E25는 유지한다.

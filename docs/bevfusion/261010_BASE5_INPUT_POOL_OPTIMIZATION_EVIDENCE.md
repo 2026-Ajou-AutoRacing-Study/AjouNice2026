@@ -2,6 +2,12 @@
 
 ## CURRENT / 다음 판단
 
+**2026-10-11 최신: Base5 학습 heatmap 정답 축을 수정하고 로컬 전수·역전파·재개 검증을
+완료했다.** 아래 15절이 최신 학습 정합 기준이다. 이전 feature 축/실행 검사는 학습용
+heatmap 정답 생성까지 보장하지 못했다. 수집 raw·GT·split·E25는 유지하며 재수집하지 않는다.
+Vast에는 14절 입력 변경과 이번 수정이 아직 없다. 다음은 로컬 공간 격자 후보 비용·위험 분석,
+선택 격자의 depth 간격 비교이며, 이후 원격 소스 갱신·새 준비·외부 백업 확인을 거쳐 본학습한다.
+
 Sunny13 **수집이 완료된 실제 5K 전체**의 crop 분석과 5060 Ti에서의 원본 입력 비용 검증을 완료했다.
 추가 원격 검증 이후 추천은 **512×1056 아래 정렬**, 더 빠른 대안은 **448×896**이다.
 384×896은 비용 fallback, 576×1152는 비용 탐색 후보다. 아직 본학습을 시작하거나
@@ -1117,3 +1123,98 @@ ignored 근거는 `artifacts/evaluation/bevfusion/base5_input_pipeline_261011/`�
 다음 Vast 재개 시 기존 JPEG 데이터는 유지하고 최신 소스만 전달한다. 변경 전 prepare-only
 work-dir과 hash를 덮어쓰지 않고 새 경로에서 준비·짧은 학습/재개·외부 백업 검증을 수행한다.
 13절의 원격 입력 내용은 유효하지만 그때의 소스/학습 계약은 현재 코드의 실행 계약이 아니다.
+
+<a id="base5-heatmap-target-alignment-261011"></a>
+
+## 15. Base5 학습 heatmap 정답 축 수정 — 2026-10-11
+
+### 발견과 수정 범위
+
+현재 Base5는 `[Y,X]` feature, `(x,y)` query 위치, `y*X+x` flatten index를 사용한다.
+그러나 상속받는 `TransFusionHead.get_targets_single`은 Gaussian 정답 생성 시
+`center_int[[1,0]]`를 전달하고 있었다. Gaussian 함수는 `(x,y)`를 받아 `[y,x]`에 기록하므로
+이미 정합된 Base5에서는 이 교환이 잘못된 정답 위치를 만든다. 전방 40m·Y=0의 올바른
+cell은 `[54,234]`이나 교환 후 행 234는 높이 108의 heatmap 밖으로 나가 peak가 사라졌다.
+후방 40m의 정답은 `[54,101]`이어야 하나 `[101,54]`에 생성됐다.
+
+이전 sparse/camera/query 축 검사와 loss 유한값·짧은 역전파 검사는 **실제 학습 정답 peak의
+위치까지 검증하지 못했다.** 이를 기존 검증 완료 범위의 누락으로 기록한다. 이 문제로
+수집 GT 파일이 삭제됐다는 뜻은 아니며, production E25의 성능·영향 범위로 일반화하지 않는다.
+
+`MoraiRectangularTransFusionHead`에 Base5 전용 `build_dense_heatmap_targets`와
+`get_targets_single` override를 추가했다. 부모의 matching·sampling·분류·box 회귀 정답은
+유지하고 반환되는 마지막 dense heatmap만 `[classes,Y,X]` 정답으로 교체한다.
+부모의 기존 heatmap 계산은 실행되지만 그 결과는 사용하지 않는다. 새로운 target 생성은
+학습 경로에만 추가되며 prediction/encoder/voxel/pooling/이미지 입력에는 연산을 추가하지 않는다.
+Gaussian 크기 정책은 유지한다. 파라미터·state-dict key·E25 head·third-party 소스는 바꾸지 않는다.
+범위 밖 중심을 경계로 clamp하지 않고, 잘못된 클래스·크기·nonfinite·격자는 명시적으로 거부한다.
+
+### 실제 5K와 학습 증강 검사
+
+CPU에서 현재 native JPEG portable의 train/val infos를 사용했다. 증강 검사는 현재
+`BEVFusionGlobalRotScaleTrans`, `ObjectRangeFilter`, `ObjectNameFilter`를 그대로 실행했다.
+GT 변환만 검사하기 위해 포인트 입력은 빈 `LiDARPoints`를 사용했으며, 이미지 decode나
+전체 학습 로더 비용 검사가 아니다. train 4,255장에 결정적인 seed로 두 번의 증강을 적용했다.
+
+| 검사 조건 | 장면 검사 수 | 검사한 GT | 올바른 위치의 peak | 증강 범위 필터 제외 |
+|---|---:|---:|---:|---:|
+| 원본 train | 4,255 | 9,350 | 9,350 | 0 |
+| 원본 val | 745 | 1,702 | 1,702 | 0 |
+| train 증강 1 | 4,255 | 9,333 | 9,333 | 17 |
+| train 증강 2 | 4,255 | 9,329 | 9,329 | 21 |
+| **검사 합계 — 반복 포함** | **13,510** | **29,714** | **29,714** | **38** |
+
+고유 5K의 11,052개 GT와 반복 증강을 포함한 29,714회 검사를 구분한다.
+원본에서 교환된 중심이 heatmap 밖으로 나간 GT는 10,260개(92.83%)였다. 수정 후
+실제 peak와 query flatten 위치가 모두 일치했다. 이는 detector recall/AP 수치가 아니다.
+증강으로 semantic ROI를 벗어난 17/21개는 기존 범위 필터의 정상 결과이며 새 누락이 아니다.
+빈 장면도 0 heatmap으로 통과했다. 클래스별 고유 GT는 Vehicle 4,519 / Pedestrian 2,963 /
+Obstacle 3,289 / Animal 281개다.
+
+Box coder encode/decode의 XYZ·크기는 최대 절대 오차 `2.288818359375e-05 m`였다.
+yaw는 주기성을 고려해 sin/cos로 비교했다. FP32 100m 좌표의 수 ULP 오차를 허용하려고
+roundtrip 허용치를 0.05mm로 두었으며 cell index와 peak=1 검사는 정확 일치를 요구한다.
+최초 `cpu_v1`은 0.02mm 허용치에서 중단됐고, 최종 `cpu_v2`를 통과 근거로 사용한다.
+입력 manifest·train/val infos SHA256와 GT tensor는 검사 전후 동일하다.
+
+### 회귀 검사와 실제 전체 모델 smoke
+
+- CPU 관련 단위 검사 **35개 통과**, CUDA 전용 resume 검사 1개는 CPU 실행에서 제외했다.
+  새 target 검사 8개는 전후좌우·네 클래스·semantic/padding 경계·빈 GT·오류 입력,
+  기존 회귀 정답 불변·E25 method 불변·loss gradient 방향을 포함한다.
+- CPU integration 검사에서는 CUDA IoU/Hungarian만 고정 assigner로 대체하고 실제 부모의
+  decode·PseudoSampler·encode·반환 값을 비교했다. 마지막 heatmap 이외의 값은 동일하다.
+- 별도로 5060 Ti에서 실제 JPEG 캡처 2장과 4개 클래스를 사용하는 전체 모델 AMP
+  **4 iteration**을 실행했다. 이 경로의 matching·loss·backward·optimizer는 실제 구현이다.
+  target 생성 4회에서 총 8개의 증강 후 정답 peak를 직접 확인했다.
+- epoch 1 / iteration 2에서 원자적 저장·의도적 중단 후 epoch 2 / 누적 iteration 4로
+  재개했다. optimizer step 2·scheduler·AMP scaler·메인 RNG 복구, 최종 weight 유한값과
+  잔여 partial 파일 0개를 확인했다. worker 0의 제한 검사이지 전체 학습 수렴·AP 검증은 아니다.
+- 본학습·Vast 접속/재개·미션 rosbag 성능 평가·격자/depth 비용 비교는 수행하지 않았다.
+
+재현 도구는 `perception/detection3d/bevfusion/tools/audit_base5_heatmap_targets.py`다.
+team 이미지에서 `--data artifacts/handoff/base5_sunny13_jpeg90_portable_261011`,
+`--config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py`,
+`--augmentation-repeats 2`, 신규 `--output`으로 실행한다. ignored 근거는
+`artifacts/evaluation/bevfusion/base5_heatmap_targets_261011/`의 `cpu_v2/report.json`,
+`cpu_v2/before_after_targets.png`, `gpu_resume_smoke/report.json`,
+`gpu_resume_smoke/target_checks.json`이다. GPU smoke는 기존
+`smoke_base5_direct_training.py`로 재현하며, 이번 직접 target 관측은 런타임 검사 wrapper로 수행했다.
+
+### 후속 공간 해상도·depth 실험 순서
+
+1. **완료:** Base5 정답 축 수정과 전수·증강·역전파·재개 검사.
+2. **다음:** 로컬에서 LiDAR/Camera BEV `5/20cm`, `7.5/30cm`, `10/40cm`의
+   단계별 추론·전체 서비스 비용·VRAM·짧은 학습 처리량을 비교한다. 이미지 512×1056,
+   depth `[1,100,0.5]`, semantic ROI X±100/Y±30m와 입력·AMP·batch 조건을 고정한다.
+   각 후보의 padding·원점·head metadata를 함께 맞춘다. 현재 stride는 LiDAR 8 / Camera 2이므로
+   fusion/head 간격은 각각 40/60/80cm다. Gaussian/local-max의 물리적 범위 변화도 기록한다.
+3. 실제 5K에서 작은/밀집 객체의 feature cell 점유와 후보 충돌 위험을 분석하고 학습 후보를 좁힌다.
+   속도와 점유 분석만으로 탐지 성능 우위를 확정하지 않는다.
+4. 선택 격자에서 depth 범위 1–100m를 유지한 채 간격 25/50/100cm(396/198/99 bins)를
+   비교한다. 전체 조합 sweep을 먼저 수행하지 않는다. 현재 50cm의 최적성도 미입증이다.
+5. Vast 재개 요청 후 최신 소스·새 work-dir로 준비하고 실제 4090 비용·짧은 학습·외부
+   checkpoint 백업을 검증한다. 이후 승인한 본학습과 rosbag 평가, class별 threshold 선택으로 이어간다.
+
+기존 raw/GT는 격자·depth 후보에서도 재사용할 수 있다. 이전 원격 소스·prepare-only 계약은
+이번 정답 수정 이전이므로 덮어쓰거나 그대로 resume하지 않는다. 데이터 재전송은 필요하지 않다.
