@@ -2,16 +2,22 @@
 
 마지막 정리: 2026-10-10.
 
+- **현재 학습 준비:** [전수crop/직사각형축/pooling GPU 검증](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md),
+  [원격상대경로5K·direct학습/resume/백업·중복파일정리](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과).
+  Sunny13 canonical v140의raw의존성을보존한다. 아래이전진행수치와'GPU/crop미시작'은현재상태가아니다.
+
 - **최신 / 종료 후 수집기·새 환경 준비 완료:** [전수분포·22.55%정적단축·25K새배치·실제보충검증](261010_base5_postcollection_collector_work.md),
   [새단일진입점런북/자동canonical대시보드](261010_base5_fresh_environment_runbook.md).
   Sunny13 최종5K 보존. collector_release_v142·전수25K생성/CPU preflight 완료, 새정적64/이동8실제보충검증이다.
-  다음25K 본수집/GPU/crop/학습은미시작이며pilot은본학습에포함하지않는다. 아래이력보다이항목을우선한다.
+  다음25K 본수집/본학습은미시작이며pilot은본학습에포함하지않는다. GPU/crop은위최신근거를따른다.
 
 - **최종 최신 / Sunny13 5K 완료 v140:** [유연 대체 계약·실제 캡처·최종 검증](261010_base5_flexible_deficit_replacement.md).
   사용자 승인에 따라 남은26셀은 같은패밀리 새장면으로 대체했다. 기존4,974행 보존,
   **5,000승인/부족0**, 26개첫시도·507검사PASS·CPU4,255/745·GT10,959·coverage122종PASS다.
   canonical은v140 ledger 하나, 실제대체명세 adopted_manifest/변경 mapping을 쓴다.
   원본raw/source/QA 불변, 8075=v140/5,000, collector 종료/MR 종료가능. 아래부분수치는 진행이력이다.
+
+## 이전 시점의 진행 기록 — 현재 실행 기준 아님
 
 - **최종 / Sunny13 자동 보충·실제 이동 감사 종료:** [v139 결과·보존·다음 단계](261010_base5_adaptive_completion.md#최종-결과--2026-10-10--v139).
   **4,974승인/26부족**, v135 대비26장 순증. v137의4,975는 이동→정지 대체1셀 제외 전 집계다.

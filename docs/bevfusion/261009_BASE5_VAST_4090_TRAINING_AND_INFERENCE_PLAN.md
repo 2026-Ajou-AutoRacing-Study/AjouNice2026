@@ -7,6 +7,122 @@
 재확인하고 학습한다. 임대·결제·이미지 게시·데이터 업로드·원격 실행은 아직 하지 않았다.
 현재 수집·production E25·tracker는 유지한다.
 
+## 2026-10-10 로컬 준비 결과
+
+이 절이 아래10-09의 'direct runner/백업 미구현' 표기보다 우선한다. MORAI·ROS 종료 상태에서
+로컬 준비를 수행했다. **원격 임대·전송·Drive 업로드·4090 측정·본학습은 실행하지 않았다.**
+
+| 항목 | 구현·검증 상태 | 남은 확인 |
+|---|---|---|
+| 성공5K 독립 전달본 | 5,000장 / train4,255·val745, 448·512 동일split, 원본센서/native annotation/metadata 보존 | 원격 해제 후 전수SHA256 검사 |
+| 실제 용량 | payload26,591,499,150bytes =24.765GiB /173,290파일; zstd19,626,947,031bytes =18.28GiB | 원격archive+해제본 동시 약43.1GiB 여유 |
+| direct 학습기 | docker 중첩 없이 실행; 상대경로·dataset/config/code/환경 hash 동결; warmup→cosine 구간 분리 | 실제4090 batch·epoch·LR·최종crop 선정 |
+| 저장·재개 | atomic .partial→.pth, full optimizer/scheduler/AMP·main RNG; 변경된계약 거절 | 원격같은환경 재개 확인; mid-epoch/worker순서 완전재현은 보장 안 함 |
+| 실제 모델 smoke | 실제2장·4클래스·448입력·AMP4iteration, epoch1 저장 후 중단→epoch2 재개 PASS | 수렴/정확도 시험 아님 |
+| 백업기 | 완료파일만snapshot→SHA256검증→COMPLETE/LATEST; 실패재시도·중복생략; 실제smoke checkpoint2개 로컬복사 PASS | rclone자격증명/원격권한·실제Drive read-back 검증 미실행 |
+| 초기화 fallback | nuScenes 카메라backbone/neck29,142,666elements 실제로딩 exact;111.4MiB | full LiDAR/BEV pretrained 축변환 미검증, 기본최종초기화로 자동선정하지 않음 |
+| 실행환경 | 기존팀이미지 CUDA NMS·BEVFusion import check PASS; 같은base용 direct설치script 준비 | 새Vast 설치전체는 아직 미시험; 이미지게시/pull 미완료 |
+
+전달폴더:
+
+- `/home/luv/AjouNice2026/artifacts/handoff/base5_sunny13_portable_261010`: 원격학습용 상대경로본.
+  로컬에서는immutable hardlink라 원본과inode를 공유한다. **이 폴더에서 파일을 수정하지 않는다.**
+  원격으로복사/해제하면 독립파일이며 로컬원본경로에 의존하지 않는다.
+- `/home/luv/AjouNice2026/artifacts/handoff/base5_remote_code_261010/base5_sunny13_portable.tar.zst`: 위전체의lossless archive.
+- 같은폴더의 `base5_remote_code.tar.gz`: detector/plugin/common 및MMDetection3D fork·설치script만 포함.
+  ROS/planning/전체rosbag/MORAI는 원격학습 필수입력에 포함하지 않는다.
+- `artifacts/detection3d/bevfusion/pretrained/base5_nuscenes_camera_only_261010.pth`:
+  camera-only fallback. source는nuScenes의기존MORAI3 adapter이며 E25학습weight가아니다.
+  분류head를재사용하지않으므로 Animal은새초기화다.
+
+원래 canonical v140의343MiB는raw자체가아닌선택metadata다. canonical만전송하면학습할수없다.
+독립전달본은선택된5000capture의모든파일을포함한다. provenance의과거절대경로는감사용이며
+학습입력은`data/<token>/...`다. 실제synthetic test infos는**빈목록**이며 rosbag test를만든것이아니다.
+
+### 임대한 환경에서의 순서
+
+SSH 정보와 선택한이미지를확인한뒤실행한다. 아래경로는원격에서해제한repo root를뜻한다.
+Vast자체가컨테이너이므로이명령들앞에`docker run`을붙이지않는다.
+
+```bash
+cd "$HOME/AjouNice2026"
+
+# 팀이미지가 이미 있으면 검사만. 일반base에서는 아래 --install 경로를 사용.
+bash docker/bevfusion/scripts/setup_direct_environment.sh --check-only
+
+# 정확히 pytorch/pytorch:2.7.1-cuda12.8-cudnn9-devel 계열의 빈환경인 경우만:
+# bash docker/bevfusion/scripts/setup_direct_environment.sh --install
+
+export PYTHONPATH="$PWD:$(python -c 'from pathlib import Path; import mmdet3d; print(Path(mmdet3d.__file__).resolve().parents[1])')"
+export TORCH_CUDA_ARCH_LIST=8.9
+
+python perception/detection3d/bevfusion/tools/prepare_base5_portable_dataset.py \
+  --verify "$HOME/base5_sunny13_portable_261010"
+```
+
+`--install`은torch2.7.1/CUDA12.8·CUDA devel/nvcc를확인하고잘못된template이면중단한다.
+MMCV2.1.0·팀fork·custom ops를설치한다. 로컬팀이미지tag는registry에게시되지않았으므로
+현재pull가능한이미지라고안내하지않는다. 새환경설치가실패하면원인확인후진행하며임의destroy하지않는다.
+
+4090최종입력과batch를확정한뒤run manifest를만든다. 다음은**준비만**하는예이며
+12epoch/batch2×accum2는아직선정한본학습설정이아니다. 448·512는일치하는config/profile을함께선택한다.
+
+```bash
+python perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_448_separated_candidate.py \
+  --data "$HOME/base5_sunny13_portable_261010" --profile 448x896 \
+  --work-dir "$HOME/ajou_runs/base5_sunny13_candidate" \
+  --epochs 12 --batch 2 --accumulate 2 --workers 4 \
+  --init-checkpoint "$HOME/base5_nuscenes_camera_only_261010.pth"
+```
+
+확정후같은인자에`--run`을추가한다. 준비만실행했고계약이동일하면같은work-dir를사용할수있다.
+실제학습이시작됐거나설정이바뀐경로는새학습으로덮어쓰지않는다. 준비후설정을바꿨다면새work-dir를쓴다.
+실제학습을재개할때는같은인자에`--resume --run`을붙인다. 초기checkpoint 인자는생략가능하나
+데이터·crop·batch/accum·epoch/LR/seed·코드/패키지는같아야한다. 5K→30K를resume으로연결하지않는다.
+
+`accumulate`는epoch iteration수를나눠야한다. 4255에서batch1/accum4는거절하고
+batch2/accum2는2128iterations/1064updates라통과한다. epoch경계에미저장gradient를남겨
+재개시유실하는상황을피하는제약이며, 끝batch의실제샘플수는명목effective batch보다작을수있다.
+
+외부백업은별도tmux pane에서실행한다. rclone은직접설치·계정설정해야하며인증파일을Git/ZIP에넣지않는다.
+
+```bash
+python perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py \
+  --work-dir "$HOME/ajou_runs/base5_sunny13_candidate" \
+  --destination ajou_drive:model/bevfusion/base5/checkpoint_backups \
+  --drive-root-folder-id 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP \
+  --interval-sec 120
+```
+
+remote복사뒤`rclone cat`으로payload를읽어SHA256을검증하므로checkpoint당추가다운로드가발생한다.
+완료된hash주소·COMPLETE·설정파일검증후LATEST를발행한다. 원격보관본을자동삭제하지않으므로
+Drive여유와전송비용을검사한다. 오류는`backup_status.json`에남고다음주기에재시도한다.
+credentials를stderr/log로출력하지않는다. epoch이길면손실예산을다시정하되현재는epoch경계저장이다.
+
+### 로컬 정리 결과와 보존 원칙
+
+- `~/Music/new_rosbag`의중복ZIP6개는정상추출본66파일전체를decompressed SHA256으로대조한후
+  삭제했다. **9,432,764,756bytes =8.785GiB** 회수, 유효bag과audit/metadata는
+  `rosbags/eval/perception/260923_teammate_manual`에그대로있다.
+- `~/Music/rosbag0923`의잘못받은metadata-only50파일도정상본과전부동일하여삭제했다.
+- helper누락으로실패한preview/첫finalbenchmark의중복ZIP·payload는삭제했다.
+  작은manifest/실패로그는`artifacts/cleanup/failed_input_pool_bundles`로옮겼다.
+  **검증된final_v2 bundle은보존**한다.
+- 초기direct smoke의학습4-step weight와그로컬backup약1.85GiB도검증후제거했다.
+  metadata/검증로그는`artifacts/cleanup/base5_smoke_v1_metadata_only.tar.gz`에보존한다.
+  최신v2 smoke는유지한다. 이삭제는본학습checkpoint나원본capture삭제가아니다.
+- 과거capture폴더가v140선택의원본인경우삭제하지않았다. Base3/Base4원본·nuScenes/E25 checkpoint·
+  유효bag·사용자가보존요청한yaw backup·재현근거를무작정지우지않았다.
+- 오래된진행설명은문서router에서이력으로격하했다. temporal소스는import/재현의존성이있어
+  삭제하지않고기본OFF계약을유지한다. dataset/artifact/연구보고서ignore를유지한다.
+
+검증근거는`artifacts/detection3d/bevfusion/base5_direct_resume_smoke_261010_v2/report.json`,
+camera initialization report, 위metadata-only archive의local backup status,
+`artifacts/cleanup/261010_verified_duplicate_rosbag_zips.json`이다.
+과거Torch2.7+MMEngine에서fullresume가`weights_only`기본값때문에실패한문제는
+전용`Base5AtomicRunner`의**신뢰된local checkpoint**로딩에만한정해수정했다. 전역torch기본값을바꾸지않는다.
+
 ## 임대 사양 추천
 
 | 항목 | 첫5K 추천 | 이유와 확인 사항 |

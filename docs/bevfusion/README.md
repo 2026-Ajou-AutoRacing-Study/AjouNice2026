@@ -4,6 +4,21 @@
 
 ## CURRENT
 
+현재 실행 순서는 **Sunny13 5K 완료 → 로컬 입력/pooling 검증 완료 → 원격4090 비용 확인 → 초기화 선택 → 본학습**이다.
+원본5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 세 링크만 먼저 읽는다.
+
+| 목적 | 최신 기준 |
+|---|---|
+| 로컬 입력·직사각형 축·CUDA 분리 pooling 검증 | [10-10 실측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md) |
+| 원격 전달본·direct 학습·resume/백업·정리 결과 | [Vast 계획의 10-10 준비 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과) |
+| 다른5환경 생성/수집·resume·대시보드 | [새 환경 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md) |
+
+현재 연구는 Base5-only·4-class·single-frame·decoded7D이며 OD velocity/temporal OFF다.
+production은 E25·threshold0.40/0.15/0.10이고, 새 학습의 입력·초기화는 원격 비용 확인 후 선택한다.
+아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
+
+## 이전 시점의 진행 기록 — 현재 실행 기준 아님
+
 [2026-10-10 실제5K 입력·격자·pooling 검증 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)가
 아래10-09 미구현/미측정 계획보다 우선한다. 전수crop/derived448·512 infos/실제loader-online 정합,
 직사각형 sparse coordinate 축 수정, opt-in cache A/분리 B, 실제14장 full-model 동등성 및

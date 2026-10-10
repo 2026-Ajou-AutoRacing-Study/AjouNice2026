@@ -1,8 +1,21 @@
 # Base5 학습 초기화와 BEV 연산 최적화 계획
 
-2026-10-09 KST 기준 / CURRENT 계획. 아래 초기화·최적화는 아직 미구현이다.
+2026-10-09 KST 계획과 당시 미구현 상태를 보존한다. **현재 실행은 아래10-10 갱신이 우선**한다.
 Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경하지 않는다.
 설명용 원리와 개발 계약을 구분하며, 실측은 연결된 EVIDENCE 문서를 따른다.
+
+## 2026-10-10 상태 갱신
+
+[실제 입력·직사각형축·cache A/분리 B 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)은완료했다.
+[Vast 준비 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과)에
+상대경로5K·direct학습·실제4-class AMP저장/재개·백업검증과원격실행순서를정리했다.
+4090비용/최종입력·장기학습·Drive외부백업은아직이다.
+
+초기화는nuScenes camera backbone/neck만실제로exact로딩한fallback을준비했다.
+기존square checkpoint의LiDAR/BEV방향성은새[Y,X]계약과달라shape일치만으로전체로드하지않는다.
+이fallback은아래full pretrained추천이완료됐다는뜻이아니며, 원격학습전에전체축변환검증또는
+fallback선택을명시한다. 새depth/class/head·LiDAR/BEV는fallback에서새초기화다.
+아래'cache/adapter/번들미구현·GPU미실행'은10-09시점의이력이며현재상태로재사용하지않는다.
 
 ## Sunny13 수집 종료 후 묶음 실험 합의
 

@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-10 원격 학습 전 남은 gate:** [로컬 전달·resume/백업 준비](bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과).
+  상대경로5K·direct실행·epoch재개·로컬백업은준비됐다. 다음은실제Vast이미지/SSH/CUDA→4090비용→
+  최종crop/batch/초기화→외부백업검증→본학습이다. camera-only pretrained는검증된fallback이며
+  full BEV pretrained축변환은미검증이다. 원격업로드·Drive백업·장기학습을완료한것으로오인하지않는다.
+
 - **2026-10-10 로컬 입력/최적화 검증 완료:** [최신 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md).
   전수5K crop/448·512 derived infos/실제loader-online 정합, 확대 sparse coordinate 축 수정,
   cache A/분리 B의 full-model 동등성 및3-step 역전파를 검증했다. 아래10-09미구현표기는과거다.
