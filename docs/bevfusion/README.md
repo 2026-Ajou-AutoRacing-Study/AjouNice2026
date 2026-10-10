@@ -4,43 +4,57 @@
 
 ## CURRENT
 
-현재 실행 순서는 **Sunny13 5K 완료 → 로컬 입력/pooling 검증 완료 → 원격4090 비용 확인 → 초기화 선택 → 본학습**이다.
-원본5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 세 링크만 먼저 읽는다.
+현재 실행 순서는 **Sunny13 5K 전달·전수 검증 완료 → 확대 비용·실제 로더·재개 검증 완료 →
+원격 외부 연결·checkpoint 백업 복구 → 최종 설정으로 준비 → 승인 후 본학습**이다.
+원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| 학습용 JPEG Q90만 ON / blur·노출·noise OFF | [12개 개발 bag·1,536장과 native PNG 672장 비교·CPU 로더 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#image-domain-decision-261010) |
+| Base5 전후방 ±100m·좌우 ±30m 유지 / ±40m 확대 기각 | [5K·고주로 합류·로터리 경로 근거와 재검토 조건](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#lateral-range-decision-261010) |
+| 21시 학습 전 확대 검증 / 512·batch 4 추천 / 외부 백업 미완료 | [300장·실제 5K 로더·745장 val·저장/재개·네트워크 gate](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#6-4090-확대-표본학습-전-검증--2026-10-10-2023-이후), [Vast 후속 절차](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#확대-검증-완료와-네트워크-gate--2026-10-10-21시) |
+| 실제 임대 4090 비용 검증 / Sunny13 5K 전달·전수 검증 완료 | [10-10 원격 실측](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#5-vast-4090-실제-검증--2026-10-10-17311734-kst), [19:49 복구·전체 검증 완료](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#부족-조각-복구와-전체-데이터-검증-완료--2026-10-10-1949-kst), [후속 Cloud Sync 선택](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#현재-전송-유지와-cloud-sync-후속-선택--2026-10-10-합의) |
+| Vast 템플릿·GPU 후보 추천·블로그용 캡처 원본 | [10-10 설정·캡처 보관 기록](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-vast-템플릿-안내와-블로그용-증거-기록) |
 | 로컬 입력·직사각형 축·CUDA 분리 pooling 검증 | [10-10 실측 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md) |
 | 원격 전달본·direct 학습·resume/백업·정리 결과 | [Vast 계획의 10-10 준비 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-로컬-준비-결과) |
-| 다른5환경 생성/수집·resume·대시보드 | [새 환경 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md) |
+| Sunny13 원본 5K Drive 백업·분할복원·전송시간 | [10-10 검증완료 백업](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#2026-10-10-sunny13-5k-drive-원본-백업) |
+| 다른 5 환경 생성/수집·resume·대시보드 | [새 환경 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md) |
 
-현재 연구는 Base5-only·4-class·single-frame·decoded7D이며 OD velocity/temporal OFF다.
-production은 E25·threshold0.40/0.15/0.10이고, 새 학습의 입력·초기화는 원격 비용 확인 후 선택한다.
+현재 연구는 Base5-only·4-class·single-frame·decoded 7D이며 OD velocity/temporal OFF다.
+production은 E25·threshold 0.40/0.15/0.10이다. 새 학습은 512×1056·batch 4와 감사한
+camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 본학습을 시작하지 않는다.
+2026-10-10 미션 경로 검토 후 Base5의 semantic ROI는 전후방 ±100m·좌우 ±30m로 유지한다.
+±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
+2026-10-10 23:05 KST의 학습 선택 config는 `bevfusion_base5_dense_512_jpeg90_train.py`다.
+원본 해상도에서 JPEG Q90을 카메라별 80% 확률로 적용하고 blur·노출·noise는 끈다.
+val/test·추론은 바꾸지 않는다. 종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이므로
+사용자 요청으로 Vast를 재개한 뒤 짧은 학습 비용을 다시 확인한다. 증강의 AP 향상은 미검증이다.
 아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님
 
 [2026-10-10 실제5K 입력·격자·pooling 검증 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)가
-아래10-09 미구현/미측정 계획보다 우선한다. 전수crop/derived448·512 infos/실제loader-online 정합,
-직사각형 sparse coordinate 축 수정, opt-in cache A/분리 B, 실제14장 full-model 동등성 및
-짧은역전파를 검증했다. 5060Ti448 모델162.67→74.91ms/512216.75→93.52ms다.
-4090·ROS/full-stack·최종해상도/pretrained 본학습은 아직이며 production E25/수집원본은 불변이다.
-구4090 확대 비용은 sparse 축 수정 전 이력이므로 새번들로 다시 측정해야 한다.
+아래 10-09 미구현·미측정 계획보다 우선한다. 전수 crop·448/512 파생 infos·실제 loader/online 정합,
+직사각형 sparse coordinate 축 수정, opt-in cache A/분리 B, 실제 14장 full-model 동등성 및
+짧은 역전파를 검증했다. 5060 Ti의 448 모델은 162.67→74.91ms, 512 모델은 216.75→93.52ms다.
+4090·ROS/full-stack 검증, 최종 해상도 선정과 pretrained 본학습은 아직이며 production E25와 수집 원본은 불변이다.
+구 4090 확대 비용은 sparse 축 수정 전 이력이므로 새 번들로 다시 측정해야 한다.
 
 [2026-10-10 수집기 후속작업 완료](../../dataset/morai_od/docs/261010_base5_postcollection_collector_work.md):
-Sunny13 최종5K 보존·다른5환경새geometry생성/수집기비용·실제정적/이동보충·resume검증은끝났다.
-[새수집런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md)은준비됐지만
-실제나머지25K와본학습은미시작이다. GPU/crop/cache/분리pooling은위10-10근거를따른다.
-수집기22.55%단축은BEVFusion inference latency 개선이나모델성능개선이아니다.
+Sunny13 최종 5K 보존, 다른 5개 환경의 새 배치 생성, 수집기 비용·실제 정적/이동 보충·resume 검증은 끝났다.
+[새 수집 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md)은 준비됐지만
+나머지 실제 25K와 본학습은 미시작이다. GPU/crop/cache/분리 pooling은 위 10-10 근거를 따른다.
+수집기 비용 22.55% 단축은 BEVFusion 추론 지연이나 모델 성능 개선이 아니다.
 
 [2026-10-09 수집 종료 후 해상도 선택](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준):
 crop/투영과 cache·분리 pooling을 검증한 뒤 세로×가로 입력을 비용 실측으로 확정한다.
-13Hz≈76.9ms에서 전처리 포함 평균50~60ms는 탐색 목표이며 p95/발행 지연을 별도 확인한다.
-448×896 약50ms·512×1056 약60ms·576×1152 약70ms는20~30% 최적화 가정의 미측정 예상이다.
+13Hz≈76.9ms에서 전처리 포함 평균 50~60ms는 탐색 목표이며 p95/발행 지연을 별도 확인한다.
+448×896 약 50ms·512×1056 약 60ms·576×1152 약 70ms는 20~30% 최적화 가정의 미측정 예상이다.
 TensorRT는 후속 선택이며 예상 가속을 전제로 큰 입력을 고르지 않는다. 수집·GPU 작업은 이번 정리로 변경하지 않는다.
 
 [2026-10-09 환경별 새 공간 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md):
-현재Sunny13 5K를 완료·보존하고 나머지5환경은 각각 새 배치5K로 생성한다.
-구성표/주요자산 할당 유지·연속Ego 샘플링·공간split 검증이 선행하며 기존 복사manifest를 바로 수집하지 않는다.
+현재 Sunny13 5K를 완료·보존하고 나머지 5 환경은 각각 새 배치 5K로 생성한다.
+구성표/주요자산 할당 유지·연속 Ego 샘플링·공간 split 검증이 선행하며 기존 복사 manifest를 바로 수집하지 않는다.
 
 [2026-10-09 최신 실행 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#sunny13-수집-종료-후-묶음-실험-합의):
 이번 Sunny13 5K 수집/MORAI 종료 후 사용자 요청으로 무결성·split → 입력/crop → cache/분리 pooling →
@@ -49,8 +63,8 @@ latency/VRAM·짧은 학습 → 초기화/smoke/resume을 묶어서 수행한다
 미루지 않는다. 이 합의만으로 GPU 작업·본학습·다음 환경 수집을 자동 시작하지 않는다.
 
 [2026-10-09 Vast.ai 단일4090 학습·추론 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md):
-로컬 입력·연산 검증 후 임대한4090에서 latency/VRAM·짧은 학습·재개를 확인하고 Sunny13 5K를 학습한다.
-첫5K는 On-demand/200GB, 같은 임대로30K까지 이어가면500GB를 검토한다. 실시간 가격 관측과
+로컬 입력·연산 검증 후 임대한 4090에서 latency/VRAM·짧은 학습·재개를 확인하고 Sunny13 5K를 학습한다.
+첫 5K는 On-demand/200GB, 같은 임대로 30K까지 이어가면 500GB를 검토한다. 실시간 가격 관측과
 디스크·SSH·직접 실행·외부 checkpoint 백업 계획을 보존한다. 임대·전달·remote runner는 아직 미실행/미구현이다.
 
 [2026-10-09 CUDA-BEVFusion과 BEVPool 배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md):
@@ -64,7 +78,7 @@ Base3/E25의 fresh는 nuScenes 호환 가중치 + 새 optimizer였으며 완전 
 현재 Base5 후보의 load_from=None과 향후 호환 pretrained 추천을 구분한다. 4-class/depth/grid
 로딩 감사 후 본학습하며, 다음 연산 작업은 기존 CUDA pooling의 기하 cache A → v2 방식 B다.
 수집 중 작은 CUDA 연산 단위 시험만 제한적으로 검토한다. 전체 모델/학습/공식 비용 시험은
-별도4090 또는 수집 종료 후다. adapter/cache/v2/새 번들은 아직 미구현이며 수집·production 유지다.
+별도 4090 또는 수집 종료 후다. adapter/cache/v2/새 번들은 아직 미구현이며 수집·production 유지다.
 
 [2026-10-09 카메라 crop 분석과 입력 후보](261009_BASE5_CAMERA_CROP_INVESTIGATION.md):
 2,586장·121종의 실제 instance mask를 비교했다. 우선 후보는 448×896 아래 정렬,
@@ -78,40 +92,40 @@ crop 분석의 384×896/448×896/512×1056과 320×896 기준을 추론·짧은 
 기존 실측과 새 해상도 및 학습시간 추정을 구분하고 본학습 여러 회를 전제하지 않는다.
 
 [2026-10-09 학습split·가시성·temporal 결정](../../dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md):
-Sunny13 train4255/val745 유지, 나머지25K 새 geometry는 공간group 누출을 검사해split 재계산한다.
-반복평가bag은dev-val/새미사용주행은test다.
-현재30K수집유지후필요조건만보강한다. E25와Base5는single-frame이며OD velocity/temporal 연구분기미사용,
-tracker 시간추정/NMS/lifecycle은유지한다. BabyStroller3의3/21은camera대응모호성을포함한component 집계다.
-이번Base5 본학습은아직미시작이며관측단서proxy를모델성능이나학습충분성으로해석하지않는다.
+Sunny13 train 4255/val 745 유지, 나머지 25K 새 geometry는 공간 group 누출을 검사해 split 재계산한다.
+반복 평가 bag은 dev-val, 새 미사용 주행은 test다.
+30K 수집 계획을 유지하고 이후 필요한 조건만 보강한다. E25와 Base5는 single-frame이며 OD velocity/temporal 연구 분기는 사용하지 않는다.
+tracker의 시간 기반 추정·NMS·lifecycle은 유지한다. BabyStroller3의 3/21은 camera 대응 모호성을 포함한 component 집계다.
+이번 Base5 본학습은 아직 미시작이며 관측 단서 proxy를 모델 성능이나 학습 충분성으로 해석하지 않는다.
 
-Sunny13 v132 본5K는 사용자가 시작해 수집 중이다. 이번 runtime/input은 고정하고 종료 후
+Sunny13 v132 본 5K는 사용자가 시작해 수집 중이다. 이번 runtime/input은 고정하고 종료 후
 [반복 준비 비용 최적화 A/B](../../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)를 수행할 계획이다.
-목표는 전체20% 이상 단축이며 GT/안전/resume을 유지한다. 아래 미시작/승인 대기는 과거 준비 상태다.
-OBJ 차량은Vehicle, Animal은독립라벨로보존하며 재수집없이Pedestrian으로합칠수있으나 후처리/모델설정변경이필요하다.
+목표는 전체 20% 이상 단축이며 GT/안전/resume을 유지한다. 아래 미시작/승인 대기는 과거 준비 상태다.
+OBJ 차량은 Vehicle, Animal은 독립 라벨로 보존한다. 재수집 없이 Pedestrian으로 합칠 수 있지만 후처리·모델 설정 변경이 필요하다.
 
 Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)을 측정했다.
-5060Ti에서E25 offline13.90FPS, 원속도ROS11.47Hz/드롭0, 약98Hz stress 입력에서출력12.97Hz다.
-320×896/±100m fresh후보는offline10.58FPS cost probe이며 정확도/4090/확대후보ROS 결과는 아니다.
-[단계별비용·격자/depth대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서 비용상쇄를실측했다.
-기존격자+0.5mdepth로100m highres를보는비용대조는E25대비약1.98배다.현재후보의속도를무료정확도개선으로해석하지않는다.
-최신고정간격4-case는3-class/200query까지통일했다. 기존66.48ms,
-이미지확대90.46ms,범위확대96.27ms,둘다확대130.59ms(1.96×)다.
-0.5m depth간격을유지하므로coverage확대에따라118→198bin이다.
+5060 Ti에서 E25는 offline 13.90FPS, 원속도 ROS 11.47Hz/드롭 0, 약 98Hz stress 입력에서 출력 12.97Hz였다.
+320×896/±100m fresh 후보는 offline 10.58FPS 비용 시험이며 정확도·4090·확대 후보 ROS 결과는 아니다.
+[단계별 비용·격자/depth 대조](261006_BASE5_LATENCY_STAGE_BREAKDOWN.md)에서 비용 상쇄를 실측했다.
+기존 격자와 0.5m depth로 100m 고해상도 입력을 처리하는 비용은 E25 대비 약 1.98배였다. 후보의 속도를 추가 비용 없는 정확도 개선으로 해석하지 않는다.
+고정 간격 4-case는 3-class/200 query까지 통일했다. 기존 66.48ms,
+이미지 확대 90.46ms, 범위 확대 96.27ms, 둘 다 확대 130.59ms(1.96×)다.
+0.5m depth 간격을 유지하므로 범위 확대에 따라 118→198 bin이다.
 
 [4090 팀원 실측 결과](261009_RTX4090_CAPACITY_RESULTS.md)를 2026-10-09 확인했다.
-동일 고정간격4-case 모델 평균은 기존27.66ms/이미지34.35ms/범위36.19ms/둘다45.86ms다.
-둘다확대의CPU이미지준비포함평균50.93ms,모델p95 46.71ms이며8/8case PASS다.
-5060Ti대비2.40~2.85배이며ROS/full-stack·밀집장면·확대모델정확도 인증은아니다.
-기존5060Ti 문서의4090미측정 표현은해당측정시점의기록이다.
+동일 고정간격 4-case 모델 평균은 기존 27.66ms/이미지 34.35ms/범위 36.19ms/둘다 45.86ms다.
+둘 다 확대한 경우 CPU 이미지 준비를 포함한 평균은 50.93ms, 모델 p95는 46.71ms이며 8/8 case가 통과했다.
+5060 Ti 대비 2.40~2.85배이며 ROS/full-stack·밀집 장면·확대 모델 정확도 인증은 아니다.
+기존 5060 Ti 문서의 ‘4090 미측정’ 표현은 해당 측정 시점의 기록이다.
 
 독립 Base5 생성/학습 후보는 [Base5 v2 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 우선한다.
 2026-10-09 현재 [v132 최종 외관/배치 설계](../../dataset/morai_od/docs/261009_base5_final_appearance_v132.md)를
-사용한다. Base5-only5K→6환경30K, 정지 자유yaw/배치 형상 보완이며 native GT와 production E25는 그대로다.
-현재는 `final_appearance_5k_v132_release`의 Sunny13 직접5K 수집 중이며 로터리 미션350셀을 포함한다.
+사용한 기록이다. Base5-only 5K→6개 환경 30K, 정지 자유 yaw·배치 형상 보완이며 native GT와 production E25는 그대로다.
+현재는 `final_appearance_5k_v132_release`의 Sunny13 직접 5K 수집 중이며 로터리 미션 350셀을 포함한다.
 로터리 실제 경로 관측과 정적 NPC Park 초기화의 이전 [검증/한계](../../dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md)를
 유지하고 [본수집 런북](../../dataset/morai_od/docs/261007_base5_5k_capture_runbook.md)을 따른다. 새 학습은 아직 시작하지 않았다.
-구10K/왕복/v25 yaw 근거는 이력이다. 간헐 통신 timeout의 내부 원인은 미해결이며 실패를 보존한다.
-100m 직사각형 BEV 및4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
+구 10K/왕복/v25 yaw 근거는 이력이다. 간헐 통신 timeout의 내부 원인은 미해결이며 실패를 보존한다.
+100m 직사각형 BEV 및 4-class 후보의 단일 GPU loss/역전파 smoke와 production E25를 구분한다.
 
 Tracker 속도 평가의 GT 기준은 [velocity GT 재검토·실행 설정](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)를 함께 읽는다. 보행자 ROS 메시지 우선/이동-zero fallback은 opt-in이며 차량 세 기준 비교와 H01/R01 baseline 재현을 보존한다. 2026-10-06 정리한 MORAI 추가 답변에서 **UDP 차량 velocity가 후륜 차축 중심의 순간 선속도**임을 확인했고 메시지 GT 사용을 권장했다. BBox 중심 변환의 좌표계/시간/yaw-rate 검증은 남으며 evaluator 기본값과 production은 변경하지 않았다.
 
@@ -122,11 +136,11 @@ Base5 E25-init E2 학습과 [E1 보행자·장애물9-bag rosbag A/B](261005_BAS
 | 목적 | 문서 |
 |---|---|
 | Production E25 실행·판단팀 전달 | [`BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
-| Vast.ai 단일4090 임대·5K 전달·원격 학습과 재개 | [`261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| Vast.ai 단일 4090 임대·5K 전달·원격 학습과 재개 | [`261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
 | Base5 가중치 초기화·pooling/cache 최적화 순서 | [`261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md`](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md) |
 | 카메라 crop 크기와 위치 조사 | [`261009_BASE5_CAMERA_CROP_INVESTIGATION.md`](261009_BASE5_CAMERA_CROP_INVESTIGATION.md) |
 | 팀원 4090 입력 후보 비용 시험 | [`261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md`](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md) |
-| CUDA-BEVFusion 차용·BEVPoolv2/v3 배포 판단 | [`261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md`](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md) |
+| CUDA-BEVFusion 차용·BEVPoolv2/v3배포 판단 | [`261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md`](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md) |
 | 현재 개선 우선순위: 근접·원거리·차량 승격·고해상도 | [`261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md`](261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md) |
 | Production E25 rosbag Tracking/Prediction RViz 재생 | [`E25_ROSBAG_RVIZ_RUNBOOK.md`](E25_ROSBAG_RVIZ_RUNBOOK.md) |
 | 팀 공용 Docker 학습 | [`TEAM_DOCKER_TRAINING_HANDOFF.md`](TEAM_DOCKER_TRAINING_HANDOFF.md) |
@@ -150,15 +164,15 @@ mission rosbag에서 비교한다.
 ## EVIDENCE
 
 - [`261009_RTX4090_CAPACITY_RESULTS.md`](261009_RTX4090_CAPACITY_RESULTS.md)
-  - 팀원 4090 반환 ZIP 무결성, 고정 간격4-case 실측, 5060 Ti 대응 비교와 단계별 비용. 수집/runtime 변경 없음.
+  - 팀원 4090 반환 ZIP 무결성, 고정 간격 4-case 실측, 5060 Ti 대응 비교와 단계별 비용. 수집/runtime 변경 없음.
 
 - [`261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md`](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md)
   - 새 H01/R01 속도 GT A/B 및 최신 공식 후륜 기준 확인. 과거 중심 속도 가설과 회전 보정 잔차 관측을 구분한다.
 
-- [MR VLP16 실제 출력100m 제한](261005_MR_VLP16_100M_RANGE_EVIDENCE.md): fireDistance150 저장 유지에도 원본 UDP/pointcloud는 약100m 이내. 원거리7대와55.6m control 차량 live 대조. 내부 원인/대회 규정 제한을 확정한 것은 아니다.
+- [MR VLP16 실제 출력100m 제한](261005_MR_VLP16_100M_RANGE_EVIDENCE.md): fireDistance150 저장 유지에도 원본 UDP/pointcloud는 약 100m 이내. 원거리 7대와 55.6m control 차량 live 대조. 내부 원인/대회 규정 제한을 확정한 것은 아니다.
 
 - [`261005_BASE5_E1_MISSION_ROSBAG_AB.md`](261005_BASE5_E1_MISSION_ROSBAG_AB.md)
-  - E1 기존/새 보행자·장애물9-bag 완료, 동일 E25 계약 Detection/Tracking/Map-CV 및 거리별 검출률. E2·차량 미션은 이번 범위 밖.
+  - E1 기존/새 보행자·장애물 9-bag 완료, 동일 E25 계약 Detection/Tracking/Map-CV 및 거리별 검출률. E2·차량 미션은 이번 범위 밖.
 - [`261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md`](261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)
   - 실제 Base3 train 거리/point 분포, Base5 E1/E2 완료 결과와 미검증 경계, 다음 고정 계약 A/B·표적 보강 순서.
 - [`261004_E25_OLD_NEW_CURRENT_CONTRACT_COMPARISON.md`](261004_E25_OLD_NEW_CURRENT_CONTRACT_COMPARISON.md)
