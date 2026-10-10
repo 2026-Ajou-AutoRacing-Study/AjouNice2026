@@ -165,10 +165,13 @@ def main():
     p.add_argument('--cases',nargs='+',choices=SPATIAL_CASES,default=list(SPATIAL_CASES))
     p.add_argument('--depth-steps',type=float,nargs='+',default=[.5])
     p.add_argument('--pool-cache-mib',type=int,choices=[256,512])
+    p.add_argument('--memory-fraction',type=float,default=.85,
+                   help='CUDA allocator cap; a smaller cap probes cold start, not a different physical GPU')
     p.add_argument('--iterations',type=int,default=300);p.add_argument('--stage-iterations',type=int,default=32)
     a=p.parse_args()
     if a.output.exists():p.error('Fresh output required')
     if not 24<=a.iterations<=600 or not 8<=a.stage_iterations<=64:p.error('Bounded iteration budget required')
+    if not .1<=a.memory_fraction<=.9:p.error('Require a bounded CUDA allocator fraction in [0.1,0.9]')
     a.output.mkdir(parents=True)
     repo=Path(__file__).resolve().parents[4]
     code_paths=[Path(__file__),repo/'perception/detection3d/bevfusion/tools/base5_grid_candidates.py',
@@ -177,7 +180,7 @@ def main():
     code_identity={str(path):sha256(path) for path in code_paths}
     torch.set_num_threads(4);cv2.setNumThreads(1)
     torch.backends.cudnn.benchmark=True;torch.backends.cuda.matmul.allow_tf32=True
-    torch.cuda.set_per_process_memory_fraction(.85)
+    torch.cuda.set_per_process_memory_fraction(a.memory_fraction)
     base=Config.fromfile(str(a.config));samples,source=samples_from_selection(a.data,a.selection)
     result=dict(gpu=torch.cuda.get_device_name(),torch=torch.__version__,source=source,code_identity=code_identity,cases=[],
         scope='Fresh/shared compatible parameters, 4 classes, batch1 AMP; cost/finite output only, not learned accuracy or ROS/network latency.',
@@ -191,7 +194,7 @@ def main():
             record=dict(name=name,grid_case=case,depth_step=step,geometry=geometry(case))
             try:
                 torch.cuda.reset_peak_memory_stats()
-                values,shared=run_case(cfg,samples,shared,a.iterations,a.stage_iterations,.85)
+                values,shared=run_case(cfg,samples,shared,a.iterations,a.stage_iterations,a.memory_fraction)
                 record.update(values)
             except Exception as exc:
                 record.update(valid=False,error=repr(exc));gc.collect();torch.cuda.empty_cache()

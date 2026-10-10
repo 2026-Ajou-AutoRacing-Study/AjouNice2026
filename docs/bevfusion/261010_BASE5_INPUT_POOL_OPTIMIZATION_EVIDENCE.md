@@ -1731,4 +1731,167 @@ val·전체 재개 checkpoint / 최근 3개 보존을 준비했다. `fresh_start
 heatmap/rectangular/image-domain 회귀 30개, pool CPU 9개 중 6개 통과·CUDA 전용 3개 skip,
 pool CUDA 9개 모두 통과했다. 총 51개 실행 중 48개 통과, 정상 skip 3개다.
 2026-10-11 KST 최종 확인에서 GPU 0%·1MiB, 학습/추론/rclone 자식 없음과 main
-prepare-only 상태를 확인했다. 인스턴스를 자동 중단·destroy하지 않았다.
+ prepare-only 상태를 확인했다. 인스턴스를 자동 중단·destroy하지 않았다.
+
+<a id="base5-vast-depth-z-qualification-261011"></a>
+
+## 19. 새 4090 이전·depth 간격과 LiDAR 높이 검증 — 2026-10-11 KST
+
+사용자가 기존 인스턴스 55165763을 중단한 뒤 GPU가 다른 사용자에게 할당되어 재개하지
+못했다. 사용자가 새 인스턴스 55272391을 임대하고 Vast Copy로 5K와 초기화 가중치를
+복사했다. 새 환경은 host 124072 / machine 38442의 RTX 4090 48GB다. 기존 인스턴스의
+데이터를 삭제하거나 새 인스턴스를 자동 중단하지 않았다. 아래 기록은 이전 18절의
+`/root` 경로와 새 `/workspace` 경로를 구분한다. 본학습은 시작하지 않았다.
+
+### 복사 검증과 읽기 오류 복구
+
+호스트 측 복사가 진행되는 동안 일부 파일을 읽을 수 있었지만 `infos/512x1056`는
+`Stale file handle` 또는 `ENOENT`였다. 복사 완료처럼 보인다는 것만으로 실행하지 않았다.
+실행 중 overlay와 호스트 측 복사의 상호작용이 의심되나 정확한 원인은 확정하지 않았다.
+원본 복사 폴더는 보존하고 컨테이너 내부에서 별도 검증본을 만들었다. 센서를 인터넷으로
+다시 전송하지 않았으며, 동일 해시의 512 프로필 metadata 네 파일만 로컬에서 보충했다.
+hardlink 시도도 실패하여 해당 부분 결과를 보존하고 일반 파일 복사 방식으로 완료했다.
+
+- 실행 입력: `/workspace/base5_sunny13_jpeg90_verified_v2_261011`.
+- 파일 173,294개 / payload 10,471,712,458 bytes를 **전체 SHA256 검증**했다.
+- 원격 portable manifest SHA256은
+  `34f3560de16370a763607d68180d35268b159f3f87d8d88f1f217a250da26ce1`이다.
+  로컬 release의 manifest SHA256 `47f208b...`와는 provenance가 다르다.
+  train/val infos 해시는 18절의 로컬 release와 각각 같고 클래스·센서·split은 바꾸지 않았다.
+  provenance를 제외한 전체 파일명·bytes·SHA256 목록의 정규화 digest는 양쪽 모두
+  `a6dc7d0dd4d239bf5ca20292b574fecbde5c13fa9ded7f86f5eab63244315766`으로 같다.
+- train 4,255 / val 745, all-JPEG Q90, upright native-RPY 정책을 유지했다.
+- 초기화 파일 `/workspace/base5_nuscenes_camera_only_261010.pth`의 SHA256도
+  `d06ae54d380a7c0ec245936ff394a51e0ff2c36fd1288eb2d7879954c682107b`로 확인했다.
+- `repair_base5_portable_mirror.py`는 fresh output만 허용하고 지정한 metadata 외의
+  replacement를 사용하지 않는다. 잘못된 replacement 해시는 실패한다. 원본을 수정하지 않는다.
+
+### 실제 5K의 높이·voxel 제한·Camera depth 점검
+
+로컬 현재 release의 train+val 5,000장, GT 11,052개를 읽기 전용 검사했다. 센서 유효점
+필터와 semantic XY 범위를 적용하고, upright enclosure가 아니라 native full-RPY 박스
+내부 점을 계산했다. 지면 접지 인증이나 학습 AP 검사가 아니다.
+
+| 검사 | 관측 | 판단 |
+|---|---|---|
+| 현재 LiDAR Z −3~2m 필터 | 객체 내부 점 1,066,389개 중 667개 제거, 약 0.0625%; 46개 차량에 영향 | 명목 배치에서 전체 점 또는 절반 이상을 잃은 객체 없음 |
+| 내부 voxel 공간 Z −5~3m까지 입력 확대 | 위 667점을 복구하지만 전체 입력점도 584,789개 추가 | 대부분 배경 증가이므로 필터 확대 근거 부족 |
+| 보행자·장애물·동물의 명목 Z 손실 | 세 클래스 모두 0점 | 기존 높이 필터 유지 |
+| Z-only 증강 16회/프레임 | 176,832 객체 관측 중 전체 점 손실 5회, 모두 점 4~6개의 큰 차량 | 현재 증강을 전면 축소할 근거 부족; 전체 pipeline/AP 결과는 아님 |
+| Z voxel 10/20/40cm 양자화 | 객체 occupied voxel 647,471 / 619,897 / 567,768 | 10cm가 새 센서 정보를 만드는 것은 아님; backbone 변경 비용 없이 정보량만 비교 |
+| voxel/point cap | 프레임 최대 원시점 19,200, occupied voxel 10,720 | train/test voxel cap 120,000/160,000에 여유 있음 |
+| voxel당 10점 제한 | 넘치는 점 25,585 / 필터 후 45,291,797개, 약 0.0565% | cap 증설 필요성이 입증되지 않음 |
+| 현재 crop에 중심이 투영되는 optical depth | 13,769 관측, 최대 98.27m; camera-only 중 60m 이상 29개, 80m 이상 21개 | depth 상한을 60/80m로 줄이지 않고 100m 유지 |
+
+위 증강 검사는 실제 RTS 순서 `(z + translation_z) * scale`을 사용하되 native XY
+지지는 고정한 Z-only probe다. 실제 증강 전체의 XY/crop/GT keep을 재현한 결과처럼
+해석하지 않는다. 명목 camera-only 679개는 원래 native 박스 내부 LiDAR 점이 없는
+객체이며, Z 필터가 새로 camera-only로 만든 것이 아니다.
+
+camera-only 중 모든 투영 가능 중심이 optical depth 1m 미만인 객체 62개가 있으나,
+해당 시점의 native 8모서리를 검사하면 **박스 전체가 1m 아래인 사례는 0개**다.
+중심이 가까운 것만으로 카메라 feature를 전혀 받지 못한다고 결론 내리지 않는다.
+이는 기하학적 투영 검사이며 실제 가림·픽셀 가시성·학습된 depth 정밀도를 보장하지 않는다.
+현재 depth `[1,100)`m, Z voxel 20cm, 입력 Z 필터 −3~2m와 내부 grid −5~3m를 유지한다.
+Z voxel 10/40cm는 이번에 실제 네트워크 비용 후보로 승격하지 않았다. 현재 sparse encoder는
+마지막 Z 방향 convolution 뒤 `C*D`로 높이를 채널에 합친다. Z 간격만 바꾸면 마지막
+높이 차원과 fusion 입력 채널까지 달라질 수 있으므로 단순 config 한 줄의 동등 비교가
+아니다. 정보량 점검에서 변경의 시급성이 입증되지 않은 상태에서 backbone까지 재설계하고
+초기 loss로 우열을 정하지 않는다. 필요하면 본학습 후 별도 정확도 비교로 검토한다.
+
+### 원격 비용 및 본학습 준비 상태
+
+Torch 2.7.1+cu128 / numpy 1.26.4 / MMCV 2.1.0 / MMEngine 0.10.7 / MMDet 3.2.0 /
+MMDet3D 1.4.0 / spconv-cu120 2.3.6으로 실행했다. 새 GPU용 MMCV·native ops를 빌드하고
+CUDA NMS와 모델 import를 통과했다. 설치 다운로드·Matplotlib 빌드·첫 pooling 커널 빌드
+시간은 steady latency에 합치지 않는다. 선택한 headless 모델 경로에서 사용하지 않는
+open3d·plyfile·scikit-image·tensorboard의 미설치 경고는 별도로 남았다. GUI 시각화까지
+완비한 환경이라고 주장하지 않으며 실제 train/val 경로 검증을 우선한다.
+
+동일한 200장 대표 + 100장 stress 표본, 이미지 512×1056, 7.5/30cm 공간 격자와
+depth 범위 `[1,100)`m를 고정했다. 아래 추론은 각 300장 AMP batch 1의 첫 측정이며,
+service는 CPU 전처리·모델·CPU 예측 회수이고 disk/network/ROS queue는 제외한다.
+호환 파라미터를 공유한 비용 검사이며 미학습 정확도를 비교한 것이 아니다.
+
+| depth 간격 | bin 수 | 모델 평균 | service 평균 / p95 | steady allocated | pooling plan |
+|---|---:|---:|---:|---:|---:|
+| 25cm | 396 | 49.45ms | 68.71 / 70.33ms | 1,195MiB | 308.8MiB |
+| 50cm | 198 | 48.64ms | 67.49 / 68.85ms | 1,022MiB | 154.9MiB |
+| 100cm | 99 | 48.95ms | 68.04 / 69.43ms | 935MiB | 78.0MiB |
+
+비교용 cache 예산을 모두 512MiB로 맞춰 각 후보 1회 miss / 347회 hit / 0 bypass를
+확인했다. 25cm가 기존 256MiB에 들어가지 않는 비용을 depth 연산 자체의 증가로
+해석하지 않는다. 기본 50cm의 기존 256MiB 예산은 유지하며 비교 예산을 기본값으로
+승격하지 않았다. 별도 32회 CUDA event span에서 depth feature는 50→25cm일 때
+2.53→2.90ms, pooling은 0.69→0.88ms였다. camera backbone 약 14.1ms와 sparse encoder
+약 15.7~15.9ms는 그대로다. 중첩 span을 합산해 전체 모델 시간으로 해석하지 않는다.
+
+각 후보의 실제 5K train 로더는 fresh process로 batch 4 / workers 4 / AMP AdamW
+64회만 갱신했다. 16회 warmup 뒤 48회, 고유 192장 측정이며 전체 사용 장면은 256장이다.
+세 실행의 64개 batch 장면 순서와 증강 GT 해시, 실행 소스 985개가 각각 동일했다.
+loss 유한성·optimizer 64/64 갱신을 검사했다. 64-step loss로 AP 우열을 정하지 않는다.
+
+| depth 간격 | loader 포함 평균 / step | 50cm 대비 | steady allocated peak |
+|---|---:|---:|---:|
+| 25cm | 684.77ms | +20.1% | 21,563MiB |
+| 50cm | 570.10ms | 기준 | 21,131MiB |
+| 100cm | 522.77ms | −8.3% | 20,913MiB |
+
+50cm를 기본으로 유지한다. 25cm는 더 정밀한 depth 확률 격자일 뿐 실제 거리 정확도가
+25cm가 되는 것이 아니며, 학습 비용 증가 대비 AP 이점이 아직 없다. 100cm의 비용 절감은
+관측했지만 근거리·원거리 위치 정확도에 미치는 영향을 검증하지 않아 자동 채택하지 않는다.
+입력 range·공간 격자·증강·label을 동시에 바꾸지 않는다.
+
+100→25→50cm 순서로 같은 300장씩 다시 측정했다. 모델/service 평균은 각각
+49.06/67.74ms, 50.01/68.75ms, 49.54/68.34ms였다. 약 1ms 안팎의 변동보다 작은
+차이로 100cm가 반드시 더 빠르다고 단정하지 않는다. 세 후보의 AP는 아직 미측정이다.
+
+기본 50cm는 추가 fresh process에서 CUDA allocator를 GPU 총 메모리의 42.5%로
+제한했다. 48GB 카드에서 약 20.4GiB 예산으로, 일반 24GB 카드의 85% 예산을 흉내 낸
+검사이지 실제 다른 카드 실측이 아니다. 300장과 32회 계측을 OOM 없이 통과했고,
+모델/service/p95는 49.16/68.34/69.71ms였다. cold warmup peak 18,756MiB,
+steady allocated 1,022MiB였다. 큰 예산 실행에서 관측한 33~36GiB cuDNN 탐색 peak를
+기본 추론에 반드시 필요한 메모리라고 해석하지 않는다. 실제 대회 24GB 카드·ROS/full-stack
+gate는 별도로 남긴다. `benchmark_base5_grid_depth.py`의 새 `--memory-fraction`은
+이 검사만 제어하며 기본값 0.85는 유지한다. 세 짧은 train 실행을 모두 종료한 뒤
+해당 CLI를 추가했으며 모델·학습 경로는 바꾸지 않았다.
+
+새 환경의 pooling 검사는 CPU 9개 중 6개 통과·CUDA 전용 3개 정상 skip, CUDA 9개 모두
+통과했다. 입력/정답 축/image-domain 회귀 30개와 격자 계약 3개도 통과했다. 새 높이 감사·
+파일 복구·access-only 경로/인증 redaction CPU 검사 9개를 별도로 통과했다.
+
+기본 설정의 두 실제 train 장면·4클래스로 AMP 2 iteration → atomic epoch 저장 →
+의도적 중단 → epoch 경계 resume → 누적 4 iteration을 통과했다. optimizer·scheduler·
+scaler·주 프로세스 RNG를 복원하고 partial 파일 없음과 유한 가중치를 확인했다.
+정확한 mid-epoch worker/prefetch replay 보장은 아니다. 최종 smoke checkpoint는
+498,641,221 bytes이며 SHA256은
+`cc150a22861a1603abe2fe6aedd22f73552750eb4cb7f22fc0ff091b8b440973`이다.
+원본은 `/workspace/base5_depth_qualification_55272391_261011/smoke/training/epoch_2.pth`에
+보존했다. 745장 전체 FP32 validation은 62.67초였고 1,702 GT와 출력/metric 유한성을
+검사했다. smoke 모델의 AP를 학습 완료 성능으로 제시하지 않는다.
+
+새 main prepare-only 폴더는
+`/workspace/base5_training_sunny13_512_b4_e24_55272391_261011`이다. 계약 SHA256은
+`ebb21d252f6f8d9e987210684f0a26f4623a4983ed2783a2f23797eb1cd86a94`다.
+512×1056 / 7.5·30cm / depth 50cm / 24 epoch / batch 4 / workers 4 / LR 1e-4 /
+warmup 500 updates / cosine / 매 epoch val·full checkpoint / 최근 3개 보존을 준비했다.
+본학습 실행은 하지 않았다. 순수 train 약 4.04시간 + 매 epoch val 약 0.42시간이며,
+초기화·저장·장기 변동까지 포함한 운영 예산은 **약 4.6~5.2시간**이다. 단기 측정 외삽이지
+24 epoch 완료 실측이 아니다. 이전 호스트 수치를 새 호스트 실측으로 재사용하지 않는다.
+
+최종 main 계약의 실행 소스 985개를 로컬 내용 SHA256과 대조해 모두 일치함을 확인했다.
+`fresh_start.json`, `last_checkpoint`, main checkpoint가 없는 prepare-only 상태를 확인했다.
+
+새 호스트의 full checkpoint 외부 백업도 access-only 메모리 인증으로 **180초만** 확인했다.
+읽기 전용 preflight는 통과했지만 기한 안에 백업·SHA256 재읽기·marker 완료 증거가 나오지
+않아 전송 자식에 SIGTERM을 보냈다. `backup_failed`, returncode −15이며 `errors: []`는
+전송 성공이 아니라 종료 시점에 완료 status가 없었다는 뜻이다. checkpoint 원본은
+보존했고 장시간 반복 전송이나 원격 renewable 인증 저장은 하지 않았다. 정확한 업로드/
+재읽기 병목은 미확정이며 외부 백업 gate는 미완료다. 성공한 백업 또는 사용자가 명시적으로
+선택한 대체 보존 조건과 본학습 승인을 확인한 뒤 시작한다.
+종료 후 로컬의 읽기 전용 metadata 목록 검사에서는 위 checkpoint hash 폴더가 빈 목록을
+반환했다. 완료된 payload가 확인되지 않았으므로 이번 timeout을 SHA 재읽기만의 병목으로
+확정하지 않는다. 최종 GPU는 0%·1MiB였고 학습/추론/rclone 자식과 자동 watcher가 없음을
+확인했다. 인스턴스 Stop/destroy는 수행하지 않았다.
+근거 경로는 로컬 `artifacts/evaluation/bevfusion/base5_vast_depth_z_261011/`이며,
+높이 감사의 최신 결과는 `vertical_caps_depth_final_v2/`다.

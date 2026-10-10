@@ -106,8 +106,8 @@ def poll(a):
     expiry = datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=fresh['expires_in'])
     payload = dict(access_token=fresh['access_token'],client_id=c['client_id'],expiry=expiry.isoformat(),
         work_dir=a.work_dir,destination=a.destination,root_folder_id=a.root_folder_id,timeout=a.timeout,watch=a.watch,
-        rclone_binary='/tmp/ajou_rclone_probe_tool/rclone-v1.75.2-linux-amd64/rclone',
-        backup_script='/root/AjouNice2026/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py')
+        rclone_binary=a.rclone_binary,
+        backup_script=a.backup_script)
     a.log.parent.mkdir(parents=True,exist_ok=True)
     child = subprocess.Popen(['ssh','-p',str(a.port),'-o','BatchMode=yes','-o','ConnectTimeout=10',
         a.host,'python -c '+shlex.quote(REMOTE)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
@@ -130,6 +130,10 @@ def main():
     p.add_argument('--rclone-remote', default='ajou_drive_private')
     p.add_argument('--timeout', type=int, default=1200)
     p.add_argument('--log', type=Path, required=True)
+    p.add_argument('--rclone-binary', default='/tmp/ajou_rclone_probe_tool/rclone-v1.75.2-linux-amd64/rclone',
+                   help='Absolute rclone path on the remote instance')
+    p.add_argument('--backup-script', default='/root/AjouNice2026/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py',
+                   help='Absolute backup script path on the remote instance; override after migration')
     p.add_argument('--watch', action='store_true', help='Keep a local watcher alive; refresh access per poll')
     p.add_argument('--interval-sec', type=int, default=120)
     p.add_argument('--max-polls', type=int, default=0, help='0 is continuous; positive values bound watcher qualification')
@@ -138,6 +142,8 @@ def main():
         p.error('Require scoped backup remote and a bounded deadline')
     if a.interval_sec < 60 or a.max_polls < 0:
         p.error('Require at least 60 seconds between polls and nonnegative budget')
+    if not all(Path(path).is_absolute() for path in (a.rclone_binary, a.backup_script)):
+        p.error('Remote executable paths must be absolute')
     import time
     count=0
     while True:

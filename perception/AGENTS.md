@@ -9,8 +9,18 @@
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`와
 `../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`의
-2026-10-11 EVIDENCE 18절의 최신 원격 격자 검증 결과다. Sunny13 5K 완료,
+2026-10-11 EVIDENCE 19절의 새 4090 이전·depth·Z 검증 기록이 18절의 기존 원격 경로보다
+우선한다. 새 인스턴스는 55272391이며 실행 입력은
+`/workspace/base5_sunny13_jpeg90_verified_v2_261011`이다. 원본을 보존하고 전체 payload
+SHA256을 검증했다. 기존 인스턴스 Stop 후 GPU 재할당이 발생했으므로 새 인스턴스를
+자동 중단하지 않는다. 본학습은 시작하지 않았다. Sunny13 5K 완료,
 다른 5환경 실제 25K/본학습은 아직이다.
+19절에서 실제 depth 25/50/100cm 추론·batch 4 비용·Z 지원점과 Camera depth 상한을
+검사했고 기본 depth 50cm·Z voxel 20cm·필터 −3~2m·내부 grid −5~3m를 유지한다.
+새 환경 저장/재개·745장 val과 985개 소스 SHA256 대조를 통과했다. 새 main 준비 폴더는
+`/workspace/base5_training_sunny13_512_b4_e24_55272391_261011`이며 24 epoch 예산은
+약 4.6~5.2시간이다. 외부 백업은 새 호스트에서도 180초 안에 완료되지 않아 미완료다.
+백업 성공 또는 사용자가 선택한 대체 보존 조건과 본학습 승인이 필요하다.
 2026-10-11 최신 파생 GT는 EVIDENCE 16절의 `native_rpy_fixed_yaw_enclosure_v1`이다.
 현재 입력은 `../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
 raw·센서·클래스·GT 수·split은 유지하고 파생 infos 크기만 native 8모서리 enclosure로 보완했다.
@@ -21,7 +31,7 @@ depth 50cm는 유지하고 5/20cm는 아래 18절에서 원격 비용까지 확�
 공통 padding X±100.8/Y±33.6은 semantic ROI 확대나 기본 config 승격이 아니다.
 Base5 pooling 정수 격자 반올림과 fresh training의 config-owned nx 복원을 보완했다.
 25cm depth의 cache 예산 초과 비용은 실제 depth 연산 비용과 분리한다.
-2026-10-11 사용자 재개 후 최신 원격 상태는 EVIDENCE 18절을 따른다. `271a2a6c` 실행
+2026-10-11 이전 인스턴스 재개 당시의 원격 상태는 EVIDENCE 18절을 따른다. `271a2a6c` 실행
 소스·기존 JPEG에서 재변환한 upright infos를 반영했고 로컬 train/val infos SHA256과 같다.
 실제 4090 300장 반복·batch 4 비용·저장/재개·전체 val 로더와 새 prepare-only 계약을 검증했다.
 원격 입력은 `/root/base5_sunny13_jpeg90_upright_v1_261011`, main 폴더는
@@ -43,8 +53,9 @@ PNG는 로컬 원본·변환용으로 보존하며 mask/depth/native GT 등 무�
 2026-10-11 추가 최신 학습 정합은 EVIDENCE 15절이다. Base5-only rectangular head의
 학습 heatmap X/Y 교환을 수정했고 고유 11,052 GT·증강 포함 29,714회 peak 검사와 실제
 전체 모델 4-iteration 역전파·저장·재개를 로컬에서 통과했다. 원본 GT·E25는 바꾸지 않는다.
-이전 feature 축/유한 loss 검사가 target 생성까지 보장한 것은 아니다. Vast 반영은 아직이며
-당시 다음 작업이었던 공간 격자 5/20·7.5/30·10/40cm와 depth 비교는 최신 17절을 따른다.
+이전 feature 축/유한 loss 검사가 target 생성까지 보장한 것은 아니다. 당시에는 Vast 반영
+전이었으며 지금은 19절의 새 원격에도 반영했다. 당시 다음 작업이었던 공간 격자
+5/20·7.5/30·10/40cm와 depth 비교의 로컬 결과는 17절을 따른다.
 속도만으로 AP 우위를 확정하지 않으며 원격 재개 때 최신 소스와 새 준비 계약을 사용한다.
 Base5-only single-frame·4-class·7D이며 temporal/OD velocity는 OFF다.
 과거 Base3/Base4 config나 HEAD 브랜치를 자동으로 현재 기본값으로 승격하지 않는다.

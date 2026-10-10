@@ -10,7 +10,38 @@
 이 agent는 임대·결제·이미지 게시를 수행하지 않았다. 이후 전송·설치·검증 상태는 아래 원격 진행 기록을 따른다.
 기존 수집 데이터, production E25 모델, tracker는 변경하지 않는다.
 
-**최신 원격 검증 — 2026-10-11 KST:** 사용자 재개 후 `271a2a6c` 실행 소스와 기존
+**최신 인스턴스 이전 — 2026-10-11 KST:** 기존 55165763은 Stop 뒤 GPU가 재할당되어
+재개하지 못했고, 사용자가 새 55272391을 임대했다. 최신 경로·depth/Z 후속 검증은
+[19절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011)을
+우선한다. 아래 18절의 `/root` 명령은 이전 인스턴스의 이력이다. 새 소스 root는
+`/workspace/AjouNice2026`, 전수 검증 입력은 `/workspace/base5_sunny13_jpeg90_verified_v2_261011`,
+초기화는 `/workspace/base5_nuscenes_camera_only_261010.pth`다. Copy 원본의 stale handle은
+별도 검증본으로 우회했고 센서·GT·split은 유지했다. 새 인스턴스를 자동 Stop하지 않는다.
+Stop은 저장 데이터 유지와 GPU 자리 유지가 같은 뜻이 아니므로 재개 가능성을 보장하지 않는다.
+본학습은 미시작이며 비용·저장/재개·백업 검증 종료 결과를 확인한 뒤 승인받아 진행한다.
+
+새 경로의 본학습 **준비만** 하는 형태는 다음과 같다. `--run`은 아직 추가하지 않는다.
+
+```bash
+cd /workspace/AjouNice2026
+export PYTHONPATH="$PWD:$PWD/third_party/mmdetection3d:$PWD/docker/bevfusion:$PYTHONPATH"
+python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
+  --data /workspace/base5_sunny13_jpeg90_verified_v2_261011 \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_dense_512_native_jpeg90.py \
+  --profile 512x1056 --epochs 24 --batch 4 --workers 4 \
+  --lr 1e-4 --warmup-updates 500 \
+  --init-checkpoint /workspace/base5_nuscenes_camera_only_261010.pth \
+  --work-dir /workspace/base5_training_sunny13_512_b4_e24_55272391_261011
+```
+
+로컬 access-only 백업 실행기는 `--rclone-binary`와 `--backup-script`로 원격 절대경로를
+명시할 수 있게 했다. 새 인스턴스에서는 각각 `/usr/bin/rclone`,
+`/workspace/AjouNice2026/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py`를
+지정한다. 기존 기본 경로는 이전 인스턴스 호환용으로 남겼다. 갱신 토큰과 client secret은
+원격에 복사하지 않으며 로컬 watcher가 살아 있어야 한다. 구현 완료를 실제 full checkpoint
+외부 백업 성공으로 해석하지 않는다.
+
+**이전 인스턴스의 원격 검증 — 2026-10-11 KST:** 사용자 재개 후 `271a2a6c` 실행 소스와 기존
 JPEG/raw에서 만든 upright infos를 반영했다. 센서 재전송 없이 로컬과 같은 train/val infos
 SHA256을 확인했다. [최신 실제 4090 비용·재개·백업 상태](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011)가
 아래 ‘원격 미반영/재개 시 수행’ 기록보다 우선한다. 기본 512×1056·7.5/30cm·depth 50cm·
