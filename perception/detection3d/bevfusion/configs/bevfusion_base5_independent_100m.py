@@ -20,7 +20,7 @@ grid=[2000,640,41] # 600 is not divisible by the SECOND/FPN total XY stride 16.
 load_from=None
 model=dict(
     data_preprocessor=dict(voxelize_cfg=dict(voxel_size=voxel_size,point_cloud_range=voxelization_range)),
-    pts_middle_encoder=dict(sparse_shape=[640,2000,41]),
+    pts_middle_encoder=dict(type='MoraiRectangularSparseEncoder',sparse_shape=[640,2000,41]),
     view_transform=dict(type='MoraiRectangularDepthLSSTransform',image_size=[320,896],feature_size=[40,112],
         xbound=[-100.,100.,.4],ybound=[-32.,32.,.4],dbound=[1.,100.,1.]),
     bbox_head=dict(type='MoraiRectangularTransFusionHead',num_classes=4,

@@ -1,5 +1,15 @@
 # Base5 독립 5K — CURRENT
 
+## 2026-10-10 최신 — 완료5K 입력/격자/연산 검증
+
+[실제5K 전수crop·derived infos·로컬CUDA A/B](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)를우선한다.
+Sunny135000/0·ledgerSHA/raw/native3D박스/수집기계약은불변이다.
+448/512별새infos의GT는11012/11052, split4255/745다. crop확정전320임시본과구분한다.
+실제loader-online픽셀/투영정합·새직사각형sparse축수정·opt-incache/분리pooling·14장동등성/짧은역전파PASS다.
+5060Ti448모델162.67→74.91ms,512216.75→93.52ms지만4090/ROS실측및학습정확도는아니다.
+다음4090재측정/최종입력/초기화감사/본학습이다. 새25K준비는수집기런북그대로이며실제수집미시작이다.
+아래GPU/crop미시작은당시이력이다. productionE25/tracker/planning/localization은변경하지않았다.
+
 ## 2026-10-10 최신 — 종료 후 수집기·새 환경 준비 완료
 
 [구현·실측·실제검증](261010_base5_postcollection_collector_work.md),

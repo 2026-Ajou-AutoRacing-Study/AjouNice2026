@@ -1,5 +1,11 @@
 # MORAI perception dataset agent context
 
+2026-10-10 최신 입력/GPU 후속은 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`다.
+사용자가MR/master종료후로컬실험을승인했다. 완료5K전수crop·448/512derivedinfos/실제loader-online정합,
+확대sparse축수정·cache/분리pooling·14장fullmodel동등성·3step역전파를검증했다.
+아래GPU/crop미시작은과거이력이다. Sunny13/raw/ledger/수집기releasehash/E25는불변이다.
+4090재측정/최종입력/pretrainedadapter/resume백업/본학습/새shapeROS후처리는아직이다.
+
 2026-10-10 현재 작업은 `docs/261010_base5_postcollection_collector_work.md`부터 복구한다.
 사용자가 종료 후 수집기 쪽 작업을 승인했고 완료했다. Sunny13 v140/5000/0은 보존한다.
 전수분포/시간 집계·연속Ego 5환경25K새geometry·별도guard AST adapter/시간 A/B 완료다.

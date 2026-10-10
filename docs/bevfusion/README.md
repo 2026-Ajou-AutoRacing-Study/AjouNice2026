@@ -4,10 +4,17 @@
 
 ## CURRENT
 
+[2026-10-10 실제5K 입력·격자·pooling 검증 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)가
+아래10-09 미구현/미측정 계획보다 우선한다. 전수crop/derived448·512 infos/실제loader-online 정합,
+직사각형 sparse coordinate 축 수정, opt-in cache A/분리 B, 실제14장 full-model 동등성 및
+짧은역전파를 검증했다. 5060Ti448 모델162.67→74.91ms/512216.75→93.52ms다.
+4090·ROS/full-stack·최종해상도/pretrained 본학습은 아직이며 production E25/수집원본은 불변이다.
+구4090 확대 비용은 sparse 축 수정 전 이력이므로 새번들로 다시 측정해야 한다.
+
 [2026-10-10 수집기 후속작업 완료](../../dataset/morai_od/docs/261010_base5_postcollection_collector_work.md):
 Sunny13 최종5K 보존·다른5환경새geometry생성/수집기비용·실제정적/이동보충·resume검증은끝났다.
 [새수집런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md)은준비됐지만
-실제나머지25K와GPU/crop/BEVPool/cache/본학습은미시작이다. 아래모델입력·최적화계획이그다음이다.
+실제나머지25K와본학습은미시작이다. GPU/crop/cache/분리pooling은위10-10근거를따른다.
 수집기22.55%단축은BEVFusion inference latency 개선이나모델성능개선이아니다.
 
 [2026-10-09 수집 종료 후 해상도 선택](261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md#수집-종료-후-해상도-선택-기준):

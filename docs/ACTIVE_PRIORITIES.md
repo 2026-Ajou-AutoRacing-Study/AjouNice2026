@@ -49,10 +49,17 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-10 로컬 입력/최적화 검증 완료:** [최신 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md).
+  전수5K crop/448·512 derived infos/실제loader-online 정합, 확대 sparse coordinate 축 수정,
+  cache A/분리 B의 full-model 동등성 및3-step 역전파를 검증했다. 아래10-09미구현표기는과거다.
+  다음은 임대한4090에서 새번들 비용/VRAM→최종입력→초기화/resume/백업→본학습이다.
+  과거4090 확대 비용은 축 수정 전이므로 재측정한다. E25/수집원본/다른5환경수집기는불변이다.
+  확대shape ROS prepared 경로와4-class 후처리·mission bag 승격은 아직이다.
+
 - **2026-10-10 다음 실행:** Sunny13 최종 선택은보존하고, 준비된다른5환경의새geometry를
   UI환경확인후수집한다. [새단일수집/보충/대시보드런북](../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md),
   [현재수집기근거](../dataset/morai_od/docs/261010_base5_postcollection_collector_work.md)를우선한다.
-  수집기 qualification은완료됐지만실제다른25K/GPU/crop/본학습은미시작이다.
+  수집기 qualification은완료됐지만실제다른25K/본학습은미시작이다. GPU/crop은위최신근거를따른다.
   GPU 작업은MR 종료후입력/crop·투영→cache/분리pooling→동일조건비용→초기화/학습으로이어간다.
   아래2026-10-09계획의'수집중/미구현'표기를현재상태로재사용하지않는다.
 

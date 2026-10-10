@@ -2,7 +2,21 @@
 import torch
 from mmdet3d.registry import MODELS
 from projects.BEVFusion.bevfusion.depth_lss import DepthLSSTransform
+from projects.BEVFusion.bevfusion.sparse_encoder import BEVFusionSparseEncoder
 from .morai_transfusion_head import MoraiTransFusionHead
+
+
+@MODELS.register_module()
+class MoraiRectangularSparseEncoder(BEVFusionSparseEncoder):
+    """Custom BEVFusion voxelizer emits b,x,y,z; this encoder emits B,C,Y,X.
+
+    Do not apply this to the legacy square E25 model: even there, swapping axes
+    changes its learned orientation. New rectangular models use it explicitly.
+    """
+    def forward(self, voxel_features, coors, batch_size):
+        # sparse_shape is [Y,X,Z]. Preserve voxel features and all valid points.
+        coors = coors[:, [0, 2, 1, 3]].contiguous()
+        return super().forward(voxel_features, coors, batch_size)
 
 
 @MODELS.register_module()
