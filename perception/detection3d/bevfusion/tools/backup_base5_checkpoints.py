@@ -16,6 +16,58 @@ import time
 import torch
 
 from prepare_base5_portable_dataset import sha256
+from base5_checkpoint_parts import split_checkpoint, verify_parts
+
+
+def emit(event, **fields):
+    print(json.dumps(dict(event=event, **fields)), flush=True)
+
+
+def remote_copy(source, destination, options, directory=False, phase='upload', transfers=16,
+                expected_bytes=None):
+    """Drain rclone logs live; expose counters and classified errors, never URLs."""
+    command = ['rclone', 'copy' if directory else 'copyto', str(source), str(destination), *options,
+               '--tpslimit', '2', '--tpslimit-burst', '1', '--drive-chunk-size', '8M',
+               '--contimeout', '10s', '--timeout', '120s', '--retries', '2',
+               '--low-level-retries', '2', '--use-json-log', '--stats', '5s',
+               '--stats-log-level', 'NOTICE']
+    reasons = set()
+    if directory: command += ['--transfers', str(transfers), '--checkers', '2']
+    label = Path(str(source)).name
+    if expected_bytes is None and Path(str(source)).exists():
+        path = Path(str(source))
+        expected_bytes = sum(p.stat().st_size for p in path.rglob('*') if p.is_file()) if directory else path.stat().st_size
+    emit(phase+'_started', file=label, totalBytes=expected_bytes)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True)
+    for line in process.stdout:
+        for reason in ('rateLimitExceeded', 'userRateLimitExceeded',
+                       'insufficientPermissions', 'storageQuotaExceeded', 'invalid_grant',
+                       'directory not found', 'permission denied', 'Illegal seek',
+                       'operation not permitted'):
+            if reason.lower() in line.lower(): reasons.add(reason)
+        if 'lookup' in line and 'timeout' in line: reasons.add('DNS_lookup_timeout')
+        try:
+            entry = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(entry.get('stats'), dict):
+            stats = entry['stats']
+            fields = {key: stats[key] for key in ('bytes', 'totalBytes', 'speed', 'elapsedTime',
+                                                  'errors', 'transfers', 'eta') if key in stats}
+            if expected_bytes is not None:
+                fields['totalBytes'] = expected_bytes
+                if stats.get('speed', 0) > 0:
+                    fields['eta'] = max(0, expected_bytes-stats.get('bytes', 0))/stats['speed']
+            emit(phase+'_progress', file=label, **fields)
+        if entry.get('level') == 'error':
+            emit(phase+'_error', file=label,
+                 reasons=sorted(reasons) or ['unclassified_copy_failure'])
+    if process.wait():
+        error = RuntimeError('Remote copy failed')
+        error.safe_reasons = sorted(reasons) or ['unclassified_copy_failure']
+        raise error
+    emit(phase+'_finished', file=label)
 
 
 def checkpoint_complete(path, contract):
@@ -32,31 +84,28 @@ def checkpoint_complete(path, contract):
 
 def copy_verified(source, destination, rclone_options=()):
     if ':' in destination:
-        command=['rclone', 'copyto', str(source), destination, *rclone_options,
-                 '--tpslimit','1','--tpslimit-burst','1','--drive-chunk-size','64M',
-                 '--contimeout','10s','--timeout','60s','--retries','2','--low-level-retries','2']
-        result=subprocess.run(command, capture_output=True, text=True)
-        if result.returncode:
-            # Surface known API reasons, not raw stderr/URLs/credentials.
-            reasons=[reason for reason in ('rateLimitExceeded','userRateLimitExceeded',
-                'insufficientPermissions','storageQuotaExceeded','invalid_grant',
-                'directory not found','permission denied','Illegal seek','operation not permitted')
-                if reason.lower() in result.stderr.lower()]
-            if 'lookup' in result.stderr and 'timeout' in result.stderr:
-                reasons.append('DNS_lookup_timeout')
-            error=RuntimeError('Remote copy failed')
-            error.safe_reasons=reasons or ['unclassified_copy_failure']
-            raise error
+        remote_copy(source, destination, rclone_options)
         # Read back remote bytes and SHA256; uploading a marker alone would
         # not prove the remote payload survived unchanged.
-        process = subprocess.Popen(['rclone', 'cat', destination, *rclone_options], stdout=subprocess.PIPE,
+        emit('readback_started', file=source.name, bytes=source.stat().st_size)
+        process = subprocess.Popen(['rclone', 'cat', destination, *rclone_options,
+                                   '--contimeout', '10s', '--timeout', '60s',
+                                   '--retries', '1', '--low-level-retries', '1'], stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL)
         import hashlib
         h = hashlib.sha256()
+        count = 0; started = last = time.monotonic()
         for block in iter(lambda: process.stdout.read(4 * 1024 * 1024), b''):
             h.update(block)
+            count += len(block)
+            now = time.monotonic()
+            if now-last >= 5:
+                emit('readback_progress', file=source.name, bytes=count,
+                     speed=count/max(now-started, 0.001))
+                last = now
         if process.wait() != 0 or h.hexdigest() != sha256(source):
             raise ValueError('Remote read-back checksum failed')
+        emit('readback_verified', file=source.name, bytes=count, sha256=h.hexdigest())
     else:
         target = Path(destination)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -67,7 +116,7 @@ def copy_verified(source, destination, rclone_options=()):
         pending.replace(target)
 
 
-def backup_once(work_dir, destination, state, rclone_options=()):
+def backup_once(work_dir, destination, state, rclone_options=(), part_bytes=0, transfers=16):
     work_dir = Path(work_dir).resolve(strict=True)
     manifest = json.loads((work_dir/'run_manifest.json').read_text())
     contract = manifest['contract_sha256']
@@ -91,14 +140,38 @@ def backup_once(work_dir, destination, state, rclone_options=()):
                 # Content-addressed paths avoid overwriting any previous good
                 # checkpoint before validation of a newly written best file.
                 prefix = destination.rstrip('/') + '/' + work_dir.name + '/' + checksum
-                copy_verified(snapshot, prefix + '/' + checkpoint.name, rclone_options)
                 record = dict(name=checkpoint.name, sha256=checksum, bytes=snapshot.stat().st_size,
                               contract_sha256=contract, **progress)
-                marker = folder/'COMPLETE.json'; marker.write_text(json.dumps(record, indent=2)+'\n')
-                copy_verified(marker, prefix + '/COMPLETE.json', rclone_options)
+                if ':' in destination and part_bytes and snapshot.stat().st_size > part_bytes:
+                    # Different layouts must not overwrite an earlier complete
+                    # backup while a replacement layout is still uploading.
+                    directory = f'parts_{part_bytes}'
+                    parts = split_checkpoint(snapshot, folder/directory, part_bytes)
+                    remote_copy(folder/directory, prefix+'/'+directory, rclone_options,
+                                directory=True, transfers=transfers)
+                    readback = folder/'readback'; readback.mkdir()
+                    remote_copy(prefix+'/'+directory, readback, rclone_options,
+                                directory=True, phase='readback', transfers=transfers,
+                                expected_bytes=parts['bytes'])
+                    restored = folder/'restored.pth'
+                    if verify_parts(readback, parts, restored) != checksum:
+                        raise ValueError('Multipart checkpoint differs from snapshot')
+                    if checkpoint_complete(restored, contract) != progress:
+                        raise ValueError('Restored checkpoint metadata differs from snapshot')
+                    emit('readback_verified', file=checkpoint.name, bytes=parts['bytes'], sha256=checksum)
+                    copy_verified(folder/'PARTS.json', prefix+'/PARTS.json', rclone_options)
+                    copy_verified(Path(__file__).with_name('base5_checkpoint_parts.py'),
+                                  prefix+'/RESTORE.py', rclone_options)
+                    record['storage'] = 'base5_checkpoint_parts_v1'
+                    record['parts'] = len(parts['parts'])
+                else:
+                    copy_verified(snapshot, prefix + '/' + checkpoint.name, rclone_options)
+                    record['storage'] = 'single_file'
                 for name in ('run_manifest.json', 'resolved_train.py', 'resolved_resume.py'):
                     source = work_dir/name
                     if source.is_file(): copy_verified(source, prefix + '/' + name, rclone_options)
+                marker = folder/'COMPLETE.json'; marker.write_text(json.dumps(record, indent=2)+'\n')
+                copy_verified(marker, prefix + '/COMPLETE.json', rclone_options)
                 # Commit the latest pointer ONLY after checkpoint, marker and
                 # resume metadata are all confirmed at the destination.
                 latest = folder/'LATEST.json'
@@ -122,9 +195,13 @@ def main():
     p.add_argument('--destination', required=True, help='Local path or existing rclone remote:path')
     p.add_argument('--interval-sec', type=float, default=120)
     p.add_argument('--once', action='store_true')
+    p.add_argument('--part-mib', type=int, default=0, help='0: original single-file backup; positive: lossless parallel parts')
+    p.add_argument('--transfers', type=int, default=16)
     p.add_argument('--drive-root-folder-id', help='Optional shared Drive root, never an account credential')
     a = p.parse_args()
     if a.interval_sec < 10: p.error('Polling interval must be at least ten seconds')
+    if a.part_mib < 0 or not 1 <= a.transfers <= 16:
+        p.error('Require nonnegative part size and 1..16 transfers')
     status = a.work_dir/'backup_status.json'
     state = json.loads(status.read_text()) if status.exists() else {}
     # A status for one destination must not skip uploads to a different one.
@@ -132,7 +209,7 @@ def main():
     if state.get('destination') != a.destination or state.get('rclone_options') != options:
         state = dict(destination=a.destination, rclone_options=options)
     while True:
-        state = backup_once(a.work_dir, a.destination, state, options)
+        state = backup_once(a.work_dir, a.destination, state, options, a.part_mib*1024**2, a.transfers)
         print(json.dumps(dict(uploaded=len(state['uploaded']), errors=state['errors'])), flush=True)
         if a.once:
             raise SystemExit(1 if state['errors'] else 0)

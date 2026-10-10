@@ -18,11 +18,11 @@ import urllib.request
 
 
 REMOTE = r'''
-import ctypes,json,os,signal,subprocess,sys,time
+import ctypes,json,os,signal,subprocess,sys,time,selectors
 from pathlib import Path
 p=json.load(sys.stdin)
 work=Path(p['work_dir']).resolve(strict=True)
-stage=work if p['watch'] else work.parent/'external_backup_probe'
+stage=work if p['watch'] else Path(p['probe_stage']) if p.get('probe_stage') else work.parent/'external_backup_probe'
 if not p['watch']:
     if stage.exists(): raise FileExistsError('Use a fresh qualification stage')
     stage.mkdir()
@@ -56,19 +56,29 @@ if preflight.returncode:
     print(json.dumps(dict(event='connectivity_failed',reason=reason)),flush=True)
     sys.exit(1)
 command=['python',p['backup_script'],'--work-dir',str(stage),'--destination',p['destination'],'--once']
+command += ['--part-mib',str(p.get('part_mib',0)),'--transfers',str(p.get('transfers',16))]
 print(json.dumps(dict(event='backup_started',checkpoint=latest.name,bytes=latest.stat().st_size,
     destination=p['destination'],timeout_seconds=p['timeout'])),flush=True)
 started=time.monotonic()
 process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
     env=env,start_new_session=True)
-while process.poll() is None and time.monotonic()-started<p['timeout']:
-    time.sleep(15)
-    print(json.dumps(dict(event='backup_progress',elapsed_seconds=round(time.monotonic()-started,1))),flush=True)
+# Consume output while the child runs: a full PIPE must never block upload.
+selector=selectors.DefaultSelector()
+selector.register(process.stdout,selectors.EVENT_READ)
+while selector.get_map() and time.monotonic()-started<p['timeout']:
+    for key,_ in selector.select(timeout=5):
+        line=key.fileobj.readline()
+        if not line:
+            selector.unregister(key.fileobj);continue
+        try: entry=json.loads(line)
+        except ValueError: continue
+        if isinstance(entry,dict): print(json.dumps(entry),flush=True)
+selector.close()
 if process.poll() is None:
     os.killpg(process.pid,signal.SIGTERM)
     try: process.wait(timeout=10)
     except subprocess.TimeoutExpired: os.killpg(process.pid,signal.SIGKILL);process.wait()
-stdout=process.stdout.read()
+process.wait()
 if process.returncode!=0:
     failed_status=json.loads((stage/'backup_status.json').read_text()) if (stage/'backup_status.json').exists() else {}
     print(json.dumps(dict(event='backup_failed',returncode=process.returncode,
@@ -108,6 +118,9 @@ def poll(a):
         work_dir=a.work_dir,destination=a.destination,root_folder_id=a.root_folder_id,timeout=a.timeout,watch=a.watch,
         rclone_binary=a.rclone_binary,
         backup_script=a.backup_script)
+    payload['probe_stage'] = getattr(a, 'probe_stage', None)
+    payload['part_mib'] = getattr(a, 'part_mib', 0)
+    payload['transfers'] = getattr(a, 'transfers', 16)
     a.log.parent.mkdir(parents=True,exist_ok=True)
     child = subprocess.Popen(['ssh','-p',str(a.port),'-o','BatchMode=yes','-o','ConnectTimeout=10',
         a.host,'python -c '+shlex.quote(REMOTE)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
@@ -135,6 +148,9 @@ def main():
     p.add_argument('--backup-script', default='/root/AjouNice2026/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py',
                    help='Absolute backup script path on the remote instance; override after migration')
     p.add_argument('--watch', action='store_true', help='Keep a local watcher alive; refresh access per poll')
+    p.add_argument('--probe-stage', help='Fresh absolute qualification path; preserves previous failed stages')
+    p.add_argument('--part-mib', type=int, default=0, help='Enable lossless parallel checkpoint parts, e.g. 32 MiB')
+    p.add_argument('--transfers', type=int, default=16)
     p.add_argument('--interval-sec', type=int, default=120)
     p.add_argument('--max-polls', type=int, default=0, help='0 is continuous; positive values bound watcher qualification')
     a = p.parse_args()
@@ -144,6 +160,10 @@ def main():
         p.error('Require at least 60 seconds between polls and nonnegative budget')
     if not all(Path(path).is_absolute() for path in (a.rclone_binary, a.backup_script)):
         p.error('Remote executable paths must be absolute')
+    if a.probe_stage and not Path(a.probe_stage).is_absolute():
+        p.error('Probe stage must be an absolute remote path')
+    if a.part_mib < 0 or not 1 <= a.transfers <= 16:
+        p.error('Require nonnegative part size and 1..16 transfers')
     import time
     count=0
     while True:

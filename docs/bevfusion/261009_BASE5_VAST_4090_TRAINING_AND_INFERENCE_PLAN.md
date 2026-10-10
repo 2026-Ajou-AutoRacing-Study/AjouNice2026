@@ -1,6 +1,6 @@
 # Base5 Vast.ai 4090 학습과 추론 시험 계획
 
-2026-10-09에 작성하고 2026-10-11에 최신 소스·라벨의 원격 격자 검증까지 갱신했다. Sunny13 독립 5K를 먼저
+2026-10-09에 작성하고 2026-10-11에 원격 격자·높이와 실제 외부 백업 검증까지 갱신했다. Sunny13 독립 5K를 먼저
 학습하고, 이후 나머지 5개 환경에서 새로 배치한 25K를 더해 6개 환경의 30K로 확장한다.
 [환경별 새 공간 배치 합의](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md)가
 과거의 동일 배치 반복 계획보다 우선한다. 첫 임대는 단일 RTX 4090의 On-demand 방식을 권장한다.
@@ -20,6 +20,11 @@
 Stop은 저장 데이터 유지와 GPU 자리 유지가 같은 뜻이 아니므로 재개 가능성을 보장하지 않는다.
 본학습은 미시작이며 비용·저장/재개·백업 검증 종료 결과를 확인한 뒤 승인받아 진행한다.
 
+**2026-10-11 백업 후속 구현:** 실제 전송량을 관측하고 checkpoint를 무손실 조각으로
+병렬 저장하는 경로를 추가했다. [20절의 실제 백업 결과](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011)를
+19절의 빈 폴더/180초 timeout 이력보다 우선한다. 아래 새 준비 경로는 백업 도구의
+소스 hash 변경을 반영한 prepare-only이며 데이터·모델·학습 파라미터는 바꾸지 않았다.
+
 새 경로의 본학습 **준비만** 하는 형태는 다음과 같다. `--run`은 아직 추가하지 않는다.
 
 ```bash
@@ -31,7 +36,7 @@ python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
   --profile 512x1056 --epochs 24 --batch 4 --workers 4 \
   --lr 1e-4 --warmup-updates 500 \
   --init-checkpoint /workspace/base5_nuscenes_camera_only_261010.pth \
-  --work-dir /workspace/base5_training_sunny13_512_b4_e24_55272391_261011
+  --work-dir /workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011
 ```
 
 로컬 access-only 백업 실행기는 `--rclone-binary`와 `--backup-script`로 원격 절대경로를
@@ -40,6 +45,24 @@ python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
 지정한다. 기존 기본 경로는 이전 인스턴스 호환용으로 남겼다. 갱신 토큰과 client secret은
 원격에 복사하지 않으며 로컬 watcher가 살아 있어야 한다. 구현 완료를 실제 full checkpoint
 외부 백업 성공으로 해석하지 않는다.
+
+본학습 승인 후 로컬에서 실행할 병렬 자동 백업 watcher는 다음과 같다. 아직 실행 중인
+상주 watcher는 없으며, 로컬 PC·프로세스가 종료되면 이 자동 백업도 중단된다. 학습
+자체와는 별개이고 원격 full checkpoint를 삭제하지 않는다. `--timeout`은 업로드와
+전체 SHA 재읽기를 합친 poll당 상한이다. 실패 시 다음 poll에서 이미 올라간 조각을 재사용한다.
+
+```bash
+python3 -u perception/detection3d/bevfusion/tools/backup_base5_vast_access_only.py \
+  --host root@175.155.64.164 --port 19463 \
+  --work-dir /workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011 \
+  --destination backup:model/bevfusion/base5/checkpoint_backups \
+  --root-folder-id 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP \
+  --rclone-binary /usr/bin/rclone \
+  --backup-script /workspace/AjouNice2026/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py \
+  --part-mib 32 --transfers 16 --timeout 1200 \
+  --watch --interval-sec 120 \
+  --log artifacts/evaluation/bevfusion/base5_vast_depth_z_261011/training_backup.jsonl
+```
 
 **이전 인스턴스의 원격 검증 — 2026-10-11 KST:** 사용자 재개 후 `271a2a6c` 실행 소스와 기존
 JPEG/raw에서 만든 upright infos를 반영했다. 센서 재전송 없이 로컬과 같은 train/val infos

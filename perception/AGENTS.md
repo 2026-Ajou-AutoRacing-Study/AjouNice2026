@@ -19,8 +19,13 @@ SHA256을 검증했다. 기존 인스턴스 Stop 후 GPU 재할당이 발생했�
 검사했고 기본 depth 50cm·Z voxel 20cm·필터 −3~2m·내부 grid −5~3m를 유지한다.
 새 환경 저장/재개·745장 val과 985개 소스 SHA256 대조를 통과했다. 새 main 준비 폴더는
 `/workspace/base5_training_sunny13_512_b4_e24_55272391_261011`이며 24 epoch 예산은
-약 4.6~5.2시간이다. 외부 백업은 새 호스트에서도 180초 안에 완료되지 않아 미완료다.
-백업 성공 또는 사용자가 선택한 대체 보존 조건과 본학습 승인이 필요하다.
+약 4.6~5.2시간이다. 외부 백업의 최신 상태는 2026-10-11 EVIDENCE 20절이다.
+499MB full checkpoint의 병렬 업로드·전체 SHA 재읽기·실제 복원·COMPLETE/LATEST·중복
+재검사를 완료했다. 19절의 180초 미완료 이력보다 우선한다. 최신 prepare-only는
+`/workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011`, contract는
+`f968a33da5d2454afd4d8f17b875a091d7faad5b4984c583dfc39770f4d27e47`이다.
+987개 소스 hash가 일치하고 이전 identity에서 source_hashes만 바뀌었다. 본학습 승인과
+로컬 병렬 watcher 실행이 다음이며 본학습·상주 watcher는 아직 시작하지 않았다.
 2026-10-11 최신 파생 GT는 EVIDENCE 16절의 `native_rpy_fixed_yaw_enclosure_v1`이다.
 현재 입력은 `../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
 raw·센서·클래스·GT 수·split은 유지하고 파생 infos 크기만 native 8모서리 enclosure로 보완했다.

@@ -7,11 +7,12 @@
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
 로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
-외부 백업 gate 해결 → 승인 후 본학습**이다.
+외부 백업·실제 복원 검증 완료 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
+| 외부 full checkpoint 백업 완료 / 실제 복원·전체 SHA·완료 표시·중복 재검사 / 새 prepare-only | [10-11 병렬 백업 완료와 운영 경로](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
 | 새 4090 이전 / depth 25·50·100cm·높이 점검 완료 / 저장·재개·val·새 준비 완료 / 외부 백업 아직 | [10-11 새 원격 경로와 후속 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |
 | 최신 소스·upright 라벨의 실제 4090 / 300장 반복·실제 batch 4 학습·재개 / 본학습 아직·외부 백업 미완료 | [10-11 원격 비용·검증과 새 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-grid-qualification-261011) |
 | 공간 5/20·7.5/30·10/40cm / depth 25·50·100cm / 실제 5K 정보량·비용과 선택 근거 | [10-11 로컬 공간 격자·depth 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011) |
@@ -33,7 +34,8 @@
 
 현재 연구는 Base5-only·4-class·single-frame·decoded 7D이며 OD velocity/temporal OFF다.
 production은 E25·threshold 0.40/0.15/0.10이다. 새 학습은 512×1056·batch 4와 감사한
-camera-only 초기화를 추천하며, 외부 백업 복구와 승인 전에는 본학습을 시작하지 않는다.
+camera-only 초기화를 추천한다. 20절에서 실제 외부 백업·복원 검증을 완료했으며,
+사용자 승인 전에는 본학습을 시작하지 않는다. 아래 외부 백업 미완료 문구는 이전 시점 기록이다.
 2026-10-10 미션 경로 검토 후 Base5의 semantic ROI는 전후방 ±100m·좌우 ±30m로 유지한다.
 ±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
 2026-10-11 현재 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
@@ -50,12 +52,14 @@ prepare-only 계약은 유지하고 새 work-dir을 사용했다. val 픽셀 분
 변환 설정은 이력이며 현재 학습의 fallback이 아니다. CPU 로더 개선을 전체 학습 가속으로 해석하지 않는다.
 5060 Ti의 원본 PNG vs 사전 JPEG 짧은 실제 학습 비교는 약 0.47% 차이로 사실상 같았다.
 종전 약 4.8시간은 JPEG 증강 이전 실측 기반 추정이다. Vast 재개 후 새 준비 계약을
-만들었으며 외부 백업은 아직 미완료다. 새 인스턴스의 24 epoch 운영 예산은 약 4.6~5.2시간이다.
+만들었다. 19절 당시 미완료였던 외부 백업은 20절에서 완료했다.
+새 인스턴스의 24 epoch 운영 예산은 약 4.6~5.2시간이다.
 JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU만 사용했고 10-11 PNG/JPEG
 짧은 학습 비교는 로컬 GPU로 수행했다. 최신 원격 검증은 19절이며 본학습은 아직이다.
 새 인스턴스에서는 `/workspace`의 검증본·새 준비 계약을 사용한다. 기본 depth 50cm와 높이
-범위는 유지한다. 외부 full checkpoint 백업은 새 호스트에서도 180초 제한 안에 완료 검증이
-끝나지 않아 미완료이며 본학습 시작 전에 보존 조건을 확정한다.
+범위는 유지한다. 외부 full checkpoint 백업·복원 검증은 20절에서 완료했다.
+최신 준비 경로는 `/workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011`이며,
+사용자 승인 후 병렬 백업 watcher와 본학습을 시작한다.
 아래 이전 상태의 '수집 중/미구현/미측정'을 현재 실행 지시로 재사용하지 않는다.
 
 2026-10-11 추가로 Base5 `[Y,X]` feature에 맞는 학습 heatmap 정답을 수정했다. 이전 feature
@@ -65,7 +69,8 @@ JPEG 정책의 AP 향상은 미검증이다. 10-10 저장 방식 비교는 CPU�
 후속 공간 격자·depth 비교의 결과는 17절을 따른다. 비용 검사를 본학습 AP 개선으로
 해석하지 않는다. 기본 공간 7.5/30cm·depth 50cm를 유지하며, 더 정밀한 5/20cm는
 실제 4090에서 추론·짧은 학습 비용을 확인한 선택 후보로 남긴다. AP 우위는 미검증이며
-coarse 10/40cm를 단순 속도만으로 승격하지 않는다. 최신 기본 준비 계약과 외부 백업 미완료 상태는 19절을 따른다.
+coarse 10/40cm를 단순 속도만으로 승격하지 않는다. 모델 비용·높이 검증은 19절,
+최신 준비 계약과 외부 백업 완료 상태는 20절을 따른다.
 
 ## 이전 시점의 진행 기록 — 현재 실행 기준 아님
 

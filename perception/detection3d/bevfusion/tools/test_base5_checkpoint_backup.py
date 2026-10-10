@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 import io
+import shutil
 
 import torch
 
@@ -50,10 +51,12 @@ class BackupTest(unittest.TestCase):
             self.assertEqual(backup.backup_once(run,str(dest),state)['errors'], [])
 
     def test_dns_error_reason_does_not_expose_raw_stderr(self):
-        failure=SimpleNamespace(returncode=5,stderr='lookup www.googleapis.com: i/o timeout; secret-do-not-log')
-        with patch.object(backup.subprocess,'run',return_value=failure):
-            with self.assertRaises(RuntimeError) as caught:
-                backup.copy_verified(Path('/unused'),'remote:checkpoint.pth')
+        failure=SimpleNamespace(stdout=iter(['lookup www.googleapis.com: i/o timeout; secret-do-not-log']),wait=lambda:5)
+        with tempfile.TemporaryDirectory() as name:
+            source=Path(name)/'payload';source.write_bytes(b'payload')
+            with patch.object(backup.subprocess,'Popen',return_value=failure):
+                with self.assertRaises(RuntimeError) as caught:
+                    backup.copy_verified(source,'remote:checkpoint.pth')
         self.assertIn('DNS_lookup_timeout',caught.exception.safe_reasons)
         self.assertNotIn('secret-do-not-log',str(caught.exception))
 
@@ -61,10 +64,62 @@ class BackupTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             source=Path(name)/'payload';source.write_bytes(b'correct payload')
             process=SimpleNamespace(stdout=io.BytesIO(b'wrong payload'),wait=lambda:0)
-            with patch.object(backup.subprocess,'run',return_value=SimpleNamespace(returncode=0)), \
+            with patch.object(backup,'remote_copy'), \
                     patch.object(backup.subprocess,'Popen',return_value=process):
                 with self.assertRaisesRegex(ValueError,'checksum failed'):
                     backup.copy_verified(source,'remote:checkpoint.pth')
+
+
+    def test_stats_are_live_and_raw_log_is_not_exposed(self):
+        with tempfile.TemporaryDirectory() as name:
+            source=Path(name)/'payload';source.write_bytes(b'correct')
+            process=SimpleNamespace(stdout=iter([
+                json.dumps(dict(stats=dict(bytes=3,speed=10,totalBytes=7),msg='secret-url'))+'\n',
+                'secret-access-token\n']),wait=lambda:0)
+            output=io.StringIO()
+            with patch.object(backup.subprocess,'Popen',return_value=process) as popen:
+                with patch('sys.stdout',output):
+                    backup.remote_copy(source,'remote:payload',[])
+            events=[json.loads(line) for line in output.getvalue().splitlines()]
+            self.assertEqual(events[1]['bytes'],3)
+            self.assertEqual(events[1]['speed'],10)
+            self.assertNotIn('secret',output.getvalue())
+            self.assertIn('8M',popen.call_args.args[0])
+
+    def test_multipart_backup_and_restore(self):
+        with tempfile.TemporaryDirectory() as name:
+            root=Path(name); run=self.fixture(root); cloud=root/'cloud'
+            def translate(value):
+                return cloud/str(value).split(':',1)[1] if ':' in str(value) else Path(value)
+            def directory_copy(source,destination,options,**kwargs):
+                shutil.copytree(translate(source),translate(destination),dirs_exist_ok=True)
+            def file_copy(source,destination,options):
+                target=translate(destination);target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(source,target)
+            with patch.object(backup,'remote_copy',side_effect=directory_copy), \
+                    patch.object(backup,'copy_verified',side_effect=file_copy):
+                state=backup.backup_once(run,'test:backup',{},part_bytes=512)
+            self.assertEqual(state['errors'],[])
+            latest=json.loads((cloud/'backup/run1/LATEST.json').read_text())
+            folder=translate(latest['location'])
+            manifest=json.loads((folder/'PARTS.json').read_text())
+            backup.verify_parts(folder/manifest['parts_dir'],manifest,root/'restored.pth')
+            self.assertEqual(backup.sha256(root/'restored.pth'),backup.sha256(run/'epoch_1.pth'))
+            self.assertEqual(latest['storage'],'base5_checkpoint_parts_v1')
+            self.assertTrue((folder/'COMPLETE.json').exists())
+
+    def test_multipart_corruption_never_commits_marker(self):
+        with tempfile.TemporaryDirectory() as name:
+            root=Path(name); run=self.fixture(root)
+            def directory_copy(source,destination,options,**kwargs):
+                if kwargs.get('phase')=='readback':
+                    (destination/'part0000.bin').write_bytes(b'corrupt')
+            with patch.object(backup,'remote_copy',side_effect=directory_copy), \
+                    patch.object(backup,'copy_verified') as marker:
+                state=backup.backup_once(run,'test:backup',{},part_bytes=512)
+            self.assertEqual(len(state['errors']),1)
+            self.assertFalse(state['uploaded'])
+            marker.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

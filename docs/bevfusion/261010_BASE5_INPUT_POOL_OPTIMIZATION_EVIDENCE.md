@@ -1895,3 +1895,82 @@ warmup 500 updates / cosine / 매 epoch val·full checkpoint / 최근 3개 보�
 확인했다. 인스턴스 Stop/destroy는 수행하지 않았다.
 근거 경로는 로컬 `artifacts/evaluation/bevfusion/base5_vast_depth_z_261011/`이며,
 높이 감사의 최신 결과는 `vertical_caps_depth_final_v2/`다.
+
+<a id="base5-checkpoint-parallel-backup-261011"></a>
+
+## 20. 체크포인트 병렬 백업과 실제 전송 관측 — 2026-10-11 KST
+
+사용자가 Drive의 checkpoint hash 폴더가 비어 있음을 확인하고 백업 업로드 해결을 요청했다.
+19절의 180초 제한 로그에는 경과 시간만 있었으므로 업로드와 SHA 재읽기를 구분할 수 없었다.
+이를 실제 전송량·속도·오류·단계가 보이는 JSON 이벤트로 보완했다. rclone의 원문 URL과
+인증 정보를 출력하지 않고, 자식 출력 PIPE를 실행 중에도 비워 로그 누적으로 인한 정지를 방지한다.
+
+새 단일 파일 시험은 8MiB upload chunk에서도 약 100초에 8MB 미만 전송했다.
+관측 속도는 약 0.1MB/s였으며 직접 중단했다. Vast→로컬 Direct SSH의 별도 8MiB 표본도
+30초에 458,752 bytes만 받아 종료됐다. 두 경로 모두 느렸다는 관측이지, 집 Wi-Fi나
+Vast 호스트의 정확한 제한 원인을 확정한 것은 아니다. 원본 checkpoint는 변경하지 않았다.
+
+### 병렬 저장 및 복원 계약
+
+- `--part-mib 32 --transfers 16`으로 checkpoint를 **무손실 조각**으로 저장한다. 수치 정밀도,
+  optimizer, scheduler, AMP scaler, RNG를 버리는 압축이나 모델 경량화가 아니다.
+- 먼저 조각을 병렬 업로드하고 다시 병렬 다운로드한다. 각 조각 SHA256과 순서대로 결합한
+  전체 SHA256이 원본과 같아야 성공한다. 최종 구현은 실제 `.pth` 복원·metadata 재검사도 한다.
+- `PARTS.json`에 순서·크기·해시와 조각 디렉터리를 기록하고 `RESTORE.py`를 함께 올린다.
+  기존 파일 덮어쓰기는 금지하며 손상·누락·경로 이탈은 복원 실패로 처리한다.
+- 후속 저장은 `parts_<조각 bytes>` 디렉터리를 사용한다. 조각 크기를 바꿔 재시도해도
+  이전에 완료된 layout의 조각을 업로드 도중 덮어쓰지 않는다.
+- payload·복원 정보·학습 metadata 검증 후에만 `COMPLETE.json`, 마지막에 `LATEST.json`을 쓴다.
+  빈 hash 폴더나 일부 조각만 존재하는 것은 백업 완료가 아니다.
+- 원격에는 단기 access token만 anonymous RAM으로 전달한다. 갱신 토큰과 client secret은
+  로컬에 남으며, 자동 watcher는 로컬 PC와 프로세스가 살아 있어야 한다.
+
+Drive 폴더를 내려받은 뒤 원본 checkpoint를 복원하는 명령은 다음과 같다.
+
+```bash
+python RESTORE.py --folder /path/to/downloaded/hash_folder --output /path/to/fresh/epoch_2.pth
+```
+
+이번 시험 폴더는
+`model/bevfusion/base5/checkpoint_backups/external_backup_probe_parts_261011/cc150a22861a1603abe2fe6aedd22f73552750eb4cb7f22fc0ff091b8b440973`이다.
+업로드 도중 약 1.2~1.7MB/s를 관측했으며, 최종 완료 여부와 시간은 아래 실제 결과로 확정한다.
+이 시험에서 사용한 조각 폴더 이름은 최초 구현의 `parts/`이며 복원기는 해당 형식도 지원한다.
+본학습은 시작하지 않았다. 최종 로그는 `external_backup_parts.jsonl`에 보존한다.
+
+### 실제 payload와 복원 검증
+
+32MiB 조각 15개, 총 498,641,221 bytes를 업로드했다. payload 업로드 완료는 약
+362.72초, 다시 내려받는 과정은 약 316.51초였다. 전송 오류는 두 단계 모두 0건이었다.
+다운로드된 조각을 순서대로 읽은 전체 SHA256은 원본과 동일한
+`cc150a22861a1603abe2fe6aedd22f73552750eb4cb7f22fc0ff091b8b440973`이다.
+
+별도 복원 검사기는 uploader가 임시 read-back 조각을 삭제하기 전에 해당 조각을 보존하고
+실제 `epoch_2.pth`를 원자적으로 복원했다. 원본 `.pth`를 복사해 복원으로 가장한 검사가 아니다.
+복원 파일은 다시 SHA256과 `torch.load(map_location='cpu')`를 통과했고 optimizer,
+scheduler, AMP scaler, RNG 및 epoch 2 / iteration 4를 확인했다.
+복원 checkpoint의 원래 smoke contract는
+`0390bedcc8e6307504ba9a696f6685ddd8e52391bcea4fb4746166ff8e48e9d3`이다.
+복원 경로는 `/workspace/base5_depth_qualification_55272391_261011/smoke/backup_restore_qualification_261011/epoch_2.pth`,
+로컬 근거는 `backup_restore_report.json`이다. 이것은 4-update 기능 검사용 checkpoint이며
+본학습 완료 모델이 아니다. 별도 CUDA 추론·학습을 추가 실행하지 않았다.
+
+백업 helper 변경도 training source hash 범위에 들어가므로 기존 준비 경로를 덮어쓰지 않고
+`/workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011`에 다시 **준비만** 했다.
+새 contract는 `f968a33da5d2454afd4d8f17b875a091d7faad5b4984c583dfc39770f4d27e47`이다.
+987개 소스 hash가 로컬과 일치하고, 이전 identity에서 바뀐 key는 `source_hashes`뿐이다.
+입력·모델·초기화·split·epoch·batch·증강·학습률은 동일하며 본학습은 여전히 미시작이다.
+
+### 최종 완료 상태
+
+전체 처리 834.05초, 약 **13분 54초**에 외부 백업을 완료했다. `COMPLETE.json`과
+부모의 `LATEST.json`까지 업로드·SHA 재읽기를 통과했고, 같은 상태로 다시 검사해
+중복 업로드가 없음을 확인했다. `external_backup_report.json`은 `valid=true`,
+`duplicate_recheck_passed=true`, `uploaded=1`, `errors=[]`다.
+로컬의 별도 읽기 전용 Drive 목록에서도 조각 폴더·`PARTS.json`·`RESTORE.py`·학습
+metadata·`COMPLETE.json`을 확인했다. [완료된 hash 폴더](https://drive.google.com/drive/folders/1XGPBc0bWYPD_VgFUQOnxjDY5XWnOEKGE)를
+사용하며, 이전 실패한 빈 hash 폴더는 다른 부모 아래의 이력이다.
+19절의 외부 백업 미완료 gate는 이 실제 결과로 해소한다. 본학습 시작은 여전히 별도
+사용자 승인이 필요하다. 인스턴스 Stop/destroy나 상주 자동 watcher 시작은 수행하지 않는다.
+실제 `--watch --max-polls 1` 경로도 약 3.87초에 재검사했고 추가 payload 업로드 0건,
+`valid=true`, 오류 0건이었다. watch를 무한 실행하지 않았으며 종료 후 GPU 학습·추론과
+백업 자식 프로세스가 남아 있지 않음을 확인했다. backup/parts/credential 검사 11개를 통과했다.

@@ -49,6 +49,13 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 외부 checkpoint 백업 완료:** [20절의 실제 병렬 업로드·재다운로드·복원 결과](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011)가
+  아래의 180초 미완료 이력보다 우선한다. 499MB full checkpoint를 무손실 조각으로
+  저장하고 전체 SHA256·실제 복원·metadata·COMPLETE/LATEST·중복 재검사를 통과했다.
+  최신 prepare-only는 `/workspace/base5_training_sunny13_512_b4_e24_55272391_backup_v3_261011`이다.
+  데이터·모델·학습 파라미터는 유지하며 본학습은 미시작이다. 다음은 사용자 승인 후
+  병렬 백업 watcher와 본학습 시작이다. 인스턴스를 자동 중단하지 않는다.
+
 - **2026-10-11 새 4090 이전:** 기존 중단 인스턴스의 GPU가 재할당되어 사용자가
   55272391을 임대했다. Copy 입력의 읽기 오류는 원본을 보존한 별도 검증본으로 복구했고
   173,294개 파일의 SHA256을 확인했다. [최신 이전·depth·Z 상태](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011)가
