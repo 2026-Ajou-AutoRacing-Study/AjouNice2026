@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-마지막 갱신: 2026-10-11.
+마지막 갱신: 2026-10-12.
 
 이 문서는 **아직 끝나지 않았고 다음 작업에서 반드시 다시 확인할 항목만** 둔다.
 완료된 수집·학습·실험 수치는 각 CURRENT/EVIDENCE 문서에 보존하며 여기로 다시
@@ -51,7 +51,10 @@
 
 - **2026-10-11 최신 초기화 결정:** 동일 3클래스 E1 비교를 마쳐 호환 nuScenes의
   BEV·fusion·head 추가 재사용을 채택했다. 2 epoch는 생략하고 사용자가 후보 E1에서
-  `--resume`으로 E2~24를 이어간다. 본학습·상주 watcher는 아직 시작하지 않았다.
+  `--resume`으로 E2~24를 이어간다. 이 문장의 미시작 상태는 10-11 초기화 채택 당시 이력이다.
+  10-12 현재 사용자 본학습·watcher가 진행 중이며, 원거리 50~80/80~100m 평가 추가 후
+  같은 훈련 계약과 W&B run으로 재개한다. 최신 실행 확인은
+  [EVIDENCE 31절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)을 따른다.
   [30절 비교 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)와
   [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
 

@@ -17,6 +17,19 @@ SPEC.loader.exec_module(launcher)
 
 
 class OneclickTests(unittest.TestCase):
+    def test_explicit_stop_waits_for_the_complete_validation_row(self):
+        from stop_base5_after_validation import complete_validation_row
+        self.assertTrue(complete_validation_row('INFO - Epoch(val) [10][745/745] val/center_mAP: 0.8', 10))
+        self.assertTrue(complete_validation_row('Epoch(val) [10] val/center_mAP: 0.8', 10))
+        self.assertFalse(complete_validation_row('Epoch(val) [9][745/745] val/center_mAP: 0.8', 10))
+        self.assertFalse(complete_validation_row('Epoch(val) [10][740/745] eta: 0:00:01', 10))
+        self.assertFalse(complete_validation_row('Epoch(val) [10][740/745] val/center_mAP: 0.8', 10))
+        self.assertFalse(complete_validation_row('Epoch(val) [10][0/0] val/center_mAP: 0.8', 10))
+
+    def test_default_extension_checksum_matches_tracked_code(self):
+        path = Path(__file__).with_name('base5_distance_diagnostics.py')
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), launcher.DEFAULTS['diagnostic_sha256'])
+
     def test_backup_and_logging_transports_are_separate_and_both_monitored(self):
         from unittest.mock import Mock
         self.assertNotEqual(launcher.DEFAULTS['backup_relay_remote_port'],
@@ -44,6 +57,9 @@ class OneclickTests(unittest.TestCase):
             c[name] = str(root / name)
             Path(c[name]).mkdir()
         c['initializer'] = str(root / 'initializer.pth')
+        c['diagnostic_script'] = str(root / 'diagnostics.py')
+        Path(c['diagnostic_script']).write_bytes(b'evaluation-only')
+        c['diagnostic_sha256'] = hashlib.sha256(b'evaluation-only').hexdigest()
         Path(c['initializer']).write_bytes(b'audited-init')
         c['config'] = 'config.py'
         (Path(c['source']) / c['config']).write_text('model = dict(compile_camera=True)')
@@ -85,6 +101,22 @@ class OneclickTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Frozen source'):
                 launcher.validate_manifest(c)
 
+    def test_diagnostic_extension_has_a_separate_integrity_guard(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c = self.fixture(Path(temp))
+            Path(c['diagnostic_script']).write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'Evaluation-only extension'):
+                launcher.validate_manifest(c)
+
+    def test_diagnostics_wraps_the_frozen_entrypoint_without_changing_training_arguments(self):
+        c = dict(launcher.DEFAULTS)
+        extended = launcher.train_command(c, True)
+        c.pop('diagnostic_script')
+        ordinary = launcher.train_command(c, True)
+        self.assertEqual(extended[:2], ordinary[:2])
+        self.assertEqual(extended[3], '--frozen-entrypoint')
+        self.assertEqual(extended[4:], ordinary[2:])
+
     def test_initializer_and_dataset_mutation_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             c = self.fixture(Path(temp))
@@ -118,6 +150,7 @@ class OneclickTests(unittest.TestCase):
 
     def test_check_mode_starts_no_tmux(self):
         with patch.object(launcher.shutil, 'which', return_value='/usr/bin/tmux'), \
+             patch.object(launcher.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)), \
              patch.object(launcher, 'check_drive') as drive, \
              patch.object(launcher, 'logging_relay'), \
              patch.object(launcher, 'save'), \
@@ -147,6 +180,7 @@ class OneclickTests(unittest.TestCase):
 
     def test_failed_drive_preflight_starts_no_jobs(self):
         with patch.object(launcher.shutil, 'which', return_value='/usr/bin/tmux'), \
+             patch.object(launcher.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)), \
              patch.object(launcher, 'logging_relay'), \
              patch.object(launcher, 'check_drive', side_effect=ValueError('offline')), \
              patch.object(launcher, 'ssh') as ssh, \

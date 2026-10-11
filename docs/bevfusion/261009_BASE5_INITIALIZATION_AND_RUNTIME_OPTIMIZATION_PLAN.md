@@ -1,12 +1,21 @@
 # Base5 학습 초기화와 BEV 연산 최적화 계획
 
-2026-10-09 KST 계획과 당시 미구현 상태를 보존한다. **현재 순서는 아래 10-11 최신 합의가 우선**한다.
+2026-10-09 KST 계획과 당시 미구현 상태를 보존한다. **현재 순서는 아래 현재 계획 허브가 우선**한다.
 Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경하지 않는다.
 설명용 원리와 개발 계약을 구분하며, 실측은 연결된 EVIDENCE 문서를 따른다.
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 호환 nuScenes 초기화 채택
+## 현재 계획 허브 — 2026-10-12 원거리 평가 추가와 본학습 재개
+
+**2026-10-12 최신 작업 완료:** 사용자가 시작한 3클래스 본학습은 진행 중이다. 사용자 요청으로
+10에폭 전체 검증·체크포인트 완료 후 잠시 중단하고, 기존 0~50m 거리 진단에 50~80m와
+80~100m AP를 추가해 같은 W&B run에서 11에폭부터 재개했다. 11에폭 전체 검증과 새 지표의
+온라인 반영을 확인했고 12에폭이 진행 중이다. 전체 AP·모델·optimizer·24 epoch
+LR 스케줄·데이터·초기화는 유지한다. 동결 학습 소스는 수정하지 않고 별도 SHA256으로
+검사하는 평가 전용 실행 확장을 사용한다. 실제 중단·재개 확인은
+[31절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)을 따른다.
+아래 10-11의 ‘본학습 미시작’은 초기화 채택 당시의 이력이다.
 
 **최신 결론: 호환 nuScenes 가중치의 추가 재사용을 채택한다.** 같은 3클래스 데이터·설정에서
 camera+sparse 기준과 호환 융합·BEV·검출 부분까지 재사용하는 후보를 각각 1 epoch 학습하고
@@ -54,14 +63,15 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | **camera+sparse에 더해 호환 nuScenes BEV·fusion·head까지** 축·물리 단위를 변환한 초기화를 채택한다. 3클래스 동일 조건 E1 비교를 완료했으며 후보 E1에서 E2~24를 이어간다. | [30절 비교·변환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011). E25/Base4/COST-only 가중치는 사용하지 않는다. 4클래스 E2는 별도 보존한다. |
-| 체크포인트 보존·사용자 실행 | 기존 camera-only E1/복구 E3의 외부 백업은 검증 완료다. 새 후보 E1은 원격에 보존했으나 full Drive 백업 완료는 아직 미확정이다. 최신 계약의 W&B 온라인·Drive 소량 연결 검사는 통과했다. 본학습·상주 watcher는 미시작이다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). **`bash scripts/runtime/start_base5_vast_training.sh --resume`**으로 후보 E1부터 이어간다. 외부 백업 완료 전 Vast를 Destroy하지 않는다. |
+| 체크포인트 보존·사용자 실행 | 사용자 실행의 본학습·W&B 온라인·Drive watcher가 진행 중이다. 10-12 원거리 평가 확장은 같은 source/data/work/훈련 계약과 W&B run ID를 유지한다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). **`bash scripts/runtime/start_base5_vast_training.sh --resume`**는 마지막 완료 체크포인트부터 이어간다. 전체 최종 백업 완료 전 Vast를 Destroy하지 않는다. |
+| 거리별 평가 | 기존 0~10/10~20/20~30/30~50m에 **50~80/80~100m 두 구간**을 추가한다. 같은 원거리 구간의 차량 전방·후방 AP와 GT 수를 따로 기록한다. | [31절의 키·W&B 패널 배치](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012). 거리 기준은 ego/LiDAR XY 방사 거리다. GT 없는 구간은 AP를 기록하지 않으며 GT 20개 미만은 소표본으로 표시한다. 직사각형 ROI의 방사 거리 100m 이상 모서리는 전체 AP에 유지하고 GT 수만 별도로 기록한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
 현재 우선 순서는 **3클래스 파생 라벨·평가와 동일 조건 E1 초기화 비교 완료 →
 사용자가 W&B·Drive 포함 후보 E1에서 E2~24 재개 → 완성 모델의 사람·동물별 성능 확인 →
 rosbag·추론 OFF/ON 비용/정합 확인**이다.
-사용자는 agent가 본학습을 시작하지 않고 실행 준비까지만 하도록 요청했다. 원격 학습은 tmux로
+최초 본학습은 사용자가 직접 시작했으며 10-12에는 지표 수정 후 agent가 재개하도록 승인했다. 원격 학습은 tmux로
 실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을
 실제 배포 정합 통과로 읽지 않는다. 21절의 학습 gradient 검사 통과를

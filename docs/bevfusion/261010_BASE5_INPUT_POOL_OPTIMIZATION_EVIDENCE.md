@@ -3424,3 +3424,116 @@ optimizer·scheduler·메인 RNG·parameter names가 보존돼 있다. 이 후�
 실행기·비교 검사까지 합계 단위 검사 24개 통과, CPU 전용 CUDA 검사 1개 skip이다.
 본학습·상주 watcher는 시작하지 않았다. 명령과 최신 경로는
 [사용자 실행 절](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)을 따른다.
+
+<a id="base5-far-distance-resume-261012"></a>
+
+## 31. 원거리 거리별 평가 확장과 같은 W&B run 재개 — 2026-10-12 KST
+
+사용자가 본학습을 시작한 뒤 원거리 지표 누락을 확인했다. 기존 거리 진단은
+0~10/10~20/20~30/30~50m까지만 정의돼 있었지만 **전체 AP에는 ROI의 원거리 GT와
+예측이 이미 포함돼 있다.** 전체 AP를 거리별 AP 평균으로 계산하는 것이 아니다.
+기존 지표를 보존하고 새 원거리 진단을 두 구간으로 추가하기로 승인했다.
+
+### 유지하는 계약과 평가 전용 확장
+
+- Source/data/work는 30절의 실행 경로와 같다. 동결 source 파일은 수정하지 않는다.
+- 훈련 계약은 `ecddcbad9c2a5a8347a134c0af848fa46a6bf97261b39b605379825075713ca9`로 유지한다.
+- 모델·optimizer·24 epoch LR 스케줄·초기화·4255/745 split·증강·batch·RNG 재개 경로는 같다.
+- `scripts/runtime/base5_distance_diagnostics.py`를 동결 source 바깥에 배포한다.
+  실행기가 확장 SHA256을 별도로 확인한 뒤 기존 훈련 entrypoint를 호출한다. 기존 source
+  hash guard와 checkpoint 계약 검사를 완화하거나 우회하지 않는다.
+- 오직 Base5 merged metric에 진단을 덧붙인다. 기존 global/default metric을 바꾸지 않는다.
+  단위·통합 검사에서 기존 모든 AP·IoU·recall scalar와 ROI 경계 처리가 동일함을 확인했다.
+- 실행 확장 receipt와 resolved config를 별도 파일에 보존하고, 이후 checkpoint metadata에
+  확장 version/SHA256을 남긴다. 이전 체크포인트를 변환하거나 덮어쓰지 않는다.
+
+### 범위·키·지원 정답 수
+
+거리 기준은 ego/LiDAR XY의 `sqrt(x²+y²)`이며 모든 bin은 `[하한, 상한)`이다.
+새 핵심 키는 `val/range/50_80m/{vehicle,pedestrian,obstacle}_mean_AP`와
+`val/range/80_100m/{vehicle,pedestrian,obstacle}_mean_AP`다. 0.5/1/2/4m 중심 매칭 허용
+거리에 대한 클래스 AP 평균으로 기존 bin과 같다. 1은 100%다.
+
+구간별 `{class}_GT`, `{class}_available`, `{class}_small_sample`도 기록한다.
+GT 0이면 새 AP 키를 생략한다. GT가 있지만 검출하지 못하면 AP 0이다.
+`small_sample=1`은 GT 1~19개로, 성능 실패나 수집 불합격을 의미하지 않는다.
+기존 가까운 구간은 AP를 다시 계산하지 않고 기존 GT 수와 일치하는 지원 정보를 덧붙인다.
+
+차량 전방/후방은 x≥0/x<0으로 나누고 같은 두 원거리 bin의
+`val/range_direction/{50_80,80_100}m/{front,rear}/vehicle_mean_AP`와 `vehicle_GT`를 기록한다.
+동적 속도 지표나 tracker 평가를 추가하는 것은 아니다.
+직사각형 ROI의 방사 거리 100m 이상 모서리 GT는 전체 AP에 그대로 포함하고
+`val/range_support/radial_ge100m/{class}_GT`에 개수만 기록한다. 세 번째 AP bin은 만들지 않는다.
+
+### W&B 패널 구성
+
+기존 W&B run ID `base5_init_full_3class_e1_261011-ecddcbad9c2a`를 유지한다.
+기존 기록을 지우거나 epoch를 1부터 다시 시작하지 않는다. 새 지표는 적용 뒤 validation부터
+나타나며 이전 epoch의 누락한 원거리 지표를 소급 추정하지 않는다.
+
+| 섹션 | 제목 | X축 | Y축·선택 키 |
+|---|---|---|---|
+| `Val — Distance section` | `50–80m 클래스별 AP` | `epoch` | `val/range/50_80m/vehicle_mean_AP`, `pedestrian_mean_AP`, `obstacle_mean_AP`의 세 곡선 |
+| `Val — Distance section` | `80–100m 클래스별 AP` | `epoch` | 위와 같되 `80_100m` |
+| 같은 섹션, 선택 사항 | `원거리 차량 — 전방·후방 AP` | `epoch` | `val/range_direction/{50_80,80_100}m/{front,rear}/vehicle_mean_AP`의 네 곡선 |
+| 같은 섹션, 선택 사항 | `원거리 AP 지원 GT 수` | `epoch` | `val/range/{50_80,80_100}m/{class}_GT`의 여섯 곡선 |
+
+핵심 AP 패널은 두 개만 추가한다. AP의 Y축은 0~1로 고정하거나 표시 수식 `100*y`로
+0~100%로 표시한다. GT 수 패널의 Y축은 개수다. 자동 노출되는 AP 키를 정의했지만
+사용자 workspace의 기존 수동 섹션 배치를 API로 수정한 것으로 보고하지 않는다.
+
+### 구현 검사와 실제 재개
+
+로컬 CPU 컨테이너에서 단위·통합 검사 28개를 통과했다. 범위 경계·전후방·GT 없음과
+미검출 구분·소표본·기존 전체 scalar 보존·ROI 모서리·동결 source와 확장의 별도 hash
+guard·중복 실행 방지·stop 로그 형식을 검사했다. 원격에서 확장 import·중복 설치 방지와
+기존 source/config 계약의 prepare-only 검사를 수행한다. 실제 에폭 종료·재개·새 validation
+온라인 반영 여부는 아래 실행 확인에 추가한다.
+
+**00:31 KST 중단 확인:** 10 epoch의 1,064 train iteration과 745장 전체 validation을
+완료한 뒤 PID를 확인한 SIGINT로 중단했다. 종료 코드 −2는 사용자 요청의 중단 신호다.
+원격 `epoch_10.pth` SHA256은
+`1b5c57c61f059057927df751116c692ebeeeb6d101760698b5ce863c51c805a0`이다.
+epoch 10 / iter 10,640·훈련 계약·optimizer·scheduler·메인 RNG·parameter order 정보를
+확인했으며 모델 floating tensor 505개는 모두 유한하다. 저장된 LR은
+`6.50525026138152e-05`다. 중간 iteration부터 정확히 재생한다는 주장은 하지 않는다.
+
+첫 재개 시도는 W&B의 기존 config `load_from=epoch_1.pth`를 `epoch_10.pth`로 바꾸는
+기록을 거부해 Runner 생성 단계에서 종료됐다. optimizer update 이전의 로깅 문제이며
+checkpoint와 모델은 변경하지 않았다. MMEngine W&B backend의
+`init_kwargs.allow_val_change=True`로 **재개용 로깅 metadata** 갱신을 허용했다.
+훈련 source/config/checkpoint 계약 guard는 유지한다. 진단 훅과 이 W&B flag를 제외한
+전체 resolved config의 동일성을 다시 확인하고 같은 run ID로 재시도한다.
+확장 SHA256은 `e692c2d3147404d3f454bb4c15d2d8eae4685d04308d19b3113beac1ea25f8d0`이며
+로컬 증거는 `artifacts/evaluation/bevfusion/base5_far_distance_resume_261012/`에 보존한다.
+
+**00:39 KST 실제 재개 확인:** 원본 source config와 `epoch_10.pth`에서
+`resumed epoch: 10, iter: 10640`을 확인하고 11 epoch 학습으로 진입했다.
+`resume_start.json`의 LR은 위 저장 값과 같고 optimizer step 10,638, AMP scaler 256,
+메인 RNG·scheduler·parameter order guard가 복원됐다. MMEngine iteration 수와 실제 Adam
+update 수가 다른 것은 AMP가 비유한 gradient의 update를 건너뛴 기록이며 epoch 재설정이 아니다.
+정상 학습 step은 약 0.567초로 유지된다. W&B API에서 같은 run ID의 `running`, epoch 11,
+기존 history 유지와 `load_from=epoch_10.pth` 갱신을 확인했다. 기존 온라인 기록은 E2부터이며
+E1 offline trial을 소급 업로드한 것은 아니다.
+
+**00:51~00:54 KST 전체 validation·온라인 반영 확인:** 11에폭의 전체 745장 validation과
+체크포인트를 완료했고 12에폭으로 자동 진행했다. 진단 receipt는 epoch 11 / iter 11,704이며
+11에폭 체크포인트의 확장 version/SHA256·기존 훈련 계약 보존을 확인했다.
+전체 GT는 차량 341 / 보행자 687 / 장애물 674개로 기존과 같다. 전체 center mAP는 83.29%다.
+
+| 새 거리 진단 | 차량 AP / GT | 보행자 AP / GT | 장애물 AP / GT |
+|---|---:|---:|---:|
+| 50~80m | 61.65% / 51 | 17.50% / 46 | 36.89% / 40 |
+| 80~100m | 26.94% / 6 | 0.00% / 3 | 0.00% / 4 |
+
+차량 50~80m 전방/후방 AP는 59.20/97.15%이고 GT는 47/4개다.
+80~100m 전방/후방 AP는 0.18/98.89%이고 GT는 4/2개다. 매우 적은 후방·초원거리 표본으로
+일반화 성능이나 안전을 인증하지 않는다. ROI 안의 방사 거리 100m 이상 GT는 세 클래스 모두 0이다.
+이는 11에폭의 중간 학습 결과이며 마지막 수렴 성능으로 해석하지 않는다.
+
+W&B API의 실제 history에서 `epoch=11`과 새 AP 값의 일치를 확인했다. `summary='max'`를
+정의한 핵심 AP의 summary 저장 키는 `..._mean_AP.max`지만 **차트의 Y축은 history의
+`..._mean_AP`**를 사용한다. 매 epoch 성능 그래프에 `.max`를 고르면 안 된다.
+GT·방향별 AP도 온라인 summary에서 확인했다. 사용자 수동 workspace의 패널 위치는
+수정하지 않았으며 위 표의 제목·키로 두 핵심 패널을 추가하면 된다.
+전체 학습·watcher는 그대로 진행하고 인스턴스를 Stop/Destroy하지 않았다.

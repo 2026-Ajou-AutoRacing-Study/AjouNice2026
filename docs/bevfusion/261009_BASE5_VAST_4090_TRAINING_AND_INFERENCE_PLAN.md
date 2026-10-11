@@ -17,6 +17,24 @@
 
 ## 사용자 실행용 딸깍 학습
 
+### 최신 운영 — 2026-10-12, 원거리 평가 확장
+
+본학습은 사용자가 이미 시작했다. 현재 명령·source/data/work/계약·W&B run ID는 아래와
+같으며, `--resume`는 **마지막으로 완료한 에폭**에서 24 epoch까지 이어간다. 현재 실행의
+모델·optimizer·scheduler·RNG·기존 AP는 바꾸지 않는다. 별도 체크섬으로 검사하는
+`/workspace/base5_distance_diagnostics_261012.py`에서 50~80/80~100m AP와 GT 수,
+원거리 차량의 전방·후방 AP를 추가한다. 실제 재개와 패널 키는
+[31절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)을 따른다.
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/start_base5_vast_training.sh --resume
+```
+
+이미 실행 중일 때 중복 실행하지 않는다. 기존 10-11 준비 이력과 ‘미시작’은 당시 상태다.
+같은 W&B run이므로 예전 그래프는 보존되고 새 원거리 지표만 적용한 뒤의 epoch부터 나타난다.
+예전 epoch의 원거리 AP를 임의 보간하거나 소급 기록하지 않는다.
+
 ### 최신 실행 대상 — 2026-10-11, 호환 nuScenes 초기화 E1 채택
 
 3클래스 동일 조건에서 camera+sparse 기준과 BEV·fusion·head까지 추가 재사용하는 후보를

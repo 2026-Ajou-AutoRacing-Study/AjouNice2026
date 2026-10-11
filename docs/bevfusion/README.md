@@ -1,6 +1,6 @@
 # BEVFusion 문서 index
 
-마지막 정리: 2026-10-11.
+마지막 정리: 2026-10-12.
 
 ## CURRENT
 
@@ -9,7 +9,11 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-11 최신 선택은 [30절 호환 nuScenes 초기화 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)다.
+2026-10-12 최신 실행은 [31절 원거리 평가 추가·동일 run 재개](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)다.
+본학습은 사용자가 이미 시작했다. 50~80/80~100m의 두 진단 구간을 추가하되 동결 학습
+소스·모델·스케줄·기존 전체 지표·W&B run ID는 유지한다. 아래 ‘본학습 미시작’은 과거 이력이다.
+
+2026-10-11 초기화 선택은 [30절 호환 nuScenes 초기화 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)다.
 동일 3클래스 E1 전체 val에서 추가 재사용 후보가 우세해 채택하고 2 epoch는 생략했다.
 후보 E1에서 사용자가 `--resume`으로 E2~24를 이어간다. 본학습은 아직 시작하지 않았다.
 아래 4클래스 E2 재개와 3클래스 fresh 시작 안내는 이전 이력이며 현재 명령은
@@ -45,6 +49,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| 원거리 50~80/80~100m AP·차량 전후방·GT 수 / 동일 계약·W&B run 재개 / 패널 구성 | [10-12 평가 확장 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012) |
 | 동일 조건 E1 초기화 비교 / 호환 BEV·fusion·head 변환 / 후보 E1 채택·재개 | [10-11 초기화 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011) |
 | Animal → Pedestrian 학습 통합 / 원본·개별 BBox 보존 / 사람·동물별 평가 / 새 3클래스 실행 | [10-11 클래스 전환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011), [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |

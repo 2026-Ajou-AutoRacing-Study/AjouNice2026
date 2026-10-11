@@ -29,13 +29,15 @@ DEFAULTS = dict(
     host='root@175.155.64.164', port=19463,
     source='/workspace/base5_initializer_ab_source_261011',
     data='/workspace/base5_sunny13_jpeg90_pedestrian_merged_261011',
-    # Qualified E1 trial already completed. Explicit --resume continues E2~24;
+    # Explicit --resume continues from the last completed epoch to E24;
     # the ordinary fresh-start guard refuses to overwrite this work directory.
     work='/workspace/base5_init_full_3class_e1_261011',
     initializer='/workspace/base5_nuscenes_full_xy_metric_v1_261011.pth',
     config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged.py',
     contract='ecddcbad9c2a5a8347a134c0af848fa46a6bf97261b39b605379825075713ca9',
     remote_script='/workspace/base5_oneclick_full_initializer_261011/base5_vast_oneclick.py',
+    diagnostic_script='/workspace/base5_distance_diagnostics_261012.py',
+    diagnostic_sha256='e692c2d3147404d3f454bb4c15d2d8eae4685d04308d19b3113beac1ea25f8d0',
     entity='AjouNice2026', project='morai-3d-object-detection',
     probe_id='base5-health-online-probe-261011',
     train_session='base5-sunny13-training', backup_session='base5-sunny13-backup',
@@ -78,6 +80,8 @@ def train_command(c, resume=False):
                '--work-dir', c['work'], '--wandb']
     if resume:
         command += ['--resume', 'auto']
+    if c.get('diagnostic_script'):
+        command[2:3] = [c['diagnostic_script'], '--frozen-entrypoint', command[2]]
     return command
 
 
@@ -107,6 +111,9 @@ def validate_manifest(c, resume=False):
             list(identity.get('classes', ())) != ['vehicle', 'pedestrian', 'obstacle']):
         raise ValueError('Expected merged three-class Base5; never resume the old four-class run')
     source = Path(c['source'])
+    if c.get('diagnostic_script'):
+        if hashlib.sha256(Path(c['diagnostic_script']).read_bytes()).hexdigest() != c['diagnostic_sha256']:
+            raise ValueError('Evaluation-only extension checksum differs')
     for name, expected_hash in identity['source_hashes'].items():
         if hashlib.sha256((source / name).read_bytes()).hexdigest() != expected_hash:
             raise ValueError('Frozen source changed: ' + name)
