@@ -14,7 +14,7 @@
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
 외부 백업·실제 복원 검증 완료 → depth 25cm 후보의 로컬 학습·추론 구현·비용 비교 완료 →
 4090 추론·수치 통제 재확인·25cm 새 prepare-only 완료 →
-학습 허용 후 최신 batch 4 비용·저장/재개 확인 → 승인 후 본학습**이다.
+학습 허용 후 최신 batch 4 compile OFF/ON 비용·gradient·저장/재개 확인 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 2026-10-11 06:43 KST 합의 이후 로컬 학습·추론을 구현·실험했다. 학습 결과는 21절,
@@ -30,6 +30,7 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 학습 compile 기각하지 않음 / 4090 짧은 OFF·ON 검사 후 선택 / 아직 계획 | [10-11 14:45 검사 범위·채택 기준](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-compile-short-gate-261011) |
 | 최신 4090: 300장 추론·출력 차이 원인 통제·CPU 후보 기각·CUDA 정합 / 학습 미실행·25cm 준비만 완료 | [10-11 14:32 원격 학습 제외 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
 | 실제 로컬 학습 비용 개선 / 기하 계산·pool backward·compiler 후보 / 정합·재개 / 다음 4090 확인 | [10-11 로컬 학습 실행 비용 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011) |
 | 다음 임대: 고정 의존성 이미지 게시·digest 고정·Vast pull 검증 / 아직 계획 | [고정 이미지 게시 상세](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |

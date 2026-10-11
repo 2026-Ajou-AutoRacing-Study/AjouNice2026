@@ -53,7 +53,9 @@
   4090 300장 추론·수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다.
   compiler는 출력 gate 실패로 OFF이며 정밀 격자의 빈 출력은 정합 통과가 아니다.
   depth 25cm 새 prepare-only는 만들었지만 학습은 실행하지 않았다. 최신 batch 4 학습 비용·
-  저장/재개는 학습 허용 후 진행한다. 다음 순서는 [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
+  저장/재개는 학습 허용 후 진행한다. 14:45 합의로 학습 compile OFF/ON의 짧은 gradient·
+  비용·재개 비교 후 선택하기로 했다. [검사 계획](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-compile-short-gate-261011)과
+  [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
 
 - **2026-10-11 로컬 추론 비교:** [300장 전체 서비스·수치 통제 검사](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011)를
   완료했다. compile 비용 후보와 아직 실패하는 출력 gate를 구분하고 기본값은 유지한다.

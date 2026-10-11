@@ -2225,6 +2225,15 @@ score 0.002 이내다. 통과시키려고 이 기준을 사후 완화하지 않�
   확인했다. **stream prototype·서버 옵션은 활성 소스에서 제거했다.** 모든 병렬화가
   불가능하다고 결론내리지는 않지만 이 환경에서 그대로 채택하지 않는다.
   rejected source snapshot과 전체 오류 로그는 ignored 평가 폴더에 보존한다.
+  로그상 오류는 실제 장면이 아닌 prototype의 startup warm-up에서 발생했다.
+  spconv는 입력 index가 8,190개 있었지만 stride 2 sparse convolution의 유효 출력
+  index 생성에 실패해 이 오류를 냈다. 이 문구의 일반적인 padding 예시는 실제 원인
+  확정이 아니다. 같은 실험의 기존 경로는 24장 추론을 완료했다. 별도 stream의
+  voxel/spconv 호환성·동기화가 원인 후보이며, 근본 원인은 아직 확정하지 않았다.
+  `cudaDeviceSynchronize()` 발견 자체가 점군 소실의 원인 증명도 아니다.
+  기각 범위는 camera/LiDAR 동시 scheduling prototype이며 sparse encoder·학습 compile·
+  데이터셋·GT를 기각하거나 변경한 것이 아니다. 기존 직렬 경로는 이후 23절의
+  4090 300장 비용 검사를 완료했다. 성능 개선률은 실패한 병렬 실행에서 주장하지 않는다.
 
 ### 전처리와 서버 계약
 

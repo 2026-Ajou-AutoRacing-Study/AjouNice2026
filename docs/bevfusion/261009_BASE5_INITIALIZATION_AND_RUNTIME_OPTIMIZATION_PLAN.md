@@ -6,7 +6,7 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 14:32 KST
+## 현재 계획 허브 — 2026-10-11 14:45 KST
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -20,6 +20,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 로컬 가속 | 실제 5060 Ti 학습 step에서 depth 25cm 약 32.8%, 50cm 약 21.4% 단축을 확인했다. 원래 학습 조건은 유지하며 opt-in 후보로 제공한다. 카메라 compile을 더한 별도 후보는 기존 대비 약 37.6~45.8% 단축이며 수치·저장/재개 검사도 완료했다. | 최신 구현·정합·저장/재개 결과는 [EVIDENCE 21절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011)이다. 사용자 재개 후 4090 batch 4 재확인·새 계약이 다음이다. |
 | 로컬 추론 | 실제 300장 localhost 전체 응답에서 camera+neck compile의 비용 단축은 약 20.1%, 정밀 격자 안에서는 약 15.3%다. 단, decoded 출력 gate가 모두 통과하지 않아 **기본값으로 승격하지 않는다.** | [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011). 비컴파일 추론을 대안으로 유지한다. Base5 4-class 시험 서버를 구현했지만 ROS 배포·학습 완료 정확도·4090 70ms 달성은 아직이다. |
 | 최신 4090 재확인 | 300장 depth 25cm 비용·동일 모델 수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다. 전체 응답 약 71.8→65.9ms의 compiler 후보는 decoded gate 실패로 OFF다. | [EVIDENCE 23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011). 정밀 격자의 빈 출력은 비용 참고용이며 정합 통과로 인정하지 않는다. 이번 요청에서는 학습을 전혀 실행하지 않았다. |
+| 학습 compile 선택 | 카메라 backbone의 학습 compile은 기각하지 않는다. 추론 박스 동일성 실패만으로 학습 후보를 제외하지 않으며, 4090의 짧은 A/B 후 채택 여부를 정한다. | [14:45 합의와 검사 범위](#base5-training-compile-short-gate-261011). 이번 갱신은 계획만 반영하며 GPU 학습 검사는 아직 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. depth 25cm runtime 후보의 새 준비 계약과 1,000개 source hash 일치를 확인했다. | 최신 후보의 실제 batch 4 학습 비용·저장/재개는 사용자 학습 제외 요청으로 보류했다. 이전 50cm 계약을 그대로 resume하거나 비용용 shape 변환 checkpoint로 본학습을 초기화하지 않는다. [23절 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
@@ -28,7 +29,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 ROS 풀스택 비용은 미검증. production E25는 유지 | 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
 현재 우선 순서는 **로컬 비교·4090 추론 재확인·25cm 새 준비 계약 완료 → 학습 허용 후 최신 후보의
-짧은 batch 4 비용·저장/재개 확인 → 승인 후 Sunny13 본학습**이다.
+짧은 batch 4 compile OFF/ON 비용·gradient·저장/재개 확인 → 선택한 실행의 새 계약 → 승인 후 Sunny13 본학습**이다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을
 실제 배포 정합 통과로 읽지 않는다. 21절의 학습 gradient 검사 통과를
 23절의 전체 decoded 출력 동일성이나 ROS 배포 통과로 바꾸어 해석하지 않는다.
@@ -42,6 +43,40 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 - 원격 명령·이미지 digest·백업 운영 상세는 Vast 문서에 둔다. 코드·실행 계약과 계획을 구분한다.
 - `README.md`와 `docs/ACTIVE_PRIORITIES.md`에는 이 허브의 링크·다음 단계만 갱신한다.
   새 결정을 매번 여러 곳에 길게 복사하거나 동일 목적의 날짜별 계획 파일을 추가하지 않는다.
+
+<a id="base5-training-compile-short-gate-261011"></a>
+
+### 학습 compile의 짧은 4090 검사 — 2026-10-11 14:45 KST 합의
+
+학습 기회가 적다는 이유로 compiler를 무조건 제외하거나, 검증 없이 본학습에 적용하지 않는다.
+카메라 backbone 학습 compile은 짧은 검사 후 선택 가능한 후보로 유지한다.
+로컬 검사·추가 약 19~21% step 단축은 EVIDENCE 21절의 결과이고 4090에서의 보장은 아니다.
+이번 요청은 계획 반영이며 짧은 학습·본학습은 아직 실행하지 않았다.
+
+1. 현재 512×1056·7.5/30cm·depth 25cm·batch 4·workers 4 조건에서 동일한 runtime
+   개선 묶음의 **compile OFF/ON**만 비교한다. camera backbone만 compile하며 sparse
+   encoder·head까지 동시에 변경하지 않는다. 같은 camera-only 초기화·입력 순서·증강
+   GT·seed·AMP scale·optimizer를 사용하고, 측정 중 소스는 고정한다.
+2. 후보당 64 update 이내의 실제 5K 로더 검사로 loader 대기·전체 step·forward/backward·
+   메모리를 비교한다. warm-up과 첫 compile 비용을 정상 step 통계와 분리한다.
+   loss·gradient·parameter 유한값, 누락 gradient, AMP overflow/skip을 검사한다.
+   고정 upstream의 기존 gradient 정합 검사와 실제 loss 검사를 함께 사용한다.
+   DropPath 등의 RNG 실행 차이를 장기 수렴 손상으로 단정하거나 bitwise 일치를 강제하지 않는다.
+   실제 MMEngine AMP forward/backward 문맥도 확인한다.
+3. compile ON 후보에서 별도 2→4 update의 atomic 저장·재개를 확인한다.
+   모델 key·optimizer·scheduler·AMP scaler·메인 RNG·resume contract를 검사한다.
+   검사 통과와 의미 있는 전체 비용 이득이 있으면 학습 ON을 채택할 수 있다.
+   누락 gradient·불안정한 갱신·저장/재개 실패가 있거나 이득이 없으면 OFF로 진행한다.
+   유한한 짧은 loss나 정합 통과는 장기 수렴·AP 동등성의 인증이 아니다.
+4. 선택 후 새 config/source/work-dir 계약과 예산을 보고하고 별도 승인 후 본학습한다.
+   기존 prepare-only의 compile 플래그를 임의로 덮어쓰거나 다른 계약으로 강제 resume하지 않는다.
+   학습 시 compile 여부와 무관하게 같은 가중치의 **추론 compile ON/OFF**를 후속 비교할 수 있다.
+   학습된 모델의 val·근접/원거리 recall·rosbag 위치 흔들림으로 추론 적용을 결정한다.
+   추론만 변경하는 이 비교 때문에 두 번 본학습할 필요는 없다.
+
+분리 CUDA stream의 camera/LiDAR 병렬 prototype은 별개 후보다. sparse encoder 오류로
+기각한 것은 그 scheduling 구현이지, sparse encoder 자체나 학습 compiler가 아니다.
+관측·미확정 원인은 [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011)을 따른다.
 
 <a id="base5-depth25-local-optimization-plan-261011"></a>
 
