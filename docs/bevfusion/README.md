@@ -15,6 +15,10 @@
 같은 31절의 후속 v2는 누락된 구간 mAP와 여섯 구간의 visible 정의를 보완하고,
 저장된 E11 이후 클래스 AP에서만 mAP를 복원한다. 기존 history·훈련 계약은 유지한다.
 
+2026-10-12 로컬 후속은 [32절 5K 전수 정보량·다음 25K 명세·bag 평가 준비 조사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012)다.
+원거리 AP를 검출 확률로 해석하지 않는다. 현재 수집·학습 계약은 유지하며 실제 model
+prediction의 clear/weak·거리·자산별 분해와 100m rosbag 평가 구현은 다음 작업이다.
+
 2026-10-11 초기화 선택은 [30절 호환 nuScenes 초기화 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)다.
 동일 3클래스 E1 전체 val에서 추가 재사용 후보가 우세해 채택하고 2 epoch는 생략했다.
 후보 E1에서 사용자가 `--resume`으로 E2~24를 이어간다. 본학습은 아직 시작하지 않았다.

@@ -3607,3 +3607,188 @@ E16의 80 iteration에서 정상 step 약 0.566초와 유한 loss를 확인했�
 새 로깅을 위한 추가 모델 연산이나 추가 validation은 없다. E16 전체 validation의 새 자동
 mAP 기록은 이후 정상 에폭 종료 때 확인할 수 있다. 이번 실제 온라인 검증은 E11~15 복원분이다.
 본학습·Drive watcher는 계속 진행하며 인스턴스를 Stop/Destroy하지 않는다.
+
+<a id="base5-range-evidence-local-261012"></a>
+
+## 32. 원거리 GT 정보량·다음 환경 배치의 로컬 조사 — 2026-10-12
+
+### 조사 범위와 보존
+
+사용자가 원격 학습 중 로컬에서 원거리 성능과 다음 수집 방향을 조사하도록 요청했다.
+이번에는 Vast에 접속하거나 학습·W&B·수집기·생성기·GT·threshold를 변경하지 않았다.
+현재 Sunny13 JPEG90/3클래스 파생 입력 5,000장과 GT 11,052개를 전수 대조했다.
+train 4,255장/9,350 GT, val 745장/1,702 GT다. GT가 있는 장면은 4,750장이고
+나머지 250장도 전체 입력에 포함된 정상 배경 장면이다.
+
+`tools/audit_base5_range_evidence.py`는 현재 infos·native audit·이전 전수 native 점 검사·
+실제 instance mask의 512×1056 crop 검사를 읽기 전용으로 결합한다. 기존 crop 검사의
+source ledger SHA256과 현재 manifest의 SHA256이 일치하는지 검사한다. 해시는
+`026e6244aa311f6342429a30893694ce646b49222ab354f97cfa08539df74a43`다.
+native 점 캐시는 token/component/자산/중심/원본 점 수로 대조하며 중심 밖 ROI의 점을
+새로 포함하지 않는다. 센서를 재스캔하거나 BBox를 변형한 것은 아니다.
+E15 validation receipt의 18개 클래스·거리 GT 분모도 현재 val과 모두 일치했다.
+
+최종 산출물은 `artifacts/evaluation/bevfusion/base5_range_evidence_release_v2_261012/`다.
+`report.json`, `objects.json`, `range_support.png`, `far_input_examples.png`,
+`review_samples.json`, `rosbag_inventory.json`을 사용한다. 앞선 파일럿 디렉터리는
+진단 이력이다. 이미지 예시는 실제 Q90 JPEG를 OpenCV cubic resize와 현재 bottom crop으로
+읽어 만든 비교 그림이다. 확대는 센서 정보를 새로 만드는 것이 아니다.
+
+### 정보량 기준과 전체 결과
+
+- 약한 단서: 현재 필터 후 LiDAR 0~4점이고, 실제 카메라 instance 픽셀 ≥16 및
+  clipped 2D BBox의 최소 변 ≥4px 조건도 충족하지 않은 GT다.
+- 풍부한 단서의 **진단용 proxy**: LiDAR ≥20점 또는 한 카메라의 실제 instance 픽셀
+  ≥64 및 최소 변 ≥8px다. 이 숫자는 학습 라벨 필터나 새로운 캡처 승인 기준이 아니다.
+- 같은 부모·같은 클래스의 복합체 카메라 대응이 모호하면 `unknown`으로 둔다.
+  모호함을 안 보인다는 뜻으로 해석하지 않는다. 픽셀 수는 실제 보이는 foreground이며
+  투영 BBox 면적과 다르다. 안개 속 대비·분류 가능성·depth 정확도까지 보장하지 않는다.
+
+| 현재 5K의 GT 구분 | 수량 | 전체 GT 대비 |
+|---|---:|---:|
+| 풍부한 단서 proxy | 9,650 | 87.31% |
+| 약한 단서 proxy | 117 | 1.06% |
+| 카메라 대응 unknown | 223 | 2.02% |
+| LiDAR 0점, camera-only GT | 679 | 6.14% |
+
+네 행은 서로 배타적인 합계가 아니다. camera-only 중에도 충분한 카메라 단서가 있다.
+unknown 중 LiDAR 0~4점인 97개는 약한 단서로 단정하지 않았다. 모두 약하다고 가정한
+보수 상한은 214/11,052=1.94%지만 실제로 확인한 비율은 1.06%다.
+train만의 약한 단서는 98/9,350=1.05%, 풍부한 proxy는 8,257/9,350=88.31%다.
+0~30m 전체의 풍부한 proxy는 7,389/8,206=90.04%다. 선명한 사례가 전반적으로 없다는
+설명은 이 자료와 맞지 않지만, 이것만으로 검출 성능이나 학습 충분성을 인증하지 않는다.
+
+현재 학습 GT에서 제외된 native component는 320개다. 318개는 저장된 positive 조건
+미충족, 2개는 ROI 등 나머지 조건이다. 과거 320 crop의 413개 제외와 다른 집계이며
+현재 crop·파생 infos 기준이다. 이번 분석으로 제외 정책을 새로 바꾸지는 않았다.
+
+### 거리별 정보량과 E15 중간 성능
+
+아래 중앙값은 해당 클래스·거리의 **train+val 전체** GT 기준이다. 카메라는 대응이
+확실한 GT의 최다 foreground 관측을 사용한다. AP는 E15의 **val** 중간 결과이며
+점 수나 픽셀 수와 같은 모집단의 per-object 오검출 분석은 아니다.
+
+| 거리 | 클래스 | train GT | val GT | LiDAR 점 중앙값 | 보이는 카메라 픽셀 중앙값 | E15 center AP |
+|---|---|---:|---:|---:|---:|---:|
+| 30~50m | Vehicle | 1,046 | 97 | 12 | 662 | 91.13% |
+| 30~50m | Pedestrian | 311 | 145 | 2 | 102 | 76.86% |
+| 30~50m | Obstacle | 324 | 91 | 1 | 128 | 27.62% |
+| 50~80m | Vehicle | 377 | 51 | 6 | 251 | 60.58% |
+| 50~80m | Pedestrian | 25 | 46 | 1 | 49 | 12.93% |
+| 50~80m | Obstacle | 55 | 40 | 1 | 54 | 29.18% |
+| 80~100m | Vehicle | 213 | 6 | 4 | 104 | 29.00% |
+| 80~100m | Pedestrian | 3 | 3 | 0 | 26.5 | 0% |
+| 80~100m | Obstacle | 9 | 4 | 0 | 34 | 0% |
+
+확인한 해석은 다음과 같다.
+
+1. 50~80m 사람 71개는 모두 LiDAR 0~4점이며, 80~100m 사람 6개는 모두 0점이다.
+   후자의 카메라 foreground는 중앙값 26.5px다. 이 범위의 낮은 AP는 센서 정보량과
+   작은 학습 표본이라는 설명에 부합하지만 원인을 분리한 실험은 아니다.
+2. 30~50m 장애물은 val 91개 중 89개가 카메라 조건을 통과하고, 69개가 풍부한 proxy다.
+   그런데 AP는 27.62%다. **안 보이는 라벨 때문이라고만 설명할 수 없다.**
+   1m AP 23.80%/4m AP 34.36%라 위치 허용 오차를 늘려도 전부 회복되지는 않는다.
+   검출 누락·FP·score 순서·크기/자산·depth/위치 문제를 실제 prediction과 대조해야 한다.
+3. 원거리 50m 이상 사람·장애물은 전체 185개, 그중 127개가 음영 family다.
+   대부분 전방 관측이므로 일반 후방 사람 분포를 과도하게 늘린 결과도 아니다.
+   80~100m의 val은 클래스마다 3~6개에 불과해 0% 또는 높은 AP를 안정된 성능으로
+   단정하지 않는다. 차량 50~80m 후방 val도 4개뿐이다.
+4. train의 모든 클래스 50m 이상 GT는 682/9,350=7.29%이고, 사람·장애물만은
+   92/9,350=0.98%다. 원거리 사람·장애물 때문에 전체 학습이 망가졌다는 증거는 없다.
+   반대로 음의 전이가 전혀 없음을 증명한 제거 ablation도 수행하지 않았다.
+5. 실제 이미지에는 앞차에 가려져 일부만 보이는 원거리 차와, 작은 사람·얇은 장애물,
+   LiDAR 0점이지만 RGB에서 형태가 남아 있는 바리게이트가 각각 존재했다.
+   일부 어려운 사례를 남기는 것과 모든 자산의 100m 인식을 기대하는 것은 구분한다.
+
+### 아직 촬영하지 않은 25K 명세도 확인
+
+`~/morai_cap/base5_postcollection_261010/fresh_suite_final_v142`의 5환경·25,000개
+metadata를 읽었다. 각 manifest SHA256과 metadata 집합 digest를 결과에 보존했다.
+현재 Sunny13에서 Pedestrian 성분만 관측된 자산을 primary로 배치하고,
+**계획 Ego 거리**가 50m 이상인 train parent 수는 다음과 같다.
+
+| 예정 환경 | 50m 이상 사람 계열 train primary parent |
+|---|---:|
+| Sunny11 | 14 |
+| Sunny15 | 11 |
+| Foggy11 | 11 |
+| Foggy13 | 9 |
+| Foggy15 | 9 |
+
+이는 **계획 parent 수이지 실제 유효 GT 수가 아니다.** 보조 객체·복합체 여러 성분,
+실제 포즈·LiDAR 중심 거리·가시성·보충에 따라 최종 GT 수가 달라진다.
+다만 연속 Ego 위치와 환경별 새 배치를 주어도 원거리 사람의 train 희소성이
+자동 해소되지는 않는다는 경고로 사용할 수 있다. 장면 train/val=85/15가 각 클래스·
+각 거리의 GT도 85/15라는 뜻은 아니다. 현재 사람 50~80m는 train보다 val GT가 많다.
+
+### 수집 방향의 현재 추천과 남은 검증
+
+- **완료 Sunny13 5K·진행 중 학습은 유지한다.** 이번 자료 때문에 처음부터 재수집하거나
+  원거리 GT를 무조건 삭제할 근거는 없다. visible GT만 제거하고 RGB를 남기면 잘못된
+  background supervision이 될 수 있으므로 ignore/loss 처리도 별도 설계 대상이다.
+- **나머지 25K의 현재 전체 패밀리·자산·거리 계약을 즉시 뒤집지는 않는다.**
+  먼 차량은 유지하고, 사람·장애물 전체를 80~100m로 늘리는 변경은 추천하지 않는다.
+- 보강 우선순위는 **장애물 20~50m의 큰/작은 자산·가림 차이**, 다음으로 **실제 식별
+  가능한 사람·장애물 30~60m train 사례**다. 모든 자산을 최대 거리까지 강제하지 않는다.
+  숫자를 늘릴 경우 최종 모델의 clear/weak 분리 결과를 본 뒤 별도 소규모 보강 manifest로
+  진행한다. 기존 frozen suite를 덮어쓰거나 같은 output에 강제 resume하지 않는다.
+- 첫 Foggy 환경은 작은 pilot에서 JPEG의 대비·가림·camera-only 사례를 확인한 뒤 본
+  5K로 진행하는 것이 좋다. instance mask 픽셀은 안개의 RGB 대비를 평가하지 않는다.
+- 최종 checkpoint에서 동일 val의 clear/weak·자산·거리별 **고정 score P/R, TP/FN/FP,
+  matched 위치 오차**를 확인한다. 중간 AP에서 tracker score threshold를 정하지 않는다.
+- rosbag에서는 raw timestamp 기준 첫 전달 거리, 연속 누락 시간, 위치 흔들림,
+  track 생성/유지/유령 잔존과 속도 MAE/2D AVE를 별도로 본다. AP는 프레임 검출 확률이
+  아니므로 60% AP에서 40% 시간의 누락을 계산하지 않는다.
+
+### rosbag 평가 준비 조사
+
+`tools/inventory_base5_rosbag_cases.py`로 기존 계약이 있는 bag 22개를 실제 indexed
+header로 확인했다. highway 9 / roundabout 4 / pedestrian 5 / obstacle 4이며 약
+11.19GiB다. 전부 raw bag·asset-name map과 네 camera/compressed·LiDAR·Ego/Object
+topic이 존재한다. MORAI·ROS 노드 재생·GPU 추론은 실행하지 않았다.
+
+다음 제한을 확인했으므로 기존 명령을 그대로 Base5 100m 평가라고 부르지 않는다.
+
+1. `detection_evaluator.py`는 기본 최대 거리 30m와 세 구간 0~10/10~20/20~30m다.
+   `evaluate_rosbag_detection_visibility.py`도 기본 radial 30m·관측점 5개다.
+   후속 Base5 평가 adapter에서 직사각형 ROI·여섯 구간·점/카메라 정보량을 명시해야 한다.
+   이번에는 production/역사적 평가기의 기본값을 변경하지 않았다.
+2. 기존 Base3 온라인 infos 변환기는 marker 기반이다. 이번 22개 미션 bag에는 수집
+   marker가 없으므로 그대로 입력하면 유효 장면을 만들 수 없다. marker 없는 연속 bag용
+   선택 구간·LiDAR 시각 동기화·미해결 GT mask를 별도로 설계해야 한다.
+3. bag별 heading 0°/-1.347° 계약과 status-size v2 geometric BBox catalog를 유지한다.
+   이름 미해결 객체를 임의 class/BBox로 추측하지 않는다. bag에는 synchronous native
+   annotation이 없어 완벽한 센서 GT라고 주장하지 않는다.
+4. 이 bag들은 이전 비교에 사용한 dev-val이다. `evaluation_locked` 이름만으로 독립
+   미사용 test가 되지는 않는다. 최종 test는 사용 이력이 다른 bag 또는 새 주행으로 정한다.
+
+이번에 완료한 것은 전수 정보량 조사·다음 25K 명세 조사·bag 준비 상태 확인이다.
+최종 모델의 실제 누락 원인, 원거리 제거 ablation, 100m bag 변환·추론·tracking 평가는
+아직이다. 학습 완료를 기다리는 동안 수집 준비와 CPU 변환기를 구현할 수 있지만,
+그 작업이 이미 완료된 것처럼 기록하지 않는다.
+
+### 재현과 검사
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+python3 perception/detection3d/bevfusion/tools/audit_base5_range_evidence.py \
+  --data artifacts/handoff/base5_sunny13_jpeg90_pedestrian_merged_v1_261011 \
+  --vertical artifacts/evaluation/bevfusion/base5_vast_depth_z_261011/vertical_caps_depth_final_v2 \
+  --crops artifacts/evaluation/bevfusion/base5_crop_final5k_261010 \
+  --metrics artifacts/evaluation/bevfusion/base5_distance_map_repair_261012/epoch_15.json \
+  --fresh-suite "$HOME/morai_cap/base5_postcollection_261010/fresh_suite_final_v142" \
+  --output artifacts/evaluation/bevfusion/base5_range_evidence_new
+
+/usr/bin/python3 perception/detection3d/bevfusion/tools/inventory_base5_rosbag_cases.py \
+  --contract-root artifacts/evaluation/bevfusion/old_mission_current_contract_261004/e25 \
+  --contract-root artifacts/evaluation/bevfusion/teammate_manual_261004/e25 \
+  --output artifacts/evaluation/bevfusion/base5_range_evidence_new/rosbag_inventory.json
+
+python3 -m unittest discover -s perception/detection3d/bevfusion/tools \
+  -p test_base5_range_evidence.py -v
+```
+
+CPU 단위 검사 12개를 통과했다. 실제 픽셀과 BBox 면적 구분, 복합체 unknown,
+camera-only의 정상 지원, 거리 경계, 약한/풍부한 proxy의 구분, 기존 AP 분모 대조와
+불일치 거부, source 아래 output 거부를 검사했다. 전수 실행에서 infos·manifest·
+점/픽셀 cache·E15 receipt의 분석 전후 SHA256도 일치했다. 산출물은 ignored로 유지한다.

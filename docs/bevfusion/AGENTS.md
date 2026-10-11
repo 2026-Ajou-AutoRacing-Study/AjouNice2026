@@ -1,5 +1,11 @@
 # BEVFusion documentation agent context
 
+2026-10-12 로컬 후속은 EVIDENCE 32절이다. 현재 5K/11,052 GT의 native 점·실제 crop
+foreground·E15 분모를 전수 대조하고 미촬영 25K metadata와 bag 22개를 조사했다.
+약한 proxy 1.06%와 복합체 unknown을 구분한다. 사람 원거리 train 희소성과 장애물
+30~50m의 낮은 AP를 무조건 GT 오류로 단정하지 않는다. 다음 수집의 현재 명세와 원격
+학습은 변경하지 않았다. 실제 prediction 분해·100m bag 변환/평가는 아직이다.
+
 2026-10-12 후속 v2는 EVIDENCE 31절의 구간 mAP 누락 보완이다. 같은 run의 E11~15
 클래스 AP에서 정확한 mAP를 복원했고 E15 체크포인트에서 E16으로 재개했다. 원거리 mAP는
 세 클래스 모두 GT가 있을 때의 동일 비중 평균이며 여섯 구간 mAP를 visible로 정의한다.

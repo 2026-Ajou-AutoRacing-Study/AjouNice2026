@@ -8,6 +8,14 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 원거리 평가 추가와 본학습 재개
 
+**10-12 로컬 원거리 조사 완료:** Sunny13 5K·현재 GT 11,052개를 실제 crop foreground와
+native LiDAR 지원점으로 전수 대조했다. 약한 단서 proxy는 1.06%이며, 안 보이는 GT가
+전반적으로 학습을 망친다는 근거는 없다. 다만 사람 50~80m는 train 25 / val 46개이고,
+장애물 30~50m는 카메라에 보이는 val이 많아도 AP가 낮아 실제 prediction 원인 분해가 필요하다.
+나머지 25K 명세와 기존 bag 22개도 확인했다. 기존 bag 평가기의 30m/marker/GT 정책을
+새 모델에 그대로 쓰지 않는다. [32절의 수집 방향·근거·평가 준비 제한](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012)을 따른다.
+이번 조사는 로컬 CPU 전용이며 원격 학습·완료 5K·frozen 25K 명세는 변경하지 않았다.
+
 **10-12 후속 로깅 보완 완료:** 평가 확장 v2에서 누락된 50~80/80~100m 구간 전체 mAP를
 추가하고 기존 네 구간 mAP도 W&B에 노출한다. 저장된 E11~15 클래스 AP의 정확한 평균을
 같은 run의 원래 epoch 좌표로 복원했고 온라인 history를 확인했다. E15 완료 체크포인트에서
@@ -72,6 +80,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 초기화·재개 | **camera+sparse에 더해 호환 nuScenes BEV·fusion·head까지** 축·물리 단위를 변환한 초기화를 채택한다. 3클래스 동일 조건 E1 비교를 완료했으며 후보 E1에서 E2~24를 이어간다. | [30절 비교·변환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011). E25/Base4/COST-only 가중치는 사용하지 않는다. 4클래스 E2는 별도 보존한다. |
 | 체크포인트 보존·사용자 실행 | 사용자 실행의 본학습·W&B 온라인·Drive watcher가 진행 중이다. 10-12 원거리 평가 확장은 같은 source/data/work/훈련 계약과 W&B run ID를 유지한다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). **`bash scripts/runtime/start_base5_vast_training.sh --resume`**는 마지막 완료 체크포인트부터 이어간다. 전체 최종 백업 완료 전 Vast를 Destroy하지 않는다. |
 | 거리별 평가 | 기존 0~10/10~20/20~30/30~50m에 **50~80/80~100m 두 구간**을 추가한다. 원거리 클래스 AP·구간 전체 mAP·차량 전방/후방 AP·GT 수를 기록하며 여섯 구간 mAP를 노출한다. E11~15의 누락된 mAP 복원을 완료했다. | [31절의 키·W&B 패널 배치와 v2 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012). 거리 기준은 ego/LiDAR XY 방사 거리다. 새 mAP는 세 클래스 모두 GT가 있을 때만 동일 비중 평균으로 기록한다. GT 20개 미만은 소표본으로 표시한다. 방사 거리 100m 이상 모서리는 전체 AP에 유지하고 GT 수만 따로 기록한다. |
+| 다음 환경 수집과 원거리 정보량 | 완료 5K와 현재 25K 계약은 유지한다. 실제 GT·crop 정보량 조사와 다음 25K의 primary 분포 검사를 완료했다. 먼 차량은 유지하고, 모든 사람·장애물을 최대 거리까지 늘리는 변경은 하지 않는다. | [32절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012). 보강 우선은 장애물 20~50m, 식별 가능한 사람·장애물 30~60m train 사례다. 최종 모델의 clear/weak·자산별 누락 확인 후 별도 보강을 설계한다. Foggy 첫 pilot에서는 RGB 대비를 실제 확인한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
