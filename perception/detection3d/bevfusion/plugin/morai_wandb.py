@@ -24,11 +24,12 @@ class MoraiWandbVisBackend(WandbVisBackend):
                 'val/center/mAP',
                 'val/center/vehicle_mean_AP',
                 'val/center/pedestrian_mean_AP',
-                'val/center/obstacle_mean_AP'):
+                'val/center/obstacle_mean_AP',
+                'val/center/animal_mean_AP'):
             self._wandb.define_metric(
                 name, step_metric='epoch', hidden=False,
                 summary='max', overwrite=True)
-        for class_name in ('vehicle', 'pedestrian', 'obstacle'):
+        for class_name in ('vehicle', 'pedestrian', 'obstacle', 'animal'):
             for threshold in ('0.5', '1', '2', '4'):
                 self._wandb.define_metric(
                     f'val/center/{class_name}_AP_{threshold}m',

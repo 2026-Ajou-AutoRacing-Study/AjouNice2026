@@ -17,6 +17,20 @@ SPEC.loader.exec_module(launcher)
 
 
 class OneclickTests(unittest.TestCase):
+    def test_backup_and_logging_transports_are_separate_and_both_monitored(self):
+        from unittest.mock import Mock
+        self.assertNotEqual(launcher.DEFAULTS['backup_relay_remote_port'],
+                            launcher.DEFAULTS['relay_remote_port'])
+        first, second = Mock(), Mock()
+        first.poll.return_value = second.poll.return_value = None
+        group = launcher.RelayTunnels([first, second])
+        self.assertIsNone(group.poll())
+        second.poll.return_value = 1
+        self.assertEqual(group.poll(), 1)
+        second.poll.return_value = None
+        first.poll.return_value = 0
+        self.assertEqual(group.poll(), 0)
+
     def test_logging_relay_rejects_unrelated_destinations(self):
         self.assertTrue(allowed('api.wandb.ai', 443))
         self.assertTrue(allowed('storage.googleapis.com', 443))

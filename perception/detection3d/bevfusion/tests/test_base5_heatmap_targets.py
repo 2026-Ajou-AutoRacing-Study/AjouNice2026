@@ -84,13 +84,53 @@ class HeatmapTargetsTest(unittest.TestCase):
         old = (torch.tensor([i]) for i in range(7))
         old = (*old, torch.zeros(1, 4, 108, 336))
         with patch.object(MoraiTransFusionHead, 'get_targets_single', return_value=old):
-            new = self.head.get_targets_single(gt, {}, 0)
+            new = self.head.get_targets_single(gt, {'center': torch.zeros(1, 2, 1)}, 0)
         for before, after in zip(old[:-1], new[:-1]):
             self.assertIs(before, after)
         self.assertEqual(float(new[-1].max()), 1.)
 
     def test_legacy_e25_method_is_not_overridden(self):
         self.assertIs(MoraiTransFusionHead.get_targets_single, TransFusionHead.get_targets_single)
+
+    def test_assignment_promotes_before_exp_and_focal_log_without_mutating_predictions(self):
+        from mmdet.models.task_modules.assigners.match_cost import FocalLossCost
+        gt = instances([[0, 0, 0, 1, 1, 1, 0]], [0])
+        predictions = dict(center=torch.zeros(1, 2, 1, dtype=torch.float16, requires_grad=True),
+                           dim=torch.full((1, 3, 1), 12., dtype=torch.float16),
+                           heatmap=torch.full((1, 4, 1), 10., dtype=torch.float16))
+        snapshots = {key: value.detach().clone() for key, value in predictions.items()}
+        old = (*[torch.tensor([i]) for i in range(7)], torch.zeros(1, 4, 108, 336))
+        def parent(head, target, values, batch):
+            for value in values.values():
+                self.assertEqual(value.dtype, torch.float32)
+                self.assertFalse(value.requires_grad)
+            self.assertTrue(torch.isfinite(values['dim'].exp()).all())
+            cost = FocalLossCost()._focal_loss_cost(values['heatmap'][0].T, torch.tensor([0]))
+            self.assertTrue(torch.isfinite(cost).all())
+            return old
+        with patch.object(MoraiTransFusionHead, 'get_targets_single', autospec=True, side_effect=parent):
+            self.head.get_targets_single(gt, predictions, 0)
+        for key in predictions:
+            torch.testing.assert_close(predictions[key].detach(), snapshots[key], rtol=0, atol=0)
+        self.assertTrue(predictions['center'].requires_grad)
+
+    def test_nonfinite_predictions_fail_with_evidence_not_silent_sanitization(self):
+        gt = instances([[0, 0, 0, 1, 1, 1, 0]], [0])
+        with self.assertRaisesRegex(RuntimeError, 'prediction_stats'):
+            self.head.get_targets_single(gt, {'center': torch.full((1, 2, 1), float('nan'))}, 0)
+
+    def test_fresh_query_and_dense_foreground_priors_and_loaded_bias_preservation(self):
+        register_all_modules(init_default_scope=True)
+        head = MODELS.build(Config.fromfile(str(CONFIG)).model.bbox_head)
+        for bias in [head.heatmap_head[-1].bias] + [
+                branch.heatmap[-1].bias for branch in head.prediction_heads]:
+            torch.testing.assert_close(bias, torch.full_like(bias, -2.19), rtol=0, atol=0)
+        state = {name: value.clone() for name, value in head.state_dict().items()}
+        name = 'prediction_heads.0.heatmap.1.bias'
+        state[name].fill_(.42)
+        head.load_state_dict(state, strict=True)
+        torch.testing.assert_close(head.prediction_heads[0].heatmap[-1].bias,
+                                   torch.full_like(state[name], .42), rtol=0, atol=0)
 
     def test_actual_parent_assignment_and_regression_are_preserved(self):
         register_all_modules(init_default_scope=True)

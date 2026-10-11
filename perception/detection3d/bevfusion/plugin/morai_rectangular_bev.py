@@ -1,4 +1,5 @@
 """Opt-in rectangular [Y,X] feature geometry; legacy square E25 stays untouched."""
+import json
 import torch
 from mmdet3d.models import draw_heatmap_gaussian, gaussian_radius
 from mmdet3d.registry import MODELS
@@ -44,6 +45,19 @@ class MoraiRectangularTransFusionHead(MoraiTransFusionHead):
     target swaps x/y, so replace only that returned target for this opt-in head.
     No parameters, prediction path or legacy E25 head are changed.
     """
+
+    def init_weights(self):
+        super().init_weights()
+        # TransFusion overrides BaseModule.init_weights without recursively
+        # initializing its SeparateHead children. The dense prior is already
+        # fixed by MoraiTransFusionHead, but a fresh query classifier otherwise
+        # starts near sigmoid(0)=0.5 rather than SeparateHead's intended prior.
+        # Apply only that classifier bias. Do not reset regression/decoder
+        # weights, change legacy E25, or overwrite a subsequently loaded state.
+        for head in self.prediction_heads:
+            final = head.heatmap[-1]
+            if final.bias is not None:
+                torch.nn.init.constant_(final.bias, head.init_bias)
 
     def create_2D_grid(self,x_size,y_size):
         # Flattened feature index = y*x_size+x. Positional coordinate = (x,y).
@@ -95,7 +109,41 @@ class MoraiRectangularTransFusionHead(MoraiTransFusionHead):
         return heatmap[None]
 
     def get_targets_single(self, gt_instances_3d, preds_dict, batch_idx):
-        targets = super().get_targets_single(gt_instances_3d, preds_dict, batch_idx)
+        # Assignment is detached supervision, not a differentiable network
+        # operation. FP16 sigmoid can round finite logits to 0/1 (eps=1e-12
+        # underflows); FP16 exp(log_dim) can also overflow before matching.
+        # Cast BEFORE decode, and disable autocast for cost/IoU construction.
+        # Do not replace NaN/Inf with zeros, discard GT, or change E25's head.
+        with torch.autocast(device_type=preds_dict['center'].device.type, enabled=False):
+            target_predictions = {
+                key: value.detach().float() if torch.is_floating_point(value) else value.detach()
+                for key, value in preds_dict.items()
+            }
+            finite = torch.stack([torch.isfinite(value).all()
+                                  for value in target_predictions.values()]).all()
+            try:
+                if not bool(finite):
+                    raise ValueError('Nonfinite network prediction before FP32 assignment')
+                targets = super().get_targets_single(
+                    gt_instances_3d, target_predictions, batch_idx)
+            except (ValueError, RuntimeError) as error:
+                stats = {key: dict(dtype=str(preds_dict[key].dtype),
+                                   finite=bool(torch.isfinite(value).all()),
+                                   minimum=float(value.min()), maximum=float(value.max()))
+                         for key, value in target_predictions.items() if value.numel()}
+                evidence = dict(batch_index=int(batch_idx), prediction_stats=stats,
+                                gt_boxes=gt_instances_3d.bboxes_3d.tensor.detach().cpu().tolist(),
+                                gt_labels=gt_instances_3d.labels_3d.detach().cpu().tolist())
+                raise RuntimeError('Base5 FP32 target assignment failed: ' +
+                                   json.dumps(evidence)) from error
         heatmap = self.build_dense_heatmap_targets(
             gt_instances_3d, device=targets[-1].device)
         return (*targets[:-1], heatmap)
+
+    def loss(self, batch_feats, batch_data_samples):
+        try:
+            return super().loss(batch_feats, batch_data_samples)
+        except (ValueError, RuntimeError) as error:
+            tokens = [str(sample.metainfo.get('sample_idx', 'unknown'))
+                      for sample in batch_data_samples]
+            raise RuntimeError('Base5 head loss failed for samples ' + json.dumps(tokens)) from error

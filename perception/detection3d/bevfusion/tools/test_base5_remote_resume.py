@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import torch
@@ -14,7 +15,8 @@ from mmengine.model import BaseModel
 from mmengine.registry import MODELS, HOOKS, DATASETS
 from torch.utils.data import Dataset
 
-from perception.detection3d.bevfusion.plugin.morai_remote_checkpoint import Base5AtomicRunner
+from perception.detection3d.bevfusion.plugin.morai_remote_checkpoint import (
+    Base5AtomicRunner, optimizer_parameter_names, validate_optimizer_parameter_order)
 
 
 @MODELS.register_module(force=True)
@@ -68,6 +70,41 @@ def config(work_dir, interrupted=False, resume=False, contract='test-contract'):
         env_cfg=dict(cudnn_benchmark=False, mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0)),
         visualizer=dict(type='Visualizer', vis_backends=[dict(type='LocalVisBackend')]),
         val_dataloader=None, val_cfg=None, val_evaluator=None))
+
+
+class ParameterOrderTest(unittest.TestCase):
+    def fixture(self, reverse=False):
+        # Same-shaped branches make shape-only resume checks insufficient.
+        model = torch.nn.Module()
+        for name in (('dim', 'height') if reverse else ('height', 'dim')):
+            model.add_module(name, torch.nn.Linear(2, 2))
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        runner = SimpleNamespace(model=model, optim_wrapper=SimpleNamespace(optimizer=optimizer))
+        checkpoint = dict(state_dict=model.state_dict(), optimizer=optimizer.state_dict(),
+                          base5_optimizer_parameter_names=optimizer_parameter_names(runner))
+        return runner, checkpoint
+
+    def test_recorded_names_and_legacy_state_order_accept_original(self):
+        runner, checkpoint = self.fixture()
+        validate_optimizer_parameter_order(runner, checkpoint)
+        checkpoint.pop('base5_optimizer_parameter_names')
+        validate_optimizer_parameter_order(runner, checkpoint)
+
+    def test_equal_shape_reordered_branches_are_rejected_before_optimizer_load(self):
+        runner, checkpoint = self.fixture()
+        changed, _ = self.fixture(reverse=True)
+        with self.assertRaisesRegex(ValueError, 'names/order differ'):
+            validate_optimizer_parameter_order(changed, checkpoint)
+        checkpoint.pop('base5_optimizer_parameter_names')
+        with self.assertRaisesRegex(ValueError, 'names/order differ'):
+            validate_optimizer_parameter_order(changed, checkpoint)
+
+    def test_moment_shape_corruption_is_rejected(self):
+        runner, checkpoint = self.fixture()
+        key = checkpoint['optimizer']['param_groups'][0]['params'][0]
+        checkpoint['optimizer']['state'][key] = {'exp_avg': torch.zeros(3, 2)}
+        with self.assertRaisesRegex(ValueError, 'moment shape differs'):
+            validate_optimizer_parameter_order(runner, checkpoint)
 
 
 class ResumeTest(unittest.TestCase):

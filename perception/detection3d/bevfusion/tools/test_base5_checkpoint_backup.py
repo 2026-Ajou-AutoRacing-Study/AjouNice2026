@@ -50,6 +50,34 @@ class BackupTest(unittest.TestCase):
             self.assertFalse(list(run.glob('.backup_stage_*')))
             self.assertEqual(backup.backup_once(run,str(dest),state)['errors'], [])
 
+    def test_weights_only_best_is_backed_up_but_not_advertised_as_resume(self):
+        with tempfile.TemporaryDirectory() as name:
+            root=Path(name); run=self.fixture(root); dest=root/'external'
+            original=torch.load(run/'epoch_1.pth',weights_only=False)
+            best={key:original[key] for key in ('state_dict','meta','base5_contract_sha256')}
+            torch.save(best,run/'best_val_center_mAP_epoch_1.pth')
+            state=backup.backup_once(run,str(dest),{})
+            self.assertEqual(state['errors'],[])
+            self.assertEqual(len(state['uploaded']),2)
+            self.assertFalse(state['uploaded']['best_val_center_mAP_epoch_1.pth']['resume_capable'])
+            latest=json.loads((dest/'run1/LATEST.json').read_text())
+            self.assertEqual(latest['name'],'epoch_1.pth')
+            self.assertTrue(latest['resume_capable'])
+
+    def test_changed_epoch_snapshot_is_reuploaded_without_losing_old_backup(self):
+        with tempfile.TemporaryDirectory() as name:
+            root=Path(name); run=self.fixture(root); dest=root/'external'
+            state=backup.backup_once(run,str(dest),{})
+            old=json.loads((dest/'run1/LATEST.json').read_text())
+            payload=torch.load(run/'epoch_1.pth',weights_only=False)
+            payload['message_hub']={'best_score':.5}
+            torch.save(payload,run/'epoch_1.pth')
+            state=backup.backup_once(run,str(dest),state)
+            new=json.loads((dest/'run1/LATEST.json').read_text())
+            self.assertNotEqual(old['sha256'],new['sha256'])
+            self.assertTrue((Path(old['location'])/'COMPLETE.json').exists())
+            self.assertEqual(state['errors'],[])
+
     def test_dns_error_reason_does_not_expose_raw_stderr(self):
         failure=SimpleNamespace(stdout=iter(['lookup www.googleapis.com: i/o timeout; secret-do-not-log']),wait=lambda:5)
         with tempfile.TemporaryDirectory() as name:
@@ -108,6 +136,15 @@ class BackupTest(unittest.TestCase):
             self.assertEqual(latest['storage'],'base5_checkpoint_parts_v1')
             self.assertTrue((folder/'COMPLETE.json').exists())
 
+    def test_restored_best_weights_need_explicit_nonresume_permission(self):
+        with tempfile.TemporaryDirectory() as name:
+            path=Path(name)/'restored.pth'
+            torch.save(dict(state_dict={'w':torch.ones(2)},meta={'epoch':1,'iter':4},
+                            base5_contract_sha256='c1'),path)
+            with self.assertRaisesRegex(ValueError,'full resumable'):
+                backup.checkpoint_complete(path,'c1')
+            self.assertFalse(backup.checkpoint_complete(path,'c1',allow_weights_only=True)['resume_capable'])
+
     def test_multipart_corruption_never_commits_marker(self):
         with tempfile.TemporaryDirectory() as name:
             root=Path(name); run=self.fixture(root)
@@ -120,6 +157,30 @@ class BackupTest(unittest.TestCase):
             self.assertEqual(len(state['errors']),1)
             self.assertFalse(state['uploaded'])
             marker.assert_not_called()
+
+    def test_bridge_readback_refuses_wrong_acknowledgment(self):
+        with patch.object(backup, 'emit') as emitted, \
+             patch.object(backup.sys, 'stdin', io.StringIO(json.dumps(
+                 dict(request_id='wrong',verified=True,sha256='wrong',bytes=1))+'\n')):
+            with self.assertRaisesRegex(ValueError,'Local Drive readback'):
+                backup.local_bridge_readback('test:checkpoint',dict(sha256='expected',bytes=1))
+        self.assertEqual(emitted.call_args.args[0],'local_readback_request')
+
+    def test_latest_epoch_is_protected_first_and_progress_is_durable(self):
+        with tempfile.TemporaryDirectory() as name:
+            root=Path(name);run=self.fixture(root);dest=root/'external'
+            original=torch.load(run/'epoch_1.pth',weights_only=False)
+            original['meta']={'epoch':2,'iter':8}
+            torch.save(original,run/'epoch_2.pth')
+            seen=[]
+            real=backup.copy_verified
+            def recording(source,destination,options):
+                if Path(source).suffix=='.pth':seen.append(Path(source).name)
+                return real(source,destination,options)
+            with patch.object(backup,'copy_verified',side_effect=recording):
+                state=backup.backup_once(run,str(dest),{})
+            self.assertEqual(seen[:2],['epoch_2.pth','epoch_1.pth'])
+            self.assertEqual(json.loads((run/'backup_status.json').read_text())['uploaded'],state['uploaded'])
 
 
 if __name__ == '__main__': unittest.main()

@@ -6,7 +6,18 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 17:46 KST
+## 현재 계획 허브 — 2026-10-11 20:20 KST 학습 상태 보완·E2 완료
+
+**제한 E1/E2 검증을 완료했고 장시간 본학습은 사용자 재개를 기다린다.** 사용자 실행의 첫 학습은 E1을 완료한 뒤
+E2 중반 Hungarian 비용 행렬의 비유한값으로 종료됐다. Base5-only FP32 target matching을
+추가하고, 원본 E1·optimizer·24 epoch LR 스케줄을 보존한 명시적 migration으로 E2와 E3의
+전체 train/745장 val을 완료했다. matching 복구만으로는 E3 mean AP 11.31%였다.
+fresh query classifier prior의 실제 누락을 수정하고, nuScenes camera+sparse LiDAR의
+축 변환 초기화를 검증했다. 새 E1/E2 전체 검증의 mean AP는 35.16%→45.57%,
+E2 차량/보행자/장애물 AP는 72.67/72.40/37.20%다. Animal AP 0과 최종 수렴은 남은 과제다.
+이 실행의 E2 상태에서 사용자가 E3~24를 재개한다. agent는 본학습을 자동 시작하지 않는다.
+[중단 원인과 실제 복구 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011)을
+최신 실행 근거로 삼는다. 아래 17:46의 준비 이력과 짧은 cost gate를 수렴 인증으로 해석하지 않는다.
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -26,13 +37,14 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 분리 stream 오류 보완 | 설치 라이브러리의 활성 voxel count 조기 읽기를 재현했다. LiDAR를 기본 stream에 두고 camera-side 병렬 실행으로 우회했다. 4090 300장 전체 응답은 비컴파일 약 71.3→65.8ms, compile 결합 비용은 약 59.2ms다. | [EVIDENCE 24절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011). 추론 전용 opt-in이며 기본 OFF다. sparse 예외 해결·입력 통제 검사와 학습된 모델의 실제 출력 gate·AP를 구분한다. 학습은 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
-| 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. 새 fine·depth 25cm·compile ON prepare-only 계약과 **1,005개 source hash 일치**를 확인했다. | [25절 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 이전 50cm/7.5cm 계약을 resume하거나 비용용 shape 변환 checkpoint로 본학습을 초기화하지 않는다. 실제 본학습 시작은 별도 승인 후다. |
-| 체크포인트 보존·사용자 실행 | 실제 full checkpoint 백업 검증을 유지하고 **W&B 온라인 업로드·Drive 쓰기/재읽기와 딸깍 실행기를 준비했다. 본학습·상주 watcher는 미시작**이다. | 사용자가 로컬에서 한 명령으로 원격 학습과 로컬 통신·백업을 시작한다. 로컬 PC는 계속 켜 둔다. [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
+| 초기화·재개 | **camera+sparse LiDAR XY 변환 초기화 + fresh query prior 보완을 채택.** 별도 E1/E2 전체 train/745장 val을 정상 완료했다. sparse-only 실패와 기존 camera-only E3는 보존한다. 새 E2 모델/optimizer는 유한값이고 추가 AMP skip은 없다. | [28절 초기화·전수 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011). 실제 source config로 E2 full state를 재개하며 새 optimizer로 바꾸지 않는다. E25/Base4/COST-only 가중치를 사용하지 않는다. |
+| 체크포인트 보존·사용자 실행 | 원본 E1과 복구 E3 full checkpoint의 **Drive 전체 SHA readback·COMPLETE·LATEST 검증 완료**. 새 실행의 대용량 백업은 20분 상한에서 종료되어 E2 외부 백업은 미확정이다. W&B와 bulk backup의 SSH 연결을 분리하고 full readback을 로컬로 옮겼다. 새 계약의 원격 resume preflight·Drive 쓰기/재읽기를 통과했으며 본학습·상주 watcher는 미시작이다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). 사용자의 `--resume`이 별도 백업 재시도를 함께 시작한다. 로컬 PC를 켜 두고 새 E2 외부 백업이 확인되기 전 Vast를 Destroy하지 않는다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
-현재 우선 순서는 **5/20cm·depth 25cm의 짧은 4090 학습·gradient·저장/재개·val 검사 완료 →
-새 fine·compile ON 준비 계약 완료 → W&B·Drive 포함 실행기 준비 → 사용자가 직접 Sunny13 본학습 시작**이다.
+현재 우선 순서는 **수치 중단·fresh prior 보완과 새 초기화 E1/E2 검증 완료 →
+W&B·Drive 포함 실행 계약 확인 → 사용자가 직접 E3~24 재개와 별도 백업 재시도 →
+완성 모델의 rosbag·추론 OFF/ON 비용/정합 확인**이다.
 사용자는 agent가 본학습을 시작하지 않고 실행 준비까지만 하도록 요청했다. 원격 학습은 tmux로
 실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을

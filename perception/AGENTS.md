@@ -8,6 +8,15 @@
 
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
+2026-10-11 저녁의 최신 실행은 EVIDENCE 28절이다. 사용자 실행의 E2 Hungarian 수치
+오류를 Base5-only FP32 detached matching으로 보완하고 원본 E1에서 명시적 migration을
+수행했다. 복구 E2/E3 전체 train/745장 val·실제 source config 재개·optimizer 이름/순서
+guard·E3 full Drive 백업을 확인했다. fresh query classifier prior 누락 보완과 nuScenes
+camera+sparse XY 변환 초기화의 별도 E1/E2 전체 val은 mean AP 35.16%→45.57%다.
+새 E2에서 사용자가 E3~24를 재개한다. Animal AP 0·최종 수렴·최신 백업 완료 여부는
+28절과 허브를 먼저 확인한다. 원본 실패 로그와
+checkpoint·데이터·production E25·다른 agent의 MORAI/planning_validator 작업은 보존한다.
+아래 ‘본학습 미시작’은 저녁의 사용자 실행 이전 이력이며 현재 지시가 아니다.
 2026-10-11 15:49 KST 최신 선택은 사용자 요청의 공간 5/20cm·depth 25cm다. EVIDENCE
 25절의 실제 4090 짧은 학습 OFF/ON·gradient·partial batch·저장/재개·val 검사를 완료했다.
 이번 48GB에서 camera backbone 학습 compile ON을 추천하고 새 fine prepare-only 계약의

@@ -49,6 +49,16 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 저녁 학습 상태 점검:** 사용자 실행의 Base5 E2 Hungarian 비유한 비용을
+  진단하고 FP32 detached matching을 보완했다. 원본 E1을 보존한 복구 E2의 전체
+  train/val과 추가 E3를 완료했다. optimizer 이름·순서 guard·실제 CUDA resume와 최신 E3
+  Drive full SHA 백업을 검증했다. fresh query prior를 보완하고 nuScenes camera+sparse XY
+  초기화의 별도 E1/E2 전체 val을 완료했다. mean AP 35.16%→45.57%, 동물 AP 0은 남은
+  과제다. 사용자가 새 E2에서 E3~24를 재개하며 agent는 본학습을 시작하지 않았다.
+  [현재 학습 복구 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011)와
+  현재 허브가 아래 준비 당시의 ‘본학습 미시작’보다 우선한다. 다른 agent의 MORAI와
+  planning_validator 작업은 이 작업에서 건드리지 않는다.
+
 - **2026-10-11 사용자 실행기 준비:** [W&B·Drive 포함 딸깍 실행과 재개](bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)를
   준비했다. 사용자가 직접 시작하며 agent는 본학습·상주 watcher를 실행하지 않았다.
   원격 학습과 로컬 통신 중계·토큰 갱신을 분리하고 학습·최종 백업까지 로컬 PC를 켜 둔다.

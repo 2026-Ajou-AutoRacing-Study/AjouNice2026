@@ -9,18 +9,20 @@ must remain alive for unattended backups. No renewable credential is remote.
 import argparse
 import configparser
 import datetime
+import importlib.util
 import json
 from pathlib import Path
 import shlex
 import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
 
 
 REMOTE = r'''
-import ctypes,json,os,signal,subprocess,sys,time,selectors
+import ctypes,json,os,signal,subprocess,sys,time,selectors,select
 from pathlib import Path
-p=json.load(sys.stdin)
+p=json.loads(sys.stdin.readline())
 work=Path(p['work_dir']).resolve(strict=True)
 stage=work if p['watch'] else Path(p['probe_stage']) if p.get('probe_stage') else work.parent/'external_backup_probe'
 if not p['watch']:
@@ -41,6 +43,7 @@ fd=ctypes.CDLL(None).memfd_create(b'checkpoint_access_only',0)
 if fd<0: raise RuntimeError('Memory-only authentication unavailable')
 os.write(fd,cfg.encode())
 env=dict(os.environ,RCLONE_CONFIG=f'/proc/{os.getpid()}/fd/{fd}')
+if p.get('local_readback'): env['BASE5_LOCAL_VERIFY_BRIDGE']='1'
 env['PATH']=str(Path(p['rclone_binary']).parent)+':'+env['PATH']
 # Do not spend minutes retrying a large checkpoint when the host cannot reach
 # Drive at all. This read-only preflight is deliberately bounded and secret-free.
@@ -60,7 +63,7 @@ command += ['--part-mib',str(p.get('part_mib',0)),'--transfers',str(p.get('trans
 print(json.dumps(dict(event='backup_started',checkpoint=latest.name,bytes=latest.stat().st_size,
     destination=p['destination'],timeout_seconds=p['timeout'])),flush=True)
 started=time.monotonic()
-process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
+process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
     env=env,start_new_session=True)
 # Consume output while the child runs: a full PIPE must never block upload.
 selector=selectors.DefaultSelector()
@@ -72,7 +75,14 @@ while selector.get_map() and time.monotonic()-started<p['timeout']:
             selector.unregister(key.fileobj);continue
         try: entry=json.loads(line)
         except ValueError: continue
-        if isinstance(entry,dict): print(json.dumps(entry),flush=True)
+        if isinstance(entry,dict):
+            if entry.get('event')=='local_readback_request':
+                remaining=max(0,p['timeout']-(time.monotonic()-started))
+                entry['budget_seconds']=max(1,min(600,int(remaining)))
+                print(json.dumps(entry),flush=True)
+                if not select.select([sys.stdin],[],[],remaining)[0]:break
+                process.stdin.write(sys.stdin.readline());process.stdin.flush()
+            else:print(json.dumps(entry),flush=True)
 selector.close()
 if process.poll() is None:
     os.killpg(process.pid,signal.SIGTERM)
@@ -89,16 +99,50 @@ status=json.loads((stage/'backup_status.json').read_text())
 if status.get('errors') or not status.get('uploaded',{}):
     raise ValueError('Incomplete external backup')
 # Same watcher state must not re-upload the same immutable checkpoint.
-again=subprocess.run(command,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=60)
-if again.returncode!=0: raise ValueError('Idempotent backup recheck failed')
+if not p['watch']:
+    again=subprocess.run(command,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=60)
+    if again.returncode!=0: raise ValueError('Idempotent backup recheck failed')
+# Live training may atomically rewrite the epoch file after validation or add
+# a new best file during upload. A second full upload is not an idempotency
+# check and must not run under a 60-second qualification-only deadline.
+pending=[f.name for f in work.glob('*.pth') if
+    status.get('uploaded',{}).get(f.name,{}).get('fingerprint') != [f.stat().st_size,f.stat().st_mtime_ns]]
 report=dict(valid=True,elapsed_seconds=time.monotonic()-started,stage=str(stage),
-    status=status,duplicate_recheck_passed=True,
+    status=status,duplicate_recheck_passed=True if not p['watch'] else None,
+    pending_checkpoints=pending,
     credential_scope='short-lived access-only config in anonymous RAM; no refresh token or client secret on remote')
 report_path=work/'external_backup_report.json' if p['watch'] else work.parent/'external_backup_report.json'
 report_path.write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report),flush=True)
 os.close(fd)
 '''
+
+
+def verify_local_readback(a, request):
+    """Read actual shared-Drive parts locally; validate per-part AND full SHA."""
+    prefix = request['prefix']
+    manifest = request['manifest']
+    expected = a.destination.rstrip('/')+'/'
+    if (not prefix.startswith(expected) or not prefix.startswith('backup:') or
+            prefix.rsplit('/',1)[-1] != manifest['sha256'] or
+            len(manifest['sha256']) != 64 or
+            any(c not in '0123456789abcdef' for c in manifest['sha256']) or
+            not manifest['parts_dir'].startswith('parts_') or
+            not manifest['parts_dir'][6:].isdigit()):
+        raise ValueError('Readback request outside authorized checkpoint prefix')
+    spec=importlib.util.spec_from_file_location('base5_parts_local_verify',
+        Path(__file__).with_name('base5_checkpoint_parts.py'))
+    parts=importlib.util.module_from_spec(spec);spec.loader.exec_module(parts)
+    remote=a.rclone_remote+':'+prefix.split(':',1)[1]+'/'+manifest['parts_dir']
+    with tempfile.TemporaryDirectory(prefix='base5_verified_drive_readback_') as folder:
+        subprocess.run(['rclone','copy',remote,folder,'--drive-root-folder-id',a.root_folder_id,
+            '--transfers','16','--checkers','2','--tpslimit','2','--tpslimit-burst','1',
+            '--retries','1','--low-level-retries','1','--contimeout','10s','--timeout','60s'],
+            check=True,timeout=min(a.timeout,600,request.get('budget_seconds',600)),
+            stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        checksum=parts.verify_parts(Path(folder),manifest)
+    return dict(request_id=request['request_id'],verified=True,
+                sha256=checksum,bytes=manifest['bytes'])
 
 
 def poll(a):
@@ -121,15 +165,28 @@ def poll(a):
     payload['probe_stage'] = getattr(a, 'probe_stage', None)
     payload['part_mib'] = getattr(a, 'part_mib', 0)
     payload['transfers'] = getattr(a, 'transfers', 16)
+    payload['local_readback'] = getattr(a, 'local_readback', False)
     a.log.parent.mkdir(parents=True,exist_ok=True)
     child = subprocess.Popen(['ssh','-p',str(a.port),'-o','BatchMode=yes','-o','ConnectTimeout=10',
         a.host,'python -c '+shlex.quote(REMOTE)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,text=True)
-    child.stdin.write(json.dumps(payload));child.stdin.close()
+    child.stdin.write(json.dumps(payload)+'\n');child.stdin.flush()
     with a.log.open('a' if a.watch else 'w') as log:
         for line in child.stdout:
             safe = line.replace(fresh['access_token'],'[REDACTED]')
             log.write(safe);log.flush();print(safe,end='',flush=True)
+            try: request=json.loads(line)
+            except ValueError: continue
+            if request.get('event')=='local_readback_request':
+                try: reply=verify_local_readback(a,request)
+                except Exception as error:
+                    reply=dict(request_id=request.get('request_id'),verified=False,
+                               error_type=type(error).__name__)
+                child.stdin.write(json.dumps(reply)+'\n');child.stdin.flush()
+                entry=dict(event='local_readback_verified' if reply['verified'] else 'local_readback_failed',
+                           **reply)
+                log.write(json.dumps(entry)+'\n');log.flush();print(json.dumps(entry),flush=True)
+    child.stdin.close()
     return child.wait()
 
 
@@ -153,6 +210,8 @@ def main():
     p.add_argument('--transfers', type=int, default=16)
     p.add_argument('--interval-sec', type=int, default=120)
     p.add_argument('--max-polls', type=int, default=0, help='0 is continuous; positive values bound watcher qualification')
+    p.add_argument('--local-readback', action='store_true',
+                   help='Verify shared-Drive bytes on the local credential-owning PC, not across Vast ingress')
     a = p.parse_args()
     if not a.destination.startswith('backup:') or not 60<=a.timeout<=1800:
         p.error('Require scoped backup remote and a bounded deadline')

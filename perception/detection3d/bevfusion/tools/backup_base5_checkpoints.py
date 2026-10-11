@@ -7,9 +7,11 @@ never delete checkpoints or silently claim an external copy is complete.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -70,16 +72,24 @@ def remote_copy(source, destination, options, directory=False, phase='upload', t
     emit(phase+'_finished', file=label)
 
 
-def checkpoint_complete(path, contract):
+def checkpoint_complete(path, contract, allow_weights_only=False):
     checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+    if checkpoint.get('base5_contract_sha256') != contract:
+        raise ValueError('Checkpoint/run contract mismatch')
+    # MMEngine's best checkpoint is deliberately weights-only. Preserve it
+    # externally, but never advertise it as an optimizer/scheduler resume.
+    if (Path(path).name.startswith('best_') or allow_weights_only) and 'optimizer' not in checkpoint:
+        if not checkpoint.get('state_dict') or not all(k in checkpoint.get('meta', {}) for k in ('epoch', 'iter')):
+            raise ValueError('Incomplete best-model checkpoint')
+        return dict(epoch=checkpoint['meta']['epoch'], iteration=checkpoint['meta']['iter'],
+                    resume_capable=False)
     required = ('state_dict', 'optimizer', 'param_schedulers', 'message_hub', 'base5_rng', 'meta')
     if any(key not in checkpoint for key in required):
         raise ValueError('Not a full resumable checkpoint')
-    if checkpoint.get('base5_contract_sha256') != contract:
-        raise ValueError('Checkpoint/run contract mismatch')
     if 'loss_scaler' not in checkpoint['optimizer']:
         raise ValueError('AMP scaler missing')
-    return dict(epoch=checkpoint['meta']['epoch'], iteration=checkpoint['meta']['iter'])
+    return dict(epoch=checkpoint['meta']['epoch'], iteration=checkpoint['meta']['iter'],
+                resume_capable=True)
 
 
 def copy_verified(source, destination, rclone_options=()):
@@ -116,6 +126,24 @@ def copy_verified(source, destination, rclone_options=()):
         pending.replace(target)
 
 
+def local_bridge_readback(prefix, parts):
+    """Let the credential-owning local PC verify the actual Drive bytes.
+
+    No checksum criterion is relaxed. Avoid sending the complete readback over
+    the slow Vast ingress a second time. This explicit protocol is opt-in and
+    never used by ordinary/manual uploader invocations.
+    """
+    import uuid
+    request_id = uuid.uuid4().hex
+    emit('local_readback_request', request_id=request_id,
+         prefix=prefix, manifest=parts)
+    reply = json.loads(sys.stdin.readline())
+    if (reply.get('request_id') != request_id or not reply.get('verified') or
+            reply.get('sha256') != parts['sha256'] or reply.get('bytes') != parts['bytes']):
+        raise ValueError('Local Drive readback verification failed')
+    return reply
+
+
 def backup_once(work_dir, destination, state, rclone_options=(), part_bytes=0, transfers=16):
     work_dir = Path(work_dir).resolve(strict=True)
     manifest = json.loads((work_dir/'run_manifest.json').read_text())
@@ -124,7 +152,11 @@ def backup_once(work_dir, destination, state, rclone_options=(), part_bytes=0, t
     state['errors'] = []
     # Atomic runner exposes .pth only AFTER save/fsync; leftover partials are
     # deliberately ignored. Snapshot protects against max_keep deletion.
-    for checkpoint in sorted(work_dir.glob('*.pth')):
+    def checkpoint_priority(path):
+        if path.name.startswith('epoch_'):
+            return (0, -int(path.stem.split('_')[1]), path.name)
+        return (1, 0, path.name)
+    for checkpoint in sorted(work_dir.glob('*.pth'), key=checkpoint_priority):
         stat = checkpoint.stat()
         fingerprint = [stat.st_size, stat.st_mtime_ns]
         if state['uploaded'].get(checkpoint.name, {}).get('fingerprint') == fingerprint:
@@ -149,15 +181,20 @@ def backup_once(work_dir, destination, state, rclone_options=(), part_bytes=0, t
                     parts = split_checkpoint(snapshot, folder/directory, part_bytes)
                     remote_copy(folder/directory, prefix+'/'+directory, rclone_options,
                                 directory=True, transfers=transfers)
-                    readback = folder/'readback'; readback.mkdir()
-                    remote_copy(prefix+'/'+directory, readback, rclone_options,
-                                directory=True, phase='readback', transfers=transfers,
-                                expected_bytes=parts['bytes'])
-                    restored = folder/'restored.pth'
-                    if verify_parts(readback, parts, restored) != checksum:
-                        raise ValueError('Multipart checkpoint differs from snapshot')
-                    if checkpoint_complete(restored, contract) != progress:
-                        raise ValueError('Restored checkpoint metadata differs from snapshot')
+                    if os.environ.get('BASE5_LOCAL_VERIFY_BRIDGE') == '1':
+                        local_bridge_readback(prefix, parts)
+                        record['readback_location'] = 'local_credential_owner'
+                    else:
+                        readback = folder/'readback'; readback.mkdir()
+                        remote_copy(prefix+'/'+directory, readback, rclone_options,
+                                    directory=True, phase='readback', transfers=transfers,
+                                    expected_bytes=parts['bytes'])
+                        restored = folder/'restored.pth'
+                        if verify_parts(readback, parts, restored) != checksum:
+                            raise ValueError('Multipart checkpoint differs from snapshot')
+                        if checkpoint_complete(restored, contract,
+                                               allow_weights_only=not progress['resume_capable']) != progress:
+                            raise ValueError('Restored checkpoint metadata differs from snapshot')
                     emit('readback_verified', file=checkpoint.name, bytes=parts['bytes'], sha256=checksum)
                     copy_verified(folder/'PARTS.json', prefix+'/PARTS.json', rclone_options)
                     copy_verified(Path(__file__).with_name('base5_checkpoint_parts.py'),
@@ -180,6 +217,11 @@ def backup_once(work_dir, destination, state, rclone_options=(), part_bytes=0, t
                     copy_verified(latest, destination.rstrip('/')+'/'+work_dir.name+'/LATEST.json', rclone_options)
                     state['latest_iteration'] = record['iteration']
                 state['uploaded'][checkpoint.name] = dict(fingerprint=fingerprint, **record)
+                # A bounded upload may end between checkpoints. Preserve each
+                # verified completion instead of losing progress until the end.
+                pending = work_dir/'backup_status.json.partial'
+                pending.write_text(json.dumps(state, indent=2)+'\n')
+                pending.replace(work_dir/'backup_status.json')
         except Exception as exc:
             # Keep secrets out of error text from command stderr/environment.
             state['errors'].append(dict(checkpoint=checkpoint.name, error=type(exc).__name__,

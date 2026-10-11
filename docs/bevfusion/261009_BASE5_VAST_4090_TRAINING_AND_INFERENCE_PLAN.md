@@ -15,7 +15,45 @@
 
 <a id="base5-user-oneclick-training-261011"></a>
 
-## 사용자 실행용 딸깍 학습 — 2026-10-11 17:46 KST
+## 사용자 실행용 딸깍 학습
+
+### 최신 준비 대상 — 2026-10-11 20:20 KST, E2 제한 검증 완료
+
+현재 실행기는 query classifier prior를 보완한 source와 camera+sparse LiDAR initializer로
+전환했다. 새 E1/E2의 전체 validation mean AP는 35.16%→45.57%이며 E2에서 정상 종료했다.
+새 계약의 실제 원격 `--remote-check --resume`는 GPU 유휴·source/data/init 계약·W&B 서버
+summary 재읽기·원래 config의 prepare-only를 통과했다. Drive 최신 백업 상태는 EVIDENCE
+28절에 별도로 기록한다. agent는 E3~24를 시작하지 않았다.
+새 실행의 대용량 백업 시험은 20분 상한에서 종료됐으므로 E2의 Drive 외부 백업은 아직
+미확정이다. 원격 E2는 보존됐으며 아래 `--resume`이 별도 watcher의 재시도를 함께 시작한다.
+새 E2 외부 백업 완료가 확인되기 전에는 Vast 인스턴스를 Destroy하지 않는다.
+초기화 변경은 새 trial에서 수행했으며 기존 camera-only E1/E3를 덮어쓰지 않았다.
+
+- Source: `/workspace/base5_training_final_health_source_261011`.
+- Work: `/workspace/base5_training_sunny13_query_prior_fixed_55272391_261011`.
+- Initializer: `/workspace/base5_nuscenes_camera_lidar_xy_261011.pth`.
+- 계약: `a72aaec76e4c3cd8de73f4f6ebd0dc3945780db7951da671938d0e6dcc96aad8`.
+- 학습 설정: 512×1056 Q90 / 공간 5·20cm / depth 25cm / batch 4·누적 1 /
+  LR 1e-4·warm-up 500 / 총 24 epoch. 원본 source config로 재개하며 sorted dump를 읽지 않는다.
+- 다음 사용자 명령은 **`bash scripts/runtime/start_base5_vast_training.sh --resume`**이다.
+  agent가 E3~24를 시작하지 않는다. `--resume` 없는 명령은 기존 checkpoint 보호를 위해 거부된다.
+- E2의 full checkpoint를 이어 총 24 epoch를 채운다. 22개 잔여 epoch의 보수적 예상은
+  약 4.4~4.9시간이며 최종 backup catch-up은 별도다. 동물 AP 0과 최종 수렴은 미해결이다.
+- Animal을 포함한 네 class의 기존 W&B 지표 이름을 유지한다. 새 온라인 run ID는 work 이름과
+  계약 앞 12자리이며 제한 trial의 offline 로그를 자동 업로드 완료로 간주하지 않는다.
+- W&B remote 18991 / bulk backup remote 18993을 별도 SSH 연결로 로컬 18992에 중계한다.
+  전체 checkpoint SHA 재읽기는 로컬에서 수행하며 로컬 PC를 최종 백업까지 켜 둔다.
+
+아래 17:46 설정·run 링크·시작 명령은 최초 camera-only 실행 이력이다. 최신 대상과 섞지 않는다.
+
+### 최초 준비 이력 — 2026-10-11 17:46 KST
+
+**저녁 상태가 우선한다.** 첫 사용자 실행은 E2 matching 오류로 종료되어 E1을 보존했고,
+FP32 matching 보완의 제한 E2/E3 전체 검증을 완료했다. 초기 AP가 아직 낮아 별도의
+nuScenes sparse 초기화·query classifier prior 검증을 수행한다.
+[28절의 실제 학습 진단과 백업 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011)를
+먼저 확인한다. 이 아래는 17:46의 준비 이력이며 현재 복구/초기화 선택이 끝나기 전에는
+그때의 새 시작 명령을 복사하지 않는다. 동결 source를 편집하거나 hash guard를 풀지 않는다.
 
 사용자는 agent가 본학습을 시작하지 않고, 직접 한 번 실행한 뒤 결과 분석을 요청하기로
 했다. 이번에는 실행기·원격 인증·온라인 로깅·Drive 백업 경로를 준비한다. **본학습과

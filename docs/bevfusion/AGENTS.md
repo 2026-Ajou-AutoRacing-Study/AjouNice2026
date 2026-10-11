@@ -8,6 +8,10 @@ EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한�
 `261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`에서
 먼저 확인한다. README는 인덱스, EVIDENCE는 실측, Vast 계획은 원격 상세다.
 현재 계획을 여러 문서에 길게 중복 복사하거나 동일 목적의 계획 파일을 추가하지 않는다.
+2026-10-11 저녁 학습 상태 점검·FP32 matching·제한 복구와 optimizer 이름/순서 재개
+검사는 EVIDENCE 28절이 최신이다. 원본 실패 실행과 검증 완료 실행을 구분하고, 아래의
+‘본학습 미시작’은 사용자 실행 전 준비 이력으로 읽는다. 현재 재개 경로·검증 결과는
+계획 허브와 Vast 실행 절을 먼저 확인한다.
 최신 16:45 KST CPU 경합 검사는 EVIDENCE 27절이다. 로컬 raw bag의 실제 측위·tracking·
 planning·제어와 신호등을 실행했지만 GT-driven planning과 독립 비용용 인지를 결합한
 시험이다. 학습된 OD의 ROS bridge·LAN·실제 4090 24GB·13Hz 인증과 구분한다.

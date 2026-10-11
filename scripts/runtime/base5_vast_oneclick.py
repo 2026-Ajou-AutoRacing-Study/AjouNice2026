@@ -27,19 +27,22 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = dict(
     host='root@175.155.64.164', port=19463,
-    source='/workspace/base5_training_compile_ready_source_66414829_261011',
+    source='/workspace/base5_training_final_health_source_261011',
     data='/workspace/base5_sunny13_jpeg90_verified_v2_261011',
-    work='/workspace/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011',
-    initializer='/workspace/base5_nuscenes_camera_only_261010.pth',
+    work='/workspace/base5_training_sunny13_query_prior_fixed_55272391_261011',
+    initializer='/workspace/base5_nuscenes_camera_lidar_xy_261011.pth',
     config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_training_compiled_candidate.py',
-    contract='9e2b7b85e2a3d2d0d51272e1b5b8ae09e7b28b6c0659b991505d2065958a2324',
+    contract='a72aaec76e4c3cd8de73f4f6ebd0dc3945780db7951da671938d0e6dcc96aad8',
     remote_script='/workspace/base5_oneclick_261011/base5_vast_oneclick.py',
     entity='AjouNice2026', project='morai-3d-object-detection',
-    probe_id='base5-oneclick-preflight-261011',
+    probe_id='base5-health-online-probe-261011',
     train_session='base5-sunny13-training', backup_session='base5-sunny13-backup',
     drive_remote='ajou_drive_private', drive_root='12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP',
     destination='backup:model/bevfusion/base5/checkpoint_backups',
-    relay_local_port=18992, relay_remote_port=18991,
+    # The uploader is independently repaired; old frozen training source and
+    # its checkpoint contract must not be edited just to fix backup mechanics.
+    backup_script='/workspace/base5_backup_repair_261011/backup_base5_checkpoints.py',
+    relay_local_port=18992, relay_remote_port=18991, backup_relay_remote_port=18993,
 )
 
 
@@ -255,36 +258,42 @@ def logging_relay(c):
     proxy = server(c['relay_local_port'])
     thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     thread.start()
-    tunnel = None
+    tunnels = []
     try:
-        tunnel = subprocess.Popen(['ssh', '-N', '-T', '-p', str(c['port']),
-            '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-            '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=15',
-            '-o', 'ServerAliveCountMax=3', '-R',
-            '127.0.0.1:' + str(c['relay_remote_port']) + ':127.0.0.1:' + str(c['relay_local_port']),
-            c['host']], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ports = tuple(dict.fromkeys((c['relay_remote_port'],
+                      c.get('backup_relay_remote_port', c['relay_remote_port']))))
+        for port in ports:
+            # Independent SSH TCP connections: bulk checkpoint readback must
+            # not head-of-line block small W&B authentication/log requests.
+            tunnels.append(subprocess.Popen(['ssh', '-N', '-T', '-p', str(c['port']),
+                '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=15',
+                '-o', 'ServerAliveCountMax=3', '-R',
+                '127.0.0.1:' + str(port) + ':127.0.0.1:' + str(c['relay_local_port']),
+                c['host']], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         # Verify actual bind address: sshd GatewayPorts must not expose it.
         probe = """import pathlib,time
-port=%r
-for attempt in range(20):
- listeners=[]
- for name in ('tcp','tcp6'):
-  for line in pathlib.Path('/proc/net/'+name).read_text().splitlines()[1:]:
-   fields=line.split()
-   address,p=fields[1].split(':')
-   if int(p,16)==port and fields[3]=='0A': listeners.append(address)
- if listeners:
-  assert all(a in ('0100007F','00000000000000000000000001000000') for a in listeners), 'Relay must bind loopback only'
-  break
- time.sleep(.1)
-else: raise RuntimeError('SSH relay listener unavailable')
-""" % c['relay_remote_port']
+ports=%r
+for port in ports:
+ for attempt in range(20):
+  listeners=[]
+  for name in ('tcp','tcp6'):
+   for line in pathlib.Path('/proc/net/'+name).read_text().splitlines()[1:]:
+    fields=line.split()
+    address,p=fields[1].split(':')
+    if int(p,16)==port and fields[3]=='0A': listeners.append(address)
+  if listeners:
+   assert all(a in ('0100007F','00000000000000000000000001000000') for a in listeners), 'Relay must bind loopback only'
+   break
+  time.sleep(.1)
+ else: raise RuntimeError('SSH relay listener unavailable')
+""" % (ports,)
         ssh(c, 'python -c ' + shlex.quote(probe), capture_output=True, timeout=20)
-        if tunnel.poll() is not None:
+        if any(tunnel.poll() is not None for tunnel in tunnels):
             raise ValueError('W&B logging SSH relay could not start')
-        yield tunnel
+        yield RelayTunnels(tunnels)
     finally:
-        if tunnel is not None:
+        for tunnel in tunnels:
             tunnel.terminate()
             try:
                 tunnel.wait(timeout=5)
@@ -292,6 +301,18 @@ else: raise RuntimeError('SSH relay listener unavailable')
                 tunnel.kill(); tunnel.wait()
         proxy.shutdown()
         proxy.server_close()
+
+
+class RelayTunnels:
+    def __init__(self, tunnels):
+        self.tunnels = tunnels
+
+    def poll(self):
+        for tunnel in self.tunnels:
+            code = tunnel.poll()
+            if code is not None:
+                return code
+        return None
 
 
 def backup_worker(c):
@@ -309,9 +330,9 @@ def backup_arguments(c, logs):
     return ['--host', c['host'], '--port', str(c['port']), '--work-dir', c['work'],
             '--destination', c['destination'], '--root-folder-id', c['drive_root'],
             '--rclone-remote', c['drive_remote'], '--rclone-binary', '/usr/bin/rclone',
-            '--backup-script', c['source'] + '/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py',
+            '--backup-script', c.get('backup_script') or c['source'] + '/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py',
             '--part-mib', '32', '--transfers', '16', '--timeout', '1200',
-            '--watch', '--max-polls', '1', '--log', str(logs / 'drive_backup.jsonl')]
+            '--watch', '--max-polls', '1', '--local-readback', '--log', str(logs / 'drive_backup.jsonl')]
 
 
 def backup_once(c):
@@ -321,7 +342,7 @@ def backup_once(c):
     spec = importlib.util.spec_from_file_location('access_only_backup', path)
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
-    proxy = 'http://127.0.0.1:' + str(c['relay_remote_port'])
+    proxy = 'http://127.0.0.1:' + str(c.get('backup_relay_remote_port', c['relay_remote_port']))
     helper.REMOTE = ('import os\nos.environ.update(HTTPS_PROXY=%r, HTTP_PROXY=%r, '
                      'NO_PROXY="localhost,127.0.0.1")\n' % (proxy, proxy)) + helper.REMOTE
     logs = ROOT / 'artifacts/evaluation/bevfusion/base5_oneclick_261011'

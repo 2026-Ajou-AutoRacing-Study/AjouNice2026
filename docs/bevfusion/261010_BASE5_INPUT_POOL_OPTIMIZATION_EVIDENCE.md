@@ -2890,3 +2890,357 @@ normal server의 camera workers 기본값은 4지만 Torch·OpenCV의 스레드 
 Sunny13 본학습·백업이며, 완성 가중치로 실제 4090 24GB에서 compile/병렬화 정합,
 ROS bridge·13Hz 입력·신호등·필요한 RViz·실제 LAN·대회 제어 주기와 최대 지연을 확인한다.
 그 결과에 따라 팀장님 PC에서 최종 스택 시험을 요청한다.
+
+<a id="base5-training-health-repair-261011"></a>
+
+## 28. 본학습 수치 오류·초기 AP 진단과 제한 복구 — 2026-10-11
+
+18:42 KST 중간 기록이다. 사용자가 낮은 validation 성능을 의심해 전체 점검·수정과
+필요한 1~2 epoch 검증 학습을 승인했다. 다른 agent의 MORAI/planning_validator 작업은
+건드리지 않으며, 수집·센서·native GT·현재 production E25는 보존한다.
+
+### 실제 중단과 비교 조건
+
+원본 `/workspace/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011`은
+18:14 KST경 E2 중반에 `ValueError: matrix contains invalid numeric entries`로 종료됐다.
+오류는 AMP 역전파/스케일러 전에 수행하는 BBox Hungarian matching에서 발생했다.
+OOM·Drive 업로드·W&B 통신 오류가 이번 학습 중단의 직접 원인은 아니다.
+원본 E1의 1,675개 floating 모델·optimizer tensor는 모두 유한값이며 optimizer step은
+1,064, AMP scale은 32다. 원본 E1과 실패 로그를 덮어쓰지 않는다.
+
+| E1 실제 validation | Vehicle | Pedestrian | Obstacle | Animal | 4-class mean |
+|---|---:|---:|---:|---:|---:|
+| Base5 / 745장 / ±100×±30m | 0.76% | 18.20% | 0% | 0% | 4.74% |
+
+Base3 production 계열의 원래 학습 E1 scalar는 mean AP 93.11%, Vehicle 86.63%,
+Pedestrian 98.80%, Obstacle 93.91%다. 이는 nuScenes MORAI3 adapter의 LiDAR·BEV·
+fusion·head까지 사용한 3-class/좁은 범위 학습이다. Base5는 카메라 backbone/neck만
+초기화하고 LiDAR·depth·BEV·head를 새로 학습한다. 같은 ‘E1’이라는 이유로 직접적인
+성능 우열로 해석할 수 없지만, 낮은 Base5 AP를 이유 없이 정상 수렴이라고 단정하지도 않는다.
+과거 별도 `corrected_range30_full_e1_e40/e1/metrics.json`은 사후 range 통제 평가로,
+원래 학습 E1 scalar와 혼동하지 않는다.
+
+### 모델·데이터·검증 경로 점검
+
+원본 E1에서 validation의 균등 index 48장을 eager FP32로 읽어 query/GT 위치와
+BatchNorm running-stat / batch-stat 대조를 수행했다. parameter·optimizer 갱신은 없다.
+batch-stat 대조는 진단용이며 validation 점수로 채택하거나 배포하지 않는다.
+
+| 표본 클래스 | GT 수 | 같은 클래스 예측이 XY 1m 안에 있는 GT / running stats | batch-stat 대조 |
+|---|---:|---:|---:|
+| Vehicle | 20 | 13 | 14 |
+| Pedestrian | 36 | 31 | 31 |
+| Obstacle | 41 | 25 | 26 |
+| Animal | 3 | 0 | 0 |
+
+이는 score-ranked one-to-one AP/recall이 아니라 후보 생성 여부 진단이다. 위치를
+근처에 반환해도 높은 점수의 오탐이 많으면 AP가 낮거나 0일 수 있다. 현 metric은
+nuScenes-style min precision/recall 0.1을 사용한다. 표본에서 후보 위치가 전부 엉뚱한
+축으로 이동하거나 BatchNorm 대조만으로 검출이 회복되는 현상은 관측하지 않았다.
+표본 animal query는 running-stat 8/9,600으로 매우 적다. 희귀 class의 초기 학습
+부족을 전체 30K 성능으로 일반화하지 않는다.
+
+### 수치 보완과 엄격한 재개
+
+실제 설치된 `FocalLossCost._focal_loss_cost`에서 finite logit 10을 입력하면 FP16은
+`-Inf`, FP32는 `-7.499008`을 반환했다. FP16 sigmoid 포화와 eps=1e-12의 표현 범위,
+BBox dimension decode의 FP16 exponential overflow가 위험 경로다. 실패 batch의
+중간 tensor가 원래 저장되지 않았으므로 정확히 어느 component였는지는 확정하지 않는다.
+
+`MoraiRectangularTransFusionHead.get_targets_single`에서 detached 예측을 **decode 전에
+FP32로 변환하고 autocast를 끈 상태에서 매칭**한다. 원래 network 출력·gradient를
+수정하지 않으며 NaN/Inf를 0으로 덮거나 GT/실패 batch를 제외하지 않는다. 비유한
+network 예측은 장면 index·GT·출력 범위가 남는 오류로 중단한다. legacy E25 head는 유지한다.
+
+`migrate_base5_numerical_resume.py`는 ordinary resume의 hash guard를 풀지 않는다.
+부모/자식 identity에서 데이터·모델·초기화·증강·batch·optimizer·LR/schedule이 같은지
+검사하고, 열거한 수치/진단/백업 source 변경만 허용한다. tuple→JSON list 표현은
+정규화하여 비교한다. parent checkpoint SHA·계약·변경 파일을 migration receipt에 남기고
+원본 폴더를 보존한다. exact worker RNG/prefetch replay는 보장하지 않는다.
+
+실제 복구 work-dir는 `/workspace/base5_numerical_validation_e2_v2_261011`이며,
+source는 `/workspace/base5_numerical_repair_source_261011`이다. E1의 full state에서
+24 epoch schedule을 유지하고 **E2 train+val 후 정상 종료**하도록 제한했다. 18:42 KST에는
+560/1,064 batch까지 finite loss/gradient·약 0.58초 step을 확인했다. 전체 epoch/AP gate는 진행 중이다.
+최초 migration 시도는 JSON tuple/list 표현 차이를 엄격하게 거부했고 GPU 학습 전 종료했다.
+원본과 이 준비 실패 기록도 유지한다.
+
+### 외부 백업의 별도 보완
+
+best checkpoint는 weights-only이므로 resumable epoch checkpoint와 구분하여 저장한다.
+`COMPLETE.json`의 `resume_capable=false`를 유지하고 LATEST 재개 포인터는 full epoch만
+가리킨다. multipart 복원 임시 이름에서도 이 구분을 명시적으로 전달한다.
+live watch에서 새 epoch/validation rewrite를 60초 idempotency 시험에 넣지 않는다.
+다음 poll에서 갱신된 fingerprint를 다시 처리하고 qualification-only 재검사는 유지한다.
+업로더는 `/workspace/base5_backup_repair_261011/`로 분리해 원래 학습 source를 수정하지 않는다.
+완료 marker·full SHA readback·최신 fingerprint가 일치하기 전 외부 백업 완료로 보고하지 않는다.
+
+CPU 회귀는 target 10개, checkpoint backup 10개, migration identity 2개,
+local oneclick 13개를 통과했다. 로컬 CPU container의 첫 target 실행은 native pool 확장
+경로가 없어 import 단계에서 실패했으며 실제 설치가 있는 remote CPU에서 다시 검사했다.
+이 테스트는 full validation AP나 장기 수렴을 보장하지 않는다. 산출물은 로컬
+`artifacts/evaluation/bevfusion/base5_oneclick_261011/`과 위 원격 work-dir/log에 보존한다.
+
+### E2 완료와 데이터·평가 대조
+
+18:48 KST경 복구 E2의 1,064 batch와 validation 745장을 모두 완료하고 정상 종료했다.
+24 epoch LR 스케줄은 축소하지 않았으며 누적 iteration은 2,128이다.
+
+| 동일 Base5 validation | Vehicle | Pedestrian | Obstacle | Animal | 4-class mean |
+|---|---:|---:|---:|---:|---:|
+| 원본 E1 | 0.76% | 18.20% | 0% | 0% | 4.74% |
+| FP32 matching 복구 E2 | 14.39% | 25.36% | 0% | 0% | 9.94% |
+
+E2의 floating 모델·optimizer tensor 1,675개는 모두 유한값이다. 모든 optimizer state의
+step은 2,128이며 scaler는 64, growth tracker는 128이다. 초기 scale 32에서 2,000회의
+성공 업데이트 후 정상 성장한 상태와 일치한다. 이 실행에서 AMP skip으로 업데이트가
+사라진 근거는 없다. 정상 학습 step은 약 0.58초이며 compile 준비와 validation/AP 비용을
+포함한 제한 실행은 796.26초다. 짧은 실행 성공을 장기 수렴의 보장으로 기록하지 않는다.
+
+E2의 Obstacle center AP가 0이어도 위치 예측이 전부 없는 것은 아니다. 동일 validation의
+1m 최적 F1 작동점은 precision 7.39% / recall 22% / F1 11.06%, TP mATE는 0.526m다.
+0~10m Obstacle mean AP는 1.50%, IoU 0.25 AP는 0.85%다. center AP는 recall 0.1 이후
+precision에서 기준 0.1을 빼고 음수를 0으로 자르는 평가라, 많은 배경 오탐과 낮은 점수
+순위 때문에 전체 AP가 0으로 나올 수 있다. metric 기준이나 배포 threshold를 바꿔
+초기 점수를 올리지 않는다. 정확한 박스·foreground score의 학습이 아직 부족하다는
+의미이며 장시간 학습의 성공을 보장하지 않는다.
+
+파생 train/val GT 11,052개를 전수 검사해 비유한 좌표·0 이하 크기는 발견하지 않았다.
+train의 BBox bottom Z 한 개는 −3.09m이며 나머지 중대 높이 붕괴의 근거는 없다.
+train은 Vehicle 4,178 / Pedestrian 2,310 / Obstacle 2,615 / Animal 247개,
+val은 각각 341 / 653 / 674 / 34개다. 두 split의 원거리·클래스 구성도 E25와 다르다.
+validation 745장의 정답 박스를 동일 score 1의 예측으로 돌린 oracle 대조에서는
+네 클래스와 전체 mean AP 모두 수치 허용 오차 안에서 100%다. 이는 parser·class·metric의
+기본 계약을 확인한 것이며 실제 모델의 센서 투영이나 정확도까지 인증하지 않는다.
+
+Vehicle/Pedestrian의 개선에도 Obstacle/Animal이 0이므로 추가 한 epoch를 제한 검증한다.
+E3 stopper 변경은 W&B의 기존 run config와 충돌해 첫 두 준비가 학습 전 종료됐다.
+기존 E2 run의 config를 강제로 덮지 않고 별도 `-e3validation` run ID로 진단을 분리했다.
+training identity·checkpoint·optimizer·24 epoch schedule은 유지한다.
+
+추가 E3 진단 재개에서 `fused AdamW`의 parameter/gradient/moment 형식 불일치를 발견했다.
+원인은 **진단 실행기가 저장용 resolved config를 다시 읽은 것**이다. config pretty-print가
+`common_heads`를 정렬하면서 height/dim 모듈 등록 순서가 달라지고, optimizer의 위치 기반
+state 연결이 다른 branch로 이동했다. 모델 state의 이름 기반 로드가 통과해도 optimizer
+moment는 안전하지 않다. 실제 본 실행기는 원본 source config의 `prepare`로 모델을
+구성하므로 같은 결함으로 확정하지 않는다. E3도 그 실제 경로로 재검증한다.
+E2 checkpoint 자체는 유한값이며 보존한다. 새 checkpoint에는 optimizer parameter name
+순서를 저장하고, 재개 전에 이름·순서와 moment shape를 검사한다. 기존 single-group
+Base5는 ordered state_dict에서 원래 순서를 복원해 검사하며 이를 임의 재배열하지 않는다.
+PyTorch의 [optimizer 입력 검사 구현](https://github.com/pytorch/pytorch/blob/v2.7.1/aten/src/ATen/native/ForeachUtils.h)은
+dtype/device뿐 아니라 tensor 크기·stride와 non-overlapping dense 조건도 확인한다.
+온라인 W&B 접속이 불안정하여
+진단 재시작의 한 번은 API token 검증 서버에 연결하지 못했다. 자격 증명 불량으로
+단정하지 않으며, 제한 진단은 로컬 로그/오프라인 W&B 기록을 남겨 통신과 분리한다.
+
+원본 E1 full checkpoint는 SHA `9f6b2e7d9f4da25364e65ee598c63ba8914b89a3592e0cc21e3b411b77479cde`,
+best weights는 SHA `e76b22e8f1815a2941f10a5d9a963abaa237f7b417ccde52643f5707fb654013`로
+Drive 업로드·전체 SHA 재읽기를 완료했다. validation이 atomically 다시 쓴 E1의 최신
+fingerprint까지 반영했다. 이전 content-addressed snapshot은 보존한다.
+
+### E3 전체 검증과 최신 full checkpoint 보존
+
+19:20 KST에 원본 source config의 native prepare 경로로 추가 E3 train/745장 val을
+완료했다. 총 iteration은 3,192이며 장시간 본학습을 자동 재개하지 않았다.
+
+| 동일 Base5 validation | Vehicle | Pedestrian | Obstacle | Animal | 4-class mean |
+|---|---:|---:|---:|---:|---:|
+| 원본 E1 | 0.76% | 18.20% | 0% | 0% | 4.74% |
+| FP32 matching E2 | 14.39% | 25.36% | 0% | 0% | 9.94% |
+| FP32 matching E3 | 14.43% | 28.33% | 2.49% | 0% | 11.31% |
+
+E3에서도 floating 모델·optimizer tensor 1,675개 모두 유한값, optimizer step 3,192,
+AMP scale 64 / growth tracker 1,192를 확인했다. 1,064개의 추가 갱신이 정상 반영됐으며
+AMP skip의 근거는 없다. 정상 step 약 0.568초, train+val 제한 실행 약 720.39초다.
+loss는 마지막 기록에서 약 4.50이며 matched IoU 약 0.39다. 수치 중단은 복구됐지만
+이 AP를 학습 완료·정확도 문제 해결·E25 대체 인증으로 해석하지 않는다.
+
+별도 eager FP32 진단은 validation **745장 전수**로 확대했다. decode가 입력 tensor를
+수정하므로 진단에서 복제한 뒤 decode하여 원래 logits/log-dimension을 보존한다.
+반환 box 비유한값은 0장, query 총수 149,000개 중 클래스별 11,183 / 28,014 / 103,902 /
+5,901개였다. 다음 값은 같은 class 후보의 XY 1m 근접 여부이지 score-ranked one-to-one
+recall 또는 AP가 아니다. 이 표만으로 classifier/size/yaw의 품질을 인정하지 않는다.
+
+| 클래스 | GT | 1m 안에 같은 class 후보가 있는 GT | 해당 후보의 score 중앙값 | GT 주변 dense 확률 중앙값 |
+|---|---:|---:|---:|---:|
+| Vehicle | 341 | 221 | 0.0120 | 0.2605 |
+| Pedestrian | 653 | 609 | 0.0205 | 0.3395 |
+| Obstacle | 674 | 499 | 0.0117 | 0.1586 |
+| Animal | 34 | 24 | 0.0056 | 0.1165 |
+
+근접 후보는 존재하지만 foreground score 순위·박스 품질이 부족하다. Animal AP 0도
+‘animal query가 완전히 없다’는 의미는 아니며 train 247 / val 34개의 희귀 class라는
+조건을 유지한다. 모든 class를 높은 AP처럼 보이게 하려고 평가 min precision/recall이나
+threshold를 완화하지 않는다. 최초 E1의 작은 표본 진단과 이번 전수 결과를 혼동하지 않는다.
+
+새 재개용 준비 폴더는 `/workspace/base5_training_sunny13_health_fixed_55272391_261011`,
+동결 source는 `/workspace/base5_training_health_fixed_source_261011`이다. 기존 E3의
+full state를 명시적 migration으로 보존했으며 contract는
+`de543769fbcddad1838eb1c31f29f2f35a4c6c573b006d0a19656a6610cc3199`다.
+원본 E3 SHA `4367c2da6612bedcd95e19c38c37815c98be5818cd11589e591d02a5a513f882`에서
+모델·optimizer·24 epoch schedule을 유지하고 새 source 계약·receipt만 기록했다.
+이 폴더는 prepare-only이며 실제 E4~24 본학습은 미시작이다.
+
+새 full checkpoint의 SHA는
+`2e865f2056faeb7707027a45baf63583c2b436b69bf9b9db0b7a64a814b8d381`,
+크기는 520,112,581 bytes다. 실제 Drive 16개 part와 결합 전체 SHA를 로컬에서 재읽어
+확인하고 `COMPLETE.json`·`LATEST.json`·run manifest까지 쓰기/재읽기를 완료했다.
+`resume_capable=true`, pending 0, errors 0이며 실제 1회 백업은 약 462.88초다.
+
+직전 uploader는 원격으로 full bytes를 다시 받아 약 0.15MB/s에 묶여 1,202.6초 제한에
+종료됐다. 동일 SSH 전송에 대용량 backup과 W&B를 함께 넣으면 W&B probe가 10초에
+시간 초과되는 현상을 관측했다. 별도 SSH 연결에서는 같은 endpoint가 약 0.63초에
+응답했다. 현재 실행기는 W&B(원격 18991)와 backup(18993)을 **독립 SSH 연결**로
+분리한다. Drive refresh token/client secret은 로컬에만 둔다. full bytes readback은
+로컬 credential 소유 PC에서 수행하고 nonce·part SHA·결합 SHA·byte count가 모두 맞아야
+완료를 승인한다. full SHA 기준을 생략하거나 업로드 byte count만으로 완료 처리하지 않는다.
+최신 full epoch부터 백업하고 파일 하나가 확인될 때마다 상태를 atomic 저장한다.
+
+실제 회귀는 remote CPU 31개, local oneclick 14개, 실제 CUDA AMP interruption/resume
+1개를 통과했다. CUDA toy의 연속/재개 가중치·scheduler·scaler는 정확히 일치했다.
+이는 전체 detector 장기 수렴을 보장하는 검사가 아니다.
+
+### 추가 초기화 통제 — camera + sparse LiDAR 후보
+
+E3 AP가 여전히 낮으므로 camera-only 초기화를 정상 수렴이라고 단정하지 않는다.
+공식 nuScenes에서 파생한 기존 MORAI3 adapter는 E25 학습 결과가 아니며 원본 SHA는
+`2a9ce3e01a723581f8e76b247887a704c4751f2ebcc9b36884c266466700a247`이다.
+여기서 sparse encoder 126개 tensor / 10,786,472 bytes만 추출하고 head/class/fusion/BEV/
+depth/geometry/optimizer를 가져오지 않는다. 기존 감사한 camera backbone/neck은 유지한다.
+
+Base5는 legacy encoder의 [X,Y,Z] sparse 좌표를 [Y,X,Z]로 바꿨으므로 shape만 같은
+kernel을 그대로 로드하지 않는다. 알려진 spconv v2 [O,X,Y,Z,I] metadata에서 공간 kernel의
+첫 두 축을 교환하고 `_metadata`를 유지한다. 실제 CUDA sparse encoder의 동일 포인트/
+feature 대조에서 출력 [1,256,10,12], XY transpose 최대 절대 오차 0.0000041723으로
+rtol/atol 1e-4 검사를 통과했다. CPU 범위/layout 거부와 실제 CUDA 대조 3개를 통과했다.
+
+후보 initializer는 `/workspace/base5_nuscenes_camera_lidar_xy_261011.pth`, SHA
+`a08b1beb4e74771ba63806b8b3ce129f7ceb32037f2a7a0fe8ae7ff01e310b9b`다.
+기존 원본·복구 E3와 독립된 `/workspace/base5_lidar_initializer_validation_e1_261011`에서
+**1 epoch train/전체 val 후 종료**하는 검증을 시작했다. seed·dataset·augmentation·batch·
+LR와 24 epoch LR schedule을 유지한다. 일반 본학습은 아직 시작하지 않는다.
+원본 E1과는 FP32 matching 보완도 달라 순수한 initializer-only A/B라고 보고하지 않는다.
+결과를 확인하기 전 initializer를 production 기본값이나 24 epoch 실행기로 승격하지 않는다.
+
+### Sparse 초기화 단독 실패와 query 분류 prior 누락
+
+19:43 KST에 sparse 초기화 단독 trial이 첫 epoch 중간에 **실제 network 예측 NaN**으로
+중단됐다. dense heatmap과 query heatmap score는 유한값이었지만 decoder 이후 center/
+height/dim/rot/heatmap이 NaN이었다. 장면 3454 / 3433 / 2894 / 1542와 수치 진단을 보존했다.
+이는 FP16 cost만의 문제와 다르며 FP32 matching guard가 유효하게 거부한 사례다.
+실패 batch를 버리고 진행하거나 NaN을 0으로 덮지 않는다. 이 trial에는 E1 완료 checkpoint/
+전체 validation AP가 없으며 **성공한 사전학습 후보로 승격하지 않는다.**
+
+실제 fresh head를 CPU로 구성해 dense classifier bias는 −2.19였지만 query classifier
+bias는 약 −0.084 / −0.010 / 0.008 / −0.015이고, 다시 `init_weights()`를 호출해도
+그대로임을 확인했다. TransFusion의 override가 SeparateHead 자식의 초기화를 수행하지
+않아 `SeparateHead.init_bias=-2.19`가 적용되지 않는 경로다. 과거 E25는 head까지
+pretrained checkpoint로 덮었기 때문에 Base5의 fresh head 조건과 다르다.
+
+Base5-only rectangular head에서 query classifier의 최종 bias에도 SeparateHead의
+의도한 prior를 적용한다. 기존 regression/decoder weight, legacy E25, 로드한 checkpoint의
+학습된 bias를 변경하지 않는다. fresh/loaded bias 회귀를 추가해 target 검사 총 11개를
+통과했다. sigmoid(−2.19)는 약 0.10065, sigmoid(0)은 0.5다. zero-feature 음성 logit
+800개, focal α=.25/γ=2의 설명용 합은 103.97→0.645다. 실제 batch loss 실측이나
+개선율이 아니라 sparse scene의 초기 background 부담을 설명하는 대조다.
+
+새 source `/workspace/base5_query_prior_fixed_source_261011`, 독립 work-dir
+`/workspace/base5_query_prior_validation_e1_261011`에서 동일 camera+sparse initializer·seed·
+데이터·optimizer·24 epoch LR schedule로 **1 epoch 후 정상 종료**하는 대조를 시작했다.
+직전 sparse-only trial과의 핵심 training 변경은 query bias prior다. 결과 확인 전에는
+NaN 원인을 prior 하나로 확정하거나 장시간 수렴을 보장하지 않는다.
+
+진단 E3 offline W&B 파일의 온라인 sync 시도는 180초 상한에서 완료되지 않았다.
+로그/결과 파일은 보존하며 업로드 완료로 보고하지 않는다. 별도 실제 온라인 qualification
+run `base5-health-online-probe-261011`은 `wandb.init/log/finish`와 서버 summary 재읽기를
+통과했다. 따라서 offline bulk sync 실패를 본학습 온라인 logging 전체 불능으로 바꾸어
+해석하지 않는다. 작은 probe를 대용량 artifact 업로드 속도 인증으로도 사용하지 않는다.
+
+### Query prior 보완의 첫 전체 epoch 결과 — 2026-10-11 20:01 KST
+
+동일 4,255 train / 745 val을 모두 수행하고 의도한 E1 경계에서 정상 종료했다.
+camera+sparse 초기화와 query prior를 함께 적용한 결과이며 원래 camera-only E1과의
+차이를 prior 하나의 순수 효과로 보고하지 않는다. 데이터·GT·AP 기준·LR·batch는 유지했다.
+
+| 완료 실행 | Vehicle AP | Pedestrian AP | Obstacle AP | Animal AP | 4-class mean AP |
+|---|---:|---:|---:|---:|---:|
+| 원래 camera-only E1 | 0.76% | 18.20% | 0.00% | 0.00% | 4.74% |
+| FP32 matching 복구 E3 | 14.43% | 28.33% | 2.49% | 0.00% | 11.31% |
+| camera+sparse + query prior E1 | 61.69% | 56.78% | 22.17% | 0.00% | 35.16% |
+
+E1 checkpoint의 모델·optimizer floating tensor 1,675개는 모두 유한값이다.
+1,064 batch 중 optimizer update는 1,062회이며 초기 AMP overflow로 2회 skip됐다.
+scaler는 32→8, growth tracker 1,059다. 이를 ‘AMP skip 0’으로 기록하지 않는다.
+후반 정상 step은 약 0.57초, 전체 train+val은 약 788.66초였다.
+희귀 Animal(train 247 / val 34)은 AP 0이므로 해결 완료 또는 4-class 최종 품질로 인정하지 않는다.
+
+20:06 KST부터 원래 source config로 E1을 재개해 **E2 전체 train+val 뒤 종료**하도록
+제한했다. 24 epoch LR schedule은 그대로이며 본학습 E3~24는 자동 실행하지 않는다.
+최종 source의 추가 차이는 Animal W&B 지표를 숨기지 않는 logger·검사·migration 도구다.
+모델·optimizer 상태를 보존하고 원본 E1/E3 및 실패 sparse-only trial을 덮어쓰지 않는다.
+
+### Query prior 보완 E2 완료·본학습 재개 선택 — 2026-10-11 20:20 KST
+
+동일 조건의 추가 E2 train 1,064 batch / val 745장을 모두 완료하고 정상 종료했다.
+source config의 원래 module 순서로 E1을 재개했으며 optimizer·LR·scaler·RNG를 유지했다.
+
+| 수정된 실행 | Vehicle AP | Pedestrian AP | Obstacle AP | Animal AP | 4-class mean AP |
+|---|---:|---:|---:|---:|---:|
+| E1 | 61.69% | 56.78% | 22.17% | 0.00% | 35.16% |
+| E2 | 72.67% | 72.40% | 37.20% | 0.00% | 45.57% |
+
+E2의 floating model/optimizer tensor 1,675개는 모두 유한값, iteration 2,128 /
+optimizer update 2,126이다. E2에서는 추가 AMP skip이 없었고 scale 16 / growth tracker
+123이었다. 정상 step 약 0.57초, cold resume·train·val 포함 약 777.51초였다.
+mean IoU AP .25는 45.26%, .50은 21.10%다. AP는 검증셋의 전체 예측으로 계산했고
+실제 rosbag·실대회 성능이나 학습 완료 수준의 인증으로 바꾸어 해석하지 않는다.
+
+Animal은 E1 1m best-F1 지점에서 recall 52% / precision 2.97%, E2에서는 recall 14% /
+precision 6.36%다. 같은 score operating point나 고정 threshold의 직접 비교가 아니다.
+동물 예측이 전혀 없는 것은 아니지만 foreground 순위·오탐 구분은 아직 부족하다.
+nuScenes-style AP의 min precision/recall 0.1 기준에서 AP가 0이며 평가 조건을 낮추지 않는다.
+희귀 class train 247 / val 34라는 조건과 본학습 추세 확인 과제를 남긴다.
+E25는 3-class, 이번 평균은 4-class이므로 평균을 같은 분모로 오해하지 않는다.
+
+결정: camera+sparse의 검증된 XY 변환 initializer와 query prior 보완을 채택하고,
+**이 실행의 E2 full state에서 E3~24를 사용자가 직접 재개**하도록 준비한다. 새로운
+head/fusion/BEV/depth는 이번 Base5 데이터로 학습한다. E25 학습 가중치·새 LR·GT 제외·
+metric 완화는 사용하지 않았다. 수정 원인을 prior 하나의 독립 AP 효과로 확정하지 않는다.
+FP32 matching 복구만으로는 E3 mean AP 11.31%였고, sparse-only trial은 NaN으로
+실패했다는 부정 결과도 보존한다.
+
+최종 source는 `/workspace/base5_training_final_health_source_261011`, work는
+`/workspace/base5_training_sunny13_query_prior_fixed_55272391_261011`, 계약은
+`a72aaec76e4c3cd8de73f4f6ebd0dc3945780db7951da671938d0e6dcc96aad8`이다.
+최종 CPU 회귀 37개 중 CUDA 전용 1개는 건너뛰었고, sparse 축 변환의 별도 실제 CUDA
+대조와 AMP interruption/resume는 이미 통과했다. 로컬 실행기 14개·문법·diff 검사도 통과했다.
+현재 본학습은 미시작이며 22개 잔여 epoch의 보수적 예상은 약 4.4~4.9시간이다.
+초기 compiler ETA는 cold start를 포함해 일시적으로 커지므로 후반 step과 epoch 실측으로
+추정한다. 최종 Drive catch-up 시간은 이 학습 예상에서 별도다.
+
+### 최종 재개 검사와 새 실행의 백업 제한 — 2026-10-11 20:28 KST
+
+최종 E2 full checkpoint는 519,926,149 bytes, SHA
+`e98bb33d5bce6b9b5b7a3c0db9d6258e3c4b4b6f5a77d3221e6d1f7982e90e9e`이며
+`last_checkpoint`는 이 파일을 가리킨다. E2 종료 뒤 remote resume preflight의 GPU 유휴·
+source/config/data/init 계약·W&B 서버 summary 재읽기·원래 config prepare-only를 통과했다.
+같은 중계에서 Drive 작은 파일의 쓰기/재읽기도 통과했다.
+
+새 실행의 E1 backup 시도는 multipart 전송 재시도 후 **1,201.04초 상한에서 SIGTERM으로
+종료**했다. 현재 원인은 대용량 전송 지연이며 로그의 unclassified copy error만으로
+quota·인증·특정 네트워크 원인을 확정하지 않는다. rclone 누적 bytes에는 재시도 byte가
+섞여 원본 크기를 넘었고 ETA 0도 표시됐지만 완료 증거가 아니었다. 새 실행의 E1/E2/best
+외부 백업은 모두 미확정이며 `COMPLETE/LATEST` 검증 완료로 보고하지 않는다.
+원격 checkpoint는 삭제하거나 변경하지 않았다. 앞서 확인한 원본 E1 및 복구 E3의 실제
+Drive full SHA 검증은 유효하지만 새 E2의 복원 가능성을 대신 증명하지 않는다.
+
+현재 실행기의 백업 watcher는 실패를 노출하고 120초 뒤 재시도하며 최신 full epoch부터
+선택한다. 학습 실패/완료 뒤에도 남은 파일이 확인될 때까지 관측한다. 사용자의
+`--resume`은 GPU 학습과 별도 SSH 통신/백업 worker를 함께 시작한다. agent는 이 요청에서
+상주 watcher나 E3~24 본학습을 시작하지 않았다. 새 E2의 외부 백업 완료를 확인하기 전
+Vast 인스턴스를 Destroy하지 않는다. 백업 지연을 학습 정상성·최종 정확도 문제와 구분한다.
+
+최종 로컬 `bash scripts/runtime/start_base5_vast_training.sh --check --resume`도
+실제 통과했다(`ready_without_training`). 영수증은 로컬 ignored artifact의
+`base5_oneclick_261011/preflight.json`에 기록했다. GPU 학습·상주 watcher를 만들지 않고
+임시 SSH 중계는 검사 종료 시 해제했다. 사용자는 같은 명령에서 `--check`만 빼고 재개한다.

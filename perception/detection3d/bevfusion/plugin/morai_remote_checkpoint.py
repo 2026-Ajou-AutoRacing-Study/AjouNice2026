@@ -18,6 +18,47 @@ from mmengine.runner.checkpoint import _load_checkpoint_to_model
 from mmdet3d.registry import HOOKS
 
 
+def optimizer_parameter_names(runner):
+    model = runner.model.module if is_model_wrapper(runner.model) else runner.model
+    names = {id(parameter): name for name, parameter in model.named_parameters()}
+    return [[names[id(parameter)] for parameter in group['params']]
+            for group in runner.optim_wrapper.optimizer.param_groups]
+
+
+def validate_optimizer_parameter_order(runner, checkpoint):
+    """Optimizer state loads positionally; shape-compatible reordering is unsafe.
+
+    A pretty-printed resolved config can sort SeparateHead dictionaries while
+    retaining identical semantic config values. Never silently attach its Adam
+    moments to a different branch. Legacy Base5 has one full parameter group;
+    its original parameter order is recoverable from ordered state_dict keys.
+    """
+    current = optimizer_parameter_names(runner)
+    expected = checkpoint.get('base5_optimizer_parameter_names')
+    if expected is None:
+        if len(current) != 1:
+            raise ValueError('Legacy resume needs an explicit optimizer parameter-name map')
+        parameters = set(current[0])
+        expected = [[key for key in checkpoint['state_dict'] if key in parameters]]
+        if len(expected[0]) != len(current[0]):
+            raise ValueError('Cannot recover legacy optimizer parameter order')
+    if current != expected:
+        raise ValueError('Resume rejected: optimizer parameter names/order differ; '
+                         'use the original source config, not its sorted resolved dump')
+    saved = checkpoint['optimizer']
+    groups = runner.optim_wrapper.optimizer.param_groups
+    if len(saved['param_groups']) != len(groups):
+        raise ValueError('Resume rejected: optimizer parameter groups differ')
+    for old_group, new_group in zip(saved['param_groups'], groups):
+        if len(old_group['params']) != len(new_group['params']):
+            raise ValueError('Resume rejected: optimizer parameter count differs')
+        for old_id, parameter in zip(old_group['params'], new_group['params']):
+            for key in ('exp_avg', 'exp_avg_sq', 'max_exp_avg_sq'):
+                value = saved['state'].get(old_id, {}).get(key)
+                if value is not None and value.shape != parameter.shape:
+                    raise ValueError('Resume rejected: optimizer moment shape differs')
+
+
 @HOOKS.register_module()
 class MoraiResumeEvidenceHook(Hook):
     priority = 'VERY_LOW'
@@ -28,6 +69,7 @@ class MoraiResumeEvidenceHook(Hook):
 
     def before_save_checkpoint(self, runner, checkpoint):
         checkpoint['base5_contract_sha256'] = self.contract_sha256
+        checkpoint['base5_optimizer_parameter_names'] = optimizer_parameter_names(runner)
         checkpoint['base5_rng'] = dict(python=random.getstate(), numpy=np.random.get_state(),
             torch=torch.get_rng_state(), cuda=torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [])
         checkpoint['base5_resume_scope'] = 'epoch boundary; worker RNG/prefetch and exact mid-epoch replay not guaranteed'
@@ -40,6 +82,7 @@ class MoraiResumeEvidenceHook(Hook):
         required = ('optimizer', 'param_schedulers', 'message_hub', 'base5_rng')
         if any(key not in checkpoint for key in required):
             raise ValueError('Incomplete resumable checkpoint')
+        validate_optimizer_parameter_order(runner, checkpoint)
         self.pending_rng = checkpoint['base5_rng']
 
     def before_train(self, runner):

@@ -9,6 +9,14 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
+2026-10-11 저녁에는 사용자 실행의 E2 Hungarian 수치 오류를 진단하고 Base5-only FP32
+matching을 보완했다. 복구 E2/E3 전체 train/745장 val·optimizer 이름/순서 재개·최신 full
+Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+sparse 초기화 E1/E2의
+전체 validation mean AP는 35.16%→45.57%다. 사용자가 새 E2 상태에서 E3~24를 재개하며
+동물 AP 0과 최종 수렴은 아직이다. 최신 선택·백업 상태는
+[학습 상태 복구 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011)를
+따른다. 아래 ‘본학습 미시작’은 17:46 준비까지의 이력이며 현재 실행 상태로 읽지 않는다.
+
 현재 실행 순서는 **Sunny13 5K 완료·JPEG 전환 → 로컬 입력/정답 축/upright 라벨·전수·재개 검증 완료 →
 로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
@@ -32,7 +40,8 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
-| 사용자가 직접 시작하는 한 명령 / W&B 온라인 로깅·Drive 백업 / 로컬 PC 유지·재개 / 본학습 미시작 | [10-11 사용자 실행기와 운영 조건](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
+| 사용자 실행·명시적 재개 / W&B 온라인 로깅·Drive 백업 / 로컬 PC 유지 | [10-11 사용자 실행기와 운영 조건](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
+| E2 matching 수치 오류 / GT·oracle metric / E25 초기화 차이 / query prior 수정 E1·E2 검증 / 재개 guard / full Drive 백업 | [10-11 학습 상태 복구 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011) |
 | 실제 ROS CPU 스택·신호등과 인지 동시 실행 / 추가 CPU 점유 / 관측 주기·원본 입력 공백 / 배포 인증과 구분 | [10-11 로컬 CPU 경합 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011) |
 | 48GB 학습 batch 4 유지 / 24GB 추론과 분리 / 추론 compile ON 메모리 근거와 남은 gate | [10-11 16:03 메모리·배치 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011), [측정값 재검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | 정밀 5/20cm·depth 25cm의 실제 4090 학습 OFF/ON / gradient·partial batch·저장/재개·val / 새 준비 계약 | [10-11 fine 학습 compile 검사 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011) |
