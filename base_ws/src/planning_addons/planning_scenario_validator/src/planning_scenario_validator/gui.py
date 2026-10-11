@@ -597,8 +597,6 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         source_box.selection_range(0, 'end')
         return 'break'
     source_box.bind('<Control-a>', select_path)
-    load_button = ttk.Button(top, text='불러오기/새로고침', command=lambda: select_source(None))
-    load_button.grid(row=0, column=3, padx=4)
 
     def paste_source():
         try:
@@ -608,7 +606,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             messagebox.showerror('YAML 경로 확인', str(error))
 
     paste_button = ttk.Button(top, text='경로 붙여넣기', command=paste_source)
-    paste_button.grid(row=1, column=3, padx=4)
+    paste_button.grid(row=0, column=3, padx=4)
 
     def choose_personal():
         try:
@@ -1357,32 +1355,45 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     controls = ttk.Frame(monitor_panel)
     controls.pack(fill="x", pady=5)
     control_buttons = {}
+    primary_controls = ttk.Frame(controls)
+    primary_controls.pack(side='left')
+    auxiliary_controls = ttk.Frame(controls)
+    auxiliary_controls.pack(side='right')
     def save_clicked():
         try:
             save()
         except Exception as error:
             show_error('YAML 저장 실패', error)
 
-    save_button = tk.Button(controls, text='YAML 저장', command=save_clicked,
-                            background='#2269aa', foreground='white', activebackground='#19558c',
-                            activeforeground='white', font=('TkDefaultFont', 11, 'bold'), padx=14)
-    save_button.pack(side='left', padx=4)
-    control_buttons['YAML 저장'] = save_button
-    for label, action in (("설정 검사", check),
-                          ("새 실험 시작", start), ('실험 기록', lambda: (refresh_history(), notebook.select(history_tab))),
-                          ("중단", stop), ("결과 폴더", open_results)):
-        if label == '새 실험 시작':
-            button = tk.Button(controls, text='▶ 새 실험 시작', command=action,
-                               background='#238347', foreground='white', activebackground='#196536',
-                               activeforeground='white', font=('TkDefaultFont', 11, 'bold'), padx=14)
-        else:
-            button = ttk.Button(controls, text=label, command=action)
-        button.pack(side="left", padx=4)
+    for label, text, action, background, foreground, hover in (
+            ('YAML 저장', 'YAML 저장', save_clicked, '#e5ecf3', '#344b62', '#d7e2ed'),
+            ('불러오기/새로고침', '불러오기/새로고침', lambda: select_source(None), '#edf0f3', '#384b5c', '#e0e5eb'),
+            ('새 실험 시작', '▶ 새 실험 시작', start, '#e2eee6', '#304c3b', '#d2e3d8')):
+        button = tk.Button(primary_controls, text=text, command=action,
+                           background=background, foreground=foreground, activebackground=hover,
+                           activeforeground=foreground, disabledforeground='#8c939a',
+                           font=('TkDefaultFont', 11, 'bold'), padx=12, pady=4,
+                           relief='flat', borderwidth=0, highlightthickness=1,
+                           highlightbackground='#b9c4ce')
+        button.pack(side='left', padx=(0, 6))
         control_buttons[label] = button
+    save_button = control_buttons['YAML 저장']
+    load_button = control_buttons['불러오기/새로고침']
+    auxiliary_button = ttk.Menubutton(auxiliary_controls, text='보조 기능 ▾')
+    auxiliary_menu = tk.Menu(auxiliary_button, tearoff=False)
+    auxiliary_menu.add_command(label='설정 검사', command=check)
+    auxiliary_menu.add_command(label='실험 기록', command=lambda: (refresh_history(), notebook.select(history_tab)))
+    auxiliary_menu.add_separator()
+    auxiliary_menu.add_command(label='결과 폴더', command=open_results)
+    auxiliary_button.configure(menu=auxiliary_menu)
+    auxiliary_button.pack(side='left', padx=4)
+    stop_button = ttk.Button(auxiliary_controls, text='중단', command=stop)
+    stop_button.pack(side='left', padx=4)
+    control_buttons['중단'] = stop_button
     rerun_checkbox = ttk.Checkbutton(controls, text="재개 시 FAIL도 재실행", variable=rerun_failed)
     rerun_checkbox.pack_forget()
     ttk.Checkbutton(history_bar, text='FAIL도 다시 시험', variable=rerun_failed).pack(side='left', padx=8)
-    compact_button = ttk.Button(controls, text="모니터 모드",
+    compact_button = ttk.Button(auxiliary_controls, text="모니터 모드",
                                 command=lambda: toggle_compact_mode())
     compact_button.pack(side="right", padx=4)
 
@@ -1397,8 +1408,10 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         for key in EDITABLE_FIELDS:
             widget = field_widgets[key]
             widget.configure(state='disabled' if running else ('readonly' if isinstance(widget, ttk.Combobox) else 'normal'))
-        for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
+        for label in ('YAML 저장', '불러오기/새로고침', "새 실험 시작"):
             control_buttons[label].configure(state="disabled" if running else "normal")
+        for index in (0, 1):
+            auxiliary_menu.entryconfigure(index, state='disabled' if running else 'normal')
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
 
     set_running_ui(False)
@@ -1467,8 +1480,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                 pass
             bar = resolve_bar_height(area_height, bottom_bar_px)
             compact_width = area_width // 2
-            for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
-                control_buttons[label].pack_forget()
+            primary_controls.pack_forget()
             rerun_checkbox.pack_forget()
             # Keep the return button above status text, even if a long status
             # would otherwise consume the entire fixed-height monitor bar.
@@ -1519,8 +1531,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             compact_button.configure(text="전체 설정 보기")
         else:
             root.attributes("-topmost", False)
-            for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
-                control_buttons[label].pack(side="left", padx=4, before=control_buttons["중단"])
+            primary_controls.pack(side='left', before=auxiliary_controls)
             controls.pack_forget()
             controls.pack(fill="x", pady=5)
             status_label.configure(wraplength=1840, width=0)
@@ -1693,6 +1704,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
+            'set_running_ui': set_running_ui,
             'select_scenarios': select_scenarios,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
@@ -1708,6 +1720,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "status": status, "table": table, "log": log, "batch_table": batch_table,
             "field_widgets": field_widgets, "source_entry": source_box, 'save_button': save_button,
             'start_button': control_buttons['새 실험 시작'], 'reload_button': load_button,
+            'primary_controls': primary_controls, 'auxiliary_menu': auxiliary_menu,
+            'auxiliary_button': auxiliary_button, 'stop_button': stop_button,
             "quick_table": quick_table, "quick_fields": quick_vars,
             'history_table': history_table,
             "batch_queue": batch_queue, "batch_note": batch_note,

@@ -134,7 +134,7 @@ class MinimalGuiTests(unittest.TestCase):
                     self.assertEqual(app['save_button'].cget('text'), 'YAML 저장')
                     self.assertTrue(app['start_button'].winfo_ismapped())
                     self.assertEqual(app['start_button'].cget('text'), '▶ 새 실험 시작')
-                    self.assertEqual(app['start_button'].cget('background'), '#238347')
+                    self.assertEqual(app['start_button'].cget('background'), '#e2eee6')
                     app['save_button'].invoke()
                     saved = gui.load_document(path)
                     self.assertTrue(path.read_text().startswith('# 내 설명'))
@@ -192,6 +192,46 @@ class MinimalGuiTests(unittest.TestCase):
                  patch('tkinter.messagebox.showerror') as errors:
                 gui.main(on_ready=ready)
                 errors.assert_not_called()
+            if failures:
+                raise failures[0]
+
+    def test_primary_actions_group_order_runtime_lock_and_monitor_restore(self):
+        with tempfile.TemporaryDirectory() as temp:
+            failures = []
+
+            def ready(app):
+                try:
+                    root = app['root']
+                    root.geometry('850x650')
+                    root.update_idletasks()
+                    buttons = app['primary_controls'].pack_slaves()
+                    self.assertEqual([button.cget('text') for button in buttons],
+                                     ['YAML 저장', '불러오기/새로고침', '▶ 새 실험 시작'])
+                    self.assertLess(app['start_button'].winfo_rootx() + app['start_button'].winfo_width(),
+                                    app['auxiliary_button'].winfo_rootx())
+                    self.assertEqual([app['auxiliary_menu'].entrycget(i, 'label') for i in (0, 1, 3)],
+                                     ['설정 검사', '실험 기록', '결과 폴더'])
+                    app['actions']['set_running_ui'](True)
+                    self.assertTrue(all(button.cget('state') == 'disabled' for button in buttons))
+                    self.assertEqual(app['auxiliary_menu'].entrycget(0, 'state'), 'disabled')
+                    self.assertEqual(str(app['stop_button'].cget('state')), 'normal')
+                    app['actions']['set_running_ui'](False)
+                    self.assertTrue(all(button.cget('state') == 'normal' for button in buttons))
+                    app['actions']['compact'](True)
+                    root.update_idletasks()
+                    self.assertFalse(app['primary_controls'].winfo_ismapped())
+                    self.assertTrue(app['compact_button'].winfo_ismapped())
+                    app['actions']['compact'](False)
+                    root.update_idletasks()
+                    self.assertTrue(app['primary_controls'].winfo_ismapped())
+                    self.assertEqual(app['primary_controls'].pack_slaves(), buttons)
+                except BaseException as error:
+                    failures.append(error)
+                finally:
+                    app['root'].destroy()
+
+            with patch.dict(os.environ, {'XDG_CONFIG_HOME': temp}):
+                gui.main(on_ready=ready)
             if failures:
                 raise failures[0]
 
