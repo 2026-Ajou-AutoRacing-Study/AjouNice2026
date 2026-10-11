@@ -597,7 +597,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         source_box.selection_range(0, 'end')
         return 'break'
     source_box.bind('<Control-a>', select_path)
-    load_button = ttk.Button(top, text='불러오기', command=lambda: select_source(None))
+    load_button = ttk.Button(top, text='불러오기/새로고침', command=lambda: select_source(None))
     load_button.grid(row=0, column=3, padx=4)
 
     def paste_source():
@@ -730,7 +730,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         field_widgets[key] = widget
     add_field(basic, 7, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
     ttk.Label(basic, textvariable=run_summary, wraplength=900).grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
-    ttk.Label(basic, text='GUI 수정 → YAML 저장 → 설정 검사·실행 | 회색 고정값·랜덤 범위는 VSCode에서 수정',
+    ttk.Label(basic, text='GUI 수정 → YAML 저장 → 설정 검사·실험 시작 | VSCode 저장 후에는 불러오기/새로고침',
               foreground='#285b86').grid(row=9, column=0, columnspan=3, sticky='w')
 
     for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
@@ -1371,7 +1371,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     for label, action in (("설정 검사", check),
                           ("새 실험 시작", start), ('실험 기록', lambda: (refresh_history(), notebook.select(history_tab))),
                           ("중단", stop), ("결과 폴더", open_results)):
-        button = ttk.Button(controls, text=label, command=action)
+        if label == '새 실험 시작':
+            button = tk.Button(controls, text='▶ 새 실험 시작', command=action,
+                               background='#238347', foreground='white', activebackground='#196536',
+                               activeforeground='white', font=('TkDefaultFont', 11, 'bold'), padx=14)
+        else:
+            button = ttk.Button(controls, text=label, command=action)
         button.pack(side="left", padx=4)
         control_buttons[label] = button
     rerun_checkbox = ttk.Checkbutton(controls, text="재개 시 FAIL도 재실행", variable=rerun_failed)
@@ -1702,6 +1707,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log, "batch_table": batch_table,
             "field_widgets": field_widgets, "source_entry": source_box, 'save_button': save_button,
+            'start_button': control_buttons['새 실험 시작'], 'reload_button': load_button,
             "quick_table": quick_table, "quick_fields": quick_vars,
             'history_table': history_table,
             "batch_queue": batch_queue, "batch_note": batch_note,

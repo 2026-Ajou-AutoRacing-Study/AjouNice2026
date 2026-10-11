@@ -132,6 +132,9 @@ class MinimalGuiTests(unittest.TestCase):
                     app['root'].update_idletasks()
                     self.assertTrue(app['save_button'].winfo_ismapped())
                     self.assertEqual(app['save_button'].cget('text'), 'YAML 저장')
+                    self.assertTrue(app['start_button'].winfo_ismapped())
+                    self.assertEqual(app['start_button'].cget('text'), '▶ 새 실험 시작')
+                    self.assertEqual(app['start_button'].cget('background'), '#238347')
                     app['save_button'].invoke()
                     saved = gui.load_document(path)
                     self.assertTrue(path.read_text().startswith('# 내 설명'))
@@ -147,6 +150,39 @@ class MinimalGuiTests(unittest.TestCase):
                     self.assertEqual(saved['upload']['profile'], 'bag')
                     self.assertEqual(app['active']['source_path'], path)
                     self.assertEqual(len(list(Path(temp).glob('*.yaml'))), 1)
+                except BaseException as error:
+                    failures.append(error)
+                finally:
+                    app['root'].destroy()
+
+            with patch.dict(os.environ, {'XDG_CONFIG_HOME': temp}), \
+                 patch('tkinter.messagebox.showerror') as errors:
+                gui.main(on_ready=ready)
+                errors.assert_not_called()
+            if failures:
+                raise failures[0]
+
+    def test_vscode_save_requires_reload_to_update_display(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'personal.yaml'
+            doc = gui.load_document(gui.MISSIONS / 'highway/base/random_example.yaml')
+            doc['output_root'] = str(Path(temp) / 'results')
+            path.write_text(annotated_yaml(doc))
+            failures = []
+
+            def ready(app):
+                try:
+                    app['actions']['open_yaml'](path)
+                    doc['scenarios']['repeat'] = 3
+                    doc['stack']['detector'] = 'od_gt'
+                    path.write_text(annotated_yaml(doc))
+                    app['root'].update_idletasks()
+                    self.assertEqual(app['fields']['repeat'].get(), '10')
+                    self.assertEqual(app['fields']['detector'].get(), 'bevfusion')
+                    self.assertEqual(app['reload_button'].cget('text'), '불러오기/새로고침')
+                    app['reload_button'].invoke()
+                    self.assertEqual(app['fields']['repeat'].get(), '3')
+                    self.assertEqual(app['fields']['detector'].get(), 'od_gt')
                 except BaseException as error:
                     failures.append(error)
                 finally:

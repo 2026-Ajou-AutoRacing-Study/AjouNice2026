@@ -30,6 +30,12 @@ PYTHONPATH="$PWD/base_ws/src/planning_addons/planning_scenario_validator/src:$PY
 /usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_mission_starters.py --check
 ```
 
+### 후속 실행 버튼·YAML 재불러오기 안내 (2026-10-11)
+
+상단 파란 YAML 저장 옆에 굵은 초록색 `▶ 새 실험 시작`을 표시한다. 실행·검사 중 비활성화와 모니터 모드의 숨김/복원 계약은 유지한다. 경로 옆 버튼은 `불러오기/새로고침`으로 표시한다. VSCode Ctrl+S만으로 GUI 표시를 자동 변경하지 않으며 버튼으로 재불러온다. 새로고침 시 GUI의 미저장 변경은 버려지므로 먼저 저장해야 한다. 검사·새 실행에서는 최신 파일에 GUI 변경분만 병합하며, 진행 중인 실험은 당시 입력 사본을 사용한다.
+
+추가 Tk 테스트에서 외부 저장 후 표시가 그대로인 상태와 재불러오기 후 변경값 반영, 시작 버튼 표시·색상을 확인했다. 최종 suite는 181개 테스트 통과했고 scoped install과 1010×810 화면 캡처도 확인했다. 이번 UI 변경에서는 MORAI 주행을 새로 시작하지 않았다.
+
 ### 시나리오 검색·일괄 선택 (2026-10-03)
 
 미션 JSON 보관 폴더는 그대로 두고 GUI 기본 탭에 `장면 선택` 대화창을 추가했다. 이름 부분 검색·와일드카드·쉼표 OR, baseline/normal/stress 파일명 기반 빠른 필터, 검색 결과 전체 체크·해제, 전체 체크 초기화, Ctrl·Shift 다중 행 강조 후 Space를 제공한다. 처음 명시적 목록을 만들 때는 빈 체크에서 시작하고, 기존 목록을 열면 체크를 보존한다. 검색은 체크를 지우지 않는다. 선택 버튼에 개수를 표시하고 목록 모드에서 glob 입력을 비활성화한다. 적용만으로 파일을 쓰지는 않으며 개인 YAML 저장/새 실행 때 반영한다. 실행·검사 중에는 선택을 바꿀 수 없다.
