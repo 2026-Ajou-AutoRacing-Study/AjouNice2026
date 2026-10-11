@@ -30,6 +30,30 @@ def calibration():
 
 
 class OnlinePreprocessorTest(unittest.TestCase):
+    def test_explicit_ros255_adapter_preserves_source_and_native_default(self):
+        raw=np.asarray([[1,2,0,255],[2,1,0,127],[0,0,0,0]],dtype=np.float32)
+        before=raw.copy()
+        ros=Base3OnlinePreprocessor(calibration(),camera_workers=1,
+                                   point_intensity_source='ros255',remove_zero_returns=True)
+        try:
+            normalized=ros._filter_points(raw)
+            np.testing.assert_array_equal(raw,before)
+            np.testing.assert_array_equal(normalized[:,:3],raw[:2,:3])
+            np.testing.assert_array_equal(normalized[:,3],raw[:2,3]*np.float32(1./255.))
+            np.testing.assert_array_equal(self.preprocessor._filter_points(raw),raw)
+            bad=raw.copy();bad[0,3]=256
+            with self.assertRaisesRegex(ValueError,'0..255'):ros._filter_points(bad)
+        finally:ros.close()
+
+    def test_training_config_uses_deterministic_val_when_test_is_none(self):
+        cfg=dict(point_cloud_range=[-100,-30,-3,100,30,2],
+                 model=dict(view_transform=dict(image_size=[512,1056],feature_size=[64,132])),
+                 test_dataloader=None,val_dataloader=dict(dataset=dict(pipeline=[
+                     dict(type='MoraiImageAug3D',final_dim=[512,1056],resize_lim=[.825,.825],is_train=False)])))
+        self.assertEqual(preprocessing_options_from_config(cfg)['final_dim'],(512,1056))
+        cfg['val_dataloader']['dataset']['pipeline'][0]['is_train']=True
+        with self.assertRaisesRegex(ValueError,'deterministic'):preprocessing_options_from_config(cfg)
+
     def test_late_rgb_preserves_pixels_and_projection(self):
         rng = np.random.default_rng(261011)
         late = Base3OnlinePreprocessor(calibration(), camera_workers=1, rgb_after_crop=True)

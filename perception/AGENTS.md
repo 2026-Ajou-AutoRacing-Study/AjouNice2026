@@ -1,6 +1,12 @@
 # Perception agent context
 
-2026-10-12 최신은 EVIDENCE 34절의 대표 dev bag 비교다. 같은 4개 bag·256프레임·
+2026-10-12 최신은 EVIDENCE 35절이다. Base5 별도 trial(원본 JPEG/서버 ÷255)의
+실제 메시지→TCP 입력·학습 E24 출력 12장 정합 및 연속 dev bag 1,570프레임 검사를
+완료했다. E25 기본 설정·threshold는 유지한다. 다음은 학습된 출력 최적화/4090·
+실제24GB 비용, live ROS queue·tracker·100m 확인이다. 단순 1m 매칭 실패를
+실제 검출 부재나 tracker 삭제로 읽지 않는다. 아래 34절은 앞선 표본 검사다.
+
+2026-10-12 앞선 결과는 EVIDENCE 34절의 대표 dev bag 비교다. 같은 4개 bag·256프레임·
 30m GT와 공통 ROS NMS로 E25/E9/E24를 실제 추론했다. 원본 ROS 0~255 강도는
 보존하고 Base5 tensor만 ÷255로 변환했다. production bridge는 아직 미변경이며
 offline/online 동등성·연속 tracking·24GB 배포 검사는 남았다. 아래 33절은 앞선 static val 비교다.

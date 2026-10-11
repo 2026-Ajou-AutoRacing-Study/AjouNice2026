@@ -1,5 +1,19 @@
 # bevfusion_ros
 
+## Base5 별도 시험 경로 — 2026-10-12
+
+`base5_trial.launch`는 E25 production을 교체하지 않는다. Sensor_4, 원본 JPEG 전달,
+학습된 `512×1056 / resize 0.825` 입력 계약, 별도 서버 `29515`와
+`/perception/base5_trial/detection/objects`를 선택한다. host는 원본 0~255 XYZI와
+JPEG를 정규화·재압축하지 않는다. Base5 서버의
+`--base5-runtime --point-intensity-source ros255`가 강도를 정확히 한 번 ÷255 처리한다.
+`--fp32-reference`는 입력·출력 대조용이지 최적화된 실시간 설정이 아니다.
+서버와 bridge의 강도·크기 계약이 다르면 요청을 거부한다. 기존 E25 launch와 기본값은
+유지한다. 시험 경로의 threshold는 출발값이며 Base5 production 승인값이 아니다.
+status·latency·marker·projection도 `/perception/base5_trial/`로 분리한다.
+[현재 계획 허브](../../../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)와
+[EVIDENCE 35절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)에서 검증 범위·결과를 확인한다.
+
 Host-side ROS1 bridge for the Dockerized Base3 four-camera BEVFusion runtime.
 
 - Sensor topics are parsed from `configs/sensors/Sensor.json`.

@@ -1,0 +1,26 @@
+<launch>
+  <!-- Private topic/namespace: never silently replace production E25. -->
+  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_4.json"/>
+  <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_trial.yaml"/>
+  <arg name="output_objects" default="/perception/base5_trial/detection/objects"/>
+  <arg name="vehicle_score_threshold" default="0.40"/>
+  <arg name="pedestrian_score_threshold" default="0.15"/>
+  <arg name="obstacle_score_threshold" default="0.10"/>
+  <group ns="base5_trial">
+    <remap from="/perception/bevfusion/markers" to="/perception/base5_trial/markers"/>
+    <remap from="/perception/bevfusion/status" to="/perception/base5_trial/status"/>
+    <remap from="/perception/bevfusion/latency_ms" to="/perception/base5_trial/latency_ms"/>
+    <remap from="/perception/bevfusion/projection/camera_front/compressed" to="/perception/base5_trial/projection/camera_front/compressed"/>
+    <remap from="/perception/bevfusion/projection/camera_front_left/compressed" to="/perception/base5_trial/projection/camera_front_left/compressed"/>
+    <remap from="/perception/bevfusion/projection/camera_front_right/compressed" to="/perception/base5_trial/projection/camera_front_right/compressed"/>
+    <remap from="/perception/bevfusion/projection/camera_back/compressed" to="/perception/base5_trial/projection/camera_back/compressed"/>
+    <include file="$(find bevfusion_ros)/launch/base3_online.launch">
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="config" value="$(arg config)"/>
+      <arg name="output_objects" value="$(arg output_objects)"/>
+      <arg name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
+      <arg name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
+      <arg name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
+    </include>
+  </group>
+</launch>

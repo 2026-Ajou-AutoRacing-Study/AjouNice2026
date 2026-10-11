@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신 결과는 [34절 대표 bag 4개·256프레임의 공통 30m 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012)다.
+2026-10-12 최신 결과는 [35절 ROS 입력/TCP 정합·연속 bag 1,570프레임](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)이다.
+Base5 별도 trial·원본 JPEG 전달·서버 강도 ÷255를 구현했고 실제 학습 출력도 대조했다.
+threshold·연속 실패 분석은 검출 전용 dev 검사이며 실제 ROS queue·tracker·24GB 인증은
+남아 있다. production E25와 기본 threshold는 유지한다. 아래 34절은 앞선 표본 비교다.
+
+2026-10-12 앞선 결과는 [34절 대표 bag 4개·256프레임의 공통 30m 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012)다.
 ROS 원본 입력을 사용한 오프라인 검출 시험이며 Base5 tensor에만 강도 ÷255를 적용했다.
 연속 tracking·live ROS·24GB 배포 인증과 구분한다. 아래 33절은 앞선 수집 데이터 비교다.
 
@@ -64,6 +69,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| Base5 별도 ROS trial·강도/JPEG 계약 / 실제 TCP 학습 출력 정합 / 연속 1,570프레임 AP·threshold·실패 구간 | [10-12 입력·연속 bag 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012) |
 | 대표 장애물·보행자·고주로·로터리 bag / 같은 256프레임·GT / ROS 강도 adapter·공통 NMS / AP·고정 score P/R | [10-12 대표 bag 빠른 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012) |
 | 학습 완료·E9/E24 보존 / 동일 data·radial 30m / intensity scale·E25 원래 val control / 새 threshold와 ROS gate | [10-12 공통 30m 실측](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012) |
 | 원거리 50~80/80~100m AP·차량 전후방·GT 수 / 동일 계약·W&B run 재개 / 패널 구성 | [10-12 평가 확장 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012) |

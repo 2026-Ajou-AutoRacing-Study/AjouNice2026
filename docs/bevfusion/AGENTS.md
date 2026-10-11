@@ -1,6 +1,13 @@
 # BEVFusion documentation agent context
 
-2026-10-12 최신 결과는 EVIDENCE 34절이다. 대표 dev bag 4개·256프레임의 동일
+2026-10-12 최신은 EVIDENCE 35절이다. Base5 별도 ROS trial·서버 강도 ÷255·원본
+JPEG 전달을 구현하고 실제 메시지→bridge→TCP→학습 E24의 12장 정합을 통과했다.
+대표 dev bag의 모든 적격 1,570프레임 AP·threshold·연속 실패 진단을 완료했다.
+고주로 1m 실패와 실제 출력 부재를 구분한다. production E25·기존 threshold는 유지한다.
+다음은 학습된 출력 최적화/4090·실제24GB, live ROS queue·tracker·100m 확인이다.
+함수/TCP 입력 정합은 live full-stack 인증이 아니다. 아래 34절은 앞선 표본 검사다.
+
+2026-10-12 앞선 결과는 EVIDENCE 34절이다. 대표 dev bag 4개·256프레임의 동일
 30m 입력/GT에서 E25/E9/E24를 실제 추론하고 공통 ROS NMS로 비교했다. Base5의
 입력 tensor에만 intensity ÷255를 적용했으며 production adapter는 아직이다.
 전체 연속 tracking·live ROS·24GB 인증이 아니다. 다음은 실제 ROS 입력 동등성,

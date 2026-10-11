@@ -4056,3 +4056,168 @@ organized point cloud row padding, 시간 오차·높이 외삽 거부, world→
 희소 GT 지원점, NMS 중복 제거·클래스 분리 등을 검사했다. 다른 agent의
 planning_validator 변경은 커밋에 포함하지 않는다. 다음은 실제 ROS 입력 동등성과
 연속 전체 bag의 threshold·누락 분석, 학습된 출력의 최적화/24GB 검증이다.
+
+<a id="base5-ros-input-continuity-261012"></a>
+
+## 35. Base5 ROS 입력 정합과 연속 bag 평가 — 2026-10-12 05:50 KST
+
+사용자 승인 범위는 Base5 ROS 입력 동등성 및 대표 bag의 연속 threshold·누락 검사다.
+실제 학습 완료 E9/E24와 production E25를 로컬 5060 Ti에서 비교했다. 원격 학습,
+MORAI·ROS master·차량 제어·production detector는 실행하거나 교체하지 않았다.
+다른 agent의 planning_validator 변경도 이 작업 및 커밋에서 제외한다.
+
+### ROS 입력 계약 보완과 실제 TCP 검사
+
+E25 기본 `256×704 / resize 0.55 / host RGB8 / native intensity`는 유지한다.
+새 `base5_trial.launch`와 `configs/perception/bevfusion_base5_trial.yaml`만
+`Sensor_4 / 512×1056 / resize 0.825 / compressed / ros255`를 선택한다.
+서버는 별도 port 29515, 출력은 `/perception/base5_trial/detection/objects`다.
+status·latency·marker·projection도 trial topic으로 remap해 production 관측을 덮지 않는다.
+원본 ROS XYZI 강도는 0~255 그대로 전달하고 Base5 서버가 모델 입력 복사본에만
+고정 ÷255를 한 번 적용한다. XYZ와 원본 파일은 변하지 않는다. native Base5 파일을
+직접 시험할 때는 서버의 기본 `native`를 사용하며 다시 나누지 않는다.
+요청에 명시된 intensity source·최종 이미지 크기가 서버와 다르면 추론 전에 거부한다.
+
+처음에는 host가 Base5 크기로 RGB를 만들어 전달했으나 오프라인과 이미지 성분
+2.67%가 최대 1(uint8) 달랐다. host OpenCV 4.2.0과 Docker 4.11.0의 환경 차이가
+있으며, decoder/resize 중 정확한 발생 지점까지 분리한 결과는 아니다. 큰 성능
+저하의 증거로 단정하지 않지만 exact input gate는 실패했다. **Base5는 원본 JPEG
+bytes를 재압축 없이 전달하고 오프라인과 동일한 Docker에서 decode·resize·crop**하도록
+수정했다. production E25의 host RGB 경로는 바꾸지 않는다. PointCloud2의 organized
+row padding 파서도 보완했고 기존 비패딩·big-endian 입력을 검사했다.
+
+4개 bag에서 실제 ROS 메시지 3장씩, 총 12장을 골라 다음 경로를 대조했다.
+
+`실제 ROS 메시지 → 실제 bridge _prepare_frame → binary packet → private localhost TCP → 실제 server handler/model`
+
+비교 기준은 같은 E24·동결 val pipeline이다. 이미지 픽셀과 모델 입력 포인트는 12장
+모두 정확히 일치했고 투영 행렬은 atol 1e-5를 통과했다. 서버 반환 검출은 총 31개로
+전체 빈 출력만 비교하는 검사가 아니다. label·개수는 동일하고 7D 박스 최대 절대 차이
+6.074e-5, score 최대 차이 5.246e-6으로 각각 atol 1e-4/1e-5를 통과했다. 박스 수치는
+위치·크기·yaw를 포함하므로 모든 차이를 미터 단위로 읽지 않는다. 12장 중 1장은 양쪽
+출력 모두 0개였다. AMP·TF32·추론 compile·병렬 stream은 OFF인 기준 검사다.
+동결 학습 설정의 compile ON을 추론에서 자동 활성화하지 않도록 보완했다.
+
+이는 **실제 메시지 파싱·전처리·TCP·모델의 동등성 검사**다. live subscription,
+latest-only queue, ROS 후처리·tracker, LAN, 13Hz 또는 실제 24GB 배포 인증은 아니다.
+ROS package만 증분 설치하고 launch 해석을 확인했으며 노드를 실행하지 않았다.
+
+### 연속 비교 범위와 GT
+
+34절의 같은 4개 dev bag을 사용하되 균등 256장 표본 대신 모든 적격 프레임을 추론했다.
+원본 camera JPEG와 LiDAR XYZI는 그대로이며 Base5 모델 입력만 ÷255다. 각 모델의
+native 구조·해상도·결정론적 전처리를 유지하고 strict checkpoint loading을 사용했다.
+모델 export의 공통 GT SHA256은 아래와 같다.
+
+`89b4e420450bab2a6056bc3917aa7765dbb275a2a88c10f5e45e6c2ded44e33a`
+
+| bag | 적격 연속 프레임 | 공통 30m 주 대상 GT 관측 |
+|---|---:|---:|
+| O02_164012 장애물 | 463 | 897 |
+| P01_163434 보행자 | 269 | 113 |
+| H03_162301 고주로 추월 | 512 | 122 |
+| R01_163034 로터리 | 326 | 336 |
+| 합계 | 1,570 | 1,468 |
+
+GT 수는 반복 프레임 관측이며 독립 객체 수가 아니다. Object/Ego status의 보간과
+기존 asset catalog·BBox offset을 사용한 근사 GT이지 SaveSensorData 동기 annotation은
+아니다. camera header 시간차 ≤50ms, status 보간 bracket ≤150ms, 높이 외삽 거부와
+기존 unresolved-frame 제외를 유지한다. Ego/Object heading 보정 −1.347°도 동일하다.
+공통 범위는 XY 방사 거리 <30m와 E25 박스 `[-30,-30,-3,30,30,2]`의 교집합이며
+박스 Z는 bottom-center다. 약하거나 가려진 지원 GT를 점수 때문에 제거하지 않는다.
+
+### AP 결과
+
+server floor 0.1·top100 이후 ROS와 같은 class-aware rotated BEV NMS IoU 0.5,
+공통 30m 제한을 적용한다. 아래 AP는 0.5/1/2/4m center AP 평균(%)이며 각 bag의
+주 대상 클래스다. 4행의 평균을 전체 mAP나 독립 검출 확률이라고 부르지 않는다.
+
+| bag·대상 | E25 | Base5 best E9 | Base5 final E24 |
+|---|---:|---:|---:|
+| O02 장애물 | 65.65 | 79.24 | 81.41 |
+| P01 보행자 | 59.81 | 83.24 | 80.92 |
+| H03 고주로 차량 | 76.67 | 76.87 | 76.34 |
+| R01 로터리 차량 | 90.51 | 93.21 | 91.16 |
+
+장애물·보행자 개선은 연속 raw dev bag에서도 유지됐다. E24는 장애물, E9는 보행자·
+로터리에서 우세하므로 둘 다 보존한다. 차량은 이 범위에서 크게 달라지지 않았다.
+학습 격자/depth 한 변수만의 효과나 모든 자산의 개선을 증명하는 비교는 아니다.
+
+### 고정 threshold와 연속 매칭 실패
+
+0.10/0.15/0.20/0.25/0.30/0.40/0.50/0.60/0.70/0.80을 모든 bag·클래스에 검사했다.
+주 매칭은 중심 오차 <1m다. 실제 검출 부재와 위치 오차를 구분하려고 <2m도 별도
+계산했다. 누락 구간은 동일 GT track key 안에서만 이어 붙이며 GT/ROI 제외,
+**원본 LiDAR frame index의 끊김**, sensor 시간 간격 >0.25s에서 분리한다. H03에는
+원본 index break가 2개 있었다. 구간 시간은 `마지막−첫 sensor stamp + 중앙 주기`
+추정이다. 정확한 비가시 시간이나 tracker 삭제 시간은 아니다. GT track key 일부는
+재구성된 trajectory association으로 simulator unique_id의 독립 인증도 아니다.
+
+| bag·현재 score | E25 P / R (%) | E9 P / R (%) | E24 P / R (%) |
+|---|---:|---:|---:|
+| 장애물 0.10 | 98.07 / 73.58 | 88.51 / 87.63 | 90.88 / 89.97 |
+| 보행자 0.15 | 100.00 / 73.45 | 96.58 / 100.00 | 98.23 / 98.23 |
+| 고주로 차량 0.40 | 82.79 / 82.79 | 82.93 / 83.61 | 82.93 / 83.61 |
+| 로터리 차량 0.40 | 97.92 / 98.21 | 97.65 / 98.81 | 97.35 / 98.51 |
+
+| bag·현재 score | E25 최대 1m 매칭 실패 (s) | E9 | E24 |
+|---|---:|---:|---:|
+| 장애물 0.10 | 2.085 | 1.260 | 0.708 |
+| 보행자 0.15 | 1.487 | 0.000 | 0.087 |
+| 고주로 차량 0.40 | 1.045 | 1.045 | 1.045 |
+| 로터리 차량 0.40 | 0.250 | 0.167 | 0.250 |
+
+고주로의 1.045s를 ‘객체 출력이 1초 사라졌다’고 읽으면 안 된다. **2m 기준 차량
+recall은 E25 98.36%, E9/E24 99.18%, 최대 실패는 모두 0.083s**다. 1~2m 중심 오차를
+검출 부재와 구분해야 한다. GT 보간·시각 정합·검출 위치 중 무엇이 주원인인지는
+이 결과만으로 확정하지 않으며 다음 실제 위치 오차 조사에서 확인한다.
+
+| E24 장애물 score | TP / FP | Precision / Recall (%) | 최대 1m 실패 (s) |
+|---|---:|---:|---:|
+| 0.10 | 807 / 81 | 90.88 / 89.97 | 0.708 |
+| 0.15 | 771 / 42 | 94.83 / 85.95 | 0.802 |
+| 0.20 | 726 / 21 | 97.19 / 80.94 | 0.973 |
+| 0.40 | 539 / 4 | 99.26 / 60.09 | 1.406 |
+
+후속 tracker 시험의 장애물 후보는 0.15다. 0.10 대비 주 대상 FP는 48% 줄지만 TP도
+36개 줄어 안전 trade-off가 있다. 보행자 0.15·차량 0.40은 우선 유지할 후보이며
+**production 최적 threshold를 인증하거나 기본값을 승격한 것은 아니다.** 별도 trial도
+비교 재현을 위해 기존 V/P/O 0.40/0.15/0.10으로 시작한다. 표는 주 대상 클래스 FP이며
+다른 클래스의 background FP도 전체 JSON에 별도 남겼다. ≥5 LiDAR points 조건은
+추가 진단으로만 계산하며 전체 GT matching이나 학습 라벨을 대체하지 않는다.
+
+### 실행·산출물·검증 및 다음 순서
+
+ignored 루트는 `artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012`다.
+`inputs/manifest.json`은 원본 경로·시간·catalog·payload hash,
+`E25/E9/E24/predictions.json.gz`와 receipt는 실제 추론 결과,
+`comparison_final.json`은 AP, `continuity_final.json`은 threshold·연속 실패 결과다.
+`parity_requests_compressed_v3`는 실제 bridge packet,
+`parity_E24_compressed.json`은 학습된 출력까지의 TCP gate다.
+실패한 host RGB gate도 `parity_console.log`와 당시 requests로 보존한다.
+
+새 도구는 `prepare_base5_ros_parity_requests.py`, `check_base5_ros_input_parity.py`,
+`analyze_base5_bag_continuity.py`다. 기존 bag 준비기는 이후 생성 시 원본 LiDAR index를
+저장하도록 보완했다. 이번 infos에는 없는 필드여서 analyzer가 raw bag header에서
+복원했으며 기존 센서·GT를 재작성하지 않았다.
+
+```bash
+# ROS Noetic + 기존 AW149 overlay의 host Python에서 실행한다.
+python3 perception/detection3d/bevfusion/tools/analyze_base5_bag_continuity.py \
+  --inputs artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/inputs \
+  --predictions \
+  artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/E25/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/E9/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/E24/predictions.json.gz \
+  --output artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/continuity_repeat.json
+```
+
+단위/회귀 검사 **47개 통과·GPU optional compile 검사 2개 skip**다. Docker 전처리·
+runtime·최적화 19개, ROS 입력 3개, 기존 threshold/NMS 7개, 공통30m 11개,
+bag/연속 구간 7개다. 추가로 실제 입력/학습 출력 12장 TCP gate, ROS package 증분
+설치·launch 해석, py_compile·diff whitespace 검사를 완료했다. skip을 통과로 세지 않는다.
+
+**남은 순서:** 학습된 출력이 있는 모델로 compile/병렬화 정합과 4090·실제 24GB 비용
+확인 → live ROS queue·LAN·tracker의 threshold/누락 시험 → 100m·미사용 bag·다른
+환경 확인이다. 고주로 중심 오차 1~2m의 원인 분해도 필요하다. 이번 검사는 원거리,
+foggy·동물·복합체와 실제 full-stack 안전성을 인증하지 않으며 production E25는 유지한다.

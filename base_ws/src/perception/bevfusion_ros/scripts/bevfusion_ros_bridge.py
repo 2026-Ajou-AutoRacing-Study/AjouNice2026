@@ -69,6 +69,23 @@ class BevFusionRosBridge:
         self.preprocess_workers = max(
             1, int(rospy.get_param("~preprocess_workers", 4))
         )
+        # Production E25 defaults are unchanged. Base5 selects its learned
+        # deterministic crop via a separate runtime configuration.
+        self.image_final_height = int(rospy.get_param('~image_final_height', 256))
+        self.image_final_width = int(rospy.get_param('~image_final_width', 704))
+        self.image_resize = float(rospy.get_param('~image_resize', 0.55))
+        self.image_reference_width = float(rospy.get_param('~image_reference_width', 1280))
+        self.image_encoding = str(rospy.get_param('~image_encoding', 'rgb8'))
+        if self.image_encoding not in ('rgb8', 'compressed'):
+            raise ValueError('image_encoding must be rgb8 or compressed')
+        self.point_intensity_source = str(rospy.get_param('~point_intensity_source', 'native'))
+        if self.point_intensity_source not in ('native', 'ros255'):
+            raise ValueError('point_intensity_source must be native or ros255')
+        if (self.image_final_height <= 0 or self.image_final_width <= 0 or
+                self.image_final_height % 32 or self.image_final_width % 32 or
+                not math.isfinite(self.image_resize) or self.image_resize <= 0 or
+                not math.isfinite(self.image_reference_width) or self.image_reference_width <= 0):
+            raise ValueError('Invalid deterministic image resize/crop contract')
         self.lidar_deskew_mode = str(
             rospy.get_param("~lidar_deskew_mode", "off")
         ).strip().lower()
@@ -527,6 +544,8 @@ class BevFusionRosBridge:
             "points_blob": "points",
             "point_dim": int(points.shape[1]),
             "point_count": int(points.shape[0]),
+            "point_intensity_source": self.point_intensity_source,
+            "model_image_final_dim": [self.image_final_height, self.image_final_width],
             "score_threshold": self.model_score_threshold,
             "max_detections": self.max_detections,
             "lidar_deskew_mode": self.lidar_deskew_mode,
@@ -545,7 +564,7 @@ class BevFusionRosBridge:
                 float(value) for value in temporal_lidar_pose_world
             ]
         blobs = {"points": points.astype("<f4", copy=False).tobytes()}
-        if self.operation == "inference":
+        if self.operation == "inference" and self.image_encoding == 'rgb8':
             resized = dict(self.camera_executor.map(
                 self._preprocess_camera,
                 [(frame, images[frame]) for frame in self.camera_order],
@@ -554,8 +573,8 @@ class BevFusionRosBridge:
                 blobs["image/{}".format(frame)] = image.tobytes()
             metadata.update({
                 "image_encoding": "rgb8",
-                "image_height": 256,
-                "image_width": 704,
+                "image_height": self.image_final_height,
+                "image_width": self.image_final_width,
                 "image_channels": 3,
             })
         else:
@@ -584,17 +603,20 @@ class BevFusionRosBridge:
             )
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         height, width = image.shape[:2]
-        scale = 0.55 * 1280.0 / width
+        scale = self.image_resize * self.image_reference_width / width
         new_width, new_height = int(width * scale), int(height * scale)
         image = cv2.resize(
             image,
             (new_width, new_height),
             interpolation=cv2.INTER_CUBIC,
         )
-        crop_top = new_height - 256
-        crop_left = max(0, new_width - 704) // 2
-        image = image[crop_top:crop_top + 256, crop_left:crop_left + 704]
-        if image.shape[:2] != (256, 704):
+        crop_top = new_height - self.image_final_height
+        crop_left = max(0, new_width - self.image_final_width) // 2
+        if crop_top < 0 or crop_left + self.image_final_width > new_width:
+            raise ValueError('Resize cannot produce requested model crop')
+        image = image[crop_top:crop_top + self.image_final_height,
+                      crop_left:crop_left + self.image_final_width]
+        if image.shape[:2] != (self.image_final_height, self.image_final_width):
             raise ValueError(
                 "{} preprocessed shape is {}".format(frame, image.shape[:2])
             )
@@ -789,12 +811,12 @@ def pointcloud_field_array(message, name, output_dtype=None):
     if count <= 0:
         return np.empty(0, dtype=output_dtype or np.float32)
     values = np.ndarray(
-        shape=(count,),
+        shape=(int(message.height), int(message.width)),
         dtype=np.dtype(endian + POINTFIELD_TO_DTYPE[field.datatype]),
         buffer=message.data,
         offset=int(field.offset),
-        strides=(int(message.point_step),),
-    )
+        strides=(int(message.row_step), int(message.point_step)),
+    ).reshape(-1)
     if output_dtype is not None:
         return values.astype(output_dtype, copy=False)
     return values

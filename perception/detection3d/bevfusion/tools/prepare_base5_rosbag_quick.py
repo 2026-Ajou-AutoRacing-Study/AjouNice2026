@@ -102,7 +102,7 @@ def build(args):
         lidar=sensor_messages['/sensor/lidar1']
         mask,policy=resolved_frame_mask(raw,segments,ego_points,[t for t,_ in lidar])
         eligible=[]; skipped={'unresolved_or_ego':0,'camera_sync':0,'height':0}
-        for t,message in lidar:
+        for raw_index,(t,message) in enumerate(lidar):
             if not mask[t]:
                 skipped['unresolved_or_ego']+=1;continue
             images=[nearest(sensor_messages[topic],t,.05) for topic in topics]
@@ -111,13 +111,13 @@ def build(args):
             height=interpolate_scalar(sensor_messages['/Ego_topic'],t,.15)
             if height is None:
                 skipped['height']+=1;continue
-            eligible.append((t,message,images,height))
+            eligible.append((t,message,images,height,raw_index))
         if not len(eligible):
             raise ValueError('No supported synchronized frames in '+case)
         indices=np.unique(np.rint(np.linspace(0,len(eligible)-1,min(args.frames_per_case,len(eligible)))).astype(int))
         fingerprints=[]
         for index in indices:
-            t,message,images,height=eligible[index]
+            t,message,images,height,raw_index=eligible[index]
             ego=interpolate_ego(ego_points,t,.15)
             token=f'{case}_{int(index):05d}'
             folder=args.output/'data'/token; folder.mkdir(parents=True)
@@ -147,6 +147,7 @@ def build(args):
             point_hash=hashlib.sha256((folder/'points.bin').read_bytes()).hexdigest()
             fingerprints.append(dict(token=token,stamp=t,point_sha256=point_hash,image_sha256=payload_hashes))
             rows.append(dict(token=token,sample_idx=token,scene_id=case,scene_group_id=case,timestamp=t,
+                raw_lidar_index=raw_index,
                 images=image_info,lidar_points=dict(lidar_path=str(Path('data')/token/'points.bin'),num_pts_feats=4),
                 instances=instances))
             (folder/'frame.json').write_text(json.dumps(dict(case=case,stamp=t,camera_offsets_sec=offsets,

@@ -1,4 +1,4 @@
-"""In-memory OpenCV preprocessing matching the Base3 BEVFusion test pipeline."""
+"""Config-driven in-memory OpenCV preprocessing for Base3 and opt-in Base5."""
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,7 +14,10 @@ def preprocessing_options_from_config(config):
     Refuse unsupported crops/rotations instead of silently serving pixels with
     a projection matrix different from training. This does not extend model ROI.
     """
-    pipeline = config['test_dataloader']['dataset']['pipeline']
+    loader = config.get('test_dataloader') or config.get('val_dataloader')
+    if loader is None:
+        raise ValueError('runtime requires a deterministic test or validation pipeline')
+    pipeline = loader['dataset']['pipeline']
     transforms = [item for item in pipeline if item['type'] == 'MoraiImageAug3D']
     if len(transforms) != 1:
         raise ValueError('runtime requires exactly one MoraiImageAug3D')
@@ -59,6 +62,7 @@ class Base3OnlinePreprocessor:
         remove_zero_returns=False,
         strict_point_range=False,
         rgb_after_crop=False,
+        point_intensity_source='native',
     ):
         self.calibration = calibration
         self.final_dim = tuple(int(value) for value in final_dim)
@@ -71,6 +75,9 @@ class Base3OnlinePreprocessor:
         self.remove_zero_returns = bool(remove_zero_returns)
         self.strict_point_range = bool(strict_point_range)
         self.rgb_after_crop = bool(rgb_after_crop)
+        if point_intensity_source not in ('native', 'ros255'):
+            raise ValueError('point_intensity_source must be native or ros255')
+        self.point_intensity_source = point_intensity_source
         if self.point_dim not in (4, 5):
             raise ValueError("BEVFusion runtime point_dim must be 4 or 5")
         self.executor = (
@@ -286,4 +293,10 @@ class Base3OnlinePreprocessor:
         filtered = np.ascontiguousarray(points[keep])
         if not len(filtered):
             raise ValueError("no finite LiDAR points remain inside the Base3 range")
+        if self.point_intensity_source == 'ros255':
+            if not ((filtered[:, 3] >= 0).all() and (filtered[:, 3] <= 255).all()):
+                raise ValueError('ROS intensity must be finite and in 0..255')
+            # Only the model-bound copy is normalized; raw ROS bytes and XYZ
+            # remain intact. Never use the current frame's maximum.
+            filtered[:, 3] *= np.float32(1.0 / 255.0)
         return filtered

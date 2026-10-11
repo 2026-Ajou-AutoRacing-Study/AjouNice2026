@@ -1,4 +1,4 @@
-"""Load Base3 BEVFusion and run in-memory low-latency inference."""
+"""Load production Base3 or explicit Base5 and run in-memory inference."""
 
 import time
 
@@ -63,6 +63,7 @@ class BevFusionModel:
         rgb_after_crop=False,
         compile_reference_layout=False,
         parallel_camera=False,
+        point_intensity_source='native',
     ):
         config = Config.fromfile(config_path)
         config.model.img_backbone.init_cfg = None
@@ -70,12 +71,18 @@ class BevFusionModel:
         self.requires_query_memory_context = (
             bbox_head_type == "MoraiQueryMemoryTransFusionHead")
         self.classes = list(config.get("metainfo", {}).get("classes", DEFAULT_CLASSES))
+        if point_intensity_source != 'native' and not base5_runtime:
+            raise ValueError('ROS255 normalization is Base5-only; E25 retains raw intensity')
         if not base5_runtime and (self.classes != DEFAULT_CLASSES or
                                   config.get('required_training_label_policy')):
             raise ValueError("runtime class contract differs; use explicit --base5-runtime for Base5")
         if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or rgb_after_crop or compile_reference_layout or parallel_camera) and not base5_runtime:
             raise ValueError("Experimental inference optimization is Base5-only")
         if base5_runtime:
+            # Training compilation is not an inference opt-in. Loading the
+            # learned training config must not compile the camera silently.
+            if 'compile_camera' in config.model:
+                config.model.compile_camera = False
             validate_base5_runtime(config)
             if temporal_feature_cache:
                 raise ValueError("Base5 inference does not enable temporal modeling")
@@ -131,6 +138,7 @@ class BevFusionModel:
             camera_workers=preprocess_workers,
             point_dim=self.point_dim,
             rgb_after_crop=rgb_after_crop,
+            point_intensity_source=(point_intensity_source if base5_runtime else 'native'),
             **preprocessing_options_from_config(config),
         )
         self.warmup_iterations = max(0, int(warmup_iterations))
@@ -264,6 +272,8 @@ class BevFusionModel:
             self.point_dim,
             1 if self.temporal_feature_cache else self.temporal_num_sweeps,
         )
+        if self.preprocessor.point_intensity_source == 'ros255':
+            points[:, 3] *= 255.0
         final_height, final_width = self.preprocessor.final_dim
         empty_image = bytes(final_height * final_width * 3)
         images = {

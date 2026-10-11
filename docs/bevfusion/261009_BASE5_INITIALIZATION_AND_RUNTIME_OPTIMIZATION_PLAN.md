@@ -6,7 +6,17 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-12 본학습 완료·대표 bag 비교
+## 현재 계획 허브 — 2026-10-12 본학습 완료·ROS 입력·연속 bag 비교
+
+**10-12 05:50 KST 최신 완료:** Base5 별도 ROS trial 경로를 구현했다. 원본 JPEG를
+Docker에서 전처리하고 ROS 강도는 서버에서만 고정 ÷255 처리한다. 실제 메시지→bridge→
+private TCP→학습된 E24의 12장 입력·출력 정합 검사를 통과했다. 같은 대표 dev bag의
+모든 적격 1,570프레임을 E25/E9/E24로 비교했고 threshold·연속 매칭 실패도 분석했다.
+장애물·보행자 개선은 유지됐지만 고주로 1m 매칭 실패와 실제 출력 부재는 다르다.
+[35절 구현·AP·threshold·제한](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)을 따른다.
+다음은 학습된 출력의 최적화 정합·4090/실제 24GB 비용, live ROS queue·LAN·tracker,
+고주로 위치 오차 원인 분해와 100m 확인이다. production E25·기존 threshold는 유지한다.
+아래 04:53의 ‘입력 adapter·연속 비교가 다음’은 이미 완료한 앞선 이력이다.
 
 **10-12 04:53 KST 최신 완료:** 대표 dev bag 4개에서 동일 256프레임·30m를 추출해
 E25/E9/E24를 실제 추론했다. ROS 원본 강도는 보존하고 Base5 입력 tensor에만 ÷255를
@@ -23,11 +33,11 @@ val 약 98%도 재현했다. 서로 다른 데이터·거리의 AP를 그대로 
 전체 100m best E9와 근접 평가의 E24를 모두 보존하며 production은 아직 E25다.
 [33절 계약·결과·보존](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)을 따른다.
 
-**배포 전 새 필수 검사:** Base5 native intensity는 0~1, Base3 및 확인한 기존 ROS bag은
-0~255다. 현재 bridge는 강도를 그대로 전달하므로 Base5용 고정 255 나눗셈 adapter와
-offline/online 입력 동등성을 먼저 검증한다. 원본·훈련·production은 이번 비교에서
-변경하지 않았다. 이후 공통 bag 검출/연속 누락·새 threshold, 학습된 출력의 compile/
-병렬 추론 정합·24GB 비용을 확인한다. 아래 ‘진행 중’은 각 시점의 실행 이력이다.
+**배포 전 입력 검사 완료:** Base5 native intensity는 0~1, Base3 및 확인한 기존 ROS bag은
+0~255다. Base5-only `ros255` 서버 adapter·실제 메시지/오프라인 동등성을 통과했고
+E25는 raw intensity를 유지한다. 원본·훈련·production 정책은 변경하지 않았다.
+연속 dev bag 검출/threshold 진단도 완료했으며 다음은 학습된 출력의 compile/
+병렬 추론 정합·실제 24GB 비용과 live ROS/tracker다. 아래 ‘진행 중’은 당시 실행 이력이다.
 
 **10-12 로컬 원거리 조사 완료:** Sunny13 5K·현재 GT 11,052개를 실제 crop foreground와
 native LiDAR 지원점으로 전수 대조했다. 약한 단서 proxy는 1.06%이며, 안 보이는 GT가
@@ -99,15 +109,16 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | **camera+sparse에 더해 호환 nuScenes BEV·fusion·head까지** 축·물리 단위를 변환한 초기화를 채택한다. 3클래스 동일 조건 E1 비교를 완료했으며 후보 E1에서 E2~24를 이어간다. | [30절 비교·변환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011). E25/Base4/COST-only 가중치는 사용하지 않는다. 4클래스 E2는 별도 보존한다. |
-| 체크포인트 보존·사용자 실행 | 사용자 실행의 본학습·W&B 온라인·Drive watcher가 진행 중이다. 10-12 원거리 평가 확장은 같은 source/data/work/훈련 계약과 W&B run ID를 유지한다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). **`bash scripts/runtime/start_base5_vast_training.sh --resume`**는 마지막 완료 체크포인트부터 이어간다. 전체 최종 백업 완료 전 Vast를 Destroy하지 않는다. |
+| 체크포인트 보존·사용자 실행 | **24 epoch 학습과 E9 best/E24 마지막 체크포인트의 Drive 백업·readback을 확인했다.** 원거리 평가 확장도 같은 훈련 계약과 W&B run을 유지했다. | [33절 완료·보존](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012). 과거 실행/재개 명령은 [Vast 운영 절](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)에 보존한다. 새 학습을 자동 시작하지 않는다. |
 | 거리별 평가 | 기존 0~10/10~20/20~30/30~50m에 **50~80/80~100m 두 구간**을 추가한다. 원거리 클래스 AP·구간 전체 mAP·차량 전방/후방 AP·GT 수를 기록하며 여섯 구간 mAP를 노출한다. E11~15의 누락된 mAP 복원을 완료했다. | [31절의 키·W&B 패널 배치와 v2 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012). 거리 기준은 ego/LiDAR XY 방사 거리다. 새 mAP는 세 클래스 모두 GT가 있을 때만 동일 비중 평균으로 기록한다. GT 20개 미만은 소표본으로 표시한다. 방사 거리 100m 이상 모서리는 전체 AP에 유지하고 GT 수만 따로 기록한다. |
 | 다음 환경 수집과 원거리 정보량 | 완료 5K와 현재 25K 계약은 유지한다. 실제 GT·crop 정보량 조사와 다음 25K의 primary 분포 검사를 완료했다. 먼 차량은 유지하고, 모든 사람·장애물을 최대 거리까지 늘리는 변경은 하지 않는다. | [32절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012). 보강 우선은 장애물 20~50m, 식별 가능한 사람·장애물 30~60m train 사례다. 최종 모델의 clear/weak·자산별 누락 확인 후 별도 보강을 설계한다. Foggy 첫 pilot에서는 RGB 대비를 실제 확인한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
-| 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
+| ROS 입력·연속 검출 | **별도 Base5 trial의 실제 메시지→TCP 입력/학습 출력 12장 정합, 대표 dev bag 1,570프레임 AP·threshold·연속 실패 진단을 완료했다.** E25 기본값은 유지한다. | [35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012). 장애물 0.15는 후속 tracker 시험 후보일 뿐 기본값 승격이 아니다. 고주로 1m 실패 중 위치 오차를 검출 부재와 구분한다. |
+| 성능 확인·배포 | 장애물·보행자 개선은 공통 30m dev bag에서도 확인했다. **depth/정밀 격자 개별 효과·속도 MAE, 실제 24GB·LAN·ROS 전체 비용은 아직 미검증.** production E25는 유지한다. | 학습된 출력의 compile/병렬화 정합·4090 비용 → live ROS queue/tracker → 100m·미사용 bag·환경별 확인. 이미 완료한 함수/TCP gate를 실제 full-stack 인증으로 바꾸어 읽지 않는다. |
 
-현재 우선 순서는 **3클래스 파생 라벨·평가와 동일 조건 E1 초기화 비교 완료 →
-사용자가 W&B·Drive 포함 후보 E1에서 E2~24 재개 → 완성 모델의 사람·동물별 성능 확인 →
-rosbag·추론 OFF/ON 비용/정합 확인**이다.
+현재 우선 순서는 **학습 완료·E9/E24 보존·공통30m 검출 비교·ROS 입력/TCP 정합·
+연속 dev bag 진단 완료 → 학습된 출력으로 추론 OFF/ON 정합·4090/24GB 비용 →
+실제 ROS queue·LAN·tracker와 100m/환경/자산별 확인**이다.
 최초 본학습은 사용자가 직접 시작했으며 10-12에는 지표 수정 후 agent가 재개하도록 승인했다. 원격 학습은 tmux로
 실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을

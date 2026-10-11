@@ -28,6 +28,9 @@ LOGGER = logging.getLogger("bevfusion_server")
 class InferenceServer:
     def __init__(self, args):
         self.args = args
+        self.fp32_reference = bool(getattr(args, 'fp32_reference', False))
+        if self.fp32_reference and args.amp:
+            raise ValueError('FP32 reference does not enable AMP')
         self.calibration = load_sensor4_calibration(
             args.sensor_config, args.camera_order, args.intrinsic_source
         )
@@ -54,8 +57,14 @@ class InferenceServer:
                 rgb_after_crop=getattr(args, "rgb_after_crop", False),
                 compile_reference_layout=getattr(args, "compile_reference_layout", False),
                 parallel_camera=getattr(args, "parallel_camera", False),
+                point_intensity_source=getattr(args, "point_intensity_source", "native"),
             )
             LOGGER.info("BEVFusion model is ready")
+            if self.fp32_reference:
+                import torch
+                torch.backends.cuda.matmul.allow_tf32 = False
+                torch.backends.cudnn.allow_tf32 = False
+                torch.backends.cudnn.benchmark = False
 
     def serve_forever(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -89,6 +98,9 @@ class InferenceServer:
                             "ready": True,
                             "model_loaded": self.model is not None,
                             "classes": list(getattr(self.model, "classes", ())),
+                            "point_intensity_source": getattr(getattr(self.model, "preprocessor", None), "point_intensity_source", None),
+                            "image_final_dim": list(getattr(getattr(self.model, "preprocessor", None), "final_dim", ())),
+                            "fp32_reference": self.fp32_reference,
                             "calibration": serializable_calibration(self.calibration),
                         },
                     )
@@ -131,11 +143,21 @@ class InferenceServer:
             raise ValueError("unsupported operation {!r}".format(operation))
         if self.model is None:
             raise RuntimeError("server was started in projection-only mode")
+        declared_source = metadata.get('point_intensity_source')
+        if declared_source is not None and declared_source != self.model.preprocessor.point_intensity_source:
+            raise ValueError('ROS/server intensity source contract differs')
+        declared_size = metadata.get('model_image_final_dim')
+        if declared_size is not None and tuple(declared_size) != self.model.preprocessor.final_dim:
+            raise ValueError('ROS/server model image size contract differs')
         image_encoding = metadata.get("image_encoding", "compressed")
         if image_encoding not in ("compressed", "rgb8"):
             raise ValueError(
                 "unsupported image_encoding {!r}".format(image_encoding)
             )
+        if image_encoding == 'rgb8' and (
+                int(metadata.get('image_height', -1)),
+                int(metadata.get('image_width', -1))) != self.model.preprocessor.final_dim:
+            raise ValueError('ROS RGB crop size differs from the model input contract')
         detections, preprocess_ms, inference_ms = self.model.infer(
             points,
             blobs,
@@ -219,12 +241,16 @@ def parse_args():
     parser.add_argument("--projection-only", action="store_true")
     parser.add_argument("--projection-stride", type=int, default=4)
     parser.add_argument("--amp", action="store_true")
+    parser.add_argument("--fp32-reference", action="store_true",
+                        help="Disable AMP/TF32/autotuning for the offline/ROS reference gate; not a latency preset")
     parser.add_argument("--preprocess-workers", type=int, default=4)
     parser.add_argument("--warmup-iterations", type=int, default=2)
     parser.add_argument("--temporal-feature-cache", action="store_true")
     parser.add_argument("--temporal-maximum-age-sec", type=float, default=0.30)
     parser.add_argument("--base5-runtime", action="store_true",
-                        help="Explicit single-frame 4-class Base5 contract; not E25 deployment")
+                        help="Explicit single-frame Base5 contract; not E25 deployment")
+    parser.add_argument("--point-intensity-source", choices=('native', 'ros255'), default='native',
+                        help="Base5 only: ros255 applies fixed /255; native preserves checkpoint-native intensity")
     parser.add_argument("--compile-parts", nargs="+", choices=("camera", "neck", "bev"), default=())
     parser.add_argument("--parallel-camera", action="store_true",
                         help="Experimental Base5-only camera side stream; sparse encoder stays on default stream")

@@ -6,6 +6,10 @@
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.
 
+2026-10-12 Base5 입력·연속 bag 검사는 [EVIDENCE 35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)에
+분리해 기록한다. `base5_trial.launch`는 별도 topic·port를 사용하는 opt-in 시험용이며
+이 문서의 E25 모델·입력·threshold를 자동 교체하지 않는다.
+
 터미널별 전체 실행 순서는
 [`morai_full_stack_by_terminal.md`](../runbooks/morai_full_stack_by_terminal.md)를
 따른다. BF1 camera-domain fine-tuning 실험과 production 보류 근거는

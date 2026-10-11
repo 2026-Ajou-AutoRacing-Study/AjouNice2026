@@ -4,9 +4,20 @@ import unittest
 import numpy as np
 from prepare_base5_rosbag_quick import nearest, xyzi, local_box, count_support, interpolate_scalar
 from summarize_base5_rosbag_quick import bridge_nms
+from analyze_base5_bag_continuity import miss_runs
 
 
 class BagQuickTests(unittest.TestCase):
+    def test_miss_runs_split_at_gt_and_sensor_holes(self):
+        records=[(0,0.,False),(1,.1,False),(2,.2,True),(3,.3,False),
+                 (5,.5,False),(6,1.5,False),(7,1.6,False)]
+        runs=miss_runs(records,.1)
+        self.assertEqual([r['frames'] for r in runs],[2,1,1,2])
+        np.testing.assert_allclose([r['seconds'] for r in runs],[.2,.1,.1,.2])
+
+    def test_no_miss_episode_for_complete_detection(self):
+        self.assertEqual(miss_runs([(0,0.,True),(1,.1,True)],.1),[])
+
     def test_bridge_nms_preserves_gt_and_separates_classes(self):
         r=dict(gt_boxes=[[1,2,3,1,1,1,0]],pred_boxes=[[0,0,0,2,2,1,0]]*4,
                pred_labels=[2,2,1,0],pred_scores=[.2,.8,.3,.01])
