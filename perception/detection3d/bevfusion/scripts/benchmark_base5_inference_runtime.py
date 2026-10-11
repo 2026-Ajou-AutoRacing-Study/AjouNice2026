@@ -116,9 +116,18 @@ def run_variant(args, config, samples, variant, reference):
                 intrinsic_source=calibration['intrinsic_source'], point_dim=4,
                 score_threshold=0., max_detections=200)
             for i in range(16 + args.iterations):
+                if i == 16 and getattr(args, 'ready_file', None):
+                    args.ready_file.write_text(json.dumps(dict(ready=True, variant=variant,
+                        monotonic=time.monotonic())) + '\n')
+                    deadline = time.monotonic() + args.gate_timeout_sec
+                    while not args.start_file.exists():
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError('Contention probe start gate timed out')
+                        time.sleep(.05)
                 sample = samples[(i - 16) % len(samples)] if i >= 16 else samples[i % len(samples)]
                 blobs = dict(sample['images'], points=sample['points'].tobytes())
                 request = dict(metadata, sequence=i, point_count=len(sample['points']))
+                wall_start = time.monotonic()
                 begin = time.perf_counter(); send_message(connection, TYPE_REQUEST, request, blobs)
                 kind, response, _ = recv_message(connection); elapsed = (time.perf_counter() - begin) * 1000
                 if kind != TYPE_RESPONSE:
@@ -137,6 +146,7 @@ def run_variant(args, config, samples, variant, reference):
                     continue
                 predictions[sample['id']] = detections
                 rows.append(dict(id=sample['id'], group=sample['group'], rtt_ms=elapsed,
+                    monotonic_start=wall_start, monotonic_end=time.monotonic(),
                     **{k:response[k] for k in ('preprocess_ms', 'inference_ms', 'postprocess_ms', 'server_ms')}))
                 if reference is not None:
                     checks.append(dict(id=sample['id'], **parity(reference[sample['id']], detections)))
@@ -212,7 +222,15 @@ def main():
     parser.add_argument('--cpu-threads', type=int, choices=[1,2,4,8], default=4)
     parser.add_argument('--memory-budget-gib', type=float,
                         help='Optional allocator cap for a 24GB deployment compatibility probe')
+    parser.add_argument('--ready-file', type=Path,
+                        help='Optional host-visible warmup completion gate for a CPU contention probe')
+    parser.add_argument('--start-file', type=Path)
+    parser.add_argument('--gate-timeout-sec', type=float, default=90.)
     args = parser.parse_args()
+    if bool(args.ready_file) != bool(args.start_file): parser.error('Both contention gate files are required')
+    if args.ready_file and (len(args.variants)!=1 or args.ready_file.exists() or args.start_file.exists()):
+        parser.error('Contention gate needs one variant and fresh gate files')
+    if not 1 <= args.gate_timeout_sec <= 300: parser.error('Bounded 1..300 second gate timeout required')
     if args.output.exists(): parser.error('Fresh output required')
     if not 24 <= args.iterations <= 300: parser.error('Bounded 24..300 requests required')
     if not 8 <= args.stage_iterations <= 32: parser.error('Bounded 8..32 stage probes required')

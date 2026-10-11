@@ -8,6 +8,12 @@ EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한�
 `261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`에서
 먼저 확인한다. README는 인덱스, EVIDENCE는 실측, Vast 계획은 원격 상세다.
 현재 계획을 여러 문서에 길게 중복 복사하거나 동일 목적의 계획 파일을 추가하지 않는다.
+최신 16:45 KST CPU 경합 검사는 EVIDENCE 27절이다. 로컬 raw bag의 실제 측위·tracking·
+planning·제어와 신호등을 실행했지만 GT-driven planning과 독립 비용용 인지를 결합한
+시험이다. 학습된 OD의 ROS bridge·LAN·실제 4090 24GB·13Hz 인증과 구분한다.
+전체 출력 활성화는 모든 trajectory validator flag 통과를 뜻하지 않는다. 원본 입력 공백,
+로터리 목표 실패·기록된 목표로 재실행과 초기 harness 실패를 보존했다. 생산 설정과 Vast,
+본학습은 변경하지 않았고 다음은 승인 후 본학습·백업이다.
 최신 15:49 KST 학습 실행은 EVIDENCE 25절이다. 사용자 선택의 공간 5/20cm·depth 25cm에서
 실제 4090 OFF/ON·gradient·batch 4→3 재개·FP32 val 검사를 완료하고 새 fine 준비 계약을
 만들었다. 학습 camera backbone compile ON을 추천하지만 본학습·백업 watcher는 아직이다.

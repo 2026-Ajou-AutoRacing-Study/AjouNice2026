@@ -49,6 +49,10 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 16:45 KST:** [로컬 ROS CPU 경합 검사](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011)를
+  완료했다. 학습된 detector의 실제 ROS bridge·대회 4090 24GB·LAN·13Hz 인증과는
+  구분한다. production과 원격 준비 계약은 유지하며 다음은 본학습 승인·백업 시작이다.
+
 - **2026-10-11 16:03 KST 합의:** [현재 허브의 메모리·배치 결정](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011)에
   따라 48GB·batch 4·학습 compile ON을 유지하고 대회 24GB 추론은 별도 검증한다.
   준비 계약·코드는 변경하지 않았다. 다음은 본학습 승인·외부 백업 시작이며 실제 24GB

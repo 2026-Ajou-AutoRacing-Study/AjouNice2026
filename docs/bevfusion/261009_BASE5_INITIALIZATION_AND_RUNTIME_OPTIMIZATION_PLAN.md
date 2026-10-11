@@ -6,7 +6,7 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 16:03 KST
+## 현재 계획 허브 — 2026-10-11 16:45 KST
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -22,13 +22,14 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 최신 4090 재확인 | 300장 depth 25cm 비용·동일 모델 수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다. 전체 응답 약 71.8→65.9ms의 compiler 후보는 decoded gate 실패로 OFF다. | [EVIDENCE 23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011). 정밀 격자의 빈 출력은 비용 참고용이며 정합 통과로 인정하지 않는다. 이번 요청에서는 학습을 전혀 실행하지 않았다. |
 | 학습 compile 선택 | **이번 48GB 4090의 fine 후보에서는 camera backbone 학습 compile ON을 추천한다.** 실제 OFF/ON 각 64 update와 역순 24 update, 수치·gradient·batch 4→3 저장/재개·FP32 val 경로를 통과했다. | [EVIDENCE 25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 기본값 전체 승격이 아니라 새 opt-in config다. 첫 준비 메모리 약 45.71GiB를 감안한다. 추론 compile/병렬화는 계속 기본 OFF다. |
 | 학습·추론 GPU와 배치 | **학습은 48GB·물리 batch 4·누적 1을 유지한다. 대회 추론은 24GB·batch 1을 별도로 검증한다.** 학습을 24GB 예산으로 제한하거나 48GB를 채우기 위해 배치를 늘리지 않는다. | [메모리·배치 결정과 남은 검사](#base5-training-inference-memory-decision-261011). 추론 compile ON도 20GiB 예산에서 실행 근거가 있지만 실제 24GB 카드·학습 완료 가중치 검사는 남아 있다. |
+| ROS CPU 경합 | **로컬 6코어/12스레드에서 실제 측위·tracking·planning·제어와 신호등 YOLO를 실행한 부하 검사를 완료했다.** 정상 CPU 평균 약 33~37%, 추가 점유 시 약 76%에서 제어·측위 50Hz·planning 약 10Hz를 유지했다. | [EVIDENCE 27절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011). GT로 planning을 구동한 독립 인지 비용 검사이며 ROS detector bridge·LAN·학습된 모델의 정확도·4090 13Hz 인증은 아니다. 배포 시험의 Torch 4·OpenCV 1 제한을 명시한다. production 기본값·Vast·본학습은 변경하지 않았다. |
 | 분리 stream 오류 보완 | 설치 라이브러리의 활성 voxel count 조기 읽기를 재현했다. LiDAR를 기본 stream에 두고 camera-side 병렬 실행으로 우회했다. 4090 300장 전체 응답은 비컴파일 약 71.3→65.8ms, compile 결합 비용은 약 59.2ms다. | [EVIDENCE 24절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011). 추론 전용 opt-in이며 기본 OFF다. sparse 예외 해결·입력 통제 검사와 학습된 모델의 실제 출력 gate·AP를 구분한다. 학습은 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. 새 fine·depth 25cm·compile ON prepare-only 계약과 **1,005개 source hash 일치**를 확인했다. | [25절 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 이전 50cm/7.5cm 계약을 resume하거나 비용용 shape 변환 checkpoint로 본학습을 초기화하지 않는다. 실제 본학습 시작은 별도 승인 후다. |
 | 체크포인트 보존 | 실제 Drive 병렬 업로드·전체 SHA·복원·중복 재검사 완료. 상주 watcher·본학습은 미시작 | 최종 계약과 사용자 승인 후 watcher·본학습 시작. [EVIDENCE 20절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
-| 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 ROS 풀스택 비용은 미검증. production E25는 유지 | 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
+| 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
 현재 우선 순서는 **5/20cm·depth 25cm의 짧은 4090 학습·gradient·저장/재개·val 검사 완료 →
 새 fine·compile ON 준비 계약 완료 → 승인 후 백업 watcher와 Sunny13 본학습**이다.

@@ -32,6 +32,7 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 실제 ROS CPU 스택·신호등과 인지 동시 실행 / 추가 CPU 점유 / 관측 주기·원본 입력 공백 / 배포 인증과 구분 | [10-11 로컬 CPU 경합 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011) |
 | 48GB 학습 batch 4 유지 / 24GB 추론과 분리 / 추론 compile ON 메모리 근거와 남은 gate | [10-11 16:03 메모리·배치 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011), [측정값 재검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | 정밀 5/20cm·depth 25cm의 실제 4090 학습 OFF/ON / gradient·partial batch·저장/재개·val / 새 준비 계약 | [10-11 fine 학습 compile 검사 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011) |
 | sparse count stream 오류 재현·우회 / camera-side 병렬 추론 비용 / 기본 OFF·학습 미실행 | [10-11 분리 stream 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011) |

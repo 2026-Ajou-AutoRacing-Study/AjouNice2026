@@ -2753,3 +2753,140 @@ epoch당 1,064 update, batch 8은 532 update다. warm-up을 500 update로 그대
 
 현재는 추가 최적화를 반복하기보다 본학습 결과를 확보할 단계다. TensorRT는 후속 후보이며
 학습된 모델의 실제 24GB 메모리·추론 정합·13Hz 비용을 확인하기 전에는 배포를 인증하지 않는다.
+
+<a id="base5-cpu-contention-local-261011"></a>
+
+## 27. 로컬 ROS 스택과 인지의 CPU 경합 검사 — 2026-10-11 16:45 KST
+
+### 결론과 검사 범위
+
+Ryzen 5 7500F의 6코어/12스레드와 RTX 5060 Ti 16GB에서 **측위·tracking·prediction·
+planning·controller를 실제 실행하고 인지 비용과 함께 측정했다.** 정상 장면의 전체 CPU
+평균은 약 33~37%였으며 제어·측위 약 50Hz, 최종 planning 약 10Hz를 유지했다.
+추가 CPU 점유 작업 4개로 평균 약 76%까지 올려도 같은 주기는 유지했다.
+현재의 CPU 스레드 제한 조건에서는 심각한 CPU 포화가 관측되지 않았다.
+
+이는 4090의 13Hz 처리, 실제 LAN 왕복, 모든 trajectory 검사의 통과나 폐루프 안전 인증이
+아니다. 5060 Ti의 인지 처리율은 약 6.2~7.0장/s였으므로 4090에서 13Hz로 더 자주
+호출되는 CPU 비용은 다시 확인해야 한다. 추가 점유 시험은 여유를 보는 보조 근거이지
+실제 13Hz 스택과 동일한 부하가 아니다. 본학습·Vast 작업·production 설정은 변경하지 않았다.
+
+### 입력·실행 계약
+
+- raw DEVELOPMENT bag은 `260923_161315_H01` 고주로, `260923_163859_O01` 장애물,
+  `260923_163034_R01` 로터리를 사용했다. 각 실제 경로는 산출물 `report.json`에 기록했다.
+  평가 잠금 bag이나 원본 수집 데이터를 변경하지 않았다.
+- 새로운 loopback ROS master에서 1배속·단방향으로 재생했다. `/sensor/*`, Ego,
+  Competition, Object만 재생하고 기록된 TF·측위·객체 인식 출력·경로·제어 명령은
+  재생하지 않았다. UDP 송신, MORAI, RViz와 폐루프 제어는 실행하지 않았다.
+- production 측위 launch, CTRV tracking·Map-CV prediction, 실제 AW149 planning
+  전체 경로와 Smooth state controller를 실행했다. planner의 전방 경로 길이는 400m다.
+  객체 입력은 `/Object_topic`을 13Hz 상한으로 제한한 GT adapter다. 실제 관측된
+  detection 빈도는 약 9.9~11.3Hz이며 prediction은 약 28Hz다. nominal 설정 주기와
+  관측 주기를 동일시하지 않는다.
+- 실제 신호등 YOLO·route group helper를 추가로 실행했다. GPU device 0, 기존 신호등
+  판단 설정과 10Hz 상한을 유지했다. debug 이미지 송출은 껐고 관측된 송출 빈도는
+  약 8.6~8.9Hz다. 고주로에서 신호등 검출 결과가 없어도 YOLO 연산은 실행됐다.
+- 인지 비용은 ROS의 GT와 독립적인 Base5 JPEG/TCP 시험이다. 공간 5/20cm·depth 25cm·
+  512×1056·batch 1 AMP, compile OFF·별도 stream OFF, camera workers 4·Torch 4·
+  OpenCV 1을 사용했다. GT 기반 planning을 사용하여 비용용 가중치의 탐지 내용 때문에
+  planning 부하가 비어버리지 않도록 했다. **실제 ROS detector bridge·LAN 처리나 AP
+  측정은 포함되지 않았다.**
+- 인지 입력은 기존 300장 비용 표본에서 대표 64장·stress 32장을 교차 선택한 동일한
+  96장이다. selection SHA는 `67bba553d8383532403238f28a0816d5104aa51c829ab32fada149b805690b55`다.
+  인지 단독을 앞뒤에서 각각 실행한 192 request는 **96장씩 두 번**이며 192개 독립
+  장면이 아니다. 주요 비교는 bag 재생 25초 뒤 시작했으며 cold/JIT·warm-up·별도
+  CUDA event 계측은 정상 응답 통계에서 제외했다.
+- 팀 이미지 `ajounice/bevfusion:team-cu128-v1`를 사용했다. allocator는 12GiB로 제한했고
+  이 비컴파일 비용 시험의 인지 정상 peak allocated는 약 1.575GiB, 초기 peak는
+  약 8.08GiB였다. 26절의 원격 compile 후보 메모리 측정과 다른 조건이다.
+  비용용 `d25_smoke_inference.pth`를 본학습 초기화나 탐지 성능 근거로 사용하지 않는다.
+
+### 실제 측정값
+
+CPU는 모든 논리 코어의 사용률 평균이며 기존 데스크톱 작업도 포함한다. 응답은 localhost
+TCP·decode/crop·모델·decode/postprocess를 포함하고 디스크 읽기는 미리 끝냈다.
+
+| 조건 | 전체 CPU 평균 | 인지 응답 평균 | 인지 응답 p95 | 제어 / 최종 planning |
+|---|---:|---:|---:|---:|
+| 인지 단독, 앞쪽 대조 | 15.33% | 142.70ms | 145.26ms | 미실행 |
+| 고주로 실제 CPU 스택 + 인지 | 34.15% | 146.21ms | 148.80ms | 49.98 / 9.97Hz |
+| 위 조건 + 실제 신호등 YOLO | 36.23% | 149.37ms | 153.52ms | 49.97 / 10.04Hz |
+| 위 조건 + CPU 점유 작업 4개 | 76.20% | 156.06ms | 163.00ms | 50.03 / 10.01Hz |
+| 인지 단독, 뒤쪽 대조 | 20.26% | 146.59ms | 150.24ms | 미실행 |
+| 장애물 실제 스택 + 신호등 + 인지 | 33.34% | 151.83ms | 155.63ms | 50.05 / 10.01Hz |
+| 로터리 실제 스택 + 신호등 + 인지 | 37.43% | 149.69ms | 155.81ms | 50.00 / 10.01Hz |
+
+인지 단독 두 실행을 합친 응답 평균은 144.65ms, p95는 149.31ms다. 고주로 CPU 스택의
+차이는 약 +1.56ms, 신호등 포함 약 +4.72ms다. 단독 반복 자체의 평균 차이가 약 3.89ms
+이므로 작은 차이를 정밀한 확정 가속률·감속률로 해석하지 않는다. 장애물·로터리는
+다른 bag의 별도 부하 확인이며 고주로와 동일한 장면이라고 합산하지 않는다.
+
+고주로의 preprocessing 평균은 단독 9.64ms, CPU 스택 9.63ms, 신호등 포함 9.61ms,
+추가 점유 포함 11.29ms다. 대부분의 응답 시간은 GPU를 포함한 모델 실행 구간에 있고
+CPU 영상 준비가 새 주 병목이 된 것은 아니다. 신호등도 GPU를 사용하므로 전체 스택을
+‘BEVFusion만 GPU, 나머지는 모두 CPU’로 가정하지 않는다.
+
+고주로 CPU 스택의 프로세스군 평균은 인지 약 1.34 논리 코어, planning 약 0.77,
+tracking/prediction 약 0.66, 측위 약 0.26, controller 약 0.034다. 프로세스군의 100%는
+논리 코어 하나이며 전체 CPU 표의 100%와 분모가 다르다. 작업자·OS thread 개수와 실제
+사용 중인 코어 수를 혼동하지 않는다. 학습 DataLoader workers 설정은 ROS 추론 작업자가 아니다.
+
+### 경고와 실패를 별도로 보존한 이유
+
+- 정상 고주로의 control 간격 p95는 약 21.8~22.2ms, 최대 약 46~50ms다. 추가 점유
+  조건에서는 p95 25.46ms, 최대 52.24ms였다. 평균 50Hz 유지가 매번 정확히 20ms에
+  실행됐다는 뜻은 아니다. 장애물·로터리의 최대 control 간격은 약 35.17/34.00ms다.
+- 약 0.5초의 객체·신호등 입력 공백을 발견하여 원본 bag을 확인했다. 재생 34.2초 부근에
+  이미 Object 518.15ms, 전방 카메라 517.15ms, LiDAR 583.66ms의 기록 간격이 있었다.
+  이를 새로운 CPU 경합으로 발생한 입력 누락이라고 판정하지 않는다. 원인 자체가
+  시뮬레이터인지 당시 기록기인지까지 이번 시험으로 확정하지 않는다.
+- H01의 `Invalid Trajectory`·planning latency 경고는 GPU 추론을 실행하지 않은 실제
+  CPU 스택 대조에서도 발생했다. 따라서 인지 경합만으로 설명하지 않는다. `report.valid`
+  는 실제 비어 있지 않은 prediction·trajectory와 측위·제어 출력이 활성화됐다는 뜻이며
+  trajectory validator의 모든 flag가 통과했다는 뜻이 아니다. 경고는 보존하고 planning
+  안전 정책을 완화하지 않았다.
+- 최초 로터리 목표인 마지막 Ego pose는 기존 planner에서 `Goal is not valid`로
+  거부됐다. 그 실패는 `roundabout_probe/failure.json`에 남겼다. 같은 bag의 80% 시점에
+  기록된 실제 Ego pose를 목표로 재실행한 `roundabout_probe_v2`는 정상 경로와 측정
+  출력을 만들었다. 목표 유효성 검사·map·각도 허용 기준은 수정하지 않았다.
+- 초기 harness의 긴 측정 창은 bag 길이 guard로 중단됐고, source overlay의 미포함
+  CUDA extension은 import 실패로 중단됐다. 모두 실패로 기록하고 최종 표에서 제외했다.
+  현재 시험은 임시 source 복사본에 팀 이미지의 ABI 호환 extension을 사용한다.
+  원본 third-party source나 production container는 덮어쓰지 않았다.
+
+### 재현 도구와 남은 실행
+
+산출물 root는 `artifacts/evaluation/bevfusion/base5_cpu_contention_261011/`다.
+`summary.json`은 matched selection 검증·원본 입력 공백·실패 제외 근거를 포함한다.
+각 case의 `report.json`, `resources.json`, `gpu/report.json`, 실제 노드 로그와
+`route_result.json`을 보존했다. 새 probe는 topic event 원자료도 저장한다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+
+python3 scripts/runtime/test_benchmark_ros_cpu_contention.py
+
+python3 scripts/runtime/benchmark_ros_cpu_contention.py \
+  --bag rosbags/eval/perception/260923_teammate_manual/highway/260923_161315_H01_development/260923_161315_H01_ajounice_eval_highway_balanced_0.bag \
+  --output artifacts/evaluation/bevfusion/base5_cpu_contention_261011/new_stack_probe \
+  --mode stack --gpu-probe --traffic-light --iterations 96 --duration 60
+
+python3 scripts/runtime/analyze_ros_cpu_contention.py \
+  --root artifacts/evaluation/bevfusion/base5_cpu_contention_261011
+```
+
+기존 output을 재사용하지 않는다. 신호등 시험은 provision된 `traffic_light_gpu` Python과
+가중치가 필요하다. `--stress-cores 4`는 90초 상한의 별도 CPU 점유 시험이며 실제
+planning 모듈 4개를 뜻하지 않는다. 격리 프로세스군·새 시험 container만 종료하고 기존
+데스크톱 작업·production 설정·Vast 인스턴스는 건드리지 않았다. host 회귀 8개,
+Python syntax 검사와 실제 8개 정상 case를 통과했고 생성한 ROS/container의 종료도 확인했다.
+
+normal server의 camera workers 기본값은 4지만 Torch·OpenCV의 스레드 제한은 자동으로
+보장되지 않는다. 이후 Base5 배포 시험에서 `--cpu-threads 4 --opencv-threads 1`을
+명시하는 것을 시작점으로 삼는다. 이번에 production launcher 기본값을 변경한 것은 아니다.
+
+본학습 전에 원격 인공 CPU 부하를 추가 선행 조건으로 만들지 않는다. 다음은 승인 후
+Sunny13 본학습·백업이며, 완성 가중치로 실제 4090 24GB에서 compile/병렬화 정합,
+ROS bridge·13Hz 입력·신호등·필요한 RViz·실제 LAN·대회 제어 주기와 최대 지연을 확인한다.
+그 결과에 따라 팀장님 PC에서 최종 스택 시험을 요청한다.
