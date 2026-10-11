@@ -9,7 +9,11 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신 결과는 [33절 학습 완료·같은 30m의 E25/E9/E24 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)다.
+2026-10-12 최신 결과는 [34절 대표 bag 4개·256프레임의 공통 30m 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012)다.
+ROS 원본 입력을 사용한 오프라인 검출 시험이며 Base5 tensor에만 강도 ÷255를 적용했다.
+연속 tracking·live ROS·24GB 배포 인증과 구분한다. 아래 33절은 앞선 수집 데이터 비교다.
+
+2026-10-12 앞선 결과는 [33절 학습 완료·같은 30m의 E25/E9/E24 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)다.
 24 epoch·E9/E24 Drive 백업을 확인했다. native LiDAR 강도 0~1/0~255 불일치를 잡아
 E25 입력 스케일을 맞춰 비교했다. 다음은 Base5 ROS 강도 adapter·입력 동등성과 공통 bag,
 학습된 출력의 최적화·24GB 검사다. production은 E25이며 아래 진행 상태는 당시 이력이다.
@@ -60,6 +64,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| 대표 장애물·보행자·고주로·로터리 bag / 같은 256프레임·GT / ROS 강도 adapter·공통 NMS / AP·고정 score P/R | [10-12 대표 bag 빠른 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012) |
 | 학습 완료·E9/E24 보존 / 동일 data·radial 30m / intensity scale·E25 원래 val control / 새 threshold와 ROS gate | [10-12 공통 30m 실측](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012) |
 | 원거리 50~80/80~100m AP·차량 전후방·GT 수 / 동일 계약·W&B run 재개 / 패널 구성 | [10-12 평가 확장 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012) |
 | 동일 조건 E1 초기화 비교 / 호환 BEV·fusion·head 변환 / 후보 E1 채택·재개 | [10-11 초기화 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011) |

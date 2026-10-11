@@ -50,6 +50,15 @@ class Common30Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adapt_intensity(np.zeros((1, 4)), 2.)
 
+    def test_raw_ros_to_base5_roundtrip(self):
+        points = np.array([[1., 2., 3., 135.], [4., 5., 6., 255.]], np.float32)
+        normalized = adapt_intensity(points, 1./255.)
+        np.testing.assert_array_equal(normalized[:, :3], points[:, :3])
+        np.testing.assert_allclose(normalized[:, 3], [135./255., 1.])
+        np.testing.assert_allclose(adapt_intensity(normalized, 255.), points, atol=2e-5)
+        with self.assertRaises(ValueError):
+            adapt_intensity(np.array([[0., 0., 0., 256.]]), 1./255.)
+
     def test_radius_is_not_square(self):
         self.assertEqual(len(scope(row())['gt_boxes']), 1)
         self.assertEqual(len(scope(row(), False)['gt_boxes']), 2)

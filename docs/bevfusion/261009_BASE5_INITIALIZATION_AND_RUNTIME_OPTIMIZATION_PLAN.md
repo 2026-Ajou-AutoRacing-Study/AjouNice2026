@@ -6,7 +6,15 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-12 본학습 완료·동일 30m 비교
+## 현재 계획 허브 — 2026-10-12 본학습 완료·대표 bag 비교
+
+**10-12 04:53 KST 최신 완료:** 대표 dev bag 4개에서 동일 256프레임·30m를 추출해
+E25/E9/E24를 실제 추론했다. ROS 원본 강도는 보존하고 Base5 입력 tensor에만 ÷255를
+적용했다. 공통 ROS NMS 이후 장애물 AP는 65.86/76.61/79.03%, 보행자는
+55.04/81.70/81.91%이며 차량은 비슷하다. 전체 연속 프레임·tracker·실시간 ROS 시험은
+아니다. [34절 입력·GT·결과·제한](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012)을 따른다.
+다음은 실제 Base5 ROS adapter와 입력 동등성, 연속 bag의 threshold·누락 검사,
+학습된 출력의 최적화·24GB 비용이다. production·훈련·데이터·다른 agent 작업은 유지했다.
 
 **10-12 04:30 KST 최신 완료:** 24 epoch 학습과 E9 best/E24 마지막 체크포인트의
 Drive readback을 확인했다. 같은 Base5 val 745장·radial 30m에서 강도 스케일을 맞춘

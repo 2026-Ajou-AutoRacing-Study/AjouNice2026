@@ -3937,3 +3937,122 @@ CPU 단위 검사 10개에서 강도 adapter의 XYZ/원본 불변·비정상 입
 검출·threshold·연속 누락 비교 → 학습된 실제 출력으로 추론 최적화·24GB 비용 재검증**이다.
 100m GT adapter와 camera clear/weak 분석은 32절 제한을 유지한다. 재수집이나 장시간
 재학습을 이번 비교만으로 결정하지 않는다.
+
+<a id="base5-rosbag-quick-common30-261012"></a>
+
+## 34. 대표 rosbag의 E25/E9/E24 빠른 공통 30m 비교 — 2026-10-12
+
+04:53 KST 완료. 사용자가 대표 rosbag의 빠른 실제 평가를 요청했다. 기존 teammate
+dev 기록에서 장애물 O02, 횡단 보행자 P01, 추월 고주로 H03, 로터리 R01을 선택했다.
+**원본 bag 센서로 실제 모델 추론을 수행했다.** SaveSensorData val 재평가가 아니며,
+ROS playback·tracker·planning을 실행한 실시간 폐루프 평가도 아니다.
+
+### 입력과 GT 계약
+
+- 각 bag의 전체 시간에 걸친 적격 LiDAR 프레임에서 결정론적 균등 index로 64장씩,
+  총 **256장**을 선택했다. 객체가 없는 프레임도 FP 분모에 남긴다. E25/E9/E24의
+  token·GT·점 수·asset fingerprint는 모두
+  `0b68bc2afd5a496a49ba123469728fef3d1f5b6b6032342fb40d764a86f3ed14`다.
+- 카메라는 nearest header stamp의 차이가 ≤50ms인 원본 JPEG를 사용했다. 실제
+  선택된 최대 차이는 31.755ms다. Ego/Object 상태는 기존 선형 보간 계약의 ≤150ms
+  bracket만 허용하고 외삽하지 않는다. Ego/Object heading 보정은 모두 −1.347°다.
+- GT는 기존 `morai_asset_bbox_offsets_status_size_v2.json`과 각 case의
+  `asset_name_map.json`으로 `/Object_topic`을 BBox 중심으로 변환한 것이다.
+  **동기 native LiDAR annotation이 아니며**, 시간 보간·카탈로그 근사는 남는다.
+  미해결 객체 근처 프레임은 기존 unresolved-frame 정책으로 제외한다. 지원되는
+  GT는 LiDAR 점이 적거나 보이지 않아도 임의로 삭제하지 않는다.
+- Sensor_4의 네 카메라 calibration은 Base5 native infos의 K/T와 대조했다.
+  GT·prediction 범위는 LiDAR XY 중심 거리 <30m와 E25 공통 box의 교집합으로
+  33절과 같다. 동일 객체의 반복 관측 수이며 아래 GT 수가 독립 자산 수는 아니다.
+- raw XYZI와 JPEG bytes는 그대로 저장했다. ROS 강도 0~255를 E25에는 그대로,
+  Base5 E9/E24에는 **입력 tensor만 고정 ÷255**로 전달한다. 프레임 max 정규화가
+  아니며 원본·XYZ·GT는 불변이다. 실제 production bridge의 adapter는 아직 적용하지 않았다.
+
+| bag | 내용 | 적격 프레임 → 선택 | 공통 30m 대상 GT |
+|---|---|---:|---:|
+| O02_164012 | CargoBox·드럼·배럴·콘크리트/PE 바리케이드 등 6자산 회피 | 463 → 64 | Obstacle 122 |
+| P01_163434 | Man1 횡단 | 269 → 64 | Pedestrian 27 |
+| H03_162301 | 고주로 혼합 차량 추월 | 512 → 64 | Vehicle 15 |
+| R01_163034 | 로터리 차량 주행 | 326 → 64 | Vehicle 65 |
+
+raw bag 경로·source contract SHA·각 이미지/점 payload SHA와 제외 원인은 산출물
+`inputs/manifest.json`에 보존했다. 기존에 평가한 개발 bag이며 untouched test라고
+부르지 않는다. 시간 축 subsampling이므로 연속 누락 지속 시간과 tracker 안정성은 평가하지 않았다.
+
+### 실제 추론과 공통 후처리
+
+세 모델 모두 로컬 5060 Ti에서 strict state load·FP32로 실행했다. AMP·TF32·camera
+compile·camera/LiDAR 병렬화는 OFF다. 각 모델의 원래 입력 해상도·공간 격자·depth를
+유지하며 Base5를 30m 구조로 바꾸지 않았다. 각 256장 export 완료를 확인했다.
+
+비교 중 원격 SSH가 direct/proxy 모두 Connection refused로 바뀌었다. 중단 원인을
+추정하거나 인스턴스를 시작하지 않고 Drive 백업에서 E9/E24를 로컬로 복원했다.
+조각별 SHA와 full SHA가 모두 일치했다. 두 복원본은 후속 실험에 재사용할 수 있다.
+
+- E9 full SHA256: `067205c3f5f5b0abc1bb775116c2b8bca2c9a7f31a0727b959db0ab1ce70b271`
+- E24 full SHA256: `84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746`
+
+**주 결과는 ROS와 같은 class-aware rotated BEV NMS IoU 0.5 이후**다. 원래 ROI에서
+server score floor 0.1·top100을 적용한 뒤 NMS, 공통 30m 제한 순서다. AP는 floor
+이상의 score 곡선과 0.5/1/2/4m 중심 매칭 평균이며 고정 class threshold의 검출 확률이
+아니다. 고정 P/R만 현재 V/P/O 0.40/0.15/0.10과 중심 오차 <1m를 사용한다.
+`comparison_final.json`에 raw decoder AP도 secondary로 보존했다. NMS가 없는
+`comparison_preliminary.json`을 아래 주 결과와 섞지 않는다. 33절의 static-val raw
+decoder AP와도 후처리가 다르므로 숫자 차이를 데이터 효과 하나로 해석하지 않는다.
+
+### 대표 bag 결과
+
+단위는 %, 각 bag의 주 대상 클래스 center AP다. 4행의 평균을 전체 클래스 mAP라고
+부르지 않는다. H03의 GT 15개처럼 작은 분모의 1~2pp 차이를 의미 있게 단정하지 않는다.
+
+| bag·대상 | E25 | Base5 best E9 | Base5 final E24 |
+|---|---:|---:|---:|
+| O02 장애물 | 65.86 | 76.61 | 79.03 |
+| P01 보행자 | 55.04 | 81.70 | 81.91 |
+| H03 고주로 차량 | 80.28 | 81.39 | 78.98 |
+| R01 로터리 차량 | 92.28 | 93.86 | 92.47 |
+
+| bag·현재 score | E25 P / R | Base5 E9 P / R | Base5 E24 P / R |
+|---|---:|---:|---:|
+| O02 장애물 0.10 | 95.74 / 73.77 | 88.24 / 86.07 | 90.68 / 87.70 |
+| P01 보행자 0.15 | 100.00 / 70.37 | 96.43 / 100.00 | 96.43 / 100.00 |
+| H03 차량 0.40 | 86.67 / 86.67 | 86.67 / 86.67 | 86.67 / 86.67 |
+| R01 차량 0.40 | 96.97 / 98.46 | 96.97 / 98.46 | 96.97 / 98.46 |
+
+이번 장애물 bag에서 E24는 E25보다 TP 90→107/122, FP 4→11이다. 검출 증가와
+오검출 증가가 함께 있으므로 기존 score 0.1을 새 최적 threshold로 채택하지 않는다.
+장애물 0~10m recall은 26/38→33/38, 20~30m는 24/43→38/43이다. 단, 10~20m는
+40/41→36/41로 떨어졌다. 가까운 장애물이 전반적으로 망가졌다는 증거는 아니지만
+모든 거리·자산에서 일방적으로 개선된 것도 아니다. 차량은 이 표본에서 비슷하고,
+보행자 recall 100%도 27개 반복 관측 표본에 한정한다.
+
+**결론:** Base5의 장애물·보행자 개선은 같은 생성기 val에서만 보이는 현상은 아니다.
+다만 4개 dev bag·30m 빠른 표본 결과이며 모든 실전 조건, 100m 원거리, 새로운 자산의
+일반화나 정밀 격자/depth의 개별 효과를 증명하지 않는다. E9/E24 모두 보존하고 새
+threshold·연속 누락·학습된 출력 runtime gate 전에 production을 자동 교체하지 않는다.
+
+### 산출물과 검증
+
+ignored 루트는 `artifacts/evaluation/bevfusion/base5_rosbag_quick_261012`다.
+`inputs`는 원본 센서 payload·GT·manifest, `E25/E9/E24`는 실제 prediction과 receipt,
+`checkpoints`는 검증된 Drive 복원본, `comparison_final.json`은 NMS 주 결과다.
+새 `prepare_base5_rosbag_quick.py`는 CPU bag 추출, `summarize_base5_rosbag_quick.py`는
+공통 NMS·GT identity guard·case별 AP/P/R를 담당한다. 모델 추론은 기존
+`compare_base5_common30.py infer`의 명시적 `--intensity-scale 0.00392156862745098`을
+사용했다. 결과를 정리하기 위해 ROS나 MORAI를 켜지 않았다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/summarize_base5_rosbag_quick.py \
+  --inputs artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/inputs \
+  --predictions \
+  artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/E25/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/E9/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/E24/predictions.json.gz \
+  --output artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/comparison_repeat.json
+```
+
+CPU 단위 검사 16개가 통과했다. 강도 ÷255의 원본/XYZ 불변·역변환·범위 거부,
+organized point cloud row padding, 시간 오차·높이 외삽 거부, world→LiDAR 중심 변환,
+희소 GT 지원점, NMS 중복 제거·클래스 분리 등을 검사했다. 다른 agent의
+planning_validator 변경은 커밋에 포함하지 않는다. 다음은 실제 ROS 입력 동등성과
+연속 전체 bag의 threshold·누락 분석, 학습된 출력의 최적화/24GB 검증이다.

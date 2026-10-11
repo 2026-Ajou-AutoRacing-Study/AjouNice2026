@@ -50,10 +50,11 @@
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
 - **2026-10-12 현재 다음 작업:** Sunny13 24 epoch 학습·E9/E24 백업·동일 30m 검출
-  비교는 완료했다. Base5 native intensity 0~1과 기존 ROS 0~255의 입력 계약을 먼저
-  맞춰 offline/online 동등성을 확인한 뒤 공통 bag의 검출·threshold·연속 누락,
+  비교와 대표 dev bag 4개·256프레임의 검출 비교는 완료했다. Base5 tensor에만 ROS
+  intensity ÷255를 적용했다. 실제 ROS adapter·offline/online 동등성을 확인한 뒤
+  연속 bag의 threshold·연속 누락,
   학습된 출력으로 최적화/24GB를 검증한다. production E25·현재 threshold는 미변경이다.
-  [EVIDENCE 33절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)을 따른다.
+  [EVIDENCE 34절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-rosbag-quick-common30-261012)을 따른다.
 
 - **2026-10-11 최신 초기화 결정:** 동일 3클래스 E1 비교를 마쳐 호환 nuScenes의
   BEV·fusion·head 추가 재사용을 채택했다. 2 epoch는 생략하고 사용자가 후보 E1에서

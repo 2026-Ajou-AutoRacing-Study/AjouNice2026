@@ -40,14 +40,15 @@ def adapt_intensity(points, scale):
     Supports NumPy test arrays and the loader's Torch tensor without depending
     on Torch for CPU scoring. A 255 multiplier requires normalized input.
     """
-    if scale not in (1., 255.):
-        raise ValueError('Only identity or the documented 0..1 -> 0..255 adapter is allowed')
+    if scale not in (1., 255., 1./255.):
+        raise ValueError('Only identity or the documented 0..1/0..255 adapters are allowed')
     if points.ndim != 2 or points.shape[1] < 4:
         raise ValueError('XYZ plus intensity required')
-    if scale == 255.:
+    if scale != 1.:
         values = points[:, 3]
-        if len(values) and not (bool((values >= 0).all()) and bool((values <= 1).all())):
-            raise ValueError('Intensity255 adapter requires finite normalized 0..1 input')
+        upper = 1. if scale == 255. else 255.
+        if len(values) and not (bool((values >= 0).all()) and bool((values <= upper).all())):
+            raise ValueError('Intensity adapter requires finite input in its explicit source range')
         points = points.clone() if hasattr(points, 'clone') else points.copy()
         points[:, 3] *= scale
     return points
@@ -313,8 +314,8 @@ def main():
     worker.add_argument('--dataset-type', choices=['MoraiBase5PedestrianDataset', 'MoraiBase3Dataset'],
                         default='MoraiBase5PedestrianDataset')
     worker.add_argument('--expected-frames', type=int, default=745)
-    worker.add_argument('--intensity-scale', type=float, choices=[1., 255.], default=1.,
-                        help='Explicit E25 native 0..255 input adapter for Base5 normalized intensity')
+    worker.add_argument('--intensity-scale', type=float, choices=[1., 255., 1./255.], default=1.,
+                        help='Explicit checkpoint-native intensity adapter; ROS raw -> Base5 uses 0.00392156862745098')
     score = sub.add_parser('compare')
     score.add_argument('--predictions', type=Path, nargs='+', required=True)
     score.add_argument('--output', type=Path, required=True)

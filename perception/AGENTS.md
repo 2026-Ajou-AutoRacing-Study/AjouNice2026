@@ -1,5 +1,10 @@
 # Perception agent context
 
+2026-10-12 최신은 EVIDENCE 34절의 대표 dev bag 비교다. 같은 4개 bag·256프레임·
+30m GT와 공통 ROS NMS로 E25/E9/E24를 실제 추론했다. 원본 ROS 0~255 강도는
+보존하고 Base5 tensor만 ÷255로 변환했다. production bridge는 아직 미변경이며
+offline/online 동등성·연속 tracking·24GB 배포 검사는 남았다. 아래 33절은 앞선 static val 비교다.
+
 2026-10-12 최신은 EVIDENCE 33절의 학습 완료·동일 30m 비교다. 24 epoch를 완료했고
 E9/E24와 Drive readback을 보존한다. Base3/ROS intensity 0~255와 Base5 native 0~1을
 구분해야 한다. E25를 Base5에 넣을 때만 명시적 ×255 adapter로 비교했다. production은

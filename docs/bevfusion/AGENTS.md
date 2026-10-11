@@ -1,5 +1,11 @@
 # BEVFusion documentation agent context
 
+2026-10-12 최신 결과는 EVIDENCE 34절이다. 대표 dev bag 4개·256프레임의 동일
+30m 입력/GT에서 E25/E9/E24를 실제 추론하고 공통 ROS NMS로 비교했다. Base5의
+입력 tensor에만 intensity ÷255를 적용했으며 production adapter는 아직이다.
+전체 연속 tracking·live ROS·24GB 인증이 아니다. 다음은 실제 ROS 입력 동등성,
+연속 bag의 threshold·누락 검사와 학습된 출력 최적화다. 아래 33절은 수집 데이터 비교다.
+
 2026-10-12 최신 결과는 EVIDENCE 33절이다. 24 epoch·E9/E24 Drive 백업을 확인했고
 동일 Base5 745장·radial 30m에서 E25/E9/E24를 실제 추론했다. native intensity의
 0~1/0~255 불일치를 보정하지 않은 E25 결과는 비교 결론으로 쓰지 않는다. E25 원래
