@@ -118,6 +118,10 @@ def check_no_conflicting_publishers():
 def prepare_scenario(case, install_dir, ego_network_json):
     """원본은 유지하고 ExternalCtrl 정지 시작 + network sidecar만 설치한다."""
     scene = json.loads(case.source.read_text(encoding="utf-8"))
+    from .repetitions import sampled_scene
+    scene, _ = sampled_scene(scene, source_sha256=case.source_sha256,
+                             repeat_index=getattr(case, "repeat_index", 1),
+                             settings=getattr(case, "randomization", {}))
     ego = scene["egoVehicle"]
     ego["beforeControlMode"] = 2
     ego["currentControlMode"] = 2

@@ -1,58 +1,107 @@
-# 미션별 공유 예제: GUI에서 열어 개인 YAML로 저장하세요.
-# 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.
-# 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.
-# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.
-# GT 대조는 GUI 탐지기를 od_gt로 바꿔 저장하고 새 실험을 시작하세요.
-schema_version: 2
+# 일상 옵션은 GUI에서 수정 → YAML 저장. 고급 설정은 VSCode 저장 → GUI 불러오기.
+# 공유 base는 수정하지 말고 '베이스 → 내 작업 폴더 복사'로 시작하세요.
+# === 자주 바꾸는 부분: 이름 / JSON 선택 / 반복 / 측위·탐지 / 녹화·공유 여부 ===
+
+# 결과 폴더의 이름 앞부분. 영문/숫자/_/- 사용. 날짜는 실행할 때 자동으로 붙습니다.
 campaign_name: starter_highway_bev
+
+# 실행할 JSON 묶음. 시작 위치·객체 배치는 JSON에, 공통 목적지는 아래 고정 설정에 있습니다.
 scenarios:
+  # 저장소 루트 기준 상대경로 또는 ~/ 경로. 보통 같은 미션 workspace/scenarios 사용.
   directory: base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/scenarios
+  # include가 없으면 이 패턴의 JSON을 모두 실행합니다. '*.json' = 전체.
   glob: '*.json'
+  # JSON 한 개당 실행 횟수. 2개 JSON × repeat: 10 = 총 20회. 중단 후 남은 회차부터 재개.
+  repeat: 1
+
+# 측위·탐지·신호등 on/off는 GUI에서도 수정·저장 가능. Python 실행 환경은 YAML에서만 수정.
+stack:
+  # localization: 실제 측위, maptf_morai: Ego GT 위치 대조. 빠른 대조는 planning 탭.
+  pose_source: localization
+  # bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.
+  detector: bevfusion
+  # 이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.
+  traffic_light: false
+
+# 권장값: basic 토픽 + 센서 원본 제외 + 화면 영상. 센서는 MORAI에서 계속 켜둡니다.
+recording:
+  # basic.json 유지. 판단·제어·인지 결과 위주로 녹화합니다.
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
+  # false 권장. true는 bag에 카메라/LiDAR를 추가하므로 용량이 크게 늘어납니다.
+  include_sensors: false
+  video:
+    # 화면 영상 녹화 여부. true일 때 다른 창으로 가리거나 화면을 잠그지 마세요.
+    enabled: true
+    display: :0.0
+    fps: 10
+    focus_planviz: false
+    # split: RViz 왼쪽, MORAI 오른쪽, GUI 왼쪽 아래. manual: 수동 배치.
+    window_layout: split
+    # auto 유지. 모니터 바가 잘릴 때만 '18%' 또는 180처럼 높이를 지정.
+    bottom_bar_px: auto
+  # 이보다 여유 공간이 적으면 다음 회차를 시작하지 않고 멈춥니다.
+  minimum_free_disk_gib: 10
+
+upload:
+  # Drive 자동 업로드. 처음에는 false. 업로드를 쓸 때만 rclone 본인 인증 필요.
+  enabled: false
+  # 공유 AjouNice2026 폴더 아래 planning_validator. 본인 rclone remote 확인.
+  rclone_remote: ajou_drive:planning_validator
+  # basic=CSV/JSON, bag=기본+bag, video=기본+영상, full=모두. 로컬 원본은 보존.
+  profile: basic
+
+# === 여기부터 수정 X: 미션 고정 설정 (필요할 때만 담당자와 확인) ===
+# Ego 시작점은 시나리오 JSON에 있습니다. 여기서 시작점/목적지를 임의 변경하지 마세요.
+schema_version: 2
+
+# 아래 목적지/시간은 이 미션의 모든 JSON에 공통. 시작점이 다른 미션을 섞지 마세요.
 default_case:
+  # planning map 좌표(m), yaw_deg는 도 단위. MORAI 화면 좌표와 다릅니다.
   goal:
     x: 197.5177
     y: 653.498242
     z: 28.264104
     yaw_deg: -86.688598
   waypoints: []
+  # 제어기 준비 후 주행 제한(초). 로드/스택 준비 대기와 별개. 늦게 도착하면 FAIL.
   timeout_sec: 90
+  # stop: 목적지에서 정지까지 확인. pass_through: 목적지 통과 확인.
   arrival_mode: stop
-stack:
-  pose_source: localization
-  detector: bevfusion
-  traffic_light: false
-recording:
-  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
-  include_sensors: false
-  video:
-    enabled: true
-    display: :0.0
-    fps: 10
-    focus_planviz: false
-    window_layout: split
-    bottom_bar_px: auto
-  minimum_free_disk_gib: 10
+
+# MORAI GUI에 실제 Load/Connect한 Sensor/Ego Network와 같아야 합니다.
 network:
   sensor_json: configs/sensors/Sensor_competition_local.json
   ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
+
 morai:
   map_name: R_KR_PR_K-city_2025
+  # auto: 각 PC의 ~/MoraiLauncher_Lin을 찾습니다. 설치 위치가 다를 때만 수정.
   scenario_install_dir: auto
   scenario_load_host: 127.0.0.1
   scenario_load_port: 9095
-output_root: planner_logs/validation
-resume: true
-continue_on_system_error: false
-readiness_timeout_sec: 60
-scenario_ready_timeout_sec: 35
-route_ready_timeout_sec: 75
+
+# 충돌은 1회라도 FAIL. 목적지 도착 반경/정지 기준은 기본값 유지.
 validation:
   goal_tolerance_m: 2.0
   goal_hold_sec: 1.0
   goal_speed_max_mps: 0.5
   topic_loss_timeout_sec: 4.0
   stuck_timeout_sec: 0.0
-upload:
-  enabled: false
-  rclone_remote: ajou_drive:planning_validator
-  profile: basic
+
+# 저장소 기준 결과 경로. 실행마다 별도 timestamp 폴더, 과거 기록은 덮어쓰지 않습니다.
+output_root: planner_logs/validation
+
+# true 유지. 이어가기는 GUI 기록 탭 또는 CLI --execution 결과폴더.
+resume: true
+
+# false 유지. 주행 FAIL은 계속, 수신/스택/녹화 같은 시스템 오류는 중단.
+continue_on_system_error: false
+
+# ROS 입력·스택 준비 대기의 상한. 실제 주행 제한시간과 별개.
+readiness_timeout_sec: 60
+
+# ScenarioLoad 후 Ego 시작 위치 확인의 상한. 정상 연결이면 일찍 진행.
+scenario_ready_timeout_sec: 35
+
+# 목적지 경로·첫 판단 궤적 준비의 상한. 준비 실패는 별도 결과로 기록.
+route_ready_timeout_sec: 75

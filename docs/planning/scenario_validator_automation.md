@@ -2,9 +2,33 @@
 
 ## 목적
 
-팀원이 만든 임의 MORAI JSON을 같은 풀스택으로 차례로 실행해, 대회에서 대응하지 못하는 상황을 찾는다. 실행 전 과도한 시나리오 생성 기능은 넣지 않는다. 팀원은 JSON 폴더와 캠페인 YAML의 목적지·선택 스택만 관리한다.
+팀원이 만든 MORAI JSON을 같은 풀스택으로 차례로 실행해, 대회에서 대응하지 못하는 상황을 찾는다. 실행 전 과도한 시나리오 생성 기능은 넣지 않는다. 미션별 목적지·스택·네트워크는 제공된 기본값을 사용하고, 팀원은 JSON과 YAML 위쪽의 선택·반복 설정을 관리한다.
 
 ## 현재 구현
+
+### 팀원용 단순화와 고주로 반복 검증 (2026-10-11, 현재 GUI 계약)
+
+이번 구현은 `dataset/base5`에서 작업했다. 아래 10-03 절은 구현 이력이며 **현재 UI는 이 절의 제한된 편집 계약을 따른다.** 목적지까지 전부 편집하던 GUI와 별도 신호등 환경 탭은 사용하지 않는다. 공유 실행 브랜치는 기존 planning 브랜치이며 이 변경을 그쪽에 반영하기 전까지 자동 배포됐다고 가정하지 않는다.
+
+- 기본 탭의 이름·파일 패턴/장면 선택·반복·측위/탐지·신호등·영상·센서 bag·Drive 업로드·공유 모드는 수정 가능하다. 상단 파란 **YAML 저장**은 현재 개인 파일에 저장하며 파일 이름을 새로 만들지 않는다. 목적지·시간·네트워크·Python 환경은 회색 읽기 전용이고 랜덤 seed/범위도 YAML에서만 수정한다. 경로 Ctrl+V → Enter/불러오기 또는 붙여넣기 버튼은 공백/따옴표/~/ 경로를 지원한다.
+- `operator_document`는 허용 필드의 GUI 변경분만 최신 파일에 병합하고, 같은 필드의 VSCode/GUI 충돌은 재불러오도록 거절한다. `authoring.updated_yaml`은 변경값만 수정해 고정 설정·사용자 주석을 유지한다. 변경이 없으면 byte-identical이다. 앵커/별칭 사용 YAML은 GUI 수정 시 거절하고 VSCode 편집을 안내한다. 공유 base/실행 사본 쓰기와 실행·검사 중 편집을 잠근다. 일반 검사·새 실행 전에도 변경분을 저장하되 빠른 테스트는 원본을 수정하지 않는다.
+- 장면 선택은 기존 검색·일괄 체크 대화창을 재사용한다. 패턴을 직접 수정하면 include를 해제하고 패턴으로 돌아간다. JSON 수 × 반복 수를 실시간으로 표시한다. `authoring.annotated_yaml`은 다섯 미션 example과 신규 workspace YAML의 한국어 주석·순서를 통일한다. 이름·JSON 선택·반복·스택·녹화/공유를 위로, 목적지·시간·네트워크를 ‘여기부터 수정 X’ 아래로 둔다. Ego 시작점은 JSON이다. 기존 개인 파일을 일괄 재작성하지 않는다.
+- 공유 예제 복사는 **실제로 선택한 base YAML**을 사용한다. random_example이나 GT 비교 YAML을 골랐는데 일반 example 설정으로 복사되던 경로를 수정했다. workspace 재복사는 이미 열린 개인 파일과 사용자 수정값을 유지한다.
+- `scenarios.repeat`(1–1000)은 JSON 한 개당 실행 횟수다. A/B를 2회면 A_r001/B_r001/A_r002/B_r002로 확장하며 총 10,000회까지 허용한다. 기존 repeat 없는 YAML은 1회이고 기존 case 이름을 유지한다. 회차별 결과·bag·영상·PASS/FAIL/ERROR·중단 재개가 독립된다. snapshot에는 원본 JSON을 한 번만 복사하고 반복/추출 계약을 유지한다.
+- `repetitions.sampled_scene`은 source hash·seed·회차로 vehicleList/spawnPointList의 목표 속도와 path offset을 추출한다. 원본 배치·경로·차종·초기 속도·Ego는 유지한다. 실제 로드한 scenario.json과 input.json/결과 JSON의 추출 내역·realized hash를 보관한다. CSV에 source_scenario/repeat_index/random_seed를 추가한다. **이 seed는 MORAI native RandomMode 차종·physics의 재현 seed가 아니다.** 재시도는 같은 validator 파라미터를 사용한다.
+- highway/base/random_example.yaml은 기존 샘플 spawn 경로·MiddleSize 조건인 두 JSON × 10회다. 50–60km/h/−10–10%는 좁은 시작용 범위이며 본선 범위를 확정하지 않는다. MR GUI에서 저장된 random_parameter.json은 단일 속도/offset 값만 포함하므로 그 파일을 반복 로드하면 편집 화면의 범위대로 다시 추출한다고 가정하지 않았다. validator가 회차마다 값을 추출·설치하는 방식이다.
+- `planning 빠른 테스트`는 JSON 1–2개 선택·GT/BEVFusion·GT/측위·신호등 대조를 빠르게 수행한다. 현재 설정의 목적지·시간·Network·녹화는 그대로, repeat=1·랜덤 추출 off·upload off인 PID별 임시 설정으로 별도 실행한다. 원본 YAML/JSON은 수정하지 않는다. 검색·환경 검사·ROS 수신 검사·연결 경로 복사도 이 탭으로 모았다.
+- 배치·입력 사본·재개·실시간 실패 근거·Drive 공유·split 영상/모니터 기능은 유지한다. 제거/정렬/초기화/이전 목록/새 준비는 목록 관리 메뉴로 옮기고 실행 버튼 위주로 줄인다. 모니터 모드 전환 자체로 YAML 영상 설정을 바꾸지 않는다. 판단·제어·측위·인지 알고리즘과 센서 timestamp 정책은 변경하지 않는다.
+
+검증은 순수 함수·snapshot/재개·가짜 runner 배치·실제 Tk GUI의 제한 편집/저장/경로 붙여넣기/빠른 실행/원본 보존으로 수행했고 180개 테스트를 통과했다. 허용 필드만 같은 YAML에 저장되는지, 주석·고정값·외부 수정 보존, 장면 선택 후 패턴 전환, Drive 기본 경로 보완도 검사했다. 테스트는 source package를 PYTHONPATH 맨 앞에 두어 오래된 catkin install 복사본을 검사하지 않도록 한다. 생성기는 `build_mission_starters.py --check`로 136파일/120JSON을 검사한다. 실제 MR에서는 GT pose+GT detection의 2회 연속 랜덤 반복, offset 단위 대조, localization+BEVFusion의 폐루프와 수정 후 재실행으로 목적지 도착·bag/MP4 마감·파라미터 적용을 확인했다. 이후 GUI 편집 범위를 여는 수정은 Tk GUI와 저장·재불러오기 테스트로 검증했으며 주행을 추가 재실행하지 않았다. spawn의 MinLatBias/MaxLatBias도 % 단위로 기록하며 /100 변환을 하지 않는다. 과거 manifest의 lateral_m 표기도 lateral_percent로 바로잡았고, 기존 시나리오 JSON은 변경하지 않았다. **이 범위는 전체 미션 성공률·대회 적합성·모든 PC 환경 검증이 아니다.** 일회성 로그/캡처/정량 결과는 Git 제외 `planner_logs/analysis/261011_validator_simplification/`에 둔다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+PYTHONPATH="$PWD/base_ws/src/planning_addons/planning_scenario_validator/src:$PYTHONPATH" \
+  xvfb-run -a /usr/bin/python3 -m unittest discover \
+  -s base_ws/src/planning_addons/planning_scenario_validator/tests -q
+/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_mission_starters.py --check
+```
 
 ### 시나리오 검색·일괄 선택 (2026-10-03)
 

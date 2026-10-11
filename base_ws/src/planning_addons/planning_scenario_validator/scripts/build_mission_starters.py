@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import math
+import sys
 from pathlib import Path
 
 import yaml
@@ -14,6 +15,8 @@ from mission_starter_guides import render_guide
 
 ROOT = Path(__file__).resolve().parents[5]
 PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE / "src"))
+from planning_scenario_validator.authoring import annotated_yaml
 OUTPUT = PACKAGE / "config/missions"
 SAMPLE = ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
 ACTOR_LISTS = ("vehicleList", "pedestrianList", "objectList", "spawnPointList",
@@ -175,7 +178,7 @@ def build(output=OUTPUT):
                     # One fixed model per scenario, unknown official model.
                     spawn["spawnVehicleTypeID"] = (30100004, 30100007, 30100014, 30200014)[i % 4] if i != 1 else 30100004
                 settings.append({"spawn_id": spawn["UNIQUEID"], "goal_kmh": speed,
-                    "initial_kmh": initial, "period_sec": period, "lateral_m": offset,
+                    "initial_kmh": initial, "period_sec": period, "lateral_percent": offset,
                     "model_id": spawn["spawnVehicleTypeID"]})
             add(family, "{}_{}_{:02d}".format(prefix, tier, i), scene, goal, duration,
                 "샘플 spawn/종료 링크 유지; {}".format("무차량 기준선" if not i else "속도·간격·차종 변형"),
@@ -309,17 +312,19 @@ def build(output=OUTPUT):
             raise ValueError("{}: 서로 다른 목적지/시간은 별도 캠페인 YAML로 분리하세요".format(family))
         campaign = copy.deepcopy(template)
         campaign.update(schema_version=2, campaign_name="starter_{}_bev".format(family))
-        campaign["scenarios"] = {"directory": str((folder / "scenarios").relative_to(ROOT)), "glob": "*.json"}
+        campaign["scenarios"] = {"directory": str((folder / "scenarios").relative_to(ROOT)), "glob": "*.json", "repeat": 1}
         campaign["default_case"] = common
         campaign["recording"]["video"].update(window_layout="split", focus_planviz=False, bottom_bar_px="auto", fps=10)
         campaign["recording"]["minimum_free_disk_gib"] = 10
         campaign["upload"] = {"enabled": False, "rclone_remote": "ajou_drive:planning_validator", "profile": "basic"}
-        header = ("# 미션별 공유 예제: GUI에서 열어 개인 YAML로 저장하세요.\n"
-                  "# 이 YAML의 목적지/주행시간이 모든 선택 시나리오에 동일하게 적용됩니다.\n"
-                  "# 다른 목적지/시간은 별도 이름의 YAML로 시험하세요.\n"
-                  "# 센서는 계속 켜고, bag에서만 LiDAR/카메라를 제외합니다.\n"
-                  "# GT 대조는 GUI 탐지기를 od_gt로 바꿔 저장하고 새 실험을 시작하세요.\n")
-        expected[folder / "example.yaml"] = header + yaml.safe_dump(campaign, allow_unicode=True, sort_keys=False)
+        expected[folder / "example.yaml"] = annotated_yaml(campaign)
+        if family == "highway":
+            repeated = copy.deepcopy(campaign)
+            repeated["campaign_name"] = "highway_random"
+            repeated["scenarios"].update(include=["high_baseline_01.json", "high_normal_06.json"],
+                repeat=10, randomization={"enabled": True, "seed": 20261011,
+                    "vehicle_speed_kmh": [50, 60], "path_offset_percent": [-10, 10]})
+            expected[folder / "random_example.yaml"] = annotated_yaml(repeated)
         expected[folder / "README.md"] = render_guide(family, rows, campaign, geom, ROOT, PACKAGE)
         expected[folder / "manifest.json"] = json.dumps({"schema_version": 1, "mission": family,
             "source_sample_sha256": digest(SAMPLE), "live_verified": False,

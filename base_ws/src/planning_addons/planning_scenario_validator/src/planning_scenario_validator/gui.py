@@ -1,7 +1,7 @@
 """Small Tk frontend for the existing YAML/CLI campaign runner.
 
-No ROS node or decision logic lives here. The form edits a personal YAML, then
-starts the same `planning_validator` command used by terminal operators.
+No ROS node or decision logic lives here. Operators edit only everyday choices;
+goals, networks and advanced contracts stay read-only. Quick tests are separate.
 """
 import copy
 import getpass
@@ -21,11 +21,12 @@ import yaml
 
 from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CONTRACT, ROOT,
                      UPLOAD_PROFILES, resolve_path, validate_campaign_document)
-from .config import load_campaign
+from .config import load_campaign, scenario_sources
 from .layout import normalize_bar_setting, resolve_bar_height
 from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
 from . import executions
 from . import batch
+from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
 from .scenario_selection import choose_scenarios
 
 
@@ -43,6 +44,14 @@ UPLOAD_PROFILE_LABELS = {
     "full": "원본 공유 — 기본 + rosbag + MP4",
 }
 UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.items()}
+EDITABLE_FIELDS = {
+    'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
+    'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
+    'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
+    'video': ('recording', 'video', 'enabled'),
+    'include_sensors': ('recording', 'include_sensors'),
+    'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
+}
 
 
 def default_name(template):
@@ -115,6 +124,7 @@ def form_values(document):
         "campaign_name": document.get("campaign_name", ""),
         "directory": scene.get("directory", ""),
         "glob": scene.get("glob", "*.json"),
+        "repeat": scene.get("repeat", 1),
         "timeout_sec": case.get("timeout_sec", 180),
         "pose_source": stack.get("pose_source", "localization"),
         "detector": stack.get("detector", "od_gt"),
@@ -224,6 +234,72 @@ def build_document(template, values):
     return result
 
 
+def operator_document(template, latest, values, include):
+    """Merge only GUI-authorized edits into the latest saved YAML.
+
+    Fixed settings (including concurrent VSCode changes) are never rewritten.
+    Same-field conflicts require reloading rather than silently overwriting.
+    """
+    baseline = form_values(template)
+    proposed = copy.deepcopy(template)
+    for key, path in EDITABLE_FIELDS.items():
+        if str(values[key]) == str(baseline[key]):
+            continue
+        value = values[key]
+        if key == 'repeat':
+            try:
+                value = int(str(value))
+            except ValueError as error:
+                raise ValueError('반복 횟수는 1~1000 정수입니다') from error
+        elif key == 'upload_profile':
+            value = UPLOAD_LABEL_PROFILES.get(str(value))
+            if value is None:
+                raise ValueError('공유 모드를 선택하세요')
+        elif key in ('traffic_light', 'video', 'include_sensors', 'upload_enabled'):
+            value = bool(value)
+        else:
+            value = str(value).strip()
+        target = proposed
+        for part in path[:-1]:
+            target = target.setdefault(part, {})
+        target[path[-1]] = value
+    if include is None:
+        proposed['scenarios'].pop('include', None)
+    else:
+        proposed['scenarios']['include'] = list(include)
+    paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
+    missing = object()
+
+    def at(document, path):
+        for part in path:
+            if not isinstance(document, dict) or part not in document:
+                return missing
+            document = document[part]
+        return document
+
+    result = copy.deepcopy(latest)
+    for path in paths:
+        old, new, saved = at(template, path), at(proposed, path), at(latest, path)
+        if old == new:
+            continue
+        if saved != old and saved != new:
+            raise ValueError('{}은 VSCode와 GUI 양쪽에서 바뀌었습니다. 다시 불러온 뒤 수정하세요'.format('.'.join(path)))
+        target = result
+        for part in path[:-1]:
+            target = target.setdefault(part, {})
+        if new is missing:
+            target.pop(path[-1], None)
+        else:
+            target[path[-1]] = new
+    if (bool(values['upload_enabled']) and not baseline['upload_enabled']
+            and not result.get('upload', {}).get('rclone_remote')):
+        # Older personal files may not have an upload destination yet. Fill the
+        # displayed default only when enabling upload, keeping custom paths.
+        result.setdefault('upload', {})['rclone_remote'] = DEFAULT_UPLOAD_REMOTE
+    validate_campaign_document(result)
+    return result
+
+
 def mission_directory(source):
     if source is None:
         return None
@@ -311,8 +387,11 @@ def copy_base_to_workspace(source):
                     raise
         except FileExistsError:
             pass
-    document = load_document(base / "example.yaml")
-    name = default_name(base / "example.yaml")
+    if is_personal(source) and resolve_path(source).is_file():
+        return resolve_path(source)
+    template = resolve_path(source) if is_within(source, base) else base / "example.yaml"
+    document = load_document(template)
+    name = default_name(template)
     while True:
         document["campaign_name"] = name
         path = personal_path(document, source=source)
@@ -324,7 +403,7 @@ def copy_base_to_workspace(source):
     return path
 
 
-def save_personal(document, path):
+def save_personal(document, path, *, text=None, expected_text=None):
     """Authoring YAMLs are reusable; only snapshots and old legacy inputs are locked."""
     path = Path(path)
     if executions.is_snapshot(path) or (path.parent / 'execution.json').exists():
@@ -348,16 +427,14 @@ def save_personal(document, path):
         if old == document:
             return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    header = ("# GUI에서 저장한 개인 실험 설정입니다. 이 파일은 Git에 포함되지 않습니다.\n"
-              "# 이 YAML의 목적지·주행 제한시간은 선택한 모든 시나리오에 동일하게 적용됩니다.\n"
-              "# scenarios.include가 있으면 파일명 목록만 실행하며 glob보다 우선합니다.\n"
-              "# 목록 없이 패턴 실행하려면 GUI 장면 선택에서 전체 실행(패턴)을 누르세요.\n"
-              "# 이 파일은 재사용·수정 가능합니다. 새 실행마다 입력 사본과 결과 폴더를 따로 만듭니다.\n"
-              "# 재개는 GUI 실험 기록 또는 --execution 결과폴더로 진행합니다.\n")
     temporary = path.with_name(path.name + ".tmp.{}".format(os.getpid()))
     try:
-        temporary.write_text(header + yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-                             encoding="utf-8")
+        if expected_text is not None and path.read_text(encoding='utf-8') != expected_text:
+            raise ValueError('저장 중 YAML이 다른 곳에서 바뀌었습니다. 다시 불러오세요')
+        content = annotated_yaml(document) if text is None else text
+        if yaml.safe_load(content) != document:
+            raise ValueError('저장 내용이 설정과 일치하지 않습니다. 원본은 변경하지 않았습니다.')
+        temporary.write_text(content, encoding="utf-8")
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -442,6 +519,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     status = tk.StringVar(value="준비됨 — MORAI GUI에서 Sensor/Ego Network를 먼저 Load·Connect하세요.")
     live_status = tk.StringVar(value="")
     vars_ = {}
+    field_widgets = {}
+    quick_vars = {}
+    run_summary = tk.StringVar()
     active = {"process": None, "check_process": None, "config": None,
               "document": None, "execution": None, "stopping": False, "mode": "single", "batch_document": None}
     try:
@@ -468,11 +548,10 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     def read_source(path, fresh_name=False):
         if any(active.get(key) and active[key].poll() is None for key in ("process", "check_process")):
             raise ValueError("실행/검사 중에는 다른 YAML을 열 수 없습니다")
-        path = resolve_path(path)
+        path = resolve_path(pasted_yaml_path(path))
         document = load_document(path)
         values = form_values(document)
-        if fresh_name:
-            values["campaign_name"] = default_name(path)
+        active['loading'] = True
         active["template"] = document
         active["source_path"] = Path(path)
         active["config"] = Path(path) if is_personal(path) else None
@@ -488,16 +567,22 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         source.set(str(path))
         for key, value in values.items():
             vars_[key].set(value)
-        update_scenario_widgets()
+        active['loading'] = False
+        update_run_summary()
+        if quick_vars:
+            quick_vars['detector'].set(values['detector'])
+            quick_vars['pose_source'].set(values['pose_source'])
+            quick_vars['traffic_light'].set(values['traffic_light'])
+            refresh_quick_choices()
         status.set("설정 로드: {} — {}".format(Path(path).name,
-                   "이전 설정: 저장하면 공통 설정 v2로 전환. 기존 실행은 새 캠페인 이름을 사용하세요."
+                   "이전 v1 설정: 새 v2 예제를 복사해서 사용하세요."
                    if document.get("schema_version") == 1 else "목적지·제한시간은 모든 장면에 공통 적용"))
         remember_yaml(path)
 
     top = ttk.LabelFrame(frame, text="설정 파일 (미션 base → workspace / 기존 개인 YAML도 사용 가능)", padding=8)
     top.pack(fill="x")
     choices = [str(p) for p in examples]
-    source_box = ttk.Combobox(top, textvariable=source, values=choices, state="readonly", width=100)
+    source_box = ttk.Combobox(top, textvariable=source, values=choices, state="normal", width=100)
     source_box.grid(row=0, column=0, sticky="ew", padx=4)
     def select_source(_event):
         try:
@@ -506,6 +591,24 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             source.set(str(active.get("source_path", "")))
             messagebox.showerror("설정 로드 실패", str(error))
     source_box.bind("<<ComboboxSelected>>", select_source)
+    source_box.bind('<Return>', select_source)
+    source_box.bind('<FocusIn>', lambda _e: source_box.selection_range(0, 'end'))
+    def select_path(_event):
+        source_box.selection_range(0, 'end')
+        return 'break'
+    source_box.bind('<Control-a>', select_path)
+    load_button = ttk.Button(top, text='불러오기', command=lambda: select_source(None))
+    load_button.grid(row=0, column=3, padx=4)
+
+    def paste_source():
+        try:
+            text = pasted_yaml_path(root.clipboard_get())
+            read_source(text)
+        except Exception as error:
+            messagebox.showerror('YAML 경로 확인', str(error))
+
+    paste_button = ttk.Button(top, text='경로 붙여넣기', command=paste_source)
+    paste_button.grid(row=1, column=3, padx=4)
 
     def choose_personal():
         try:
@@ -543,6 +646,24 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     copy_button = ttk.Button(top, text="베이스 → 내 작업 폴더 복사", command=copy_workspace)
     copy_button.grid(row=1, column=1, padx=4)
+    def edit_yaml():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+                raise ValueError('실행/검사 중에는 YAML 편집을 열지 않습니다. 안전 중단 후 편집하세요')
+            path = resolve_path(pasted_yaml_path(source.get()))
+            if not path.is_file():
+                raise ValueError('먼저 존재하는 YAML을 불러오세요')
+            mission = mission_directory(path)
+            if mission and is_within(path, mission / 'base'):
+                raise ValueError('공유 예제 대신 workspace 복사본을 편집하세요')
+            if executions.is_snapshot(path) or (path.parent / 'execution.json').exists():
+                raise ValueError('실행 사본은 편집하지 않습니다. 원본 개인 YAML을 여세요')
+            command = ['code', str(path)] if shutil.which('code') else ['xdg-open', str(path)]
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as error:
+            messagebox.showerror('YAML 편집', str(error))
+    edit_button = ttk.Button(top, text='YAML 편집 (VSCode)', command=edit_yaml)
+    edit_button.grid(row=1, column=2, padx=4)
     top.columnconfigure(0, weight=1)
     ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다. 시나리오 전환만 자동입니다.", foreground="#a44").grid(row=1, column=0, sticky="w", pady=5)
 
@@ -550,12 +671,22 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     notebook.pack(fill="x", pady=8)
     basic = ttk.Frame(notebook, padding=10)
     advanced = ttk.Frame(notebook, padding=10)
-    traffic_tab = ttk.Frame(notebook, padding=10)
-    notebook.add(basic, text="기본 설정")
-    notebook.add(advanced, text="고급 / 네트워크")
-    notebook.add(traffic_tab, text="신호등 환경")
+    notebook.add(basic, text="실행")
+    notebook.add(advanced, text="설정 확인 (YAML 수정)")
+    # One scrollable read-only settings pane instead of a second environment editor.
+    settings_canvas = tk.Canvas(advanced, height=275, highlightthickness=0)
+    settings_scroll = ttk.Scrollbar(advanced, orient='vertical', command=settings_canvas.yview)
+    settings_canvas.configure(yscrollcommand=settings_scroll.set)
+    settings_scroll.pack(side='right', fill='y')
+    settings_canvas.pack(side='left', fill='both', expand=True)
+    settings_body = ttk.Frame(settings_canvas)
+    settings_window = settings_canvas.create_window((0, 0), window=settings_body, anchor='nw')
+    settings_body.bind('<Configure>', lambda _e: settings_canvas.configure(scrollregion=settings_canvas.bbox('all')))
+    settings_canvas.bind('<Configure>', lambda e: settings_canvas.itemconfigure(settings_window, width=e.width))
+    advanced = settings_body
+    traffic_tab = ttk.Frame(advanced)
 
-    def add_field(parent, row, key, label, *, choices=None, browse=False, boolean=False):
+    def add_field(parent, row, key, label, *, choices=None, boolean=False):
         var = tk.BooleanVar() if boolean else tk.StringVar()
         vars_[key] = var
         ttk.Label(parent, text=label, width=19).grid(row=row, column=0, sticky="w", pady=3)
@@ -566,149 +697,137 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         else:
             widget = ttk.Entry(parent, textvariable=var, width=80)
         widget.grid(row=row, column=1, sticky="ew", pady=3)
-        if browse:
-            def pick():
-                selected = filedialog.askdirectory() if browse == "dir" else filedialog.askopenfilename()
-                if selected:
-                    var.set(selected)
-            ttk.Button(parent, text="찾기", command=pick).grid(row=row, column=2, padx=5)
+        editable = key in EDITABLE_FIELDS
+        widget.configure(state=('readonly' if choices else 'normal') if editable
+                         else ('disabled' if boolean or choices else 'readonly'))
+        if not editable and not boolean and not choices:
+            widget.configure(style='Yaml.TEntry')
+        field_widgets[key] = widget
         parent.columnconfigure(1, weight=1)
         return widget
 
     add_field(basic, 0, "campaign_name", "실험 이름")
-    add_field(basic, 1, "directory", "시나리오 JSON 폴더", browse="dir")
-    pattern_entry = add_field(basic, 2, "glob", "전체 실행 파일 패턴")
-
-    def update_scenario_widgets():
-        chosen = active.get('scenario_include')
-        pattern_entry.configure(state='normal' if chosen is None else 'disabled')
-        scenario_button.configure(text='장면 선택 · 패턴 실행' if chosen is None
-                                  else '장면 선택 · {}개'.format(len(chosen)))
-
-    def select_scenarios():
-        try:
-            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
-                raise ValueError('실행/검사 중에는 장면 선택을 바꿀 수 없습니다')
-            applied, chosen = choose_scenarios(root, resolve_path(vars_['directory'].get()),
-                                              vars_['glob'].get(), active.get('scenario_include'))
-            if applied:
-                active['scenario_include'] = chosen
-                update_scenario_widgets()
-                status.set(('장면 {}개 선택 — 개인 YAML 저장 후 실행하세요. 패턴은 선택 목록보다 우선하지 않습니다.'
-                            .format(len(chosen))) if chosen is not None else
-                           '패턴 실행으로 변경 — 선택 목록 없이 현재 파일 패턴으로 실행합니다. 개인 YAML을 저장하세요.')
-        except Exception as error:
-            messagebox.showerror('장면 선택 실패', str(error))
-
-    scenario_button = ttk.Button(basic, text='장면 선택', command=select_scenarios)
-    scenario_button.grid(row=2, column=2, padx=5)
+    ttk.Style(root).configure('Yaml.TEntry', foreground='#777777', fieldbackground='#eeeeee')
+    add_field(basic, 1, "directory", "시나리오 JSON 폴더")
+    add_field(basic, 2, "glob", "전체 실행 파일 패턴")
+    selection_button = ttk.Button(basic, text='장면 선택…', command=lambda: select_scenarios())
+    selection_button.grid(row=2, column=2, padx=4)
+    batch_buttons.append(selection_button)
+    add_field(basic, 3, 'repeat', 'JSON당 반복 횟수')
     for row, (key, label) in enumerate((("x", "목적지 map X (m)"), ("y", "목적지 map Y (m)"),
                                         ("z", "목적지 map Z (m)"), ("yaw_deg", "목적지 yaw (deg)")), 3):
-        add_field(basic, row, "goal_" + key, label)
-    add_field(basic, 7, "timeout_sec", "공통 주행 제한 (초)")
-    add_field(basic, 8, "pose_source", "측위", choices=["localization", "maptf_morai"])
-    add_field(basic, 9, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
-    ttk.Label(basic, text="신호등 인지", width=19).grid(row=10, column=0, sticky="w", pady=3)
-    traffic_row = ttk.Frame(basic)
-    traffic_row.grid(row=10, column=1, sticky="ew")
-    vars_["traffic_light"] = tk.BooleanVar()
-    ttk.Checkbutton(traffic_row, text="on", variable=vars_["traffic_light"]).pack(side="left")
-    ttk.Label(traffic_row, text="실행 환경 설정: 신호등 환경 탭").pack(side="left", padx=10)
-    add_field(basic, 11, "video", "화면 영상 녹화", boolean=True)
-    add_field(basic, 12, "include_sensors", "bag에 카메라/LiDAR", boolean=True)
-    add_field(basic, 13, "upload_enabled", "Drive 자동 업로드", boolean=True)
-    add_field(basic, 14, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
+        add_field(advanced, row - 3, "goal_" + key, label)
+    add_field(advanced, 4, "timeout_sec", "공통 주행 제한 (초)")
+    add_field(basic, 4, "pose_source", "측위", choices=["localization", "maptf_morai"])
+    add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
+    toggle_bar = ttk.Frame(basic)
+    toggle_bar.grid(row=6, column=0, columnspan=3, sticky='w', pady=4)
+    for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 녹화'),
+                       ('include_sensors', 'bag에 카메라/LiDAR'), ('upload_enabled', 'Drive 자동 업로드')):
+        vars_[key] = tk.BooleanVar()
+        widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
+        widget.pack(side='left', padx=6)
+        field_widgets[key] = widget
+    add_field(basic, 7, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
+    ttk.Label(basic, textvariable=run_summary, wraplength=900).grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
+    ttk.Label(basic, text='GUI 수정 → YAML 저장 → 설정 검사·실행 | 회색 고정값·랜덤 범위는 VSCode에서 수정',
+              foreground='#285b86').grid(row=9, column=0, columnspan=3, sticky='w')
 
-    add_field(advanced, 0, "topic_profile", "rosbag 토픽 JSON", browse="file")
-    add_field(advanced, 1, "sensor_json", "MORAI Sensor JSON", browse="file")
-    add_field(advanced, 2, "ego_network_json", "MORAI Ego Network JSON", browse="file")
-    add_field(advanced, 3, "scenario_load_host", "ScenarioLoad IP")
-    add_field(advanced, 4, "goal_tolerance_m", "목적지 허용 반경 (m)")
-    add_field(advanced, 5, "video_layout", "녹화 화면 배치", choices=["manual", "split"])
-    add_field(advanced, 6, "bottom_bar_px", "GUI 하단 높이 (auto/px/%)")
-    add_field(advanced, 7, "upload_remote", "Drive rclone 경로")
-    ttk.Label(advanced, text="split: RViz 왼쪽, MORAI 오른쪽, GUI 하단. Drive 공유는 rclone remote를 각 PC에서 설정해야 합니다.").grid(row=8, column=0, columnspan=3, sticky="w", pady=8)
+    for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
+                            (12, 'ego_network_json', 'MORAI Ego Network JSON'), (13, 'scenario_load_host', 'ScenarioLoad IP'),
+                            (14, 'goal_tolerance_m', '목적지 허용 반경 (m)'), (15, 'video_layout', '녹화 화면 배치'),
+                            (16, 'bottom_bar_px', 'GUI 하단 높이'), (17, 'upload_remote', 'Drive rclone 경로')):
+        add_field(advanced, row, key, label)
+    traffic_tab.grid(row=18, column=0, columnspan=3, sticky='ew')
 
     traffic_mode = add_field(traffic_tab, 0, "traffic_light_runtime", "실행 환경",
                              choices=list(MODE_LABELS.values()))
-    traffic_python = add_field(traffic_tab, 1, "traffic_light_python", "가상환경 Python", browse="file")
+    traffic_python = add_field(traffic_tab, 1, "traffic_light_python", "가상환경 Python")
     add_field(traffic_tab, 2, "traffic_light_device", "신호등 장치 (0/cpu)")
     ttk.Label(traffic_tab, text="시스템 선택: /usr/bin/python3 (기존 환경 유지). 가상환경 선택: 위 실행 파일 사용.\n"
               "GPU 번호 0이 기본값입니다. CPU 시험은 cpu로 입력하세요. 신호등 off이면 환경이 없어도 실행됩니다.",
               wraplength=750).grid(row=3, column=0, columnspan=3, sticky="w", pady=8)
 
-    def copy_traffic_install():
-        root.clipboard_clear()
-        root.clipboard_append("cd ~/AjouNice2026\nbash scripts/runtime/setup_traffic_light_env.sh")
-        status.set("공용 가상환경 설치 명령을 복사했습니다. 별도 터미널에 붙여넣으세요. 설치 후 가상환경을 선택하세요.")
-
-    ttk.Button(traffic_tab, text="공용 가상환경 설치 명령 복사", command=copy_traffic_install).grid(
-        row=4, column=0, columnspan=3, sticky="w", pady=8)
     ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
               "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
               "환경 변경은 원본 YAML에 저장하고 새 실험을 시작하세요. 이전 기록은 당시 환경 설정으로 재개합니다.", wraplength=750).grid(
         row=5, column=0, columnspan=3, sticky="w", pady=8)
 
     def update_traffic_widgets(*_):
-        enabled = vars_["traffic_light"].get()
-        traffic_mode.configure(state="readonly" if enabled else "disabled")
-        traffic_python.configure(state="normal" if enabled and vars_["traffic_light_runtime"].get() == MODE_LABELS["virtualenv"] else "disabled")
+        traffic_mode.configure(state="disabled")
+        traffic_python.configure(state="readonly")
 
     vars_["traffic_light"].trace_add("write", update_traffic_widgets)
     vars_["traffic_light_runtime"].trace_add("write", update_traffic_widgets)
 
+    def update_run_summary():
+        try:
+            spec = {'directory': vars_['directory'].get(), 'glob': vars_['glob'].get()}
+            if active.get('scenario_include') is not None:
+                spec['include'] = active['scenario_include']
+            count = len(scenario_sources(spec))
+            repeat = int(vars_['repeat'].get())
+            selected = active.get('scenario_include') is not None
+            selection_button.configure(text='선택 {}개…'.format(count) if selected else '장면 선택…')
+            run_summary.set('JSON {}개 × 반복 {}회 = 총 {}회 · {} · 랜덤 범위는 YAML 설정 유지'.format(
+                count, repeat, count * repeat, '선택 목록' if selected else '파일 패턴'))
+        except (ValueError, OSError):
+            run_summary.set('파일 패턴·반복 횟수를 확인하세요. 장면 선택에서 전체 실행(패턴)으로 돌아갈 수 있습니다.')
+
+    def changed(*_):
+        if not active.get('loading'):
+            status.set('설정 수정됨 — 상단 YAML 저장을 누르세요. 설정 검사·새 실행 전에도 자동 저장합니다.')
+            update_run_summary()
+
+    def select_scenarios():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+                raise ValueError('실행/검사 중에는 장면 선택을 바꿀 수 없습니다')
+            applied, include = choose_scenarios(root, resolve_path(vars_['directory'].get()),
+                                               vars_['glob'].get(), active.get('scenario_include'))
+            if applied:
+                active['scenario_include'] = include
+                changed()
+        except Exception as error:
+            show_error('장면 선택', error)
+
+    def pattern_changed(*_):
+        if not active.get('loading'):
+            active['scenario_include'] = None
+            changed()
+
+    for key in EDITABLE_FIELDS:
+        vars_[key].trace_add('write', pattern_changed if key == 'glob' else changed)
+
     def collect():
-        values = {key: var.get() for key, var in vars_.items()}
-        document = build_document(active["template"], values)
-        if active.get('scenario_include') is None:
-            document['scenarios'].pop('include', None)
-        else:
-            document['scenarios']['include'] = list(active['scenario_include'])
-        path = active["source_path"]
-        if not is_personal(path):
-            path = personal_path(document, source=path)
-        elif path.stem != document["campaign_name"]:
-            path = personal_path(document, source=path)
-        return document, path
+        path = resolve_path(pasted_yaml_path(source.get()))
+        mission = mission_directory(path)
+        if mission and is_within(path, mission / 'base'):
+            raise ValueError("공유 예제는 바로 실행하지 않습니다. '베이스 → 내 작업 폴더 복사'부터 누르세요")
+        if executions.is_snapshot(path) or (path.parent / 'execution.json').exists():
+            raise ValueError('실행 사본 대신 원본 YAML을 선택하세요. 이어가기는 기록 탭에서 합니다')
+        if path != active.get('source_path'):
+            read_source(path)
+        latest = load_document(path)
+        values = {key: value.get() for key, value in vars_.items()}
+        return operator_document(active['template'], latest, values, active.get('scenario_include')), path
 
     def save():
-        if active["process"] and active["process"].poll() is None:
+        if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
             raise ValueError("실험 실행 중에는 GUI 저장을 잠급니다. 중단 후 원본 YAML을 수정·저장하세요")
         document, path = collect()
-        try:
-            save_personal(document, path)
-        except ValueError:
-            if not (campaign_output(document) / "campaign_state.json").is_file():
-                raise
-            if not messagebox.askyesno(
-                    "새 캠페인으로 복사",
-                    "이 캠페인은 이미 실행돼 설정을 바꾸면 기존 결과와 resume할 수 없습니다.\n"
-                    "기존 기록은 보존하고 변경된 설정을 새 캠페인 이름으로 저장할까요?"):
-                raise ValueError("기존 캠페인 설정은 변경하지 않았습니다. 그대로 재개하거나 새 이름을 입력하세요")
-            fresh = default_name(document["campaign_name"])
-            base = fresh
-            suffix = 2
-            while (personal_path({"campaign_name": fresh}, source=active["source_path"]).exists() or
-                   campaign_output({**document, "campaign_name": fresh}).exists()):
-                fresh = "{}_{}".format(base[:57], suffix)
-                suffix += 1
-            vars_["campaign_name"].set(fresh)
-            document, path = collect()
-            save_personal(document, path)
+        original = path.read_text(encoding='utf-8')
+        if yaml.safe_load(original) != document:
+            save_personal(document, path, text=updated_yaml(original, document), expected_text=original)
+        read_source(path)
         active.update(config=path, document=document)
         remember_yaml(path)
-        status.set("개인 YAML 저장: {}".format(path))
+        status.set("YAML 저장 완료: {} (같은 개인 파일; 고정값·주석 유지)".format(path))
         return path
 
     def show_error(label, error):
         status.set("{}: {}".format(label, error))
         messagebox.showerror(label, str(error))
-
-    def save_clicked():
-        try:
-            save()
-        except Exception as error:
-            show_error("저장 실패", error)
 
     def command_reader(process, label):
         try:
@@ -762,43 +881,114 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             show_error("환경 검사 실패", error)
 
-    environment_bar = ttk.Frame(advanced)
-    environment_bar.grid(row=9, column=0, columnspan=3, sticky="w", pady=8)
+    planning_tab = ttk.Frame(notebook, padding=8)
+    notebook.insert(1, planning_tab, text='planning 빠른 테스트')
+    ttk.Label(planning_tab, text='현재 YAML의 목적지·제한시간 그대로 JSON 1~2개를 한 번씩 시험합니다.\n'
+              '원본 YAML 수정 없음 · 반복/파라미터 랜덤 OFF · 업로드 OFF · 결과/녹화는 별도 보관.',
+              wraplength=900).pack(anchor='w', pady=4)
+    quick_search = tk.StringVar()
+    ttk.Entry(planning_tab, textvariable=quick_search).pack(fill='x')
+    quick_list = ttk.Frame(planning_tab)
+    quick_list.pack(fill='x', pady=4)
+    quick_table = ttk.Treeview(quick_list, columns=('json',), show='headings', height=4, selectmode='extended')
+    quick_table.heading('json', text='JSON 선택 (Ctrl/Shift로 최대 2개, 위 입력칸은 파일명 검색)')
+    quick_scroll = ttk.Scrollbar(quick_list, orient='vertical', command=quick_table.yview)
+    quick_table.configure(yscrollcommand=quick_scroll.set)
+    quick_scroll.pack(side='right', fill='y')
+    quick_table.pack(side='left', fill='x', expand=True)
+    quick_files = {}
+
+    def refresh_quick_choices(*_):
+        old = quick_table.selection()
+        for item in quick_table.get_children():
+            quick_table.delete(item)
+        try:
+            directory = resolve_path(vars_['directory'].get())
+            pattern = vars_['glob'].get()
+            files = scenario_sources({'directory': str(directory), 'glob': pattern})
+            quick_files.clear()
+            for path in files:
+                if quick_search.get().lower() in path.name.lower():
+                    quick_files[path.name] = path
+                    quick_table.insert('', 'end', iid=path.name, values=(path.name,))
+            keep = [name for name in old if name in quick_files]
+            if keep:
+                quick_table.selection_set(keep)
+            elif not quick_search.get():
+                preferred = active.get('template', {}).get('scenarios', {}).get('include', [])
+                default = [name for name in preferred if name in quick_files][:2]
+                if not default:
+                    default = list(quick_files)[:1]
+                if default:
+                    quick_table.selection_set(default)
+        except (ValueError, OSError):
+            quick_files.clear()
+
+    quick_search.trace_add('write', refresh_quick_choices)
+    quick_options = ttk.Frame(planning_tab)
+    quick_options.pack(fill='x', pady=4)
+    for key, label, values in (('detector', '탐지 대조', ['bevfusion', 'od_gt']),
+                               ('pose_source', '측위 대조', ['localization', 'maptf_morai'])):
+        ttk.Label(quick_options, text=label).pack(side='left', padx=4)
+        quick_vars[key] = tk.StringVar()
+        widget = ttk.Combobox(quick_options, textvariable=quick_vars[key], values=values, state='readonly', width=16)
+        widget.pack(side='left', padx=4)
+        batch_buttons.append(widget)
+    quick_vars['traffic_light'] = tk.BooleanVar()
+    quick_traffic = ttk.Checkbutton(quick_options, text='신호등', variable=quick_vars['traffic_light'])
+    quick_traffic.pack(side='left', padx=6)
+    batch_buttons.append(quick_traffic)
+
+    def start_quick():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+                raise ValueError('현재 실행/검사가 끝난 뒤 빠른 테스트를 시작하세요')
+            template, _ = collect()
+            document = quick_test_document(template, list(quick_table.selection()),
+                detector=quick_vars['detector'].get(), pose_source=quick_vars['pose_source'].get(),
+                traffic_light=quick_vars['traffic_light'].get())
+            validate_campaign_document(document)
+            path = PACKAGE / 'config/internal/generated' / ('planning_quick_{}.yaml'.format(os.getpid()))
+            save_personal(document, path)
+            return start(config_path=path)
+        except Exception as error:
+            show_error('빠른 테스트 준비 실패', error)
+
+    quick_run_button = ttk.Button(planning_tab, text='선택한 JSON 빠른 실행', command=start_quick)
+    quick_run_button.pack(anchor='w', pady=3)
+    batch_buttons.append(quick_run_button)
+    environment_bar = ttk.Frame(planning_tab)
+    environment_bar.pack(anchor='w', pady=4)
     for label, action in (("환경 검사", check_environment),
-                          ("실제 GPU 검사", lambda: check_environment(gpu=True)),
                           ("ROS 수신 검사", lambda: check_environment(live=True))):
         button = ttk.Button(environment_bar, text=label, command=action)
         button.pack(side="left", padx=3)
         batch_buttons.append(button)
 
     def copy_connection_paths():
-        if active.get('execution') and active.get('mode') == 'single':
-            document = load_document(active['execution']['path'])
-        else:
-            document, _ = collect()
-        root.clipboard_clear()
-        root.clipboard_append("Ego Network: {}\nSensor: {}".format(
-            resolve_path(document["network"]["ego_network_json"]), resolve_path(document["network"]["sensor_json"])))
-        status.set("MORAI에 Load할 두 JSON 경로를 복사했습니다. 기록 선택 시 해당 실험 사본 기준입니다. 연결은 MORAI GUI에서 직접 합니다.")
+        try:
+            path = (active['execution']['path'] if active.get('execution') and active.get('mode') == 'single'
+                    else resolve_path(pasted_yaml_path(source.get())))
+            document = load_document(path)
+            root.clipboard_clear()
+            root.clipboard_append("Ego Network: {}\nSensor: {}".format(
+                resolve_path(document["network"]["ego_network_json"]), resolve_path(document["network"]["sensor_json"])))
+            status.set("MORAI에 Load할 두 JSON 경로를 복사했습니다. 기록 선택 시 해당 실험 사본 기준입니다. 연결은 MORAI GUI에서 직접 합니다.")
+        except Exception as error:
+            show_error('연결 JSON 경로 확인', error)
     ttk.Button(environment_bar, text="연결 JSON 경로 복사", command=copy_connection_paths).pack(side="left", padx=3)
 
-    def start(execution=None):
+    def start(execution=None, config_path=None):
         if active["check_process"] and active["check_process"].poll() is None:
             messagebox.showinfo("설정 검사 중", "현재 설정 검사가 끝난 후 캠페인을 시작하세요.")
             return
         if active["process"] and active["process"].poll() is None:
             messagebox.showinfo("이미 실행 중", "한 번에 한 캠페인만 실행할 수 있습니다.")
             return
-        if execution is None and vars_["video"].get() and vars_["video_layout"].get() == "manual":
-            if messagebox.askyesno(
-                    "RViz 전체화면 설정 확인",
-                    "현재 녹화 화면 배치가 manual이라 장면마다 RViz를 최대화합니다.\n"
-                    "RViz 왼쪽·MORAI 오른쪽·GUI 하단의 split 배치로 변경할까요?"):
-                vars_["video_layout"].set("split")
         try:
             if execution is None:
-                path = save()
-                document = active['document']
+                path = resolve_path(config_path) if config_path else save()
+                document = load_document(path)
             else:
                 cfg = executions.load_execution(execution, check_install=runner_executable is None)
                 path = cfg['path']
@@ -830,7 +1020,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except (OSError, ValueError) as error:
             show_error("캠페인 실행 실패", error)
             return
-        active.update(process=process, execution=cfg, stopping=False, mode="single")
+        active.update(process=process, execution=cfg, document=document, stopping=False, mode="single")
         refresh_history()
         set_running_ui(True)
         if video_enabled and document["recording"]["video"].get("window_layout") == "split":
@@ -1038,17 +1228,23 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             return
         open_local_result(resolve_path(directory) / "summary.csv" if csv else directory)
 
+    batch_menu = ttk.Menubutton(batch_bar, text='목록 관리 ▾')
+    menu = tk.Menu(batch_menu, tearoff=False)
+    for label, action in (('선택 YAML 제거', lambda: edit_batch('remove')), ('위로', lambda: edit_batch('up')),
+                          ('아래로', lambda: edit_batch('down')), ('목록 초기화', lambda: edit_batch('reset')),
+                          ('이전 목록 열기', restore_batch), ('같은 목록 새로 준비', clone_batch)):
+        menu.add_command(label=label, command=action)
+    batch_menu.configure(menu=menu)
+    batch_menu.grid(row=1, column=0, padx=3, pady=3, sticky='ew')
+    batch_buttons.append(batch_menu)
     for index, (label, action) in enumerate((("현재 YAML 추가", lambda: edit_batch("current")), ("YAML 여러 개 추가", lambda: edit_batch("files")),
-                          ("제거", lambda: edit_batch("remove")), ("↑", lambda: edit_batch("up")), ("↓", lambda: edit_batch("down")),
-                          ("목록 초기화", lambda: edit_batch("reset")), ("이전 목록 열기", restore_batch),
-                          ("전체 검사", check_batch), ("새 배치 시작", lambda: start_batch(new=True)), ("배치 재개", start_batch),
-                          ("새 배치 준비", clone_batch),
-                          ("배치 결과 폴더", open_batch_result), ("배치 CSV", lambda: open_batch_result(csv=True)),
-                          ("짧은 사용법", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md")),
-                          ("첫 설치 안내", lambda: open_local_result(ROOT / "docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md")))):
+                          ("전체 검사", check_batch),
+                          ("새 배치 시작", lambda: start_batch(new=True)), ("배치 재개", start_batch),
+                          ("배치 결과 폴더", open_batch_result), ("배치 CSV", lambda: open_batch_result(csv=True)))):
         button = ttk.Button(batch_bar, text=label, command=action)
-        button.grid(row=index // 5, column=index % 5, padx=3, pady=3, sticky="ew")
-        if index < 11:
+        button.grid(row=0 if index < 5 else 1, column=index if index < 5 else index - 4,
+                    padx=3, pady=3, sticky="ew")
+        if index < 5:
             batch_buttons.append(button)
     def open_batch_item(_event):
         selected = batch_table.selection()
@@ -1161,26 +1357,42 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     controls = ttk.Frame(monitor_panel)
     controls.pack(fill="x", pady=5)
     control_buttons = {}
-    for label, action in (("개인 YAML 저장", save_clicked), ("설정 검사", check),
+    def save_clicked():
+        try:
+            save()
+        except Exception as error:
+            show_error('YAML 저장 실패', error)
+
+    save_button = tk.Button(controls, text='YAML 저장', command=save_clicked,
+                            background='#2269aa', foreground='white', activebackground='#19558c',
+                            activeforeground='white', font=('TkDefaultFont', 11, 'bold'), padx=14)
+    save_button.pack(side='left', padx=4)
+    control_buttons['YAML 저장'] = save_button
+    for label, action in (("설정 검사", check),
                           ("새 실험 시작", start), ('실험 기록', lambda: (refresh_history(), notebook.select(history_tab))),
                           ("중단", stop), ("결과 폴더", open_results)):
         button = ttk.Button(controls, text=label, command=action)
         button.pack(side="left", padx=4)
         control_buttons[label] = button
     rerun_checkbox = ttk.Checkbutton(controls, text="재개 시 FAIL도 재실행", variable=rerun_failed)
-    rerun_checkbox.pack(side="left", padx=12)
+    rerun_checkbox.pack_forget()
+    ttk.Checkbutton(history_bar, text='FAIL도 다시 시험', variable=rerun_failed).pack(side='left', padx=8)
     compact_button = ttk.Button(controls, text="모니터 모드",
                                 command=lambda: toggle_compact_mode())
     compact_button.pack(side="right", padx=4)
 
     def set_running_ui(running, *, allow_stop=True):
-        source_box.configure(state="disabled" if running else "readonly")
+        source_box.configure(state="disabled" if running else "normal")
         personal_button.configure(state="disabled" if running else "normal")
         copy_button.configure(state="disabled" if running else "normal")
-        scenario_button.configure(state="disabled" if running else "normal")
+        for button in (load_button, paste_button, edit_button, folder_button):
+            button.configure(state='disabled' if running else 'normal')
         for button in batch_buttons:
-            button.configure(state="disabled" if running else "normal")
-        for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
+            button.configure(state="disabled" if running else ('readonly' if isinstance(button, ttk.Combobox) else "normal"))
+        for key in EDITABLE_FIELDS:
+            widget = field_widgets[key]
+            widget.configure(state='disabled' if running else ('readonly' if isinstance(widget, ttk.Combobox) else 'normal'))
+        for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
             control_buttons[label].configure(state="disabled" if running else "normal")
         control_buttons["중단"].configure(state="normal" if running and allow_stop else "disabled")
 
@@ -1250,7 +1462,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                 pass
             bar = resolve_bar_height(area_height, bottom_bar_px)
             compact_width = area_width // 2
-            for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
+            for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
                 control_buttons[label].pack_forget()
             rerun_checkbox.pack_forget()
             # Keep the return button above status text, even if a long status
@@ -1302,9 +1514,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             compact_button.configure(text="전체 설정 보기")
         else:
             root.attributes("-topmost", False)
-            for label in ("개인 YAML 저장", "설정 검사", "새 실험 시작", '실험 기록'):
+            for label in ('YAML 저장', "설정 검사", "새 실험 시작", '실험 기록'):
                 control_buttons[label].pack(side="left", padx=4, before=control_buttons["중단"])
-            rerun_checkbox.pack(side="left", padx=12)
             controls.pack_forget()
             controls.pack(fill="x", pady=5)
             status_label.configure(wraplength=1840, width=0)
@@ -1327,11 +1538,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             set_compact_mode(False)
             return
         running = active["process"] and active["process"].poll() is None
-        if not running and vars_["video"].get():
-            # The operator chose the split-screen monitor layout. Persist that
-            # choice in the form so the runner will not maximize RViz per case.
-            vars_["video_layout"].set("split")
-        elif running and (active.get("batch_document") or active.get("document") or active["template"])["recording"]["video"].get("window_layout") != "split":
+        if running and (active.get("batch_document") or active.get("document") or active["template"])["recording"]["video"].get("window_layout") != "split":
             messagebox.showwarning(
                 "현재 캠페인은 전체화면 설정",
                 "현재 실행 중인 YAML은 manual 배치라 장면마다 RViz를 최대화합니다. "
@@ -1481,10 +1688,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     if on_ready is not None:
         on_ready({"root": root, "fields": vars_, "actions": {
             "save": save, "check": check, "start": start, "stop": stop,
+            'select_scenarios': select_scenarios,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
+            "paste_yaml": paste_source, "reload_yaml": lambda: select_source(None),
+            "quick_start": start_quick, "quick_refresh": refresh_quick_choices,
             "open_personal_folder": browse_personal_folder,
-            "select_scenarios": select_scenarios,
             'refresh_history': refresh_history, 'select_execution': select_execution,
             'resume_execution': lambda directory: start(execution=directory),
             "batch_edit": edit_batch, "batch_check": check_batch, "batch_start": start_batch,
@@ -1492,6 +1701,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "batch_clone": clone_batch, "batch_restore": restore_batch,
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log, "batch_table": batch_table,
+            "field_widgets": field_widgets, "source_entry": source_box, 'save_button': save_button,
+            "quick_table": quick_table, "quick_fields": quick_vars,
             'history_table': history_table,
             "batch_queue": batch_queue, "batch_note": batch_note,
             "live_status": live_status, "rerun_failed": rerun_failed,

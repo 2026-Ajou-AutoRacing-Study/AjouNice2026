@@ -193,7 +193,7 @@ class SelectionTests(unittest.TestCase):
             raise captured[0]
 
     @unittest.skipUnless(os.environ.get('DISPLAY'), 'Tk requires X11/Xvfb')
-    def test_main_gui_selection_load_save_clear_cancel_and_running_guard(self):
+    def test_main_gui_reads_selection_from_yaml_without_rewriting_it(self):
         captured = []
         self.save()
 
@@ -201,29 +201,16 @@ class SelectionTests(unittest.TestCase):
             def exercise():
                 try:
                     app['actions']['open_yaml'](self.path)
-                    with patch.object(gui, 'choose_scenarios', return_value=(True, self.names[:1])):
-                        app['actions']['select_scenarios']()
                     self.assertNotIn('include', yaml.safe_load(self.path.read_text())['scenarios'])
-                    app['actions']['save']()
-                    self.assertEqual(yaml.safe_load(self.path.read_text())['scenarios']['include'], self.names[:1])
+                    document = yaml.safe_load(self.path.read_text())
+                    document['scenarios']['include'] = self.names[:1]
+                    self.path.write_text('# edited in VSCode\n' + yaml.safe_dump(document))
+                    original = self.path.read_bytes()
                     app['actions']['open_yaml'](self.path)
                     self.assertEqual(app['active']['scenario_include'], self.names[:1])
-                    with patch.object(gui, 'choose_scenarios', return_value=(False, None)):
-                        app['actions']['select_scenarios']()
-                    self.assertEqual(app['active']['scenario_include'], self.names[:1])
-                    with patch.object(gui, 'choose_scenarios', return_value=(True, None)):
-                        app['actions']['select_scenarios']()
                     app['actions']['save']()
-                    self.assertNotIn('include', yaml.safe_load(self.path.read_text())['scenarios'])
-                    for key in ('process', 'check_process'):
-                        from types import SimpleNamespace
-                        app['active'][key] = SimpleNamespace(poll=lambda: None)
-                        with patch.object(gui, 'choose_scenarios') as choose, \
-                             patch('tkinter.messagebox.showerror') as error:
-                            app['actions']['select_scenarios']()
-                            choose.assert_not_called()
-                            error.assert_called_once()
-                        app['active'][key] = None
+                    self.assertEqual(self.path.read_bytes(), original)
+                    self.assertEqual(len(app['quick_table'].selection()), 1)
                 except BaseException as error:
                     captured.append(error)
                 finally:

@@ -19,6 +19,7 @@ from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
+from .repetitions import sampled_scene
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
@@ -197,7 +198,8 @@ def _write_state(cfg, state):
         writer = csv.writer(stream)
         writer.writerow(["scenario", "status", "reason", "failure_category", "suspected_stage",
                          "evidence_summary", "elapsed_sec", "collision_count",
-                         "minimum_goal_distance_m", "attempts", "result_path"])
+                         "minimum_goal_distance_m", "attempts", "result_path",
+                         "source_scenario", "repeat_index", "random_seed"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
             try:
@@ -213,7 +215,9 @@ def _write_state(cfg, state):
             writer.writerow([name, row["status"], row["reason"], analysis.get("category", ""),
                 analysis.get("suspected_stage", ""), compact_summary(analysis),
                 metric.get("elapsed_sec", ""), metric.get("collision_count", ""),
-                metric.get("minimum_goal_distance_m", ""), row["attempts"], shared_result_path])
+                metric.get("minimum_goal_distance_m", ""), row["attempts"], shared_result_path,
+                Path(details.get("scenario", name)).name, details.get("repeat_index", 1),
+                details.get("randomization", {}).get("seed", "")])
     os.replace(temporary, path)
 
 
@@ -278,11 +282,17 @@ def _run_case(cfg, processes, monitor, case, state):
     case_log_offsets = log_offsets(processes.log_dir)
     attempt = int(state["results"].get(case.name, {}).get("attempts", 0)) + 1
     timestamp = _stamp()
-    safe_name = "".join(c if c.isascii() and (c.isalnum() or c in "_-") else "_" for c in case.name)[:50]
+    safe_name = "".join(c if c.isascii() and (c.isalnum() or c in "_-") else "_" for c in case.name)
+    suffix = '_r{:03d}'.format(case.repeat_index) if case.repeat_total > 1 else ''
+    safe_name = safe_name[:-len(suffix)][:50 - len(suffix)] + suffix if suffix else safe_name[:50]
     basename = "planbag_{}_{}_{}".format(safe_name, "R", timestamp)
     folder = cfg["output"] / "running" / ("{}_{}_{:02d}".format(safe_name, timestamp, attempt))
     folder.mkdir(parents=True, exist_ok=False)
+    _, randomization = sampled_scene(json.loads(case.source.read_text(encoding="utf-8")),
+        source_sha256=case.source_sha256, repeat_index=case.repeat_index, settings=case.randomization)
     cfg_snapshot = {"campaign": cfg["name"], "scenario": str(case.source),
+                    "repeat_index": case.repeat_index, "repeat_total": case.repeat_total,
+                    "randomization": randomization,
                     "scenario_sha256": case.source_sha256, "goal": case.goal,
                     "waypoints": case.waypoints, "timeout_sec": case.timeout_sec,
                     "pose_source": cfg["stack"]["pose_source"],
@@ -428,6 +438,10 @@ def _run_case(cfg, processes, monitor, case, state):
                 ensure_ascii=False) + "\n")
         result = {"schema_version": 1, "basename": final_base,
             "scenario": str(case.source), "scenario_sha256": case.source_sha256,
+            "repeat_index": case.repeat_index, "repeat_total": case.repeat_total,
+            "randomization": randomization,
+            "realized_scenario_sha256": (hashlib.sha256((folder / "scenario.json").read_bytes()).hexdigest()
+                                          if (folder / "scenario.json").is_file() else None),
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
@@ -593,10 +607,12 @@ def main(argv=None):
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)
         if args.check or args.dry_run:
-            print("설정 확인: {} | 시나리오 {}개 | 설치 {}".format(cfg["name"], len(cfg["cases"]), cfg["install"]))
+            print("설정 확인: {} | JSON {}개 × 반복 {}회 = 총 {}회 | 설치 {}".format(
+                cfg["name"], len({case.source for case in cfg["cases"]}),
+                cfg['cases'][0].repeat_total, len(cfg["cases"]), cfg["install"]))
             if args.dry_run:
                 for index, case in enumerate(cfg["cases"], 1):
-                    print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.source.name,
+                    print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.name,
                         case.goal["x"], case.goal["y"], case.timeout_sec))
             return 0
         if args.execution or is_snapshot(cfg['path']):

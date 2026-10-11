@@ -60,13 +60,15 @@ def prepare_execution(source, *, check_install=True):
         copy_input(cfg['path'], 'source_config.yaml')
         if (directory / 'source_config.yaml').read_bytes() != source_bytes:
             raise ValueError('사본 준비 중 YAML이 변경됐습니다. 다시 시작하세요')
-        for case in cfg['cases']:
+        for case in {case.source: case for case in cfg['cases']}.values():
             copy_input(case.source, 'scenarios/' + case.source.name)
             if files['scenarios/' + case.source.name] != case.source_sha256:
                 raise ValueError('사본 준비 중 시나리오가 변경됐습니다. 다시 시작하세요')
         document['campaign_name'] = identifier
         document['output_root'] = str(root)
-        document['scenarios'] = {'directory': str(directory / 'scenarios'), 'glob': '*.json'}
+        document['scenarios']['directory'] = str(directory / 'scenarios')
+        document['scenarios']['glob'] = '*.json'
+        document['scenarios'].pop('include', None)
         for key in ('sensor_json', 'ego_network_json'):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
         document['recording']['topic_profile'] = copy_input(
@@ -79,6 +81,7 @@ def prepare_execution(source, *, check_install=True):
             raise ValueError('사본 준비 중 원본 입력이 변경됐습니다. 다시 시작하세요')
         atomic_json(directory / 'execution.json', {
             'schema_version': 1, 'execution_id': identifier, 'experiment_name': label,
+            'total': len(cfg['cases']),
             'created_at': now(), 'source_yaml': str(cfg['path']), 'snapshot': path.name,
             'files': files, 'original_hashes': originals,
             'note': '편집용 YAML과 독립된 실행 사본. 재개는 이 폴더의 입력만 사용합니다.'})
@@ -148,7 +151,8 @@ def history(root):
             results = state.get('results', {})
             counts = {key: sum(row.get('status') == key for row in results.values())
                       for key in ('PASS', 'FAIL', 'ERROR')}
-            total = state.get('total', len([key for key in manifest.get('files', {}) if key.startswith('scenarios/')]))
+            total = state.get('total', manifest.get('total', sum(
+                key.startswith('scenarios/') for key in manifest.get('files', {}))))
             if total and counts['PASS'] + counts['FAIL'] == total:
                 status = 'DONE'
             elif state.get('run_status') == 'RUNNING':
