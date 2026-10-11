@@ -6,7 +6,7 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 15:49 KST
+## 현재 계획 허브 — 2026-10-11 16:03 KST
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -21,6 +21,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 로컬 추론 | 실제 300장 localhost 전체 응답에서 camera+neck compile의 비용 단축은 약 20.1%, 정밀 격자 안에서는 약 15.3%다. 단, decoded 출력 gate가 모두 통과하지 않아 **기본값으로 승격하지 않는다.** | [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011). 비컴파일 추론을 대안으로 유지한다. Base5 4-class 시험 서버를 구현했지만 ROS 배포·학습 완료 정확도·4090 70ms 달성은 아직이다. |
 | 최신 4090 재확인 | 300장 depth 25cm 비용·동일 모델 수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다. 전체 응답 약 71.8→65.9ms의 compiler 후보는 decoded gate 실패로 OFF다. | [EVIDENCE 23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011). 정밀 격자의 빈 출력은 비용 참고용이며 정합 통과로 인정하지 않는다. 이번 요청에서는 학습을 전혀 실행하지 않았다. |
 | 학습 compile 선택 | **이번 48GB 4090의 fine 후보에서는 camera backbone 학습 compile ON을 추천한다.** 실제 OFF/ON 각 64 update와 역순 24 update, 수치·gradient·batch 4→3 저장/재개·FP32 val 경로를 통과했다. | [EVIDENCE 25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 기본값 전체 승격이 아니라 새 opt-in config다. 첫 준비 메모리 약 45.71GiB를 감안한다. 추론 compile/병렬화는 계속 기본 OFF다. |
+| 학습·추론 GPU와 배치 | **학습은 48GB·물리 batch 4·누적 1을 유지한다. 대회 추론은 24GB·batch 1을 별도로 검증한다.** 학습을 24GB 예산으로 제한하거나 48GB를 채우기 위해 배치를 늘리지 않는다. | [메모리·배치 결정과 남은 검사](#base5-training-inference-memory-decision-261011). 추론 compile ON도 20GiB 예산에서 실행 근거가 있지만 실제 24GB 카드·학습 완료 가중치 검사는 남아 있다. |
 | 분리 stream 오류 보완 | 설치 라이브러리의 활성 voxel count 조기 읽기를 재현했다. LiDAR를 기본 stream에 두고 camera-side 병렬 실행으로 우회했다. 4090 300장 전체 응답은 비컴파일 약 71.3→65.8ms, compile 결합 비용은 약 59.2ms다. | [EVIDENCE 24절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011). 추론 전용 opt-in이며 기본 OFF다. sparse 예외 해결·입력 통제 검사와 학습된 모델의 실제 출력 gate·AP를 구분한다. 학습은 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
@@ -44,6 +45,41 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 - 원격 명령·이미지 digest·백업 운영 상세는 Vast 문서에 둔다. 코드·실행 계약과 계획을 구분한다.
 - `README.md`와 `docs/ACTIVE_PRIORITIES.md`에는 이 허브의 링크·다음 단계만 갱신한다.
   새 결정을 매번 여러 곳에 길게 복사하거나 동일 목적의 날짜별 계획 파일을 추가하지 않는다.
+
+<a id="base5-training-inference-memory-decision-261011"></a>
+
+### 학습 48GB·batch 4와 대회 추론 24GB의 분리 — 2026-10-11 16:03 KST 합의
+
+사용자는 학습 GPU 메모리와 대회 추론 GPU 메모리를 분리하고, 검증된 **48GB·batch 4·
+누적 1·학습 camera backbone compile ON**을 유지하는 방향에 동의했다. 공간 5/20cm,
+depth 25cm, 입력 512×1056, LR 1e-4, warm-up 500, 24 epoch와 기존 준비 계약은 그대로다.
+이번 갱신은 문서 정리이며 새 GPU 실험·본학습·원격 설정 변경을 실행하지 않는다.
+
+- 학습은 역전파용 중간값·gradient·optimizer 상태와 batch 4가 필요하다. 이번 ON의
+  정상 peak allocated 약 26.95GiB / 최초 준비 약 45.71GiB는 **학습 측정값**이다.
+  batch 4가 일반 24GB 카드에도 들어간다는 뜻이 아니다.
+- 대회 추론은 batch 1이며 학습용 gradient·optimizer 상태가 필요 없다. 5/20cm·D25의
+  이전 추론 시험은 allocator 예산 20GiB에서 compile OFF와 camera+neck compile·병렬화
+  결합 후보 모두 OOM 없이 실행했다. 정상 allocated 약 1.55~1.61GiB, 시작 피크 약
+  17.08~17.14GiB다. **48GB 카드의 예산 제한 시험**이지 실제 24GB 카드 인증은 아니다.
+  비용용 가중치의 decoded 출력이 0개였다는 한계도 유지한다. [원자료와 해석](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011).
+- 학습 compile ON의 가중치는 추론 compile OFF/ON 양쪽에서 사용할 수 있다. compile은
+  실행 방식이며 학습 때의 45.71GiB 피크가 가중치에 포함되어 따라오지 않는다.
+  추론 compile·병렬화 기본 OFF의 이유는 학습 완료 모델의 출력·정확도 gate가 남아 있기
+  때문이지, 24GB에서 실행 불가능하다고 확인했기 때문이 아니다.
+- VRAM 점유율 자체를 목표로 batch 6~8을 선택하지 않는다. 과거 더 가벼운 조건의
+  batch 4→8 처리량 이득은 약 2.7%였고 현재 fine 후보에서는 재측정하지 않았다.
+  batch 확대는 모델 파라미터 개수를 바꾸지 않지만 같은 epoch의 optimizer 갱신 수,
+  gradient 통계·학습률·warm-up 해석을 바꾸므로 무료 속도·정확도 향상으로 취급하지 않는다.
+  향후 필요할 때만 별도 비용·OOM·학습 설정 검사로 결정한다.
+- 나중에 24GB에서 추가 학습해야 한다면 작은 물리 batch와 gradient accumulation을
+  검토할 수 있다. 유효 batch를 맞춰도 BatchNorm·난수·부동소수점 연산 때문에 완전히
+  같은 학습 경로를 보장하지 않는다. 현재 계약을 그런 설정으로 임의 변경하지 않는다.
+
+추가 최적화를 본학습의 새 선행 조건으로 늘리지 않는다. 큰 병목 개선과 짧은 학습 검사는
+완료했으며, 남은 순서는 **승인 후 본학습·외부 백업 → 완성 가중치의 추론 OFF/ON·병렬화
+정합/비용 비교 → 실제 24GB 카드에서 cold start·rosbag 연속 입력·ROS 풀스택 확인**이다.
+13Hz·장기 수렴·실전 정확도는 아직 보장하지 않는다. TensorRT는 필요하면 수행할 후속 후보다.
 
 <a id="base5-training-compile-short-gate-261011"></a>
 

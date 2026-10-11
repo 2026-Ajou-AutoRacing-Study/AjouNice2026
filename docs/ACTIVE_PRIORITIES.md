@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 16:03 KST 합의:** [현재 허브의 메모리·배치 결정](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011)에
+  따라 48GB·batch 4·학습 compile ON을 유지하고 대회 24GB 추론은 별도 검증한다.
+  준비 계약·코드는 변경하지 않았다. 다음은 본학습 승인·외부 백업 시작이며 실제 24GB
+  cold start·완성 가중치의 추론 compile/병렬화·rosbag/풀스택 검사는 학습 후다.
+
 - **2026-10-11 15:49 KST:** 사용자 선택의 5/20cm·depth 25cm에서 짧은 4090 학습
   OFF/ON·gradient·저장/재개·val 검사를 완료하고 새 fine 준비 계약을 만들었다.
   [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)와

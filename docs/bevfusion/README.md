@@ -32,6 +32,7 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 48GB 학습 batch 4 유지 / 24GB 추론과 분리 / 추론 compile ON 메모리 근거와 남은 gate | [10-11 16:03 메모리·배치 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011), [측정값 재검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | 정밀 5/20cm·depth 25cm의 실제 4090 학습 OFF/ON / gradient·partial batch·저장/재개·val / 새 준비 계약 | [10-11 fine 학습 compile 검사 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011) |
 | sparse count stream 오류 재현·우회 / camera-side 병렬 추론 비용 / 기본 OFF·학습 미실행 | [10-11 분리 stream 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011) |
 | 학습 compile의 최초 검사 범위·채택 기준 / 실제 후속 결과는 25절 | [10-11 14:45 검사 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-compile-short-gate-261011) |
@@ -65,7 +66,8 @@ camera-only 초기화를 추천한다. 20절에서 실제 외부 백업·복원 
 사용자 승인 전에는 본학습을 시작하지 않는다. 아래 외부 백업 미완료 문구는 이전 시점 기록이다.
 2026-10-10 미션 경로 검토 후 Base5의 semantic ROI는 전후방 ±100m·좌우 ±30m로 유지한다.
 ±40m 비용 후보는 비교 이력으로 보존하며 이번 학습·다음 환경 배치를 확대하지 않는다.
-2026-10-11 현재 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
+이하 입력·초기 준비 상태는 25절의 fine 후보 선택 이전 기록이다. 현재 config·실행 경로는
+위 계획 허브와 최신 Vast 준비 절을 따른다. 당시 입력 config는 `bevfusion_base5_dense_512_native_jpeg90.py`다.
 카메라 RGB는 train·val·test·분석 모두 원본 해상도 Q90 JPEG로 통일하고 blur·노출·noise는 끈다.
 `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release/`의 all-JPEG/upright manifest를 사용한다.
 RGB PNG는 로컬 백업·변환용이며 mask·depth·native GT 등 보조 PNG는 무손실로 보존한다.

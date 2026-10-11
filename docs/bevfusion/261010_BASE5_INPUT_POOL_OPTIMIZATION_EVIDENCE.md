@@ -2686,3 +2686,70 @@ archive SHA256은 `7fc15b6d7267725744acd81638a89c76570c0d5b7bd729831232322517f2f
 보존한다. 다음은 사용자 승인 후 **새 계약의 실행과 해당 폴더를 가리키는 백업 watcher**다.
 실행 직전 source/config 일치를 다시 확인하며 이후 code 변경을 기존 계약에 강제 섞지 않는다.
 이번 인스턴스는 자동 Stop하지 않고 GPU 작업이 끝난 유휴 상태로 둔다.
+
+<a id="base5-memory-batch-decision-261011"></a>
+
+## 26. 48GB 학습과 24GB 추론의 메모리·배치 판단 — 2026-10-11 16:03 KST
+
+25절 이후 대화에서 기존 보고서를 다시 확인했다. **새 GPU 실행이나 batch 확대 검사는
+수행하지 않았다.** 사용자는 학습 48GB·batch 4·누적 1 유지 방향에 동의했다.
+현재 결정과 후속 순서는 [계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011)에
+둔다. 아래는 결정의 수치 근거이며 학습/추론 compile을 혼동하지 않는다.
+
+### 추론 compile ON도 20GiB 예산에서 실행한 근거가 있다
+
+24절의 5/20cm·D25·512×1056·batch 1, 300장 비용 보고서를 재확인했다.
+48GB 4090에서 CUDA allocator 예산을 **20GiB**로 제한했고 다음 case가 모두 OOM 없이
+완료됐다. allocated peak는 GPU 전체 사용량·reserved memory와 다른 값이다.
+
+| 추론 case | 정상 peak allocated | 시작 peak allocated |
+|---|---:|---:|
+| 비컴파일 기존, 첫 실행 | 1.58GiB | 17.11GiB |
+| 비컴파일 camera-side 병렬화 | 1.59GiB | 17.13GiB |
+| camera+neck compile와 병렬화 결합 | 1.55GiB | 17.08GiB |
+| 비컴파일 기존, 재실행 | 1.61GiB | 17.14GiB |
+
+ignored 원자료:
+`artifacts/evaluation/bevfusion/base5_parallel_261011/base5_parallel_qualification_151cefab_261011/fine_tcp300_v1/report.json`.
+`allocator_budget_gib`, 각 case의 `peak_allocated_mib`, `startup_peak_allocated_mib`를
+사용해 GiB로 환산했다. 보고서의 cost fixture·source hashes와 제한 조건은 그대로다.
+
+**48GB GPU 예산 제한은 실제 24GB GPU 검증이 아니다.** 이 fine fixture는 모든 case의
+decoded 출력이 0개였으므로, 300장 실행 완료가 검출 정확도·출력 정합 인증은 아니다.
+실제 완성 가중치·출력 전송·장면별 활성 voxel·ROS 풀스택 부하의 확인은 남아 있다.
+24GB에서 추론 compile이 불가능하다는 결론은 현재 근거와 맞지 않으며, 실행 가능성이
+충분한 후보로 유지하되 실제 카드의 cold start와 연속 입력으로 최종 확인한다.
+
+25절의 **45.71GiB는 batch 4 학습 최초 준비 피크**다. 이를 추론 compile의 필수 메모리로
+옮겨 해석하지 않는다. 학습에는 역전파용 중간값·gradient·optimizer 상태가 필요하지만
+추론 batch 1에서는 필요하지 않다. compile 없이 읽을 수 있는 checkpoint key와 실제
+저장/재개를 확인했으므로 학습 ON 가중치로 추론 OFF/ON을 따로 선택할 수 있다.
+
+### batch를 늘리지 않은 이유와 시간 추정의 경계
+
+6절의 과거 512×1056·실제 train 로더·AMP AdamW 비용은 다음과 같다. 현재 fine·D25·
+JPEG·compile ON 설정과 다른 조건이므로 최신 batch 8의 성능·메모리로 재사용하지 않는다.
+
+| 과거 물리 batch | step 평균 | 처리량 | 정상 peak allocated |
+|---|---:|---:|---:|
+| 4 | 609.57ms | 6.56장/s | 20.64GiB |
+| 8 | 1,187.06ms | 6.74장/s | 40.67GiB |
+
+처리량 이득은 약 2.7%였고 메모리는 거의 두 배였다. 현재 fine ON의 batch 4 정상
+allocated는 26.95GiB이며 cold peak는 45.71GiB다. 최신 batch 6/8의 OOM 여부·처리량은
+미검증이므로 숫자를 선형 외삽해 가능/불가능 또는 시간 단축률을 확정하지 않는다.
+이번에는 25절의 검증된 batch 4와 운영 예산 **4.7~5.3시간**을 유지한다.
+
+batch 확대는 모델 파라미터 개수를 바꾸지 않지만 optimizer 갱신 빈도·gradient 통계와
+학습 설정의 의미를 바꾼다. train 4,255장, 마지막 묶음을 버리지 않는 기준에서 batch 4는
+epoch당 1,064 update, batch 8은 532 update다. warm-up을 500 update로 그대로 두면
+노출되는 장면 수와 epoch 비율이 달라진다. 학습률을 무조건 두 배로 하거나 큰 batch의
+정확도 개선을 보장하지 않는다. 배치를 변경하려면 별도 계약·스케줄 검토가 필요하다.
+
+향후 24GB에서 추가 학습할 필요가 생기면 작은 물리 batch와 gradient accumulation을
+검토한다. [MMEngine 공식 OptimWrapper 설명](https://mmengine.readthedocs.io/en/latest/tutorials/optim_wrapper.html)의
+누적 기능을 사용할 수 있지만 BatchNorm·난수·연산 순서 때문에 물리 batch 4와 완전히
+같은 학습이라고 보장하지 않는다. 현재 원격 준비 계약·소스·학습률·warm-up은 변경하지 않았다.
+
+현재는 추가 최적화를 반복하기보다 본학습 결과를 확보할 단계다. TensorRT는 후속 후보이며
+학습된 모델의 실제 24GB 메모리·추론 정합·13Hz 비용을 확인하기 전에는 배포를 인증하지 않는다.

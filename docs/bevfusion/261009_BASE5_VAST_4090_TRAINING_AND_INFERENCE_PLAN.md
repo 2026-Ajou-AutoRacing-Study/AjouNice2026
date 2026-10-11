@@ -24,6 +24,12 @@ gradient·batch 4→3 저장/재개·FP32 val batch 1 검사를 완료했다.
 본학습·백업 watcher는 아직 실행하지 않았다. 추론 compile/병렬화는 계속 별도 gate다.
 아래의 다른 7.5/30cm·depth 50cm 준비 명령은 과거 이력이며 현재 명령으로 복사하지 않는다.
 
+**2026-10-11 16:03 KST 후속 합의:** 이번 학습은 48GB·batch 4·누적 1을 유지한다.
+대회 추론 GPU가 24GB라는 이유로 학습을 24GB 예산으로 제한하거나, 48GB를 채우려고
+배치를 늘리지 않는다. 아래 준비 명령·계약은 변경하지 않았다.
+[학습/추론 메모리 분리와 후속 24GB 검사](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011)를
+따른다. 추론 compile ON의 메모리 예산 시험과 실제 카드·완성 모델 검증은 구분한다.
+
 다음은 실제 통과한 **준비만 하는 명령**이다. 사용자가 본학습을 승인하기 전에는 `--run`을
 추가하지 않는다. 새 폴더를 사용하며 이전 준비 계약을 `--resume`하지 않는다.
 
