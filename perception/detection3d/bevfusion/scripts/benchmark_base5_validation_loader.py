@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run all 745 synthetic validation scenes to qualify loader/metric cost, not quality."""
+"""Full 745-frame or bounded validation loader/metric qualification, not quality."""
 import argparse
 from collections import Counter
 import json
@@ -45,8 +45,10 @@ def main():
     p.add_argument('--data',type=Path,required=True);p.add_argument('--config',type=Path,required=True)
     p.add_argument('--profile',choices=['448x896','512x1056'],required=True)
     p.add_argument('--checkpoint',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--limit',type=int,default=745,
+                   help='Bounded evenly-spaced validation subset; default retains the full 745-frame check')
     a=p.parse_args()
-    if a.output.exists():p.error('Use fresh output')
+    if a.output.exists() or not 1<=a.limit<=745:p.error('Use fresh output and 1..745 validation frames')
     a.output.mkdir(parents=True)
     torch.set_num_threads(4);torch.backends.cudnn.benchmark=True
     cfg=Config.fromfile(str(a.config));import_modules_from_strings(**cfg.custom_imports)
@@ -63,13 +65,17 @@ def main():
     cfg.val_dataloader.num_workers=4;cfg.val_dataloader.persistent_workers=True
     records=pickle.loads(info.read_bytes())['data_list']
     if len(records)!=745:raise ValueError('Expected all 745 validation records')
+    indices=np.linspace(0,len(records)-1,a.limit,dtype=int).tolist()
+    if a.limit!=745:cfg.val_dataloader.dataset.indices=indices
+    selected=[records[i] for i in indices]
     cfg.dump(str(a.output/'resolved_validation.py'))
     started=time.perf_counter();runner=Base5AtomicRunner.from_cfg(cfg)
     metrics=runner.val();hook=next(h for h in runner.hooks if isinstance(h,ValidationCost))
-    if len(hook.rows)!=745 or len(hook.seen)!=745 or not all(np.isfinite(v) for v in metrics.values()):
+    if len(hook.rows)!=a.limit or len(hook.seen)!=a.limit or not all(np.isfinite(v) for v in metrics.values()):
         raise ValueError('Incomplete validation or nonfinite metric')
-    result=dict(valid=True,profile=a.profile,distinct_validation_frames=745,
-        labels=dict(Counter(i['bbox_label_3d'] for r in records for i in r['instances'])),
+    result=dict(valid=True,profile=a.profile,distinct_validation_frames=a.limit,
+        full_validation=a.limit==745,selection_indices=indices,
+        labels=dict(Counter(i['bbox_label_3d'] for r in selected for i in r['instances'])),
         epoch_validation_seconds=time.perf_counter()-hook.start,
         total_cold_seconds=time.perf_counter()-started,
         precision='existing validation config: FP32, not AMP inference',

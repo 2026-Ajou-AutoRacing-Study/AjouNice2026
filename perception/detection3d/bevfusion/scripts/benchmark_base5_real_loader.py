@@ -102,18 +102,45 @@ class Base5TrainingProfile(Hook):
 class Base5BoundedCost(Hook):
     # LoggerHook resets CUDA peak statistics; collect BEFORE it, and keep our
     # own maxima across iterations instead of trusting the final reset window.
-    priority='ABOVE_NORMAL'
-    def __init__(self, steps, warmup, output, batch):
+    # Install gradient audit BEFORE the profiler wraps optimizer.step, so its
+    # method restoration keeps the audit alive after the profiling window.
+    priority='VERY_HIGH'
+    def __init__(self, steps, warmup, output, batch, audit_gradients=False):
         self.steps=steps; self.warmup=warmup; self.output=Path(output); self.batch=batch; self.rows=[]
         self.peak_allocated=0; self.peak_reserved=0; self.warm_peak=0
         self.seen=set(); self.measured_seen=set(); self.label_counts=Counter()
+        self.audit_gradients=audit_gradients; self.gradient_audits=[]
     def before_train(self, runner):
         digest=hashlib.sha256()
         for name,value in runner.model.named_parameters():
             digest.update(name.encode());digest.update(value.detach().cpu().contiguous().numpy().tobytes())
         self.initial_parameters_sha256=digest.hexdigest()
+        if self.audit_gradients:
+            original_step=runner.optim_wrapper.step
+            def audited_step(*args, **kwargs):
+                if runner.iter in (0, self.warmup, self.steps//2, self.steps-1):
+                    runner._base5_audited_step=True
+                    names=[]; gradients=[]; missing=[]
+                    for name,parameter in runner.model.named_parameters():
+                        if not parameter.requires_grad:continue
+                        if parameter.grad is None:missing.append(name)
+                        else:names.append(name);gradients.append(parameter.grad)
+                    if not gradients:raise ValueError('No training gradients')
+                    finite=bool(torch.stack([torch.isfinite(g).all() for g in gradients]).all().item())
+                    norms=torch.stack([g.detach().float().norm() for g in gradients])
+                    scale=float(runner.optim_wrapper.loss_scaler.get_scale())
+                    row=dict(step=runner.iter,finite=finite,gradient_names=names,
+                        missing_gradient_names=missing,amp_scale=scale,
+                        unscaled_global_l2=float(norms.norm().item())/scale,
+                        nonzero_gradient_parameters=int((norms>0).sum().item()))
+                    self.gradient_audits.append(row)
+                    if not finite:raise ValueError('Nonfinite training gradients')
+                    if missing:raise ValueError('Missing trainable-parameter gradients: '+str(missing))
+                return original_step(*args, **kwargs)
+            runner.optim_wrapper.step=audited_step
         self.started=time.perf_counter(); self.previous=self.started
     def before_train_iter(self, runner, batch_idx, data_batch=None):
+        runner._base5_audited_step=False
         if batch_idx==0:
             digest=hashlib.sha256()
             for key in ('imgs','img','points'):
@@ -154,6 +181,7 @@ class Base5BoundedCost(Hook):
         self.rows.append(dict(step=batch_idx, loader_wait_ms=self.wait,
             train_ms=(end-self.begin)*1000, total_ms=(end-self.previous)*1000, losses=values,
             scene_ids=self.batch_identities, gt_geometry_sha256=self.batch_gt_hashes,
+            gradient_audited=bool(getattr(runner,'_base5_audited_step',False)),
             profiled=bool(getattr(runner,'_base5_profiled_step',False))))
         self.previous=end
         if (batch_idx+1)%16==0: print('COST STEP %d/%d'%(batch_idx+1,self.steps),flush=True)
@@ -161,7 +189,12 @@ class Base5BoundedCost(Hook):
             optimizer_steps=sorted({float(v['step']) for v in runner.optim_wrapper.optimizer.state.values() if 'step' in v})
             if optimizer_steps != [float(self.steps)]:
                 raise ValueError('Optimizer did not advance on every bounded probe step')
-            measured=[r for r in self.rows[self.warmup:] if not r['profiled']]
+            measured=[r for r in self.rows[self.warmup:] if not r['profiled'] and not r['gradient_audited']]
+            parameter_finite=None
+            if self.audit_gradients:
+                parameter_finite=bool(torch.stack([torch.isfinite(p.detach()).all()
+                    for p in runner.model.parameters()]).all().item())
+                if not parameter_finite:raise ValueError('Nonfinite updated parameters')
             result=dict(valid=True, batch=self.batch, measured_steps=len(measured),
                 initial_parameters_sha256=self.initial_parameters_sha256,
                 first_input_sha256=self.first_input_sha256,
@@ -176,6 +209,7 @@ class Base5BoundedCost(Hook):
                 warmup_peak_allocated_mib=self.warm_peak,
                 memory_measurement='before LoggerHook reset, aggregate measured-window maxima; release autotune cache at warmup boundary',
                 optimizer_steps=optimizer_steps,
+                gradient_audits=self.gradient_audits,final_parameters_finite=parameter_finite,
                 scaler=runner.optim_wrapper.loss_scaler.state_dict(),
                 elapsed_seconds=end-self.started, per_step=self.rows,
                 scope='bounded actual train loader + augmentation + AMP AdamW; no full epoch, validation or checkpoint cost')
@@ -202,6 +236,8 @@ def main():
     p.add_argument('--spatial-case',choices=SPATIAL_CASES)
     p.add_argument('--profile-steps',type=int,default=0,
                    help='Bounded torch profiler window, excluded from cost timing')
+    p.add_argument('--audit-gradients',action='store_true',
+                   help='Audit four real backward updates; exclude diagnostic steps from cost statistics')
     p.add_argument('--pixel-io-comparison',action='store_true',
                    help='Remove disabled pixel transform so PNG/JPEG consume the same geometry RNG')
     a=p.parse_args()
@@ -247,7 +283,7 @@ def main():
     cfg.default_hooks.checkpoint=None
     cfg.default_hooks.logger.interval=16
     cfg.custom_hooks.append(dict(type='Base5BoundedCost',steps=a.steps,warmup=a.warmup,
-        output=str(a.work_dir/'cost.json'),batch=a.batch))
+        output=str(a.work_dir/'cost.json'),batch=a.batch,audit_gradients=a.audit_gradients))
     if a.profile_steps:
         cfg.custom_hooks.append(dict(type='Base5TrainingProfile',warmup=a.warmup,
             steps=a.profile_steps,output=str(a.work_dir)))
@@ -267,7 +303,8 @@ def main():
                 geometry_mode=a.geometry_mode,
                 batched_loss_log=a.batched_loss_log,depth_step=a.depth_step,spatial_case=a.spatial_case,
                 fused_adamw=a.fused_adamw,cudnn_benchmark=a.cudnn_benchmark,
-                compile_camera=a.compile_camera,profile_steps=a.profile_steps),
+                compile_camera=a.compile_camera,profile_steps=a.profile_steps,
+                audit_gradients=a.audit_gradients),
             full_epoch_training_started=False)
         (a.work_dir/'cost.json').write_text(json.dumps(result,indent=2)+'\n')
         print(json.dumps({k:v for k,v in result.items() if k!='per_step'},indent=2))

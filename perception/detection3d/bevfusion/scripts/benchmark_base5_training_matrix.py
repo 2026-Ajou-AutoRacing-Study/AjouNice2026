@@ -50,6 +50,8 @@ def main():
     p.add_argument('--cases', nargs='+', choices=list(CASES), default=['baseline','geometry'])
     p.add_argument('--case-timeout-sec',type=int,default=600)
     p.add_argument('--repeats', type=int, default=1)
+    p.add_argument('--profile-steps', type=int, default=0)
+    p.add_argument('--audit-gradients', action='store_true')
     a = p.parse_args()
     if a.output.exists() or not 1 <= a.repeats <= 3 or not 60<=a.case_timeout_sec<=1800:
         p.error('Fresh output required; at most three repeats')
@@ -68,6 +70,8 @@ def main():
                    '--work-dir', str(work), '--init-checkpoint', str(a.init_checkpoint),
                    '--batch', str(a.batch), '--workers', str(a.workers), '--steps', str(a.steps),
                    '--warmup', str(a.warmup), '--depth-step', str(a.depth_step), *CASES[case]]
+            cmd.extend(['--profile-steps',str(a.profile_steps)])
+            if a.audit_gradients:cmd.append('--audit-gradients')
             if a.spatial_case:cmd.extend(['--spatial-case',a.spatial_case])
             print(f'START {name}: batch={a.batch}, depth={a.depth_step}', flush=True)
             with (a.output / (name + '.log')).open('w') as log:

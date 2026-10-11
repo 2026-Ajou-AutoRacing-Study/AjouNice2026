@@ -13,6 +13,45 @@
 현재 결정·우선순위의 단일 기준은 [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)다.
 이 문서는 원격 실행 상세·명령·과거 진행 근거를 관리한다.
 
+<a id="base5-fine-compiled-prepared-vast-261011"></a>
+
+## 최신 fine 학습 준비 — 2026-10-11 15:49 KST
+
+사용자 선택의 5cm LiDAR / 20cm camera BEV·depth 25cm에서 짧은 4090 학습 OFF/ON,
+gradient·batch 4→3 저장/재개·FP32 val batch 1 검사를 완료했다.
+[25절의 실측·수치·cold 메모리·새 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011)을
+따르며 이번 48GB 인스턴스에서는 학습 camera backbone compile ON을 추천한다.
+본학습·백업 watcher는 아직 실행하지 않았다. 추론 compile/병렬화는 계속 별도 gate다.
+아래의 다른 7.5/30cm·depth 50cm 준비 명령은 과거 이력이며 현재 명령으로 복사하지 않는다.
+
+다음은 실제 통과한 **준비만 하는 명령**이다. 사용자가 본학습을 승인하기 전에는 `--run`을
+추가하지 않는다. 새 폴더를 사용하며 이전 준비 계약을 `--resume`하지 않는다.
+
+```bash
+cd /workspace/base5_training_compile_ready_source_66414829_261011
+export PYTHONPATH="$PWD:$PWD/third_party/mmdetection3d"
+python -u perception/detection3d/bevfusion/tools/run_base5_direct_training.py \
+  --data /workspace/base5_sunny13_jpeg90_verified_v2_261011 \
+  --config perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_training_compiled_candidate.py \
+  --profile 512x1056 --epochs 24 --batch 4 --workers 4 \
+  --lr 1e-4 --warmup-updates 500 \
+  --init-checkpoint /workspace/base5_nuscenes_camera_only_261010.pth \
+  --work-dir /workspace/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011
+```
+
+준비 계약은 `9e2b7b85e2a3d2d0d51272e1b5b8ae09e7b28b6c0659b991505d2065958a2324`다.
+1,005개 source SHA256이 로컬과 일치하고 실제 초기화·split·증강을 유지한다.
+본학습 운영 예산은 약 4.7~5.3시간이다. 초반 compiler peak allocated는 약 45.71GiB이므로
+시작 시 다른 GPU 작업을 함께 돌리지 않는다. 데이터·기존 checkpoint를 삭제하지 않는다.
+
+본학습 승인 후에는 아래 20절 백업 watcher 형태에서 다음 두 경로를 최신 폴더로 바꾼다.
+실제 상주 watcher를 켠 것으로 기록하지 않으며 Drive 토큰·client secret은 원격에 보내지 않는다.
+
+| watcher 인자 | 최신 경로 |
+|---|---|
+| `--work-dir` | `/workspace/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011` |
+| `--backup-script` | `/workspace/base5_training_compile_ready_source_66414829_261011/perception/detection3d/bevfusion/tools/backup_base5_checkpoints.py` |
+
 <a id="base5-fixed-image-publication-plan-261011"></a>
 
 ## 다음 임대용 고정 이미지 게시 계획 — 2026-10-11 06:46 KST

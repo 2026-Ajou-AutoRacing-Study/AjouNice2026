@@ -8,6 +8,12 @@
 
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
+2026-10-11 15:49 KST 최신 선택은 사용자 요청의 공간 5/20cm·depth 25cm다. EVIDENCE
+25절의 실제 4090 짧은 학습 OFF/ON·gradient·partial batch·저장/재개·val 검사를 완료했다.
+이번 48GB에서 camera backbone 학습 compile ON을 추천하고 새 fine prepare-only 계약의
+1,005개 소스 hash 일치를 확인했다. 본학습·백업 watcher는 미시작이며 추론 compile/
+병렬화는 계속 기본 OFF다. 원격 경로·cold 메모리 제약·다음 승인 조건은 25절을 따른다.
+아래의 ‘학습 미실행/4090 학습 검사 다음’은 이 짧은 학습 승인 이전의 이력이다.
 2026-10-11 최신 분리 stream 보완은 EVIDENCE 24절이다. spconv/cumm의 활성 voxel 수
 조기 읽기를 5060 Ti에서 재현하고 camera-side·default-stream LiDAR 순서로 우회했다.
 4090 300장 비용과 출력 통제를 확인했으며 새 옵션은 추론 전용·기본 OFF다. 학습·E25·

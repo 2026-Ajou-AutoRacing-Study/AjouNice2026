@@ -8,6 +8,11 @@ EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한�
 `261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`에서
 먼저 확인한다. README는 인덱스, EVIDENCE는 실측, Vast 계획은 원격 상세다.
 현재 계획을 여러 문서에 길게 중복 복사하거나 동일 목적의 계획 파일을 추가하지 않는다.
+최신 15:49 KST 학습 실행은 EVIDENCE 25절이다. 사용자 선택의 공간 5/20cm·depth 25cm에서
+실제 4090 OFF/ON·gradient·batch 4→3 재개·FP32 val 검사를 완료하고 새 fine 준비 계약을
+만들었다. 학습 camera backbone compile ON을 추천하지만 본학습·백업 watcher는 아직이다.
+추론 compile/병렬화의 기본 OFF와 학습 ON 추천을 구분한다. 이전 준비 폴더를 강제 resume하지 않는다.
+아래의 ‘학습 미실행/4090 학습 비용 미확인’은 짧은 학습 승인 이전의 이력이다.
 최신 분리 stream 결과는 EVIDENCE 24절이다. sparse count의 조기 읽기를 재현하고
 camera-side·default-stream LiDAR로 우회했다. 추론 전용 opt-in이며 기본 OFF다.
 비용 단축·진단 통제·학습된 모델의 출력/정확도 gate를 구분한다. 기존 준비 계약과 학습은

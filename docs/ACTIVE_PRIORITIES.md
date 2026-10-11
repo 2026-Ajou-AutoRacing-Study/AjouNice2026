@@ -49,6 +49,12 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 15:49 KST:** 사용자 선택의 5/20cm·depth 25cm에서 짧은 4090 학습
+  OFF/ON·gradient·저장/재개·val 검사를 완료하고 새 fine 준비 계약을 만들었다.
+  [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)와
+  [EVIDENCE 25절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011)을
+  따른다. 다음은 본학습 승인과 백업 watcher 시작이다. 본학습·추론 최적화 기본값 승격은 아직이다.
+
 - **2026-10-11 분리 stream 보완:** [EVIDENCE 24절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011)의
   camera-side 추론 후보는 오류 우회·비용 검사를 완료했지만 기본 OFF다. 실제 모델의
   val/rosbag 정합 확인은 남아 있으며 이번에는 학습하지 않았다.

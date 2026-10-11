@@ -2531,3 +2531,158 @@ production E25에서 새 옵션 거부·checkpoint key 유지 검사를 포함�
 이 변경을 포함한 다음 실행에는 source/config 계약을 다시 확인한다. 본학습 초기화에
 COST fixture를 사용하지 않으며 다음 학습 작업은 허브에 합의한 짧은 compile OFF/ON
 검사와 새 계약부터다. 인스턴스는 자동 Stop하지 않는다.
+
+<a id="base5-fine-training-compile-vast-261011"></a>
+
+## 25. 정밀 5/20cm의 4090 학습 compile OFF/ON 검사 — 2026-10-11 KST
+
+사용자는 5cm LiDAR voxel / 20cm camera BEV를 우선 후보로 선택하고 **짧은 학습
+compile 비교만** 승인했다. Sunny13 전체 본학습·다른 환경 수집·production E25·원본 GT는
+변경하지 않는다. 추론의 camera-side 병렬화와 camera+neck compile은 별개이며 기본 OFF다.
+
+### 실제 비교 조건
+
+- 인스턴스 55272391, RTX 4090의 관측 VRAM 49,140MiB, 기존 Torch 2.7.1+cu128 환경.
+  의존성을 다시 설치하거나 GPU 임대·Stop/destroy를 수행하지 않았다.
+- 원본 해상도 Q90 JPEG, 입력 512×1056, depth `[1,100,.25]`의 396개 bin,
+  single-frame·4-class·7D, train 4,255 / val 745, 실제 로더 batch 4 / workers 4.
+- semantic ROI X±100/Y±30m는 유지한다. 정수 내부 padding은 X±100.8/Y±33.6m이며
+  sparse grid `[4032,1344,41]`, raw camera BEV `[336,1008]`, 최종 fusion `[168,504]`다.
+  최종 fusion/head 간격은 40cm다. 20cm가 최종 head 간격이라는 뜻은 아니다.
+- camera-only nuScenes 초기화 SHA256은
+  `d06ae54d380a7c0ec245936ff394a51e0ff2c36fd1288eb2d7879954c682107b`다.
+  LiDAR/depth/head는 새 초기화다. 23·24절의 shape 변환 COST checkpoint를 학습에 사용하지 않았다.
+- 양쪽 모두 warp pooling backward·compact int32·batched checked geometry·일괄 loss log·
+  fused AdamW, AMP scale 32, LR 1e-4, seed 261010을 사용한다. 카메라 **backbone forward만**
+  compile한다. neck·sparse encoder·head를 compile하거나 증강을 끄지 않는다.
+- 64 update씩 OFF→ON으로 실행한다. 첫 16회 warm-up과 profiler 4회는 정상 비용에서
+  제외하고 44회씩 측정한다. 실제 장면은 각 256개이며 64회 전체 장면 순서·증강 GT,
+  첫 센서 입력·초기 전체 parameter SHA가 양쪽에서 같다. 이후 ON→OFF 24회씩을 별도로
+  재확인했다. 작은 mini-dataset의 재개 검사는 아래와 분리한다.
+
+### 실제 전체 step 비용
+
+| 실제 64 update 비교 | compile OFF | compile ON |
+|---|---:|---:|
+| 로더·증강·로그를 포함한 정상 step 평균 | 659.59ms | 575.03ms |
+| 정상 step p95 | 673.18ms | 594.76ms |
+| GPU 전송부터 갱신까지의 평균 | 643.13ms | 558.79ms |
+| 다음 입력 준비·로더 대기 평균 | 16.47ms | 16.24ms |
+| 정상 peak allocated | 29,118.90MiB | 27,595.08MiB |
+| 정상 peak reserved | 30,784MiB | 29,116MiB |
+| 첫 준비 구간 peak allocated | 29,107.33MiB | 46,808.75MiB |
+| 첫 update 시간 | 60.11초 | 98.85초 |
+| 전체 bounded train-loop 시간 | 120.52초 | 150.68초 |
+
+정상 step은 **약 12.82% 단축**됐다. ON→OFF의 별도 24회에서는 567.03ms와
+659.89ms로 약 14.07% 단축을 재확인했다. 후속 비교는 warm-up 8회·profile 4회·
+별도 gradient audit 구간을 제외한 각 10회이므로 64회 검사와 같은 표본 수로 읽지 않는다.
+첫 update에는 JIT·compiler·라이브러리 준비가 섞여 있다. 두 시간 차이를 순수 compile
+비용으로 단정하지 않으며 cold 비용을 정상 step에 섞지 않는다.
+
+정상 allocated는 ON 약 26.95GiB / OFF 약 28.44GiB지만 ON의 첫 준비 구간은
+약 **45.71GiB**까지 올라갔다. 이번 48GB 인스턴스에서는 OOM 없이 통과했으나 여유가
+넉넉한 시작은 아니다. 일반 24GB 4090에서 같은 batch 4 학습이 된다는 뜻도 아니다.
+추론용 VRAM·13Hz 전체 서비스 비용과 학습 메모리를 혼동하지 않는다.
+
+### 무엇이 빨라졌는가
+
+아래는 각 실행의 별도 계측 4회에서 얻은 CUDA event span이다. host idle·계측 영향을
+포함하며 정상 step 표와 섞거나 모든 항목을 합산하지 않는다. backward는 전체 모델의
+backward이고 카메라 backward만 따로 측정한 값은 아니다.
+
+| 계측 항목 | OFF | ON |
+|---|---:|---:|
+| 카메라 backbone forward | 89.00ms | 75.96ms |
+| 전체 backward | 330.84ms | 264.39ms |
+| geometry / plan | 62.83ms | 61.99ms |
+| sparse LiDAR | 32.44ms | 33.82ms |
+
+카메라 compile의 주요 추가 이득은 forward뿐 아니라 backward에도 나타났다. LiDAR,
+depth bin·BEV 격자·head를 줄인 결과가 아니다. 큰 정밀 BEV에서 다른 연산 비용은 그대로
+남으므로 21절의 로컬 7.5/30cm 가속률을 이번 전체 학습에 그대로 적용하지 않는다.
+
+### 갱신·gradient·저장/재개
+
+- 64회와 추가 24회 각각 optimizer가 모든 update에서 진행했고 AMP overflow/skip은
+  없었다. scale 32·growth tracker 64 또는 24와 유한 loss·최종 parameter를 확인했다.
+- 첫 64회 도구에서는 profiler의 method 복원이 gradient audit wrapper까지 원복해
+  실제 audit는 0·16회에서만 실행됐다. 이 진단 도구 문제를 숨기거나 4회로 집계하지 않는다.
+  audit hook을 profiler보다 먼저 설치하도록 순서를 수정하고 후속 24회에서 0·8·12·23회의
+  **네 번 모두 전체 390 trainable parameter**를 검사했다. OFF/ON 모두 gradient 누락 0,
+  nonfinite 0이다. 진단 구간은 정상 비용에서 제외한다.
+- compiled opt-in config로 실제 7개 train capture를 사용해 batch **4→3**을 실행하고,
+  2 update checkpoint에서 중단 후 4 update까지 재개했다. 실제 5K의 마지막 batch 3을
+  고려한 검사다. 네 class를 포함하고 checkpoint의 `_orig_mod` 접두사·partial 파일은 없다.
+- 재개 직후 모델 모든 tensor·optimizer와 AMP scaler·scheduler·Python/NumPy/Torch/CUDA
+  메인 RNG를 저장된 payload와 정확히 비교했다. 9개 확인 항목이 모두 true다.
+  mini-dataset resume contract는
+  `3e938b7fb877aea5c66b331b6a77d204cf59018a4cf2e0706a1cf26d26c57b68`다.
+  이는 workers 0의 epoch 경계 wiring 검사이며 workers 4의 prefetch/중간 epoch를
+  bitwise replay한다는 인증이 아니다. 짧은 loss 감소도 장기 수렴·AP 동등성을 보장하지 않는다.
+
+### 별도 수치 통제·validation·회귀 검사
+
+실제 장면 `b5v2_02165`의 4-camera 입력에서 DropPath를 끈 camera backbone의 AMP
+forward와 고정 upstream sensitivity backward를 비교했다. 21절과 같은 사전 기준
+(전체 gradient 상대 L2 <0.3%, 각 feature 상대 L2 <0.5%)을 바꾸지 않았다.
+
+- feature 상대 L2는 0.0754% / 0.1047% / 0.0581%다.
+- 전체 parameter gradient 상대 L2는 **0.1758%**로 통과했다. 개별 parameter 최대값
+  0.4210%는 별도로 기록한다. 모든 parameter가 0.3% 이내라는 뜻은 아니다.
+- gradient 누락 0, 모든 gradient 유한. 이 단일 입력의 고정 sensitivity 검사는 모든
+  실제 loss 방향이나 stochastic DropPath RNG의 bitwise 동일성을 인증하지 않는다.
+- 설치 MMEngine `BaseModel.train_step`와 `AmpOptimWrapper`를 확인했다. forward는
+  AMP context 안, `update_params`의 backward는 밖에서 실행된다. 수치 통제도 같은
+  forward AMP / backward context 밖의 배치를 사용한다.
+- 같은 4-update fine checkpoint로 **FP32 val batch 1의 32개 서로 다른 장면**과 실제
+  metric 경로를 검사했다. 모두 유한 출력·4-class 범위·유한 metric, 누락 0으로 통과했다.
+  745장 전체 val/AP 검사로 보고하지 않는다. source infos는 변경하지 않고 dataset
+  indices로 균등하게 선택했다. 비용 도구 기본값은 계속 745장이다.
+- 마지막 CPU 회귀 17개 통과 / CUDA-only 1개 skip, GPU runtime·정확한 toy resume
+  회귀 4개 통과다. CPU 격자 단위 검사는 CUDA custom-import를 실행하지 않도록 분리했다.
+  실제 원격 모델 import·forward/backward는 CUDA 확장이 있는 환경에서 별도로 검증했다.
+  최초 로컬 bare fork 검사에서 extension import 오류가 있었으며 모델 오류로 해석하지 않는다.
+
+### 선택·예산과 준비 계약
+
+**이번 48GB 4090의 5/20cm·depth 25cm 학습에는 camera backbone compile ON을 추천한다.**
+실제 초기화·증강·loss·optimizer를 유지하며 학습 속도와 gradient·저장/재개를 확인했다.
+이는 긴 학습의 수렴/AP 우위를 증명하거나 추론 compiler/병렬화 gate를 통과했다는 뜻이 아니다.
+모든 원래 config를 변경하지 않고 새 opt-in config 둘을 추가했다.
+
+- OFF: `bevfusion_base5_fine_512_depth25_runtime_candidate.py`.
+- ON: `bevfusion_base5_fine_512_depth25_training_compiled_candidate.py`.
+- 최종 준비 소스: `/workspace/base5_training_compile_ready_source_66414829_261011`.
+- 새 prepare-only work-dir:
+  `/workspace/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011`.
+- 계약: `9e2b7b85e2a3d2d0d51272e1b5b8ae09e7b28b6c0659b991505d2065958a2324`.
+- 전체 detector/common/fork의 **1,005개 source SHA가 현재 로컬과 모두 일치**한다.
+  디렉터리 이름의 `66414829`는 기반 revision이며 이후 검사 변경을 포함한 frozen snapshot이다.
+  실행 contents는 이름이 아니라 `run_manifest.json`의 source hashes로 검증한다.
+- prepare-only는 batch 4 / workers 4 / 24 epoch / LR 1e-4 / warm-up 500 / seed 261010,
+  원래 4,255/745 split·증강·camera-only 초기화를 사용한다. 비용 probe의 warm-up LR 50회,
+  mini-dataset smoke의 1회와 본학습 schedule을 혼동하지 않는다.
+
+24 epoch 학습 갱신만 외삽하면 OFF 약 4.68시간 / ON 약 **4.08시간**이다.
+32장 val의 cold 구간을 제외한 마지막 24장 평균은 85.67ms이며 이를 단순 외삽한
+매 epoch 745장 val 비용은 약 63.8초다. train+val 중심값은 약 4.50시간이고,
+첫 compile·batch 3/val용 graph 준비·checkpoint 저장·장기 부하 여유를 포함한
+**운영 예산은 약 4.7~5.3시간**으로 둔다. 32장 외삽·짧은 train probe 기반 예상이며
+전체 fine val·장기 학습 시간의 실측이 아니다.
+
+### 근거 보존과 다음 단계
+
+로컬 ignored 근거는 `artifacts/evaluation/bevfusion/base5_training_compile_261011/`다.
+원격 64회/역순 24회/partial batch resume/val32 보고서·trace·로그와 새 준비 config를
+`base5_training_compile_reports_66414829_261011.tar.gz`로 모았다. 센서·가중치는 포함하지 않는다.
+archive SHA256은 `7fc15b6d7267725744acd81638a89c76570c0d5b7bd729831232322517f2fb42`다.
+실제 4-update checkpoint SHA256은
+`f1eede3469ff25e2d8ffb4ba3bcbca4f8b557f96a4710347d5bf53ce9a763562`이며
+원격 resume 폴더에 보존했다. 본학습 초기화 checkpoint로 승격하지 않는다.
+
+본학습·상주 백업 watcher는 시작하지 않았다. 새 준비 폴더에 `fresh_start.json`,
+`last_checkpoint`, 학습 checkpoint가 없음을 확인했다. 기존 준비/실험 폴더와 데이터는
+보존한다. 다음은 사용자 승인 후 **새 계약의 실행과 해당 폴더를 가리키는 백업 watcher**다.
+실행 직전 source/config 일치를 다시 확인하며 이후 code 변경을 기존 계약에 강제 섞지 않는다.
+이번 인스턴스는 자동 Stop하지 않고 GPU 작업이 끝난 유휴 상태로 둔다.

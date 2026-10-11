@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two real Base5 captures: full-model AMP, atomic save, interruption and resume.
+"""Two updates per epoch: full-model AMP, atomic save, interruption and resume.
 
 Requires the portable 5K and CUDA environment. Bounded wiring test only, not a
 training recipe or accuracy result. Outputs source tokens and full state proof.
@@ -10,6 +10,9 @@ import json
 import os
 from pathlib import Path
 import pickle
+import random
+
+import numpy as np
 
 import torch
 from mmengine.hooks import Hook
@@ -29,6 +32,36 @@ class Base5SmokeStop(Hook):
     priority='LOWEST'
     def after_train_epoch(self,runner):
         if runner.epoch==0: raise PlannedStop('Bounded interruption after checkpoint')
+
+
+def state_equal(a,b):
+    """Exact recursive checkpoint comparison, including full optimizer tensors."""
+    if torch.is_tensor(a):return torch.is_tensor(b) and torch.equal(a.cpu(),b.cpu())
+    if isinstance(a,np.ndarray):return isinstance(b,np.ndarray) and np.array_equal(a,b)
+    if isinstance(a,dict):return isinstance(b,dict) and a.keys()==b.keys() and all(state_equal(a[k],b[k]) for k in a)
+    if isinstance(a,(list,tuple)):return isinstance(b,type(a)) and len(a)==len(b) and all(state_equal(x,y) for x,y in zip(a,b))
+    return a==b
+
+
+@HOOKS.register_module(force=True)
+class Base5SmokeResumeProof(Hook):
+    # Run after MoraiResumeEvidenceHook restores main-process RNG.
+    priority='LOWEST'
+    def before_train(self,runner):
+        if not runner.cfg.get('resume',False):return
+        source=torch.load(runner.cfg.load_from,map_location='cpu',weights_only=False)
+        rng=source['base5_rng']
+        checks=dict(model=state_equal(source['state_dict'],runner.model.state_dict()),
+            optimizer_and_scaler=state_equal(source['optimizer'],runner.optim_wrapper.state_dict()),
+            schedulers=state_equal(source['param_schedulers'],[p.state_dict() for p in runner.param_schedulers]),
+            python_rng=state_equal(rng['python'],random.getstate()),
+            numpy_rng=state_equal(rng['numpy'],np.random.get_state()),
+            torch_rng=state_equal(rng['torch'],torch.get_rng_state()),
+            cuda_rng=state_equal(rng['cuda'],torch.cuda.get_rng_state_all()),
+            iteration=runner.iter==source['meta']['iter'],
+            no_compiler_key_prefix=all('_orig_mod.' not in k for k in source['state_dict']))
+        (Path(runner.work_dir)/'resume_payload_proof.json').write_text(json.dumps(checks,indent=2)+'\n')
+        if not all(checks.values()):raise ValueError('Resumed full-state payload differs: '+str(checks))
 
 
 def jpeg_smoke_subset(source, profile, selected, output):
@@ -84,23 +117,29 @@ def main():
     p.add_argument('--data',type=Path,required=True); p.add_argument('--output',type=Path,required=True)
     p.add_argument('--config',type=Path,required=True); p.add_argument('--init-checkpoint',type=Path,required=True)
     p.add_argument('--profile',choices=['448x896','512x1056'],default='448x896')
-    p.add_argument('--capture',action='append',help='Exactly two explicit train tokens for a targeted geometry smoke')
+    p.add_argument('--batch',type=int,choices=[1,4],default=1)
+    p.add_argument('--partial-final-batch',action='store_true',
+                   help='With batch 4 use seven captures, exercising the real 5K final batch of three')
+    p.add_argument('--capture',action='append',help='Explicit distinct train tokens for two smoke updates')
     a=p.parse_args()
+    if a.partial_final_batch and a.batch!=4:p.error('Partial final batch probe requires batch 4')
+    sample_count=2*a.batch-int(a.partial_final_batch)
     if a.output.exists(): p.error('Use a fresh output')
     a.output.mkdir(parents=True)
     source=a.data/'infos'/a.profile
     info=pickle.loads((source/'morai_base5_infos_train.pkl').read_bytes())
     records=info['data_list']; labels=lambda r:{i['bbox_label_3d'] for i in r['instances']}
     if a.capture:
-        if len(a.capture)!=2 or len(set(a.capture))!=2:p.error('Provide exactly two distinct train capture tokens')
+        if len(a.capture)!=sample_count or len(set(a.capture))!=sample_count:p.error('Provide exactly the smoke sample count distinct train tokens')
         lookup={r['token']:r for r in records}
         selected=[lookup[token] for token in a.capture]
     else:
         selected=[next(r for r in records if 3 in labels(r))]
         missing=set(range(4))-labels(selected[0])
         selected.append(max((r for r in records if r['token']!=selected[0]['token']),key=lambda r:len(labels(r)&missing)))
+        selected.extend([r for r in records if r['token'] not in {s['token'] for s in selected}][:sample_count-len(selected)])
     if set.union(*(labels(r) for r in selected)) != set(range(4)):
-        raise ValueError('Selected two captures do not exercise all four classes')
+        raise ValueError('Selected captures do not exercise all four classes')
     policy=json.loads((a.data/'manifest.json').read_text()).get('image_policy')
     if policy:
         data=a.output/'mini_portable'
@@ -108,15 +147,17 @@ def main():
     else:
         data=raw_smoke_subset(a,info,selected,source)
     args=argparse.Namespace(data=data,profile=a.profile,config=a.config,work_dir=a.output/'training',
-        epochs=2,batch=1,accumulate=1,workers=0,lr=1e-4,warmup_updates=1,seed=261010,
+        epochs=2,batch=a.batch,accumulate=1,workers=0,lr=1e-4,warmup_updates=1,seed=261010,
         init_checkpoint=a.init_checkpoint,allow_random_init=False,resume=None,disable_val=True,wandb=False)
     cfg,manifest=prepare(args); import_modules_from_strings(**cfg.custom_imports)
     cfg.custom_hooks.append(dict(type='Base5SmokeStop'))
+    cfg.custom_hooks.append(dict(type='Base5SmokeResumeProof'))
     try: Base5AtomicRunner.from_cfg(cfg).train()
     except PlannedStop: pass
     else: raise ValueError('Planned interruption not reached')
     first=torch.load(args.work_dir/'epoch_1.pth',map_location='cpu',weights_only=False)
     args.resume='auto'; resumed_cfg,_=prepare(args)
+    resumed_cfg.custom_hooks.append(dict(type='Base5SmokeResumeProof'))
     Base5AtomicRunner.from_cfg(resumed_cfg).train()
     final=torch.load(args.work_dir/'epoch_2.pth',map_location='cpu',weights_only=False)
     evidence=json.loads((args.work_dir/'resume_start.json').read_text())
@@ -127,10 +168,12 @@ def main():
     if any(not torch.isfinite(v).all() for v in final['state_dict'].values() if v.is_floating_point()):
         raise ValueError('Nonfinite trained weights')
     report=dict(valid=True,profile=a.profile,captures=[r['token'] for r in selected],classes=list(range(4)),
+        batch=a.batch,resume_payload_proof=json.loads((args.work_dir/'resume_payload_proof.json').read_text()),
+        partial_final_batch=a.partial_final_batch,
         image_policy=policy,
         first_checkpoint_iteration=2,final_checkpoint_iteration=4,resume_start=evidence,
         checkpoint_sha_contract=manifest['contract_sha256'],
-        scope='two real captures, four AMP iterations; not quality or converged model',
+        scope='two batches per epoch, four AMP iterations; not quality or converged model',
         atomic_partial_files=list(map(str,args.work_dir.glob('*.partial-*'))))
     (a.output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
