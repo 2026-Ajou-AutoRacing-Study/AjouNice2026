@@ -27,13 +27,13 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = dict(
     host='root@175.155.64.164', port=19463,
-    source='/workspace/base5_training_final_health_source_261011',
-    data='/workspace/base5_sunny13_jpeg90_verified_v2_261011',
-    work='/workspace/base5_training_sunny13_query_prior_fixed_55272391_261011',
+    source='/workspace/base5_training_pedestrian_merged_source_261011',
+    data='/workspace/base5_sunny13_jpeg90_pedestrian_merged_261011',
+    work='/workspace/base5_training_sunny13_pedestrian_merged_v2_55272391_261011',
     initializer='/workspace/base5_nuscenes_camera_lidar_xy_261011.pth',
-    config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_training_compiled_candidate.py',
-    contract='a72aaec76e4c3cd8de73f4f6ebd0dc3945780db7951da671938d0e6dcc96aad8',
-    remote_script='/workspace/base5_oneclick_261011/base5_vast_oneclick.py',
+    config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged.py',
+    contract='486aee660511fcd04b393e7ac0acd49ea77c45bded857141a4c81024ca665843',
+    remote_script='/workspace/base5_oneclick_pedestrian_merged_261011/base5_vast_oneclick.py',
     entity='AjouNice2026', project='morai-3d-object-detection',
     probe_id='base5-health-online-probe-261011',
     train_session='base5-sunny13-training', backup_session='base5-sunny13-backup',
@@ -101,6 +101,9 @@ def validate_manifest(c, resume=False):
                     train_count=4255, val_enabled=True, lr=1e-4)
     if any(identity.get(key) != value for key, value in expected.items()):
         raise ValueError('Training settings differ from qualification')
+    if (identity.get('training_label_policy') != 'animal_to_pedestrian_v1' or
+            list(identity.get('classes', ())) != ['vehicle', 'pedestrian', 'obstacle']):
+        raise ValueError('Expected merged three-class Base5; never resume the old four-class run')
     source = Path(c['source'])
     for name, expected_hash in identity['source_hashes'].items():
         if hashlib.sha256((source / name).read_bytes()).hexdigest() != expected_hash:

@@ -11,13 +11,20 @@ from torch.nn.utils.fusion import fuse_conv_bn_eval
 
 
 BASE5_CLASSES = ["vehicle", "pedestrian", "obstacle", "animal"]
+BASE5_MERGED_CLASSES = BASE5_CLASSES[:3]
 COMPILE_PARTS = {"camera": ("img_backbone",), "neck": ("img_neck",),
                  "bev": ("fusion_layer", "pts_backbone", "pts_neck")}
 
 
 def validate_base5_runtime(config):
-    if list(config.get("metainfo", {}).get("classes", ())) != BASE5_CLASSES:
-        raise ValueError("Base5 runtime requires the explicit four-class order")
+    classes = list(config.get("metainfo", {}).get("classes", ()))
+    policy = config.get("required_training_label_policy")
+    if classes == BASE5_MERGED_CLASSES and policy == 'animal_to_pedestrian_v1':
+        pass
+    elif classes != BASE5_CLASSES or policy:
+        raise ValueError("Base5 runtime requires the explicit four-class order or audited three-class animal merge")
+    if config.model.bbox_head.get('num_classes', len(classes)) != len(classes):
+        raise ValueError("Base5 runtime head/class count mismatch")
     if (config.model.type not in ("BEVFusion", "MoraiTrainingRuntimeBEVFusion") or
             config.model.pts_voxel_encoder.num_features != 4 or
             config.model.get("compile_camera", False)):

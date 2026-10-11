@@ -107,6 +107,9 @@ def jpeg_smoke_subset(source, profile, selected, output):
         source_tokens=sorted(tokens),scope='Bounded smoke only; not train/val selection or production data')
     if inventory.get('box_geometry_policy'):
         result['box_geometry_policy'] = inventory['box_geometry_policy']
+    if inventory.get('training_label_policy'):
+        result['training_label_policy'] = inventory['training_label_policy']
+        result['classes'] = inventory['classes']
     (output/'manifest.json').write_text(json.dumps(result,indent=2)+'\n')
     validate(output,verify_hashes=True)
     return result
@@ -134,12 +137,16 @@ def main():
         lookup={r['token']:r for r in records}
         selected=[lookup[token] for token in a.capture]
     else:
-        selected=[next(r for r in records if 3 in labels(r))]
-        missing=set(range(4))-labels(selected[0])
+        class_count = len(info['metainfo']['classes'])
+        selected=[next(r for r in records if any(
+            i.get('original_semantic_class') == 'animal' or
+            (class_count == 4 and i['bbox_label_3d'] == 3) for i in r['instances']))]
+        missing=set(range(class_count))-labels(selected[0])
         selected.append(max((r for r in records if r['token']!=selected[0]['token']),key=lambda r:len(labels(r)&missing)))
         selected.extend([r for r in records if r['token'] not in {s['token'] for s in selected}][:sample_count-len(selected)])
-    if set.union(*(labels(r) for r in selected)) != set(range(4)):
-        raise ValueError('Selected captures do not exercise all four classes')
+    class_count = len(info['metainfo']['classes'])
+    if set.union(*(labels(r) for r in selected)) != set(range(class_count)):
+        raise ValueError('Selected captures do not exercise all configured classes')
     policy=json.loads((a.data/'manifest.json').read_text()).get('image_policy')
     if policy:
         data=a.output/'mini_portable'
@@ -167,7 +174,8 @@ def main():
         raise ValueError('Optimizer did not update before resume')
     if any(not torch.isfinite(v).all() for v in final['state_dict'].values() if v.is_floating_point()):
         raise ValueError('Nonfinite trained weights')
-    report=dict(valid=True,profile=a.profile,captures=[r['token'] for r in selected],classes=list(range(4)),
+    report=dict(valid=True,profile=a.profile,captures=[r['token'] for r in selected],classes=list(range(class_count)),
+        class_names=list(info['metainfo']['classes']),
         batch=a.batch,resume_payload_proof=json.loads((args.work_dir/'resume_payload_proof.json').read_text()),
         partial_final_batch=a.partial_final_batch,
         image_policy=policy,

@@ -11,7 +11,7 @@ from mmdet3d.apis import init_model
 from app.online_preprocessor import Base3OnlinePreprocessor, preprocessing_options_from_config
 from app.view_geometry import restore_view_geometry
 from app.inference_optimization import (
-    BASE5_CLASSES, InferenceOptimization, validate_base5_runtime,
+    InferenceOptimization, validate_base5_runtime,
 )
 
 
@@ -70,8 +70,8 @@ class BevFusionModel:
         self.requires_query_memory_context = (
             bbox_head_type == "MoraiQueryMemoryTransFusionHead")
         self.classes = list(config.get("metainfo", {}).get("classes", DEFAULT_CLASSES))
-        expected_classes = BASE5_CLASSES if base5_runtime else DEFAULT_CLASSES
-        if self.classes != expected_classes:
+        if not base5_runtime and (self.classes != DEFAULT_CLASSES or
+                                  config.get('required_training_label_policy')):
             raise ValueError("runtime class contract differs; use explicit --base5-runtime for Base5")
         if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or rgb_after_crop or compile_reference_layout or parallel_camera) and not base5_runtime:
             raise ValueError("Experimental inference optimization is Base5-only")
@@ -103,7 +103,8 @@ class BevFusionModel:
                 parallel_camera=parallel_camera)
         # Adapted legacy checkpoints may not carry MMDetection3D 1.x
         # dataset_meta. The explicitly validated runtime config is the
-        # authoritative label contract; Base5 does not remap animal to person.
+        # authoritative label contract; merged Base5 already learned animals as
+        # pedestrian. Never remap a four-class checkpoint at load time.
         self.model.dataset_meta = dict(getattr(self.model, "dataset_meta", None) or {})
         self.model.dataset_meta["classes"] = self.classes
         self.point_dim = int(config.model.pts_voxel_encoder.get(

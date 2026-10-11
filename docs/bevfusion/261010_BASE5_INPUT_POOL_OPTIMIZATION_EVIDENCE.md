@@ -3244,3 +3244,88 @@ Vast 인스턴스를 Destroy하지 않는다. 백업 지연을 학습 정상성�
 실제 통과했다(`ready_without_training`). 영수증은 로컬 ignored artifact의
 `base5_oneclick_261011/preflight.json`에 기록했다. GPU 학습·상주 watcher를 만들지 않고
 임시 SSH 중계는 검사 종료 시 해제했다. 사용자는 같은 명령에서 `--check`만 빼고 재개한다.
+
+<a id="base5-animal-pedestrian-merge-261011"></a>
+
+## 29. Animal → Pedestrian 학습 통합 — 2026-10-11
+
+사용자가 이번 학습에서는 동물을 Pedestrian으로 합치고, 학습 완료 후 성능을 보고
+추가 수집 여부를 결정했다. 자산별 사례 수가 적다는 이유만으로 증량하지 않는다.
+이 결정은 이전 4클래스 E2 재개보다 우선하며 통합의 성능 개선을 검증한 결과는 아니다.
+
+### 파생 라벨과 보존
+
+`prepare_base5_pedestrian_merged.py`는 신뢰하는 4클래스 portable의 infos를 새 출력으로
+변환한다. Animal 3을 Pedestrian 1로 바꾸고 각 instance에 `original_bbox_label_3d`와
+`original_semantic_class`를 추가한다. 사람·반려동물·유모차 등의 개별 BBox를 합치지 않는다.
+raw audit·자산명·component ID·BBox·LiDAR 점 수·가시성·장면 순서·train/val split과
+센서 파일은 유지한다. source/target 전체 payload SHA 검사를 수행하고 새 manifest와
+변환 전 manifest·통계 provenance를 기록한다. 공유 payload는 hardlink이며 편집하지 않는다.
+새 환경도 canonical raw/4클래스 infos를 보존한 후 같은 도구로 파생하면 된다.
+
+512×1056 기준 GT는 다음과 같다. 5,000장 / train 4,255 / val 745 / test 0은 유지한다.
+
+| 구분 | Vehicle | Pedestrian | Obstacle | 원래 Animal, Pedestrian에 포함 |
+|---|---:|---:|---:|---:|
+| Train | 4,178 | 2,557 | 2,615 | 247 |
+| Val | 341 | 687 | 674 | 34 |
+
+원래 Animal 247/34에는 Dog1 45/3, Dog2 40/7, Deer1 42/6,
+Ped_Pet1의 동물 component 120/18이 있다. 이는 클래스 instance 수이며 독립 장면 수가 아니다.
+로컬 파생본은 `artifacts/handoff/base5_sunny13_jpeg90_pedestrian_merged_v1_261011`이다.
+최초 일반 사용자 hardlink 시도는 root 소유 JPEG의 OS hardlink 보호로 실패했다.
+원본은 보존하고 컨테이너 root에서 새 v1 출력으로 완료했다. 실패한 부분 출력은 학습에 쓰지 않는다.
+
+### 학습·평가·추론 계약
+
+- 새 config는 `bevfusion_base5_fine_512_depth25_pedestrian_merged.py`다. head 3클래스,
+  dataset metainfo, ObjectNameFilter, train/val/test 라벨을 일치시킨다. 기존 4클래스 후보는 보존한다.
+- direct runner는 명시적 `animal_to_pedestrian_v1` 정책, 원래 클래스와 변환 라벨의 일치,
+  infos/manifest/config/head의 일치를 검사한다. 4클래스 데이터에서 animal을 조용히
+  버리거나 4클래스 checkpoint를 새 클래스 실행으로 resume하지 않는다.
+- MMDet3D 기본 parser는 이름에 `label`이 있는 모든 필드를 remap한다. 원래 label 3을
+  provenance로 남긴 필드는 기본 parser에 전달하지 않고, 학습 label 파싱 후 원본 값을
+  복원하도록 새 dataset adapter에서 보완했다. 단위 검사와 실제 전체 val 파싱을 통과했다.
+- `MoraiBase5MergedCenterMetric`은 기존 3클래스 AP 지표를 유지하고 원래 Pedestrian과
+  Animal의 1m one-to-one recall을 score 0.05/0.10/0.30에서 추가한다. 진단용 cutoff이며
+  배포 threshold를 확정한 값이 아니다. 모든 human/animal GT에 함께 매칭하므로 같은
+  예측을 사람·동물 모두의 성공으로 중복 계산하지 않는다. `subgroup/original_animal/...`
+  및 asset별 지표를 W&B에 기록한다. asset별 Ped_Pet1은 사람·동물 component를 함께
+  포함하므로 동물만 분석할 때는 original semantic 메타데이터를 함께 사용한다.
+- 3클래스 mean AP와 4클래스 mean AP는 분모와 분류 과제가 다르므로 직접 비교하지 않는다.
+  recall만으로 false positive가 해결됐다고 보지 않고 통합 Pedestrian AP·precision도 확인한다.
+- 새 inference runtime config는 동일 이름의 `_runtime.py`다. camera training compile은
+  OFF로 바꾸고 별도 추론 최적화는 기본 OFF다. Base5 runtime은 명시적 3클래스 정책을
+  추가 지원하지만 4클래스 가중치를 로드하며 label만 바꾸지는 않는다. production E25는 유지한다.
+
+### 실제 검증 범위
+
+로컬 단위·회귀 검사 18개, 사용자 실행기 검사 15개, 추론 최적화·계약 회귀 검사 8개를
+통과했다. 실제 5K의 두 crop
+profile 전체 split을 역변환 비교해 라벨·추가 provenance 외 데이터가 같은 것을 확인했다.
+745장 val의 실제 dataset adapter 및 metric에 perfect-GT 예측을 넣었을 때 center mean AP와
+사람·동물·asset subgroup recall은 모두 100%다. 이는 라벨·metric oracle이며 모델 정확도가 아니다.
+로컬·원격 새 512×1056 infos의 SHA256은 train/val/test 모두 일치한다.
+
+4090에서는 원래 Animal을 포함한 7장으로 batch 4→3, 네 번의 실제 AMP iteration을
+실행하고 첫 두 번 후 checkpoint에서 재개했다. model/optimizer·scaler/scheduler와
+Python/NumPy/Torch/CUDA RNG·iteration의 복원을 모두 확인했다. 최종 가중치는 유한값이며
+partial checkpoint 파일은 없다. 최종 report는 원격
+`/workspace/base5_pedestrian_merge_smoke_v2_261011/report.json`, 로컬
+`artifacts/evaluation/bevfusion/base5_pedestrian_merge_261011/smoke_report.json`이다.
+이 짧은 subset은 본학습에 섞지 않으며 1~2개 전체 epoch의 성능 시험으로 보고하지 않는다.
+첫 smoke의 report에 고정 4개 클래스 목록이 남은 표시 오류를 수정하고 새 v2에서 재검증했다.
+
+새 본학습의 원격 source/data/work·계약·명령은 [Vast 최신 실행 절](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)을
+따른다. camera+sparse XY 초기화와 fresh query prior·FP32 matching 보완을 유지한다.
+4클래스 E2의 optimizer나 검출 head를 자동 이식하지 않는다. agent는 24 epoch 본학습과
+상주 backup watcher를 시작하지 않았다. 다음은 사용자가 새 실행을 시작하고 완료 후
+사람·동물별 검출을 확인하는 것이다. 추가 수집과 정책 재변경은 그 결과를 보고 결정한다.
+
+최종 로컬 `bash scripts/runtime/start_base5_vast_training.sh --check`는 실제 원격 source/
+data/init/3클래스 계약, 유휴 48GB GPU, W&B 온라인 probe 재읽기, Drive 소량 쓰기·재읽기를
+통과했다(`ready_without_training`). 새 실행기를 최상위 단일 파일로 배포했을 때의
+부모 디렉터리 깊이 오류는 별도 실행기 디렉터리로 배포해 해결했다. 임시 통신 중계는
+검사 종료 후 해제했으며 본학습·상주 watcher는 만들지 않았다. 다음 명령은
+`--resume` 없는 새 시작이다. 기존 4클래스 E2의 외부 백업 미확정 상태는 유지하며
+이번 작은 Drive 연결 검사를 full checkpoint 백업 완료로 해석하지 않는다.

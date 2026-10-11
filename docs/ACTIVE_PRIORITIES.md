@@ -49,6 +49,12 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 최신 클래스 합의:** Animal을 Pedestrian으로 통합해 학습하고 완료 후
+  동물별 성능을 확인한다. 원본·BBox·기존 4클래스 E2는 보존한다. 새 학습은 별도
+  3클래스 실행이며 이전 E2 resume 명령을 재사용하지 않는다.
+  [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)와
+  [29절 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011)를 따른다.
+
 - **2026-10-11 저녁 학습 상태 점검:** 사용자 실행의 Base5 E2 Hungarian 비유한 비용을
   진단하고 FP32 detached matching을 보완했다. 원본 E1을 보존한 복구 E2의 전체
   train/val과 추가 E3를 완료했다. optimizer 이름·순서 guard·실제 CUDA resume와 최신 E3

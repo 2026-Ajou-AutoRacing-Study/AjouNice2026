@@ -67,6 +67,10 @@ def test_base5_rejects_default_and_partial_contract_before_loading(monkeypatch):
     monkeypatch.setattr(bevfusion_model, 'init_model', lambda *a, **kw: pytest.fail('Loaded invalid contract'))
     with pytest.raises(ValueError, match='explicit --base5-runtime'):
         bevfusion_model.BevFusionModel('config', 'checkpoint', {})
+    config.metainfo.classes = config.metainfo.classes[:3]
+    config.required_training_label_policy = 'animal_to_pedestrian_v1'
+    with pytest.raises(ValueError, match='explicit --base5-runtime'):
+        bevfusion_model.BevFusionModel('config', 'checkpoint', {})
 
 
 def test_base5_config_contract():
@@ -82,6 +86,11 @@ def test_base5_config_contract():
     del config.model.bbox_head.common_heads.vel
     config.metainfo.classes = config.metainfo.classes[:3]
     with pytest.raises(ValueError, match='four-class'): validate_base5_runtime(config)
+    config.required_training_label_policy = 'animal_to_pedestrian_v1'
+    config.model.bbox_head.num_classes = 3
+    validate_base5_runtime(config)
+    config.model.bbox_head.num_classes = 4
+    with pytest.raises(ValueError, match='head/class'): validate_base5_runtime(config)
 
 
 def test_mmcv_convmodule_fold():

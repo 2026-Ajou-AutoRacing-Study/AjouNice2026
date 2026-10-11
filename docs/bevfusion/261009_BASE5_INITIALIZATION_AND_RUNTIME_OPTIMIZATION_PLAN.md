@@ -6,7 +6,14 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 20:20 KST 학습 상태 보완·E2 완료
+## 현재 계획 허브 — 2026-10-11 Animal → Pedestrian 통합
+
+**사용자 결정으로 이번 Base5 학습은 Vehicle/Pedestrian/Obstacle 3클래스로 진행한다.**
+Animal의 학습 라벨만 Pedestrian으로 변환하며 원본 audit, 자산명, 원래 클래스와 개별
+BBox는 보존한다. 재수집과 동물 quota 증량은 하지 않는다. 학습 완료 후 사람·동물·자산별
+검출 결과를 확인하고 필요한 보강만 결정한다. [29절 구현·검증 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011)가
+아래의 4클래스 E2 재개 안내보다 우선한다. 4클래스 E2는 비교 이력으로 보존하고 새
+3클래스 work-dir에서 시작한다. 클래스 변경은 optimizer까지 이어가는 resume가 아니다.
 
 **제한 E1/E2 검증을 완료했고 장시간 본학습은 사용자 재개를 기다린다.** 사용자 실행의 첫 학습은 E1을 완료한 뒤
 E2 중반 Hungarian 비용 행렬의 비유한값으로 종료됐다. Base5-only FP32 target matching을
@@ -15,7 +22,8 @@ E2 중반 Hungarian 비용 행렬의 비유한값으로 종료됐다. Base5-only
 fresh query classifier prior의 실제 누락을 수정하고, nuScenes camera+sparse LiDAR의
 축 변환 초기화를 검증했다. 새 E1/E2 전체 검증의 mean AP는 35.16%→45.57%,
 E2 차량/보행자/장애물 AP는 72.67/72.40/37.20%다. Animal AP 0과 최종 수렴은 남은 과제다.
-이 실행의 E2 상태에서 사용자가 E3~24를 재개한다. agent는 본학습을 자동 시작하지 않는다.
+이 4클래스 실행의 E2는 보존한다. 최신 3클래스 학습은 별도 초기화·실행 계약을 사용하며
+agent는 본학습을 자동 시작하지 않는다.
 [중단 원인과 실제 복구 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011)을
 최신 실행 근거로 삼는다. 아래 17:46의 준비 이력과 짧은 cost gate를 수렴 인증으로 해석하지 않는다.
 
@@ -27,7 +35,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 
 | 항목 | 현재 결정·상태 | 다음 할 일 / 상세 근거 |
 |---|---|---|
-| 학습 입력·모델 | 사용자 선택으로 **공간 5/20cm·depth 25cm를 이번 학습 우선 후보**로 둔다. 512×1056, Q90 JPEG, ROI X±100/Y±30m, 4-class single-frame 7D, temporal/OD velocity OFF는 유지한다. | 기존 7.5/30cm·50cm 기본 config는 보존한다. 새 fine 후보와 원격 prepare-only는 [EVIDENCE 25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011)을 따른다. 본학습·AP 우위는 아직이다. |
+| 학습 입력·모델 | **공간 5/20cm·depth 25cm, 512×1056 Q90 JPEG, ROI X±100/Y±30m를 유지한다. 학습은 Animal을 Pedestrian에 통합한 3-class single-frame 7D다.** temporal/OD velocity는 OFF다. | [29절 클래스 전환](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011). 기존 4-class와 production E25는 보존한다. 통합의 정확도 이득은 아직 미검증이다. |
 | 로컬 가속 | 실제 5060 Ti 학습 step에서 depth 25cm 약 32.8%, 50cm 약 21.4% 단축을 확인했다. 원래 학습 조건은 유지하며 opt-in 후보로 제공한다. 카메라 compile을 더한 별도 후보는 기존 대비 약 37.6~45.8% 단축이며 수치·저장/재개 검사도 완료했다. | 로컬 근거는 [EVIDENCE 21절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011), 후속 4090의 실제 fine batch 4 검사는 [25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011)이다. 로컬 가속률을 원격에 그대로 적용하지 않는다. |
 | 로컬 추론 | 실제 300장 localhost 전체 응답에서 camera+neck compile의 비용 단축은 약 20.1%, 정밀 격자 안에서는 약 15.3%다. 단, decoded 출력 gate가 모두 통과하지 않아 **기본값으로 승격하지 않는다.** | [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011). 비컴파일 추론을 대안으로 유지한다. Base5 4-class 시험 서버를 구현했지만 ROS 배포·학습 완료 정확도·4090 70ms 달성은 아직이다. |
 | 최신 4090 재확인 | 300장 depth 25cm 비용·동일 모델 수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다. 전체 응답 약 71.8→65.9ms의 compiler 후보는 decoded gate 실패로 OFF다. | [EVIDENCE 23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011). 정밀 격자의 빈 출력은 비용 참고용이며 정합 통과로 인정하지 않는다. 이번 요청에서는 학습을 전혀 실행하지 않았다. |
@@ -37,14 +45,14 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 분리 stream 오류 보완 | 설치 라이브러리의 활성 voxel count 조기 읽기를 재현했다. LiDAR를 기본 stream에 두고 camera-side 병렬 실행으로 우회했다. 4090 300장 전체 응답은 비컴파일 약 71.3→65.8ms, compile 결합 비용은 약 59.2ms다. | [EVIDENCE 24절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011). 추론 전용 opt-in이며 기본 OFF다. sparse 예외 해결·입력 통제 검사와 학습된 모델의 실제 출력 gate·AP를 구분한다. 학습은 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
-| 초기화·재개 | **camera+sparse LiDAR XY 변환 초기화 + fresh query prior 보완을 채택.** 별도 E1/E2 전체 train/745장 val을 정상 완료했다. sparse-only 실패와 기존 camera-only E3는 보존한다. 새 E2 모델/optimizer는 유한값이고 추가 AMP skip은 없다. | [28절 초기화·전수 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011). 실제 source config로 E2 full state를 재개하며 새 optimizer로 바꾸지 않는다. E25/Base4/COST-only 가중치를 사용하지 않는다. |
-| 체크포인트 보존·사용자 실행 | 원본 E1과 복구 E3 full checkpoint의 **Drive 전체 SHA readback·COMPLETE·LATEST 검증 완료**. 새 실행의 대용량 백업은 20분 상한에서 종료되어 E2 외부 백업은 미확정이다. W&B와 bulk backup의 SSH 연결을 분리하고 full readback을 로컬로 옮겼다. 새 계약의 원격 resume preflight·Drive 쓰기/재읽기를 통과했으며 본학습·상주 watcher는 미시작이다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). 사용자의 `--resume`이 별도 백업 재시도를 함께 시작한다. 로컬 PC를 켜 두고 새 E2 외부 백업이 확인되기 전 Vast를 Destroy하지 않는다. |
+| 초기화·재개 | **camera+sparse LiDAR XY 변환 초기화 + fresh query prior 보완을 유지한다.** 3클래스는 새 head·optimizer·24 epoch 스케줄로 시작한다. 4클래스 E2는 보존하며 자동 변환·resume하지 않는다. | [28절 초기화 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011), [29절 새 클래스 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011). E25/Base4/COST-only 가중치를 사용하지 않는다. |
+| 체크포인트 보존·사용자 실행 | 기존 camera-only E1/복구 E3의 외부 백업은 검증 완료다. 4-class E2의 외부 백업은 아직 미확정이며 원격은 보존한다. 최신 실행기는 새 3클래스 work를 사용하고 W&B·Drive watcher를 유지한다. 본학습·상주 watcher는 미시작이다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). 새 실행은 `--resume` 없이 시작하고, 그 실행의 checkpoint가 생긴 뒤에만 `--resume`한다. 외부 백업 완료 전 Vast를 Destroy하지 않는다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
-현재 우선 순서는 **수치 중단·fresh prior 보완과 새 초기화 E1/E2 검증 완료 →
-W&B·Drive 포함 실행 계약 확인 → 사용자가 직접 E3~24 재개와 별도 백업 재시도 →
-완성 모델의 rosbag·추론 OFF/ON 비용/정합 확인**이다.
+현재 우선 순서는 **3클래스 파생 라벨·평가와 새 실행 계약 확인 →
+사용자가 W&B·Drive 포함 별도 24 epoch 학습 시작 → 완성 모델의 사람·동물별 성능 확인 →
+rosbag·추론 OFF/ON 비용/정합 확인**이다.
 사용자는 agent가 본학습을 시작하지 않고 실행 준비까지만 하도록 요청했다. 원격 학습은 tmux로
 실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을

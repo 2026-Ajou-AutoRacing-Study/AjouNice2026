@@ -1,5 +1,9 @@
 # BEVFusion documentation agent context
 
+2026-10-11 최신 클래스 결정은 EVIDENCE 29절의 Animal → Pedestrian 통합이다.
+원본 의미·BBox·수집은 보존하고 3클래스 파생 infos와 별도 fresh 실행을 사용한다.
+아래 4클래스 E2 재개는 비교 이력이다. 명령은 Vast 문서의 최신 3클래스 절을 따른다.
+
 이 디렉터리에서는 `README.md`가 문서 router다. CURRENT 문서를 실행 기준으로,
 EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한다. Dataset 경로가
 관련되면 `../../dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md`를 함께 확인한다.

@@ -39,6 +39,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| Animal → Pedestrian 학습 통합 / 원본·개별 BBox 보존 / 사람·동물별 평가 / 새 3클래스 실행 | [10-11 클래스 전환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011), [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
 | 사용자 실행·명시적 재개 / W&B 온라인 로깅·Drive 백업 / 로컬 PC 유지 | [10-11 사용자 실행기와 운영 조건](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
 | E2 matching 수치 오류 / GT·oracle metric / E25 초기화 차이 / query prior 수정 E1·E2 검증 / 재개 guard / full Drive 백업 | [10-11 학습 상태 복구 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-health-repair-261011) |
@@ -182,7 +183,8 @@ tracker의 시간 기반 추정·NMS·lifecycle은 유지한다. BabyStroller3�
 Sunny13 v132 본 5K는 사용자가 시작해 수집 중이다. 이번 runtime/input은 고정하고 종료 후
 [반복 준비 비용 최적화 A/B](../../dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md)를 수행할 계획이다.
 목표는 전체 20% 이상 단축이며 GT/안전/resume을 유지한다. 아래 미시작/승인 대기는 과거 준비 상태다.
-OBJ 차량은 Vehicle, Animal은 독립 라벨로 보존한다. 재수집 없이 Pedestrian으로 합칠 수 있지만 후처리·모델 설정 변경이 필요하다.
+OBJ 차량은 Vehicle이다. 2026-10-11 사용자 결정으로 Animal은 원본 의미를 보존하되 이번
+학습에서는 Pedestrian에 통합한다. 4클래스 E2는 보존하고 새 3클래스 실행을 사용한다.
 
 Base5/E25의 [batch1·ROS 포화 처리량](261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md)을 측정했다.
 5060 Ti에서 E25는 offline 13.90FPS, 원속도 ROS 11.47Hz/드롭 0, 약 98Hz stress 입력에서 출력 12.97Hz였다.

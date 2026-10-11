@@ -40,8 +40,32 @@ def prepare(args):
     if iterations % args.accumulate:
         raise ValueError('Epoch iterations must divide accumulation for epoch-boundary resume; use accumulate=1 or choose a compatible batch')
     cfg = Config.fromfile(str(args.config.resolve(strict=True)))
-    if tuple(cfg.classes) != ('vehicle', 'pedestrian', 'obstacle', 'animal'):
-        raise ValueError('Four-class contract required')
+    classes = tuple(cfg.classes)
+    label_policy = cfg.get('required_training_label_policy')
+    if classes == ('vehicle', 'pedestrian', 'obstacle'):
+        if label_policy != 'animal_to_pedestrian_v1':
+            raise ValueError('Three-class Base5 requires explicit animal merge policy')
+    elif classes != ('vehicle', 'pedestrian', 'obstacle', 'animal') or label_policy:
+        raise ValueError('Unsupported Base5 class contract')
+    if cfg.model.bbox_head.num_classes != len(classes):
+        raise ValueError('Head/class count mismatch')
+    if inventory.get('training_label_policy') != label_policy:
+        raise ValueError('Dataset/config training label policy mismatch')
+    for split in ('train', 'val', 'test'):
+        info = pickle.loads((root / 'infos' / args.profile /
+                             ('morai_base5_infos_' + split + '.pkl')).read_bytes())
+        if tuple(info['metainfo']['classes']) != classes or info['metainfo'].get('training_label_policy') != label_policy:
+            raise ValueError('Infos/config class contract mismatch')
+        for row in info['data_list']:
+            for instance in row.get('instances', []):
+                label = instance['bbox_label_3d']
+                if label not in range(len(classes)):
+                    raise ValueError('GT label outside model classes')
+                if label_policy:
+                    original = instance.get('original_bbox_label_3d')
+                    original_classes = ('vehicle', 'pedestrian', 'obstacle', 'animal')
+                    if original not in range(4) or instance.get('original_semantic_class') != original_classes[original] or label != (1 if original == 3 else original):
+                        raise ValueError('Merged GT lost original semantics or has incorrect mapping')
     height, width = map(int, args.profile.split('x'))
     if list(cfg.model.view_transform.image_size) != [height, width]:
         raise ValueError('Config/crop infos differ')
@@ -147,6 +171,8 @@ def prepare(args):
         initial_checkpoint_sha256=sha256(args.init_checkpoint) if args.init_checkpoint else None)
     if geometry_policy:
         identity['box_geometry_policy'] = geometry_policy
+    if label_policy:
+        identity.update(training_label_policy=label_policy, classes=classes)
     if jpeg_cache_identity:
         identity['jpeg_cache_manifest_sha256'] = jpeg_cache_identity
     previous_path = args.work_dir / 'run_manifest.json'

@@ -50,6 +50,8 @@ class OneclickTests(unittest.TestCase):
         (Path(c['data']) / 'manifest.json').write_text('{}')
         h = lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
         identity = dict(epochs=24, batch=4, workers=4, accumulate=1, train_count=4255,
+                        training_label_policy='animal_to_pedestrian_v1',
+                        classes=['vehicle', 'pedestrian', 'obstacle'],
                         val_enabled=True, lr=1e-4, source_hashes={'config.py': h(Path(c['source']) / c['config'])},
                         initial_checkpoint_sha256=h(c['initializer']),
                         config_sha256=h(Path(c['source']) / c['config']),
@@ -63,6 +65,17 @@ class OneclickTests(unittest.TestCase):
             self.assertEqual(launcher.validate_manifest(c)['contract_sha256'], c['contract'])
             c['contract'] = 'changed'
             with self.assertRaisesRegex(ValueError, 'contract'):
+                launcher.validate_manifest(c)
+
+    def test_four_class_run_cannot_be_resumed_as_merged(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c = self.fixture(Path(temp))
+            path = Path(c['work']) / 'run_manifest.json'
+            manifest = json.loads(path.read_text())
+            manifest['identity'].pop('training_label_policy')
+            manifest['identity']['classes'].append('animal')
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, 'old four-class'):
                 launcher.validate_manifest(c)
 
     def test_source_mutation_is_rejected(self):

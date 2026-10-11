@@ -17,7 +17,36 @@
 
 ## 사용자 실행용 딸깍 학습
 
-### 최신 준비 대상 — 2026-10-11 20:20 KST, E2 제한 검증 완료
+### 최신 준비 대상 — 2026-10-11, Animal → Pedestrian 3클래스
+
+사용자 결정에 따라 Animal을 Pedestrian으로 합친 별도 학습을 준비했다. 기존 4클래스
+E2는 삭제·수정하지 않는다. 클래스 출력과 optimizer가 달라지므로 아래 이전 실행의
+E2에서 resume하지 않는다. [29절 전수·저장/재개 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011)를 따른다.
+
+- Source: `/workspace/base5_training_pedestrian_merged_source_261011`.
+- Data: `/workspace/base5_sunny13_jpeg90_pedestrian_merged_261011`.
+- Work: `/workspace/base5_training_sunny13_pedestrian_merged_v2_55272391_261011`.
+- Initializer: `/workspace/base5_nuscenes_camera_lidar_xy_261011.pth`를 유지한다.
+- 계약: `486aee660511fcd04b393e7ac0acd49ea77c45bded857141a4c81024ca665843`.
+- 실제 `--check`에서 원격 동결 계약·W&B 온라인 probe·Drive 소량 쓰기/재읽기를 통과했다.
+  3클래스 짧은 CUDA 저장·재개 검증도 완료했지만 본학습과 상주 watcher는 시작하지 않았다.
+- 5K split, 512×1056 Q90, 공간 5/20cm, depth 25cm, batch 4, LR 1e-4, warm-up 500,
+  24 epoch와 camera 학습 compile ON을 유지한다. W&B·Drive watcher도 유지한다.
+- 학습 시작은 사용자가 수행한다. **첫 실행은 아래 명령이며 `--resume`을 붙이지 않는다.**
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/start_base5_vast_training.sh
+```
+
+이 3클래스 실행의 checkpoint가 생긴 뒤 중단됐다면 같은 명령에 `--resume`을 붙인다.
+실행기는 이전 4클래스 계약을 거부하며 source·데이터·클래스 정책을 검사한다.
+W&B의 Vehicle/Pedestrian/Obstacle 지표 이름은 유지하고 Animal AP는 별도 학습 클래스가
+아니므로 출력하지 않는다. 대신 `subgroup/original_animal/...` 및 자산별 recall을 기록한다.
+3클래스 mean AP와 이전 4클래스 mean AP를 직접 비교하지 않는다. 총 24 epoch의 운영
+예산은 기존 fine 실측 기준 약 4.8~5.4시간이며 이번 전환에서 전체 epoch 비용을 재측정하지 않았다.
+
+### 이전 4클래스 준비 이력 — 2026-10-11 20:20 KST, E2 제한 검증 완료
 
 현재 실행기는 query classifier prior를 보완한 source와 camera+sparse LiDAR initializer로
 전환했다. 새 E1/E2의 전체 validation mean AP는 35.16%→45.57%이며 E2에서 정상 종료했다.

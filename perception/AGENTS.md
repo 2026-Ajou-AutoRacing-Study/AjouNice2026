@@ -1,5 +1,10 @@
 # Perception agent context
 
+2026-10-11 최신 사용자 결정은 Animal → Pedestrian 학습 통합이다. 현재 허브와
+EVIDENCE 29절을 먼저 읽는다. 원본 audit·동물 종류·BBox는 보존하며 학습 클래스만 3개다.
+4클래스 E2를 3클래스로 resume하지 않는다. 새 source/data/work 계약과 사용자 실행기를
+사용하며 본학습은 사용자가 시작한다. 아래 4-class/E2 재개 안내는 이전 실행 이력이다.
+
 이 디렉터리의 인지 모델 작업에서는 다음 순서로 CURRENT 문서를 확인한다.
 
 1. `../docs/ACTIVE_PRIORITIES.md`
