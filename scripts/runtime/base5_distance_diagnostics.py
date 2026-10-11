@@ -17,7 +17,38 @@ import numpy as np
 
 FAR_BINS = ((50., 80.), (80., 100.))
 CLASSES = ('vehicle', 'pedestrian', 'obstacle')
-VERSION = 'base5_distance_diagnostics_v1'
+VERSION = 'base5_distance_diagnostics_v2'
+
+
+def range_map_metrics(metrics, prefix, classes=CLASSES):
+    """Fixed-class macro AP; absent GT is unavailable, not a zero AP."""
+    supported = sum(metrics[f'{prefix}/{name}_GT'] > 0 for name in classes)
+    result = {f'{prefix}/mAP_available': float(supported == len(classes)),
+              f'{prefix}/mAP_GT_classes': float(supported)}
+    if supported == len(classes):
+        values = [float(metrics[f'{prefix}/{name}_mean_AP']) for name in classes]
+        # The canonical AP integrator may return 1 + floating-point epsilon.
+        if not all(np.isfinite(value) and -1e-10 <= value <= 1 + 1e-10 for value in values):
+            raise ValueError('Invalid class AP in ' + prefix)
+        result[f'{prefix}/mAP'] = float(np.mean(values))
+    return result
+
+
+def far_map_backfill_rows(receipts):
+    """Derive only missing aggregate AP from exact saved validation scalars."""
+    rows = []
+    epochs = set()
+    for receipt in sorted(receipts, key=lambda r: r['epoch']):
+        epoch = receipt['epoch']
+        if epoch in epochs:
+            raise ValueError('Duplicate validation epoch')
+        epochs.add(epoch)
+        row = {'epoch': epoch}
+        for lower, upper in FAR_BINS:
+            prefix = f'val/range/{lower:g}_{upper:g}m'
+            row.update(range_map_metrics(receipt['metrics'], prefix))
+        rows.append(row)
+    return rows
 
 
 def enable_resume_metadata_updates(cfg):
@@ -50,6 +81,8 @@ def diagnostic_metrics(samples, classes=CLASSES):
             extra[f'{prefix}/{name}_GT'] = float(count)
             extra[f'{prefix}/{name}_available'] = float(count > 0)
             extra[f'{prefix}/{name}_small_sample'] = float(0 < count < 20)
+        if (lower, upper) in FAR_BINS:
+            extra.update(range_map_metrics(extra, prefix, classes))
     for direction in ('front', 'rear'):
         directional = []
         for s in samples:
@@ -105,6 +138,10 @@ def install():
 
     def init(self):
         original_init(self)
+        from perception.detection3d.common.evaluation.morai_detection import DEFAULT_DISTANCE_BINS
+        for lower, upper in (*DEFAULT_DISTANCE_BINS, *FAR_BINS):
+            self._wandb.define_metric(f'val/range/{lower:g}_{upper:g}m/mAP',
+                                     step_metric='epoch', hidden=False, summary='max', overwrite=True)
         for lower, upper in FAR_BINS:
             for name in CLASSES:
                 self._wandb.define_metric(f'val/range/{lower:g}_{upper:g}m/{name}_mean_AP',

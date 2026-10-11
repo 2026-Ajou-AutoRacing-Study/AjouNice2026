@@ -3537,3 +3537,73 @@ W&B API의 실제 history에서 `epoch=11`과 새 AP 값의 일치를 확인했�
 GT·방향별 AP도 온라인 summary에서 확인했다. 사용자 수동 workspace의 패널 위치는
 수정하지 않았으며 위 표의 제목·키로 두 핵심 패널을 추가하면 된다.
 전체 학습·watcher는 그대로 진행하고 인스턴스를 Stop/Destroy하지 않았다.
+
+### 후속 보완: 구간 전체 mAP 누락 — 2026-10-12 KST
+
+사용자가 `val/range/50_80m/mAP`, `val/range/80_100m/mAP`가 보이지 않는다고 확인했다.
+v1 확장은 클래스별 AP만 가져오고 세 클래스 평균인 구간 mAP를 누락했다. 기존 0~50m의
+구간 mAP는 계산·기록됐지만 자동 노출 정의도 빠져 있었다. 학습·전체 AP 계산 오류가
+아니며 앞선 ‘지표 추가 완료’ 설명에 이 누락을 명시하지 못했다.
+
+v2 평가 전용 확장은 다음을 보완한다. 모델·훈련 source·데이터·LR 스케줄은 바꾸지 않는다.
+
+- 50~80/80~100m의 mAP를 차량·보행자·장애물 `mean_AP`의 동일 비중 평균으로 기록한다.
+  각 클래스의 AP 자체는 기존 0.5/1/2/4m 중심 매칭 AP 평균 그대로다. GT 수 가중 평균이나
+  두 거리 구간의 평균은 아니다.
+- 세 클래스 모두 GT가 있을 때만 새 구간 mAP를 기록한다. 클래스가 하나라도 GT 0이면
+  mAP 키를 생략하고 `mAP_available=0`, `mAP_GT_classes`에 지원 클래스 수를 남긴다.
+  지원 클래스만 평균해 같은 이름의 지표 의미가 바뀌거나 GT 없는 클래스를 0점으로 처리하지 않는다.
+  GT가 있으나 예측이 없는 클래스의 AP 0은 평균에 그대로 포함한다.
+- 기존 네 구간과 새 두 구간, 총 여섯 구간의 `/mAP`를 W&B에서 `epoch` 축·visible로 정의한다.
+  기존 0~50m mAP 값과 계산 방식은 바꾸지 않는다.
+
+| 섹션 | 제목 | X축 | Y축 |
+|---|---|---|---|
+| `Val — Distance section` | `50–80m 전체 mAP` | `epoch` | `val/range/50_80m/mAP` |
+| `Val — Distance section` | `80–100m 전체 mAP` | `epoch` | `val/range/80_100m/mAP` |
+| 같은 섹션, 기존 네 구간 | `0–50m 구간별 mAP` | `epoch` | `val/range/{0_10,10_20,20_30,30_50}m/mAP` |
+
+Y축은 0~1이며 1이 100%다. `.max`는 summary용 이름으로 epoch 그래프에는 사용하지 않는다.
+기존 클래스별 AP와 지원 GT 수 패널도 유지한다. 사용자 수동 workspace의 섹션 배치를
+직접 수정한 것은 아니므로 필요하면 위 키로 패널을 추가한다.
+
+`scripts/runtime/backfill_base5_distance_maps.py`는 실제 저장된 validation receipt에서만
+세 클래스 평균을 복원한다. 훈련 worker와 같은 파일 lock을 잡아 W&B 동시 writer를 금지한다.
+기존 run에서 `resume=must`로 원래 epoch 좌표에 **새 history 행을 추가**하며 기존 행이나
+W&B 내부 `_step`을 덮어쓰지 않는다. 이미 같은 값이 있으면 생략하고 다른 값이면 중단한다.
+원거리 클래스 AP가 저장되기 전인 E1~10을 추정하거나 추가 validation하지 않는다.
+기존 receipt·checkpoint도 수정하지 않는다. mAP만 복원하므로 학습을 처음부터 다시 하지 않는다.
+
+로컬 CPU 단위·통합 검사 33개를 통과했다. 클래스 동일 비중 평균·GT 없음과 미검출 구분·
+반올림 오차·복원 중복/충돌 거부·여섯 visible mAP 정의·기존 scalar 보존·별도 hash guard를 검사했다.
+v2 확장 SHA256은 `7248640fccdfb5538a4fa32ccca282b8b5682c9d1761d2914e384e5cb3e93818`이다.
+위 v1 해시는 최초 적용 당시의 기록으로 보존한다.
+
+**00:37~00:38 KST 실제 복원 확인:** E15의 train 1,064 iteration과 745장 전체 validation을
+완료한 뒤 PID 10,897을 SIGINT로 중단했다. E15 체크포인트 SHA256은
+`5ee3436cad2662230cae80435fdb43e3d293dd938e6ea652d1cc799e2af1904f`이며 epoch 15 / iter 15,960이다.
+E11~15의 원거리 mAP 열이 W&B history에서 비어 있음을 확인한 뒤 동일 run에 새 행 5개를
+추가했다. API의 exact history 재읽기로 두 mAP 키 모두 원래 epoch·계산값과 일치함을 확인했다.
+W&B 내부 history step 770~774에 추가한 것이며 기존 train/val 행을 교체하지 않았다.
+
+| epoch | 50~80m mAP | 80~100m mAP |
+|---|---:|---:|
+| 11 | 38.68% | 8.98% |
+| 12 | 30.30% | 10.17% |
+| 13 | 36.00% | 10.00% |
+| 14 | 31.76% | 10.48% |
+| 15 | 34.23% | 9.67% |
+
+80~100m의 GT는 차량 6 / 보행자 3 / 장애물 4개로 소표본이다. 이 중간 결과와 평균을
+일반화 성능 또는 안전 인증으로 해석하지 않는다. 원본 receipt와 추가 복원 근거는 로컬
+`artifacts/evaluation/bevfusion/base5_distance_map_repair_261012/`에 따로 보존한다.
+
+**00:40~00:42 KST 재개 확인:** v2 확장과 별도 SHA guard를 배포하고 같은 사용자 실행기로
+재개했다. 훈련·W&B·Drive 사전 검사를 통과했으며 E15 / iter 15,960에서 E16으로 진입했다.
+`resume_start.json`의 LR은 `3.263829998845258e-05`, optimizer update 수는 15,956,
+AMP scaler는 256이다. 같은 계약과 메인 RNG·optimizer·scheduler 복원 경로를 유지한다.
+E16의 80 iteration에서 정상 step 약 0.566초와 유한 loss를 확인했다. 새 console은
+`console_resume_1791736792.log`다. 재개 초기의 ETA 증가는 warm-up 평균이 반영된 것이며
+새 로깅을 위한 추가 모델 연산이나 추가 validation은 없다. E16 전체 validation의 새 자동
+mAP 기록은 이후 정상 에폭 종료 때 확인할 수 있다. 이번 실제 온라인 검증은 E11~15 복원분이다.
+본학습·Drive watcher는 계속 진행하며 인스턴스를 Stop/Destroy하지 않는다.

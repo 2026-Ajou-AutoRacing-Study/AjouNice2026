@@ -35,6 +35,12 @@ bash scripts/runtime/start_base5_vast_training.sh --resume
 같은 W&B run이므로 예전 그래프는 보존되고 새 원거리 지표만 적용한 뒤의 epoch부터 나타난다.
 예전 epoch의 원거리 AP를 임의 보간하거나 소급 기록하지 않는다.
 
+10-12 후속 v2는 누락된 `val/range/{50_80,80_100}m/mAP`와 기존 네 구간 mAP의
+자동 노출 정의를 보완한다. 실제 저장된 E11 이후 클래스 AP에서만 mAP를 복원하며
+원거리 AP가 없었던 E1~10을 추정하지 않는다. 복원은 훈련 writer가 정지한 동안 같은
+run의 원래 epoch 좌표에 새 history 행을 추가하는 방식이며 기존 기록을 지우지 않는다.
+최신 실제 중단·재개·온라인 확인은 위 31절의 ‘후속 보완’ 기록을 따른다.
+
 ### 최신 실행 대상 — 2026-10-11, 호환 nuScenes 초기화 E1 채택
 
 3클래스 동일 조건에서 camera+sparse 기준과 BEV·fusion·head까지 추가 재사용하는 후보를

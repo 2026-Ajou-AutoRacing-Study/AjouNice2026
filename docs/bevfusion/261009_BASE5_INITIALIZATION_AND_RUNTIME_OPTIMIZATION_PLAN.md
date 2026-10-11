@@ -8,6 +8,13 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 원거리 평가 추가와 본학습 재개
 
+**10-12 후속 로깅 보완 완료:** 평가 확장 v2에서 누락된 50~80/80~100m 구간 전체 mAP를
+추가하고 기존 네 구간 mAP도 W&B에 노출한다. 저장된 E11~15 클래스 AP의 정확한 평균을
+같은 run의 원래 epoch 좌표로 복원했고 온라인 history를 확인했다. E15 완료 체크포인트에서
+E16으로 재개해 정상 학습을 확인했다. 훈련 계약·모델·optimizer·24 epoch 스케줄은 유지한다.
+새 자동 계산은 E16 이후 validation에 적용되며 아래 E11 추가·E12 진행은 최초 적용 이력이다.
+지원 GT와 키·복원 방식·실제 재개는 [31절 후속 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)을 따른다.
+
 **2026-10-12 최신 작업 완료:** 사용자가 시작한 3클래스 본학습은 진행 중이다. 사용자 요청으로
 10에폭 전체 검증·체크포인트 완료 후 잠시 중단하고, 기존 0~50m 거리 진단에 50~80m와
 80~100m AP를 추가해 같은 W&B run에서 11에폭부터 재개했다. 11에폭 전체 검증과 새 지표의
@@ -64,7 +71,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | **camera+sparse에 더해 호환 nuScenes BEV·fusion·head까지** 축·물리 단위를 변환한 초기화를 채택한다. 3클래스 동일 조건 E1 비교를 완료했으며 후보 E1에서 E2~24를 이어간다. | [30절 비교·변환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011). E25/Base4/COST-only 가중치는 사용하지 않는다. 4클래스 E2는 별도 보존한다. |
 | 체크포인트 보존·사용자 실행 | 사용자 실행의 본학습·W&B 온라인·Drive watcher가 진행 중이다. 10-12 원거리 평가 확장은 같은 source/data/work/훈련 계약과 W&B run ID를 유지한다. | [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011). **`bash scripts/runtime/start_base5_vast_training.sh --resume`**는 마지막 완료 체크포인트부터 이어간다. 전체 최종 백업 완료 전 Vast를 Destroy하지 않는다. |
-| 거리별 평가 | 기존 0~10/10~20/20~30/30~50m에 **50~80/80~100m 두 구간**을 추가한다. 같은 원거리 구간의 차량 전방·후방 AP와 GT 수를 따로 기록한다. | [31절의 키·W&B 패널 배치](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012). 거리 기준은 ego/LiDAR XY 방사 거리다. GT 없는 구간은 AP를 기록하지 않으며 GT 20개 미만은 소표본으로 표시한다. 직사각형 ROI의 방사 거리 100m 이상 모서리는 전체 AP에 유지하고 GT 수만 별도로 기록한다. |
+| 거리별 평가 | 기존 0~10/10~20/20~30/30~50m에 **50~80/80~100m 두 구간**을 추가한다. 원거리 클래스 AP·구간 전체 mAP·차량 전방/후방 AP·GT 수를 기록하며 여섯 구간 mAP를 노출한다. E11~15의 누락된 mAP 복원을 완료했다. | [31절의 키·W&B 패널 배치와 v2 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012). 거리 기준은 ego/LiDAR XY 방사 거리다. 새 mAP는 세 클래스 모두 GT가 있을 때만 동일 비중 평균으로 기록한다. GT 20개 미만은 소표본으로 표시한다. 방사 거리 100m 이상 모서리는 전체 AP에 유지하고 GT 수만 따로 기록한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 

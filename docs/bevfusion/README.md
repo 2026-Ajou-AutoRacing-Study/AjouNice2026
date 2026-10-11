@@ -12,6 +12,8 @@
 2026-10-12 최신 실행은 [31절 원거리 평가 추가·동일 run 재개](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)다.
 본학습은 사용자가 이미 시작했다. 50~80/80~100m의 두 진단 구간을 추가하되 동결 학습
 소스·모델·스케줄·기존 전체 지표·W&B run ID는 유지한다. 아래 ‘본학습 미시작’은 과거 이력이다.
+같은 31절의 후속 v2는 누락된 구간 mAP와 여섯 구간의 visible 정의를 보완하고,
+저장된 E11 이후 클래스 AP에서만 mAP를 복원한다. 기존 history·훈련 계약은 유지한다.
 
 2026-10-11 초기화 선택은 [30절 호환 nuScenes 초기화 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)다.
 동일 3클래스 E1 전체 val에서 추가 재사용 후보가 우세해 채택하고 2 epoch는 생략했다.
