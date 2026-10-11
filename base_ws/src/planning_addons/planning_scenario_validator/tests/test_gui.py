@@ -260,7 +260,7 @@ class GuiWindowTests(unittest.TestCase):
                     app["actions"]["open_yaml"](personal)
                     top = next(widget for widget in app["root"].winfo_children()[0].winfo_children()
                                if isinstance(widget, ttk.LabelFrame)
-                               and widget.cget("text").startswith("설정 파일"))
+                               and widget.cget("text") == "내 미션 선택하기")
                     button = next(widget for widget in top.winfo_children()
                                   if isinstance(widget, ttk.Button) and widget.cget("text") == "내 작업 폴더 열기")
                     with patch.object(gui_module.subprocess, "Popen") as popen, \
@@ -581,7 +581,8 @@ class GuiWindowTests(unittest.TestCase):
                 root = app["root"]
 
                 def exercise():
-                    self.assertEqual(app["active"]["source_path"].stem, "static_pair_mission_gt_split")
+                    self.assertEqual(gui_module.mission_directory(app["active"]["source_path"]).name,
+                                     "static_obstacle")
                     self.open_fixture(app, temp)
                     config_path = app["actions"]["save"]()
                     state_path = campaign_output(app["active"]["document"]) / "campaign_state.json"

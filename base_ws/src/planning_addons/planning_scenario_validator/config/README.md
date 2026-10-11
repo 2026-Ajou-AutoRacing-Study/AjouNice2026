@@ -17,7 +17,7 @@ config/
 
 미션은 `roundabout`, `static_obstacle`, `dynamic_obstacle`, `gps_shadow`, `highway`다. 사용자 이름 대신 미션으로 구분한다.
 
-GUI 기본 탭에서 일상 옵션·파일 패턴/장면 선택·반복·측위/탐지·녹화/공유를 수정하고 파란 `YAML 저장`을 누른다. 현재 개인 파일에 저장한다. 회색 목적지·시간·네트워크·Python 환경은 확인용이며 필요한 경우만 VSCode에서 수정한다. 경로 복사 → GUI 상단 Ctrl+V → Enter/불러오기도 지원한다. 주석의 ‘여기부터 수정 X’ 아래는 미션 고정 설정이다.
+GUI 상단 **내 미션 선택하기 → 담당 미션 → 실험 YAML**로 고른다. 목록은 그 미션의 base/예제와 workspace/내 작업 파일만 표시하고 자유 경로 입력·붙여넣기는 받지 않는다. 기본 탭에서 일상 옵션·파일 패턴/장면 선택·반복·측위/탐지·녹화/공유를 수정하고 `YAML 저장`을 누른다. 회색 목적지·시간·네트워크·Python 환경은 확인용이며 필요한 경우만 VSCode에서 수정·저장한 뒤 새로고침한다. 새 YAML도 해당 미션 workspace에 저장한 뒤 새로고침한다. 주석의 ‘여기부터 수정 X’ 아래는 미션 고정 설정이다.
 
 고주로 반복용은 `missions/highway/base/random_example.yaml`이다. JSON 2개 × 10회 = 20회이며 repeat/seed/범위를 위쪽에서 바꾼다. planning 팀의 JSON 1–2개 대조는 GUI `planning 빠른 테스트` 탭에 별도로 둔다.
 

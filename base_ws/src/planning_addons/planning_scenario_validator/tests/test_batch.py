@@ -322,8 +322,11 @@ sys.exit(batch.run_batch(sys.argv[1], runner=%r, check_install=False))
         original_inputs = [path.read_bytes() for path in self.paths]
         original_state = (Path(previous['run_directory']) / 'state.json').read_bytes()
         captured = []
-        example = gui.MISSIONS / 'highway/base/example.yaml'
-        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.root / 'gui')}), patch.object(gui, 'MISSIONS', self.root / 'missions'), patch.object(gui, 'campaign_examples', return_value=[example]):
+        original_example = gui.MISSIONS / 'highway/base/example.yaml'
+        example = self.root / 'missions/highway/base/example.yaml'
+        example.parent.mkdir(parents=True)
+        example.write_bytes(original_example.read_bytes())
+        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.root / 'gui')}), patch.object(gui, 'MISSIONS', self.root / 'missions'):
             def ready(app):
                 def exercise():
                     try:
@@ -357,16 +360,28 @@ sys.exit(batch.run_batch(sys.argv[1], runner=%r, check_install=False))
     @unittest.skipUnless(os.environ.get('DISPLAY'), 'GUI requires Xvfb')
     def test_gui_add_reorder_persist_and_clear_keep_results(self):
         captured = []
-        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.root / 'gui')}):
+        missions = self.root / 'missions'
+        base = missions / 'static_obstacle/base'
+        workspace = base.parent / 'workspace'
+        base.mkdir(parents=True)
+        workspace.mkdir()
+        (base / 'example.yaml').write_bytes(self.paths[0].read_bytes())
+        paths = []
+        for source in self.paths[:2]:
+            target = workspace / source.name
+            target.write_bytes(source.read_bytes())
+            paths.append(target)
+        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.root / 'gui')}), \
+             patch.object(gui, 'MISSIONS', missions):
             def ready(app):
                 def exercise():
                     try:
-                        for path in self.paths[:2]:
+                        for path in paths:
                             with patch('tkinter.filedialog.askopenfilenames', return_value=(str(path),)):
                                 app['actions']['batch_edit']('files')
                         app['batch_table'].selection_set('1')
                         app['actions']['batch_edit']('up')
-                        self.assertEqual(batch.read_queue()['items'], [str(self.paths[1]), str(self.paths[0])])
+                        self.assertEqual(batch.read_queue()['items'], [str(paths[1]), str(paths[0])])
                         self.assertIn('YAML 2개', app['batch_note'].get())
                         marker = self.root / 'old-result'
                         marker.write_text('keep')

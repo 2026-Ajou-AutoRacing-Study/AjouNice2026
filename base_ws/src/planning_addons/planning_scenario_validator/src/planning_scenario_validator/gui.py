@@ -35,6 +35,11 @@ if not PACKAGE.is_dir():
     PACKAGE = ROOT / "base_ws/install_aw149/share/planning_scenario_validator"
 EXAMPLES = PACKAGE / "config/missions/static_obstacle/base"
 MISSIONS = PACKAGE / "config/missions"
+MISSION_LABELS = {
+    'highway': '고주로', 'roundabout': '회전교차로',
+    'static_obstacle': '정적 장애물', 'dynamic_obstacle': '동적 장애물',
+    'gps_shadow': 'GPS 음영 구간',
+}
 USERS = PACKAGE / "config/users"
 NAME_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}\Z")
 UPLOAD_PROFILE_LABELS = {
@@ -65,6 +70,43 @@ def default_name(template):
 def campaign_examples():
     # Do not expose scenario .case.yaml files as executable campaigns.
     return sorted(MISSIONS.glob("*/base/*.yaml"))
+
+
+def available_missions():
+    return [key for key in MISSION_LABELS if (MISSIONS / key / 'base/example.yaml').is_file()]
+
+
+def mission_yaml_choices(mission):
+    """Only authoring YAMLs owned by one fixed mission, not arbitrary paths."""
+    if mission not in available_missions():
+        raise ValueError('제공된 담당 미션 중 하나를 선택하세요')
+    root = MISSIONS / mission
+    choices = {}
+    for folder, prefix in (('workspace', '내 작업'), ('base', '예제')):
+        directory = root / folder
+        for path in sorted(directory.rglob('*')) if directory.is_dir() else ():
+            if (not path.is_file() or path.suffix.lower() not in ('.yaml', '.yml')
+                    or path.name.endswith('.case.yaml') or executions.is_snapshot(path)
+                    or (path.parent / 'execution.json').exists()):
+                continue
+            # Do not let a workspace symlink expose another mission/shared base.
+            if not is_within(path, directory) or mission_directory(path) != root:
+                continue
+            if folder == 'workspace' and not is_personal(path):
+                continue
+            choices['{} / {}'.format(prefix, path.relative_to(directory))] = path
+    return choices
+
+
+def default_mission_yaml(mission):
+    choices = mission_yaml_choices(mission)
+    for preferred in (MISSIONS / mission / 'workspace' / (mission + '_starter.yaml'),
+                      MISSIONS / mission / 'base/example.yaml'):
+        if preferred in choices.values():
+            return preferred
+    if choices:
+        return next(iter(choices.values()))
+    raise ValueError('이 미션에 실행용 YAML이 없습니다')
 
 
 def load_document(path):
@@ -500,11 +542,13 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     examples = campaign_examples()
     if not examples:
         raise RuntimeError("검증기 예제 YAML이 없습니다: {}".format(EXAMPLES))
-    # Start first-time operators with the short, previously validated demo.
-    # The five-case stress campaign is available from the same dropdown.
-    preferred = EXAMPLES / "static_pair_mission_gt_split.yaml"
     restored = remembered_yaml()
-    initial = restored or (preferred if preferred.exists() else examples[0])
+    missions = available_missions()
+    if not missions:
+        raise RuntimeError('미션 base/example.yaml이 없습니다: {}'.format(MISSIONS))
+    if restored not in [path for key in missions for path in mission_yaml_choices(key).values()]:
+        restored = None  # Preserve old files, but no external-path input in the GUI.
+    initial = restored or default_mission_yaml('static_obstacle' if 'static_obstacle' in missions else missions[0])
     runner = str(runner_executable or ROOT / "planning_validator")
 
     root = tk.Tk()
@@ -516,6 +560,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     frame = ttk.Frame(root, padding=10)
     frame.pack(fill="both", expand=True)
     source = tk.StringVar()
+    mission_value = tk.StringVar()
+    yaml_value = tk.StringVar()
+    picker_choices = {}
     status = tk.StringVar(value="준비됨 — MORAI GUI에서 Sensor/Ego Network를 먼저 Load·Connect하세요.")
     live_status = tk.StringVar(value="")
     vars_ = {}
@@ -551,6 +598,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         path = resolve_path(pasted_yaml_path(path))
         document = load_document(path)
         values = form_values(document)
+        changed_source = path != active.get('source_path')
         active['loading'] = True
         active["template"] = document
         active["source_path"] = Path(path)
@@ -565,6 +613,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             table.delete(item)
         live_status.set("")
         source.set(str(path))
+        refresh_mission_picker(path)
         for key, value in values.items():
             vars_[key].set(value)
         active['loading'] = False
@@ -573,52 +622,68 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             quick_vars['detector'].set(values['detector'])
             quick_vars['pose_source'].set(values['pose_source'])
             quick_vars['traffic_light'].set(values['traffic_light'])
+            if changed_source and quick_table.selection():
+                quick_table.selection_remove(quick_table.selection())
             refresh_quick_choices()
         status.set("설정 로드: {} — {}".format(Path(path).name,
                    "이전 v1 설정: 새 v2 예제를 복사해서 사용하세요."
                    if document.get("schema_version") == 1 else "목적지·제한시간은 모든 장면에 공통 적용"))
         remember_yaml(path)
 
-    top = ttk.LabelFrame(frame, text="설정 파일 (미션 base → workspace / 기존 개인 YAML도 사용 가능)", padding=8)
+    top = ttk.LabelFrame(frame, text="내 미션 선택하기", padding=8)
     top.pack(fill="x")
-    choices = [str(p) for p in examples]
-    source_box = ttk.Combobox(top, textvariable=source, values=choices, state="normal", width=100)
-    source_box.grid(row=0, column=0, sticky="ew", padx=4)
+    ttk.Label(top, text='담당 미션').grid(row=0, column=0, sticky='w', padx=4)
+    mission_box = ttk.Combobox(top, textvariable=mission_value,
+                               values=[MISSION_LABELS[key] for key in missions], state='readonly', width=17)
+    mission_box.grid(row=0, column=1, sticky='ew', padx=4)
+    ttk.Label(top, text='실험 YAML').grid(row=0, column=2, sticky='w', padx=4)
+    source_box = ttk.Combobox(top, textvariable=yaml_value, state='readonly', width=45)
+    source_box.grid(row=0, column=3, columnspan=2, sticky='ew', padx=4)
+
+    def selected_mission():
+        for key in missions:
+            if MISSION_LABELS[key] == mission_value.get():
+                return key
+        raise ValueError('담당 미션을 선택하세요')
+
+    def refresh_mission_picker(path):
+        mission = mission_directory(path)
+        if mission is None or mission.name not in missions:
+            # Internal compatibility/test hooks can still open legacy files.
+            # They are never offered as selectable authoring inputs.
+            yaml_value.set('')
+            return
+        mission_value.set(MISSION_LABELS[mission.name])
+        picker_choices.clear()
+        picker_choices.update(mission_yaml_choices(mission.name))
+        source_box.configure(values=list(picker_choices))
+        yaml_value.set(next((label for label, value in picker_choices.items()
+                             if value.resolve() == Path(path).resolve()), ''))
+
     def select_source(_event):
         try:
-            read_source(source.get(), fresh_name=True)
-        except Exception as error:
-            source.set(str(active.get("source_path", "")))
-            messagebox.showerror("설정 로드 실패", str(error))
-    source_box.bind("<<ComboboxSelected>>", select_source)
-    source_box.bind('<Return>', select_source)
-    source_box.bind('<FocusIn>', lambda _e: source_box.selection_range(0, 'end'))
-    def select_path(_event):
-        source_box.selection_range(0, 'end')
-        return 'break'
-    source_box.bind('<Control-a>', select_path)
-
-    def paste_source():
-        try:
-            text = pasted_yaml_path(root.clipboard_get())
-            read_source(text)
-        except Exception as error:
-            messagebox.showerror('YAML 경로 확인', str(error))
-
-    paste_button = ttk.Button(top, text='경로 붙여넣기', command=paste_source)
-    paste_button.grid(row=0, column=3, padx=4)
-
-    def choose_personal():
-        try:
-            directory = personal_directory(active.get("source_path"))
-            path = filedialog.askopenfilename(initialdir=str(directory), filetypes=[("YAML", "*.yaml *.yml")])
-            if path:
+            if _event is None:
+                path = active.get('source_path')
+                # Reload current file and refresh the list of newly added YAMLs.
                 read_source(path)
+            else:
+                choices = mission_yaml_choices(selected_mission())
+                if yaml_value.get() not in choices:
+                    raise ValueError('선택한 미션의 YAML 목록에서 고르세요')
+                read_source(choices[yaml_value.get()])
         except Exception as error:
+            refresh_mission_picker(active.get('source_path'))
             messagebox.showerror("설정 로드 실패", str(error))
 
-    personal_button = ttk.Button(top, text="내 YAML 열기", command=choose_personal)
-    personal_button.grid(row=0, column=1, padx=4)
+    def select_mission(_event=None):
+        try:
+            read_source(default_mission_yaml(selected_mission()))
+        except Exception as error:
+            refresh_mission_picker(active.get('source_path'))
+            messagebox.showerror('미션 선택', str(error))
+
+    mission_box.bind('<<ComboboxSelected>>', select_mission)
+    source_box.bind("<<ComboboxSelected>>", select_source)
 
     def browse_personal_folder():
         try:
@@ -630,7 +695,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             messagebox.showerror("작업 폴더 열기 실패", str(error))
 
     folder_button = ttk.Button(top, text="내 작업 폴더 열기", command=browse_personal_folder)
-    folder_button.grid(row=0, column=2, padx=4)
+    folder_button.grid(row=1, column=4, padx=4, pady=3)
 
     def copy_workspace():
         try:
@@ -643,7 +708,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             messagebox.showerror("베이스 복사 실패", str(error))
 
     copy_button = ttk.Button(top, text="베이스 → 내 작업 폴더 복사", command=copy_workspace)
-    copy_button.grid(row=1, column=1, padx=4)
+    copy_button.grid(row=1, column=3, padx=4, pady=3, sticky='ew')
     def edit_yaml():
         try:
             if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
@@ -661,9 +726,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             messagebox.showerror('YAML 편집', str(error))
     edit_button = ttk.Button(top, text='YAML 편집 (VSCode)', command=edit_yaml)
-    edit_button.grid(row=1, column=2, padx=4)
-    top.columnconfigure(0, weight=1)
-    ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다. 시나리오 전환만 자동입니다.", foreground="#a44").grid(row=1, column=0, sticky="w", pady=5)
+    edit_button.grid(row=2, column=4, padx=4, pady=3)
+    top.columnconfigure(3, weight=1)
+    ttk.Label(top, text="예제는 복사 후 실행 · 새 YAML은 내 미션 workspace에 저장",
+              wraplength=400).grid(row=1, column=0, columnspan=3, sticky='w', padx=4, pady=3)
+    ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다.", foreground="#a44").grid(
+        row=2, column=0, columnspan=3, sticky="w", padx=4, pady=3)
 
     notebook = ttk.Notebook(frame)
     notebook.pack(fill="x", pady=8)
@@ -1107,8 +1175,13 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             if operation == "current":
                 items.append(str(save().resolve()))
             elif operation == "files":
-                selected = filedialog.askopenfilenames(initialdir=str(MISSIONS), filetypes=[("캠페인 YAML", "*.yaml *.yml")])
+                mission = selected_mission()
+                allowed = {path.resolve() for path in mission_yaml_choices(mission).values() if is_personal(path)}
+                selected = filedialog.askopenfilenames(initialdir=str(MISSIONS / mission / 'workspace'),
+                                                       filetypes=[("내 미션 YAML", "*.yaml *.yml")])
                 for path in selected:
+                    if resolve_path(path) not in allowed:
+                        raise ValueError('선택한 미션의 workspace YAML만 추가하세요. 예제는 먼저 복사합니다.')
                     document = load_document(path)
                     if document["schema_version"] != 2:
                         raise ValueError("이전 YAML은 먼저 열어서 v2 개인 캠페인으로 저장하세요")
@@ -1248,7 +1321,11 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         selected = batch_table.selection()
         if selected:
             try:
-                read_source(batch_queue["items"][int(selected[0])])
+                path = resolve_path(batch_queue["items"][int(selected[0])])
+                mission = mission_directory(path)
+                if mission is None or mission.name not in available_missions():
+                    raise ValueError('이전 외부 YAML은 미션 workspace로 옮긴 뒤 선택하세요. 기존 배치 재개는 그대로 가능합니다.')
+                read_source(path)
                 notebook.select(basic)
             except Exception as error:
                 show_error("YAML 열기 실패", error)
@@ -1398,10 +1475,10 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     compact_button.pack(side="right", padx=4)
 
     def set_running_ui(running, *, allow_stop=True):
-        source_box.configure(state="disabled" if running else "normal")
-        personal_button.configure(state="disabled" if running else "normal")
+        source_box.configure(state="disabled" if running else "readonly")
+        mission_box.configure(state="disabled" if running else "readonly")
         copy_button.configure(state="disabled" if running else "normal")
-        for button in (load_button, paste_button, edit_button, folder_button):
+        for button in (load_button, edit_button, folder_button):
             button.configure(state='disabled' if running else 'normal')
         for button in batch_buttons:
             button.configure(state="disabled" if running else ('readonly' if isinstance(button, ttk.Combobox) else "normal"))
@@ -1708,7 +1785,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             'select_scenarios': select_scenarios,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
-            "paste_yaml": paste_source, "reload_yaml": lambda: select_source(None),
+            'select_mission': select_mission, 'select_yaml': lambda: select_source(True),
+            "reload_yaml": lambda: select_source(None),
             "quick_start": start_quick, "quick_refresh": refresh_quick_choices,
             "open_personal_folder": browse_personal_folder,
             'refresh_history': refresh_history, 'select_execution': select_execution,
@@ -1719,6 +1797,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log, "batch_table": batch_table,
             "field_widgets": field_widgets, "source_entry": source_box, 'save_button': save_button,
+            'mission_box': mission_box, 'mission_value': mission_value, 'yaml_value': yaml_value,
+            'picker_choices': picker_choices,
             'start_button': control_buttons['새 실험 시작'], 'reload_button': load_button,
             'primary_controls': primary_controls, 'auxiliary_menu': auxiliary_menu,
             'auxiliary_button': auxiliary_button, 'stop_button': stop_button,

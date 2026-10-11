@@ -199,7 +199,7 @@ class RepetitionTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('DISPLAY'), 'GUI requires Xvfb')
 class NewGuiTests(unittest.TestCase):
-    def test_ctrl_v_and_enter_accept_vscode_copy_path(self):
+    def test_free_path_paste_cannot_change_readonly_yaml_selection(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'copied YAML.yaml'
             path.write_text(annotated_yaml(gui.load_document(gui.MISSIONS / 'highway/base/example.yaml')))
@@ -209,6 +209,9 @@ class NewGuiTests(unittest.TestCase):
                 def exercise():
                     try:
                         root, entry = app['root'], app['source_entry']
+                        original_path = app['active']['source_path']
+                        original_label = app['yaml_value'].get()
+                        self.assertEqual(str(entry.cget('state')), 'readonly')
                         entry.focus_force()
                         root.clipboard_clear()
                         root.clipboard_append('"{}"'.format(path))
@@ -216,7 +219,8 @@ class NewGuiTests(unittest.TestCase):
                         entry.event_generate('<Control-v>')
                         root.update()
                         entry.event_generate('<Return>')
-                        self.assertEqual(app['active']['source_path'], path)
+                        self.assertEqual(app['active']['source_path'], original_path)
+                        self.assertEqual(app['yaml_value'].get(), original_label)
                     except BaseException as error:
                         failures.append(error)
                     finally:
@@ -230,21 +234,22 @@ class NewGuiTests(unittest.TestCase):
             if failures:
                 raise failures[0]
 
-    def test_vscode_clipboard_load_and_quick_selection(self):
+    def test_fixed_mission_and_yaml_selection_keep_quick_selection(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / 'my YAML.yaml'
-            doc = gui.load_document(gui.MISSIONS / 'highway/base/random_example.yaml')
-            path.write_text('# keep comments\n' + yaml.safe_dump(doc))
+            path = gui.MISSIONS / 'highway/base/random_example.yaml'
             original = path.read_bytes()
 
             def ready(app):
                 try:
-                    root = app['root']
-                    root.clipboard_clear()
-                    root.clipboard_append('"{}"'.format(path))
-                    app['actions']['paste_yaml']()
+                    app['mission_value'].set(gui.MISSION_LABELS['highway'])
+                    app['actions']['select_mission']()
+                    self.assertTrue(all(gui.mission_directory(p).name == 'highway'
+                                        for p in app['picker_choices'].values()))
+                    app['yaml_value'].set('예제 / random_example.yaml')
+                    app['actions']['select_yaml']()
                     self.assertEqual(app['active']['source_path'], path)
-                    self.assertEqual(str(app['source_entry'].cget('state')), 'normal')
+                    self.assertEqual(str(app['source_entry'].cget('state')), 'readonly')
+                    self.assertEqual(str(app['mission_box'].cget('state')), 'readonly')
                     self.assertEqual(path.read_bytes(), original)
                     self.assertEqual(len(app['quick_table'].selection()), 2)
                     for key, widget in app['field_widgets'].items():
