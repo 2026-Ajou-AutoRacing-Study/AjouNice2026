@@ -1,5 +1,11 @@
 # BEVFusion documentation agent context
 
+2026-10-12 최신 결과는 EVIDENCE 33절이다. 24 epoch·E9/E24 Drive 백업을 확인했고
+동일 Base5 745장·radial 30m에서 E25/E9/E24를 실제 추론했다. native intensity의
+0~1/0~255 불일치를 보정하지 않은 E25 결과는 비교 결론으로 쓰지 않는다. E25 원래
+val control도 재현했다. 다음은 Base5 ROS 강도 adapter·동등성과 공통 bag·threshold,
+학습된 출력의 최적화/24GB gate다. production·데이터·훈련은 유지하며 아래 실행은 이력이다.
+
 2026-10-12 로컬 후속은 EVIDENCE 32절이다. 현재 5K/11,052 GT의 native 점·실제 crop
 foreground·E15 분모를 전수 대조하고 미촬영 25K metadata와 bag 22개를 조사했다.
 약한 proxy 1.06%와 복합체 unknown을 구분한다. 사람 원거리 train 희소성과 장애물

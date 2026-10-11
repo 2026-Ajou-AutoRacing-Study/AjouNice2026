@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신 실행은 [31절 원거리 평가 추가·동일 run 재개](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)다.
+2026-10-12 최신 결과는 [33절 학습 완료·같은 30m의 E25/E9/E24 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)다.
+24 epoch·E9/E24 Drive 백업을 확인했다. native LiDAR 강도 0~1/0~255 불일치를 잡아
+E25 입력 스케일을 맞춰 비교했다. 다음은 Base5 ROS 강도 adapter·입력 동등성과 공통 bag,
+학습된 출력의 최적화·24GB 검사다. production은 E25이며 아래 진행 상태는 당시 이력이다.
+
+2026-10-12 초기 실행은 [31절 원거리 평가 추가·동일 run 재개](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012)다.
 본학습은 사용자가 이미 시작했다. 50~80/80~100m의 두 진단 구간을 추가하되 동결 학습
 소스·모델·스케줄·기존 전체 지표·W&B run ID는 유지한다. 아래 ‘본학습 미시작’은 과거 이력이다.
 같은 31절의 후속 v2는 누락된 구간 mAP와 여섯 구간의 visible 정의를 보완하고,
@@ -55,6 +60,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| 학습 완료·E9/E24 보존 / 동일 data·radial 30m / intensity scale·E25 원래 val control / 새 threshold와 ROS gate | [10-12 공통 30m 실측](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012) |
 | 원거리 50~80/80~100m AP·차량 전후방·GT 수 / 동일 계약·W&B run 재개 / 패널 구성 | [10-12 평가 확장 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-distance-resume-261012) |
 | 동일 조건 E1 초기화 비교 / 호환 BEV·fusion·head 변환 / 후보 E1 채택·재개 | [10-11 초기화 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011) |
 | Animal → Pedestrian 학습 통합 / 원본·개별 BBox 보존 / 사람·동물별 평가 / 새 3클래스 실행 | [10-11 클래스 전환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011), [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |

@@ -3792,3 +3792,148 @@ CPU 단위 검사 12개를 통과했다. 실제 픽셀과 BBox 면적 구분, �
 camera-only의 정상 지원, 거리 경계, 약한/풍부한 proxy의 구분, 기존 AP 분모 대조와
 불일치 거부, source 아래 output 거부를 검사했다. 전수 실행에서 infos·manifest·
 점/픽셀 cache·E15 receipt의 분석 전후 SHA256도 일치했다. 산출물은 ignored로 유지한다.
+
+<a id="base5-common30-e25-comparison-261012"></a>
+
+## 33. 본학습 완료와 E25·Base5의 같은 30m 비교 — 2026-10-12 04:30 KST
+
+### 완료 상태와 보존
+
+사용자 완료 알림 후 원격 `oneclick_status.json`의 `finished / exit_code=0`과
+E24 체크포인트를 확인했다. 학습은 24 epoch를 완료했으며 새 학습은 실행하지 않았다.
+전체 ROI validation의 best는 E9다. E9·E24는 모두 보존한다.
+Drive 백업 보고서는 `valid=true`, `pending_checkpoints=[]`, `errors=[]`이며,
+두 파일 모두 분할 업로드와 로컬 credential owner의 readback을 기록했다.
+
+| 파일 | SHA256 | 성격 |
+|---|---|---|
+| `best_val_center_mAP_epoch_9.pth` | `067205c3f5f5b0abc1bb775116c2b8bca2c9a7f31a0727b959db0ab1ce70b271` | 검출 best, optimizer 재개용 아님 |
+| `epoch_24.pth` | `84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746` | 마지막 epoch, optimizer 포함 재개 가능 |
+
+원격 work는 `/workspace/base5_init_full_3class_e1_261011`이다. production E25,
+threshold, 원본 5K, frozen 훈련 소스, 다음 25K 명세와 다른 agent의 planning_validator
+작업은 변경하지 않았다. 인스턴스 Stop/Destroy도 실행하지 않았다.
+
+### 동일 평가 계약
+
+`tools/compare_base5_common30.py`로 학습된 세 체크포인트를 실제 추론했다.
+E25는 로컬 5060 Ti, Base5 E9/E24는 원격 4090을 사용했다. 모두 strict state load,
+FP32 경로이며 AMP·TF32·camera compile·camera/LiDAR 병렬 추론은 OFF다.
+각 모델의 원래 카메라 전처리·공간 격자·depth·전체 추론 ROI는 유지한다.
+Base5 모델의 구조를 30m 모델로 다시 만들거나 GT에 맞춰 prediction을 수정하지 않았다.
+
+- 같은 Sunny13 Q90 validation **745장 전체**를 사용한다. ROI 내 객체가 없는 프레임도
+  남겨 FP를 평가한다. Animal → Pedestrian의 현재 3클래스 라벨을 세 모델에 동일 적용한다.
+- 주 비교 범위는 **LiDAR 좌표계 XY 중심 거리 <30m**와 E25 공통 box
+  `[-30,-30,-3,30,30,2]`의 교집합이다. GT·prediction 모두 같은 범위로 제한한다.
+  기존 evaluator와 같은 bottom-center BBox 표현을 사용한다.
+- ±30m 정사각형은 별도 secondary 결과다. 모서리의 30m 초과 객체를 radial 30m라고
+  부르지 않는다. 세 모델의 center AP는 같은 0.5/1/2/4m 매칭 기준의 평균이다.
+- 공통 GT는 Vehicle **187**, Pedestrian **493**, Obstacle **539**, 총 **1,219개**다.
+  세 prediction export의 ordered scene/GT/점 수/asset fingerprint는 모두
+  `86ac7a02dc4542d362fef09422688a2efc116fdc38e7573fb144e0d1e82bf619`이다.
+- LiDAR 0~4점 GT도 현재 Base5 라벨 정책대로 유지한다. 지원점별 recall을 낼 때는
+  전체 GT에 먼저 one-to-one 매칭한 뒤 분류한다. 약한 GT만 지워 올바른 prediction을
+  FP로 만드는 평가를 하지 않는다. native 점 수는 Z 필터 후 모델 입력점 수와 구분한다.
+
+### 먼저 잡은 입력 스케일 불일치
+
+처음 E25를 Base5 입력 그대로 평가하면 장애물 AP가 **1.03%**까지 떨어졌다.
+이를 모델 성능으로 채택하지 않고 native 입력과 원래 검증셋을 확인했다.
+
+1. Base3 native `.bin`의 intensity는 **0~255**, Base5 native `.bin`은 **0~1**이었다.
+   Base5 validation 745개 파일 전수 검사에서 1 초과 프레임은 0개이며, intensity×255는
+   전부 정확한 정수였다. infos 변환기와 portable exporter는 원본 bin을 참조·복사할 뿐
+   강도를 정규화하지 않는다. 왜 native 저장 형식이 달라졌는지는 이번 조사에서 확정하지 않았다.
+2. E25를 원래 Base3 validation 1,635장에 돌린 control의 기존 square AP는
+   Vehicle **97.4705%**, Pedestrian **98.8025%**, Obstacle **97.9689%**였다.
+   저장된 과거 장애물 AP **97.9755%**와 차이는 0.0066pp로, 평가 실행 경로가 E25를
+   크게 훼손한 것은 아니다. control은 별도 데이터셋이며 아래 같은-data 표에 섞지 않는다.
+3. 최종 E25 비교만 **입력 tensor의 intensity×255**로 원래 학습 스케일을 복원했다.
+   XYZ·GT·이미지·원본 파일·가중치는 불변이다. Base5 E9/E24에는 변환하지 않는다.
+   `--intensity-scale 255`는 명시적 opt-in이고, 입력이 0~1 범위를 벗어나면 거부한다.
+4. 기존 dev bag 22개의 첫 LiDAR 메시지 각 2개, 총 44개도 읽었다. 모두 intensity 최대값이
+   1을 초과했고 최대값은 135~255였다. 현재 ROS bridge와 online preprocessor는 이 값을
+   그대로 전달한다. 따라서 **Base5를 ROS에 붙이기 전 고정 255로 나누는 입력 계약과
+   offline/online 동등성 검증이 필요하다.** 프레임 최대값으로 나누는 정규화가 아니다.
+   이 처리는 이번에 production에 적용하지 않았다. 현재 live MORAI 버전의 출력은 후속 확인한다.
+
+### 같은 데이터·radial 30m의 최종 결과
+
+단위는 %, center AP다. E25는 위 강도 adapter를 적용한 결과만 비교한다.
+
+| 모델 | Vehicle | Pedestrian | Obstacle | 3클래스 mAP |
+|---|---:|---:|---:|---:|
+| E25 | 89.93 | 77.82 | 60.76 | 76.17 |
+| Base5 best E9 | 97.66 | 95.60 | 81.95 | 91.74 |
+| Base5 final E24 | 97.25 | 94.87 | 83.49 | 91.87 |
+
+| 장애물 거리 | GT 수 | E25 | Base5 E9 | Base5 E24 |
+|---|---:|---:|---:|---:|
+| 0~10m | 206 | 64.68 | 83.09 | 85.34 |
+| 10~20m | 190 | 72.73 | 81.85 | 86.13 |
+| 20~30m | 143 | 28.77 | 75.82 | 76.74 |
+
+**이 검증셋에서는 가까운 장애물까지 E25보다 못 배웠다는 증거가 아니다.** E24 장애물
+전체는 +22.73pp, 20~30m는 +47.97pp다. E25의 옛 Base3 val 약 98%와 Base5 전체
+±100m AP를 그대로 대조한 우려는 데이터·라벨 정책·거리 분모가 다른 비교였다.
+다만 이번 데이터는 Base5 학습 분포이며 E25에는 다른 분포다. 이 표만으로 모든 실제
+주행에서 우위, 새 자산 일반화, 정밀 격자나 depth 변경의 개별 효과를 증명하지 않는다.
+
+### 기존 threshold를 그대로 쓰는 것은 별도 문제
+
+같은 30m에서 score를 현재 production 값에 고정하고 중심 오차 <1m로 매칭한 P/R다.
+AP와 달리 **실제 전달 threshold의 TP/FN/FP trade-off**이며 새 threshold의 최적값을 뜻하지 않는다.
+
+| 클래스·score | E25 P / R | Base5 E9 P / R | Base5 E24 P / R |
+|---|---:|---:|---:|
+| Vehicle 0.40 | 100.00 / 81.82 | 98.79 / 87.17 | 97.74 / 92.51 |
+| Pedestrian 0.15 | 93.37 / 65.72 | 92.46 / 92.09 | 94.82 / 89.05 |
+| Obstacle 0.10 | 90.21 / 54.73 | 68.65 / 83.67 | 74.23 / 80.71 |
+
+Base5 장애물은 많이 잡지만 0.1에서 FP도 늘었다. AP 향상이 기존 threshold의 즉시
+배포 적합성을 보증하지 않는다. E24의 1m·score 0.1 장애물 recall은 native ≥5점
+GT에서 **84.48% (332/393)**, <5점에서 **70.55% (103/146)**다.
+지원점 많은 사례도 완벽하지 않으며 Bicycle/Scooter 같은 자산별 잔여 약점이 있다.
+예를 들어 Scooter_01의 현재 obstacle recall은 E9 15/22, E24 4/22다. 복합 자산 전체
+검출 실패율로 해석하지 않고 성분 단위 진단으로 보존한다. 특정 epoch 한 개를 전체
+평균만으로 자동 production 승격하지 않는다.
+
+### 산출물·재현·다음 순서
+
+ignored 결과 루트는 `artifacts/evaluation/bevfusion/base5_common30_261012`다.
+
+- `comparison_final_validated/comparison.json`: 최종 세 모델의 radial/square AP,
+  거리·자산·native 지원점별 고정 score recall과 각 입력·checkpoint receipt.
+- `control_base3/comparison.json`: E25의 원래 데이터 control. 최종 비교와 분모가 다르다.
+- `comparison_unadapted/comparison.json`: 강도 스케일 미적용 진단. 최종 성능표로 사용 금지.
+- `intensity_inventory.json`, `bag_intensity_samples.json`: 전수 native 입력과 bag 표본 근거.
+- `training_completion.json`, `training_backup_report.json`: 완료·Drive readback·E9/E24 SHA 근거.
+- `E25_intensity255`, `E9_v3`, `E24_v3`: prediction export와 receipt. 초기 wrapper import/
+  token 오류 로그도 보존하되 완성 결과와 섞지 않는다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/compare_base5_common30.py compare \
+  --predictions \
+  artifacts/evaluation/bevfusion/base5_common30_261012/E25_intensity255/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_common30_261012/E9_v3/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_common30_261012/E24_v3/predictions.json.gz \
+  --output artifacts/evaluation/bevfusion/base5_common30_repeat
+
+python3 -m unittest discover -s perception/detection3d/bevfusion/tools \
+  -p test_base5_common30.py
+```
+
+실제 추론은 준비된 BEVFusion Docker/원격 의존성 환경에서 도구의 `infer`를 사용한다.
+각 receipt의 config·checkpoint·info SHA 및 pipeline을 유지한다. E25는 원래
+`bevfusion_base3_b0_4cam_lidar.py`와 release inference checkpoint, Base5는 frozen
+source와 `resolved_distance_diagnostics.py`를 사용한다. 초기화 전 Swin의 scratch
+경고는 full strict checkpoint load 이전의 메시지이며 랜덤 가중치 추론이라는 뜻이 아니다.
+CPU 단위 검사 10개에서 강도 adapter의 XYZ/원본 불변·비정상 입력 거부, radius/square,
+희소 GT 보존, one-to-one, score·거리 경계, GT fingerprint·class·token·score guard와
+빈 프레임을 검사했다. 비교 결과는 추론 latency 측정이나 24GB 실전 인증이 아니다.
+
+다음 우선순위는 **Base5 ROS 입력 강도 계약·동등성 → 공통 주행 bag에서 E25/E9/E24의
+검출·threshold·연속 누락 비교 → 학습된 실제 출력으로 추론 최적화·24GB 비용 재검증**이다.
+100m GT adapter와 camera clear/weak 분석은 32절 제한을 유지한다. 재수집이나 장시간
+재학습을 이번 비교만으로 결정하지 않는다.

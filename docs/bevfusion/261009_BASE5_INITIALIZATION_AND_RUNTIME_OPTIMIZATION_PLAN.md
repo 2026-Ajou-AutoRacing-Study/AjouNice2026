@@ -6,7 +6,20 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-12 원거리 평가 추가와 본학습 재개
+## 현재 계획 허브 — 2026-10-12 본학습 완료·동일 30m 비교
+
+**10-12 04:30 KST 최신 완료:** 24 epoch 학습과 E9 best/E24 마지막 체크포인트의
+Drive readback을 확인했다. 같은 Base5 val 745장·radial 30m에서 강도 스케일을 맞춘
+E25/E9/E24를 실제 추론했고, 장애물 AP는 60.76/81.95/83.49%다. E25는 원래 Base3
+val 약 98%도 재현했다. 서로 다른 데이터·거리의 AP를 그대로 비교하지 않는다.
+전체 100m best E9와 근접 평가의 E24를 모두 보존하며 production은 아직 E25다.
+[33절 계약·결과·보존](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-common30-e25-comparison-261012)을 따른다.
+
+**배포 전 새 필수 검사:** Base5 native intensity는 0~1, Base3 및 확인한 기존 ROS bag은
+0~255다. 현재 bridge는 강도를 그대로 전달하므로 Base5용 고정 255 나눗셈 adapter와
+offline/online 입력 동등성을 먼저 검증한다. 원본·훈련·production은 이번 비교에서
+변경하지 않았다. 이후 공통 bag 검출/연속 누락·새 threshold, 학습된 출력의 compile/
+병렬 추론 정합·24GB 비용을 확인한다. 아래 ‘진행 중’은 각 시점의 실행 이력이다.
 
 **10-12 로컬 원거리 조사 완료:** Sunny13 5K·현재 GT 11,052개를 실제 crop foreground와
 native LiDAR 지원점으로 전수 대조했다. 약한 단서 proxy는 1.06%이며, 안 보이는 GT가

@@ -1,5 +1,11 @@
 # Perception agent context
 
+2026-10-12 최신은 EVIDENCE 33절의 학습 완료·동일 30m 비교다. 24 epoch를 완료했고
+E9/E24와 Drive readback을 보존한다. Base3/ROS intensity 0~255와 Base5 native 0~1을
+구분해야 한다. E25를 Base5에 넣을 때만 명시적 ×255 adapter로 비교했다. production은
+미변경이며 Base5 ROS 입력은 고정 ÷255·offline/online 동등성을 후속 검증해야 한다.
+그다음 공통 bag/threshold·학습된 출력 최적화/24GB를 확인한다. 아래 진행 중 상태는 이력이다.
+
 2026-10-12 최신 실행은 EVIDENCE 31절의 원거리 평가 확장이다. 사용자가 시작한 3클래스
 본학습을 epoch 전체 검증 후 중단하고 같은 source/data/work/계약·W&B run으로 재개한다.
 50~80/80~100m AP·GT 수·차량 전후방은 동결 detector source 바깥의 SHA256 검사된
