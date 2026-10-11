@@ -169,7 +169,20 @@ def evaluate(rows, radial=True):
     return dict(metrics=metrics, support_recall=strata)
 
 
+def validate_runtime_switches(args):
+    parts = tuple(getattr(args, 'compile_parts', ()))
+    if set(parts) - {'camera', 'neck', 'bev'}:
+        raise ValueError('Unknown compilation part')
+    if getattr(args, 'eager_camera_numerics', False) and 'camera' not in parts:
+        raise ValueError('Eager camera numerics requires explicit camera compilation')
+    if getattr(args, 'compile_reference_layout', False) and not parts:
+        raise ValueError('Reference layout requires explicit compilation')
+    if getattr(args, 'camera_cuda_graph_probe', False) and 'camera' in parts:
+        raise ValueError('Choose a camera graph OR camera compilation')
+
+
 def infer(args):
+    validate_runtime_switches(args)
     import pickle
     import torch
     import cv2
@@ -178,6 +191,7 @@ def infer(args):
     from mmdet3d.apis import init_model
     from mmdet3d.utils import register_all_modules
     from app.view_geometry import restore_view_geometry
+
 
     if args.output.exists():
         raise ValueError('Fresh output required; never overwrite learned predictions')
@@ -215,6 +229,20 @@ def infer(args):
     model.load_state_dict(state, strict=True)
     restore_view_geometry(model.view_transform)
     model.eval()
+    optimization = None
+    extra_parallel = None
+    if args.amp or args.compile_parts or args.parallel_camera or args.camera_cuda_graph_probe:
+        from app.inference_optimization import InferenceOptimization, validate_base5_runtime
+        validate_base5_runtime(cfg)
+        if args.compile_parts or args.parallel_camera or args.camera_cuda_graph_probe:
+            optimization = InferenceOptimization(model, args.compile_parts,
+                camera_cuda_graph=args.camera_cuda_graph_probe,
+                eager_camera_numerics=args.eager_camera_numerics,
+                reference_layout=args.compile_reference_layout,
+                parallel_camera=args.parallel_camera and not args.camera_cuda_graph_probe)
+            if args.camera_cuda_graph_probe and args.parallel_camera:
+                from app.inference_parallel import ParallelBranches
+                extra_parallel = ParallelBranches(model, 'camera_side')
     rows = []
     elapsed = []
     started = time.monotonic()
@@ -237,7 +265,8 @@ def infer(args):
                                           for p in batch['inputs']['points']]
             torch.cuda.synchronize()
             t = time.monotonic()
-            pred = model.test_step(batch)[0].pred_instances_3d
+            with torch.autocast('cuda', enabled=args.amp, dtype=torch.float16):
+                pred = model.test_step(batch)[0].pred_instances_3d
             boxes = pred.bboxes_3d.tensor.detach().cpu().numpy()
             scores = pred.scores_3d.detach().cpu().numpy()
             labels = pred.labels_3d.detach().cpu().numpy()
@@ -261,7 +290,11 @@ def infer(args):
         script_sha256=digest(__file__),
         gt_identity=gt_identity(rows), frames=len(rows), classes=CLASSES,
         gpu=torch.cuda.get_device_name(), torch_version=str(torch.__version__),
-        strict_state_load=True, inference_precision='FP32; AMP/TF32/compile/parallel OFF',
+        strict_state_load=True,
+        inference_precision=('AMP; TF32 OFF; cuDNN benchmark OFF' if args.amp else
+                             'FP32; AMP/TF32 OFF; cuDNN benchmark OFF'),
+        inference_optimization=(dict(optimization.report,diagnostic_graph_parallel=True)
+            if extra_parallel else optimization.report if optimization else {}),
         input_pipeline=loader_cfg.dataset.pipeline,
         point_intensity_scale=args.intensity_scale,
         point_intensity_adapter='input-only; XYZ/raw files/GT unchanged',
@@ -272,6 +305,10 @@ def infer(args):
         json.dump(payload, f, allow_nan=False)
     summary = {k:v for k,v in payload.items() if k != 'rows'}
     (args.output/'receipt.json').write_text(json.dumps(summary, indent=2)+'\n')
+    if extra_parallel:
+        extra_parallel.disable()
+    if optimization:
+        optimization.disable()
     print(json.dumps(dict(event='inference_complete', name=args.name, frames=len(rows),
                          gt_identity=payload['gt_identity'])), flush=True)
 
@@ -316,6 +353,13 @@ def main():
     worker.add_argument('--expected-frames', type=int, default=745)
     worker.add_argument('--intensity-scale', type=float, choices=[1., 255., 1./255.], default=1.,
                         help='Explicit checkpoint-native intensity adapter; ROS raw -> Base5 uses 0.00392156862745098')
+    worker.add_argument('--amp', action='store_true', help='Base5-only execution diagnostic; default remains FP32')
+    worker.add_argument('--compile-parts', nargs='*', choices=['camera','neck','bev'], default=[])
+    worker.add_argument('--parallel-camera', action='store_true')
+    worker.add_argument('--eager-camera-numerics', action='store_true')
+    worker.add_argument('--compile-reference-layout', action='store_true')
+    worker.add_argument('--camera-cuda-graph-probe', action='store_true',
+                        help='Experimental offline probe only; does not qualify a production combination')
     score = sub.add_parser('compare')
     score.add_argument('--predictions', type=Path, nargs='+', required=True)
     score.add_argument('--output', type=Path, required=True)

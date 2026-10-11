@@ -1,8 +1,9 @@
 import copy
 import unittest
+from types import SimpleNamespace
 import numpy as np
 from compare_base5_common30 import (scope, fixed_matches, gt_identity, evaluate,
-                                   adapt_intensity, validate_payload, CLASSES)
+                                   adapt_intensity, validate_payload, validate_runtime_switches, CLASSES)
 
 
 def row():
@@ -13,6 +14,12 @@ def row():
 
 
 class Common30Tests(unittest.TestCase):
+    def test_runtime_switches_are_explicit_and_mutually_checked(self):
+        validate_runtime_switches(SimpleNamespace())
+        validate_runtime_switches(SimpleNamespace(compile_parts=['camera','neck'],parallel_camera=True))
+        for attrs in (dict(compile_parts=['sparse']),dict(eager_camera_numerics=True),
+                dict(compile_reference_layout=True),dict(compile_parts=['camera'],camera_cuda_graph_probe=True)):
+            with self.assertRaises(ValueError):validate_runtime_switches(SimpleNamespace(**attrs))
     def test_prediction_export_contract(self):
         payload = dict(rows=[row()], frames=1, classes=CLASSES,
                        gt_identity=gt_identity([row()]))

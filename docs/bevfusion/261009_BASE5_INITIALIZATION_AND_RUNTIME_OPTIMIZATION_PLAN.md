@@ -8,6 +8,13 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 학습 완료 모델의 4090 추론 검증
 
+**10-12 추가 컴파일 검토 완료:** [37절 전달·연속 bag·실제 EKF 코어 영향](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)을 우선한다.
+AP가 거의 같아도 장애물 일부에서 연속 association/coasting 출력 차이가 커졌다.
+일반 compile 기본 ON은 보류하고 병렬화 우선 후보를 유지한다. 연산/레이아웃 유지는
+완전한 해결이 아니며 CUDA Graph 병렬 prototype은 약 72ms로 추가 속도 이득이 없다.
+이 코어 시험은 live ROS/실제24GB/UNKNOWN 후처리/GT 속도 평가 인증이 아니다.
+다음은 실제24GB Base5 ROS trial의 queue·LAN·tracker다. 훈련·production E25는 유지한다.
+
 **10-12 06:24 KST 최신 완료:** 학습된 E9/E24를 원격 4090에서 실제 출력이 있는 상태로
 300장 비용/출력 비교와 전체 val 745장의 FP32·AMP·병렬화·compile 검증에 사용했다.
 학습 geometry는 유지했고 20GiB allocator cap에서 AMP 기본 약 79ms, 병렬화 약 72ms,
@@ -114,7 +121,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 학습 입력·모델 | **공간 5/20cm·depth 25cm, 512×1056 Q90 JPEG, ROI X±100/Y±30m를 유지한다. 학습은 Animal을 Pedestrian에 통합한 3-class single-frame 7D다.** temporal/OD velocity는 OFF다. | [29절 클래스 전환](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011). 기존 4-class와 production E25는 보존한다. 통합의 정확도 이득은 아직 미검증이다. |
 | 로컬 가속 | 실제 5060 Ti 학습 step에서 depth 25cm 약 32.8%, 50cm 약 21.4% 단축을 확인했다. 원래 학습 조건은 유지하며 opt-in 후보로 제공한다. 카메라 compile을 더한 별도 후보는 기존 대비 약 37.6~45.8% 단축이며 수치·저장/재개 검사도 완료했다. | 로컬 근거는 [EVIDENCE 21절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011), 후속 4090의 실제 fine batch 4 검사는 [25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011)이다. 로컬 가속률을 원격에 그대로 적용하지 않는다. |
 | 로컬 추론 | 실제 300장 localhost 전체 응답에서 camera+neck compile의 비용 단축은 약 20.1%, 정밀 격자 안에서는 약 15.3%다. 단, decoded 출력 gate가 모두 통과하지 않아 **기본값으로 승격하지 않는다.** | [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011). 비컴파일 추론을 대안으로 유지한다. Base5 4-class 시험 서버를 구현했지만 ROS 배포·학습 완료 정확도·4090 70ms 달성은 아직이다. |
-| 최신 4090 재확인 | **학습된 E9/E24·300장 비용 비교·전체 val 745장 FP32/AMP/OFF/ON 검증 완료.** AMP 기본 약 79ms, 병렬화 약 72ms, compile 결합 약 66ms다. AP는 거의 유지하지만 고정 수치 gate 일부 실패로 기본값은 유지한다. | [EVIDENCE 36절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012). 20GiB cap의 48GB 검사와 실제 24GB·ROS/LAN 인증을 구분한다. 빈 출력 COST 근거보다 우선한다. 학습은 실행하지 않았다. |
+| 최신 4090 재확인 | **학습된 출력의 비용·전체 val에 이어 컴파일 연산/레이아웃 유지·Graph prototype 검토까지 완료.** 일반 compile 약 66ms지만 장애물의 연속 EKF 코어 예외가 있어 기본 ON은 보류한다. 병렬화 약 72ms를 우선한다. | [EVIDENCE 37절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012). 20GiB cap의 48GB와 실제 24GB·ROS/LAN 인증을 구분한다. Graph 약72ms는 추가 이득이 없고 production 조합 거부도 유지한다. 학습은 실행하지 않았다. |
 | 학습 compile 선택 | **이번 48GB 4090의 fine 후보에서는 camera backbone 학습 compile ON을 추천한다.** 실제 OFF/ON 각 64 update와 역순 24 update, 수치·gradient·batch 4→3 저장/재개·FP32 val 경로를 통과했다. | [EVIDENCE 25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 기본값 전체 승격이 아니라 새 opt-in config다. 첫 준비 메모리 약 45.71GiB를 감안한다. 추론 compile/병렬화는 계속 기본 OFF다. |
 | 학습·추론 GPU와 배치 | **학습은 48GB·물리 batch 4·누적 1을 유지한다. 대회 추론은 24GB·batch 1을 별도로 검증한다.** 학습을 24GB 예산으로 제한하거나 48GB를 채우기 위해 배치를 늘리지 않는다. | [메모리·배치 결정과 남은 검사](#base5-training-inference-memory-decision-261011). 추론 compile ON도 20GiB 예산에서 실행 근거가 있지만 실제 24GB 카드·학습 완료 가중치 검사는 남아 있다. |
 | ROS CPU 경합 | **로컬 6코어/12스레드에서 실제 측위·tracking·planning·제어와 신호등 YOLO를 실행한 부하 검사를 완료했다.** 정상 CPU 평균 약 33~37%, 추가 점유 시 약 76%에서 제어·측위 50Hz·planning 약 10Hz를 유지했다. | [EVIDENCE 27절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011). GT로 planning을 구동한 독립 인지 비용 검사이며 ROS detector bridge·LAN·학습된 모델의 정확도·4090 13Hz 인증은 아니다. 배포 시험의 Torch 4·OpenCV 1 제한을 명시한다. production 기본값·Vast·본학습은 변경하지 않았다. |
@@ -127,7 +134,7 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 다음 환경 수집과 원거리 정보량 | 완료 5K와 현재 25K 계약은 유지한다. 실제 GT·crop 정보량 조사와 다음 25K의 primary 분포 검사를 완료했다. 먼 차량은 유지하고, 모든 사람·장애물을 최대 거리까지 늘리는 변경은 하지 않는다. | [32절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012). 보강 우선은 장애물 20~50m, 식별 가능한 사람·장애물 30~60m train 사례다. 최종 모델의 clear/weak·자산별 누락 확인 후 별도 보강을 설계한다. Foggy 첫 pilot에서는 RGB 대비를 실제 확인한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | ROS 입력·연속 검출 | **별도 Base5 trial의 실제 메시지→TCP 입력/학습 출력 12장 정합, 대표 dev bag 1,570프레임 AP·threshold·연속 실패 진단을 완료했다.** E25 기본값은 유지한다. | [35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012). 장애물 0.15는 후속 tracker 시험 후보일 뿐 기본값 승격이 아니다. 고주로 1m 실패 중 위치 오차를 검출 부재와 구분한다. |
-| 성능 확인·배포 | 장애물·보행자 개선은 공통 30m dev bag에서도 확인했다. **학습된 출력의 4090 비용·전체 val AP·수치 통제까지 완료. depth/정밀 격자 개별 효과·속도 MAE, 실제 24GB·LAN·ROS 전체 비용은 아직 미검증.** production E25는 유지한다. | [36절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012)의 병렬화 우선 후보 → 실제 24GB live ROS queue/tracker → 100m·미사용 bag·환경별 확인. 이미 완료한 함수/TCP gate를 실제 full-stack 인증으로 바꾸어 읽지 않는다. |
+| 성능 확인·배포 | 장애물·보행자 개선은 공통 30m dev bag에서도 확인했다. **컴파일 영향의 1,570프레임 재추론·실제 EKF 코어 비교까지 완료. depth/정밀 격자 개별 효과·GT 속도 MAE, 실제 24GB·LAN·ROS 전체 비용은 아직 미검증.** production E25는 유지한다. | [37절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)의 병렬화 우선 후보 → 실제24GB live ROS queue/tracker → 100m·미사용 bag·환경별 확인. 코어 상태 차이를 GT AVE/ID switch나 full-stack 인증으로 읽지 않는다. |
 
 현재 우선 순서는 **학습 완료·E9/E24 보존·공통30m 검출 비교·ROS 입력/TCP 정합·
 연속 dev bag 진단 완료 → 학습된 출력의 추론 OFF/ON·4090 비용·전체 val·수치 통제 완료 →

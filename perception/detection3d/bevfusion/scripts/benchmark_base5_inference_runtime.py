@@ -40,6 +40,10 @@ VARIANTS['camera_guarded_rgb'] = (("camera",), False)
 VARIANTS['camera_layout'] = (("camera",), False)
 VARIANTS['parallel_camera'] = ((), False)
 VARIANTS['camera_neck_parallel'] = (("camera", "neck"), False)
+VARIANTS['camera_guarded_neck_parallel'] = (("camera", "neck"), False)
+VARIANTS['camera_layout_neck_parallel'] = (("camera", "neck"), False)
+VARIANTS['camera_guarded_layout_neck_parallel'] = (("camera", "neck"), False)
+VARIANTS['graph_parallel_probe'] = ((), False)
 
 
 def parity(reference, candidate):
@@ -85,10 +89,17 @@ def run_variant(args, config, samples, variant, reference):
         camera_cuda_graph=variant.startswith('graph'),
         eager_camera_numerics=variant.startswith('camera_guarded'),
         rgb_after_crop=variant.endswith('rgb'),
-        compile_reference_layout=variant == 'camera_layout',
+        compile_reference_layout='layout' in variant,
         fp32_reference=getattr(args, 'fp32_reference', False))
-    runtime_args.parallel_camera = variant in ('parallel_camera', 'camera_neck_parallel')
+    runtime_args.parallel_camera = variant == 'parallel_camera' or variant.endswith('_parallel')
     start = time.perf_counter(); server = InferenceServer(runtime_args)
+    extra_parallel = None
+    if variant == 'graph_parallel_probe':
+        # Diagnostic prototype only: materialize the graph during DEFAULT
+        # stream startup before introducing overlap. The production constructor
+        # still rejects unqualified graph+parallel combinations.
+        from app.inference_parallel import ParallelBranches
+        extra_parallel = ParallelBranches(server.model.model, 'camera_side')
     cold_sec = time.perf_counter() - start
     ready = threading.Event(); address = {}; errors = []
 
@@ -195,7 +206,9 @@ def run_variant(args, config, samples, variant, reference):
             prediction_counts=dict(total=sum(map(len,predictions.values())),
                 nonempty_frames=sum(bool(v) for v in predictions.values()),
                 minimum=min(map(len,predictions.values())), maximum=max(map(len,predictions.values()))),
-            peak_allocated_mib=peak, optimization=optimization.report if optimization else {},
+            peak_allocated_mib=peak,
+            optimization=dict(optimization.report, diagnostic_graph_parallel=True)
+                if extra_parallel else optimization.report if optimization else {},
             steady_reserved_mib=torch.cuda.memory_reserved()/2**20,
             startup_peak_allocated_mib=startup_peak,
             stage_stream_ms={k:summary(v) for k, v in spans.items()},
@@ -206,6 +219,8 @@ def run_variant(args, config, samples, variant, reference):
         return report, predictions
     finally:
         server.model.preprocessor.close()
+        if extra_parallel:
+            extra_parallel.disable()
         if server.model.inference_optimization:
             server.model.inference_optimization.disable()
         del server; gc.collect(); torch.cuda.empty_cache()

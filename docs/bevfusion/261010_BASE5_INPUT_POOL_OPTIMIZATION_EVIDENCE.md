@@ -4414,3 +4414,165 @@ threshold 후보를 확인한다. 100m bag GT·새 환경/자산별 잔여 누�
 이번 검사를 live full-stack·30K 학습·실대회 검출률 인증으로 확대 해석하지 않는다.
 검사 종료 뒤 원격 benchmark/진단/학습 프로세스가 없고 GPU 0%·1MiB를 확인했다.
 과금되는 인스턴스 자체는 사용자 결정 없이 중단하지 않았다.
+
+<a id="base5-compile-delivery-tracking-review-261012"></a>
+
+## 37. 컴파일 오차의 전달·연속 검출·실제 EKF 코어 영향 — 2026-10-12
+
+### 요청과 실행 범위
+
+사용자가 추가로 컴파일의 yaw·score 차이를 검토하도록 요청했다. 고정 수치 gate를
+완화하지 않고 실제 전달·BBox 경계·tracker의 비선형 조건을 별도 조사했다. E25 기본값,
+훈련·가중치·원본·MORAI·다른 agent의 planning_validator는 변경하지 않았다.
+실제 24GB 카드는 없으므로 원격 48GB/20GiB cap과 로컬 5060 Ti 검사를 구분한다.
+
+원격 source는 `/workspace/base5_compile_review_source_b645211c_261012`, ignored 결과는
+`artifacts/evaluation/bevfusion/base5_compile_review_261012`다. 기존 CUDA 의존성을 재사용한다.
+로컬 연속 추론 결과는 `base5_compile_bag_261012`이며 모든 가중치는 33절 E24 SHA를 유지한다.
+
+### 전달·경계와 분기 조건
+
+`analyze_base5_runtime_effects.py`는 실제 floor 0.1/top100·class-aware NMS 0.5 뒤
+V/P/O 0.40/0.15/0.10과 별도 O0.15 후보를 검사한다. 클래스 보존 XY Hungarian
+<0.5m 매칭과 물리적인 BBox 모서리 이동을 기록한다. π 회전의 같은 사각형을
+물리적 경계 이동으로 잘못 세지 않는다. 이 도구는 시계열 tracker 시험을 대체하지 않는다.
+
+36절의 E9/E24 전체 745장 export에서는 현재 threshold 뒤 전달 집합 변화·score0.5
+분기 전환이 모두 0이었다. compile 결합의 최대 모서리 이동은 E24 V/P/O
+**3.36/4.23/6.84cm**, E9 **2.25/3.07/3.22cm**였다. 하지만 새로운 E24 반복에서는
+`b5v2_03402`의 Obstacle score가 **0.500058→0.499552**로 바뀌었다.
+실제 EKF `UpdateTrack`은 score<0.5에서 측정 R을 10배로 바꾼다. 따라서 작은 score
+차이를 항상 무해하다고 일반화할 수 없다. tracker R·association은 이 작업에서 수정하지 않는다.
+
+### 더 보수적인 컴파일 후보의 비용과 한계
+
+같은 E24·val 745장·20GiB cap·현재 geometry로 새로 측정했다. ‘연산 유지’는
+LayerNorm/GELU를 eager로 남기는 opt-in이고 ‘레이아웃 유지’는 compiler layout 변경을
+제한한다. 시간은 전처리 포함 warmed localhost RTT다.
+
+| 실행 | 평균 / p95 (ms) | 고정 출력 gate 실패 / 745 |
+|---|---:|---:|
+| AMP 기본 | 78.26 / 79.45 | 비교 기준 |
+| 병렬화 | 72.28 / 73.09 | 1 |
+| 일반 compile+병렬화 | 66.10 / 67.27 | 29 |
+| 연산 유지 compile+병렬화 | 71.57 / 72.96 | 25 |
+| 레이아웃 유지 compile+병렬화 | 65.94 / 66.88 | 28 |
+| 연산·레이아웃 유지 compile+병렬화 | 71.22 / 73.07 | 22 |
+| AMP 기본 재실행 | 79.23 / 80.46 | 1 |
+
+전체 mAP는 기본 77.364%, 후보 77.364~77.452%로 거의 같았다. 하지만 마지막 후보도
+완전한 수치 동일성을 확보하지 못했고 `b5v2_04089`에서 NMS 뒤 Obstacle 하나가 추가됐다.
+더 느리면서 안정성이 확정되지 않아 이 후보들을 기본값으로 채택하지 않는다.
+
+### 실제 연속 bag 1,570프레임의 검출 비교
+
+35절과 **같은 전체 적격 프레임·GT·원본 JPEG·raw XYZI**를 사용했다. 로컬 5060 Ti에서
+AMP 기본/병렬화/일반 compile 결합/Camera CUDA Graph 결합을 각각 실제 추론했다.
+입력 tensor의 강도만 고정 ÷255로 변환한다. 원본·GT·geometry를 바꾸지 않는다.
+로컬은 TF32 OFF·cuDNN benchmark OFF이며 원격 비용 preset과 같지 않다. 로컬 시간은
+4090 속도 근거로 사용하지 않는다. 각 export의 GT identity는
+`89b4e420450bab2a6056bc3917aa7765dbb275a2a88c10f5e45e6c2ded44e33a`로 일치한다.
+
+`compare_base5_common30.py infer`에 명시적 Base5-only opt-in을 추가했다. 기본 FP32
+비교와 E25 경로는 유지한다. `inference_optimization`을 receipt에 남기며 CUDA Graph
+probe와 camera compile 동시 요청은 거부한다. stage 시간과 처음 JIT 준비 비용을 섞어
+배포 latency라고 부르지 않는다.
+
+아래 AP(%)는 같은 radial30·ROS 후처리·각 bag 주 대상 클래스다.
+
+| bag·대상 | AMP 기본 | 병렬화 | compile+병렬화 | Graph+병렬 prototype |
+|---|---:|---:|---:|---:|
+| O02 장애물 | 81.41 | 81.41 | 81.42 | 81.41 |
+| P01 사람 | 80.89 | 80.92 | 80.92 | 80.89 |
+| H03 차량 | 76.33 | 76.34 | 76.35 | 76.32 |
+| R01 차량 | 91.15 | 91.15 | 91.15 | 91.15 |
+
+현재 전달 threshold 뒤에는 O02 일반 compile의 1프레임에서 Obstacle 관측이 추가됐다.
+`O02_164012_00197`, score **0.100328**, LiDAR 중심 X 약 **56.63m**다. 이 bag의 검증 GT는
+30m 계약이므로 이 관측을 곧바로 FP나 TP로 판정하지 않는다. 다른 세 bag의 전달 집합
+변화는 없었다. **비슷한 AP가 동일한 연속 처리나 안전성을 뜻하지 않는다.**
+
+### 실제 EKF 코어 재생과 장애물의 예외
+
+새 `replay_base5_tracker_core.cpp`는 production의 **기존 실제 C++ EKF 소스를 그대로 링크**한다.
+CTRV·XY noise0.40m·yaw noise10°·association5m·OD velocity fusion OFF로 실행한다.
+`replay_base5_compiled_tracking.py`가 같은 기록 Ego·heading−1.347°·Sensor_4 extrinsic으로
+두 경로의 detection을 동일 map 좌표로 옮기고 원래 센서 stamp 순서로 재생한다.
+각 bag에서 코어를 새로 만들며 같은 입력의 독립 반복 control은 출력 차이 0이었다.
+
+이는 **오프라인 EKF 코어**다. ROS TF·node-side orientation canonicalization·30Hz 발행
+스케줄러·UNKNOWN stationary 후처리·Map-CV·planning·LAN은 실행하지 않는다.
+GT 속도 MAE/AVE나 실제 ID switch 인증도 아니다. 서로 다른 실행의 숫자 ID가 일정하게
+바뀌는 것은 ID switch로 세지 않고, 대응 관계가 바뀐 관측을 별도 진단으로 기록한다.
+
+35절과 같은 30m 제한의 matched confirmed-track 비교다. 수치는 **기본 대비 차이**이지
+GT 오차가 아니다. confirmed 집합 변화는 추가/누락이 관측된 frame-class 건수다.
+
+| 일반 compile 결합 | 위치 차이 p95 / 최대 (m) | 2D 속도 차이 p95 / 최대 (m/s) | confirmed 집합 변화 |
+|---|---:|---:|---:|
+| O02 | 0.00917 / 0.48766 | 0.03055 / 0.95512 | 1 |
+| P01 | 0.000147 / 0.000215 | 0.000376 / 0.000559 | 0 |
+| H03 | 0.000794 / 0.003983 | 0.006404 / 0.014170 | 0 |
+| R01 | 0.000153 / 0.000279 | 0.000753 / 0.003753 | 0 |
+
+O02에서는 가까운 UNKNOWN track 1/4의 association·coasting 대응이 달라지는 구간을
+관측했다. 같은 시간의 실제 코어 출력에서 baseline track 4는 약 `[-61.237,-177.786]`,
+compile track 4는 약 `[-60.586,-177.334]`였으며 양쪽 모두 미관측 coasting이었다.
+단순히 서로 다른 숫자 ID를 오류로 센 현상만은 아니다. 대응 진단 10건은 GT ID switch
+10회를 뜻하지 않으며, 어떤 경로가 실제 GT에 더 정확한지는 별도 평가가 필요하다.
+전체 model ROI 재생에서도 이 예외가 남았다. O threshold0.15 후보도 해결하지 못했다.
+UNKNOWN 실제 속도는 후속 stationary 정책에서 0이 되지만 위치·대응 차이까지
+사라지는 것은 아니다. 작은 수치 차이가 이산적인 association/분기에 증폭될 수 있다.
+
+병렬화만 사용한 30m 재생은 네 bag 모두 confirmed 집합·ID 대응 변화 0이었다.
+O02 위치 차이 p95/최대는 0.000654/0.04354m, 다른 세 bag의 최대는 0.000156~0.00824m다.
+이 결과도 full ROS나 다른 환경의 안정성을 인증하지 않는다.
+
+### CUDA Graph 대안과 결론
+
+학습이나 모델 구조를 바꾸지 않고 원래 camera 연산을 capture/replay하는 별도 prototype을
+조사했다. benchmark의 `graph_parallel_probe`와 offline tool의 `--camera-cuda-graph-probe`
+만 사용한다. production constructor의 미검증 Graph+parallel 조합 거부는 그대로 둔다.
+
+4090 전체 val 745장은 평균/p95 **72.36/73.61ms**, startup/steady allocated peak 약
+**17.21/1.67GiB**였다. 고정 gate 실패는 1장이며 동일 장면은 기본 반복에서도 실패했다.
+기본 mAP77.366%와 Graph77.366%가 같았다. 1,570프레임의 30m 코어 재생은 confirmed
+집합·ID 대응 변화가 0이고 O02 위치 차이 p95/최대는 **0.000175/0.001874m**였다.
+전체 model ROI 재생에서도 네 bag 모두 집합·대응 변화 0이었다. 하지만 **단독 병렬화보다
+빠르지 않으므로 이번 기본 배포 후보로 추가하지 않는다.**
+
+**현재 권고:** 병렬화 우선 시험을 유지한다. 일반 compile은 66ms 이득은 분명하지만
+장애물의 연속 코어 예외가 있어 **기본 ON으로 올리지 않는다**. 연산/레이아웃 유지도
+이를 확실히 해결하지 않았으며 Graph는 추가 속도 이득이 없었다. AP만으로 ON을 승인하거나
+고정 gate를 느슨하게 바꾸지 않는다. E25 production·기존 threshold·tracker는 미변경이다.
+다음은 실제 4090 24GB의 별도 Base5 ROS trial에서 queue·LAN·tracker·UNKNOWN 정책까지
+확인하는 것이다. 여기서 관측한 코어 차이를 실주행 충돌이나 모든 compile 실행의 실패로
+확대 해석하지 않는다.
+
+### 산출물과 재현
+
+- `E24_guarded_val745_v1/report.json`, `accuracy_v1.json`, `effects_v1.json`: 원격 후보·전달 진단.
+- `E24_graph_parallel_val745_v1`: 별도 원격 Graph prototype.
+- `base5_compile_bag_261012/E24_amp_*/predictions.json.gz`, receipt: 실제 연속 입력의 출력.
+- `bag_all_accuracy_v2.json`, `tracker_full_v2.json`, `tracker_radial30_v2.json`,
+  `tracker_obstacle015_v2.json`, `tracker_graph_*`: 검출/코어 비교와 범위·policy 분리.
+- `tracker_repeat_control_v2.json`: 별도 실제 코어 반복 control. 초기 relative info 경로
+  실패와 import/JSON serialization 실패도 당시 로그/빈 폴더로 보존한다.
+
+코어 재생은 ROS Python 환경에서 다음처럼 실행한다. 다른 master에 발행하지 않는다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/replay_base5_compiled_tracking.py \
+  --inputs artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/inputs \
+  --binary artifacts/evaluation/bevfusion/base5_compile_review_261012/tracker_core \
+  --sensor-config configs/sensors/Sensor_4.json --maximum-range-m 30 \
+  --predictions \
+  artifacts/evaluation/bevfusion/base5_compile_bag_261012/E24_amp_baseline_v2/predictions.json.gz \
+  artifacts/evaluation/bevfusion/base5_compile_bag_261012/E24_amp_compiled_v1/predictions.json.gz \
+  --output artifacts/evaluation/bevfusion/base5_compile_review_261012/tracker_repeat_new.json
+```
+
+검증은 Docker CPU **48개 통과·CUDA optional 4개 skip**, host의 새 효과/코어 단위 검사,
+기존 C++ 소스의 실제 링크·독립 반복 control·네 bag 코어 실행, 실제 4090 후보 비교와
+로컬 네 경로의 1,570프레임 전수 추론이다. py_compile·whitespace·문서 언어 검사도 통과했다.
+원격·로컬 GPU 작업을 종료하고 결과를 보존했으며 Vast 인스턴스 자체는 자동 중단하지 않는다.

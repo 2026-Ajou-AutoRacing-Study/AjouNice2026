@@ -1,5 +1,11 @@
 # BEVFusion documentation agent context
 
+2026-10-12 최신은 EVIDENCE 37절이다. 컴파일의 전달·BBox 경계·1,570프레임 실제 재추론과
+기존 C++ EKF 코어 비교를 완료했다. AP가 비슷해도 장애물의 대응/coasting 차이가 커
+일반 compile 기본 ON은 보류하며 병렬화 우선이다. Graph prototype은 약72ms로 추가
+속도 이득이 없다. 코어 상태 차이·숫자 ID 차이를 GT AVE/ID switch나 live ROS 인증으로
+읽지 않는다. 실제24GB·ROS/UNKNOWN 정책은 남았고 production·훈련은 유지한다.
+
 2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24·4090 300장 비용·전체 val 745장
 FP32/AMP/OFF/ON과 20GiB cap 검사를 완료했다. AMP 기본/병렬화/compile 결합은 약
 79/72/66ms다. AP 유지와 고정 수치 gate 일부 실패를 구분하며 production 기본값은 유지한다.
