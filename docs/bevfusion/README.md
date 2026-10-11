@@ -30,6 +30,7 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| sparse count stream 오류 재현·우회 / camera-side 병렬 추론 비용 / 기본 OFF·학습 미실행 | [10-11 분리 stream 보완](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011) |
 | 학습 compile 기각하지 않음 / 4090 짧은 OFF·ON 검사 후 선택 / 아직 계획 | [10-11 14:45 검사 범위·채택 기준](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-compile-short-gate-261011) |
 | 최신 4090: 300장 추론·출력 차이 원인 통제·CPU 후보 기각·CUDA 정합 / 학습 미실행·25cm 준비만 완료 | [10-11 14:32 원격 학습 제외 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
 | 실제 로컬 학습 비용 개선 / 기하 계산·pool backward·compiler 후보 / 정합·재개 / 다음 4090 확인 | [10-11 로컬 학습 실행 비용 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011) |

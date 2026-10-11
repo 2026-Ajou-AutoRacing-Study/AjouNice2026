@@ -8,6 +8,10 @@ EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한�
 `261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`에서
 먼저 확인한다. README는 인덱스, EVIDENCE는 실측, Vast 계획은 원격 상세다.
 현재 계획을 여러 문서에 길게 중복 복사하거나 동일 목적의 계획 파일을 추가하지 않는다.
+최신 분리 stream 결과는 EVIDENCE 24절이다. sparse count의 조기 읽기를 재현하고
+camera-side·default-stream LiDAR로 우회했다. 추론 전용 opt-in이며 기본 OFF다.
+비용 단축·진단 통제·학습된 모델의 출력/정확도 gate를 구분한다. 기존 준비 계약과 학습은
+변경하지 않았으며 22절의 실패 prototype 제거는 수정 전의 이력으로 보존한다.
 최신 원격 실행은 EVIDENCE 23절의 2026-10-11 학습 제외 검증이다. 25cm runtime 후보의
 새 prepare-only를 만들었지만 실제 학습 비용·저장/재개와 본학습은 실행하지 않았다.
 compiler 출력 gate 실패, query 고정 진단 통과, 빈 출력의 형식적 일치를 구분한다.

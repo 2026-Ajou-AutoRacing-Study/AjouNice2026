@@ -62,6 +62,7 @@ class BevFusionModel:
         eager_camera_numerics=False,
         rgb_after_crop=False,
         compile_reference_layout=False,
+        parallel_camera=False,
     ):
         config = Config.fromfile(config_path)
         config.model.img_backbone.init_cfg = None
@@ -72,7 +73,7 @@ class BevFusionModel:
         expected_classes = BASE5_CLASSES if base5_runtime else DEFAULT_CLASSES
         if self.classes != expected_classes:
             raise ValueError("runtime class contract differs; use explicit --base5-runtime for Base5")
-        if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or rgb_after_crop or compile_reference_layout) and not base5_runtime:
+        if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or rgb_after_crop or compile_reference_layout or parallel_camera) and not base5_runtime:
             raise ValueError("Experimental inference optimization is Base5-only")
         if base5_runtime:
             validate_base5_runtime(config)
@@ -95,10 +96,11 @@ class BevFusionModel:
         restore_view_geometry(self.model.view_transform)
         self.model.eval()
         self.inference_optimization = None
-        if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout:
+        if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout or parallel_camera:
             self.inference_optimization = InferenceOptimization(
                 self.model, compile_parts, fuse_dense_bn, camera_cuda_graph=camera_cuda_graph,
-                eager_camera_numerics=eager_camera_numerics, reference_layout=compile_reference_layout)
+                eager_camera_numerics=eager_camera_numerics, reference_layout=compile_reference_layout,
+                parallel_camera=parallel_camera)
         # Adapted legacy checkpoints may not carry MMDetection3D 1.x
         # dataset_meta. The explicitly validated runtime config is the
         # authoritative label contract; Base5 does not remap animal to person.

@@ -38,6 +38,8 @@ VARIANTS['camera_guarded'] = (("camera",), False)
 VARIANTS['rgb'] = ((), False)
 VARIANTS['camera_guarded_rgb'] = (("camera",), False)
 VARIANTS['camera_layout'] = (("camera",), False)
+VARIANTS['parallel_camera'] = ((), False)
+VARIANTS['camera_neck_parallel'] = (("camera", "neck"), False)
 
 
 def parity(reference, candidate):
@@ -84,6 +86,7 @@ def run_variant(args, config, samples, variant, reference):
         eager_camera_numerics=variant.startswith('camera_guarded'),
         rgb_after_crop=variant.endswith('rgb'),
         compile_reference_layout=variant == 'camera_layout')
+    runtime_args.parallel_camera = variant in ('parallel_camera', 'camera_neck_parallel')
     start = time.perf_counter(); server = InferenceServer(runtime_args)
     cold_sec = time.perf_counter() - start
     ready = threading.Event(); address = {}; errors = []
@@ -229,7 +232,7 @@ def main():
     if len(samples) < args.iterations: parser.error('Do not repeat inputs to inflate count')
     repo = Path(__file__).resolve().parents[4]
     paths = [Path(__file__), *[repo / 'docker/bevfusion/app' / name for name in
-             ('inference_optimization.py', 'bevfusion_model.py', 'inference_server.py', 'online_preprocessor.py')],
+             ('inference_optimization.py', 'inference_parallel.py', 'bevfusion_model.py', 'inference_server.py', 'online_preprocessor.py')],
              repo / 'perception/detection3d/bevfusion/plugin/morai_pool_optimization.py', config, args.checkpoint]
     identity = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     result = dict(gpu=torch.cuda.get_device_name(), torch=str(torch.__version__), source=source,

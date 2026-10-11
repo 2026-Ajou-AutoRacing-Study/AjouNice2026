@@ -35,7 +35,8 @@ def validate_base5_runtime(config):
 class InferenceOptimization:
     def __init__(self, model, compile_parts=(), fuse_dense_bn=False,
                  emulate_precision_casts=True, camera_cuda_graph=False,
-                 eager_camera_numerics=False, reference_layout=False):
+                 eager_camera_numerics=False, reference_layout=False,
+                 parallel_camera=False):
         if model.training:
             raise ValueError("Inference optimization requires model.eval()")
         parts = tuple(dict.fromkeys(compile_parts))
@@ -43,6 +44,8 @@ class InferenceOptimization:
             raise ValueError("Unknown compile part")
         if camera_cuda_graph and "camera" in parts:
             raise ValueError("Choose camera compile OR CUDA Graph, not both")
+        if camera_cuda_graph and parallel_camera:
+            raise ValueError("Parallel camera with CUDA Graph is not qualified")
         if eager_camera_numerics and "camera" not in parts:
             raise ValueError("Eager camera numerics requires camera compile")
         if reference_layout and not parts:
@@ -51,6 +54,7 @@ class InferenceOptimization:
         self.forwards = []
         self.folded = []
         self.original_train = model.train
+        self.branch_optimization = None
         self.enabled = True
         try:
             if eager_camera_numerics:
@@ -86,6 +90,9 @@ class InferenceOptimization:
                 original = module.forward
                 self.forwards.append((module, original))
                 module.forward = CameraCudaGraph(module, original)
+            if parallel_camera:
+                from app.inference_parallel import ParallelBranches
+                self.branch_optimization = ParallelBranches(model, 'camera_side')
 
             def inference_only_train(mode=True):
                 if mode:
@@ -97,6 +104,7 @@ class InferenceOptimization:
                 camera_cuda_graph=bool(camera_cuda_graph),
                 eager_camera_numerics=bool(eager_camera_numerics),
                 reference_layout=bool(reference_layout),
+                parallel_camera=bool(parallel_camera),
                 emulate_precision_casts=bool(emulate_precision_casts),
                 scope="eval only; source checkpoint is unchanged")
         except Exception:
@@ -133,6 +141,8 @@ class InferenceOptimization:
     def disable(self):
         if not self.enabled:
             return
+        if self.branch_optimization:
+            self.branch_optimization.disable()
         for module, original in reversed(self.forwards):
             module.forward = original
         for parent, conv_name, conv, bn_name, bn in reversed(self.folded):

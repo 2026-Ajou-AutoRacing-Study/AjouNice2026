@@ -2413,3 +2413,121 @@ source checkpoint나 불완전 업로드는 보고서 압축에 포함하지 않
 로컬 `prepared_run_manifest.json`과 `prepared_resolved_train.py`도 보존했다.
 보고서 압축 SHA256은 `25df7bd3bb3513c9db482435c974b20caf2368b76fc6b8eb84b56e38d6468346`다.
 ignored 산출물·가중치·센서는 Git에 강제로 추가하지 않는다.
+
+<a id="base5-parallel-stream-repair-261011"></a>
+
+## 24. Sparse encoder 분리 stream 오류 재현과 실행 순서 보완 — 2026-10-11 15:13 KST
+
+사용자 요청에 따라 이전에 제거했던 병렬 prototype의 원인을 추가 조사했다.
+학습·optimizer update는 실행하지 않았으며 원본 데이터·GT·센서·E25·학습 기본값은 유지했다.
+단순히 padding을 늘리거나 빈 LiDAR를 통과시키는 보완이 아니다.
+
+### 원인: 실제 점 소실이 아닌 활성 voxel 수의 조기 읽기
+
+설치된 `spconv 2.3.6 / cumm 0.4.11`의 regular sparse convolution은 GPU에서
+활성 voxel 개수를 계산한 뒤 `unique_hash`에서 CPU로 읽는다. spconv는 stream context를
+전달하지만 cumm의 `Tensor.cpu(Context ctx)`는 내부에서 `res.copy_(*this)`를 호출하여
+그 context를 복사에 전달하지 않는다. 별도 non-blocking stream에서 GPU 계산이
+완료되기 전 기본 stream의 복사로 수치를 읽을 가능성이 있다.
+근거는 설치된 코드와 [cumm v0.4.11 원본](https://github.com/FindDefinition/cumm/blob/v0.4.11/include/tensorview/tensor.h#L1376),
+[spconv v2.3.6 unique_hash](https://github.com/traveller59/spconv/blob/v2.3.6/spconv/csrc/sparse/indices.py#L1427)다.
+
+- 5060 Ti의 기존 side-LiDAR 전체 경로에서 `Your points vanished here`를 다시 재현했다.
+  실패는 synthetic startup 단계이며 실제 장면에 point가 없다는 근거가 아니다.
+- 원래 count를 읽은 직후 해당 stream을 동기화해 **같은 GPU count**를 다시 읽는
+  진단 통제를 구현했다. 8장 A/B/A/B에서 count 불일치 45회, `0→양수` 26회를 확인했다.
+  예를 들어 원래 읽기는 0, 동기화 후 읽기는 5,454였다. 다른 예는 27,722→39,488이다.
+  이 통제에서는 cold startup과 모든 8장 비교를 통과했다.
+- count 재읽기는 **진단 도구에만** 있으며 설치 라이브러리를 전역 패치하거나 기본 모델에
+  동기화를 추가하지 않았다. 이 통제의 전체 비용은 약 108ms로 가속 이득이 없었다.
+- 4090에서는 side-LiDAR의 단독·cold·실제 8장 검사 출력이 정확히 같았고 기존 전체
+  64장 경로도 실패하지 않았다. GPU·초기화 순서·실행 타이밍에 따라 감춰질 수 있는
+  stream 문제를 4090의 한 번 통과만으로 해결됐다고 보지 않는다.
+
+### 수정: LiDAR는 기본 stream, 카메라를 별도 stream으로
+
+`inference_parallel.py`의 `camera_side`는 다음 순서로 실행한다.
+
+1. 전송·정규화와 voxel화를 기본 stream에서 끝낸다. 설치된 hard voxel kernel의
+   device-wide synchronize를 실제 overlap 구간 전에 둔다.
+2. 카메라 backbone·neck·view transform을 별도 stream에 실행한다.
+3. sparse encoder는 기본 stream에서 실행한다. batch size는 알려진 입력 list 길이의
+   Python 정수이며 GPU scalar를 다시 읽지 않는다.
+4. fusion 전에 camera stream 완료를 기다린다. 전달 tensor의 `record_stream`과
+   예외 시 stream join, instance-local 직렬 lock, 원래 메서드 복원 경로를 둔다.
+
+가중치·checkpoint key·모델 구조·semantic ROI·격자·depth·증강·threshold·head query 수는
+바꾸지 않는다. `--base5-runtime --parallel-camera`의 **명시적 opt-in**으로만 제공한다.
+학습과 non-default caller stream을 거부하며 기존 E25 서버와 기본 추론은 바뀌지 않는다.
+`legacy`·`voxel_main` 및 count 재읽기는 재현·진단용이다.
+
+### 실제 4090 300장 전체 응답 비교
+
+23절과 같은 native JPEG 300장(대표 200 + stress 100), D25 full COST fixture,
+7.5/30cm·512×1056, allocator cap 20GiB를 사용했다. 직렬 localhost 요청이며 GPU 완료·
+CPU decode·응답 전송을 포함한다. 디스크 읽기·cold/JIT·계측 구간은 통계에서 제외했다.
+
+| 실행 | 모델 평균 | 전체 RTT 평균 | RTT p95 |
+|---|---:|---:|---:|
+| 비컴파일 기존, 첫 실행 | 50.65ms | 71.39ms | 72.71ms |
+| **비컴파일 camera-side 병렬화** | **45.09ms** | **65.81ms** | **67.92ms** |
+| 비컴파일 기존, 재실행 | 50.50ms | 71.26ms | 72.73ms |
+| camera+neck compile | 45.53ms | 66.31ms | 69.02ms |
+| camera+neck compile + camera-side | 38.42ms | 59.16ms | 60.56ms |
+| camera+neck compile, 재실행 | 45.49ms | 66.07ms | 67.83ms |
+
+비컴파일 두 실행 평균 대비 병렬화 단축은 약 7.7%, compiled 두 실행 평균 대비
+추가 단축은 약 10.6%다. 기존 비컴파일 대비 결합 후보는 약 17.1% 단축이다.
+해상도나 depth를 낮추어 얻은 이득이 아니며 ROS/LAN/풀스택 보장으로 해석하지 않는다.
+병렬 실행의 CUDA event span은 겹치므로 합산하지 않는다. 모든 case는 300장 비어 있지 않은
+출력 9,300개를 유지했고 stream/encoder 예외 없이 완료했다.
+
+5/20cm도 같은 300장으로 별도 검사했다. 기존 전체 RTT는 첫 실행 79.25ms(p95 80.68),
+마지막 재실행 82.69ms(p95 85.17)였고, 비컴파일 병렬화는 72.87ms(p95 74.33),
+camera+neck compile 결합은 66.61ms(p95 68.40)였다. **이 정밀 격자의 fixture는
+모든 실행에서 decoded 출력이 0개**다. 따라서 비용 참고용이며, 70ms 아래의 실제
+학습 완료 검출기 또는 정합 통과를 확보했다고 주장하지 않는다. baseline의 변동도 보존한다.
+
+### 출력 정합과 채택 범위
+
+- 4090 같은 모델 64장 A/B/A/B는 기존의 5cm·0.02rad·score 0.002 기준을 모두 통과했다.
+  이것을 bitwise 동일성이나 AP 통과로 표현하지 않는다. 최대 중심 차이는 약 1.04mm다.
+- 새로 로드하는 실제 300장 비교는 병렬화 단독 296/300, 비변경 재실행 298/300 통과였다.
+  원래 compiler 후보와 결합 후보는 decoded gate가 실패했다. 기준·query를 완화하거나
+  출력 하나를 숨겨서 통과시키지 않았다.
+- 같은 4090 모델을 유지한 300장 A/B/A/B도 완료했다. 병렬화 297/300, 기존 반복
+  298/300, 병렬 반복 296/300이었다. 예외 해결을 전체 decoded gate 통과로 바꾸지 않는다.
+- 마지막 4090 **같은 프레임의 sparse-depth raster 고정 통제 300장 A/B/A/B**는
+  모든 비교가 통과했고 중심·크기·yaw·score 차이가 모두 0이었다. 실제 원본 입력의
+  gate 실패와 이 통제의 통과를 구분한다. 통제 때문에 추론 입력 정책을 변경하지 않는다.
+- 5060 Ti 실제 64장 일반 비교에는 기존 반복과 병렬 반복 모두 1장 실패가 있었다.
+  sparse depth raster만 같은 프레임의 기준값으로 고정한 **진단 통제**에서는
+  64장 A/B/A/B가 모두 통과했다. 이는 서로 다른 프레임 사이의 depth 재사용 정책이 아니다.
+  이 통제의 예측 중심·크기·yaw·score 차이는 모두 0이었다.
+- COST fixture의 불안정한 query 선택과 학습된 모델의 정확도를 구분한다.
+  오류를 우회하고 가속 가능성을 확인했지만 **병렬화·compile 기본값은 계속 OFF**다.
+  학습된 모델의 val·rosbag 정합과 실제 서비스 비용을 확인한 뒤 선택한다.
+
+마지막 로컬 Docker 회귀 검사는 28개 통과, 설정을 인자로 받는 sensor calibration은
+별도 1개 통과다. CUDA toy는 실제 BEVFusion처럼 tensor list를 fusion에 전달하여
+계산이 stream join 이후에 시작하도록 구성했다. 중간 검사에서 누락된 PYTHONPATH·
+calibration 인자를 바로잡았으며, toy가 join 전에 덧셈하던 잘못된 모사도 수정했다.
+출력 허용 오차를 늘리지 않았다. 학습 차단·기본 stream 유지·예외 복구·idempotent 복원·
+production E25에서 새 옵션 거부·checkpoint key 유지 검사를 포함한다.
+
+### 실행 근거와 재현 경로
+
+- 원격 isolated source: `/workspace/base5_parallel_source_151cefab_261011`.
+- 원격 산출물: `/workspace/base5_parallel_qualification_151cefab_261011`.
+- 로컬 ignored 근거: `artifacts/evaluation/bevfusion/base5_parallel_261011/`.
+- 도구: `diagnose_base5_lidar_streams.py`, `qualify_base5_parallel_inference.py`,
+  `benchmark_base5_inference_runtime.py`의 `parallel_camera` / `camera_neck_parallel` variant.
+
+`remote_reports.tar.gz`에는 config·보고서·실패/성공 로그만 보존하며 가중치·센서 데이터는
+포함하지 않는다. 마지막 frozen300 보고서는 실행 전후 주요 소스 SHA256 일치도 검사했다.
+보고서 archive SHA256은 `a29de9b2271e1dd0aaa8fba0cf6fa610b19df9bdfb942c026831f7648002c707`다.
+
+23절의 원격 source·준비 계약은 덮어쓰지 않았다. 새 inference 소스는 별도 경로에 두며,
+이 변경을 포함한 다음 실행에는 source/config 계약을 다시 확인한다. 본학습 초기화에
+COST fixture를 사용하지 않으며 다음 학습 작업은 허브에 합의한 짧은 compile OFF/ON
+검사와 새 계약부터다. 인스턴스는 자동 Stop하지 않는다.

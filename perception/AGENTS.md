@@ -8,6 +8,11 @@
 
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
+2026-10-11 최신 분리 stream 보완은 EVIDENCE 24절이다. spconv/cumm의 활성 voxel 수
+조기 읽기를 5060 Ti에서 재현하고 camera-side·default-stream LiDAR 순서로 우회했다.
+4090 300장 비용과 출력 통제를 확인했으며 새 옵션은 추론 전용·기본 OFF다. 학습·E25·
+GT·기존 준비 계약은 바꾸지 않았다. 22절의 prototype 제거는 이 수정 전의 이력이다.
+재현 도구의 legacy 경로·count 재읽기를 실제 배포 정책으로 쓰지 않는다.
 2026-10-11 14:32 KST 최신 원격 검증은 EVIDENCE 23절이다. 사용자 요청대로 학습은
 실행하지 않고 4090 300장 추론·수치 통제·CPU 스레드·CUDA pooling·증강 geometry를 검사했다.
 camera+neck compile은 약 65.9ms 비용 후보이나 decoded gate가 실패해 기본 OFF다.

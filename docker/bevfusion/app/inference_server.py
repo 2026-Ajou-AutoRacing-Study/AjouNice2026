@@ -53,6 +53,7 @@ class InferenceServer:
                 eager_camera_numerics=getattr(args, "eager_camera_numerics", False),
                 rgb_after_crop=getattr(args, "rgb_after_crop", False),
                 compile_reference_layout=getattr(args, "compile_reference_layout", False),
+                parallel_camera=getattr(args, "parallel_camera", False),
             )
             LOGGER.info("BEVFusion model is ready")
 
@@ -225,6 +226,8 @@ def parse_args():
     parser.add_argument("--base5-runtime", action="store_true",
                         help="Explicit single-frame 4-class Base5 contract; not E25 deployment")
     parser.add_argument("--compile-parts", nargs="+", choices=("camera", "neck", "bev"), default=())
+    parser.add_argument("--parallel-camera", action="store_true",
+                        help="Experimental Base5-only camera side stream; sparse encoder stays on default stream")
     parser.add_argument("--fuse-dense-bn", action="store_true",
                         help="Experimental eval-only dense Conv/BN folding")
     parser.add_argument("--camera-cuda-graph", action="store_true",

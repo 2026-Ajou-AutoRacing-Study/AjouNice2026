@@ -49,6 +49,10 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 분리 stream 보완:** [EVIDENCE 24절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-parallel-stream-repair-261011)의
+  camera-side 추론 후보는 오류 우회·비용 검사를 완료했지만 기본 OFF다. 실제 모델의
+  val/rosbag 정합 확인은 남아 있으며 이번에는 학습하지 않았다.
+
 - **2026-10-11 14:32 KST 원격 학습 제외 검증:** [EVIDENCE 23절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011)의
   4090 300장 추론·수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다.
   compiler는 출력 gate 실패로 OFF이며 정밀 격자의 빈 출력은 정합 통과가 아니다.
