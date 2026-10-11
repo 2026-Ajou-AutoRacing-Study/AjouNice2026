@@ -15,7 +15,7 @@
 외부 백업·실제 복원 검증 완료 → depth 25cm 후보의 로컬 학습·추론 구현·비용 비교 완료 →
 4090 추론·수치 통제 재확인·25cm 새 prepare-only 완료 →
 사용자 선택의 5/20cm·depth 25cm batch 4 compile OFF/ON 비용·gradient·저장/재개·val 검사 완료 →
-새 fine·compile ON 준비 계약 완료 → 승인 후 본학습**이다.
+새 fine·compile ON 준비 계약 완료 → W&B·Drive 포함 사용자 딸깍 실행기 준비 → 사용자가 본학습 시작**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 2026-10-11 06:43 KST 합의 이후 로컬 학습·추론을 구현·실험했다. 학습 결과는 21절,
@@ -32,6 +32,7 @@
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 사용자가 직접 시작하는 한 명령 / W&B 온라인 로깅·Drive 백업 / 로컬 PC 유지·재개 / 본학습 미시작 | [10-11 사용자 실행기와 운영 조건](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
 | 실제 ROS CPU 스택·신호등과 인지 동시 실행 / 추가 CPU 점유 / 관측 주기·원본 입력 공백 / 배포 인증과 구분 | [10-11 로컬 CPU 경합 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011) |
 | 48GB 학습 batch 4 유지 / 24GB 추론과 분리 / 추론 compile ON 메모리 근거와 남은 gate | [10-11 16:03 메모리·배치 합의](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-training-inference-memory-decision-261011), [측정값 재검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | 정밀 5/20cm·depth 25cm의 실제 4090 학습 OFF/ON / gradient·partial batch·저장/재개·val / 새 준비 계약 | [10-11 fine 학습 compile 검사 완료](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011) |

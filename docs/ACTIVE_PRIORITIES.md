@@ -49,6 +49,11 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 사용자 실행기 준비:** [W&B·Drive 포함 딸깍 실행과 재개](bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)를
+  준비했다. 사용자가 직접 시작하며 agent는 본학습·상주 watcher를 실행하지 않았다.
+  원격 학습과 로컬 통신 중계·토큰 갱신을 분리하고 학습·최종 백업까지 로컬 PC를 켜 둔다.
+  다음은 사용자 실행 후 완료 checkpoint·W&B·Drive 증거 확인이다. 기존 준비 계약은 유지한다.
+
 - **2026-10-11 16:45 KST:** [로컬 ROS CPU 경합 검사](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-cpu-contention-local-261011)를
   완료했다. 학습된 detector의 실제 ROS bridge·대회 4090 24GB·LAN·13Hz 인증과는
   구분한다. production과 원격 준비 계약은 유지하며 다음은 본학습 승인·백업 시작이다.

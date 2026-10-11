@@ -13,6 +13,91 @@
 현재 결정·우선순위의 단일 기준은 [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)다.
 이 문서는 원격 실행 상세·명령·과거 진행 근거를 관리한다.
 
+<a id="base5-user-oneclick-training-261011"></a>
+
+## 사용자 실행용 딸깍 학습 — 2026-10-11 17:46 KST
+
+사용자는 agent가 본학습을 시작하지 않고, 직접 한 번 실행한 뒤 결과 분석을 요청하기로
+했다. 이번에는 실행기·원격 인증·온라인 로깅·Drive 백업 경로를 준비한다. **본학습과
+상주 백업 watcher는 아직 시작하지 않았다.** 아래 명령이 이전 수동 watcher 명령보다 우선한다.
+
+### 시작과 관측
+
+**로컬 PC에서** 다음 명령을 실행한다. 원격 컨테이너의 터미널에 붙여 넣는 명령이 아니다.
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/start_base5_vast_training.sh
+```
+
+이 명령은 고정 소스·초기화·데이터·준비 계약, 유휴 48GB GPU, W&B와 Drive 연결을
+확인한 뒤 원격 `base5-sunny13-training` tmux와 로컬 `base5-sunny13-backup` tmux를 만든다.
+학습은 원격에서 실행하며 로컬은 통신 중계와 토큰 갱신·백업 관측만 담당한다. 터미널이나
+SSH 화면은 닫아도 되지만 **학습과 최종 백업이 끝날 때까지 로컬 PC를 켜고 인터넷 연결을
+유지한다. 절전·종료하면 W&B 전송과 백업이 끊긴다.** 이미 실행 중이면 중복 실행하지 않는다.
+
+- W&B 프로젝트: `AjouNice2026 / morai-3d-object-detection`.
+- 예정 본학습 run: [Sunny13 fine·D25 학습](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011-9e2b7b85e2a3).
+  시작 전에는 본학습 run이 아직 없을 수 있다.
+- Drive 위치: 공유 AjouNice2026 루트 아래
+  `model/bevfusion/base5/checkpoint_backups/base5_training_sunny13_fine_d25_compiled_prepared_55272391_261011/`.
+  기존 `dataset/Base5` 데이터 백업과 별개다. 첫 완료 checkpoint 전에는 학습 백업 폴더가
+  아직 없거나 비어 있어도 정상이다. SHA 하위 폴더의 `COMPLETE.json`과 최상위
+  `LATEST.json`이 검증된 백업의 기준이며 폴더 생성 자체는 성공 근거가 아니다.
+- 로컬 백업 상태: `artifacts/evaluation/bevfusion/base5_oneclick_261011/status.json`.
+  상세 관측은 같은 폴더의 `watcher.log`, `drive_backup.jsonl`에 남는다.
+- 원격 상태·콘솔: 현재 work-dir의 `oneclick_status.json`, `console.log`.
+  W&B는 학습 지표용이며 Drive 백업 성공을 대신 증명하지 않는다.
+
+검사만 하거나 실제 완료 checkpoint에서 재개할 때는 각각 다음을 사용한다.
+
+```bash
+bash scripts/runtime/start_base5_vast_training.sh --check
+bash scripts/runtime/start_base5_vast_training.sh --resume
+```
+
+`--check`는 임시 통신 중계를 종료하고 학습이나 상주 watcher를 만들지 않는다. `--resume`은
+같은 계약의 `last_checkpoint`가 있을 때만 허용하며 동일 W&B run ID를 유지한다. 정확한
+mid-epoch/worker 난수 재현을 보장하지 않고, 검증한 epoch 경계 재개 계약을 따른다.
+첫 checkpoint 전 실패·다른 인스턴스로 이사·host/port 변경은 임의 초기화하지 않고 별도 확인한다.
+완료 후 agent에게 결과 확인을 요청한다. **Vast Stop/Destroy는 자동 실행하지 않는다.**
+
+### 설정과 검증 범위
+
+학습 설정과 계약은 바로 아래 15:49 준비본 그대로다. 새 학습 소스를 수정하거나
+compile·증강·batch·LR을 다시 바꾸지 않았다. 원격 wrapper만
+`/workspace/base5_oneclick_261011/base5_vast_oneclick.py`에 배치하고 `--wandb` 로깅을 활성화했다.
+W&B SDK는 기존 0.19.11에서 현재 키를 지원하는 0.22.3으로만 교체했다. Torch·CUDA와
+1,005개 고정 학습 소스는 유지한다. 예상 24 epoch 예산은 여전히 약 4.7~5.3시간이다.
+새 통신 중계에서 대용량 백업의 전체 완료 시간은 별도 관측하며 이 학습 ETA에 포함했다고
+가정하지 않는다.
+
+원격 기본 DNS의 시간 초과와 W&B TLS 연결 시간 초과를 실제로 관측했다. 컨테이너 DNS만
+보완하고 이전 값을 `/workspace/base5_oneclick_261011/resolv.conf.before`에 보존했다.
+인증 키 오류로 단정하지 않았다. 원격 직결이 불안정하여 loopback HTTP CONNECT와 SSH
+reverse forwarding으로 **W&B·Drive의 지정 HTTPS 도메인만 로컬 인터넷을 경유**한다.
+TLS는 끝까지 유지하며 외부에 프록시 포트를 열거나 인증 정보·HTTP 내용을 로그로 남기지 않는다.
+로컬 18992 / 원격 18991 포트를 사용한다. Drive refresh token·client secret은 로컬에만
+두고 짧은 access token만 SSH stdin으로 전달하며 원격 rclone 설정은 익명 RAM에 둔다.
+W&B 로그인은 별도 원격 `.netrc`에 권한 0600으로 보관하며 Git·문서·이미지에 넣지 않는다.
+
+실제 `MoraiWandbVisBackend`로 GPU 학습 없이 시험 지표를 업로드하고 서버 summary를
+다시 읽어 확인했다. [로깅 사전 검사 run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5-oneclick-preflight-261011)은
+본학습 결과가 아니다. Drive는 작은 사전 검사 파일의 실제 쓰기·재읽기를 확인했다.
+기존 full checkpoint 분할 업로드·전체 SHA·실제 복원 검증은
+[EVIDENCE 20절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011)을
+따르며, 작은 검사 파일을 새 대용량 전송 속도 측정으로 해석하지 않는다.
+실제 전체 `--check`와 완료 checkpoint가 없는 상태의 1회 백업 관측도 통과했다.
+단위 검사 13개, Python 문법·shell 문법·diff 공백 검사를 통과했다. 본학습 폴더의
+`fresh_start.json`·checkpoint·학습 상태 파일이 없는지 따로 확인한다. 검사 receipts는
+로컬 `artifacts/evaluation/bevfusion/base5_oneclick_261011/`에 두며 Git에 넣지 않는다.
+
+백업은 완료 checkpoint를 120초 주기로 확인한다. 검증한 업로더의 immutable snapshot·
+32MiB 분할/16병렬·전체 SHA 재읽기·복원 검사·완료 표시·중복 방지 경로를 재사용한다.
+전송 오류는 재시도하고 GPU 학습을 중단하거나 다시 시작하지 않는다. SSH 통신 중계도
+재연결한다. 학습 종료·실패 후에도 남은 checkpoint 백업이 확인될 때까지 관측을 유지한다.
+Git에 포함하지 않은 인증·receipt와 학습 결과를 문서 내용에 복사하지 않는다.
+
 <a id="base5-fine-compiled-prepared-vast-261011"></a>
 
 ## 최신 fine 학습 준비 — 2026-10-11 15:49 KST

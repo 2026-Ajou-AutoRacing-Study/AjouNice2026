@@ -6,7 +6,7 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 16:45 KST
+## 현재 계획 허브 — 2026-10-11 17:46 KST
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -27,12 +27,14 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
 | 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. 새 fine·depth 25cm·compile ON prepare-only 계약과 **1,005개 source hash 일치**를 확인했다. | [25절 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011). 이전 50cm/7.5cm 계약을 resume하거나 비용용 shape 변환 checkpoint로 본학습을 초기화하지 않는다. 실제 본학습 시작은 별도 승인 후다. |
-| 체크포인트 보존 | 실제 Drive 병렬 업로드·전체 SHA·복원·중복 재검사 완료. 상주 watcher·본학습은 미시작 | 최종 계약과 사용자 승인 후 watcher·본학습 시작. [EVIDENCE 20절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
+| 체크포인트 보존·사용자 실행 | 실제 full checkpoint 백업 검증을 유지하고 **W&B 온라인 업로드·Drive 쓰기/재읽기와 딸깍 실행기를 준비했다. 본학습·상주 watcher는 미시작**이다. | 사용자가 로컬에서 한 명령으로 원격 학습과 로컬 통신·백업을 시작한다. 로컬 PC는 계속 켜 둔다. [최신 명령·통신 조건·재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 학습 완료 모델의 실제 24GB·LAN·ROS 전체 비용은 미검증. production E25는 유지 | 로컬 CPU 경합 검사와 실제 대회 배포 인증을 구분한다. 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
 현재 우선 순서는 **5/20cm·depth 25cm의 짧은 4090 학습·gradient·저장/재개·val 검사 완료 →
-새 fine·compile ON 준비 계약 완료 → 승인 후 백업 watcher와 Sunny13 본학습**이다.
+새 fine·compile ON 준비 계약 완료 → W&B·Drive 포함 실행기 준비 → 사용자가 직접 Sunny13 본학습 시작**이다.
+사용자는 agent가 본학습을 시작하지 않고 실행 준비까지만 하도록 요청했다. 원격 학습은 tmux로
+실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을
 실제 배포 정합 통과로 읽지 않는다. 21절의 학습 gradient 검사 통과를
 23절의 전체 decoded 출력 동일성이나 ROS 배포 통과로 바꾸어 해석하지 않는다.
