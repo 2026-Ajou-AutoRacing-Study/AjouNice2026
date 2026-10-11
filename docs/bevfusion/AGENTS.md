@@ -1,5 +1,10 @@
 # BEVFusion documentation agent context
 
+2026-10-11 최신 실행 결정은 EVIDENCE 30절이다. 동일 3클래스 E1 비교를 완료해 호환
+nuScenes BEV·fusion·head 추가 재사용을 채택하고 E2 비교는 생략했다. 사용자가 후보
+E1에서 `--resume`으로 E2~24를 이어간다. 본학습·상주 watcher는 미시작이다. 아래
+29절의 fresh 시작·4클래스 재개는 이전 이력이며 현재 허브와 Vast 최신 실행 절을 우선한다.
+
 2026-10-11 최신 클래스 결정은 EVIDENCE 29절의 Animal → Pedestrian 통합이다.
 원본 의미·BBox·수집은 보존하고 3클래스 파생 infos와 별도 fresh 실행을 사용한다.
 아래 4클래스 E2 재개는 비교 이력이다. 명령은 Vast 문서의 최신 3클래스 절을 따른다.

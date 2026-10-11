@@ -1,5 +1,10 @@
 # Perception agent context
 
+2026-10-11 최신 실행 결정은 EVIDENCE 30절의 호환 nuScenes 초기화 추가 재사용 채택이다.
+동일 3클래스 조건에서 두 초기화의 E1 전체 val을 완료했고 차이가 명확해 E2 비교는 생략했다.
+사용자 실행기는 후보 E1에서 `--resume`으로 E2~24를 이어간다. 본학습·상주 watcher는
+미시작이며 아래 29절의 fresh 시작·4클래스 E2 재개는 이전 이력이다. 현재 허브를 우선한다.
+
 2026-10-11 최신 사용자 결정은 Animal → Pedestrian 학습 통합이다. 현재 허브와
 EVIDENCE 29절을 먼저 읽는다. 원본 audit·동물 종류·BBox는 보존하며 학습 클래스만 3개다.
 4클래스 E2를 3클래스로 resume하지 않는다. 새 source/data/work 계약과 사용자 실행기를

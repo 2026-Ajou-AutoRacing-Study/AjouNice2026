@@ -3329,3 +3329,98 @@ data/init/3클래스 계약, 유휴 48GB GPU, W&B 온라인 probe 재읽기, Dri
 검사 종료 후 해제했으며 본학습·상주 watcher는 만들지 않았다. 다음 명령은
 `--resume` 없는 새 시작이다. 기존 4클래스 E2의 외부 백업 미확정 상태는 유지하며
 이번 작은 Drive 연결 검사를 full checkpoint 백업 완료로 해석하지 않는다.
+
+<a id="base5-full-initializer-trial-261011"></a>
+
+## 30. 호환 nuScenes 가중치 추가 재사용의 제한 비교 — 2026-10-11
+
+사용자가 현재 초기화와 추가 재사용 후보의 짧은 비교를 승인했다. 각각 1 epoch 후
+전체 validation을 비교하고 애매할 때만 2 epoch까지 확인한다. 24 epoch 본학습은
+승인 범위가 아니며 기존 체크포인트·데이터·production E25는 보존한다. 비교 종료 후
+사용자 실행기의 대상만 채택한 후보 E1로 전환하며 본학습은 자동 시작하지 않는다.
+
+### 후보와 사전 검사
+
+공식 nuScenes MORAI3 adapter SHA `2a9ce3e01a723581f8e76b247887a704c4751f2ebcc9b36884c266466700a247`에서
+추가 233개 tensor를 추출한다. E25 학습 결과는 쓰지 않는다. 기존 camera+sparse 337개
+tensor는 그대로 유지하고 전체 후보는 570개 tensor다.
+
+- `view_transform.downsample`, SECOND/FPN, fusion, head의 공간 Conv2D/ConvTranspose2D
+  커널 21개에서 마지막 X/Y 축을 교환한다. 영상 평면의 depth context convolution은 교환하지 않는다.
+- learned self/cross position encoding의 첫 1×1 Conv1D를 물리 좌표가 같도록 affine 변환한다.
+  원래 origin −54/−54m·pitch 0.6m에서 현재 origin −100.8/−33.6m·pitch 0.4m로 변경한다.
+  center 최종 출력의 weight/bias는 1.5배로 변환해 같은 미터 단위 offset을 유지한다.
+  dim/rot/height의 물리 의미는 교환하지 않는다.
+- depth 118→396 bins의 logits는 seed 261010의 새 출력층 값으로 초기화한다.
+  마지막 80개 context 출력 channel은 복사하고 depth 공통층을 재사용한다.
+  depth logits를 100m까지 임의 외삽하지 않는다.
+- dx/bx/nx/frustum은 현재 config에서 생성한다. optimizer·scheduler를 가져오지 않는다.
+  이는 동일 함수 보장이나 AP 인증이 아니라 감사한 초기화 후보이며 해상도·센서 분포 차이는 남는다.
+
+추가 변환/거부/보존 단위 검사 5개와 기존 sparse CPU 검사 2개를 통과했다.
+CUDA sparse 검사는 기존 28절의 실제 qualification을 재사용하며 이번 CPU 실행에서는 1개 skip이다.
+실제 pretrained camera BEV downsample·SECOND/FPN·fusion·dense head의 rectangular transpose
+대조 최대 절대 오차는 각각 5.46e−7 / 5.36e−7 / 4.53e−6 / 1.91e−5다.
+원격 실제 모델은 570개 tensor를 로드했고 missing은 위 4개 geometry뿐, unexpected는 없다.
+
+추가 delta는 32,326,557 bytes로 한 번만 전송했다. 원격 후보는
+`/workspace/base5_nuscenes_full_xy_metric_v1_261011.pth`, SHA
+`a786b70ec7e639587da9c075fa7db9d3e96bf522b56590162c3134be7197b977`이다.
+로컬 provenance는 `artifacts/evaluation/bevfusion/base5_full_initializer_261011/`에 보존한다.
+
+### 통제 조건과 진행 상태
+
+source는 기존 사용자 실행기를 보존한 별도
+`/workspace/base5_initializer_ab_source_261011`이다. 데이터는 29절의 merged JPEG90이며
+4,255 train / 745 val, 512×1056·공간 5/20cm·depth 25cm·batch 4·LR 1e−4·warm-up 500·
+seed 261010·24 epoch schedule·학습 camera compile ON을 고정한다.
+`run_base5_initializer_trial.py`는 원본 source config를 사용하고 epoch 경계의 full val 후 종료한다.
+resolved config를 재개 입력으로 사용하지 않는다. 제한 검증의 W&B는 offline으로 보존하며
+온라인 logging이나 대용량 Drive 백업 완료로 보고하지 않는다.
+
+### 완료 결과와 결정 — 2026-10-11 KST
+
+두 실행 모두 train 1,064 iteration과 745장 전체 val을 완료했다. 실제 실행 계약의
+identity 비교에서 달라진 항목은 `initial_checkpoint_sha256`뿐이다. val GT는 차량 341개,
+보행자 687개, 장애물 674개로 같으며 단위 검사 2개가 조건 변경·부분 실행을 거부한다.
+
+| E1 지표 | camera+sparse 기준 | 추가 재사용 후보 | 차이 |
+|---|---:|---:|---:|
+| 차량 center AP | 59.69% | 84.09% | +24.39%p |
+| 보행자 center AP | 58.39% | 82.72% | +24.32%p |
+| 장애물 center AP | 28.93% | 43.78% | +14.84%p |
+| 3클래스 평균 center AP | 49.01% | 70.19% | +21.19%p |
+| 평균 IoU AP @0.25 | 54.87% | 73.35% | +18.48%p |
+| 평균 IoU AP @0.50 | 25.49% | 49.89% | +24.41%p |
+
+장애물 0~10/10~20/20~30/30~50m AP는 후보에서 59.32/57.05/36.23/12.27%다.
+장애물 mATE는 0.298→0.149m, mASE는 0.629→0.464로 개선됐지만 mAOE는 약
+1.50rad로 개선되지 않았다. 원래 Animal 34개 GT의 score 0.10·1m recall은
+17.65→32.35%이며 score 0.30에서는 둘 다 0이다. 동물 정확도 문제 해결로 보고하지 않는다.
+
+**추가 재사용 후보를 채택하며 2 epoch 비교는 생략한다.** 이는 동일 조건의 단일 seed
+초기 수렴 비교다. 최종 성능·실주행·rosbag 평가를 인증하지 않으며 이전 Base3의 E1과
+동일 평가 조건도 아니다. 초기화 영향은 확인했지만 남은 데이터·센서·구조 차이는 유지된다.
+
+총 소요 시간은 기준 약 12분 53초, 후보 약 12분 3초다. 정상 train step은 둘 다
+약 0.57초이며 준비·compile 시간 차이를 초기화의 학습 속도 최적화로 해석하지 않는다.
+모델·optimizer의 floating tensor 1,675개는 각 실행에서 모두 유한하다. 두 실행 모두
+AMP 초기 1회 update를 건너뛰어 실제 optimizer update는 1,063회다. full checkpoint에
+optimizer·scheduler·메인 RNG·parameter names가 보존돼 있다. 이 후보의 장시간 재개는
+아직 실행하지 않았으며 이전 29절의 짧은 실제 저장·재개 검증과 구분한다.
+
+- 기준 work: `/workspace/base5_init_baseline_3class_e1_261011`.
+  E1 SHA: `cc5dc832f34c0d9feadb6b8673b4d5b3d2f293055b59bec4fad80858ba037cb6`.
+- 채택 work: `/workspace/base5_init_full_3class_e1_261011`.
+  E1 SHA: `b81957a311ff020f8d46d0e96530f35e2a3dcb3b7632d999df750a584cb2c862`.
+- 채택 계약: `ecddcbad9c2a5a8347a134c0af848fa46a6bf97261b39b605379825075713ca9`.
+- 비교·상태·전체 지표·checkpoint health는 로컬 provenance의 `comparison.json`,
+  `baseline/`, `candidate/`에 보존한다. trial W&B는 offline이며 새 E1 full Drive 백업은 미확정이다.
+
+실행기 기본 대상은 위 후보로 전환했다. 원격 helper는 동결 source 바깥의 별도 폴더에
+배포해 source hash와 비교 계약을 유지한다. `--check --resume`에서 원격 계약·W&B 온라인
+연결·Drive 소량 쓰기/재읽기를 통과했다. 전체 24 epoch를 유지한 E1에서 사용자가 E2~24를
+재개한다. work 이름의 `e1`은 비교 출처이며 본학습 종료 epoch를 제한하지 않는다.
+실행기·비교 검사까지 합계 단위 검사 24개 통과, CPU 전용 CUDA 검사 1개 skip이다.
+본학습·상주 watcher는 시작하지 않았다. 명령과 최신 경로는
+[사용자 실행 절](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)을 따른다.

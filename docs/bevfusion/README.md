@@ -9,6 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
+2026-10-11 최신 선택은 [30절 호환 nuScenes 초기화 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)다.
+동일 3클래스 E1 전체 val에서 추가 재사용 후보가 우세해 채택하고 2 epoch는 생략했다.
+후보 E1에서 사용자가 `--resume`으로 E2~24를 이어간다. 본학습은 아직 시작하지 않았다.
+아래 4클래스 E2 재개와 3클래스 fresh 시작 안내는 이전 이력이며 현재 명령은
+[사용자 실행 절](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011)을 따른다.
+
 2026-10-11 저녁에는 사용자 실행의 E2 Hungarian 수치 오류를 진단하고 Base5-only FP32
 matching을 보완했다. 복구 E2/E3 전체 train/745장 val·optimizer 이름/순서 재개·최신 full
 Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+sparse 초기화 E1/E2의
@@ -39,6 +45,7 @@ Drive 백업을 확인했다. fresh query prior 누락을 수정한 camera+spars
 
 | 목적 | 최신 기준 |
 |---|---|
+| 동일 조건 E1 초기화 비교 / 호환 BEV·fusion·head 변환 / 후보 E1 채택·재개 | [10-11 초기화 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011) |
 | Animal → Pedestrian 학습 통합 / 원본·개별 BBox 보존 / 사람·동물별 평가 / 새 3클래스 실행 | [10-11 클래스 전환 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011), [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
 | 사용자 실행·명시적 재개 / W&B 온라인 로깅·Drive 백업 / 로컬 PC 유지 | [10-11 사용자 실행기와 운영 조건](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-user-oneclick-training-261011) |

@@ -49,6 +49,12 @@
 
 ## P1. 근접 장애물·원거리 차량의 빠른 인지 전달
 
+- **2026-10-11 최신 초기화 결정:** 동일 3클래스 E1 비교를 마쳐 호환 nuScenes의
+  BEV·fusion·head 추가 재사용을 채택했다. 2 epoch는 생략하고 사용자가 후보 E1에서
+  `--resume`으로 E2~24를 이어간다. 본학습·상주 watcher는 아직 시작하지 않았다.
+  [30절 비교 근거](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)와
+  [현재 허브](bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
+
 - **2026-10-11 최신 클래스 합의:** Animal을 Pedestrian으로 통합해 학습하고 완료 후
   동물별 성능을 확인한다. 원본·BBox·기존 4클래스 E2는 보존한다. 새 학습은 별도
   3클래스 실행이며 이전 E2 resume 명령을 재사용하지 않는다.

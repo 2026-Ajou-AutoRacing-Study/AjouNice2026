@@ -17,8 +17,44 @@
 
 ## 사용자 실행용 딸깍 학습
 
-### 최신 준비 대상 — 2026-10-11, Animal → Pedestrian 3클래스
+### 최신 실행 대상 — 2026-10-11, 호환 nuScenes 초기화 E1 채택
 
+3클래스 동일 조건에서 camera+sparse 기준과 BEV·fusion·head까지 추가 재사용하는 후보를
+각각 1 epoch 학습하고 745장 전체 val을 비교했다. 후보 평균 center AP 70.19%가 기준
+49.01%보다 높고 장애물·IoU AP도 함께 개선돼 후보를 채택하며 2 epoch 비교는 생략한다.
+[30절 통제 조건·결과·한계](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-full-initializer-trial-261011)가
+아래 이전 3클래스 새 시작과 4클래스 E2 재개보다 우선한다.
+
+- Source: `/workspace/base5_initializer_ab_source_261011`.
+- Data: `/workspace/base5_sunny13_jpeg90_pedestrian_merged_261011`.
+- Work: `/workspace/base5_init_full_3class_e1_261011`.
+- Initializer: `/workspace/base5_nuscenes_full_xy_metric_v1_261011.pth`.
+- 계약: `ecddcbad9c2a5a8347a134c0af848fa46a6bf97261b39b605379825075713ca9`.
+- 원격 E1 full checkpoint SHA:
+  `b81957a311ff020f8d46d0e96530f35e2a3dcb3b7632d999df750a584cb2c862`.
+- `--check --resume`는 원격 계약·W&B 온라인 연결·Drive 소량 업로드/재읽기를 통과했다.
+  **E2~24 본학습과 상주 watcher는 아직 시작하지 않았다.** 새 E1 전체의 Drive 백업 완료는
+  미확정이므로 외부 백업 확인 전 인스턴스를 Destroy하지 않는다.
+
+로컬에서 아래 한 번 실행하면 이미 완료한 E1의 optimizer·원래 24 epoch LR 스케줄을
+이어 E2~24를 학습한다. `--resume` 없는 명령은 기존 E1 보호를 위해 거부된다.
+work 이름의 `e1`은 비교 이력이며 종료 epoch를 1로 제한하지 않는다. 제한 비교용 종료
+hook은 사용자 본학습에 넣지 않는다. 이전 학습과 데이터·증강·해상도·배치·LR은 같다.
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/start_base5_vast_training.sh --resume
+```
+
+W&B 온라인 logging과 Drive watcher는 시작 명령에 포함된다. 비교 E1의 W&B는 offline
+기록으로 별도 보존돼 있으며 자동 온라인 업로드 완료로 보고하지 않는다. 로컬 PC를
+학습·최종 백업이 끝날 때까지 켜 둔다. 남은 23 epoch 예산은 기존 fine 비용에 근거해
+약 4.6~5.2시간이며 초기 준비와 마지막 백업 전송은 별도다. 현재 E1에서 장시간 재개는
+아직 실행하지 않았고 단일 seed의 E1 AP를 최종 성능으로 해석하지 않는다.
+
+### 이전 3클래스 준비 이력 — 2026-10-11, Animal → Pedestrian 통합 시점
+
+이 절의 경로·새 시작 명령은 당시 이력이며 현재 실행에는 위 `--resume`을 사용한다.
 사용자 결정에 따라 Animal을 Pedestrian으로 합친 별도 학습을 준비했다. 기존 4클래스
 E2는 삭제·수정하지 않는다. 클래스 출력과 optimizer가 달라지므로 아래 이전 실행의
 E2에서 resume하지 않는다. [29절 전수·저장/재개 검사](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-animal-pedestrian-merge-261011)를 따른다.
