@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신 결과는 [35절 ROS 입력/TCP 정합·연속 bag 1,570프레임](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)이다.
+2026-10-12 최신 결과는 [36절 학습된 E9/E24의 4090 추론·전체 val·수치 통제](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012)다.
+20GiB 제한 안에서 학습된 출력과 약 66ms 후보를 확인했다. AP는 거의 유지하지만 고정 수치
+gate는 일부 실패한다. 병렬화 우선 시험·compile 추가 후보이며 production 기본값은 유지한다.
+실제 24GB·live ROS/LAN/tracker 검사는 남는다. 아래 35절은 앞선 입력·연속 bag 검사다.
+
+2026-10-12 앞선 결과는 [35절 ROS 입력/TCP 정합·연속 bag 1,570프레임](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)이다.
 Base5 별도 trial·원본 JPEG 전달·서버 강도 ÷255를 구현했고 실제 학습 출력도 대조했다.
 threshold·연속 실패 분석은 검출 전용 dev 검사이며 실제 ROS queue·tracker·24GB 인증은
 남아 있다. production E25와 기본 threshold는 유지한다. 아래 34절은 앞선 표본 비교다.

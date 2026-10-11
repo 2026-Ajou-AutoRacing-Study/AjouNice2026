@@ -1,5 +1,11 @@
 # BEVFusion documentation agent context
 
+2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24·4090 300장 비용·전체 val 745장
+FP32/AMP/OFF/ON과 20GiB cap 검사를 완료했다. AMP 기본/병렬화/compile 결합은 약
+79/72/66ms다. AP 유지와 고정 수치 gate 일부 실패를 구분하며 production 기본값은 유지한다.
+병렬화 우선 실전 시험·실제24GB·live ROS/LAN/tracker·100m가 다음이다. 빈 출력 COST
+fixture를 완성 모델 근거로 사용하지 않는다. 아래 35절은 앞선 입력·연속 bag 검사다.
+
 2026-10-12 최신은 EVIDENCE 35절이다. Base5 별도 ROS trial·서버 강도 ÷255·원본
 JPEG 전달을 구현하고 실제 메시지→bridge→TCP→학습 E24의 12장 정합을 통과했다.
 대표 dev bag의 모든 적격 1,570프레임 AP·threshold·연속 실패 진단을 완료했다.

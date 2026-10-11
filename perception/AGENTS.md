@@ -1,5 +1,12 @@
 # Perception agent context
 
+2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24의 실제 출력으로 4090 300장 비용·
+전체 val 745장 FP32/AMP/OFF/ON·20GiB cap·같은 모델 수치 통제를 완료했다. AMP 약
+79/72/66ms(기본/병렬화/compile 결합)이며 AP는 거의 유지한다. 고정 수치 gate는 일부
+실패하므로 기본값은 유지한다. 병렬화 우선 실전 시험 후 실제24GB·live ROS/LAN/tracker,
+100m/환경/자산별 확인이 다음이다. frozen 훈련·production E25·다른 agent는 유지한다.
+아래 35절은 앞선 입력·연속 bag 검사다.
+
 2026-10-12 최신은 EVIDENCE 35절이다. Base5 별도 trial(원본 JPEG/서버 ÷255)의
 실제 메시지→TCP 입력·학습 E24 출력 12장 정합 및 연속 dev bag 1,570프레임 검사를
 완료했다. E25 기본 설정·threshold는 유지한다. 다음은 학습된 출력 최적화/4090·

@@ -5,6 +5,7 @@ Frozen raster is a numerical CONTROL only, never an inference cache across
 frames. Uses one loaded model and unchanged actual native-JPEG sensor inputs.
 """
 import argparse
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
@@ -37,6 +38,8 @@ def main():
     for name in ('data', 'selection', 'config', 'checkpoint', 'sensor-config', 'output'):
         p.add_argument('--' + name, type=Path, required=True)
     p.add_argument('--samples', type=int, default=32)
+    p.add_argument('--sample-ids', nargs='+',
+                   help='Explicit diagnostic cases only; must match --samples, never an AP selection')
     p.add_argument('--parts', nargs='+', choices=['camera', 'neck', 'bev'], default=['camera'])
     p.add_argument('--eager-camera-numerics', action='store_true')
     p.add_argument('--reference-layout', action='store_true')
@@ -47,9 +50,15 @@ def main():
     p.add_argument('--memory-budget-gib', type=float)
     p.add_argument('--query-control', action='store_true',
                    help='Diagnostic only: force the reference query heatmap, never a deployment gate')
+    p.add_argument('--preserve-config', action='store_true',
+                   help='Keep learned spatial/depth geometry instead of creating a COST candidate')
+    p.add_argument('--score-floor', type=float, default=0.)
+    p.add_argument('--max-detections', type=int, default=200)
     a = p.parse_args()
     if a.output.exists(): p.error('Fresh output required')
     if not 8 <= a.samples <= 64: p.error('Bounded 8..64 actual samples')
+    if not 0 <= a.score_floor <= 1 or not 1 <= a.max_detections <= 200:
+        p.error('Finite score floor 0..1 and top-k 1..200 required')
     a.output.mkdir(parents=True)
     torch.set_num_threads(4); cv2.setNumThreads(1)
     torch.backends.cuda.matmul.allow_tf32 = a.allow_tf32
@@ -59,12 +68,28 @@ def main():
         fraction = a.memory_budget_gib * 2**30 / torch.cuda.get_device_properties(0).total_memory
         if not 0 < fraction <= .85: p.error('Memory budget must fit within the 85% safety limit')
     torch.cuda.set_per_process_memory_fraction(fraction)
-    cfg = candidate_config(Config.fromfile(str(a.config)), a.grid, a.depth_step, 512)
+    base = Config.fromfile(str(a.config))
+    cfg = deepcopy(base) if a.preserve_config else candidate_config(base, a.grid, a.depth_step, 512)
+    if 'compile_camera' in cfg.model:
+        cfg.model.compile_camera = False
+    cfg.model.img_backbone.init_cfg = None
     path = a.output / 'config.py'; cfg.dump(str(path))
     runtime = BevFusionModel(path, a.checkpoint, load_sensor4_calibration(a.sensor_config),
                              base5_runtime=True)
+    # The runtime applies its own defaults while constructing the model.
+    # Set the diagnostic precision switches after construction as well.
+    torch.backends.cuda.matmul.allow_tf32 = a.allow_tf32
+    torch.backends.cudnn.allow_tf32 = a.allow_tf32
+    torch.backends.cudnn.benchmark = a.cudnn_benchmark
     samples, source = samples_from_selection(a.data, a.selection)
-    selected = [samples[i * (len(samples)-1) // (a.samples-1)] for i in range(a.samples)]
+    if a.sample_ids:
+        by_id = {s['id']: s for s in samples}
+        if (len(a.sample_ids) != a.samples or len(set(a.sample_ids)) != a.samples or
+                set(a.sample_ids) - by_id.keys()):
+            p.error('Explicit diagnostic IDs must be distinct, available and match --samples')
+        selected = [by_id[token] for token in a.sample_ids]
+    else:
+        selected = [samples[i * (len(samples)-1) // (a.samples-1)] for i in range(a.samples)]
     captured = []; handle = runtime.model.view_transform.dtransform.register_forward_pre_hook(
         lambda module, inputs: captured.append(inputs[0].detach().clone()))
     observed = {}
@@ -80,7 +105,17 @@ def main():
     result = dict(source=source, scope='One full checkpoint, frozen raster control only; not a deployment policy or AP test',
                   checkpoint_sha256=hashlib.sha256(a.checkpoint.read_bytes()).hexdigest(),
                   compile_parts=a.parts, eager_camera_numerics=a.eager_camera_numerics,
-                  reference_layout=a.reference_layout, depth_step=a.depth_step, grid=a.grid,
+                  reference_layout=a.reference_layout,
+                  depth_step=float(cfg.model.view_transform.dbound[2]),
+                  grid=None if a.preserve_config else a.grid,
+                  model_geometry=dict(voxel=list(cfg.model.data_preprocessor.voxelize_cfg.voxel_size),
+                    camera_xbound=list(cfg.model.view_transform.xbound),
+                    camera_ybound=list(cfg.model.view_transform.ybound),
+                    depth=list(cfg.model.view_transform.dbound)),
+                  preserve_learned_config=a.preserve_config,
+                  decoder=dict(score_floor=a.score_floor,max_detections=a.max_detections),
+                  selected_ids=[s['id'] for s in selected],
+                  targeted_diagnostic=bool(a.sample_ids),
                   allow_tf32=a.allow_tf32, cudnn_benchmark=a.cudnn_benchmark,
                   gpu=torch.cuda.get_device_name(), torch_version=str(torch.__version__),
                   source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -92,7 +127,7 @@ def main():
         repeats = []
         for i in range(8):
             captured.clear()
-            repeats.append(runtime.infer(sample['points'], sample['images'], i, 0., 200)[0])
+            repeats.append(runtime.infer(sample['points'], sample['images'], i, a.score_floor, a.max_detections)[0])
             depth = captured[0].cpu()
             if i == 0: reference_depth = depth
             result['repeated_raster'].append(dict(iteration=i,
@@ -102,16 +137,20 @@ def main():
         baselines = []; rasters = []; intermediates = []
         for i, sample in enumerate(selected):
             captured.clear()
-            baselines.append(runtime.infer(sample['points'], sample['images'], i, 0., 200)[0])
+            baselines.append(runtime.infer(sample['points'], sample['images'], i, a.score_floor, a.max_detections)[0])
             rasters.append(captured[0].cpu())
             intermediates.append(dict(observed))
         handle.remove(); handle = None
         cases = [('repeat_eager', (), False), ('compiled', a.parts, False), ('folded', (), True)]
+        if a.preserve_config:
+            cases.extend([('parallel_camera', (), False), ('compiled_parallel', a.parts, False)])
         if a.query_control: cases.append(('compiled_query_control', a.parts, False))
         for name, parts, fold in cases:
+            parallel = name in ('parallel_camera', 'compiled_parallel')
             optimization = InferenceOptimization(runtime.model, parts, fold,
                 eager_camera_numerics=(a.eager_camera_numerics and name.startswith('compiled')),
-                reference_layout=a.reference_layout and name.startswith('compiled')) if parts or fold else None
+                reference_layout=a.reference_layout and name.startswith('compiled'),
+                parallel_camera=parallel) if parts or fold or parallel else None
             checks = []
             try:
                 for i, sample in enumerate(selected):
@@ -126,7 +165,7 @@ def main():
                         query_override = runtime.model.bbox_head.heatmap_head.register_forward_hook(
                             lambda module, inputs, output, value=frozen_heatmap: value)
                     try:
-                        prediction = runtime.infer(sample['points'], sample['images'], i, 0., 200)[0]
+                        prediction = runtime.infer(sample['points'], sample['images'], i, a.score_floor, a.max_detections)[0]
                     finally:
                         hook.remove()
                         if query_override: query_override.remove()

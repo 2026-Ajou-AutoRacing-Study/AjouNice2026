@@ -4221,3 +4221,196 @@ bag/연속 구간 7개다. 추가로 실제 입력/학습 출력 12장 TCP gate,
 확인 → live ROS queue·LAN·tracker의 threshold/누락 시험 → 100m·미사용 bag·다른
 환경 확인이다. 고주로 중심 오차 1~2m의 원인 분해도 필요하다. 이번 검사는 원거리,
 foggy·동물·복합체와 실제 full-stack 안전성을 인증하지 않으며 production E25는 유지한다.
+
+<a id="base5-learned-runtime-vast-261012"></a>
+
+## 36. 학습된 E9/E24의 4090 추론 최적화·출력·메모리 검증 — 2026-10-12
+
+### 실행 범위와 재현 계약
+
+사용자가 Vast를 켠 뒤 인스턴스 `55272391`의 SSH·4090 48GB·유휴 GPU를 확인했다.
+학습·MORAI·production E25·threshold·frozen 훈련 소스·원본 센서는 변경하지 않았다.
+인스턴스 Stop/Destroy도 실행하지 않는다. 33절의 E9 best와 E24 마지막 체크포인트를
+strict load하며 그 절의 SHA256을 유지한다. 빈 출력의 COST fixture가 아니라 실제 학습된
+검출 출력을 비교한다.
+
+- 공간 격자 LiDAR XY 5cm·Z 20cm, camera BEV 20cm, depth `[1,100,0.25]`,
+  입력 `512×1056` Q90 JPEG와 현재 3클래스를 유지한다. 내부 padding은 X±100.8/Y±33.6m,
+  의미 ROI는 `[-100,-30,-3,100,30,2]`다. 학습 compile은 추론 설정으로 자동 상속하지 않는다.
+- `benchmark_base5_inference_runtime.py --preserve-config`는 학습된 공간/depth 설정을
+그대로 사용한다. 기존 COST 후보 생성 경로와 명시적으로 구분한다.
+- private localhost TCP·batch 1이며 decoder floor 0.1/top100이다. 네 카메라 OpenCV 병렬
+  전처리, Torch CPU 4 threads·OpenCV 1 thread를 사용한다. 이미지와 점 payload를 RAM에
+  읽은 뒤 측정하므로 disk loader·ROS 메시지 대기·LAN·bridge NMS·tracker 비용은 포함하지 않는다.
+- AMP/TF32 runtime과 별도 FP32/TF32 OFF 기준을 비교한다. stage instrumentation은
+  실제 RTT 측정 뒤 별도 수행하며 stream span을 단순 합산하지 않는다.
+- 48GB GPU에서 PyTorch allocator를 **20GiB로 제한**한다. 실제 24GB 카드나 신호등·
+  전체 스택 동시 실행을 인증하는 검사는 아니다.
+- 모든 variant는 동일한 순서·입력·가중치다. 처음/마지막 기본 모드를 반복하며 class별
+  one-to-one 출력 정합의 고정 허용치는 중심/크기 5cm, yaw 0.02rad, score 0.002다.
+  출력 개수 차이도 실패로 남기며 AP가 비슷하다고 이 gate를 완화하지 않는다.
+
+원격 실행 소스는 `/workspace/base5_learned_runtime_source_8e2f86f5_261012`의 별도 snapshot이다.
+기존 built CUDA ops를 재사용하며 의존성·CUDA를 다시 설치하지 않았다. frozen work의
+`resolved_train.py`와 가중치는 읽기 전용이다. 745장 실행의 `_next.py`는 bounded iteration을
+1000으로 확장한 benchmark 사본이며 각 report의 source SHA256이 실제 실행 파일을 식별한다.
+
+### 300장 비용 비교와 전체 validation의 구분
+
+기존 대표/스트레스 300장은 **train 261 / val 39**다. 비용·출력 차이 진단에만 사용하고
+그 AP를 validation 점수나 일반화 성능으로 주장하지 않는다. E24는 672개 출력/273개 nonempty,
+E9는 687개 출력/277개 nonempty여서 빈 출력의 형식적 통과가 아니다.
+
+단위는 ms이며 각 행은 300개 서로 다른 입력의 warmed localhost RTT다.
+
+| 모델·실행 | 평균 RTT | p95 RTT | 고정 출력 gate 통과 |
+|---|---:|---:|---:|
+| E24 기본 | 78.45 | 79.99 | 비교 기준 |
+| E24 병렬화 | 72.16 | 73.56 | 299/300 |
+| E24 camera+neck compile | 72.43 | 74.58 | 292/300 |
+| E24 compile+병렬화 | 66.87 | 68.61 | 292/300 |
+| E24 기본 재실행 | 78.84 | 80.51 | 300/300 |
+| E9 기본 | 79.16 | 80.85 | 비교 기준 |
+| E9 병렬화 | 72.59 | 74.54 | 300/300 |
+| E9 camera+neck compile | 72.94 | 74.37 | 293/300 |
+| E9 compile+병렬화 | 66.47 | 68.16 | 293/300 |
+| E9 기본 재실행 | 79.25 | 81.34 | 300/300 |
+
+E24의 전처리/모델/반환은 기본 약 **18.50/58.65/0.19ms**, compile+병렬화는
+**18.83/46.62/0.19ms**다. 이번 추가 단축은 전처리를 생략하거나 검출 결과를 안 돌려준
+효과가 아니라 모델 실행 경로의 단축이다. RTT에는 별도 protocol/호스트 비용이 더 있다.
+
+후속은 기존 validation **745장 전체만** 사용한다. train·stress 재샘플링이 없으며
+val infos SHA256은 `24a6d6527c046bbee65324867fe38327b9bb40726668abc7f351d1543f7bacaf`다.
+`prepare_base5_runtime_validation_selection.py`가 unique token·upright 정책·정확히 745장을
+검사한다. `summarize_base5_runtime_accuracy.py`는 같은 native GT를 bottom-center로 변환하고
+동일 ROS NMS IoU 0.5를 적용한다. 기존 val이지 독립 test set은 아니다.
+
+### 후처리가 다른 AP를 섞지 않는다
+
+전체 val 745장의 완료 결과는 다음과 같다. AMP 각 실행은 E24 약 1,625개/E9 약 1,817개
+출력을 반환했다. 기본 재실행은 처음 기본 모드와 비교한 결과이며 비교 기준 행의 0개
+정합 검사를 통과 증거로 세지 않는다.
+
+| 모델·실행 | 평균 RTT (ms) | p95 RTT (ms) | 고정 출력 gate 통과 |
+|---|---:|---:|---:|
+| E24 FP32 기준 | 110.24 | 111.73 | 별도 precision 기준 |
+| E24 AMP 기본 | 78.93 | 80.01 | 비교 기준 |
+| E24 AMP 병렬화 | 72.22 | 73.30 | 743/745 |
+| E24 AMP compile+병렬화 | 66.09 | 67.29 | 715/745 |
+| E24 AMP 기본 재실행 | 78.89 | 80.73 | 742/745 |
+| E9 FP32 기준 | 109.54 | 110.82 | 별도 precision 기준 |
+| E9 AMP 기본 | 78.49 | 79.35 | 비교 기준 |
+| E9 AMP 병렬화 | 72.42 | 74.28 | 742/745 |
+| E9 AMP compile+병렬화 | 65.86 | 66.99 | 723/745 |
+| E9 AMP 기본 재실행 | 78.90 | 79.86 | 741/745 |
+
+기본 AMP 대비 병렬화는 약 **7.7~8.5%**, compile+병렬화는 약 **16.1~16.3%** 단축이다.
+compile 결합의 모델 부분은 E24 46.08/E9 45.97ms다. 원격 localhost warmed 비용이므로
+13Hz live ROS/LAN·전체 스택의 지연 상한을 인증하지 않는다.
+
+아래는 전체 의미 ROI·동일 NMS의 center AP(%)다. 300장 mixed selection AP와 섞지 않는다.
+
+| 모델·실행 | Vehicle | Pedestrian | Obstacle | mAP |
+|---|---:|---:|---:|---:|
+| E24 FP32 기준 | 85.463 | 80.214 | 65.606 | 77.094 |
+| E24 AMP 기본 | 85.457 | 80.993 | 65.649 | 77.367 |
+| E24 AMP 병렬화 | 85.457 | 80.993 | 65.648 | 77.366 |
+| E24 AMP compile+병렬화 | 85.721 | 80.992 | 65.651 | 77.455 |
+| E9 FP32 기준 | 84.836 | 85.740 | 67.094 | 79.223 |
+| E9 AMP 기본 | 85.348 | 85.748 | 67.102 | 79.399 |
+| E9 AMP 병렬화 | 85.348 | 85.748 | 67.105 | 79.400 |
+| E9 AMP compile+병렬화 | 85.349 | 85.747 | 67.103 | 79.400 |
+
+AMP 기본은 FP32보다 E24 +0.272pp/E9 +0.176pp이며 성능 하락은 관측되지 않았다.
+compile 추가의 mAP 변화는 E24 +0.088pp/E9 약 +0.001pp다. 이 미세 차이를 학습 개선이나
+일반화 이득으로 주장하지 않는다. AP는 중심 매칭이므로 방향각 안정성 gate를 대체하지 못한다.
+
+기본 재실행도 E24 3장/E9 4장에서 고정 수치 gate를 벗어났다. 병렬화의 E24 2장/E9 3장
+실패를 전부 병렬화의 결함으로 단정하지 않는다. 모든 출력의 중심 차이는 병렬화에서 약
+2mm 이내, compile 결합에서 약 8mm 이내였다. 그러나 방향각 최대 변화는 각각
+E24 약 1.90°/6.83°, E9 약 3.86°/5.37°였고 score 허용치를 벗어난 사례도 있다.
+개수 불일치 장면은 geometry 최대치 계산에 포함할 수 없어 별도 실패로 남긴다.
+compile 결합은 두 모델 모두 한 장에서 출력이 하나 추가됐다. E24 `b5v2_02650`의 추가
+Vehicle score는 **0.100046**으로 decoder floor 경계다. 현재 Vehicle 0.40이면 전달되지
+않지만, 이 사실로 모든 추가/누락이나 미래 threshold를 안전하다고 일반화하지 않는다.
+
+33절의 static-val AP는 raw decoder 결과다. 이번 표의 AP는 ROS와 같은 floor 0.1/top100·
+NMS 뒤 결과다. 이전 E24 FP32 export에 동일 후처리를 적용하면 radial 30m AP는
+V/P/O **95.214/89.481/76.394%**, mAP **87.030%**로 이번 FP32 TCP 결과와 일치한다.
+33절의 raw 97.25/94.87/83.49%에서 낮아진 차이를 모델 손상이나 최적화의 영향으로
+해석하지 않는다. 낮은 score 삭제와 중복 억제 조건이 달라진 것이다.
+
+구간 AP도 같은 후처리로 계산하며 GT 수를 함께 기록한다. 빈 클래스의 관례상 AP 0을
+‘실제 원거리 성능 0’이라고 읽지 않는다. 이 진단 JSON은 W&B의 세 클래스 GT가 모두
+있을 때만 정의하는 구간 mAP 패널을 수정하거나 기존 history에 덮어쓰지 않는다.
+
+### 메모리·산출물과 남은 검사
+
+300장 AMP 추론의 steady allocated peak는 약 **1.53~1.61GiB**, 초기 로드/준비 peak는
+약 **17.07~17.15GiB**다. FP32 745장 기준 초기 peak는 약 **18.90GiB**, steady peak는
+약 **1.95GiB**다. report의 `steady_reserved_mib`는 stage probe 이후 allocator reservation이므로
+계측 전의 실제 steady allocated peak와 혼동하지 않는다. 20GiB cap 성공은 24GB 배포의
+유력한 근거지만 실제 카드·다른 GPU 노드와의 동시 사용 검사는 여전히 남는다.
+
+ignored 산출물 루트는 `artifacts/evaluation/bevfusion/base5_learned_runtime_261012`이며
+같은 이름의 원격 `/workspace` 폴더를 유지한다. 각 실행의 `report.json`, variant별
+`*_predictions.json`, `accuracy.json`, resolved runtime config와 validation selection을 보존한다.
+출력·가중치·config·최적화 source의 SHA256은 report에 기록된다. 작은 결과 파일만 로컬로
+회수하며 센서 데이터나 가중치를 다시 전송하지 않는다.
+회수된 JSON/config 43개는 원격·로컬 SHA256이 모두 일치했다.
+
+최초 CPU accuracy 실행은 snapshot에 ROS NMS package가 빠져 import 실패했다.
+해당 package만 별도 snapshot에 추가한 뒤 재실행했다. GPU benchmark나 frozen training을
+재시작·변경한 문제가 아니며 실패 로그도 보존한다.
+
+### 같은 모델의 수치 통제와 적용 결론
+
+E24 val의 균등 선택 32장·기준 출력 79개를 사용한 별도 진단을 완료했다. LiDAR의 카메라
+깊이 raster를 각 프레임의 기준값으로 고정한 **진단 전용** 통제이며 실제 추론에서 프레임 간
+depth·query를 캐시하지 않는다. 같은 모델을 유지하여 가중치 재로드 차이도 제거한다.
+
+| 고정 raster 진단 | 고정 출력 gate 실패 / 32 |
+|---|---:|
+| 기본 재실행 | 0 |
+| 병렬화 | 0 |
+| camera+neck compile | 2 |
+| compile+병렬화 | 2 |
+| dense Conv/BN folding | 3 |
+| compile + 기준 query 선택 고정 | 1 |
+
+병렬화의 camera feature·dense heatmap은 이 통제에서 정확히 같았다. compile의 최대
+camera feature relative L2 차이는 약 **0.00099**였지만 dense heatmap 최대 절대 차이는
+약 **0.0312**였고, 실패 두 장에서 query 200개 중 하나가 바뀌었다. query를 기준으로
+고정해도 한 장은 남아 query 선택 변화만으로 모든 수치 차이를 설명할 수 없다.
+첫 입력 8회 반복에서는 raster 자체의 변화가 없었다. 따라서 이번 32장 결과만으로
+전체 val 기본 재실행의 흔들림 원인을 모두 raster race라고 확정하지 않는다.
+
+추가로 기존 실패 장면을 의도적으로 고른 **8장·기준 출력 31개**를 조사했다. 이 집합은
+실패 원인 진단이지 일반적인 실패율/AP 추정용이 아니다. 첫 입력 `b5v2_00180`의 8회
+반복 중 5회에서 depth **1픽셀·약 1.679m** 차이와 출력 gate 실패를 함께 관측했다.
+기존 DepthLSS의 여러 점이 같은 픽셀에 쓸 수 있는 인덱스 assignment와 일치하는 현상이다.
+그 raster를 고정하면 같은 모델의 기본/병렬화는 8/8 통과했지만 compile/compile+병렬화는
+각 7/8 실패했다. 기준 query 통제에서도 2/8은 남았다. 따라서 **기본 모드의 일부 입력
+raster 흔들림과 compiler 산술/query 선택 차이는 별개**다. 다른 모든 반복 실패의 원인을
+이 한 장으로 확정하지 않으며 deterministic pixel 선택 정책을 production에 적용하지 않았다.
+후속 raster 정책 보완은 같은 val에서 AP·출력·비용을 다시 확인한 뒤 판단한다.
+
+**결론:** 학습된 출력이 있는 모델에서도 약 66ms의 최적화 후보를 확인했고 전체 val AP는
+거의 유지된다. 병렬화는 우선 실전 시험 후보, compile은 추가적인 선택지로 유지한다.
+고정 수치 gate를 전부 통과하지 않았으므로 추론 최적화의 production 기본값은 변경하지 않는다.
+이는 ‘재학습해야 한다’나 ‘모델이 망가졌다’는 뜻이 아니며 같은 가중치로 OFF/ON 비교가 가능하다.
+folding도 이 진단만으로 채택하지 않는다. 실제 24GB·ROS/LAN·tracker에서 관측된 변화가
+판단에 영향을 주는지 확인한 뒤 적용 정책을 정한다.
+
+검사는 Docker CPU 회귀 **38개 통과·CUDA optional 4개 skip**, 추가 host CPU 10개 통과,
+실제 4090의 learned 출력/전체 val/수치 통제, py_compile·diff whitespace다. 같은 CPU
+테스트를 실행 환경별로 반복한 수를 독립 테스트 개수로 더하지 않는다. source 변경은
+비용 도구·선택기·정확도 진단기·실험용 수치 통제에 한정하며 production 모델은 바꾸지 않았다.
+
+**다음:** 실제 4090 24GB에서 Base5 trial의 ROS queue·LAN·최신 프레임 처리·tracker와
+threshold 후보를 확인한다. 100m bag GT·새 환경/자산별 잔여 누락 확인도 남는다.
+33절 raw AP, 이번 ROS 후처리 AP, 35절 dev bag AP는 서로 다른 평가 조건이다.
+이번 검사를 live full-stack·30K 학습·실대회 검출률 인증으로 확대 해석하지 않는다.
+검사 종료 뒤 원격 benchmark/진단/학습 프로세스가 없고 GPU 0%·1MiB를 확인했다.
+과금되는 인스턴스 자체는 사용자 결정 없이 중단하지 않았다.

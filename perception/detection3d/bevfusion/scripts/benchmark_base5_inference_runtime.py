@@ -79,13 +79,14 @@ def run_variant(args, config, samples, variant, reference):
     parts, fold = VARIANTS[variant]
     runtime_args = SimpleNamespace(sensor_config=str(args.sensor_config), camera_order=None,
         intrinsic_source="horizontal_fov", projection_only=False, config=str(config),
-        checkpoint=str(args.checkpoint), device="cuda:0", amp=True, preprocess_workers=args.camera_workers,
+        checkpoint=str(args.checkpoint), device="cuda:0", amp=not getattr(args, 'fp32_reference', False), preprocess_workers=args.camera_workers,
         warmup_iterations=2, temporal_feature_cache=False, temporal_maximum_age_sec=.3,
         base5_runtime=True, compile_parts=parts, fuse_dense_bn=fold,
         camera_cuda_graph=variant.startswith('graph'),
         eager_camera_numerics=variant.startswith('camera_guarded'),
         rgb_after_crop=variant.endswith('rgb'),
-        compile_reference_layout=variant == 'camera_layout')
+        compile_reference_layout=variant == 'camera_layout',
+        fp32_reference=getattr(args, 'fp32_reference', False))
     runtime_args.parallel_camera = variant in ('parallel_camera', 'camera_neck_parallel')
     start = time.perf_counter(); server = InferenceServer(runtime_args)
     cold_sec = time.perf_counter() - start
@@ -114,7 +115,8 @@ def run_variant(args, config, samples, variant, reference):
             metadata = dict(operation='inference', sensor_config_sha256=calibration['config_sha256'],
                 camera_order=[c['frame_id'] for c in calibration['cameras']],
                 intrinsic_source=calibration['intrinsic_source'], point_dim=4,
-                score_threshold=0., max_detections=200)
+                score_threshold=getattr(args, 'score_floor', 0.),
+                max_detections=getattr(args, 'max_detections', 200))
             for i in range(16 + args.iterations):
                 if i == 16 and getattr(args, 'ready_file', None):
                     args.ready_file.write_text(json.dumps(dict(ready=True, variant=variant,
@@ -174,7 +176,8 @@ def run_variant(args, config, samples, variant, reference):
             rec.enabled = True
             for i in range(args.stage_iterations):
                 sample = samples[(i * 7) % len(samples)]; rec.records = []
-                server.model.infer(sample['points'], sample['images'], i, 0., 200)
+                server.model.infer(sample['points'], sample['images'], i,
+                                   metadata['score_threshold'], metadata['max_detections'])
                 for name, begin, end, _ in rec.records:
                     spans.setdefault(name, []).append(begin.elapsed_time(end))
         finally:
@@ -193,6 +196,7 @@ def run_variant(args, config, samples, variant, reference):
                 nonempty_frames=sum(bool(v) for v in predictions.values()),
                 minimum=min(map(len,predictions.values())), maximum=max(map(len,predictions.values()))),
             peak_allocated_mib=peak, optimization=optimization.report if optimization else {},
+            steady_reserved_mib=torch.cuda.memory_reserved()/2**20,
             startup_peak_allocated_mib=startup_peak,
             stage_stream_ms={k:summary(v) for k, v in spans.items()},
             stage_note='Separate CUDA-event critical path spans include host idle; not kernel self-time.',
@@ -222,6 +226,14 @@ def main():
     parser.add_argument('--cpu-threads', type=int, choices=[1,2,4,8], default=4)
     parser.add_argument('--memory-budget-gib', type=float,
                         help='Optional allocator cap for a 24GB deployment compatibility probe')
+    parser.add_argument('--preserve-config', action='store_true',
+                        help='Use the learned model geometry unchanged; do not synthesize a COST grid/depth candidate')
+    parser.add_argument('--fp32-reference', action='store_true',
+                        help='FP32/TF32-off input/output reference, not the deployment AMP timing preset')
+    parser.add_argument('--score-floor', type=float, default=0.,
+                        help='Server decoder floor; production bridge requests 0.1')
+    parser.add_argument('--max-detections', type=int, default=200,
+                        help='Server decoder top-k; production bridge requests 100')
     parser.add_argument('--ready-file', type=Path,
                         help='Optional host-visible warmup completion gate for a CPU contention probe')
     parser.add_argument('--start-file', type=Path)
@@ -232,9 +244,11 @@ def main():
         parser.error('Contention gate needs one variant and fresh gate files')
     if not 1 <= args.gate_timeout_sec <= 300: parser.error('Bounded 1..300 second gate timeout required')
     if args.output.exists(): parser.error('Fresh output required')
-    if not 24 <= args.iterations <= 300: parser.error('Bounded 24..300 requests required')
+    if not 24 <= args.iterations <= 1000: parser.error('Bounded 24..1000 distinct requests required')
     if not 8 <= args.stage_iterations <= 32: parser.error('Bounded 8..32 stage probes required')
     if args.variants[0] != 'baseline': parser.error('Baseline must run first for matched parity')
+    if not 0 <= args.score_floor <= 1 or not 1 <= args.max_detections <= 200:
+        parser.error('Finite score floor in 0..1 and top-k in 1..200 required')
     args.output.mkdir(parents=True)
     torch.set_num_threads(args.cpu_threads); cv2.setNumThreads(args.opencv_threads)
     torch.backends.cudnn.benchmark = True; torch.backends.cuda.matmul.allow_tf32 = True
@@ -244,7 +258,11 @@ def main():
         if not 0 < fraction <= .85: parser.error('Memory budget must fit within the 85% safety limit')
     torch.cuda.set_per_process_memory_fraction(fraction)
     base = Config.fromfile(str(args.config))
-    cfg = candidate_config(base, args.grid, args.depth_step, 512)
+    cfg = deepcopy(base) if args.preserve_config else candidate_config(base, args.grid, args.depth_step, 512)
+    # Never inherit the training compilation switch as an inference decision.
+    if 'compile_camera' in cfg.model:
+        cfg.model.compile_camera = False
+    cfg.model.img_backbone.init_cfg = None
     config = args.output / 'runtime_config.py'; cfg.dump(str(config))
     samples, source = samples_from_selection(args.data, args.selection)
     if len(samples) < args.iterations: parser.error('Do not repeat inputs to inflate count')
@@ -257,7 +275,15 @@ def main():
         runtime_threads=dict(camera_workers=args.camera_workers, opencv=args.opencv_threads,
                              torch=args.cpu_threads),
         allocator_budget_gib=fraction*torch.cuda.get_device_properties(0).total_memory/2**30,
-        identity=identity, cases=[], scope='Matched trusted full-model checkpoint, NOT an AP evaluation. Batch1 AMP native JPEG; localhost TCP RTT is not ROS/LAN full-stack latency.')
+        identity=identity, cases=[], preserve_learned_config=args.preserve_config,
+        decoder=dict(score_floor=args.score_floor,max_detections=args.max_detections),
+        precision='FP32/TF32 OFF' if args.fp32_reference else 'AMP/TF32 runtime',
+        model_geometry=dict(voxel=list(cfg.model.data_preprocessor.voxelize_cfg.voxel_size),
+            camera_xbound=list(cfg.model.view_transform.xbound),
+            camera_ybound=list(cfg.model.view_transform.ybound),
+            depth=list(cfg.model.view_transform.dbound),
+            classes=list(cfg.metainfo.classes)),
+        scope='Matched trusted full-model checkpoint, NOT an AP evaluation. Batch1 native JPEG; localhost TCP RTT is not ROS/LAN full-stack latency.')
     reference = None
     for variant in args.variants:
         report, predictions = run_variant(args, config, samples, variant, reference)
