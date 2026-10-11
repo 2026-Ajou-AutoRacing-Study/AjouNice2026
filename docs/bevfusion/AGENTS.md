@@ -8,7 +8,11 @@ EVIDENCE를 수치 근거로, HISTORICAL을 과거 재현용으로만 사용한�
 `261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`에서
 먼저 확인한다. README는 인덱스, EVIDENCE는 실측, Vast 계획은 원격 상세다.
 현재 계획을 여러 문서에 길게 중복 복사하거나 동일 목적의 계획 파일을 추가하지 않는다.
-depth 25cm는 계획 후보이고 실제 준비본은 아직 50cm다. 다음 임대용 고정 팀 이미지 게시는
+최신 원격 실행은 EVIDENCE 23절의 2026-10-11 학습 제외 검증이다. 25cm runtime 후보의
+새 prepare-only를 만들었지만 실제 학습 비용·저장/재개와 본학습은 실행하지 않았다.
+compiler 출력 gate 실패, query 고정 진단 통과, 빈 출력의 형식적 일치를 구분한다.
+추론 compile 기본값은 OFF이며 비용용 checkpoint는 학습 초기화에 사용하지 않는다.
+아래의 ‘원격 미접속·아직 50cm 준비’는 과거 이력이다. 다음 임대용 고정 팀 이미지 게시는
 계획 단계이며 현재 설치된 인스턴스 교체나 이미지 업로드를 수행한 것으로 기록하지 않는다.
 추가 로컬 학습 가속의 최신 근거는 EVIDENCE 21절이다. 기본 config와 opt-in 후보,
 5060 Ti 실측과 아직 수행하지 않은 4090 재확인을 구분한다.

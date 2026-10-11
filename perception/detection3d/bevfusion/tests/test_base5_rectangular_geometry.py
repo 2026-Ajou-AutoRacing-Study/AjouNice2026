@@ -57,5 +57,19 @@ class RectangularGeometryTest(unittest.TestCase):
             aug=next(v for v in pipeline if v['type']=='MoraiImageAug3D')
             self.assertEqual(aug['final_dim'],[448,896]);self.assertEqual(aug['resize_lim'],[.7,.7])
 
+    def test_depth25_runtime_is_explicit_candidate(self):
+        root=Path(__file__).resolve().parents[1]/'configs'
+        original=Config.fromfile(str(root/'bevfusion_base5_dense_512_native_jpeg90.py'))
+        candidate=Config.fromfile(str(root/'bevfusion_base5_dense_512_depth25_runtime_candidate.py'))
+        self.assertEqual(original.model.view_transform.dbound,[1.,100.,.5])
+        self.assertEqual(candidate.model.view_transform.dbound,[1.,100.,.25])
+        self.assertEqual(candidate.model.view_transform.pool_cache_limit_bytes,512*2**20)
+        self.assertEqual(candidate.model.type,'MoraiTrainingRuntimeBEVFusion')
+        self.assertFalse(candidate.model.get('compile_camera',False))
+        self.assertEqual(candidate.model.view_transform.pool_geometry_mode,'batched_checked')
+        self.assertEqual(candidate.train_pipeline,original.train_pipeline)
+        self.assertEqual(candidate.model.bbox_head,original.model.bbox_head)
+        self.assertEqual(candidate.required_box_geometry_policy,original.required_box_geometry_policy)
+
 
 if __name__=='__main__':unittest.main()

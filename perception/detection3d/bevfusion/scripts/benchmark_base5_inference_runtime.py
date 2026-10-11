@@ -77,7 +77,7 @@ def run_variant(args, config, samples, variant, reference):
     parts, fold = VARIANTS[variant]
     runtime_args = SimpleNamespace(sensor_config=str(args.sensor_config), camera_order=None,
         intrinsic_source="horizontal_fov", projection_only=False, config=str(config),
-        checkpoint=str(args.checkpoint), device="cuda:0", amp=True, preprocess_workers=4,
+        checkpoint=str(args.checkpoint), device="cuda:0", amp=True, preprocess_workers=args.camera_workers,
         warmup_iterations=2, temporal_feature_cache=False, temporal_maximum_age_sec=.3,
         base5_runtime=True, compile_parts=parts, fuse_dense_bn=fold,
         camera_cuda_graph=variant.startswith('graph'),
@@ -103,7 +103,7 @@ def run_variant(args, config, samples, variant, reference):
     thread = threading.Thread(target=worker, daemon=True); thread.start()
     if not ready.wait(10) or errors:
         raise RuntimeError("localhost worker failed: " + repr(errors))
-    predictions = {}; rows = []; checks = []
+    predictions = {}; rows = []; checks = []; startup_peak = None
     calibration = server.calibration
     try:
         with socket.create_connection(('127.0.0.1', address['port']), timeout=300) as connection:
@@ -128,6 +128,9 @@ def run_variant(args, config, samples, variant, reference):
                     assert detection['velocity'] == [0., 0.]
                     assert np.isfinite([*detection['center'], *detection['size'], detection['yaw'], detection['score']]).all()
                 if i < 16:
+                    if i == 15:
+                        startup_peak = torch.cuda.max_memory_allocated() / 2**20
+                        torch.cuda.reset_peak_memory_stats()
                     continue
                 predictions[sample['id']] = detections
                 rows.append(dict(id=sample['id'], group=sample['group'], rtt_ms=elapsed,
@@ -173,10 +176,15 @@ def run_variant(args, config, samples, variant, reference):
                             ('preprocess_ms', 'inference_ms', 'postprocess_ms', 'server_ms', 'rtt_ms')})
         optimization = server.model.inference_optimization
         report = dict(variant=variant, cold_load_warmup_sec=cold_sec, timing=groups,
+            prediction_counts=dict(total=sum(map(len,predictions.values())),
+                nonempty_frames=sum(bool(v) for v in predictions.values()),
+                minimum=min(map(len,predictions.values())), maximum=max(map(len,predictions.values()))),
             peak_allocated_mib=peak, optimization=optimization.report if optimization else {},
+            startup_peak_allocated_mib=startup_peak,
             stage_stream_ms={k:summary(v) for k, v in spans.items()},
             stage_note='Separate CUDA-event critical path spans include host idle; not kernel self-time.',
-            parity=dict(compared=len(checks), passed=all(c['passed'] for c in checks), checks=checks),
+            parity=dict(compared=len(checks), passed=all(c['passed'] for c in checks), checks=checks,
+                        nonvacuous=bool(sum(map(len,predictions.values())))),
             per_sample=rows)
         return report, predictions
     finally:
@@ -196,15 +204,24 @@ def main():
     parser.add_argument('--iterations', type=int, default=300)
     parser.add_argument('--stage-iterations', type=int, default=16)
     parser.add_argument('--require-parity', action='store_true', help='Fail if any decoded prediction gate fails')
+    parser.add_argument('--camera-workers', type=int, choices=[1,2,4], default=4)
+    parser.add_argument('--opencv-threads', type=int, choices=[1,2,4], default=1)
+    parser.add_argument('--cpu-threads', type=int, choices=[1,2,4,8], default=4)
+    parser.add_argument('--memory-budget-gib', type=float,
+                        help='Optional allocator cap for a 24GB deployment compatibility probe')
     args = parser.parse_args()
     if args.output.exists(): parser.error('Fresh output required')
     if not 24 <= args.iterations <= 300: parser.error('Bounded 24..300 requests required')
     if not 8 <= args.stage_iterations <= 32: parser.error('Bounded 8..32 stage probes required')
     if args.variants[0] != 'baseline': parser.error('Baseline must run first for matched parity')
     args.output.mkdir(parents=True)
-    torch.set_num_threads(4); cv2.setNumThreads(1)
+    torch.set_num_threads(args.cpu_threads); cv2.setNumThreads(args.opencv_threads)
     torch.backends.cudnn.benchmark = True; torch.backends.cuda.matmul.allow_tf32 = True
-    torch.cuda.set_per_process_memory_fraction(.85)
+    fraction = .85
+    if args.memory_budget_gib is not None:
+        fraction = args.memory_budget_gib * 2**30 / torch.cuda.get_device_properties(0).total_memory
+        if not 0 < fraction <= .85: parser.error('Memory budget must fit within the 85% safety limit')
+    torch.cuda.set_per_process_memory_fraction(fraction)
     base = Config.fromfile(str(args.config))
     cfg = candidate_config(base, args.grid, args.depth_step, 512)
     config = args.output / 'runtime_config.py'; cfg.dump(str(config))
@@ -216,6 +233,9 @@ def main():
              repo / 'perception/detection3d/bevfusion/plugin/morai_pool_optimization.py', config, args.checkpoint]
     identity = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     result = dict(gpu=torch.cuda.get_device_name(), torch=str(torch.__version__), source=source,
+        runtime_threads=dict(camera_workers=args.camera_workers, opencv=args.opencv_threads,
+                             torch=args.cpu_threads),
+        allocator_budget_gib=fraction*torch.cuda.get_device_properties(0).total_memory/2**30,
         identity=identity, cases=[], scope='Matched trusted full-model checkpoint, NOT an AP evaluation. Batch1 AMP native JPEG; localhost TCP RTT is not ROS/LAN full-stack latency.')
     reference = None
     for variant in args.variants:
@@ -226,8 +246,10 @@ def main():
         (args.output / 'report.json').write_text(json.dumps(result, indent=2) + '\n')
         print('RESULT ' + json.dumps({k:v for k,v in report.items() if k not in ('per_sample', 'parity')}), flush=True)
     assert identity == {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}, 'Source changed mid-probe'
-    print('PARITY ' + json.dumps({c['variant']: c['parity']['passed'] for c in result['cases']}), flush=True)
-    if args.require_parity and any(not c['parity']['passed'] for c in result['cases']):
+    print('PARITY ' + json.dumps([dict(variant=c['variant'], prediction_counts=c['prediction_counts'],
+        **{k:v for k,v in c['parity'].items() if k != 'checks'})
+        for c in result['cases']]), flush=True)
+    if args.require_parity and any(not c['parity']['passed'] or not c['parity']['nonvacuous'] for c in result['cases']):
         raise SystemExit(2)
 
 

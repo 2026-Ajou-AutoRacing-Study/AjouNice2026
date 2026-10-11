@@ -2266,3 +2266,141 @@ animal은 label 3 / class_name animal로 보존하며 pedestrian으로 자동 �
 학습된 checkpoint에서 same-instance 출력 차이·val/rosbag 정확도를 추가 확인하고,
 가속 이득이 없거나 gate가 실패하면 검증된 비컴파일 추론을 사용한다.
 최종 소스·depth·학습 플래그·새 work-dir 계약과 사용자 승인 후 본학습을 시작한다.
+
+<a id="base5-inference-runtime-vast-261011"></a>
+
+## 23. 4090 재확인 — 학습 제외 검증, 2026-10-11 14:32 KST
+
+사용자는 4090을 재개하고 **학습을 제외한 필요한 작업**을 요청했다. 기존 인스턴스
+55272391의 설치·5K 입력을 재사용했다. 이번 작업의 optimizer update는 0회다.
+본학습·짧은 학습 benchmark·백업 watcher·ROS 배포·TensorRT는 실행하지 않았고,
+인스턴스를 Stop/destroy하거나 production E25·센서·GT·split을 변경하지 않았다.
+다음 내용은 22절의 로컬 추론 결과와 구분되는 실제 원격 실행이다.
+
+### 조건과 비용용 checkpoint
+
+- RTX 4090 48GB 개조 모델, Torch 2.7.1+cu128, OpenCV 4.11.0, AMP·batch 1이다.
+  512×1056 Q90 JPEG, semantic ROI X±100/Y±30m, 4-class·7D를 유지한다.
+  camera workers 4 / OpenCV threads 1 / Torch threads 4가 기본 대조군이다.
+- 동일한 서로 다른 300장: 대표 200장 + stress 100장이다. selection SHA256은
+  `76443de45c3252c6e3dc7809802832e9948546519371e0a416ce152a00cd0b42`다.
+  실행 입력 manifest SHA256은 `34f3560de16370a763607d68180d35268b159f3f87d8d88f1f217a250da26ce1`다.
+  실제 입력 16회 warm-up과 cold compilation은 정상 300회 통계에서 제외한다.
+  전체 응답은 JPEG decode·전처리·모델·후처리·localhost TCP 반환까지이며 ROS/LAN/판단 비용은 아니다.
+- 로컬의 200MB inference checkpoint 전송은 약 0.2MB/s여서 제한 시간 안에 중단했다.
+  불완전 파일은 `.incomplete`로 보존하고 로딩하지 않았다. 5K 센서를 다시 전송하지 않았다.
+- 원격에 있는 D50 4-update smoke full checkpoint를 비용 시험에 재사용했다.
+  source SHA256은 `cc150a22861a1603abe2fe6aedd22f73552750eb4cb7f22fc0ff091b8b440973`다.
+  D25는 depth logit 198→396개를 쌍으로 복제하고 config-owned frustum을 복원해
+  **COST-only shape fixture**로 만들었다. 다른 state key·shape 변경은 거부하며 574개를 strict load한다.
+  결과 SHA256은 `1a0c411e087a6d52ed9a666b84ed32f8525efe66c735f9cf68f4fe45130788f7`다.
+  이는 학습된 D25 모델도, 본학습 초기화 정책도 아니다. 정확도/AP/속도 MAE는 평가하지 않았다.
+
+### 전체 추론 비용과 메모리
+
+아래는 allocator 예산을 20GiB로 제한한 같은 호스트의 실행이다. **48GB GPU의 예산 제한은
+실제 24GB 카드 검증이 아니다.** 기본 격자는 7.5/30cm, depth 25cm다.
+
+| 실행, 300장씩 | 모델 평균 | 전체 응답 평균 | 전체 응답 p95 | steady peak allocated | 출력 정합 |
+|---|---:|---:|---:|---:|---|
+| 비컴파일, 첫 실행 | 50.95ms | 71.83ms | 73.04ms | 1,130MiB | 비교 기준, 매 장면 31개 출력 |
+| camera+neck compile 후보 | 45.23ms | 65.94ms | 67.12ms | 1,072MiB | 300/300 gate 실패, 기본 OFF |
+| 비컴파일, 마지막 재실행 | 50.75ms | 71.76ms | 73.69ms | 1,132MiB | 기준 대비 5/300 gate 실패 |
+
+두 비컴파일 평균 71.80ms 대비 compiler 후보의 비용 단축은 약 **8.2%**다.
+5060 Ti의 20.1%를 그대로 적용하지 않는다. 13Hz 주기 76.92ms 이내의 대조군도
+p95 기준 여유가 작으며 실제 ROS·네트워크까지 실시간성을 보장한 결과는 아니다.
+20GiB 제한에서 startup peak는 약 **17.1GiB**였고 OOM은 없었다.
+제한 없는 48GB 실행은 CuDNN warm-up 중 약 33.5GiB를 할당했다. 이를 정상 steady VRAM과
+섞거나 ‘24GB에서는 반드시 불가능’으로 결론내리지 않는다.
+
+별도 D50 smoke 대조군은 비컴파일 두 실행 평균 약 70.63ms, camera+neck 66.20ms였다.
+stage 계측에서 camera backbone 15.47→9.41ms, neck 1.44→0.86ms가 주요 단축이며
+전처리 약 18.8~19.0ms, LiDAR 약 16.0ms, view transform 약 7.1ms는 거의 그대로였다.
+이 stage는 별도 16회 CUDA event 측정이며 중첩 구간을 더하지 않는다.
+D50 source와 D25 COST fixture가 달라 이 차이를 학습된 두 모델의 성능 비교로 사용하지 않는다.
+
+**정밀 5/20cm + D25는 연산 비용 참고만 남긴다.** 같은 300장에서 비컴파일
+79.60ms / 재실행 82.55ms, camera+neck 75.06ms(p95 79.53ms)였지만 **모든 실행의
+decoded 출력이 0개**였다. 이 fixture의 정밀 격자 적응·객체 반환 비용·수치 정합은 검증되지 않았다.
+빈 리스트끼리 같다는 이유로 통과 처리하지 않도록 `prediction_counts`와 `nonvacuous`를
+보고하고 `--require-parity`에서는 빈 출력도 실패한다. 정확도 열세를 의미하지 않으며,
+비어 있는 비용 시험조차 13Hz에 충분한 여유가 없는 참고 결과로만 사용한다.
+7.5/30cm와 정밀 격자의 계산 padding Y±32.4/±33.6 차이도 있어 순수 단일 변수 비교가 아니다.
+
+### compiler 출력 차이의 원인 통제
+
+기존 gate는 중심·크기 5cm, yaw 0.02rad, score 0.002 및 class·개수 유지다.
+통과시키기 위해 기준이나 decode threshold를 완화하지 않았다.
+
+- 같은 모델·LiDAR depth raster 통제의 64장에서 eager 반복은 64/64 일치했다.
+  camera+neck compile과 dense folding은 각각 64/64 gate 실패했다.
+  한 장면의 depth raster 8회 반복도 바뀐 픽셀이 0개였다.
+- camera feature relative L2 차이는 한 장면에서 약 0.06~0.11%, dense heatmap 최대 차이는
+  약 `1.5e-5`였다. 그러나 실제 decoder가 선택한 **200개 query 중 12개**가 달라졌다.
+  거의 학습되지 않은 heatmap의 가까운 순위가 작은 연산 오차로 뒤바뀌면, 서로 다른 위치의
+  박스 목록을 비교하게 된다. 목록 매칭의 수십 m 차이는 실제 차량 한 대의 위치가
+  그만큼 움직였다는 뜻이 아니다. 재로드 대조군의 일부 차이도 따로 보존한다.
+- 원인 진단용 32장 검사에서 baseline heatmap으로 query 선택만 고정하자,
+  compiled feature를 사용한 regression의 gate 실패는 **0/32**, 최대 중심 차이는
+  약 **1.95mm**였다. 원래 compile은 32/32 실패했다. 후보 선택의 증폭이 주요 원인이라는
+  근거이며, 전체 AP 저하 또는 학습 후 안전성을 확정한 결과는 아니다.
+- **query 고정은 원인 진단 전용**이다. 실제 서버에서 과거 heatmap/query를 재사용하지 않는다.
+  compile·dense folding·camera graph는 기본 OFF로 유지하고 학습된 checkpoint에서 재검증한다.
+
+### CPU 전처리와 CUDA·geometry 검증
+
+CPU-only로 128장의 camera worker/OpenCV thread 조합 8개를 정방향·역방향으로 비교했다.
+일반 thread 조합들은 이미지·점군·투영 행렬이 완전히 같았다. 단독 측정에서 빨라 보였던
+camera workers 1 / OpenCV 4도 실제 300장 서비스에서는 두 실행 평균 **73.26ms**로
+기존 71.80ms보다 느렸다. 기본 4/1/4 설정은 바꾸지 않는다.
+
+RGB 변환을 crop 뒤로 미루는 후보는 원격 OpenCV에서 `b5v2_01161`의 이미지 값
+**1개가 1만큼** 달랐다. 이전 로컬 1,200개 카메라 입력의 동일성 결과를 모든 환경에
+일반화하지 않는다. 이는 thread 수 자체의 픽셀 차이가 아니며 확실한 전체 비용 이득도 없어 OFF다.
+
+| 검사 | 실제 결과 | 해석 범위 |
+|---|---|---|
+| Docker runtime 단위 검사 | 24개 통과 | inference 옵션·복원 계약 |
+| rectangular config·geometry | 7개 통과 | 새 D25 opt-in과 기존 기본값 분리 |
+| 센서 보정 CLI | 1개 통과 | 기존 센서 투영 계약 유지 |
+| pooling CPU / CUDA | CPU 21개 중 8개 skip·실패 0, CUDA 21개 통과 | 연산 forward/backward 정합 |
+| 실제 증강 geometry, D25 32장 | relevant cell mismatch 0, accepted | 기하 계산·grouped forward·gradient 검사 |
+
+32장 증강 geometry의 계산 평균은 **52.21→18.76ms**였다. backward 검사는 수행했지만
+optimizer update는 없으며 이것을 전체 batch 4 학습 step 단축률로 환산하지 않는다.
+기존 환경을 재사용했고 변경한 CUDA 커널의 첫 JIT build만 필요했다.
+
+### 새 prepare-only와 다음 실행
+
+현재 후보는 `bevfusion_base5_dense_512_depth25_runtime_candidate.py`다. depth 25cm·
+512MiB cache, 검증된 batched geometry/warp pooling/int32 plan/fused AdamW의 opt-in을
+명시하며 **camera compile은 OFF**다. 기본 50cm config·증강·GT 정책은 유지한다.
+
+`run_base5_direct_training.py`를 **`--run` 없이** 실행해 다음 준비 계약만 만들었다.
+
+- 원격 source: `/workspace/base5_runtime_source_18ddf1eb_261011`.
+- 새 work-dir: `/workspace/base5_training_sunny13_d25_runtime_prepared_55272391_261011`.
+- contract: `4fa4015b88d0b4114deebd1145df74f85da19208d6deb12efa233c45c663570b`.
+- 1,000개 source hash가 로컬과 일치한다. train 4,255 / val 745, batch 4, workers 4,
+  24 epoch, lr `1e-4`, warm-up 500 update, seed 261010, epoch 경계 resume 계약이다.
+- 초기화는 감사한 camera-only nuScenes checkpoint다. SHA256은
+  `d06ae54d380a7c0ec245936ff394a51e0ff2c36fd1288eb2d7879954c682107b`다.
+  위 COST-only fixture는 초기화에 사용하지 않는다. prepare-only는 학습 완료·시작 승인이 아니다.
+
+학습 허용 후 최신 소스·D25 runtime 후보에서 실제 batch 4 비용·AMP 갱신·저장/재개를
+짧게 확인한다. 이전 소스의 검사나 geometry 단독 속도를 최신 전체 step 시간으로 바꾸지 않는다.
+그 결과와 시간 예산을 보고한 뒤 승인 후 백업 watcher·본학습을 시작한다.
+학습된 모델에서 compile의 실제 val/rosbag 정확도와 출력 안정성을 다시 확인하며,
+통과하지 않으면 비컴파일 추론을 유지한다. 정밀 격자는 이번 비용만으로 채택하지 않는다.
+
+### 근거 보존
+
+`artifacts/evaluation/bevfusion/base5_inference_remote_261011/reports/`에 실패·중단 로그도
+함께 보존했다. 핵심은 `d25_current_cap20_300`, `d25_fine_cap20_300`,
+`numerics_cap20_64`, `numerics_query_control_32`, `preprocessing_threads_v2`,
+`d25_cpu1_cv4_cap20_300`, `pool_tests.json` 및 geometry/runtime 검사 로그다.
+source checkpoint나 불완전 업로드는 보고서 압축에 포함하지 않았다.
+로컬 `prepared_run_manifest.json`과 `prepared_resolved_train.py`도 보존했다.
+보고서 압축 SHA256은 `25df7bd3bb3513c9db482435c974b20caf2368b76fc6b8eb84b56e38d6468346`다.
+ignored 산출물·가중치·센서는 Git에 강제로 추가하지 않는다.

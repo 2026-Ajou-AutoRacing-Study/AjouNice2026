@@ -6,7 +6,7 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-11 08:35 KST
+## 현재 계획 허브 — 2026-10-11 14:32 KST
 
 Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 이 절을 기준으로 관리한다.**
 `README.md`는 문서 인덱스, EVIDENCE는 실측 근거, Vast 계획은 원격 실행 상세다.
@@ -16,19 +16,22 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 
 | 항목 | 현재 결정·상태 | 다음 할 일 / 상세 근거 |
 |---|---|---|
-| 학습 입력·모델 | 512×1056, Q90 JPEG, 공간 7.5/30cm, ROI X±100/Y±30m, 4-class single-frame 7D, temporal/OD velocity OFF | depth 25cm 우선 후보·50cm 대조군. 실제 config·원격 준비본은 아직 50cm다. [후보와 비용](#base5-depth25-local-optimization-plan-261011) |
+| 학습 입력·모델 | 512×1056, Q90 JPEG, 공간 7.5/30cm, ROI X±100/Y±30m, 4-class single-frame 7D, temporal/OD velocity OFF | 기본 config는 50cm로 보존하고, depth 25cm·추론 compile OFF의 새 원격 prepare-only를 만들었다. [최신 원격 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
 | 로컬 가속 | 실제 5060 Ti 학습 step에서 depth 25cm 약 32.8%, 50cm 약 21.4% 단축을 확인했다. 원래 학습 조건은 유지하며 opt-in 후보로 제공한다. 카메라 compile을 더한 별도 후보는 기존 대비 약 37.6~45.8% 단축이며 수치·저장/재개 검사도 완료했다. | 최신 구현·정합·저장/재개 결과는 [EVIDENCE 21절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011)이다. 사용자 재개 후 4090 batch 4 재확인·새 계약이 다음이다. |
 | 로컬 추론 | 실제 300장 localhost 전체 응답에서 camera+neck compile의 비용 단축은 약 20.1%, 정밀 격자 안에서는 약 15.3%다. 단, decoded 출력 gate가 모두 통과하지 않아 **기본값으로 승격하지 않는다.** | [EVIDENCE 22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011). 비컴파일 추론을 대안으로 유지한다. Base5 4-class 시험 서버를 구현했지만 ROS 배포·학습 완료 정확도·4090 70ms 달성은 아직이다. |
+| 최신 4090 재확인 | 300장 depth 25cm 비용·동일 모델 수치 통제·CPU 스레드·CUDA pooling·증강 geometry 검사를 완료했다. 전체 응답 약 71.8→65.9ms의 compiler 후보는 decoded gate 실패로 OFF다. | [EVIDENCE 23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011). 정밀 격자의 빈 출력은 비용 참고용이며 정합 통과로 인정하지 않는다. 이번 요청에서는 학습을 전혀 실행하지 않았다. |
 | 이번 학습·분할 | Sunny13 5K의 train 4,255 / val 745 유지. 이번 학습에 rosbag val을 추가하지 않는다. | SaveSensorData val로 checkpoint 후보 선정. rosbag-to-val 구현과 추적·예측 평가 실험은 후속이다. 기존 val 점수와 rosbag 점수를 하나로 합치지 않는다. |
 | 장기 데이터 계획 | 나머지 5 환경은 각각 새 배치 5K, 총 30K 계획 유지 | 85/15를 우선 기준으로 두되 전체 장면·공간 group 누출을 검사해 실제 장수를 확정한다. [환경별 배치](../../dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md) |
-| 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. 기존 저장·재개 검사 완료 | 채택한 소스·25cm 후보로 새 config/source hash/work-dir을 만든다. 기존 50cm 계약을 그대로 resume하지 않는다. [원격 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| 초기화·재개 | 감사한 nuScenes camera-only 초기화, 새 LiDAR/depth/head 학습. depth 25cm runtime 후보의 새 준비 계약과 1,000개 source hash 일치를 확인했다. | 최신 후보의 실제 batch 4 학습 비용·저장/재개는 사용자 학습 제외 요청으로 보류했다. 이전 50cm 계약을 그대로 resume하거나 비용용 shape 변환 checkpoint로 본학습을 초기화하지 않는다. [23절 준비 계약](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
 | 체크포인트 보존 | 실제 Drive 병렬 업로드·전체 SHA·복원·중복 재검사 완료. 상주 watcher·본학습은 미시작 | 최종 계약과 사용자 승인 후 watcher·본학습 시작. [EVIDENCE 20절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-checkpoint-parallel-backup-261011) |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | 성능 확인·배포 | depth/정밀 격자의 AP·속도 MAE 향상과 ROS 풀스택 비용은 미검증. production E25는 유지 | 후속 rosbag 검증용으로 threshold 등 조정, 별도 미사용 bag으로 최종 확인. rosbag 입력의 val 변환과 연속 tracker/predictor 재생 평가는 구분한다. |
 
-현재 우선 순서는 **로컬 학습·추론 비교 완료 → 사용자 재개 후 4090 재확인·새 학습 계약 → 승인 후 Sunny13 본학습**이다.
-추론 compile은 비용 후보이며 출력 gate가 미완료다. 21절의 학습 gradient 검사 통과를
-22절의 전체 decoded 출력 동일성이나 ROS 배포 통과로 바꾸어 해석하지 않는다.
+현재 우선 순서는 **로컬 비교·4090 추론 재확인·25cm 새 준비 계약 완료 → 학습 허용 후 최신 후보의
+짧은 batch 4 비용·저장/재개 확인 → 승인 후 Sunny13 본학습**이다.
+추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을
+실제 배포 정합 통과로 읽지 않는다. 21절의 학습 gradient 검사 통과를
+23절의 전체 decoded 출력 동일성이나 ROS 배포 통과로 바꾸어 해석하지 않는다.
 고정 이미지 게시 준비와 rosbag-to-val 구현은 별도 후속 작업이며 이번 요청으로 자동 실행하지 않는다.
 다음 임대 전에는 고정 이미지 게시·새 환경 pull 검증을 완료한다.
 

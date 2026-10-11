@@ -8,6 +8,15 @@
 
 Base5 작업의 현재 실행 기준은
 `../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub`다.
+2026-10-11 14:32 KST 최신 원격 검증은 EVIDENCE 23절이다. 사용자 요청대로 학습은
+실행하지 않고 4090 300장 추론·수치 통제·CPU 스레드·CUDA pooling·증강 geometry를 검사했다.
+camera+neck compile은 약 65.9ms 비용 후보이나 decoded gate가 실패해 기본 OFF다.
+query 고정 통제의 통과와 정밀 격자의 빈 출력은 실제 배포 정합 통과가 아니다.
+depth 25cm runtime 후보의 새 prepare-only와 1,000개 source hash 일치를 확인했다.
+최신 후보의 batch 4 실제 학습 비용·저장/재개는 학습 허용 후 수행한다. 과거 50cm 준비본을
+최신 계약처럼 resume하지 않으며 비용용 shape 변환 checkpoint는 본학습 초기화에 쓰지 않는다.
+원격 준비 경로·계약·실측은 23절을 따른다. E25·GT·센서·기본값은 유지하고 인스턴스를
+자동 Stop하지 않는다. 아래 로컬 작업의 ‘Vast 미접속·다음 재확인’은 당시 이력이다.
 2026-10-11 최신 로컬 추론 비교는 EVIDENCE 22절이다. 300장 localhost 전체 응답과
 same-instance 수치 통제를 수행했다. camera/neck compile은 비용 이득이 있으나 decoded
 출력 gate가 미완료이므로 기본값으로 승격하지 않는다. Base5 4-class 시험 서버·복원 가능한

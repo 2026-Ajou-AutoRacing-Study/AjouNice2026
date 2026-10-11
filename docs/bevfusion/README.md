@@ -13,20 +13,24 @@
 로컬 공간 격자/depth 비용·위험 비교 완료 → 원격 최신 소스·upright 라벨·비용/재개 검증 완료 →
 새 4090 이전·depth 25/50/100cm·높이 범위 후속 검증 완료 →
 외부 백업·실제 복원 검증 완료 → depth 25cm 후보의 로컬 학습·추론 구현·비용 비교 완료 →
-채택 변경의 4090 확인·새 학습 계약 → 승인 후 본학습**이다.
+4090 추론·수치 통제 재확인·25cm 새 prepare-only 완료 →
+학습 허용 후 최신 batch 4 비용·저장/재개 확인 → 승인 후 본학습**이다.
 원본 5K·유효 rosbag·production E25는 유지한다. 최신 상태는 아래 표의 링크부터 읽는다.
 
 2026-10-11 06:43 KST 합의 이후 로컬 학습·추론을 구현·실험했다. 학습 결과는 21절,
-최신 추론 결과는 [22절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-local-261011)이다.
-추론 compile은 전체 비용 이득이 있지만 출력 gate가 미완료여서 기본값으로 승격하지 않았다.
+로컬 추론 결과는 22절, 최신 원격 결과는
+[23절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011)이다.
+추론 compile은 전체 비용 이득이 있지만 출력 gate가 실패해 기본값으로 승격하지 않았다.
 공간 7.5/30cm·512×1056을 유지하고 depth 25cm를 우선 학습 후보로 삼되,
-기존 기본 config와 원격 prepare-only는 아직 50cm다. opt-in 가속 config와 구분한다.
+기존 기본 config는 50cm로 보존하고 25cm runtime 후보의 새 원격 prepare-only를 만들었다.
+이번에는 학습을 실행하지 않았으며 최신 후보의 실제 학습 비용·저장/재개 확인은 남아 있다.
 25cm의 AP·tracker 속도 개선은 미검증이며 학습 비용 증가를 감수하는 선택이다.
 아래의 50cm 기본 유지·백업 직후 본학습 안내는 이전 시점 기록으로 읽는다.
 
 | 목적 | 최신 기준 |
 |---|---|
 | 현재 선택·남은 실행 순서·완료 상태를 한 곳에서 확인 | [현재 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub) |
+| 최신 4090: 300장 추론·출력 차이 원인 통제·CPU 후보 기각·CUDA 정합 / 학습 미실행·25cm 준비만 완료 | [10-11 14:32 원격 학습 제외 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-inference-runtime-vast-261011) |
 | 실제 로컬 학습 비용 개선 / 기하 계산·pool backward·compiler 후보 / 정합·재개 / 다음 4090 확인 | [10-11 로컬 학습 실행 비용 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-training-runtime-local-261011) |
 | 다음 임대: 고정 의존성 이미지 게시·digest 고정·Vast pull 검증 / 아직 계획 | [고정 이미지 게시 상세](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | depth 25cm 우선 후보 / 본학습 전 로컬 학습·추론 추가 가속 / 원격 재확인·새 계약 / 계획만 갱신 | [10-11 06:43 최신 합의와 실행 순서](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-depth25-local-optimization-plan-261011) |
