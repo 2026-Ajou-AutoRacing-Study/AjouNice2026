@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신 결과는 [37절 컴파일 전달·1,570프레임 연속 검출·실제 EKF 코어 영향](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)이다.
+2026-10-12 최신은 [38절 컴파일 OFF/ON의 전체 객체 분포 재분석](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)이다.
+병렬화를 고정한 비교에서 평균·중앙값·p90/p95/p99·미대응·gate 민감도를 보존했다.
+검출 차이는 대부분 매우 작지만 장애물의 소수 연속 구간에 코어 차이가 집중된다.
+약49cm를 전체 상태 차이의 절대 상한이나 GT 오차로 읽지 않는다. production은 유지한다.
+
+앞선 실제 추론 결과는 [37절 컴파일 전달·1,570프레임 연속 검출·실제 EKF 코어 영향](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)이다.
 AP 유지와 연속 처리 동등성을 구분한다. 장애물 코어 예외로 일반 compile 기본 ON은 보류하고
 병렬화 우선 후보를 유지한다. Graph는 약72ms로 추가 속도 이득이 없다. 실제24GB·live ROS,
 UNKNOWN 후처리·GT AVE는 아직이며 production은 미변경이다. 아래 36절은 앞선 비용 검사다.

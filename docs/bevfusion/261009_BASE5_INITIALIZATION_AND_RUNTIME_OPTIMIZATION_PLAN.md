@@ -8,7 +8,14 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 학습 완료 모델의 4090 추론 검증
 
-**10-12 추가 컴파일 검토 완료:** [37절 전달·연속 bag·실제 EKF 코어 영향](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)을 우선한다.
+**10-12 전체 객체 분포 재분석 완료:** [38절 컴파일 OFF/ON 분포](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)를 우선한다.
+병렬화를 고정해 컴파일 영향만 분리했고 평균·중앙값·p90/p95/p99와 미대응을 보존했다.
+검출 중심 차이는 매우 작다. 30m 장애물 tracker 차이는 평균 0.699cm·p95 1.288cm이나
+10cm 초과 관측 2.29%가 일부 연속 구간에 집중된다. 앞선 약49cm는 0.5m 대응 gate의
+집계 최대이지 절대 상한이나 GT 오차가 아니다. 기본 ON 보류·병렬화 우선을 유지하며
+다음은 실제 ROS orientation/UNKNOWN 후처리를 포함한 해당 구간 비교다. 학습은 유지한다.
+
+**10-12 앞선 컴파일 검토:** [37절 전달·연속 bag·실제 EKF 코어 영향](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)이다.
 AP가 거의 같아도 장애물 일부에서 연속 association/coasting 출력 차이가 커졌다.
 일반 compile 기본 ON은 보류하고 병렬화 우선 후보를 유지한다. 연산/레이아웃 유지는
 완전한 해결이 아니며 CUDA Graph 병렬 prototype은 약 72ms로 추가 속도 이득이 없다.

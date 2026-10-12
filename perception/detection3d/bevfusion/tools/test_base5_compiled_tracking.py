@@ -9,6 +9,19 @@ from replay_base5_compiled_tracking import world_detections, compare_tracks, cor
 
 
 class CompiledTrackingTests(unittest.TestCase):
+    def test_collects_all_states_and_gate_does_not_hide_unmatched(self):
+        def frame(x):return dict(stamp=1.,tracks=[dict(id=1,label=0,confirmed=True,
+            associated=False,center=[x,0.],velocity=[0.,0.],yaw=0.)])
+        rows=[]
+        r=compare_tracks([frame(0.)],[frame(.6)],state_rows=rows)
+        self.assertEqual(len(rows),0)
+        self.assertEqual(r['confirmed_set_changes'][0]['removed'],1)
+        r=compare_tracks([frame(0.)],[frame(.6)],gate=2.,state_rows=rows)
+        self.assertEqual(len(rows),1)
+        self.assertAlmostEqual(r['distributions']['position_m']['mean'],.6)
+        self.assertFalse(rows[0]['reference_associated'])
+        with self.assertRaises(ValueError):compare_tracks([frame(0.)],[])
+
     def test_world_transform_exact_stamp_and_yaw_wrap(self):
         ego=np.array([[1.,10,20,0,math.pi/2],[1.1,11,20,0,math.pi/2]])
         extrinsic=np.eye(4);extrinsic[0,3]=1

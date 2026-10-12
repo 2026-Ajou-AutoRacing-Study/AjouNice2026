@@ -53,10 +53,12 @@
   Base5 별도 ROS trial·실제 메시지/TCP 12장 정합과 연속 dev bag 1,570프레임의
   threshold·매칭 실패 분석, 학습된 E9/E24의 4090 전체 val 745장·출력/메모리 검증을
   완료했다. 후속 컴파일의 실제 1,570프레임·EKF 코어 비교에서 장애물 예외가 있어
-  기본 ON은 보류한다. 다음은 병렬화 우선 후보의 실제 24GB·live ROS queue·LAN·tracker 및
+  기본 ON은 보류한다. 전체 객체 분포 재분석에서 검출 중심 차이는 매우 작지만 장애물의
+  소수 연속 구간에 코어 차이가 집중됐다. 약49cm는 대응 gate 내 최대이며 절대 상한이나
+  GT 오차가 아니다. 다음은 병렬화 우선 후보의 실제 24GB·live ROS queue·LAN·tracker 및
   100m 확인이다. 고주로 위치 오차 원인 분해도 필요하다.
   production E25·현재 threshold는 유지한다.
-  [EVIDENCE 37절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)을 따른다.
+  [EVIDENCE 38절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)을 따른다.
 
 - **2026-10-11 최신 초기화 결정:** 동일 3클래스 E1 비교를 마쳐 호환 nuScenes의
   BEV·fusion·head 추가 재사용을 채택했다. 2 epoch는 생략하고 사용자가 후보 E1에서

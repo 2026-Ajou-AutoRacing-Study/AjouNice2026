@@ -62,9 +62,14 @@ def drift(old, new):
 
 def distribution(values):
     if not values:
-        return dict(count=0, p50=None, p95=None, minimum=None, maximum=None)
+        return dict(count=0, mean=None, p50=None, p90=None, p95=None, p99=None,
+                    minimum=None, maximum=None)
     v = np.asarray(values, float)
-    return dict(count=len(v), p50=float(np.percentile(v, 50)), p95=float(np.percentile(v, 95)),
+    if not np.isfinite(v).all():
+        raise ValueError('Finite distribution values required')
+    return dict(count=len(v), mean=float(v.mean()), p50=float(np.percentile(v, 50)),
+                p90=float(np.percentile(v, 90)), p95=float(np.percentile(v, 95)),
+                p99=float(np.percentile(v, 99)),
                 minimum=float(v.min()), maximum=float(v.max()))
 
 

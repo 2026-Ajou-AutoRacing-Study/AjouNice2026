@@ -1,10 +1,11 @@
 # Perception agent context
 
-2026-10-12 최신은 EVIDENCE 37절이다. 컴파일의 실제 전달·BBox 경계·연속 bag 1,570프레임
-재추론과 기존 C++ EKF 코어의 동일 세계 좌표 재생을 완료했다. AP는 비슷하지만 장애물
-일부 코어 대응/coasting 차이가 커 일반 compile 기본 ON은 보류한다. 병렬화 우선이며
-Graph prototype은 약72ms로 추가 비용 이득이 없다. 실제24GB·live ROS/UNKNOWN 정책·
-GT AVE는 미검증이다. production·훈련·다른 agent는 유지한다. 아래 36절은 앞선 비용 검사다.
+2026-10-12 최신은 EVIDENCE 38절의 전체 객체 분포 재분석이다. 37절의 실제 1,570프레임
+출력으로 병렬화를 고정해 compile OFF/ON을 분리했고, 평균·중앙값·p90/p95/p99·미대응과
+2m gate 민감도를 보존했다. 검출 중심은 대체로 sub-mm이며 30m 장애물 코어의 평균/p95는
+0.699/1.288cm, 10cm 초과는 대응 관측의 2.29%다. 앞선 약49cm는 0.5m 대응 gate 안의
+최대이지 절대 상한이나 GT 오차가 아니다. 일반 compile 기본 ON은 아직 보류하고 병렬화
+우선이다. 실제24GB·live ROS/UNKNOWN 정책·GT AVE는 미검증이며 production·훈련은 유지한다.
 
 2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24의 실제 출력으로 4090 300장 비용·
 전체 val 745장 FP32/AMP/OFF/ON·20GiB cap·같은 모델 수치 통제를 완료했다. AMP 약

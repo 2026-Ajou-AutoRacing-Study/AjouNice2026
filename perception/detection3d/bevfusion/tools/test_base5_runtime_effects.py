@@ -3,7 +3,7 @@ import json
 import math
 import unittest
 
-from analyze_base5_runtime_effects import compare, delivered, drift, match
+from analyze_base5_runtime_effects import compare, delivered, drift, match, distribution
 
 
 def detection(x=0.,yaw=0.,score=.8,label=0,size=(4.,2.,1.5)):
@@ -12,6 +12,15 @@ def detection(x=0.,yaw=0.,score=.8,label=0,size=(4.,2.,1.5)):
 
 
 class RuntimeEffectsTests(unittest.TestCase):
+    def test_full_distribution_and_empty_population(self):
+        r=distribution([0.,1.,2.,3.,4.])
+        self.assertEqual(r['mean'],2.)
+        self.assertEqual(r['p50'],2.)
+        self.assertAlmostEqual(r['p90'],3.6)
+        self.assertAlmostEqual(r['p95'],3.8)
+        self.assertIsNone(distribution([])['mean'])
+        with self.assertRaises(ValueError):distribution([float('nan')])
+
     def test_score_filter_nms_and_class_separation(self):
         ds=[detection(score=.8),detection(score=.7),detection(x=8,score=.39),
             detection(score=.16,label=1)]

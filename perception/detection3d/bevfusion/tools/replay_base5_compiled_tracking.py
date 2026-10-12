@@ -86,14 +86,15 @@ def core_replay(binary,rows,timestamps,ego,extrinsic,thresholds,maximum_range=No
     return frames
 
 
-def compare_tracks(reference,candidate):
+def compare_tracks(reference,candidate,gate=.5,state_rows=None):
     changes=[];deltas=[];identity_changes=0;id_map={};mapping_changes=[]
+    if len(reference)!=len(candidate):raise ValueError('Different tracker frame counts')
     for old,new in zip(reference,candidate):
         if old['stamp']!=new['stamp']:raise ValueError('Different tracker times')
         for label in (0,1,2,3,4):
             a=[d for d in old['tracks'] if d['label']==label and d['confirmed']]
             b=[d for d in new['tracks'] if d['label']==label and d['confirmed']]
-            pairs,missing,extra=match(a,b)
+            pairs,missing,extra=match(a,b,gate=gate)
             if missing or extra:changes.append(dict(stamp=old['stamp'],label=label,removed=len(missing),added=len(extra)))
             for i,j in pairs:
                 x,y=a[i],b[j];identity_changes+=x['id']!=y['id']
@@ -106,7 +107,9 @@ def compare_tracks(reference,candidate):
                     position_m=float(np.linalg.norm(np.array(x['center'])-y['center'])),
                     velocity_2d_mps=float(np.linalg.norm(np.array(x['velocity'])-y['velocity'])),
                     speed_mps=abs(float(np.linalg.norm(x['velocity'])-np.linalg.norm(y['velocity']))),
-                    yaw_deg=abs(float(np.degrees(np.arctan2(np.sin(delta),np.cos(delta)))))))
+                    yaw_deg=abs(float(np.degrees(np.arctan2(np.sin(delta),np.cos(delta))))),
+                    reference_associated=x.get('associated'),candidate_associated=y.get('associated')))
+    if state_rows is not None:state_rows.extend(deltas)
     return dict(confirmed_set_changes=changes,matched_id_differences=identity_changes,
         matched_id_note='Numeric IDs across independent runs are not GT ID switches. Mapping changes are diagnostic only.',
         id_mapping_changes=mapping_changes,
