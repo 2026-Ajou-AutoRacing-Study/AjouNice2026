@@ -90,7 +90,8 @@ E9 87.55%, E24 87.97%로, Base5 val의 난이도 차이만으로 격차를 설�
 1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
 2. 장애물 association·birth·잔류를 조사한다. 현재 coasting을 무조건 늘리지 않는다.
 3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
-4. Foggy 등 새 환경은 별도 pilot과 유효 GT 분포를 확인한 뒤 수집·학습 범위를 정한다.
+4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)에 따라
+   근거리 노출·20~30m 지원·원거리 사례를 배치 실험으로 확인하고 새 환경 수집 정책을 조정한다.
 5. 고정 이미지 registry 게시·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 
 원격 명령·재개·백업은 [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md)를 따른다.

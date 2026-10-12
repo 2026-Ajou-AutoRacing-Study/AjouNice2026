@@ -9,6 +9,7 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
+| 다음 25K 장애물 보강·MR 배치 실험·정책 수정 | [장애물 생성기 실험 계획](261013_base5_obstacle_generator_experiment_plan.md) |
 | 다음 환경 신규 수집·resume·보충·대시보드 | [새 환경 단일 진입점](261010_base5_fresh_environment_runbook.md) |
 | 새 공간 배치·수집기 가속·실제 검증 | [종료 후 수집기 근거](261010_base5_postcollection_collector_work.md) |
 | Sunny13 완료 ledger·유연 대체의 계보 | [v140 최종 근거](261010_base5_flexible_deficit_replacement.md) |

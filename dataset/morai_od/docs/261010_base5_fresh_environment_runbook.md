@@ -4,6 +4,10 @@
 실제 검증 결과와 코드·manifest 해시를 먼저 검사한다. 파일이 없거나 검증 기준에 미달하면 실행하지 않는다.
 Sunny13 최종 5K와 구 런북의 동결 수집에는 적용하지 않는다.
 
+2026-10-13 후속 계획은 [장애물 생성기 배치 실험](261013_base5_obstacle_generator_experiment_plan.md)이다.
+아래 명령은 기존 v142 baseline용이며 보강 후보의 실행 명령이 아니다. 새 정책은 실험·qualification 후
+별도 release로 전달하며 기존 Sunny13·v142 manifest에 강제 resume하지 않는다.
+
 ## 무엇을 보존하고 바꾸는가
 
 Sunny13 `collection_5k_sunny13_flexible_v140`의 5,000장·native GT·selected ledger는 보존한다.

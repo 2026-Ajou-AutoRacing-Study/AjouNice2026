@@ -1,6 +1,6 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-12.
+문서 상태: CURRENT. 근거 확인: 2026-10-13.
 Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K는 생성·준비만 완료했다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
@@ -17,7 +17,7 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 준비본 | `~/morai_cap/base5_postcollection_261010/fresh_suite_final_v142` |
+| 다음 준비본 | `~/morai_cap/base5_postcollection_261010/fresh_suite_final_v142`. 장애물 보강 실험의 baseline이며 새 정책은 미구현 |
 | 동결 수집 release | 같은 root의 `collector_release_v142/release.json` |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
@@ -44,10 +44,15 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 범용 혼합의 배치 수·크기 budget과 실제 보이는 객체/유효 component GT 수는 다르다.
 122종 primary coverage는 해당 release와 adopted manifest의 실제 할당으로 확인한다.
 
-나머지 환경은 비율·primary 할당·거리/방향·미션 phase·split을 유지하면서 새 geometry를 생성한다.
+현재 v142는 비율·primary 할당·거리/방향·미션 phase·split을 유지하면서 새 geometry를 생성한다.
 범용은 고정 기준점만 반복하는 대신 허용 도로를 따라 연속 Ego 위치를 샘플링한다.
 같은 slot의 환경 A/B라고 부르지 않으며 물리 link·final support·100m 시야 중복을 따로 감사한다.
 보강 배치·새 정책은 현재 성공분을 폐기하는 이유가 아니다.
+
+다음 25K 전에는 [장애물 생성기 실험 계획](261013_base5_obstacle_generator_experiment_plan.md)을 따른다.
+0~20m 노출뿐 아니라 20~30m의 자산별 분산·센서 지원·형상/위치를 확인하며 30m 이상도 제외하지 않는다.
+개수·거리 비율은 고정하지 않고 배치 실험으로 수정한다. MR 통제권을 별도로 받은 뒤 live 실험하며,
+새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다. 이번 갱신은 문서화이며 본수집 시작이 아니다.
 
 <a id="capture"></a>
 
