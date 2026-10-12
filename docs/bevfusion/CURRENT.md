@@ -90,7 +90,8 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
 1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
-2. 장애물 association·birth·잔류를 조사한다. 현재 coasting을 무조건 늘리지 않는다.
+2. [tracker/Planning 검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)의
+   중복 birth guard는 유지하고 빠른 차량 승격은 OFF로 둔다. Confidence와 실제 관측 age는 후속 확인한다.
 3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)에 따라
    근거리 노출·20~30m 지원·원거리 사례를 배치 실험으로 확인하고 새 환경 수집 정책을 조정한다.

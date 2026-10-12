@@ -105,6 +105,12 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 [41절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 따른다.
 실제 planner의 기억이나 안전성을 이번 tracker 시험으로 인증하지 않는다.
 
+2026-10-13 E24 고정 실제 ROS A/B에서 중복 birth guard OFF는 근접 대응 887/897을
+늘리지 못하고 O02 전체 미대응을 531→748로 늘렸다. 빠른 차량 승격 ON은 R01 관측
+1건만 개선해 기존 OFF를 유지한다. [bag·planning 검토 46절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)을 따른다.
+30Hz tracking의 새 출력 stamp를 최신 detector 관측으로 해석하지 않는다. 설치 binary의
+소스 반영 여부와 실제 관측 age를 별도로 확인한다.
+
 다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
 일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 

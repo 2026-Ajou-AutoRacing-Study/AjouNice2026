@@ -115,6 +115,12 @@ Foggy·역광 조건을 검증했다고 하지 않는다. 대표 sunny/foggy 조
 
 ## 다음 수집으로 연결
 
+[저장 bag과 tracker 정책 검토](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)에서
+중복 birth guard를 꺼도 근거리 recall 이득은 없었고 미대응은 늘었다. 생성기 pilot은
+가림 전후·회피 후 측방/측후방 부분 관측·가까운 distinct actor를 포함해 detector box
+중복과 실제 여러 객체를 구분한다. 정지 Ego의 20~30m 반복 출력만으로 초근접 통과를
+검증했다고 하지 않는다. Tracker 필터 제거로 데이터 보강을 대체하지 않으며 배치 비율은 여전히 실험으로 결정한다.
+
 실험 후보·raw·분석·결정·source/code/manifest hash는 새 root에 보존한다. 기존
 `fresh_suite_final_v142`와 `collector_release_v142`는 baseline으로 유지하고 덮어쓰지 않는다.
 새 정책은 five-environment 전수 생성·CPU 감사, live QA, 실패 보충·완료 resume를 통과한 뒤

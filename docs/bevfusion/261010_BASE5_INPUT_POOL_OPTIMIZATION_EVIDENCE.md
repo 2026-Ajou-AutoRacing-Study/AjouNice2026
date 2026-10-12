@@ -5625,3 +5625,126 @@ E24를 production 기본값으로 승격하고 E25는 명시적 복귀로 보존
 로컬 설치 tracker에는 최신 소스의 일부 옵션이 빠져 있었다. 팀원 handoff는 package 증분
 빌드를 요구하며 이후 정책 비교에는 기존 검증된 별도 tracker binary를 사용한다.
 이번 승격에서 tracker·planning의 기본 안전 정책을 자동으로 완화하지 않는다.
+
+<a id="base5-tracker-planning-policy-review-261013"></a>
+
+## 46. 저장 bag 기반 tracker와 planning 정책 검토 — 2026-10-13
+
+E24를 기본값으로 바꾼 뒤, 기존 tracker 정책이 새 모델의 원거리·근접 검출을 막는지 검토했다.
+MORAI·Vast·GPU detector·무거운 planning 풀스택은 실행하지 않았다. 저장된 검출을 private ROS
+master의 실제 C++ tracker·UNKNOWN policy에 공급했고 planning은 현재 소스와 launch/설정을 읽었다.
+판단팀 브랜치·planning_validator·planning/control 소스와 파라미터는 변경하지 않았다.
+
+### Bag 출처와 실제 기록
+
+`planner_logs/validation`, `rosbags/eval`, 기존 일곱 raw mission bag 경로에서 bag 250개를
+read-only index 검사했다. 인지 결과 토픽이 있는 것은 179개였고, model sidecar에 E24 preset과
+인지 토픽이 함께 있는 것은 7개였다. E25 preset은 6개, 나머지 166개는 이 조사에서 모델을
+식별하지 않았다. 파일명만으로 E24나 동일 초기화 결과로 분류하지 않는다. Sidecar의 선택 모델·
+파일 SHA는 기록된 선택 근거이며 실제 GPU 서버 가중치의 독립적인 런타임 증명이 아니다.
+
+E24 7개와 과거 정적 회귀 16개 bag의 실제 perception 메시지도 읽었다. E24 두 초기 full-course
+bag은 detection/tracking이 모두 비어 있었다. 다른 full-course bag과 정적 네 bag에는 비어 있지
+않은 인지 출력이 있었다. 정적 네 bag은 모두 Ego 변위 0·최대 속도 0의 출발 실패/timeout이다.
+주로 20~30m 장애물을 반복 관측한 기록이므로 초근접 회피 성공이나 tracker 때문에 출발이
+막혔다는 근거로 사용하지 않는다. CollisionData 0도 차량이 실제 지나가며 안전했다는 뜻이 아니다.
+
+정적 네 bag의 detector 메시지 수는 각각 488/493/492/494, 비어 있지 않은 메시지는
+481/493/492/494다. 동일 순서의 tracking nonempty는 1671/1888/1837/1748이다.
+기록된 장애물 class는 UNKNOWN으로 유지돼 네 bag 안의 track class switch는 0이었다.
+모델 성능이나 위치 정확도를 이 전달량으로 인증하지 않는다.
+기록 토픽의 거리 집계는 detection의 LiDAR 원점과 tracking의 기록 Ego 원점이 다르다.
+같은 원점의 정량 recall/오차 비교는 아래 동결 GT 재생 결과만 사용한다.
+
+기록된 detection 수신 시각−header stamp의 중앙값은 약 0.367~0.383초,
+p95는 0.435~0.458초이고 header 간격 중앙값은 약 0.20초다. Tracking 출력은 약 30Hz이며
+수신−출력 stamp는 약 8ms였다. 후자는 measurement가 8ms 전의 관측이라는 뜻이 아니다.
+fixed scheduler가 오래된 measurement state의 prediction copy에 현재 stamp를 붙이므로
+입력 관측 age와 출력 age를 반드시 구분한다. 해당 구 PC 비용을 대회 4090의 비용으로 외삽하지 않는다.
+
+### 소스에서 확인한 정책
+
+현재 EKF·표준 detection 변환·motion policy에서 MORAI 구역이나 30/50/80m별로
+Vehicle을 UNKNOWN으로 강제 바꾸거나 초근접 객체를 일괄 제외하는 분기는 찾지 못했다.
+다음 일반적인 필터가 실제로 있으며, 없애기보다 영향과 물리적 목적을 따로 확인한다.
+
+| 정책 | 현재 동작과 검토 |
+|---|---|
+| 클래스 smoothing | alpha 0.2. UNKNOWN에서 일관된 Vehicle 관측 네 번이면 대표 클래스가 바뀔 수 있다. 실제 지연은 입력 Hz·miss에 따라 다름 |
+| 낮은 confidence | score<0.5에서 measurement covariance를 10배로 키움. E24 class별 score의 보정 상태와 matched residual을 후속 확인할 가치가 있음 |
+| Association | 비보행자 5m, 보행자 2m gate. Vehicle/UNKNOWN 간 association은 가능하며 큰 중복 box의 birth는 별도로 억제 |
+| 중복 birth 억제 | mature track이 해당 frame에 관측됐을 때 0.75m 내 유사한 큰 unmatched box의 새 ID를 억제. 원거리/구역 전용 clip이 아님 |
+| Coasting | moving 0.5초, UNKNOWN/저속 차량 1초. 41절의 확대 A/B에서 잔류·중복 때문에 기본 확대를 채택하지 않았음 |
+| UNKNOWN motion | pose·shape·ID·class는 유지하고 출력 속도·가속도·yaw rate를 0으로 만듦. 차량 오분류 시에는 부작용이 있으나 정적 장애물의 가짜 운동을 막는 목적 |
+
+과거 정책이 존재한다는 사실만으로 과적합이 입증되지는 않는다. 낮은 confidence의 covariance나
+클래스 smoothing은 기존 EKF의 일반 정책이며, 새 모델에서 부적절할 가능성과 실제 회귀를 구분한다.
+
+### E24 고정 실제 ROS 비교
+
+O02/P01/H03/R01 네 개발 bag의 전체 1,570 입력, catalog GT가 해결된 scoring 1,413프레임을
+사용했다. weights·검출 배열·GT·0.40/0.10/0.10·NMS·0.5/1초 coasting은 고정하고 후보의
+한 정책만 바꿨다. 모델 추론을 다시 실행하거나 score와 lifecycle을 함께 바꾸지 않았다.
+입력은 43절의 `frozen_gt_v2/E24_amp_parallel.json.gz`, full-range GT는 41절의 `inputs_v1`이다.
+
+| 비교 | 기본 정책 | 후보 정책 | 결론 |
+|---|---:|---:|---|
+| O02 0~30m 장애물 대응@2m, 중복 birth guard OFF | 887/897 | 887/897 | 근거리 recall 이득 없음 |
+| 같은 구간의 미대응 출력@2m | 376 | 523 | +147개. 실제 유령 수가 아니라 GT 미대응 관측 수 |
+| O02 전체 장애물 대응/미대응@2m | 1443/531 | 1447/748 | 대응 +4보다 미대응 +217이 큼 |
+| O02 전체 1초 이상 미대응 episode | 15 | 23 | 더 긴 중복·잔류 위험. 독립 실제 객체 수가 아님 |
+| H03 Vehicle 대응@2m, 빠른 클래스 승격 ON | 228 | 228 | 고주로 이득 없음 |
+| R01 Vehicle 대응@2m, 빠른 클래스 승격 ON | 669 | 670 | 로터리 30~50m 관측 1건 개선 |
+
+따라서 **중복 birth guard는 유지**, `fast_confirmed_vehicle_promotion`은 기존 기본 OFF를
+유지한다. 단 한 개발 관측의 이득으로 대회 클래스 정책을 자동 변경하지 않는다.
+이 시험은 six-asset O02·Man1·두 차량 미션에 한정돼 희귀/복합/초근접 두 실제 객체의 안전성을
+인증하지 않는다. 실제 distinct actor가 0.75m 근처에 있는 조건은 별도 MR 검증 대상으로 남긴다.
+
+두 A/B의 독립 reference repeat는 모든 case에서 timestamp·관측 집합·위치 차이 0이었다.
+별도 검증 binary SHA는 `7dda240b5e3331ea2b3322eb6e2403c2e8e1616d8dd665b95d31c7baf80ca3d1`이다.
+로컬 install binary `ef67431d3c12987e5d8fd3e9384332b338db9e86157c2e66bf46d4c157101f5c`에는
+promotion option이 없었다. 이를 사용한 `promotion_ros_v1`은 정책 비교 근거에서 제외하고
+현재 소스를 반영한 `promotion_ros_v2`를 사용했다. Harness에 미지원 옵션의 binary를 거부하는 검사를 추가했다.
+로컬 install과 다른 agent 세션은 재빌드·교체하지 않았다.
+
+### Planning과 연결되는 제약
+
+실제 통합 launch는 `autoware_launch/config/ros1/planning/behavior_path_modules.yaml`을
+로드한다. 개별 module의 sample YAML을 실제 운영값으로 오인하지 않는다.
+
+- SOA는 UNKNOWN을 허용하며 동적 전방 검토 범위를 min 50m/max 150m로 clamp한다.
+  실제 range는 lateral jerk·shift·Ego speed·prepare distance에 따라 결정된다. 이미 30m로
+  고정된 구조가 아니므로 더 이른 신뢰할 만한 검출을 활용할 경로는 있다. 더 이른 조향을 보장하지는 않는다.
+- 통합 base launch는 UNKNOWN 안정화 대기를 2초 sample 값에서 **0초**로 override한다.
+  최신 통합 경로를 사용한다면 이 대기를 detector 개선 후 새로 풀어야 한다고 가정하지 않는다.
+- LC는 `target_object/unknown=false`이며 실제 소스가 클래스 필터를 먼저 적용한다.
+  움직이는 차량을 UNKNOWN으로 오래 전달하면 차선 변경의 해당 객체 검사에서 빠질 수 있다.
+  모든 UNKNOWN을 Vehicle로 강제 바꾸거나 모든 UNKNOWN을 무조건 LC 대상으로 넣지는 않는다.
+- SOA의 `avoidance_for_close_vehicle.policy=ignore`와 정지/주차/차선 조건은 차량 검출 개선과 별개다.
+  CAR로 올바르게 전달돼도 어떤 모듈이 회피·정지를 담당할지는 planning팀이 폐루프에서 확인해야 한다.
+- 더 안정적인 중심·크기·속도·클래스와 낮은 입력 age는 planning의 검토 범위·관측 신뢰 gate를
+  재검토할 근거가 된다. 그러나 RSS 거리·반응시간·jerk·collision margin을 모델 AP만으로 줄이지 않는다.
+
+### 후속과 산출물
+
+Tracker production 파라미터는 이번 검토에서 변경하지 않았다. 다음은 실제 대회 PC에서
+관측 age·queue·class 전환·Bbox 여유를 기록하고, E24로 움직이며 초근접 통과·후방 추월을
+검증하는 것이다. Detector status/latency, detection, measurement tracking, policy tracking,
+prediction, odometry/TF, planner debug/trajectory, CollisionData를 함께 기록한다.
+Validator의 녹화 설정 변경은 해당 담당 작업으로 전달하며 이번 검토에서 수정하지 않았다.
+
+생성기 pilot에는 이동 중 가림 전후 관측, 회피 후 측방·측후방 부분 관측, 실제 distinct actor가
+가까운 혼합 조건을 넣는다. Stationary Ego 20~30m 반복 출력만으로 근접 전달이 검증됐다고 하지 않는다.
+크기·yaw·가림별 GT와 detector box 중복을 함께 보며 tracker 필터 제거로 학습 부족을 대체하지 않는다.
+
+- Root: `artifacts/evaluation/bevfusion/base5_production_tracker_review_261013`.
+- `inventory_v1.json`, `recorded_delivery_v1.json`은 모델 출처와 실제 토픽 관측을 분리한다.
+- `promotion_ros_v2`, `birth_guard_ros_v1`의 messages·receipt와 대응 metrics를 보존했다.
+- `summary_v1.json` SHA256:
+  `22408fd5d051df62fe8b057bdc60631062cf47e706a328b3a924fd4d81a28523`.
+- 재현 도구는 inventory·recorded audit·policy summary와 단일 정책 actual ROS replay다.
+  원본 bag은 재녹화·재색인·삭제하지 않았고 자신이 시작한 private ROS master/노드만 종료했다.
+
+production profile·bridge 입력·tracker replay·bag audit·거리 평가·checkpoint 선택·context 관련
+CPU 단위 검사 **46개**가 통과했다. 문서 링크·원문 보존·Python 구문·whitespace 검사도 통과했다.

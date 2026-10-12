@@ -22,6 +22,8 @@
 `bevfusion_production_profile.py`가 checkpoint·모델 config·bridge config·launch를 함께 선택한다.
 서버 health는 weights·모델 config·센서 SHA와 Base5·AMP·병렬화·compile·클래스·입력 계약을 검사한다.
 기존 서비스나 canonical detector publisher가 있으면 실행을 거부한다. launch만으로 GPU 서버가 준비되는 것은 아니다.
+인자 없는 역사적 Compose 명령은 E25 호환 기본값을 유지한다. E24는 `bevfusion` 실행기로
+weights·서버 옵션·센서·bridge를 함께 선택하며 Compose만 따로 켜서 두 계약을 섞지 않는다.
 
 ## 팀원 최초 준비
 

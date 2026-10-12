@@ -64,6 +64,11 @@ def validate_lifecycle_policy(reference,candidate,coast_times):
             raise ValueError('Lifecycle-only comparison requires identical thresholds')
 
 
+def validate_tracker_policy(reference,candidate,coast_times,policy):
+    if policy is not None and (candidate is None or list(reference)!=list(candidate) or coast_times is not None):
+        raise ValueError('Tracker-policy comparison changes exactly one guard and keeps scores/lifetimes fixed')
+
+
 class Replay:
     def __init__(self,args):
         self.args=args;self.processes=[];self.logs=[];self.lock=threading.Lock()
@@ -143,6 +148,8 @@ class Replay:
         from perception_object_pipeline.detected_objects import make_detected_objects
 
         a=self.args
+        if a.candidate_tracker_policy=='fast_vehicle_promotion' and b'configure/fast_confirmed_vehicle_promotion' not in a.binary.read_bytes():
+            raise ValueError('Selected tracker binary does not expose the candidate promotion option; rebuild before comparing')
         infos=pickle.loads((a.inputs/'infos_val.pkl').read_bytes())['data_list']
         times={r['token']:r['timestamp'] for r in infos}
         manifest=json.loads((a.inputs/'manifest.json').read_text())
@@ -159,6 +166,7 @@ class Replay:
         off,on=(payloads[k]['inference_optimization'] for k in ('off','on'))
         validate_pair(off,on,a.candidate_thresholds)
         validate_lifecycle_policy(a.reference_thresholds,a.candidate_thresholds,a.candidate_coast_times)
+        validate_tracker_policy(a.reference_thresholds,a.candidate_thresholds,a.candidate_coast_times,a.candidate_tracker_policy)
         if a.candidate_thresholds is not None and hashlib.sha256(a.off.read_bytes()).digest()!=hashlib.sha256(a.on.read_bytes()).digest():
             raise ValueError('Threshold replay requires exactly the same prediction file')
         self.launch('roscore',['roscore','-p',str(self.port)])
@@ -201,6 +209,10 @@ class Replay:
                 if name=='on' and a.candidate_coast_times is not None:
                     cfg['configure'].update(confirmed_track_max_coast_time_sec=a.candidate_coast_times[0],
                         confirmed_stationary_track_max_coast_time_sec=a.candidate_coast_times[1])
+                if name=='on' and a.candidate_tracker_policy=='fast_vehicle_promotion':
+                    cfg['configure'].update(fast_confirmed_vehicle_promotion=True,vehicle_promotion_min_confidence=.60)
+                if name=='on' and a.candidate_tracker_policy=='disable_duplicate_birth_guard':
+                    cfg['configure']['suppress_duplicate_track_birth']=False
                 cfg['topic_name'].update(output_track_jsk=ns+'/visualization_boxes',output_track_marker=ns+'/visualization_markers')
                 rospy.set_param(ns,cfg)
                 rospy.set_param(ns+'/policy/force_unknown_stationary',True)
@@ -279,13 +291,14 @@ class Replay:
             for pub in pubs.values():pub.unregister()
             with gzip.open(a.output/'messages.json.gz','wt') as f:json.dump(self.messages,f,allow_nan=False)
         result=dict(scope='Actual ROS TF + C++ tracker + UNKNOWN policy on saved detections; not GPU/queue/LAN/planning certification.',
-            comparison_kind='track_lifecycle' if a.candidate_coast_times is not None else
+            comparison_kind='tracker_policy' if a.candidate_tracker_policy else 'track_lifecycle' if a.candidate_coast_times is not None else
                 'score_threshold' if a.candidate_thresholds is not None else 'compile',
             reference_thresholds=list(a.reference_thresholds),
             candidate_thresholds=a.candidate_thresholds or list(a.reference_thresholds),
             reference_coast_times=[config['configure']['confirmed_track_max_coast_time_sec'],
                 config['configure']['confirmed_stationary_track_max_coast_time_sec']],
             candidate_coast_times=a.candidate_coast_times,
+            candidate_tracker_policy=a.candidate_tracker_policy,
             fixed_output_rate_hz=a.fixed_output_rate_hz,maximum_range_m=a.maximum_range_m,
             fixed_prediction_age_sec=.5,clock_wall_step_sec=a.clock_wall_step_sec,
             private_master_port=self.port,wall_seconds=time.monotonic()-started,cases=self.receipts,
@@ -317,6 +330,8 @@ if __name__=='__main__':
     p.add_argument('--reference-thresholds',type=float,nargs=3,default=list(POLICIES['current']))
     p.add_argument('--candidate-coast-times',type=float,nargs=2,metavar=('MOVING_SEC','STATIONARY_SEC'),
                    help='Isolated lifecycle A/B; requires identical reference and candidate scores.')
+    p.add_argument('--candidate-tracker-policy',choices=('fast_vehicle_promotion','disable_duplicate_birth_guard'),
+                   help='Single-policy actual ROS A/B; scores, weights and lifetimes stay fixed.')
     p.add_argument('--clock-wall-step-sec',type=float,default=.005)
     args=p.parse_args()
     if args.limit<0 or args.clock_wall_step_sec<=0:p.error('Nonnegative limit and positive clock pacing required')

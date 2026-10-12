@@ -23,6 +23,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| 저장 bag·E24 tracker guard A/B·planning 필터 검토 | [46절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013) |
 | E24 production 기본값·실행 계약·팀 Drive | [45절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e24-production-261013) |
 | 원본 Base3 val E25/E9/E24·구 분포 장애물·자차 회신점 대조 | [44절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013) |
 | E9 threshold·E9/E24 최종 시험 모델 선택 | [43절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |

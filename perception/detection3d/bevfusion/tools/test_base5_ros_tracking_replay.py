@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from analyze_base5_ros_tracking import compare, indexed, policy_checks
-from replay_base5_ros_tracking import pose_at, validate_pair, validate_lifecycle_policy
+from replay_base5_ros_tracking import pose_at, validate_pair, validate_lifecycle_policy, validate_tracker_policy
 
 
 def obj(x=0.,label=2,vx=0.):
@@ -19,6 +19,11 @@ def frame(x=0.,stamp=1.,label=2,vx=0.):
 
 
 class RosTrackingReplayTests(unittest.TestCase):
+    def test_tracker_policy_cannot_hide_score_or_coast_changes(self):
+        validate_tracker_policy([.4,.1,.1],[.4,.1,.1],None,'fast_vehicle_promotion')
+        for candidate,coast in (([.3,.1,.1],None),([.4,.1,.1],[1.,2.]),(None,None)):
+            with self.assertRaises(ValueError):
+                validate_tracker_policy([.4,.1,.1],candidate,coast,'disable_duplicate_birth_guard')
     def test_lifecycle_experiment_cannot_mix_score_and_lifetime_changes(self):
         validate_lifecycle_policy([.4,.1,.1],[.4,.1,.1],[.001,.001])
         with self.assertRaises(ValueError):validate_lifecycle_policy([.4,.15,.1],[.4,.1,.1],[1.,2.])
