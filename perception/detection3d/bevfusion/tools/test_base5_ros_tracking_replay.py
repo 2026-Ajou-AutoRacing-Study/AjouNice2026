@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from analyze_base5_ros_tracking import compare, indexed, policy_checks
-from replay_base5_ros_tracking import pose_at, validate_pair
+from replay_base5_ros_tracking import pose_at, validate_pair, validate_lifecycle_policy
 
 
 def obj(x=0.,label=2,vx=0.):
@@ -19,6 +19,13 @@ def frame(x=0.,stamp=1.,label=2,vx=0.):
 
 
 class RosTrackingReplayTests(unittest.TestCase):
+    def test_lifecycle_experiment_cannot_mix_score_and_lifetime_changes(self):
+        validate_lifecycle_policy([.4,.1,.1],[.4,.1,.1],[.001,.001])
+        with self.assertRaises(ValueError):validate_lifecycle_policy([.4,.15,.1],[.4,.1,.1],[1.,2.])
+        with self.assertRaises(ValueError):validate_lifecycle_policy([.4,.1,.1],None,[1.,2.])
+        for coast in ([0.,1.],[float('nan'),1.],[-1.,1.]):
+            with self.assertRaises(ValueError):validate_lifecycle_policy([.4,.1,.1],[.4,.1,.1],coast)
+
     def test_threshold_experiment_does_not_allow_compiled_or_different_options(self):
         off=dict(compile_parts=[],parallel_camera=True)
         validate_pair(off,dict(off),[.2,.1,.12])

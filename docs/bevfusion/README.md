@@ -9,7 +9,13 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신은 [40절 로컬 threshold·실제 tracker 후보 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012)다.
+2026-10-12 최신은 [41절 원거리 bag GT·실제 ROS 기억 A/B](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)다.
+동일 예측 1,570행을 유지하고 1,413장의 확정 가능한 GT를 100m까지 평가했다.
+현재 0.5/1초 기억은 유용하지만 1/2초 확대는 미대응 증가로 기각한다. E24 시험 threshold
+0.40/0.10/0.10 유지. 다음은 장애물 중복·잔류 구간 조사와 실제 대회 PC의 planner
+궤적/ROS/LAN 확인이다. planner 5초 기억·실주행 안전성은 이번 결과로 인증하지 않는다.
+
+앞선 결과는 [40절 로컬 threshold·실제 tracker 후보 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012)다.
 E24 AMP·병렬화 ON·추론 compile OFF의 별도 시험값은 **V/P/O 0.40/0.10/0.10**이다.
 dev bag 1,570프레임·native val 745장과 실제 ROS tracker 5개 프로필을 CPU로 비교했다.
 다음은 30m 밖 bag GT 확장·차량 평가와 팀장님의 실제 4090 24GB ROS/LAN·풀스택

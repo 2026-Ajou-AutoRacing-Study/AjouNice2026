@@ -58,11 +58,15 @@
   약49cm는 대응 gate 내 최대이며 절대 상한이나 GT 오차가 아니다.
   후속 로컬 threshold의 71개 score·native val 745장·실제 ROS tracker 5개 프로필을
   비교해 **E24 AMP/병렬화 ON/추론 compile OFF 별도 trial은 V/P/O 0.40/0.10/0.10**을
-  선택했다. production E25와 baseline Base5 trial은 유지한다. 다음은
-  **30~50/50~80/80~100m bag GT 확장·차량 평가 → 팀장님의 실제 4090 24GB에서
-  ROS 센서→GPU→queue/LAN·풀스택 비용·누락 확인**이다. 고주로 위치 오차 원인
-  분해와 새 환경/자산별 검증도 남는다. 이번에는 Vast/GPU 작업을 하지 않았다.
-  [EVIDENCE 40절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012)을 따른다.
+  선택했다. production E25와 baseline Base5 trial은 유지한다. 이후
+  원거리 bag GT 확장과 실제 ROS 기억 A/B까지 완료했다. 동일 1,570장 예측 불변,
+  확정 가능한 GT 1,413장으로 100m를 평가했다. 현재 0.5/1초 기억 유지, 1/2초 확대는
+  중복·잔류 증가로 기각한다. 다음은 **장애물 중복 birth·잔류/association 구간 조사와
+  팀장님의 실제 4090 24GB에서 ROS 센서→GPU→queue/LAN·planner 궤적 확인**이다.
+  2m recall을 BBox 정밀도 인증으로 읽지 않으며 planner 자체의 5초 기억은 이번에
+  A/B하지 않았다. 고주로 위치 오차 원인 분해와 새 환경/자산별 검증도 남는다.
+  이번에는 Vast/GPU 작업을 하지 않았다.
+  [EVIDENCE 41절](bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 따른다.
 
 - **2026-10-11 최신 초기화 결정:** 동일 3클래스 E1 비교를 마쳐 호환 nuScenes의
   BEV·fusion·head 추가 재사용을 채택했다. 2 epoch는 생략하고 사용자가 후보 E1에서

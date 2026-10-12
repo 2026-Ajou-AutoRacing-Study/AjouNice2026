@@ -1,6 +1,14 @@
 # BEVFusion documentation agent context
 
-2026-10-12 최신은 EVIDENCE 40절의 로컬 threshold 선정이다. dev bag 1,570프레임·
+2026-10-12 최신은 EVIDENCE 41절의 100m bag GT·실제 ROS coasting A/B다.
+예측 1,570행은 불변이며 미확정 원거리 GT 프레임을 제외한 정확도 분모는 1,413장이다.
+tracker 이력에는 전체 1,570장을 유지했다. 현재 0.5/1초 유지, 1/2초 확대 기각,
+E24 로컬 V/P/O 0.40/0.10/0.10 유지. 다음은 장애물 중복 birth·잔류/association 구간과
+팀장님의 실제 4090 24GB ROS/LAN·planner 궤적 확인이다. 2m recall/미대응/GT 기록
+종료를 정밀도·ghost·실주행 안전성 확정으로 해석하지 않는다. planner 5초 기억 A/B는
+하지 않았다. Vast/GPU·훈련·production·tracker/planner 소스는 미변경이다.
+
+2026-10-12 앞선 결과는 EVIDENCE 40절의 로컬 threshold 선정이다. dev bag 1,570프레임·
 native val 745장·71개 score 후보와 실제 ROS tracker 5개 프로필을 비교했다.
 E24 AMP/병렬화 ON/추론 compile OFF의 별도 시험값은 V/P/O 0.40/0.10/0.10이다.
 production E25·baseline Base5 trial은 유지한다. bag GT는 아직 30m이므로 다음은

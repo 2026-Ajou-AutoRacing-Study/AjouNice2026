@@ -5000,3 +5000,173 @@ GT/TP/FP/FN **960개 항목 및 누락 구간 전체가 정확히 일치**했다
 기존 scorer와 무작위·동점·빈 GT·범위·지원점·시간 구간·실제 ROS 좌표 역변환으로 검사했다.
 관련 CPU 단위 검사·launch 계약 검사 **49개 통과**, Python 구문·launch 해석·whitespace·
 문서 언어 검사를 완료했다. GPU·원격 비용·실전 30Hz 처리 성능을 새로 측정한 것은 아니다.
+
+<a id="base5-far-bag-coasting-261012"></a>
+
+## 41. 원거리 rosbag 평가와 짧은 기억·잔류 비용 — 2026-10-12
+
+사용자는 오검출이 적으면 객체 기억이 유용하지만, 오검출을 오래 기억하면 planning에
+해가 될 수 있다고 지적했다. 30~50/50~80/80~100m 평가와 함께 이 trade-off를 조사했다.
+꺼 둔 Vast에 접속하거나 GPU 추론·학습·MORAI·운영 설정을 변경하지 않았다.
+E24 AMP·병렬화 ON·추론 compile OFF의 저장된 전 범위 검출을 그대로 재사용했다.
+
+### 평가 범위 확장과 분모
+
+기존 네 dev bag의 동일 1,570개 센서 token에서 `/Object_topic`과 감사한 asset catalog로
+GT를 다시 구성했다. 영상·point cloud를 복사하거나 재추론하지 않았다. 이전 35m 내 GT의
+위치·크기는 모두 그대로이며 **1,570개 prediction 배열·score·label은 정확히 불변**이다.
+새 GT는 native SaveSensorData annotation이 아니라 기록 status의 보간·catalog 근사다.
+
+- 모델 ROI는 LiDAR X±100/Y±30m, **bottom Z −3~2m**다. 거리 표는 XY 방사 거리다.
+  방사 100m 밖 ROI 모서리는 전체 ROI 통계에만 포함하고 80~100m 표에 섞지 않는다.
+- 미확정 차량이 ROI에 들어올 수 있는 프레임은 정확도 집계 전체에서 제외한다.
+  ROI 반지름보다 넓은 105m와 기존 raw pivot guard 5m를 사용했다. 고주로의 미확정
+  차량 두 segment 때문에 기존 적격 512장 중 157장을 추가 제외했다.
+- 정확도 분모는 **1,413장**이다: O02 463, P01 269, H03 355, R01 326장.
+  tracker에는 불확실한 157장도 포함한 원래 **1,570장 전부**를 넣어 이력 단절을 피했다.
+- 재구성 trajectory의 최소 길이는 1로 설정했다. 짧은 GT를 삭제해 FP를 늘리지 않으며,
+  실제 보간은 0.15초 이내 bracket만 사용하고 외삽하지 않는다. Object status 시각 지원도
+  0.075초 이내여야 한다. 이 네 bag의 raw segment 수·자산 해결 결과는 이전과 같다.
+- LiDAR 0점 GT도 삭제하지 않는다. ≥5점은 정보량 진단이다. 알려진 actor를 115m까지
+  보존해 ROI 경계 밖 실제 객체를 근처 미대응 진단에서 확인할 수 있도록 했다.
+
+이전 30m 표와 고주로 분모가 달라졌으므로 수치 상승을 모델 개선으로 해석하지 않는다.
+이전에 사용한 dev bag의 추가 분석이며 미사용 test나 전체 자산·환경 인증이 아니다.
+Object status에 없는 지도 배경도 있어, 미대응을 모두 실제로 없는 객체라고 부르지 않는다.
+
+### 검출 AP와 현재 threshold의 원거리 recall
+
+동일 ROS floor 0.1/top100/class-aware rotated NMS 0.5 뒤의 검출 AP다.
+AP는 기존 0.5/1/2/4m 중심 gate의 평균이며 아래 고정 threshold recall과 다르다.
+
+| 방사 거리 | Vehicle AP (%) / GT 관측 | Pedestrian AP (%) / GT 관측 | Obstacle AP (%) / GT 관측 |
+|---|---:|---:|---:|
+| 0~30m | 91.35 / 350 | 79.98 / 113 | 81.35 / 897 |
+| 30~50m | 70.49 / 306 | 61.61 / 109 | 13.91 / 590 |
+| 50~80m | 51.28 / 276 | 0.00 / 46 | 10.81 / 702 |
+| 80~100m | 9.84 / 91 | 0.00 / **1: 소표본** | 0.00 / 286 |
+
+AP 0은 검출이 한 번도 없었다는 뜻이 아니다. 현재 P0.10에서 50~80m 보행자는
+4/46, O0.10에서 80~100m 장애물은 1/286개의 GT 관측을 2m 이내로 대응했다.
+AP의 최소 recall 기준 때문에 이처럼 낮은 recall은 AP 0이 될 수 있다.
+P01은 Man1 한 사람이고, O02는 six-asset 장면이다. 이 수치를 전체 pedestrian/122종
+자산의 독립 검출 확률로 해석하지 않는다.
+
+현재 V/P/O 0.40/0.10/0.10의 검출 recall은 모든 ROI GT에 먼저 대응한 뒤 거리별로
+집계한다. AP의 구간별 양쪽 필터에서 발생할 수 있는 거리 경계 효과와 구분한다.
+
+| 거리 | Vehicle recall@2m (%) | Pedestrian recall@2m (%) | Obstacle recall@2m (%) |
+|---|---:|---:|---:|
+| 30~50m | 84.31 | 71.56 | 25.76 |
+| 50~80m | 69.57 | 8.70 | 21.65 |
+| 80~100m | 13.19 | 0.00: GT 1 | 0.35 |
+
+raw 검출 전체 ROI의 2m 미대응은 Vehicle 23/835, Pedestrian 18/212, Obstacle 124/1,241
+관측이다. 이 숫자도 의미상 오검출률 인증이 아니다. 위치 오차·중복·다른 클래스 GT·배경을
+분해해야 하며, 특히 원거리에서 못 찾는 GT 수와 가짜 검출 수를 혼동하지 않는다.
+
+### 실제 ROS tracker의 기억 A/B
+
+같은 detector 배열과 **V/P/O 0.40/0.10/0.10**을 TF·실제 C++ tracker·UNKNOWN policy에
+넣었다. 두 독립 실행에서 기존값/후보/기존값 반복의 세 노드를 사용했다. 운영 config는
+불변이며 private parameter만 바꿨다.
+
+| 프로필 | 이동·보행자 coast | UNKNOWN·저속 차량 coast |
+|---|---:|---:|
+| 거의 즉시 삭제 | 0.001초 | 0.001초 |
+| 현재 | 0.5초 | 1.0초 |
+| 2배 유지 후보 | 1.0초 | 2.0초 |
+
+confirmed/tentative·birth·association·위치 noise·UNKNOWN 후처리는 동일하다.
+0.001초 후보는 단순 검출 출력이 아니라, 누락 뒤 재확인도 필요해지는 실제 tracker다.
+실제 planner는 실행하지 않았고, 5초의 planner target 기억을 직접 A/B한 것도 아니다.
+내부 30Hz 비용·live queue·LAN·조향 인증이 아니라 측정 stamp 동기 출력 비교다.
+구간 길이는 마지막−첫 센서 stamp에 nominal period를 더한 표본 노출 추정이며,
+GT/ROI 제외·원본 frame index 공백·0.25초 초과 sensor gap에서 분리한다.
+
+아래는 전체 ROI에서 **중심 2m 이내** 대응한 GT 관측과 미대응 출력이다.
+평균 상태가 가까운 것을 보기 위한 gate이며 세밀한 회피 경계 정확도를 인증하지 않는다.
+
+| 클래스 | 거의 즉시 삭제 TP / 미대응 | 현재 TP / 미대응 | 2배 유지 TP / 미대응 |
+|---|---:|---:|---:|
+| Vehicle | 748 / 7 | **897 / 78** | 947 / 143 |
+| Pedestrian | 170 / 1 | **233 / 13** | 246 / 45 |
+| Obstacle | 967 / 21 | **1,444 / 532** | 1,526 / 874 |
+
+50~80m Vehicle tracker recall은 **59.78→92.03→95.65%**다. 현재 유지가 실제 누락을
+크게 메우지만, 추가 0.5~1초를 더 유지하는 이득에 비해 미대응이 많이 증가한다.
+Obstacle은 현재→2배에서 TP +82에 미대응 +342다. 확인된 객체를 무조건 더 오래
+남기는 후보는 채택하지 않는다.
+
+현재 tracker의 Vehicle recall@1m/@2m은 30~50m **77.78/87.91%**, 50~80m
+**65.94/92.03%**, 80~100m **8.79/30.77%**다. 2m recall이 높아도 위치·BBox의
+정밀도가 충분하다는 뜻은 아니다. 고주로 50~80m 대응의 중심 오차 p50/p95는
+**0.467/1.903m**다. <4m 대응만 남긴 조건부 통계이며 미대응 오차는 제외되어 있다.
+GT 자체의 보간·pivot 근사도 포함한다. 속도 GT MAE나 planner 궤적 오차로 읽지 않는다.
+
+### 미대응이 무엇인지: 중복·잔류·원본 이미지 확인
+
+현재 profile의 2m 미대응을 모든 알려진 actor와 다시 비교했다.
+
+- Vehicle 78 중 **41개**는 4m 내 다른 클래스 GT, **8개**는 같은 클래스 GT와 2~4m
+  차이, **29개**는 4m 내 catalog actor가 없다. O02의 장애물 근처를 차량으로 분류한
+  35개도 포함하므로 모든 vehicle 미대응을 고주로의 가짜 차량으로 설명하지 않는다.
+- Pedestrian 13개는 근접 같은 GT 중복/위치 차이 6개와 다른 클래스 GT 근처 7개다.
+  4m 내 catalog actor가 없는 관측은 이번 분모에서 0개였다. 일반화된 오검출 0 인증은 아니다.
+- Obstacle 532개 중 **445개**는 같은 GT 2m 내에 있으나 이미 다른 출력이 대응한
+  관측이다. 2~4m 위치 차이 58개, 다른 클래스 근처 2개, catalog actor 없는 관측 27개다.
+  주된 비용은 독립적인 가짜 물체 수백 개라기보다 중복·잔류·geometry 차이다.
+
+catalog actor가 없는 Vehicle 관측 비중은 현재 29/975=**2.97%**, 2배 후보는
+72/1,090=**6.61%**다. Obstacle은 27/1,976=**1.37%**에서 86/2,400=**3.58%**로
+늘었다. 이것도 진짜 hallucination 비율이 아니라 더 보수적인 spatial diagnostic이다.
+Ego 직전방 X0~100/|Y|<2m의 catalog actor 없는 출력은 현재 Vehicle/Pedestrian 0,
+Obstacle 1개 관측이었다. 이 좁은 corridor 밖 객체도 차선 변경·회피에 영향을 줄 수 있어
+실주행 안전성으로 일반화하지 않는다.
+
+원본 네 카메라에 GT와 track을 투영한 검토 이미지 6장을 만들고 모두 확인했다.
+H03 track11, R01 track0/2의 대표 미대응은 앞선 정상 catalog 대응 이후 **GT 기록이
+끝난 다음 frame부터** 시작했다. 최대 미대응 구간은 약 0.50/0.50/0.38초였다.
+해당 이미지에도 차량 위치에 비어 있는 공간이 보여, 처음부터 생긴 가짜 검출보다는
+actor가 기록/장면에서 빠진 뒤 남은 coasting 꼬리라는 해석을 지지한다. H03 track14도
+전체 입력 이력에서 같은 양상이지만, 직전 정상 대응 프레임이 정확도 제외 구간이라 최신
+scored provenance에는 선행 대응이 없다. 그 차이를 숨기지 않는다.
+
+O02 track14는 이전 GT 대응 뒤 위치가 5m 이상 벗어난 잔류였고, track37은 4m 내 actor
+없는 출력이 약1.23초 이어졌다. 양쪽 대표 장면은 후방이었다. 배경·ghost·잘못된 association을
+이 이미지 하나로 확정하지 않는다. 미대응 구간이 TTL보다 길 수 있는 것은 계속 들어오는
+잘못된 측정이 track을 갱신할 수 있기 때문이다. 구간 전체를 미관측 coasting으로 부르지 않는다.
+
+### 현재 결정과 다음 우선순위
+
+1. **tracker의 현재 0.5/1.0초 bounded coasting은 유지한다.** 원거리 누락을 메우는
+   근거가 있으며 거의 즉시 삭제 후보는 recall과 재확인 비용이 나빴다.
+2. **유지시간을 1/2초로 늘리지는 않는다.** 추가 recall보다 중복·미대응 증가가 크다.
+   static planner의 5초 기억도 별도 기능이며, 이번 결과로 모든 잘못된 target이 안전하게
+   걸러진다고 인증하지 않는다. 해당 모듈에 등록되는 사례를 풀스택에서 확인해야 한다.
+3. **E24 로컬 V/P/O 0.40/0.10/0.10 유지.** 원거리 Vehicle 0.20 후보의 actual tracker는
+   30~50/50~80/80~100m TP가 269/254/28→279/257/36으로 증가하지만 각 band의
+   미대응도 3/47/6→8/58/8로 늘었다. 원거리 이득은 있지만 추가 유지와 혼동하지 않으며
+   이번에 보수적인 차량 초기값을 자동 변경하지 않는다.
+4. 다음 인지 보완은 **장애물 중복 birth·coasting 잔류·잘못된 association의 실제 구간
+   조사**가 우선이다. 단순히 threshold를 올리거나 기억을 늘려 해결하지 않는다. 실제
+   팀장님 4090 24GB의 별도 trial에서 detector→tracker→planner와 궤적/조향·영상도
+   확인한다. E25 production·데이터 생성·학습·planner 코드는 이번 작업에서 유지했다.
+
+### 산출물과 검사
+
+- fresh GT·원본 token·scoring mask: `artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1`.
+- 최신 report: **`report_validated_v6.json`**. GT geometry guard 추가 전 `report_v5.json`과
+  통계가 같으며 v1~v4는 진단·provenance 보강 전 이력이다.
+- actual ROS: `ros_near_zero_coast_v1`, `ros_double_coast_v1`의 messages/receipt/analysis.
+  0.20 차량 후보는 40절의 `ros_selected_candidate`를 동일 prediction SHA로 연결했다.
+- 검토 이미지: `review_v1/00~05_*.jpg`, 설명·run·좌표는 `index.json`에 보존했다.
+- CPU 도구: `prepare_base5_far_bag_gt.py`, `evaluate_base5_far_retention.py`,
+  `render_base5_far_review.py`. 기존 replay는 threshold와 lifecycle을 동시에 바꾸는
+  비교를 거부하며 독립 반복을 유지하도록 확장했다. production 소스는 수정하지 않았다.
+
+관련 CPU·launch 계약 **64개 통과**. 예측 불변 1,570행, 이전 근접 GT 기하 보존,
+두 실제 실행의 모든 input/output stamp·독립 반복 delta0/IoU1을 확인했다. Python
+구문·언어·whitespace와 owned process 종료도 확인했다. 전체 tools discover는 system
+Python에 Torch/mmengine이 없어 학습 등 11개 모듈의 import가 실패했다. 별도 CPU 관련
+검사는 통과했지만 전체 GPU·학습 suite를 통과한 것으로 기록하지 않는다.

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Isolated actual ROS tracker + UNKNOWN policy replay of saved detections.
 
-No detector GPU, global ROS master, MORAI, planning or control. Compile OFF,
-ON and independent OFF repeat share the same clock and recorded Ego TF.
+No detector GPU, global ROS master, MORAI, planning or control. Reference,
+candidate and independent reference repeat share the same clock and Ego TF.
+Comparison kind explicitly distinguishes compile, score and lifecycle A/B.
 """
 import argparse
 import gzip
@@ -51,6 +52,16 @@ def validate_pair(off,on,candidate_thresholds):
     elif on.get('compile_parts')!=['camera','neck'] or {
             k:v for k,v in off.items() if k!='compile_parts'}!={k:v for k,v in on.items() if k!='compile_parts'}:
         raise ValueError('Compile comparison may differ only in camera/neck compilation')
+
+
+def validate_lifecycle_policy(reference,candidate,coast_times):
+    if len(reference)!=3 or not all(.1<=v<=1. for v in reference):
+        raise ValueError('Three reference scores at or above the frozen floor required')
+    if coast_times is not None:
+        if len(coast_times)!=2 or not all(math.isfinite(v) and v>0 for v in coast_times):
+            raise ValueError('Positive finite moving/stationary coast times required')
+        if candidate is None or list(reference)!=list(candidate):
+            raise ValueError('Lifecycle-only comparison requires identical thresholds')
 
 
 class Replay:
@@ -147,6 +158,7 @@ class Replay:
                 raise ValueError('Saved outputs and prepared input frames differ')
         off,on=(payloads[k]['inference_optimization'] for k in ('off','on'))
         validate_pair(off,on,a.candidate_thresholds)
+        validate_lifecycle_policy(a.reference_thresholds,a.candidate_thresholds,a.candidate_coast_times)
         if a.candidate_thresholds is not None and hashlib.sha256(a.off.read_bytes()).digest()!=hashlib.sha256(a.on.read_bytes()).digest():
             raise ValueError('Threshold replay requires exactly the same prediction file')
         self.launch('roscore',['roscore','-p',str(self.port)])
@@ -186,6 +198,9 @@ class Replay:
                 cfg['configure'].update(fixed_output_rate_hz=a.fixed_output_rate_hz,
                     maximum_fixed_output_prediction_age_sec=.5,
                     compensate_output_to_current_time=False)
+                if name=='on' and a.candidate_coast_times is not None:
+                    cfg['configure'].update(confirmed_track_max_coast_time_sec=a.candidate_coast_times[0],
+                        confirmed_stationary_track_max_coast_time_sec=a.candidate_coast_times[1])
                 cfg['topic_name'].update(output_track_jsk=ns+'/visualization_boxes',output_track_marker=ns+'/visualization_markers')
                 rospy.set_param(ns,cfg)
                 rospy.set_param(ns+'/policy/force_unknown_stationary',True)
@@ -232,7 +247,7 @@ class Replay:
                     r=rows[name][index]
                     ds=delivered([dict(center=b[:3],size=b[3:6],yaw=b[6],score=s,label=int(l),class_name=CLASSES[l])
                         for b,l,s in zip(r['pred_boxes'],r['pred_labels'],r['pred_scores'])],
-                        a.candidate_thresholds if name=='on' and a.candidate_thresholds is not None else POLICIES['current'])
+                        a.candidate_thresholds if name=='on' and a.candidate_thresholds is not None else a.reference_thresholds)
                     if a.maximum_range_m:
                         ds=[d for d in ds if np.linalg.norm(d['center'][:2])<a.maximum_range_m and -3<=d['center'][2]<=2]
                     header=Header(seq=index,stamp=rospy.Time.from_sec(t),frame_id='probe_lidar')
@@ -264,9 +279,13 @@ class Replay:
             for pub in pubs.values():pub.unregister()
             with gzip.open(a.output/'messages.json.gz','wt') as f:json.dump(self.messages,f,allow_nan=False)
         result=dict(scope='Actual ROS TF + C++ tracker + UNKNOWN policy on saved detections; not GPU/queue/LAN/planning certification.',
-            comparison_kind='score_threshold' if a.candidate_thresholds is not None else 'compile',
-            reference_thresholds=list(POLICIES['current']),
-            candidate_thresholds=a.candidate_thresholds or list(POLICIES['current']),
+            comparison_kind='track_lifecycle' if a.candidate_coast_times is not None else
+                'score_threshold' if a.candidate_thresholds is not None else 'compile',
+            reference_thresholds=list(a.reference_thresholds),
+            candidate_thresholds=a.candidate_thresholds or list(a.reference_thresholds),
+            reference_coast_times=[config['configure']['confirmed_track_max_coast_time_sec'],
+                config['configure']['confirmed_stationary_track_max_coast_time_sec']],
+            candidate_coast_times=a.candidate_coast_times,
             fixed_output_rate_hz=a.fixed_output_rate_hz,maximum_range_m=a.maximum_range_m,
             fixed_prediction_age_sec=.5,clock_wall_step_sec=a.clock_wall_step_sec,
             private_master_port=self.port,wall_seconds=time.monotonic()-started,cases=self.receipts,
@@ -295,6 +314,9 @@ if __name__=='__main__':
     p.add_argument('--fixed-output-rate-hz',type=float,choices=(0.,30.),default=0.)
     p.add_argument('--candidate-thresholds',type=float,nargs=3,metavar=('VEHICLE','PEDESTRIAN','OBSTACLE'),
                    help='Compare the same OFF predictions with a new score policy, not compilation.')
+    p.add_argument('--reference-thresholds',type=float,nargs=3,default=list(POLICIES['current']))
+    p.add_argument('--candidate-coast-times',type=float,nargs=2,metavar=('MOVING_SEC','STATIONARY_SEC'),
+                   help='Isolated lifecycle A/B; requires identical reference and candidate scores.')
     p.add_argument('--clock-wall-step-sec',type=float,default=.005)
     args=p.parse_args()
     if args.limit<0 or args.clock_wall_step_sec<=0:p.error('Nonnegative limit and positive clock pacing required')

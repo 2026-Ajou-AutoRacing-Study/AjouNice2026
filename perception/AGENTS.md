@@ -1,6 +1,14 @@
 # Perception agent context
 
-2026-10-12 최신은 EVIDENCE 40절의 로컬 threshold 선정이다. 저장된 dev bag
+2026-10-12 최신은 EVIDENCE 41절의 100m bag GT·실제 ROS coasting A/B다. 동일
+1,570개 예측 불변, 원거리 미확정 GT를 제외한 1,413장 정확도 집계, 전체 1,570장
+tracker 이력을 유지했다. 현재 0.5/1초 기억은 유지하고 1/2초 확대는 미대응 증가로
+채택하지 않는다. E24 로컬 V/P/O 0.40/0.10/0.10 유지. 다음은 장애물 중복 birth·잔류·
+association 구간 조사와 팀장님 실제 4090 24GB의 ROS/LAN·planner 궤적 검증이다.
+2m recall·AP·미대응을 실제 안전성/ghost 확정으로 읽지 않는다. planner 5초 기억은
+이번에 A/B하지 않았다. Vast/GPU·훈련·production·tracker/planner 소스는 미변경이다.
+
+2026-10-12 앞선 결과는 EVIDENCE 40절의 로컬 threshold 선정이다. 저장된 dev bag
 1,570프레임·native val 745장·71개 score 후보와 실제 ROS tracker 5개 프로필을
 비교해 E24 AMP/병렬화 ON/추론 compile OFF의 별도 시험값 V/P/O 0.40/0.10/0.10을
 선택했다. production E25와 baseline Base5 trial은 미변경이다. bag 정확도 GT는 아직
