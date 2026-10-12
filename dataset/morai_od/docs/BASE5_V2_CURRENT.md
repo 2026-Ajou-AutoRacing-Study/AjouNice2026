@@ -17,8 +17,9 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 준비본 | `~/morai_cap/base5_postcollection_261010/fresh_suite_final_v142`. 장애물 보강 실험의 baseline이며 새 정책은 미구현 |
-| 동결 수집 release | 같은 root의 `collector_release_v142/release.json` |
+| 다음 준비본 | 보강 `~/morai_cap/base5_obstacle_improvement_261013/final_v149/future_suite`의 독립 25K offline 계획. v142 baseline 보존 |
+| 보강 후보 release | 같은 실험 root의 `release_v149_sunny13/release.json`. Sunny13 소량 검증·복구 확인, `bulk_ready=false` |
+| 남은 live 조건 | Simulator Vulkan SIGSEGV 후 재연결·Park 확인, 음영 긴 NPC road-aligned 4장 probe. 본수집 미실행 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 다섯 환경의 새 geometry·CPU preflight·소량 live 검증은
@@ -44,21 +45,29 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 범용 혼합의 배치 수·크기 budget과 실제 보이는 객체/유효 component GT 수는 다르다.
 122종 primary coverage는 해당 release와 adopted manifest의 실제 할당으로 확인한다.
 
-현재 v142는 비율·primary 할당·거리/방향·미션 phase·split을 유지하면서 새 geometry를 생성한다.
-범용은 고정 기준점만 반복하는 대신 허용 도로를 따라 연속 Ego 위치를 샘플링한다.
+현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다.
+범용 regular/dense의 일부에 19종 물리 장애물을 최대 하나 더하고 기존 0~20/20~30m 보조를 보호한다.
+30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
+같은 승인 ID 43장 대조에서 근거리 GT 64→98, LiDAR 20점 이상 39→55이고 Vehicle 36/Pedestrian 69는 유지됐다.
+이는 배치·센서 지원의 증거이며 재학습 AP 개선의 인증은 아니다.
+
+v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 반복하는 대신
+허용 도로를 따라 연속 Ego 위치를 샘플링한다.
 같은 slot의 환경 A/B라고 부르지 않으며 물리 link·final support·100m 시야 중복을 따로 감사한다.
 보강 배치·새 정책은 현재 성공분을 폐기하는 이유가 아니다.
 
-다음 25K 전에는 [장애물 생성기 실험 계획](261013_base5_obstacle_generator_experiment_plan.md)을 따른다.
+다음 25K 전에는 [장애물 보강 실험 근거](261013_base5_obstacle_support_experiments.md)와
+[현재 후보 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
 0~20m 노출뿐 아니라 20~30m의 자산별 분산·센서 지원·형상/위치를 확인하며 30m 이상도 제외하지 않는다.
 개수·거리 비율은 고정하지 않고 배치 실험으로 수정한다. MR 통제권을 별도로 받은 뒤 live 실험하며,
-새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다. 이번 갱신은 문서화이며 본수집 시작이 아니다.
+새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다. 새 Sunny13 5K preview는 원래 30K에 자동 합산하지 않는다.
 
 <a id="capture"></a>
 
 ## 수집과 복구
 
-현재 새 환경 명령·통신·대시보드는 [fresh 런북](261010_base5_fresh_environment_runbook.md)만 따른다.
+현재 보강 후보는 [보강 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
+구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
 - SaveSensorData 수집과 UDP/ROS 실주행 streaming을 구분한다. 기존 master/guarded bridge를 중복 실행하지 않는다.
@@ -73,7 +82,8 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
   음영의 이동은 독립 terrain/reference 준비를 유지한다. 자동 지면 추종 기능이 아니다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
-5K당 운영 예산 8–11시간/35GiB는 v142 소량 실측 기반 예상이며 완료 시간 보장이 아니다.
+v149의 어려운 strata 64+8장 QA 포함 가중 예상은 5K 약 11.37시간/40.87GiB다.
+보수 예산은 10~13시간/약 51GiB이며 표본 편향·부족분에 따라 달라진다. v142의 8~11시간/35GiB와 혼용하지 않는다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>

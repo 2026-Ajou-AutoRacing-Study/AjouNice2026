@@ -32,6 +32,8 @@ def contract(source, indices, rounds):
         'base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py',
         'base5_region_contract.py','base5_static_yaw.py','base5_placement_geometry.py'])
     reference=data['config'].get('static_placement_geometry')
+    if data['config'].get('obstacle_support_policy'):
+        names.extend(['base5_obstacle_support_policy.py','base5_obstacle_rich_floor.py'])
     if reference and sha256(reference['path'])!=reference['sha256']:
         raise ValueError('Placement geometry reference changed')
     sources=[]
@@ -49,6 +51,16 @@ def contract(source, indices, rounds):
 
 def validate_selected(report):
     """Re-run the existing raw/provenance/session integrity validator, offline."""
+    failure=report.get('offline_proposal_failure')
+    if failure:
+        previous=loop.gen.geo.load_json(Path(failure['previous_report']))
+        if (sha256(failure['previous_report'])!=failure['previous_report_sha256']
+                or previous.get('stage')!='complete' or previous.get('selected')
+                or report.get('selected') or failure.get('no_new_capture') is not True
+                or report.get('attempts')!=previous.get('attempts')
+                or not any(a.get('capture_root') and a.get('shutdown',{}).get('park_verified')
+                           for a in previous.get('attempts',[]))):
+            raise ValueError('Offline proposal deficit lacks matching previous completed failure evidence')
     for row in report['selected']:
         if row['status']!='accepted_candidate' or row.get('audit',{}).get('review_reasons'):
             raise ValueError('Reviewed capture cannot fill quota')
@@ -139,14 +151,33 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                 target=cell/f'round_{ordinal}';report=target/'report.json'
                 if ordinal:
                     replacement=cell/f'replacement_{ordinal}'/'manifest.json'
-                    if not replacement.exists():
+                    if not replacement.exists() and not report.exists():
                         needs_ground=any(isinstance(r,dict) and
                             ('motion_ground_preparation_unavailable' in r.get('reasons',[])
                             or 'actor_ground_plane_unverified' in r.get('reasons',[]))
                             for r in (outcome or {}).get('unresolved',[]))
-                        if needs_ground:loop.replacement(manifest,replacement.parent,require_ground_observable=True)
-                        else:loop.replacement(manifest,replacement.parent)
-                    manifest=replacement
+                        try:
+                            if needs_ground:loop.replacement(manifest,replacement.parent,require_ground_observable=True)
+                            else:loop.replacement(manifest,replacement.parent)
+                        except loop.PlacementProposalExhausted as exc:
+                            # The previous round ended with verified Park and
+                            # native rejection. No new scene was loaded. Keep
+                            # its failed raw and explicitly exhaust this round;
+                            # communication/hash/control failures still halt.
+                            if verify_only:raise ValueError('Completed offline exhaustion report missing')
+                            previous=cell/f'round_{ordinal-1}'/'report.json'
+                            proof=loop.gen.geo.load_json(previous);validate_selected(proof)
+                            if proof.get('stage')!='complete' or proof.get('selected'):
+                                raise ValueError('Offline exhaustion lacks a completed rejected round')
+                            outcome=copy.deepcopy(proof)
+                            outcome.update(error=str(exc),offline_proposal_failure=dict(
+                                previous_report=str(previous.resolve()),previous_report_sha256=sha256(previous),
+                                no_new_capture=True,maximum_offline_proposals=512),
+                                unresolved=proof['unresolved']+[dict(cell=row['id'],reasons=['offline_placement_proposal_exhausted'])])
+                            atomic_json(report,outcome)
+                            validate_selected(outcome)
+                            continue
+                    if replacement.exists():manifest=replacement
                 if report.exists() and loop.gen.geo.load_json(report)['stage']=='complete':
                     outcome=loop.gen.geo.load_json(report);validate_selected(outcome)
                 else:

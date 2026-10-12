@@ -42,9 +42,9 @@ def bounded_candidate(spec, config, ctx, reference, split, reasons, maximum=MAX_
     raise ValueError('Offline proposal budget exhausted: '+json.dumps(dict(local),sort_keys=True))
 
 
-def generate(source,output,environment,seed=261010,limit=5000):
+def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=False):
     if not 1<=limit<=5000:raise ValueError('Generate 1–5000 slots per environment')
-    if environment not in ('sunny11','sunny15','foggy11','foggy13','foggy15'):
+    if environment not in ('sunny11','sunny15','foggy11','foggy13','foggy15') and not (environment=='sunny13' and allow_new_sunny13):
         raise ValueError('Only the remaining five environments; Sunny13 stays preserved')
     if output.exists():raise FileExistsError('Fresh environment directory required')
     original=json.loads(source.read_text());source_hash=sha256(source);config=copy.deepcopy(original['config'])
@@ -53,6 +53,9 @@ def generate(source,output,environment,seed=261010,limit=5000):
     config['collection_environment']=dict(weather=environment[:-2],hour=int(environment[-2:]),
         policy='Manual UI confirmation required; generating geometry does not set weather/time')
     config['fresh_geometry_policy']=dict(policy=spatial.POLICY,seed=seed,source_manifest_sha256=source_hash)
+    if environment=='sunny13':
+        config['new_sunny13_diagnostic_plan']=dict(approved_offline_only=True,original_sunny13_preserved=True,
+            purpose='Independent Sunny13 preview requested for generator qualification; not a second 5K capture')
     ctx=prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO),config)
     intervals=spatial.allowed_intervals(ctx,config);items=[];references={}
     for entry in original['scenes']:
@@ -122,4 +125,5 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--manifest',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True);p.add_argument('--environment',required=True)
     p.add_argument('--seed',type=int,default=261010);p.add_argument('--limit',type=int,default=5000)
-    a=p.parse_args();print(generate(a.manifest,a.output,a.environment,a.seed,a.limit))
+    p.add_argument('--allow-new-sunny13-plan',action='store_true',help='Explicit new-output offline preview; preserve completed Sunny13')
+    a=p.parse_args();print(generate(a.manifest,a.output,a.environment,a.seed,a.limit,a.allow_new_sunny13_plan))

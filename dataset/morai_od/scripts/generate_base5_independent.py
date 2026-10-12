@@ -711,6 +711,12 @@ def build(row,config,ctx,attempt=0):
                 distance=rng.uniform(lower+.05,upper-.05)
         elif i and row.get('population_layout')=='distributed':
             role=('front','left','rear','right')[(i+('front','left','rear','right').index(row['role']))%4]
+        from base5_obstacle_support_policy import sample as sample_support, verify_actual as verify_support, verify_protected_near
+        support=sample_support(row,i,asset,size,role,attempt)
+        if support:
+            lower,upper=support['distance_bounds_m']
+            distance=support['target_center_distance_m']
+            role=support['role']
         mission_target=None
         actor_crossing=None
         if dynamic_crossing:
@@ -799,6 +805,9 @@ def build(row,config,ctx,attempt=0):
             # Primary avoidance yaw must be selected before the gap solver.
             # Moving/crossing/vehicle rows have no opt-in and retain path yaw.
             pose=dict(pose,yaw=yaw_policy['placement_yaw_deg'])
+        if support:
+            # Support bands refer to the geometric center, not an asset pivot.
+            pose=pivot_for_center(pose,off,pose['yaw'])
         pa=math.radians(pose['yaw']); center=[pose['x']+math.cos(pa)*off[0]-math.sin(pa)*off[1],pose['y']+math.sin(pa)*off[0]+math.cos(pa)*off[1]]
         box=rectangle(center,size,pose['yaw'])
         gap=footprint.distance(box)
@@ -853,6 +862,13 @@ def build(row,config,ctx,attempt=0):
             if swept.distance(footprint)<.3 or any(swept.distance(other)<.2 for other in footprints):
                 raise ValueError('Dynamic actor path crosses stationary Ego/other actors')
         actual=math.hypot(center[0]-ego['x'],center[1]-ego['y'])
+        verify_support(support,actual)
+        verify_protected_near(row,i,actual)
+        if support and support.get('added_actor') and footprints:
+            from base5_region_contract import foreground_angular_coverage
+            overlap=foreground_angular_coverage((ego['x'],ego['y']),footprints[0],box)
+            if overlap>=.85:raise ValueError('New helper nearly fully angular-occludes primary')
+            support['primary_angular_overlap_proxy']=overlap
         if not i and not lower<=actual<upper: raise ValueError('Geometric center outside requested bin')
         if actual>100. or abs(-math.sin(math.radians(ego['yaw']))*(center[0]-ego['x'])+math.cos(math.radians(ego['yaw']))*(center[1]-ego['y']))>29.5:
             raise ValueError('Outside candidate input ROI')
@@ -884,6 +900,7 @@ def build(row,config,ctx,attempt=0):
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
+        if support:actor_records[-1]['secondary_obstacle_support']=dict(support,actual_center_distance_m=actual)
         if config.get('regional_policy'):actor_records[-1]['placement_yaw_deg']=pose['yaw']
         if yaw_policy is not None:actor_records[-1]['static_yaw_policy']=yaw_policy
         if asset['name'] in ctx.get('geometry',{}) and ctx.get('static_placement_geometry_reference'):

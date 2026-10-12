@@ -16,7 +16,7 @@ def cost(size):
     return 8
 
 
-def choose(primary, poolkey, pools, geometry, row, rng):
+def _choose(primary, poolkey, pools, geometry, row, rng):
     """Keep primary identity; exact budget band sampled once in specs, not retries."""
     mode = row.get('population_mode', 'legacy')
     vehicle_only = row.get('vehicle_only_population', False)
@@ -54,6 +54,29 @@ def choose(primary, poolkey, pools, geometry, row, rng):
     if not lower <= spent <= upper or len(result) < 2:
         raise ValueError('Population budget cannot be filled')
     return result
+
+
+def choose(primary, poolkey, pools, geometry, row, rng):
+    # Consume the legacy draws before resolving the opt-in frozen list so
+    # paired primary/Ego sampling does not silently shift to another RNG stream.
+    reference=row.get('population_rng_reference',{})
+    result=_choose(primary,poolkey,pools,geometry,dict(row,**reference),rng)
+    ids=row.get('frozen_population_data_ids')
+    if ids is None:return result
+    if not ids or ids[0]!=primary['data_id'] or len(ids)>row.get('population_max_actors',8):
+        raise ValueError('Frozen population changed primary/count limit')
+    allowed={a['data_id']:a for k in (poolkey,'vehicle','obstacle','person') for a in pools[k]}
+    if any(i not in allowed for i in ids):raise ValueError('Frozen population contains forbidden pool asset')
+    selected=[allowed[i] for i in ids]
+    if row.get('vehicle_only_population') and any(a not in pools['vehicle'] for a in selected):
+        raise ValueError('Frozen population violates vehicle-only region')
+    bounds=row.get('population_budget_bounds')
+    if bounds and not bounds[0]<=sum(cost(geometry(a)[0]) for a in selected)<=bounds[1]:
+        raise ValueError('Frozen population violates size budget')
+    required=row.get('required_secondary_pool')
+    if required and not any(a in pools[required] for a in selected[1:]):
+        raise ValueError('Frozen population violates required secondary pool')
+    return selected
 
 
 def visibility_summary(actors, components, roi=(-100,-30,-3,100,30,2)):

@@ -50,9 +50,18 @@ def validate_miss_evidence(row,manifest):
         raise ValueError('Target miss evidence does not match ledger')
 
 
+class PlacementProposalExhausted(ValueError):
+    """No new MORAI load: bounded offline geometry search could not fill a cell."""
+
+
 def replacement(manifest,output,require_ground_observable=False):
     m=gen.geo.load_json(manifest);old=m['scenes'][0];meta=gen.geo.load_json(Path(old['metadata']))
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
+    if m['config'].get('obstacle_support_policy'):
+        # Cache pure road/region indices on the shared context BEFORE the
+        # builder's shallow static-geometry copy. No pose or QA gate changes.
+        from run_base5_failure_aware_replenishment_fast import prewarm
+        ctx=prewarm(ctx,m['config'])
     for retry in range(meta['retry']+1,meta['retry']+513):
         try:scene,new=gen.build(meta['spec'],m['config'],ctx,retry)
         except ValueError:continue
@@ -73,7 +82,7 @@ def replacement(manifest,output,require_ground_observable=False):
                         target_probe_pose(ctx['links'],dict(actor,position=actor['motion_path']['target_position']))
             except ValueError:continue
         break
-    else:raise ValueError('Same-cell/split replacement unavailable')
+    else:raise PlacementProposalExhausted('Same-cell/split replacement unavailable after 512 offline proposals')
     output.mkdir();sid=old['id']+'_replace';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
     new['replacement']=dict(source_cell_id=old.get('source_cell_id',old['id']),source_scenario_sha256=old['scenario_sha256'],
         policy='same primary asset, family, mission, motion request, role, distance cell and split; no GT rewriting',
@@ -83,6 +92,11 @@ def replacement(manifest,output,require_ground_observable=False):
     # split/group identity, even through nested quality-loop replacements.
     for key in ('scene_group_id','environment_split_contract'):
         if key in meta:new[key]=copy.deepcopy(meta[key])
+    for key in ('logical_quota_slot_id','fresh_environment_provenance','obstacle_support_pair'):
+        if key in meta:new[key]=copy.deepcopy(meta[key])
+    if 'obstacle_support_pair' in new:
+        new['obstacle_support_pair'].update(actual_retry=retry,ego_xy_delta_m=None,
+            recovery_geometry_changed=True,pair_precision='same identity; replacement geometry, not exact pose pair')
     atomic_json(sp,scene);atomic_json(mp,new)
     old.update(id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp),
         motion=new['runtime_actors'][0]['motion'] if new['runtime_actors'] else old.get('motion',meta['spec'].get('motion','static')))

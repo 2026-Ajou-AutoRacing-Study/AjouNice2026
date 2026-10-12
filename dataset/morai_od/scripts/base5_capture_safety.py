@@ -196,6 +196,9 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
         safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1; final-ego-road-footprint-v114; post-park-stationary-v114')
     reference=json.loads(Path(manifest).read_text()).get('config',{}).get('static_placement_geometry')
+    if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_support_policy'):
+        contract['safety_code_sha256']['base5_obstacle_support_policy.py']=sha256(scripts/'base5_obstacle_support_policy.py')
+        contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
     if reference:
         if sha256(reference['path'])!=reference['sha256']:
             raise ValueError('Placement geometry reference changed')
