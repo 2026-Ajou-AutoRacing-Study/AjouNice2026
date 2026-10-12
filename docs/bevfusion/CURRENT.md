@@ -78,12 +78,18 @@ TensorRT나 새 프레임워크로 실제 배포를 마친 상태가 아니다. 
 완료: 학습·백업, 원본/파생 GT 보완, ROS 입력/TCP 정합, 연속 dev bag, threshold 비교,
 원거리 GT 평가·기억 A/B, 안정적인 이전 수동 완주 E9/E25 화면 비교다.
 E9 별도 threshold 선정과 동일 조건 E9/E24 최종 비교도 완료했다.
-다음 실주행 시험은 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+원본 Base3 val 1,635장 교차 평가도 완료했다. 해당 분포의 Obstacle AP는 E25 97.95%,
+E9 87.55%, E24 87.97%로, Base5 val의 난이도 차이만으로 격차를 설명할 수 없다.
+구 Base3 입력의 자차 근처 LiDAR 회신점에 E24가 차량으로 반응했다. 32장 대조에서
+해당 점만 제외하자 자차 위치 차량 관측은 30→0건이 됐지만 장애물 AP는 개선되지 않았다.
+현재 Base5 val·개발 bag에는 그 회신점이 없었다. 일반적인 자차 제거 필터는 적용하지 않았다.
+다음 실주행 시험은 현재 입력 계약의 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
-1. E9/E25 화면 차이가 큰 사람·장애물 구간의 실제 객체·중복·오검출을 구분한다.
+1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
 2. 장애물 association·birth·잔류를 조사한다. 현재 coasting을 무조건 늘리지 않는다.
-3. 팀장님 실제 4090 24GB에서 ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
+3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
 4. Foggy 등 새 환경은 별도 pilot과 유효 GT 분포를 확인한 뒤 수집·학습 범위를 정한다.
 5. 고정 이미지 registry 게시·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 

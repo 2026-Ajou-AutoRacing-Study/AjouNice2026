@@ -5439,3 +5439,158 @@ Native 근접 대응도 435→427로 줄고 이 중 6건은 ≥5점 지원이 �
 roslaunch parser로 해석했고 새 Python 구문·문서 링크·whitespace 검사도 통과했다.
 5개 private ROS 재생의 source/binary/coasting/GT 계약과 독립 반복을 검사했으며,
 이번 작업이 만든 GPU container·ROS master·tracker·policy 프로세스는 모두 종료했다.
+
+<a id="base5-on-base3-val-261013"></a>
+
+## 44. 원본 Base3 val 교차 평가와 자차 회신점 대조 — 2026-10-13
+
+### 목적과 동결 조건
+
+사용자가 제안한 E9/E24의 Base3 val 평가를 수행했다. 새로운 학습·수집·production 변경은
+하지 않았다. 원래 Base3 portable val **1,635장, 545개 장면**에 대해 E9/E24를 로컬
+5060Ti에서 각각 전체 추론했다. E25는 같은 infos·checkpoint의 기존 전체 추론을 재사용했다.
+같은 장면의 세 캡처가 있으므로 1,635개의 독립 배치 또는 현장 검출 확률로 읽지 않는다.
+
+- Infos: `artifacts/datasets/morai_base3_bevfusion_portable_v1/morai_base3_infos_val.pkl`.
+  SHA256 `ff4f97c02565784ccb21ada41c3d7360e04c214b087176849890daebc1358470`.
+- 세 모델 GT fingerprint:
+  `2289a908689e177ad40c3656c56971d173ff89d89a259fb9285b2ecfedd2d0c1`.
+  원본 native annotation과 infos의 retained GT **4,415개**를 위치·크기·yaw·클래스로 대조했다.
+- 원본 PNG 네 카메라·XYZ·GT를 유지했다. PNG를 JPEG로 조용히 바꾸거나 기존 Base3의
+  최소 5점 GT 정책을 바꾸지 않았다. Base5와 이미지 압축·가시성 정책이 다른 점은 남는다.
+- 두 모델 모두 FP32, AMP·TF32·compile·camera 병렬화 OFF다. 모델별 학습된 구조·crop은
+  그대로 사용했다. E25의 intensity 0–255와 Base5의 고정 ÷255 계약을 각각 유지했다.
+- 공통 의미 범위는 중심 XY±30m, bottom Z −3~2m이며 주 표는 **중심 반경 30m 미만**이다.
+  사각형 ±30m 결과도 별도 저장했다. 원래 decoder center AP와 ROS floor 0.1·top100·
+  class-aware rotated NMS 0.5 이후 AP를 구분했다. 표의 AP는 center 기준이지 IoU AP가 아니다.
+- 세 checkpoint SHA는 CURRENT 및 33절의 동결 E25/E9/E24와 같다. Base5를 E25에서
+  이어 학습한 것은 아니므로 단순히 ‘catastrophic forgetting’으로 명명하지 않는다.
+
+### 같은 원본 Base3 val에서의 결과
+
+아래는 원래 decoder 출력의 center AP다. 과거 E25와 비교할 때 후처리 AP를 섞지 않는다.
+
+| 모델 | Vehicle | Pedestrian | Obstacle | mAP |
+|---|---:|---:|---:|---:|
+| E25 | 97.47% | 98.80% | **97.95%** | **98.07%** |
+| E9 | **98.56%** | 98.16% | 87.55% | 94.76% |
+| E24 | 96.45% | 96.74% | 87.97% | 93.72% |
+
+사각형 ±30m의 Obstacle AP도 E25/E9/E24 **97.97/87.59/88.05%**로 같은 방향이다.
+ROS 후처리 뒤 반경 30m Obstacle AP는 **95.09/85.35/85.57%**다.
+단일 threshold와 AP ranking을 혼동하지 않으며 특히 아래 자차 반응을 별도 확인한다.
+
+| Obstacle 거리 | E25 | E9 | E24 |
+|---|---:|---:|---:|
+| 0~10m | **97.27%** | 88.91% | 88.87% |
+| 10~20m | **97.57%** | 88.27% | 88.38% |
+| 20~30m | **93.66%** | 67.87% | 67.59% |
+
+33절의 Base5 val과 함께 보면 다음과 같다. 행 안에서는 동일 GT지만 서로 다른 행은
+같은 난이도나 같은 GT가 아니다. Base3 평가를 새 threshold 선정용 독립 test로 주장하지 않는다.
+
+| 평가 분포의 Obstacle AP | E25 | E9 | E24 |
+|---|---:|---:|---:|
+| 원본 Base3 val | **97.95%** | 87.55% | 87.97% |
+| 현재 Base5 val, 동일 공통 30m | 60.76% | 81.95% | **83.49%** |
+
+따라서 ‘Base5 val이 더 어려워서 수치만 낮다’로 전부 설명할 수 없다. 구 분포에서도
+장애물 격차가 실제로 남으며, 반대로 Base5 분포에서는 새 모델이 E25보다 낫다.
+초기화·공간/depth·학습량·데이터·입력 분포가 함께 달라진 비교라 어느 하나의 원인으로
+확정하지 않는다. 이 평가만으로 5cm/20cm나 depth 25cm를 되돌리거나 재학습하지 않는다.
+
+### 과거 초기 성능과 학습 노출
+
+기존 Fresh E40의 `bf-sw-fresh-e40-rtx5060ti-260918-005536` 기록도 확인했다.
+`20260917_155542/vis_data/scalars.json`의 첫 두 epoch Obstacle AP는 **93.91%, 96.35%**다.
+사용자의 ‘초기부터 약 95%’ 기억은 근거가 있다. 단, 당시 학습/평가 계약의 숫자이며
+현재 보완된 평가와 동일한 조건의 초기화 ablation으로 사용하지 않는다.
+
+원본 train infos와 scenario metadata를 실제로 대조한 장애물 학습 GT 관측 수는 아래와 같다.
+배치 객체 수, 122종 전체 asset 수, 독립 객체 수, optimizer가 본 유효 gradient 횟수와 다르다.
+
+| 항목 | Base3 train | 이번 Base5 train |
+|---|---:|---:|
+| 프레임 | 7,632 | 4,255 |
+| Obstacle GT 관측 | **10,696** | **2,615** |
+| 해당 클래스 asset 종류 | 10 | 22 |
+| CargoBox GT 관측 | 1,523 | 152 |
+| Concrete_Barricade01 GT 관측 | 1,012 | 154 |
+| Steel_Barricade GT 관측 | 880 | 166 |
+
+Base3의 반복 캡처와 학습 epoch 수도 달라 관측 수 배율을 성능의 인과 비율로 읽지 않는다.
+다만 기존 열 종류에 대한 학습 노출은 상당히 줄었고 분포는 넓어졌다. 후속 환경의 유효
+GT/asset coverage와 부족 asset 보강을 확인할 가치가 있다. 필요하면 **Base3 train만**
+별도 replay 후보로 검토하며 Base3 val/test를 학습에 섞지 않는다. 아직 보강·재학습은 하지 않았다.
+
+### 희소 GT 제외와 실제 장애물 누락을 분리
+
+원래 Base3의 최소 5점 조건 때문에 반경 30m native annotation 중 Obstacle 217,
+Pedestrian 33, Vehicle 1개 관측이 학습용 GT에 없었다. 실제 원본 point 수를 다시 계산해
+모두 5점 미만임을 확인했다. 위치 근접은 진단 근거일 뿐 새 TP·가시성 인증으로 바꾸지 않는다.
+
+같은 V/P/O 0.40/0.15/0.10, 중심 1m 대응에서 Obstacle FP는 E25/E9/E24 **36/248/225**다.
+E24 225개 중 92개는 제외된 희소 native 객체의 1m 안, 114개는 이미 retained GT의 1m 안,
+5개는 이번 annotation 근접 분류로 설명되지 않았다. 나머지는 1~2m나 다른 클래스 근접이다.
+이를 225개의 실제 독립 유령 장애물이라고 해석하지 않는다. 그렇다고 모두 정답 처리하지도 않는다.
+
+실제 retained GT의 누락도 남는다. CargoBox 314개 중 TP는 E25/E9/E24 **302/270/270**,
+Concrete_Barricade01 201개 중 **198/161/162**다. 희소 GT 정책 차이만으로 장애물 격차를
+전부 설명할 수 없으며 위치 대응·중복·score·형상 오차를 추가로 분리해야 한다.
+
+### 구 입력의 자차 회신점과 E24 자차 위치 검출
+
+E24는 구 Base3 입력에서 자차 위치에 score 약 0.67~0.77의 Vehicle 박스를 반복 반환했다.
+공통 V0.40 이후 Vehicle TP/FP는 **1,081/1,536**, precision 41.31%다. 높은 Vehicle AP가
+해당 threshold의 정상 동작을 보증하지 않는다. E9도 V0.30으로 낮추면 이 반응이 늘어난다.
+
+유효·nonzero XYZ만 세어 LiDAR 근처 부피 X[−1.2,1.0], Y[−0.75,0.75], Z[−0.35,0.10]m를
+확인했다. 이는 측정한 진단 부피이며 일반적인 안전 자차 제거 영역이 아니다.
+
+| 입력 집합 | 프레임 | 이 부피에 회신점이 있는 프레임 | point 수 중앙값 |
+|---|---:|---:|---:|
+| 원본 Base3 val | 1,635 | 1,635 | 10,523 |
+| 현재 Base5 val | 745 | 0 | 0 |
+| 현재 네 개발 bag 입력 | 1,570 | 0 | 0 |
+
+Base5의 NoReturn zero placeholder를 자차 회신점으로 센 결과가 아니다. 현재 Base5 train·val에는
+근원점 Vehicle GT도 없었다. 어느 simulator 변경이 이 차이를 만들었는지는 확정하지 않았다.
+센서 설정 이름만으로 mounting/extrinsic 오류라고 주장하지 않는다.
+
+점의 역할을 분리하려고 dominant GT 클래스 및 empty cohort별로 8장씩 **균등 선택한 32장**에
+E24 FP32를 다시 실행했다. score가 높은 사례만 고르지 않았다. 해당 부피의 점만 파생 사본에서
+제외하고 모든 원래 GT의 point 수가 전후 동일함을 검사했다. PNG·GT·calibration·가중치는 그대로다.
+
+| 32장 입력 대조 | 원본 | 진단 부피의 점만 제외 |
+|---|---:|---:|
+| 자차 위치 Vehicle 관측, score≥0.40·중심<2m | **30** | **0** |
+| Vehicle raw AP | 96.20% | 98.98% |
+| Pedestrian raw AP | 93.75% | 93.75% |
+| Obstacle raw AP | 91.72% | 91.04% |
+
+자차 위치 검출의 입력 원인은 대조로 지지되지만 **장애물 격차 전체의 원인은 아니다**.
+32장 GT를 훼손하지 않았다는 사실은 다른 pose의 실제 근접 객체까지 안전하게 제거할 수 있다는
+뜻이 아니다. production·수집기·ROS에 이 mask를 적용하지 않았다. 실시간 실제 입력에서
+자차 회신점과 출력 존재 여부를 반드시 확인하며 기존 threshold를 구 입력에 무조건 이식하지 않는다.
+
+### 산출물·검증·현재 선택
+
+- Root: `artifacts/evaluation/bevfusion/base5_on_base3_val_261013`.
+  `E9_fp32_v1`, `E24_fp32_v1`에 전체 predictions·receipt를 보존했다.
+- 전체 집계: `cross_validation_v2.json`, SHA256
+  `33e68d69e41628a34c3c9bde0038272ea8f5ae8e4d387a1289b043d0a8248c60`.
+  구 v1의 주 평가·threshold 통계와 완전히 같으며 population·probe 근거만 추가했다.
+- 자차 대조: `roof_probe32_v1`의 원본 subset·masked infos·파생 points·manifest,
+  `E24_roof_probe_fp32_v1`의 predictions·receipt. 모든 원본 point 파일은 유지했다.
+- 재현 도구: `summarize_base3_cross_validation.py`, `prepare_base3_self_return_probe.py`.
+  동결 hash·GT·강도·FP32·같은 프레임·원본 GT support 보존을 검사하며 새 output만 생성한다.
+  산출물과 raw는 git에 강제로 넣지 않는다. GPU 정확도 시험은 latency/4090 성능 인증이 아니다.
+
+현재 Base5·Sensor4 개발 입력을 기준으로 선정했던 E24 trial은 유지하되, 자차 출력 검사와
+구 분포 장애물 보강 필요성을 후속 gate에 추가한다. E9 val best도 유지하고 E25 production은
+변경하지 않았다. 이번 결과만으로 model ensemble·threshold 변경·재학습을 수행하지 않는다.
+
+교차 평가·기존 공통 범위·context 단위 검사 **29개**를 통과했다. 32장 파생 cloud가
+현재 유효·nonzero mask로 원본에서 만든 배열과 정확히 같음을 다시 확인했다.
+문서 링크·기존 anchor·legacy 원문 SHA·Python 구문·whitespace 검사도 통과했다.
+이 작업의 추론 container는 모두 종료했고 다른 agent의 planning·MORAI 세션은 변경하지 않았다.

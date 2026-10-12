@@ -23,6 +23,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| 원본 Base3 val E25/E9/E24·구 분포 장애물·자차 회신점 대조 | [44절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013) |
 | E9 threshold·E9/E24 최종 시험 모델 선택 | [43절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |
 | 안정적인 이전 완주 E9/E25·RViz | [42절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012) |
 | 100m bag GT·bounded coasting·중복/잔류 | [41절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012) |
