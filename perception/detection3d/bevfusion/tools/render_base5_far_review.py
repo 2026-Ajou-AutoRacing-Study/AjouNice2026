@@ -38,11 +38,15 @@ def render(args):
     args.output.mkdir(parents=True,exist_ok=False)
     report=json.loads(args.report.read_text())
     sources={r['token']:r for r in pickle.loads((args.inputs/'infos_val.pkl').read_bytes())['data_list']}
-    cases=report['tracking']['ros_near_zero_coast_v1']['off']['cases']
+    replay_name = getattr(args, 'replay_name', 'ros_near_zero_coast_v1')
+    mode = getattr(args, 'mode', 'off')
+    cases=report['tracking'][replay_name][mode]['cases']
     examples=[]
     for case,classes in cases.items():
         for name,value in classes.items():
-            for run in value['unmatched_persistence']['no_catalog_actor_runs']['worst'][:2]:
+            persistence=value['unmatched_persistence']
+            selected=persistence if getattr(args, 'diagnostic', 'no-actor') == 'all' else persistence['no_catalog_actor_runs']
+            for run in selected['worst'][:2]:
                 examples.append((case,name,run))
     entries=[]
     for n,(case,name,run) in enumerate(examples):
@@ -70,4 +74,8 @@ def render(args):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for key in ('inputs','report','output'):p.add_argument('--'+key,type=Path,required=True)
+    p.add_argument('--replay-name', default='ros_near_zero_coast_v1')
+    p.add_argument('--mode', choices=('off','on','off_repeat'), default='off')
+    p.add_argument('--diagnostic', choices=('no-actor','all'), default='no-actor',
+                   help='All unmatched includes duplicate/geometry/class-confusion near real actors; never semantic FP truth.')
     render(p.parse_args())

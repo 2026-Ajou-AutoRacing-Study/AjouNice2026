@@ -29,6 +29,18 @@ BANDS=((0.,30.),(30.,50.),(50.,80.),(80.,100.))
 POLICIES={'local':(.4,.1,.1),'vehicle_low':(.2,.1,.1)}
 
 
+def score_policies(values):
+    if not values:
+        return dict(POLICIES)
+    result = {}
+    for name, *scores in values:
+        scores = tuple(float(v) for v in scores)
+        if name in result or len(scores) != 3 or not all(np.isfinite(v) and .1 <= v <= 1. for v in scores):
+            raise ValueError('Unique policy names and three finite scores >= decoder floor 0.1 required')
+        result[name] = scores
+    return result
+
+
 def band_name(distance):
     for lo,hi in BANDS:
         if lo<=distance<hi:return f'{lo:g}_{hi:g}m'
@@ -208,7 +220,9 @@ def analyze(args):
             rows.append(r)
         case_rows[case]=rows
     prepared={case:full_prepare([bridge_nms(r) for r in rows]) for case,rows in case_rows.items()}
-    result=dict(scope='E24 saved AMP parallel detections; native radial bands intersect semantic X±100/Y±30/Zbottom[-3,2].',
+    policies = score_policies(getattr(args, 'score_policies', None))
+    result=dict(scope='Saved learned detections; radial bands intersect semantic X±100/Y±30/Zbottom[-3,2].',
+        model_name=payload['name'], score_policies=policies,
         matching='AP uses original nuScenes-style 0.5/1/2/4m. P/R diagnostics match ALL ROI GT before range attribution.',
         gt_identity=payload['gt_identity'],source_checkpoint_sha256=payload['checkpoint_sha256'],
         scoring_frames=manifest['scoring_frames'],input_frames=len(info),
@@ -220,7 +234,7 @@ def analyze(args):
         detection={},tracking={})
     all_rows=[r for rows in prepared.values() for r in rows]
     result['detection']['ap_by_range']=ap_by_range(all_rows)
-    for policy,thresholds in POLICIES.items():
+    for policy,thresholds in policies.items():
         result['detection'][policy]={}
         for case,rows in prepared.items():
             result['detection'][policy][case]={c:dict(
@@ -274,4 +288,7 @@ if __name__=='__main__':
     for key in ('inputs','predictions','output'):p.add_argument('--'+key,type=Path,required=True)
     p.add_argument('--replays',type=Path,nargs='*',default=[])
     p.add_argument('--sensor-config',type=Path,default=ROOT/'configs/sensors/Sensor_4.json')
+    p.add_argument('--score-policy', dest='score_policies', action='append', nargs=4,
+                   metavar=('NAME','VEHICLE','PEDESTRIAN','OBSTACLE'),
+                   help='Explicit detector policy; repeat to compare thresholds. Existing E24 policies remain the default.')
     analyze(p.parse_args())

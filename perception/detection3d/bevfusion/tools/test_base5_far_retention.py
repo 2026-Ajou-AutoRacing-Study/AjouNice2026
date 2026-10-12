@@ -6,6 +6,7 @@ from prepare_base5_far_bag_gt import inside_roi
 from evaluate_base5_far_retention import (
     band_name, classify_unmatched, full_prepare, range_operating,
     persistent_unmatched, ap_by_range,
+    score_policies,
 )
 
 
@@ -18,6 +19,17 @@ def row(gt_x=49.9,pred_x=50.1):
 
 
 class FarRetentionTests(unittest.TestCase):
+    def test_explicit_checkpoint_policies_do_not_mutate_defaults(self):
+        self.assertEqual(score_policies(None)['local'], (.4, .1, .1))
+        self.assertEqual(score_policies([['e9', '.4', '.2', '.12']]), {'e9': (.4, .2, .12)})
+        self.assertEqual(score_policies(None)['local'], (.4, .1, .1))
+
+    def test_policy_floor_duplicates_and_nonfinite_are_rejected(self):
+        for values in ([['a', '.4', '.09', '.1']], [['a', 'nan', '.1', '.1']],
+                       [['a', '.4', '.1', '.1'], ['a', '.4', '.2', '.1']]):
+            with self.assertRaises(ValueError):
+                score_policies(values)
+
     def test_model_z_roi_is_bottom_not_geometric_center(self):
         self.assertTrue(inside_roi([90.,29.,3.,4.,2.,3.,0.]))
         self.assertFalse(inside_roi([90.,29.,-2.,4.,2.,3.,0.]))

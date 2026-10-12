@@ -1,7 +1,8 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-12.
-현재 production은 E25이며, 완료된 Base5의 E9/E24는 시험·평가 대상으로 관리한다.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-13.
+현재 production은 E25다. 완료된 Base5의 native-val best는 E9이고, 동일 조건 bag·tracker
+비교 후 최종 실주행 시험 모델은 E24로 선택했다. 두 선택 기준을 혼동하지 않는다.
 상세 결과는 [작업별 근거 인덱스](README.md)에서 필요한 절만 읽는다.
 
 <a id="model"></a>
@@ -47,6 +48,7 @@ Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 
 | Production E25 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), [전체 스택 런북](../runbooks/morai_full_stack_by_terminal.md) |
 | Base5 baseline trial | 별도 namespace·서버. production을 자동 교체하지 않음 | [ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md), `base5_trial.launch` |
 | E24 선정 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.40/0.10/0.10 | `base5_e24_calibrated_trial.launch`, [threshold 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012) |
+| E9 선정 비교 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.30/0.20/0.12 | `base5_e9_calibrated_trial.launch`, [E9/E24 최종 선택](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |
 | E9/E25 완주 화면 비교 | 동일 3,369장·공통 중심 XY±30 m·두 모델 모두 0.40/0.15/0.10 | [완주 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012) |
 
 Base5 ROS 입력은 원본 JPEG를 재압축하지 않고 원본 XYZI 0–255를 전달한다.
@@ -75,6 +77,8 @@ TensorRT나 새 프레임워크로 실제 배포를 마친 상태가 아니다. 
 
 완료: 학습·백업, 원본/파생 GT 보완, ROS 입력/TCP 정합, 연속 dev bag, threshold 비교,
 원거리 GT 평가·기억 A/B, 안정적인 이전 수동 완주 E9/E25 화면 비교다.
+E9 별도 threshold 선정과 동일 조건 E9/E24 최종 비교도 완료했다.
+다음 실주행 시험은 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
 1. E9/E25 화면 차이가 큰 사람·장애물 구간의 실제 객체·중복·오검출을 구분한다.

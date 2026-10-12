@@ -63,5 +63,15 @@ class InputContractTest(unittest.TestCase):
         self.assertEqual([baseline[n+'_score_threshold'] for n in ('vehicle','pedestrian','obstacle')],
                          ['0.40','0.15','0.10'])
 
+    def test_e9_calibrated_trial_is_separate_and_passes_explicit_scores(self):
+        root=ET.parse(path.parents[1]/'launch/base5_e9_calibrated_trial.launch').getroot()
+        args={item.attrib['name']:item.attrib.get('default') for item in root.findall('arg')}
+        self.assertEqual([args[n+'_score_threshold'] for n in ('vehicle','pedestrian','obstacle')],
+                         ['0.30','0.20','0.12'])
+        self.assertEqual(args['output_objects'],'/perception/base5_trial/detection/objects')
+        included={item.attrib['name']:item.attrib['value'] for item in root.findall('include/arg')}
+        for name in ('vehicle','pedestrian','obstacle'):
+            self.assertEqual(included[name+'_score_threshold'],'$(arg '+name+'_score_threshold)')
+
 
 if __name__=='__main__':unittest.main()

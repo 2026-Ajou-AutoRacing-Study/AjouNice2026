@@ -16,6 +16,8 @@
 `/perception/base5_trial/detection/objects`를 사용한다.
 status·latency·marker·projection도 `/perception/base5_trial/`로 분리한다.
 `base5_e24_calibrated_trial.launch`의 선정값은 E24 전용이며 E9나 다음 학습 모델에 자동 적용하지 않는다.
+2026-10-13 동일 조건 비교의 Base5 최종 시험 선택은 E24다. E9 비교용 선정값은
+`base5_e9_calibrated_trial.launch`의 0.30/0.20/0.12이며 각 모델의 서버 가중치는 별도로 확인한다.
 정확한 모델·threshold·최적화 선택은 위 CURRENT와 실제 launch/config를 확인한다.
 
 학습된 512×1056/resize 0.825 입력과 카메라별 보정 정보를 사용한다.

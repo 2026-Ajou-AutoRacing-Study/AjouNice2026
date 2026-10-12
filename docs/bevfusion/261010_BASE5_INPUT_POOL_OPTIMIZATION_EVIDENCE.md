@@ -5287,3 +5287,155 @@ review / view`다. 준비·재생 결과는 fresh 경로만 허용하고 raw를 
 쓰려던 문제를 발견해 소량 표본의 median fallback을 보완했다. 모델 추론 오류나
 학습 변경은 아니며, 불완전 pilot 출력은 성공 근거로 사용하지 않는다. 관련 CPU 검사
 18개와 Python 구문 검사는 통과했다.
+
+<a id="base5-e9-e24-selection-261013"></a>
+
+## 43. E9 threshold 선정과 E9/E24 최종 시험 선택 — 2026-10-13
+
+사용자는 E9도 threshold를 정한 뒤 E24와 최종 비교하도록 요청했다.
+**다음 Base5 실주행 시험 모델은 E24로 선택한다.** Native val best E9를 폐기하거나
+E24가 모든 객체·거리에서 우월하다고 선언하는 결정은 아니다. Production E25의
+canonical 실행 경로는 유지하며 실제 대회 PC·풀스택 검증 후 교체를 별도로 판단한다.
+
+### 실행·평가 계약
+
+- 로컬 5060 Ti에서 **E9/E24 각각 같은 1,570장**을 새로 추론했다. 같은 config·입력
+  token·GT·강도 ÷255·strict state load·AMP·camera 병렬화 ON·compile/TF32 OFF다.
+  모델의 512×1056·5/20cm·depth 0.25m·X±100/Y±30m 설정과 가중치는 바꾸지 않았다.
+- 옛 E9 bag 출력은 FP32였고 옛 E24 출력의 config 파일 SHA가 현재 wrapper와 달랐다.
+  비교 guard를 풀지 않고 **E24도 동일 실행기로 재추론**했다. 예전 FP32와 이번 AMP
+  결과를 같은 조건의 model A/B로 섞지 않는다. 설치 경로·상대 ann 경로·native 전용
+  dataset loader로 실패한 준비 시도는 정확도 근거에서 제외했다. bag loader 이름의
+  `MoraiBase3Dataset`은 기존 bag metadata 형식 adapter이며 Base3 학습 데이터를 쓴 것이 아니다.
+- 41절에서 감사한 far GT·scoring mask를 그대로 재사용했다. 두 예측의 box·score·label은
+  GT 연결 과정에서 불변이고 GT identity는 같다. **1,413장만 정확도에 사용**한다.
+  미확정 차량 때문에 제외한 157장도 tracker에는 넣어 전체 1,570장의 이력을 유지한다.
+- 새 AMP 출력에서 각 클래스 score **0.10~0.80의 71개 후보**를 near/full ROI에 전수
+  계산했다. 기존 native val 745장의 AMP 병렬화 sweep·AP도 함께 사용했다. Native val과
+  bag의 관측을 하나의 분모에 섞지 않는다. 0.10 미만은 현재 server floor 때문에 평가하지 않는다.
+- 실제 TF·C++ tracker·UNKNOWN policy를 private ROS master에서 재생했다. 40절과 같은
+  동결 tracker binary SHA `7dda240b5e3331ea2b3322eb6e2403c2e8e1616d8dd665b95d31c7baf80ca3d1`
+  및 source/config를 사용한다. 현재 devel binary가 다르므로 이름만 보고 사용하지 않았다.
+  각 후보는 reference/candidate/reference 독립 반복이며 raw/policy 각각 1,570 stamp가
+  빠짐없이 대응하고 reference 반복은 정확히 같다. Coasting 0.5/1.0초는 유지한다.
+- Score floor 0.10·top100·class-aware rotated BEV NMS 0.50을 유지한다. AP는 score 곡선,
+  고정 threshold 대응은 중심 거리 gate다. 표의 미대응은 중복·위치 오차·잔류·배경을
+  포함하며 모두 의미상 오검출이라고 부르지 않는다. GT는 status 보간·catalog 근사다.
+  아래 native 고정 threshold 수치는 별도 표기가 없으면 중심 1m 대응이며 tracker 표의
+  2m 대응과 구분한다.
+
+### 모델별 threshold 결정
+
+| 모델 | Vehicle | Pedestrian | Obstacle | 역할 |
+|---|---:|---:|---:|---|
+| E9 | **0.30** | **0.20** | **0.12** | 별도 선정한 균형 비교 후보 |
+| E24 | **0.40** | **0.10** | **0.10** | 최종 Base5 실주행 시험 선택 |
+
+E9의 선정 근거는 다음과 같다.
+
+- Vehicle 0.40→0.30: tracker의 전체 ROI 2m 대응 **828→876**, 미대응 **93→104**다.
+  50~80m 대응은 224→250이며 1m 기준 1초 이상 누락 episode는 8→5다. Native 근접 1m 대응은
+  163→169, FP 2→3이다. 0.20 조합은 대응 901까지 늘지만 미대응 127 및 0.5초 이상
+  2m 미대응 episode 7개로 커져 균형값 0.30을 선택한다.
+- Pedestrian 0.10은 bag raw 2m 대응을 0.15 대비 165→174로 늘리지만 미대응도
+  30→131로 늘린다. 0.20은 native 근접 대응 454→452에 FP 28→16이고, P01 근접
+  tracker 대응 113/113을 유지한다. 원거리 recall 일부 손실은 인정하며 E24와 비교한다.
+- Obstacle 0.10→0.12: Vehicle 0.40을 고정한 tracker 비교에서 근접 대응 **875/897로
+  동일**하고 전체 미대응은 555→348로 줄었다. Native 근접 TP 451→438·FP 71→50이며
+  ≥5점 지원 GT도 9건 잃는다. 단순 무손실 개선이 아니다. 0.15는 native 근접 TP 412까지
+  줄어 더 올리지 않는다. E9 0.12와 E24 0.10의 native 근접 precision은 89.75/89.88%로
+  비슷해진다. 두 모델에 같은 숫자를 강제하는 대신 실제 operating point를 비교했다.
+
+실제 tracker는 클래스가 다른 관측끼리도 association에 영향을 줄 수 있다. 예를 들어
+E9 Vehicle만 0.40→0.30으로 바꾼 joint profile에서 Obstacle 전체 2m 대응도 1443→1436으로
+변했다. Detector의 독립 클래스 sweep을 tracker에서도 완전히 독립인 것으로 해석하지 않는다.
+
+### 최종 후보 비교
+
+아래 tracker 통계는 각 모델의 선정값이며 동일한 scoring 분모를 사용한다.
+프레임 반복 관측 수와 그 recall이지, 독립 객체 수나 현장 검출 확률이 아니다.
+
+| 지표 | E9 0.30/0.20/0.12 | E24 0.40/0.10/0.10 | 해석 |
+|---|---:|---:|---|
+| Native val 745장 full ROI mAP | **79.40%** | 77.37% | E9의 val best 지위는 유지 |
+| Bag 0~30m Obstacle AP | 79.20% | **81.34%** | bag의 near 장애물 ranking은 E24 우세 |
+| Tracker 0~30m Obstacle 대응@2m | 875/897, 97.55% | **887/897, 98.89%** | 미션 회피 근접 recall은 E24 우세 |
+| Tracker 30~50m Pedestrian 대응@2m | 51/109, 46.79% | **100/109, 91.74%** | 현재 Man1 횡단 bag에서 큰 차이 |
+| Tracker 50~80m Vehicle 대응@2m | 250/276, 90.58% | **254/276, 92.03%** | E24가 조금 더 유지 |
+| Tracker 80~100m Vehicle 대응@2m | 12/91, 13.19% | **28/91, 30.77%** | 양쪽 모두 부족하나 E24가 더 유지 |
+| Tracker 전체 Vehicle 대응/미대응@2m | 876/104 | **897/78** | E24가 대응도 많고 미대응도 적음 |
+| Tracker 전체 Pedestrian 대응/미대응@2m | 176/49 | **233/13** | E24의 연속 전달이 더 유리 |
+| Tracker 전체 Obstacle 대응/미대응@2m | 1436/**357** | **1443**/533 | E9가 중복성 미대응 억제에 유리 |
+| Obstacle 4m 내 catalog actor 없는 관측 | 44 | **27** | 이 진단만으로 실제 hallucination 확정 불가 |
+
+E9가 나은 부분을 숨기지 않는다. 50~80m Obstacle AP는 **17.83 vs 10.81%**이고,
+근접 Obstacle의 tracker 조건부 위치 오차 p95는 **0.737 vs 0.949m**로 E9가 작다.
+전체 matched TP의 native Obstacle mASE는 반대로 E24 **0.238 vs E9 0.289**다.
+각 지표의 대응 집합·조건이 다르며 어느 하나로 완벽한 회피 geometry를 인증하지 않는다.
+
+### 위치 오차와 잔류 확인
+
+아래는 **중심 4m gate 안에서 대응된 관측만**의 GT 오차다. 누락·미대응을 제외했고
+GT의 pivot·보간 오차도 포함한다. 크기·속도·planner 오차나 두 모델 사이의 수치 drift가 아니다.
+
+| 구간·클래스 | 모델 / 표본 | 평균 / p50 / p90 / p95 / 최대 (m) |
+|---|---|---|
+| O02 0~30m Obstacle | E9 / 875 | 0.267 / 0.156 / 0.607 / 0.737 / 2.582 |
+| 같은 구간 | E24 / 887 | 0.302 / 0.154 / 0.678 / 0.949 / 3.705 |
+| H03 50~80m Vehicle | E9 / 124 | 0.658 / 0.408 / 1.550 / 1.787 / 2.112 |
+| 같은 구간 | E24 / 123 | 0.807 / 0.467 / 1.769 / 1.903 / 3.772 |
+
+E24의 recall 이득을 무조건 더 정밀한 위치라는 뜻으로 읽지 않는다. 실제 회피·추월
+거리 margin은 팀장님 PC의 tracker→planner 폐루프에서 확인한다.
+원본 네 카메라 overlay 38장을 생성했고 P01·O02의 대표 4장을 직접 확인했다.
+두 모델 모두 실제 actor 주변의 중복/geometry 차이가 미대응으로 잡히는 사례가 있었다.
+선택 이미지는 duration 순의 진단이며 무작위 표본·동일 frame의 정량 비교가 아니다.
+E24에도 장애물 중복·잔류가 남아 있고 좁은 전방 corridor의 catalog 미지원 관측 1건도
+있으므로 오검출 없는 모델 또는 안전성 인증으로 선언하지 않는다.
+
+### E24 Obstacle 0.12 재검토와 최종 결론
+
+E24도 0.12 후보를 같은 조건으로 다시 재생했다. 근접 대응 887/897은 유지됐으나 전체
+Obstacle 대응 **1443→1403**, 미대응 **533→442**, catalog actor 없는 관측 **27→36**이다.
+Native 근접 대응도 435→427로 줄고 이 중 6건은 ≥5점 지원이 있었다. 미대응 총량 감소가
+원인이 확인된 ghost 감소와 같지 않으므로 이번에는 기존 **E24 O0.10을 유지**한다.
+더 높은 threshold로 중복 문제를 모두 해결하려 하지 않는다.
+
+정리하면 E9는 더 넓은 native asset 분포의 val ranking과 일부 geometry·중복 억제에
+강점이 있다. **현재 연속 미션에서 near 장애물, 30~50m 횡단 보행자, 고주로/로터리 차량을
+함께 전달할 단일 모델은 E24가 더 균형 잡혔다.** E24를 선택하고 E9는 비교·후속 학습 판단용으로
+보존한다. Class별 두 모델 ensemble이나 학습 변경은 수행하지 않는다.
+근거는 six-asset O02·Man1 P01·H03·R01 dev bag과 Sunny13 val이며 모든 122종·Foggy·
+역방향 미션에 대한 독립 test가 아니다. 실주행에서 결론이 뒤집힐 가능성은 남긴다.
+
+### 적용·산출물
+
+- E9 opt-in: `base5_e9_calibrated_trial.launch`, V/P/O 0.30/0.20/0.12.
+- 최종 Base5 시험: 기존 `base5_e24_calibrated_trial.launch`, V/P/O 0.40/0.10/0.10.
+  각각 같은 모델의 AMP·병렬화 서버를 별도 준비한다. Launch는 가중치 선택·hash 검증을
+  자동 수행하지 않는다. E25 production·baseline trial·수집·학습·planner 설정은 불변이다.
+- 산출물 root: `artifacts/evaluation/bevfusion/base5_e9_e24_selection_261013`.
+  `E9_amp_parallel_v4`, `E24_amp_parallel_v1`, `frozen_gt_v2/receipt.json`에 두 실행 계약을
+  보존했다. E9의 ROS 재생은 그 앞서 만든 `e9_frozen_gt_v1`의 정확한 gzip SHA를 사용한다.
+  같은 detector 배열이라도 gzip metadata가 다르면 hash guard를 임의로 우회하지 않는다.
+- 최종 집계 `summary_v2.json`: SHA256
+  `49ce48191037aa223fc8de67e5f56c3e2f057c0cd8a35eab780dd2e1f11485bf`.
+  상세는 `e9_tracking_v2.json`, `e24_tracking_v2.json`의 case·range·miss·persistence를 따른다.
+- AMP fine sweep `fine_curves_v1.json`: SHA256
+  `6c3328f731c8ce78309c9e82534753c7c77776f9a5f576b33be17dc0b782122f`.
+  Native sweep은 40절의 `base5_threshold_calibration_261012_validated_v3/report.json`,
+  AP/geometry는 36절의 `E9_amp_val745_cap20_v1/accuracy.json`과 E24 대응본이다.
+- `ros_e9_precision_v2`, `ros_e9_balanced_v1`, `ros_e9_recall_v1`, `ros_e24_adopted_v1`,
+  `ros_e24_precision_v1`에 messages·receipt와 독립 reference 반복을 보존했다.
+  `review_e9_*`, `review_e24_*`는 원본 이미지의 actor/track overlay다.
+- 도구 `compare_base5_checkpoint_selection.py`의 attach/curves/summary는 fresh 산출물만
+  만들고 sensor·GT 원본을 보존한다. Far evaluator에는 명시적 score policy, renderer에는
+  명시적 replay/mode/diagnostic 선택을 추가했고 기존 E24 명령의 기본 동작은 유지했다.
+
+다음은 선택한 E24로 실제 4090 24GB에서 ROS/LAN·queue·tracker→planner·주행 영상을
+확인하는 것이다. 이번 로컬 저장 검출 재생은 GPU부터 planner까지의 풀스택 인증이 아니다.
+
+관련 CPU·ROS 입력/launch 계약·context 검사 **52개 통과**. 두 opt-in launch를 실제
+roslaunch parser로 해석했고 새 Python 구문·문서 링크·whitespace 검사도 통과했다.
+5개 private ROS 재생의 source/binary/coasting/GT 계약과 독립 반복을 검사했으며,
+이번 작업이 만든 GPU container·ROS master·tracker·policy 프로세스는 모두 종료했다.
