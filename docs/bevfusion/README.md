@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신은 [38절 컴파일 OFF/ON의 전체 객체 분포 재분석](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)이다.
+2026-10-12 최신은 [39절 실제 ROS tracker·TF·UNKNOWN 후처리 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)다.
+1,570프레임의 저장된 검출 이후 실제 ROS 노드·내부 30Hz 설정을 비교했다. UNKNOWN
+출력 속도는 0이지만 소수 위치·BBox 차이는 남아 compile 기본 ON 보류·병렬화 우선이다.
+다음은 실제 4090 24GB에서 센서→GPU→queue/LAN 전체 시험이며 production은 유지한다.
+
+앞선 분포 분석은 [38절 컴파일 OFF/ON의 전체 객체 분포 재분석](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)이다.
 병렬화를 고정한 비교에서 평균·중앙값·p90/p95/p99·미대응·gate 민감도를 보존했다.
 검출 차이는 대부분 매우 작지만 장애물의 소수 연속 구간에 코어 차이가 집중된다.
 약49cm를 전체 상태 차이의 절대 상한이나 GT 오차로 읽지 않는다. production은 유지한다.

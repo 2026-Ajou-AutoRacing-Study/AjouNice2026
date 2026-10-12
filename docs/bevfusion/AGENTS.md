@@ -1,11 +1,11 @@
 # BEVFusion documentation agent context
 
-2026-10-12 최신은 EVIDENCE 38절의 전체 객체 분포 재분석이다. 37절의 저장된 출력을
-사용해 병렬화 고정 compile OFF/ON의 평균·중앙값·p90/p95/p99와 미대응을 구분했다.
-검출 중심은 대체로 sub-mm이며 30m 장애물 코어 평균/p95는 0.699/1.288cm다. 약49cm는
-0.5m 대응 gate 안의 최대이고 절대 상한이나 GT 오차가 아니다. 2m 민감도·추적 생애
-구간별 집계도 보존했다. 일반 compile 기본 ON은 보류하며 병렬화 우선이다. 상태 차이를
-GT AVE/ID switch/live ROS 인증으로 읽지 않는다. production·훈련은 유지한다.
+2026-10-12 최신은 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
+1,570프레임을 세 독립 노드에 넣었고 30Hz 설정의 출력 3,771시각이 모두 같으며 OFF
+반복 차이는 0이다. UNKNOWN 속도는 0이지만 소수 위치·BBox 차이는 남는다. compile
+기본 ON은 보류하며 병렬화 우선이다. 저장된 검출 이후의 실제 ROS 시험과 센서→GPU→
+queue/LAN 전체 시험을 구분한다. 다음은 실제 4090 24GB의 후자 시험이며 production·
+훈련은 유지한다. 38절의 분모·대응 gate 한계와 GT 오차/ID switch 구분도 유지한다.
 
 2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24·4090 300장 비용·전체 val 745장
 FP32/AMP/OFF/ON과 20GiB cap 검사를 완료했다. AMP 기본/병렬화/compile 결합은 약

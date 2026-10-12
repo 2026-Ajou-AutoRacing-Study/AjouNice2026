@@ -8,7 +8,14 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 학습 완료 모델의 4090 추론 검증
 
-**10-12 전체 객체 분포 재분석 완료:** [38절 컴파일 OFF/ON 분포](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)를 우선한다.
+**10-12 실제 ROS tracker·후처리 비교 완료:** [39절 실제 노드 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)를 우선한다.
+1,570프레임의 저장된 compile OFF/ON 출력과 별도 OFF 반복을 실제 TF·tracker·UNKNOWN
+policy에 넣었다. 내부 30Hz 설정의 출력 3,771시각이 같고 반복 차이는 0이다. 장애물
+출력 속도 차이는 0이지만 위치·BBox 차이는 남아 compile 기본 ON 보류·병렬화 우선을
+유지한다. 다음은 실제 4090 24GB에서 ROS 센서→GPU→queue/LAN 전체 시험이다.
+현재 결과는 저장된 검출 이후의 실제 ROS 노드 비교이며 학습·production을 바꾸지 않는다.
+
+**10-12 앞선 전체 객체 분포 재분석:** [38절 컴파일 OFF/ON 분포](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-population-distributions-261012)다.
 병렬화를 고정해 컴파일 영향만 분리했고 평균·중앙값·p90/p95/p99와 미대응을 보존했다.
 검출 중심 차이는 매우 작다. 30m 장애물 tracker 차이는 평균 0.699cm·p95 1.288cm이나
 10cm 초과 관측 2.29%가 일부 연속 구간에 집중된다. 앞선 약49cm는 0.5m 대응 gate의

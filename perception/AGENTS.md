@@ -1,11 +1,12 @@
 # Perception agent context
 
-2026-10-12 최신은 EVIDENCE 38절의 전체 객체 분포 재분석이다. 37절의 실제 1,570프레임
-출력으로 병렬화를 고정해 compile OFF/ON을 분리했고, 평균·중앙값·p90/p95/p99·미대응과
-2m gate 민감도를 보존했다. 검출 중심은 대체로 sub-mm이며 30m 장애물 코어의 평균/p95는
-0.699/1.288cm, 10cm 초과는 대응 관측의 2.29%다. 앞선 약49cm는 0.5m 대응 gate 안의
-최대이지 절대 상한이나 GT 오차가 아니다. 일반 compile 기본 ON은 아직 보류하고 병렬화
-우선이다. 실제24GB·live ROS/UNKNOWN 정책·GT AVE는 미검증이며 production·훈련은 유지한다.
+2026-10-12 최신은 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
+저장된 1,570프레임의 compile OFF/ON과 별도 OFF 반복 노드를 private master에서 실행했다.
+내부 30Hz 설정의 3,771개 출력 시각이 같고 반복 통제 차이는 0이다. UNKNOWN 출력 속도는
+0이지만 장애물 위치 평균/p95 0.631/1.408cm와 소수 BBox 차이는 남아 기본 ON은 보류한다.
+병렬화 우선이며 다음은 실제 4090 24GB의 ROS 센서→GPU→queue/LAN 전체 시험이다.
+현재 시험은 저장된 검출 이후의 실제 ROS 노드이며 GPU/실주행/GT AVE 인증이 아니다.
+훈련·production·다른 agent를 유지한다. 38절은 전체 객체 분포와 대응 gate 한계의 근거다.
 
 2026-10-12 최신은 EVIDENCE 36절이다. 학습된 E9/E24의 실제 출력으로 4090 300장 비용·
 전체 val 745장 FP32/AMP/OFF/ON·20GiB cap·같은 모델 수치 통제를 완료했다. AMP 약
