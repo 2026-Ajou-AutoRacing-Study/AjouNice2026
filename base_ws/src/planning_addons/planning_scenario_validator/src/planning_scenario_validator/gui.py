@@ -29,6 +29,7 @@ from . import batch
 from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
 from .scenario_selection import choose_scenarios
 from .models import PRESETS, LABEL_PRESETS
+from . import recording_options as bag_options
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -55,7 +56,8 @@ EDITABLE_FIELDS = {
     'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
-    'bevfusion_model': ('stack', 'bevfusion_model'), 'recording_mode': ('recording', 'analysis_mode'),
+    'bevfusion_model': ('stack', 'bevfusion_model'),
+    'selected_topics': ('recording', 'selected_topics'),
     'video': ('recording', 'video', 'enabled'),
     'include_sensors': ('recording', 'include_sensors'),
     'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
@@ -174,7 +176,8 @@ def form_values(document):
         "pose_source": stack.get("pose_source", "localization"),
         "detector": stack.get("detector", "od_gt"),
         'bevfusion_model': PRESETS[stack.get('bevfusion_model', 'e25')]['label'],
-        'recording_mode': '인지 분석 (센서+영상)' if recording.get('analysis_mode', False) else '기본 녹화',
+        'recording_mode': bag_options.mode_label(recording),
+        'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
         "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
@@ -251,6 +254,11 @@ def build_document(template, values):
     recording.setdefault("video", {})["enabled"] = bool(values["video"])
     if values.get('recording_mode', '기본 녹화') != old['recording_mode']:
         apply_recording_mode(result, values['recording_mode'])
+    if values.get('selected_topics', '') != old['selected_topics']:
+        if values['selected_topics']:
+            recording['selected_topics'] = bag_options.checked_topics(json.loads(values['selected_topics']))
+        else:
+            recording.pop('selected_topics', None)
     layout = str(values["video_layout"])
     if layout not in ("manual", "split"):
         raise ValueError("녹화 화면 배치는 manual 또는 split이어야 합니다")
@@ -289,15 +297,7 @@ def build_document(template, values):
 
 
 def apply_recording_mode(document, label):
-    if label not in ('기본 녹화', '인지 분석 (센서+영상)'):
-        raise ValueError('녹화 모드를 선택하세요')
-    enabled = label == '인지 분석 (센서+영상)'
-    recording = document['recording']
-    recording['analysis_mode'] = enabled
-    recording['topic_profile'] = 'base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/{}.json'.format(
-        'perception_analysis' if enabled else 'basic')
-    recording['include_sensors'] = enabled
-    recording.setdefault('video', {})['enabled'] = True
+    bag_options.apply_mode(document, label)
 
 
 def operator_document(template, latest, values, include):
@@ -325,8 +325,11 @@ def operator_document(template, latest, values, include):
             value = LABEL_PRESETS.get(str(value))
             if value is None:
                 raise ValueError('모델 프리셋을 선택하세요')
-        elif key == 'recording_mode':
-            value = value == '인지 분석 (센서+영상)'
+        elif key == 'selected_topics':
+            if not value:
+                proposed.setdefault('recording', {}).pop('selected_topics', None)
+                continue
+            value = bag_options.checked_topics(json.loads(value))
         elif key in ('traffic_light', 'video', 'include_sensors', 'upload_enabled'):
             value = bool(value)
         else:
@@ -342,7 +345,10 @@ def operator_document(template, latest, values, include):
     paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
     if values['recording_mode'] != baseline['recording_mode']:
         apply_recording_mode(proposed, values['recording_mode'])
-        paths += [('recording', 'topic_profile'), ('recording', 'include_sensors'), ('recording', 'video', 'enabled')]
+        paths += bag_options.RECORDING_PATHS + [('recording', 'video', 'enabled')]
+        # The dialog can select exact topics while changing from a preset to custom.
+        if values['recording_mode'] == bag_options.CUSTOM and values['selected_topics']:
+            proposed['recording']['selected_topics'] = bag_options.checked_topics(json.loads(values['selected_topics']))
     missing = object()
 
     def at(document, path):
@@ -650,6 +656,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         for key, value in values.items():
             vars_[key].set(value)
         active['loading'] = False
+        update_recording_widgets()
         update_run_summary()
         if quick_vars:
             quick_vars['detector'].set(values['detector'])
@@ -816,11 +823,15 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     add_field(basic, 4, "pose_source", "측위", choices=["localization", "maptf_morai"])
     add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
     add_field(basic, 6, 'bevfusion_model', 'BEVFusion 모델', choices=[v['label'] for v in PRESETS.values()])
-    add_field(basic, 7, 'recording_mode', '녹화 모드', choices=['기본 녹화', '인지 분석 (센서+영상)'])
+    vars_['selected_topics'] = tk.StringVar()
+    add_field(basic, 7, 'recording_mode', 'rosbag 녹화', choices=list(bag_options.MODES))
+    field_widgets['recording_mode'].configure(state='readonly')
+    topics_button = ttk.Button(basic, text='토픽 선택…', command=lambda: select_bag_topics())
+    topics_button.grid(row=7, column=2, padx=4)
     toggle_bar = ttk.Frame(basic)
     toggle_bar.grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
-    for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 녹화'),
-                       ('include_sensors', 'bag에 카메라/LiDAR'), ('upload_enabled', 'Drive 자동 업로드')):
+    for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 영상 녹화'),
+                       ('include_sensors', '원본 센서 추가 (고용량)'), ('upload_enabled', 'Drive 자동 업로드')):
         vars_[key] = tk.BooleanVar()
         widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
         widget.pack(side='left', padx=6)
@@ -829,13 +840,64 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     ttk.Label(basic, textvariable=run_summary, wraplength=900).grid(row=10, column=0, columnspan=3, sticky='w', pady=4)
     ttk.Label(basic, text='GUI 수정 → YAML 저장 → 설정 검사·실험 시작 | VSCode 저장 후에는 불러오기/새로고침',
               foreground='#285b86').grid(row=11, column=0, columnspan=3, sticky='w')
-    ttk.Label(basic, text='원본 센서 bag이 없으면 사후 재추론 불가 · E9 threshold 미보정 · 인지 분석은 센서+영상 필수',
+    recording_summary = tk.StringVar()
+    ttk.Label(basic, textvariable=recording_summary, wraplength=900,
               foreground='#856333').grid(row=12, column=0, columnspan=3, sticky='w')
+    def form_recording():
+        recording = copy.deepcopy(active.get('template', {}).get('recording', {}))
+        label = vars_['recording_mode'].get()
+        if label != bag_options.mode_label(recording):
+            bag_options.apply_mode({'recording': recording}, label)
+        recording['include_sensors'] = vars_['include_sensors'].get()
+        selected = vars_['selected_topics'].get()
+        if label == bag_options.CUSTOM and selected:
+            recording['selected_topics'] = json.loads(selected)
+        return recording
+
+    def update_recording_widgets(*_):
+        label = vars_['recording_mode'].get()
+        enabled = label != bag_options.OFF
+        running = active.get('ui_running', False) or any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process'))
+        field_widgets['include_sensors'].configure(state='normal' if enabled and label != bag_options.ANALYSIS and not running else 'disabled')
+        field_widgets['video'].configure(state='disabled' if label == bag_options.ANALYSIS or running else 'normal')
+        topics_button.configure(state='normal' if enabled and not running else 'disabled')
+        try:
+            topics = bag_options.effective_topics(form_recording(), resolve_path)
+            sensor_count = len(set(topics) & set(bag_options.SENSORS))
+            text = ('bag OFF · 실시간 판정·JSON·CSV 유지 · 영상은 별도 선택' if not enabled else
+                    'bag {}개 토픽 · 원본 센서 {}/5개 · {}'.format(len(topics), sensor_count,
+                    '사후 재추론 가능' if sensor_count == 5 else '원본 센서 부족: 사후 재추론 불가'))
+            recording_summary.set(text + '\n녹화만 변경합니다. MORAI 센서 생성·인지 입력은 유지 · 설정 변경은 다음 실행부터 적용')
+        except (ValueError, OSError):
+            recording_summary.set('토픽 선택을 확인하세요. 화면 영상은 bag과 별도로 켜고 끕니다.')
+
     def select_recording_mode(_=None):
-        enabled = vars_['recording_mode'].get() == '인지 분석 (센서+영상)'
-        vars_['include_sensors'].set(enabled)
-        vars_['video'].set(True)
+        label = vars_['recording_mode'].get()
+        if label in (bag_options.LIGHT, bag_options.BASIC, bag_options.ANALYSIS):
+            vars_['selected_topics'].set('')
+            vars_['include_sensors'].set(label == bag_options.ANALYSIS)
+        if label == bag_options.ANALYSIS:
+            vars_['video'].set(True)
+        update_recording_widgets()
+        changed()
+
+    def select_bag_topics():
+        try:
+            if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
+                raise ValueError('실행/검사 중에는 녹화 토픽을 변경할 수 없습니다. 종료 후 다음 실행에 적용하세요.')
+            current = bag_options.effective_topics(form_recording(), resolve_path)
+            selected = bag_options.choose_topics(root, bag_options.topic_catalog(ROOT, current), current)
+            if selected is not None:
+                vars_['recording_mode'].set(bag_options.CUSTOM)
+                vars_['selected_topics'].set(json.dumps(selected, ensure_ascii=False))
+                vars_['include_sensors'].set(False)  # Explicit list is the entire selection.
+                update_recording_widgets()
+                changed()
+        except Exception as error:
+            show_error('녹화 토픽 선택', error)
     field_widgets['recording_mode'].bind('<<ComboboxSelected>>', select_recording_mode)
+    for key in ('include_sensors', 'selected_topics', 'video'):
+        vars_[key].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
 
     for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
                             (12, 'ego_network_json', 'MORAI Ego Network JSON'), (13, 'scenario_load_host', 'ScenarioLoad IP'),
@@ -902,6 +964,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     for key in EDITABLE_FIELDS:
         vars_[key].trace_add('write', pattern_changed if key == 'glob' else changed)
+    vars_['recording_mode'].trace_add('write', changed)
 
     def collect():
         path = resolve_path(pasted_yaml_path(source.get()))
@@ -1196,8 +1259,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             if iid not in ids:
                 batch_table.delete(iid)
         if not batch_queue.get("load_error"):
-            batch_note.set("YAML {}개 / 장면 {}개 / 약 {:.0f}분 (제한시간+준비 추정) · 기본 녹화 약 {:.1f}GiB; 센서 포함 시 별도 | {}".format(
-                len(value["items"]), total_scenes, total_seconds / 60, total_seconds / 60 * 60 / 1024,
+            batch_note.set("YAML {}개 / 장면 {}개 / 약 {:.0f}분 (제한시간+준비 추정) · bag·영상은 각 YAML 설정대로 (원본 센서 고용량) | {}".format(
+                len(value["items"]), total_scenes, total_seconds / 60,
                 state.get("status", "미실행") if state else "미실행"))
         return state
 
@@ -1513,6 +1576,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     compact_button.pack(side="right", padx=4)
 
     def set_running_ui(running, *, allow_stop=True):
+        active['ui_running'] = running
         source_box.configure(state="disabled" if running else "readonly")
         mission_box.configure(state="disabled" if running else "readonly")
         copy_button.configure(state="disabled" if running else "normal")
@@ -1520,9 +1584,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             button.configure(state='disabled' if running else 'normal')
         for button in batch_buttons:
             button.configure(state="disabled" if running else ('readonly' if isinstance(button, ttk.Combobox) else "normal"))
-        for key in EDITABLE_FIELDS:
+        for key in list(EDITABLE_FIELDS) + ['recording_mode']:
+            if key not in field_widgets:
+                continue
             widget = field_widgets[key]
             widget.configure(state='disabled' if running else ('readonly' if isinstance(widget, ttk.Combobox) else 'normal'))
+        update_recording_widgets()
         for label in ('YAML 저장', '불러오기/새로고침', "새 실험 시작"):
             control_buttons[label].configure(state="disabled" if running else "normal")
         for index in (0, 1):
@@ -1821,6 +1888,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "save": save, "check": check, "start": start, "stop": stop,
             'set_running_ui': set_running_ui,
             'select_scenarios': select_scenarios,
+            'select_bag_topics': select_bag_topics,
             "environment_check": check_environment,
             "copy_workspace": copy_workspace, "open_yaml": read_source,
             'select_mission': select_mission, 'select_yaml': lambda: select_source(True),
@@ -1835,6 +1903,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             "update_progress": update_progress, "compact": set_compact_mode}, "active": active,
             "status": status, "table": table, "log": log, "batch_table": batch_table,
             "field_widgets": field_widgets, "source_entry": source_box, 'save_button': save_button,
+            'topics_button': topics_button, 'recording_summary': recording_summary,
             'mission_box': mission_box, 'mission_value': mission_value, 'yaml_value': yaml_value,
             'picker_choices': picker_choices,
             'start_button': control_buttons['새 실험 시작'], 'reload_button': load_button,

@@ -72,8 +72,15 @@ def prepare_execution(source, *, check_install=True):
         document['scenarios'].pop('include', None)
         for key in ('sensor_json', 'ego_network_json'):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
-        document['recording']['topic_profile'] = copy_input(
-            resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
+        if not cfg['recording'].get('bag_enabled', True) or 'selected_topics' in cfg['recording']:
+            # A disabled/custom bag does not depend on a mutable external profile.
+            destination = directory / 'topic_profile.json'
+            destination.write_text(json.dumps(cfg['recording']['topics'], ensure_ascii=False) + '\n', encoding='utf-8')
+            files['topic_profile.json'] = sha256(destination)
+            document['recording']['topic_profile'] = str(destination)
+        else:
+            document['recording']['topic_profile'] = copy_input(
+                resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
         model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'),
                                  require_assets=check_install)
         for relative in model.get('config_files_sha256', {}):

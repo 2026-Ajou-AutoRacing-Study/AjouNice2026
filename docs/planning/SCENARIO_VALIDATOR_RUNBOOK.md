@@ -1,5 +1,24 @@
 # 시나리오 검증기 짧은 사용법
 
+## rosbag ON/OFF·토픽 선택 (2026-10-13)
+
+GUI 실행 탭의 **rosbag 녹화**는 `끄기 / 경량 / 기본 / 인지 분석 / 직접 선택`입니다. **화면 영상 녹화**는 별도 체크입니다. 직접 선택은 **토픽 선택… → 검색 또는 그룹 → 표시된 토픽 일괄 선택/해제 → 적용 → YAML 저장** 순서입니다. 빈 목록 대신 bag 끄기를 사용하세요.
+
+bag OFF에서는 rosbag 프로세스를 띄우지 않으며 성공/실패 판정·JSON·CSV는 유지합니다. 설정은 다음 새 실행에 적용됩니다. 기존 기록 재개는 당시 사본의 설정을 사용하고, 주행 중 변경은 막습니다. bag OFF가 MORAI 센서 생성·인지 추론 부하를 없애지는 않습니다.
+
+YAML에서 직접 수정할 때:
+
+```yaml
+recording:
+  bag_enabled: false   # 생략 시 기존처럼 true. 영상과 독립.
+  video:
+    enabled: false
+```
+
+직접 선택은 `bag_enabled: true`와 `selected_topics: [/Ego_topic, /CollisionData, /planning/trajectory]`를 사용합니다. 이 목록은 `topic_profile` 대신 기록 대상을 지정하며, `include_sensors: true`라면 원본 센서 5개가 추가됩니다. 인지 분석 모드는 기존처럼 원본 센서+영상 필수이고 실제 메시지 수를 검사합니다. 일반/직접 선택 목록에 토픽이 있다는 것만으로 발행·녹화됐다고 판단하지 마세요.
+
+**이 변경은 dataset/base5 작업 브랜치 기준입니다. 공유 planning 브랜치에 통합하기 전에는 그쪽에도 배포됐다고 가정하지 않습니다.**
+
 설치가 끝나고 **작업하면서 볼 문서는 [딸깍 작업 순서](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)**입니다. 이 문서는 연결·입력 계약·문제 해결을 조금 더 자세히 다룹니다. [자주 쓰는 버튼을 표시한 화면 5장](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)도 참고하세요.
 
 처음 세팅하는 PC는 [설치 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 해 주세요. 여기서는 ROS 빌드·맵·Docker/E25 준비가 끝난 상태를 기준으로 설명합니다. 공유·시나리오 실행 브랜치는 `planning/autoware-universe-to-ros1`입니다. 검증기를 쓰려고 다른 개발 브랜치로 이동할 필요 없습니다.

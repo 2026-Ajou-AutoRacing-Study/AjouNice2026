@@ -4,7 +4,7 @@
 
 2026-10-11 GUI 단순화·반복 검증 변경은 `dataset/base5` 작업분이다. 공유 planning 브랜치에 통합되기 전까지 그쪽에도 새 UI가 배포됐다고 가정하지 않는다.
 
-팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오는 bag, 화면 영상, 실시간 판정 결과로 따로 저장한다.
+팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오의 실시간 판정 결과를 저장하며, bag과 화면 영상은 선택한 녹화 설정에 따라 별도로 남긴다.
 
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
@@ -171,13 +171,15 @@ default_case:
 
 ## 녹화 및 판정
 
+2026-10-13 (`dataset/base5`): GUI의 **rosbag 녹화**에서 `끄기 / 경량 / 기본 / 인지 분석 / 직접 선택`을 고른다. **화면 영상 녹화**는 별도이다. `토픽 선택…`은 검색·그룹·일괄 선택을 제공하며 선택을 YAML에 저장한다. bag OFF는 rosbag 프로세스 자체를 만들지 않지만 실시간 판정·JSON·CSV를 유지한다. 기존 YAML의 `bag_enabled` 생략은 ON이다. 변경은 **YAML 저장 → 새 실험 시작**에 적용되고, 재개는 보관된 설정을 사용한다. 상세 사용법은 [짧은 런북](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md#rosbag-onoff토픽-선택-2026-10-13)을 참고한다.
+
 - `basic.json`: camera/LiDAR 제외, planning/인지/제어/GT 핵심 토픽
 - `lightweight.json`: 위치, trajectory, command, collision 중심
 - `full.json`: 알려진 센서·planning 토픽 목록. 실제 수신하지 않는 항목은 rosbag에 들어가지 않는다.
 - 영상은 X11 전체 화면을 시나리오마다 ffmpeg로 녹화한다. `recording.video.display`는 MORAI와 Planviz가 뜬 X11 화면(보통 `:0.0`)과 같아야 한다. `window_layout: split`은 RViz 최대화를 하지 않고 반반 배치한다. 기존 `window_layout: manual`의 `focus_planviz: true`는 녹화 직전 Planviz를 전면·최대화한다. 다른 창에 포커스를 주면 전체 화면 영상에도 그 창이 찍힌다.
 - 충돌은 `/CollisionData`의 객체 ID를 실시간으로 읽는다. 한 시나리오에서 같은 ID의 접촉 메시지가 끊겼다 재등장해도 1개 객체로만 센다. goal 반경, 속도 및 유지 시간으로 성공을 판단한다. 지정 시간 미도달은 TIMEOUT이다.
 - `result.json`은 개별 증거용, `summary.csv`는 사람에게 보여주기 위한 전체 표, `events.jsonl`은 시간 순서 감사 기록이다. 실패 분석기는 녹화 재생 없이 실시간 구독값과 해당 장면의 스택 로그만 사용한다. `result.json`의 `failure_analysis`에 증상 분류, 수치 근거, 로그 징후, 의심 단계와 신뢰도를 기록한다. 탐지 토픽 수신 횟수와 실제 객체가 포함된 메시지 수를 별도로 세므로, **토픽이 살아 있음**과 **객체가 검출됨**을 혼동하지 않는다. `summary.csv`에는 `failure_category`, `suspected_stage`, `evidence_summary`가 추가된다. 이는 코드 수준의 근본 원인 확정이 아니다.
-- 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 bag·MP4·이벤트가 남는다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
+- 켜둔 녹화는 ScenarioLoad 전에 시작한다. Route 요청이 거부돼도 선택한 bag·MP4 및 이벤트가 남는다. bag·영상이 모두 OFF여도 이벤트·JSON·CSV 판정 결과는 남는다. CSV의 `bag_enabled`, `video_enabled`로 의도적인 녹화 OFF를 구분한다. `elapsed_sec`은 주행 판정 시간이고, 새 결과의 `wall_elapsed_sec`은 준비와 정리를 포함한 전체 실행 시간이다.
 
 예제의 주행 제한은 카탈로그 35초, 일반 정적 장애물·2객체·무장애물 50초, GPS 음영 구간 75초다. 미션별 스타터는 미션에 따라 65~90초다. 이 값은 **controller 준비 후 실제 주행**에만 적용되며, ScenarioLoad·측위·경로 생성 대기에는 적용되지 않는다. 실제 제한시간은 항상 캠페인 YAML의 `default_case.timeout_sec`다. 더 긴 실험은 새 이름의 YAML에서 공통 값을 늘린다. `build_static_corridor_cases.py`의 `metadata/manifest.json`은 제작 참고 자료이고 실행 조건을 덮어쓰지 않는다. 기존 폴더에 남은 `.case.yaml`은 경고 후 무시한다.
 

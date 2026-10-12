@@ -218,7 +218,8 @@ def _write_state(cfg, state):
                          "evidence_summary", "elapsed_sec", "collision_count",
                          "minimum_goal_distance_m", "attempts", "result_path",
                          "source_scenario", "repeat_index", "random_seed", "model_preset",
-                         "recording_complete", "sensor_replayable", "missing_recorded_topics"])
+                         "recording_complete", "sensor_replayable", "missing_recorded_topics",
+                         "bag_enabled", "video_enabled"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
             try:
@@ -239,7 +240,9 @@ def _write_state(cfg, state):
                 details.get("randomization", {}).get("seed", ""), (details.get('model') or {}).get('preset', ''),
                 (details.get('recording_audit') or {}).get('complete_for_drive', ''),
                 (details.get('recording_audit') or {}).get('re_inference_possible', ''),
-                ';'.join((details.get('recording_audit') or {}).get('missing_required', []))])
+                ';'.join((details.get('recording_audit') or {}).get('missing_required', [])),
+                details.get('recording', {}).get('bag_enabled', True),
+                details.get('recording', {}).get('video_enabled', bool(details.get('files', {}).get('video')))])
     os.replace(temporary, path)
 
 
@@ -324,7 +327,8 @@ def _run_case(cfg, processes, monitor, case, state):
                     "sensor_json": str(cfg["network"]["sensor_json"]),
                     "ego_network_json": str(cfg["network"]["ego_network_json"]),
                     "network_sha256": hashlib.sha256(cfg["network"]["ego_network_json"].read_bytes()).hexdigest(),
-                    "topic_profile": str(cfg["recording"]["topic_profile"]),
+                    "topic_profile": str(cfg["recording"].get("topic_profile", "")),
+                    "bag_enabled": cfg['recording'].get('bag_enabled', True),
                     "recorded_topics": cfg["recording"]["topics"]}
     atomic_json(folder / "input.json", cfg_snapshot)
     state["current"] = {"scenario": case.name, "phase": "SCENARIO_LOAD", "attempt": attempt,
@@ -441,6 +445,11 @@ def _run_case(cfg, processes, monitor, case, state):
         code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT") else "F"
         final_base = basename.replace("_R_", "_{}_".format(code))
         recording_audit = None
+        if not cfg['recording'].get('bag_enabled', True):
+            recording_audit = {'status': 'DISABLED', 'bag_enabled': False,
+                               're_inference_possible': False, 'complete_for_drive': False,
+                               'note': '사용자가 bag OFF 선택. 실시간 분석·JSON·CSV는 유지됩니다.'}
+            atomic_json(folder / 'recording_audit.json', recording_audit)
         try:
             bag, video = recorder.stop(final_base)
         except Exception as exc:
@@ -490,6 +499,9 @@ def _run_case(cfg, processes, monitor, case, state):
             "reason": reason, "error": error, "route_uuid": route_id,
             "metrics": metrics, "failure_analysis": failure_analysis,
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
+            "recording": {'bag_enabled': cfg['recording'].get('bag_enabled', True),
+                          'video_enabled': cfg['recording'].get('video', {}).get('enabled', False),
+                          'requested_topics': cfg['recording']['topics']},
             "files": {"bag": bag.name if bag else None, "video": video.name if video else None,
                       "events": "events.jsonl"}}
         atomic_json(folder / (final_base + ".json"), result)
@@ -549,6 +561,8 @@ def _recover_interrupted(cfg):
 
 def check_free_disk(cfg):
     minimum = cfg["recording"].get("minimum_free_disk_gib")
+    if not cfg['recording'].get('bag_enabled', True) and not cfg['recording'].get('video', {}).get('enabled'):
+        minimum = 0.1  # Still reserve room for results and logs, not a multi-GB bag.
     if minimum is not None:
         free = shutil.disk_usage(cfg["output"]).free / (1024 ** 3)
         if free < float(minimum):

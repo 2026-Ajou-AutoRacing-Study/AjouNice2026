@@ -37,6 +37,8 @@ COMMENTS = {
     "stack.detector": "bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.",
     'stack.bevfusion_model': 'e25=production(기본), base5_e24=시험 0.40/0.10/0.10, base5_e9=threshold 미보정 비교 후보.',
     'recording.analysis_mode': 'true=인지 분석. 센서 원본+영상 필수, 마감 후 실제 bag 메시지 수 검사. 기본 basic 모드는 유지.',
+    'recording.bag_enabled': 'false=rosbag 프로세스 자체를 실행하지 않음. 실시간 판정·JSON·CSV와 별도 영상 설정은 유지. 생략 시 기존처럼 true.',
+    'recording.selected_topics': '직접 선택한 절대 토픽 목록. topic_profile 대신 사용. include_sensors가 true면 센서 5개를 추가.',
     "stack.traffic_light": "이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.",
     "stack.traffic_light_runtime": "system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.",
     "stack.traffic_light_python": "가상환경 bin/python 경로. conda activate는 필요 없습니다.",

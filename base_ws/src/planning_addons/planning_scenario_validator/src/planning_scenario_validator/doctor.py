@@ -55,6 +55,11 @@ def inspect_environment(cfg, *, live=False, gpu=False):
         add(label, 'PASS' if ok else 'FAIL', detail or '확인 완료', remedy if not ok else '')
         return ok
     add('파일·YAML', 'PASS', '{} / 장면 {}개. 주행 성공 판정이 아닙니다'.format(cfg['name'], len(cfg['cases'])))
+    bag_enabled = cfg['recording'].get('bag_enabled', True)
+    add('rosbag 녹화', 'PASS', '{} · 선택 {}개 토픽. 실시간 분석·JSON·CSV는 항상 유지'.format(
+        'ON' if bag_enabled else 'OFF', len(cfg['recording']['topics'])))
+    if bag_enabled:
+        probe('rosbag 도구', ['rosbag', '--help'], 'ROS 환경을 source한 터미널에서 실행하세요')
     add('MORAI 최초 연결', 'WARN', 'GUI에서 Sensor/Ego Network Load·Connect를 직접 확인해야 합니다',
         'Network: {}\nSensor: {}'.format(cfg['network']['ego_network_json'], cfg['network']['sensor_json']))
     probe('ROS 패키지·메시지', ['/usr/bin/python3', '-c',
@@ -83,7 +88,8 @@ def inspect_environment(cfg, *, live=False, gpu=False):
     while not parent.exists() and parent != parent.parent:
         parent = parent.parent
     free = shutil.disk_usage(parent).free / 1024**3
-    minimum = float(cfg['recording'].get('minimum_free_disk_gib', 10))
+    results_only = not bag_enabled and not cfg['recording'].get('video', {}).get('enabled')
+    minimum = 0.1 if results_only else float(cfg['recording'].get('minimum_free_disk_gib', 10))
     add('디스크', 'PASS' if free >= minimum else 'FAIL', '여유 {:.1f}GiB / 시작 기준 {:.1f}GiB. 전체 배치 용량 보장은 아닙니다'.format(free, minimum), '결과를 백업하고 공간 확보')
     if cfg['stack'].get('detector') == 'bevfusion':
         try:

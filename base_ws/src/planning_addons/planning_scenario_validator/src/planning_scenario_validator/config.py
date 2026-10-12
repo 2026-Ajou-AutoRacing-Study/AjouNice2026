@@ -307,24 +307,16 @@ def load_campaign(path, *, check_install=True):
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
     recording = document.get("recording", {})
-    if recording.get('analysis_mode', False) and (
+    if recording.get('analysis_mode', False) and recording.get('bag_enabled', True) and (
             not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
         raise ConfigError('인지 분석 모드는 include_sensors: true + video.enabled: true가 필요합니다')
     if "minimum_free_disk_gib" in recording:
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
-    profile = resolve_path(recording.get("topic_profile"))
+    from .recording_options import effective_topics
     try:
-        topic_list = json.loads(profile.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ConfigError("토픽 프로파일을 읽을 수 없습니다: {}".format(profile)) from error
-    if not isinstance(topic_list, list) or not topic_list or any(
-            not isinstance(t, str) or not t.startswith("/") for t in topic_list):
-        raise ConfigError("토픽 프로파일은 절대 토픽명 JSON 배열이어야 합니다")
-    if recording.get("include_sensors", False):
-        topic_list += ["/sensor/lidar1"] + [
-            "/sensor/camera/{}/compressed".format(camera)
-            for camera in ("front", "front_left", "front_right", "back")]
-    recording["topics"] = list(dict.fromkeys(topic_list))
+        recording['topics'] = effective_topics(recording, resolve_path)
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     video = recording.get("video", {})
     if video.get("enabled", False) and not video.get("display"):
         raise ConfigError("영상 녹화에는 recording.video.display가 필요합니다")

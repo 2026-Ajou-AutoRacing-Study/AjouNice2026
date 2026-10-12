@@ -617,20 +617,23 @@ class Recording:
     def start(self, basename):
         self.output.mkdir(parents=True, exist_ok=True)
         self.bag_prefix = self.output / (basename + "_recording")
-        bag_log = (self.output / "rosbag.log").open("wb")
-        self.handles.append(bag_log)
-        topics = self.config['topics']
-        if self.config.get('analysis_mode', False):
-            import re
-            # Debug/info topics differ across planner versions. Capture actual publishers too.
-            topics = ['--regex'] + ['^' + re.escape(t) + '$' for t in topics] + [
-                '^/planning/.*(avoidance|static_obstacle|debug).*']
-        self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
-                                     *topics], stdout=bag_log,
-                                    stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
-        time.sleep(0.7)
-        if self.bag.poll() is not None:
-            raise RuntimeFailure("rosbag 시작 실패: {}".format(self.output / "rosbag.log"))
+        if self.config.get('bag_enabled', True):
+            bag_log = (self.output / "rosbag.log").open("wb")
+            self.handles.append(bag_log)
+            topics = self.config['topics']
+            if not topics:
+                raise RuntimeFailure('bag ON인데 선택된 녹화 토픽이 없습니다')
+            if self.config.get('analysis_mode', False):
+                import re
+                # Debug/info topics differ across planner versions. Capture actual publishers too.
+                topics = ['--regex'] + ['^' + re.escape(t) + '$' for t in topics] + [
+                    '^/planning/.*(avoidance|static_obstacle|debug).*']
+            self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
+                                         *topics], stdout=bag_log,
+                                        stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
+            time.sleep(0.7)
+            if self.bag.poll() is not None:
+                raise RuntimeFailure("rosbag 시작 실패: {}".format(self.output / "rosbag.log"))
         video = self.config.get("video", {})
         if video.get("enabled", False):
             if not shutil.which("ffmpeg"):
