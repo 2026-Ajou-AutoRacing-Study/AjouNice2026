@@ -17,6 +17,7 @@
 | `dynamic_obstacle` | 샘플 사거리 양방향 보행자·스쿠터, 도로 교차 차량 | 24 | 70초 |
 | `gps_shadow` | 공식 음영 영역의 정적 장애물·정지 차량 회피 | 24 | 90초 |
 | `highway` | 원본 3개 spawn 위치·종료 링크, MiddleSize RandomMode | 24 | 90초 |
+| `full_course` | 샘플 전체 + 차량·장애물·보행자 종류 변경, Route A 경유점 | 4 | 600초 |
 
 미션 폴더마다 `base/`와 `workspace/` 두 폴더를 둔다.
 
@@ -35,7 +36,7 @@ config/missions/highway/
 ```
 
 `base/`는 `README.md`, `example.yaml`, `manifest.json`, `scenarios/*.json`으로 구성한다.
-각각 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 이름은 검증 분류이며 성공 보장이 아니다.
+개별 미션은 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 전체 코스는 샘플 기준선 1개와 객체 종류 변형 3개다. 이름은 검증 분류이며 성공 보장이 아니다.
 Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔다.
 공유 YAML·JSON·manifest는 Git에 추적한다. 개인 YAML과 녹화 결과는 Git에서 제외한다.
 
@@ -54,6 +55,9 @@ GUI의 **내 미션 선택하기**에서 담당 미션을 고르고, 해당 미�
 - [일반 정적 장애물](static_obstacle/base/README.md)
 - [GPS 음영 정적 장애물](gps_shadow/base/README.md)
 - [사거리 동적 장애물](dynamic_obstacle/base/README.md)
+- [전체 코스 주행](full_course/base/README.md)
+
+전체 코스는 **신호등 on + localization + BEVFusion**이다. 먼저 `full_course/base/sample_only.yaml`을 개인 작업 폴더로 복사해 샘플 하나를 시험하고, `example.yaml`로 네 장면을 실행한다. v85 Route A 경유점과 출발선 재진입 직전 종료점을 사용하므로 공식 결승선 통과·Route A/B 자동 전환 시험은 아니다. 장면당 600초 상한이며 실제 전체 주행은 미검증이다. 기본 가상환경 신호등 설치 여부도 먼저 확인한다.
 
 GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README도 만든다. 기존 개인 README·JSON은 덮어쓰지 않는다. 공유 안내는 원본 베이스 설명이므로 개인 변경 조건·실기 확인 여부는 workspace README에 별도로 기록한다. 생성기는 README 좌표도 함께 재현 검사한다. 새 AGENTS 지침이나 planning/control의 동작 변경은 아니다.
 
@@ -67,7 +71,7 @@ GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README
 4. 확인 후 같은 개인 YAML의 패턴을 `*.json`으로 바꿔 저장·설정 검사 후 `새 실험 시작`을 누른다. 재개는 `실험 기록 / 재개`에서 별도로 선택한다. 기준선을 통과시키려고 판단 파라미터나 장애물 위치를 억지로 바꾸지 않는다.
 5. FAIL은 조사 대상이다. `summary.csv`, 해당 run JSON/이벤트/영상으로 관측 근거를 확인한다. 시스템 오류나 시나리오 배우 오작동은 planning 실패와 구별한다.
 
-기본은 localization + BEVFusion + 신호등 off, basic bag + **원시 센서 녹화 제외** + 10fps 전체 화면 split 영상이다.
+개별 미션 기본은 localization + BEVFusion + 신호등 off, basic bag + **원시 센서 녹화 제외** + 10fps 전체 화면 split 영상이다. 전체 코스는 신호등 on이다.
 신호등 자체가 아닌 해당 미션을 격리해 보는 예제이며, 신호등 on 통합 시험을 대체하지 않는다.
 GT 대조는 GUI의 planning 빠른 테스트 탭에서 `od_gt`로 실행하거나 별도 YAML의 stack.detector를 바꿔 저장한다. 측위 원인 분리는 `maptf_morai`를 사용하되 대회용 측위 검증으로 오해하지 않는다.
 GUI 없이 실행할 때도 먼저 GUI 복사 버튼으로 준비한 `workspace/`의 개인 YAML을 `./planning_validator`에 지정한다. CLI에서 공유 base를 직접 실행하는 기능은 유지되지만 팀원의 일반 작업 흐름으로는 권장하지 않는다.

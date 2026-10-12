@@ -28,6 +28,7 @@ from . import executions
 from . import batch
 from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
 from .scenario_selection import choose_scenarios
+from .models import PRESETS, LABEL_PRESETS
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -36,6 +37,7 @@ if not PACKAGE.is_dir():
 EXAMPLES = PACKAGE / "config/missions/static_obstacle/base"
 MISSIONS = PACKAGE / "config/missions"
 MISSION_LABELS = {
+    'full_course': '전체 코스 주행',
     'highway': '고주로', 'roundabout': '회전교차로',
     'static_obstacle': '정적 장애물', 'dynamic_obstacle': '동적 장애물',
     'gps_shadow': 'GPS 음영 구간',
@@ -53,6 +55,7 @@ EDITABLE_FIELDS = {
     'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
+    'bevfusion_model': ('stack', 'bevfusion_model'), 'recording_mode': ('recording', 'analysis_mode'),
     'video': ('recording', 'video', 'enabled'),
     'include_sensors': ('recording', 'include_sensors'),
     'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
@@ -170,6 +173,8 @@ def form_values(document):
         "timeout_sec": case.get("timeout_sec", 180),
         "pose_source": stack.get("pose_source", "localization"),
         "detector": stack.get("detector", "od_gt"),
+        'bevfusion_model': PRESETS[stack.get('bevfusion_model', 'e25')]['label'],
+        'recording_mode': '인지 분석 (센서+영상)' if recording.get('analysis_mode', False) else '기본 녹화',
         "traffic_light": stack.get("traffic_light", False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
         "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
@@ -224,6 +229,11 @@ def build_document(template, values):
     for key in ("pose_source", "detector"):
         stack[key] = str(values[key])
     stack["traffic_light"] = bool(values["traffic_light"])
+    model = LABEL_PRESETS.get(values.get('bevfusion_model', PRESETS['e25']['label']))
+    if model is None:
+        raise ValueError('모델 프리셋을 선택하세요')
+    if model != template['stack'].get('bevfusion_model', 'e25'):
+        stack['bevfusion_model'] = model
     mode = LABEL_MODES.get(str(values["traffic_light_runtime"]))
     if mode is None:
         raise ValueError("신호등 실행 환경을 선택하세요")
@@ -239,6 +249,8 @@ def build_document(template, values):
     recording["topic_profile"] = str(values["topic_profile"]).strip()
     recording["include_sensors"] = bool(values["include_sensors"])
     recording.setdefault("video", {})["enabled"] = bool(values["video"])
+    if values.get('recording_mode', '기본 녹화') != old['recording_mode']:
+        apply_recording_mode(result, values['recording_mode'])
     layout = str(values["video_layout"])
     if layout not in ("manual", "split"):
         raise ValueError("녹화 화면 배치는 manual 또는 split이어야 합니다")
@@ -276,6 +288,18 @@ def build_document(template, values):
     return result
 
 
+def apply_recording_mode(document, label):
+    if label not in ('기본 녹화', '인지 분석 (센서+영상)'):
+        raise ValueError('녹화 모드를 선택하세요')
+    enabled = label == '인지 분석 (센서+영상)'
+    recording = document['recording']
+    recording['analysis_mode'] = enabled
+    recording['topic_profile'] = 'base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/{}.json'.format(
+        'perception_analysis' if enabled else 'basic')
+    recording['include_sensors'] = enabled
+    recording.setdefault('video', {})['enabled'] = True
+
+
 def operator_document(template, latest, values, include):
     """Merge only GUI-authorized edits into the latest saved YAML.
 
@@ -297,6 +321,12 @@ def operator_document(template, latest, values, include):
             value = UPLOAD_LABEL_PROFILES.get(str(value))
             if value is None:
                 raise ValueError('공유 모드를 선택하세요')
+        elif key == 'bevfusion_model':
+            value = LABEL_PRESETS.get(str(value))
+            if value is None:
+                raise ValueError('모델 프리셋을 선택하세요')
+        elif key == 'recording_mode':
+            value = value == '인지 분석 (센서+영상)'
         elif key in ('traffic_light', 'video', 'include_sensors', 'upload_enabled'):
             value = bool(value)
         else:
@@ -310,6 +340,9 @@ def operator_document(template, latest, values, include):
     else:
         proposed['scenarios']['include'] = list(include)
     paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
+    if values['recording_mode'] != baseline['recording_mode']:
+        apply_recording_mode(proposed, values['recording_mode'])
+        paths += [('recording', 'topic_profile'), ('recording', 'include_sensors'), ('recording', 'video', 'enabled')]
     missing = object()
 
     def at(document, path):
@@ -707,7 +740,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             messagebox.showerror("베이스 복사 실패", str(error))
 
-    copy_button = ttk.Button(top, text="베이스 → 내 작업 폴더 복사", command=copy_workspace)
+    copy_button = ttk.Button(top, text="베이스 → 내 작업 폴더 복사 (최초 1회 실행)", command=copy_workspace)
     copy_button.grid(row=1, column=3, padx=4, pady=3, sticky='ew')
     def edit_yaml():
         try:
@@ -728,10 +761,6 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     edit_button = ttk.Button(top, text='YAML 편집 (VSCode)', command=edit_yaml)
     edit_button.grid(row=2, column=4, padx=4, pady=3)
     top.columnconfigure(3, weight=1)
-    ttk.Label(top, text="예제는 복사 후 실행 · 새 YAML은 내 미션 workspace에 저장",
-              wraplength=400).grid(row=1, column=0, columnspan=3, sticky='w', padx=4, pady=3)
-    ttk.Label(top, text="처음 연결은 MORAI MR GUI에서 직접 합니다.", foreground="#a44").grid(
-        row=2, column=0, columnspan=3, sticky="w", padx=4, pady=3)
 
     notebook = ttk.Notebook(frame)
     notebook.pack(fill="x", pady=8)
@@ -786,18 +815,27 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     add_field(advanced, 4, "timeout_sec", "공통 주행 제한 (초)")
     add_field(basic, 4, "pose_source", "측위", choices=["localization", "maptf_morai"])
     add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
+    add_field(basic, 6, 'bevfusion_model', 'BEVFusion 모델', choices=[v['label'] for v in PRESETS.values()])
+    add_field(basic, 7, 'recording_mode', '녹화 모드', choices=['기본 녹화', '인지 분석 (센서+영상)'])
     toggle_bar = ttk.Frame(basic)
-    toggle_bar.grid(row=6, column=0, columnspan=3, sticky='w', pady=4)
+    toggle_bar.grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
     for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 녹화'),
                        ('include_sensors', 'bag에 카메라/LiDAR'), ('upload_enabled', 'Drive 자동 업로드')):
         vars_[key] = tk.BooleanVar()
         widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
         widget.pack(side='left', padx=6)
         field_widgets[key] = widget
-    add_field(basic, 7, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
-    ttk.Label(basic, textvariable=run_summary, wraplength=900).grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
+    add_field(basic, 9, "upload_profile", "공유 모드", choices=list(UPLOAD_PROFILE_LABELS.values()))
+    ttk.Label(basic, textvariable=run_summary, wraplength=900).grid(row=10, column=0, columnspan=3, sticky='w', pady=4)
     ttk.Label(basic, text='GUI 수정 → YAML 저장 → 설정 검사·실험 시작 | VSCode 저장 후에는 불러오기/새로고침',
-              foreground='#285b86').grid(row=9, column=0, columnspan=3, sticky='w')
+              foreground='#285b86').grid(row=11, column=0, columnspan=3, sticky='w')
+    ttk.Label(basic, text='원본 센서 bag이 없으면 사후 재추론 불가 · E9 threshold 미보정 · 인지 분석은 센서+영상 필수',
+              foreground='#856333').grid(row=12, column=0, columnspan=3, sticky='w')
+    def select_recording_mode(_=None):
+        enabled = vars_['recording_mode'].get() == '인지 분석 (센서+영상)'
+        vars_['include_sensors'].set(enabled)
+        vars_['video'].set(True)
+    field_widgets['recording_mode'].bind('<<ComboboxSelected>>', select_recording_mode)
 
     for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
                             (12, 'ego_network_json', 'MORAI Ego Network JSON'), (13, 'scenario_load_host', 'ScenarioLoad IP'),

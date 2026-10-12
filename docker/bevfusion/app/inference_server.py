@@ -2,6 +2,7 @@
 """Serve Sensor_4 projection checks and BEVFusion inference over localhost TCP."""
 
 import argparse
+import hashlib
 import logging
 import socket
 import time
@@ -25,6 +26,14 @@ from app.sensor4_calibration import load_sensor4_calibration, serializable_calib
 LOGGER = logging.getLogger("bevfusion_server")
 
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 class InferenceServer:
     def __init__(self, args):
         self.args = args
@@ -35,7 +44,14 @@ class InferenceServer:
             args.sensor_config, args.camera_order, args.intrinsic_source
         )
         self.model = None
+        self.runtime_identity = None
         if not args.projection_only:
+            self.runtime_identity = {
+                'checkpoint_sha256': file_sha256(args.checkpoint), 'config_sha256': file_sha256(args.config),
+                'amp': args.amp, 'parallel_camera': bool(getattr(args, 'parallel_camera', False)),
+                'compile_parts': list(getattr(args, 'compile_parts', ())),
+                'base5_runtime': bool(getattr(args, 'base5_runtime', False)),
+            }
             from app.bevfusion_model import BevFusionModel
 
             LOGGER.info("Loading BEVFusion model from %s", args.checkpoint)
@@ -96,6 +112,7 @@ class InferenceServer:
                         TYPE_PONG,
                         {
                             "ready": True,
+                            "runtime_identity": self.runtime_identity,
                             "model_loaded": self.model is not None,
                             "classes": list(getattr(self.model, "classes", ())),
                             "point_intensity_source": getattr(getattr(self.model, "preprocessor", None), "point_intensity_source", None),

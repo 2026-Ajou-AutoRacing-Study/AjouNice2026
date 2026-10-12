@@ -10,6 +10,7 @@ import yaml
 from .layout import normalize_bar_setting
 from .traffic_light import runtime_settings
 from .repetitions import repetition_settings
+from .models import selected_model
 
 
 ROOT = Path(__file__).resolve().parents[6]
@@ -116,6 +117,10 @@ def validate_campaign_document(document, *, allow_legacy=False):
     for key in required - {"campaign_name"}:
         if not isinstance(document[key], dict):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
+    try:
+        selected_model(document['stack'])
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     for key in ("directory", "glob"):
         if not isinstance(document["scenarios"].get(key), str) or not document["scenarios"][key].strip():
             raise ConfigError("scenarios.{}이 비어 있습니다".format(key))
@@ -302,6 +307,9 @@ def load_campaign(path, *, check_install=True):
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
     recording = document.get("recording", {})
+    if recording.get('analysis_mode', False) and (
+            not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
+        raise ConfigError('인지 분석 모드는 include_sensors: true + video.enabled: true가 필요합니다')
     if "minimum_free_disk_gib" in recording:
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
     profile = resolve_path(recording.get("topic_profile"))

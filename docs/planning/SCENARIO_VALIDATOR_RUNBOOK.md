@@ -63,6 +63,10 @@ YAML 하나의 목적지·시간·스택은 모든 장면에 공통입니다. �
 
 예상 시간·용량은 추정입니다. 제한시간에 준비·마감 시간을 더한 값이며, 용량은 센서 제외 기본 녹화의 과거 비율을 사용합니다. 센서를 포함하면 훨씬 커지므로 첫 두 장면을 보고 공간을 잡으세요.
 
+### 전체 코스 주행
+
+전체 코스 시험은 GUI에서 **전체 코스 주행 → 예제 / sample_only.yaml → 베이스 복사**부터 시작합니다. 샘플 하나를 확인한 뒤 같은 미션의 `example.yaml`을 복사하면 객체 종류 변형 포함 4장면입니다. 신호등 on·localization·BEVFusion, 주행 제한 600초/장면입니다. [전체 코스 README](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/full_course/base/README.md)의 경유점·출발선 직전 종료와 live 미검증 범위를 먼저 확인하세요.
+
 ## 4. 중단·재개·다시 처음부터
 
 - `중단`을 누르고 bag·영상 마감과 스택 정리가 끝날 때까지 기다립니다. 그 뒤 다음 YAML은 시작하지 않습니다.
@@ -102,6 +106,22 @@ Drive 업로드는 각 YAML의 옵션입니다. 기본은 꺼짐이며, 켜면 `
 실행 목록은 `~/.config/ajounice/planning_scenario_validator/batch.json`에 자동 저장됩니다. 이 파일은 원본 YAML 경로와 배치 결과 위치를 기억하며, 실제 재개 조건은 결과 폴더의 입력 사본에 있습니다. `XDG_CONFIG_HOME`이 있으면 그 경로를 사용합니다.
 
 ## 안 되면
+
+### 모델 선택·인지 분석 녹화
+
+GUI `객체 탐지: bevfusion` 아래의 **BEVFusion 모델**에서 선택합니다. 기존 YAML에 `stack.bevfusion_model`이 없으면 **E25 production**입니다. E24는 `base5_e24`를 명시적으로 선택해야 하며 V/P/O threshold는 0.40/0.10/0.10입니다. `base5_e9`는 0.40/0.15/0.10의 **미보정 비교 후보**입니다. GUI 수정 후 YAML 저장·재불러오기·배치·재개에도 선택이 유지됩니다.
+
+E25의 `run_bevfusion.sh`와 SHA 보호는 유지합니다. Base5는 별도 실행기가 검증된 checkpoint·상속 config·센서 hash를 검사하고 Docker 서버 + ROS bridge를 소유합니다. AMP·camera 병렬화 on, inference compile off, single-frame·OD velocity off입니다. 원본 compressed JPEG와 ROS 0–255 강도를 전달하고 서버에서만 강도를 한 번 ÷255합니다. Sensor JSON은 실제 실행 사본을 서버와 bridge에 동일하게 전달합니다. canonical detection publisher가 중복되면 실행을 거부하거나 중단합니다.
+
+**전체 코스 주행 → 예제 / base5_e24_analysis_sample.yaml → 베이스 복사 → YAML 저장 → 설정 검사 → 새 실험 시작**으로 샘플 하나부터 봅니다. 연결·route·배우·bag·영상 마감이 확인된 뒤 `base5_e24_analysis_variants.yaml`을 복사해 나머지 3장면을 시험합니다. 기존 4개 JSON의 경로·속도·spawn은 바꾸지 않습니다. 원본 example/sample_only는 E25 기본값입니다.
+
+GUI **녹화 모드 → 인지 분석 (센서+영상)**은 별도 `perception_analysis.json`, LiDAR + compressed 카메라 4개, MORAI/RViz 화면 영상을 켭니다. 기존 basic 프로파일은 그대로 둡니다. 분석에서는 실제 planner avoidance/info/debug 토픽도 정규식으로 수집하고 `/clock`은 발행될 때 기록합니다. **원본 센서 없는 bag은 사후 재추론 불가**입니다.
+
+종료 후 각 장면의 `recording_audit.json`에서 **실제 메시지 수**, 누락 핵심 토픽, 센서 재추론 가능 여부를 확인합니다. 목록에만 있는 토픽은 기록 성공으로 세지 않습니다. route/trajectory 준비 전에 실패한 장면은 해당 후단 데이터가 없어도 그 상태를 그대로 남깁니다. 주행 PASS/FAIL과 녹화 완전성은 별개이며 CSV에도 `recording_complete`, `sensor_replayable`, `missing_recorded_topics`가 있습니다.
+
+결과 폴더의 `model_contract.json`/`model_runtime.json`, `model_configs/`, `model_process_receipt.json`, `model_launch.json`, `stack_logs/commands.json`에 checkpoint 경로·SHA, 실제 config/센서와 hash, threshold·NMS·AMP·병렬화·compile·Docker image ID·실행 명령이 남습니다. 장면별 input.json에는 Git SHA가, ros_parameters.yaml에는 실제 ROS 설정이 남습니다. YAML·원본/실제 로드 시나리오·녹화 목록도 보존합니다. 모델·core 설정·Docker image가 달라지면 같은 결과에 resume할 수 없습니다. 새 실험을 시작하세요.
+
+5060 Ti + MORAI 로컬 검증은 연결·기능 검사입니다. 대회용 4090/LAN의 처리율·지연·주행 안전성을 인증한 결과가 아닙니다. tracker의 0.5/1초 기억과 planner 설정은 이번 연결 작업에서 바꾸지 않습니다.
 
 - 설정 오류: `설정 검사` / 배치 `전체 검사`부터 봅니다.
 - 설치·가중치·녹화 오류: `환경 검사`의 FAIL과 해결 방법을 봅니다. 기본 검사는 실제 GPU 추론이나 MORAI 연결을 보장하지 않습니다.

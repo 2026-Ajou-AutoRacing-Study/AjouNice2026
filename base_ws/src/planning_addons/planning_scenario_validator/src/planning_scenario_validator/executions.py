@@ -10,6 +10,7 @@ import yaml
 
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
+from .models import resolve_contract, verify_contract
 
 
 def sha256(path):
@@ -73,6 +74,14 @@ def prepare_execution(source, *, check_install=True):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
         document['recording']['topic_profile'] = copy_input(
             resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
+        model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'),
+                                 require_assets=check_install)
+        for relative in model.get('config_files_sha256', {}):
+            copy_input(resolve_path(relative), 'model_configs/' + relative)
+        if model.get('runtime_config'):
+            copy_input(model['runtime_config'], 'model_configs/bridge.yaml')
+        atomic_json(directory / 'model_contract.json', model)
+        files['model_contract.json'] = sha256(directory / 'model_contract.json')
         # Calibration/map/model binaries are intentionally referenced, not copied.
         path = directory / 'config_snapshot.yaml'
         path.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding='utf-8')
@@ -123,6 +132,11 @@ def load_execution(directory, *, check_install=True):
         if directory not in path.parents or not path.is_file() or sha256(path) != digest:
             raise ValueError('실험 사본이 변경되거나 사라졌습니다: {}'.format(relative))
     cfg = load_campaign(directory / manifest['snapshot'], check_install=check_install)
+    if 'model_contract.json' in manifest['files']:
+        model = json.loads((directory / 'model_contract.json').read_text())
+        if check_install:
+            verify_contract(model, cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'))
+        cfg['model_contract'] = model
     if cfg['output'] != directory or cfg['name'] != manifest.get('execution_id'):
         raise ValueError('실험 사본의 결과 경로가 기록과 다릅니다')
     expected_scenes = {relative for relative in manifest['files'] if relative.startswith('scenarios/')}

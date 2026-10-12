@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 
 from .config import ROOT, load_campaign
 from .traffic_light import runtime_settings, runtime_mode
+from .models import resolve_contract
 
 
 def command(args, timeout=8):
@@ -86,7 +87,13 @@ def inspect_environment(cfg, *, live=False, gpu=False):
     add('디스크', 'PASS' if free >= minimum else 'FAIL', '여유 {:.1f}GiB / 시작 기준 {:.1f}GiB. 전체 배치 용량 보장은 아닙니다'.format(free, minimum), '결과를 백업하고 공간 확보')
     if cfg['stack'].get('detector') == 'bevfusion':
         try:
-            image, checkpoint, expected = bev_settings()
+            checkpoint_label = 'E25 가중치'
+            if cfg['stack'].get('bevfusion_model', 'e25') == 'e25':
+                image, checkpoint, expected = bev_settings()
+            else:
+                model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
+                image, checkpoint, expected = model['image'], Path(model['checkpoint_path']), model['checkpoint_sha256']
+                checkpoint_label = model['label'] + ' 가중치·config'
             probe('BEVFusion Docker 이미지', ['docker', 'image', 'inspect', image, '--format', '{{.Id}}'],
                   '설치 가이드의 공용 이미지 다운로드·docker load 및 Docker 권한 확인')
             probe('Docker Compose', ['docker', 'compose', 'version'], '설치 가이드의 Docker Compose 플러그인 설치')
@@ -96,9 +103,9 @@ def inspect_environment(cfg, *, live=False, gpu=False):
                 with checkpoint.open('rb') as handle:
                     for chunk in iter(lambda: handle.read(1024**2), b''):
                         sha.update(chunk)
-                add('E25 가중치', 'PASS' if sha.hexdigest() == expected else 'FAIL', str(checkpoint), '가이드의 E25 inference 가중치 재다운로드')
+                add(checkpoint_label, 'PASS' if sha.hexdigest() == expected else 'FAIL', str(checkpoint), '선택 모델의 SHA256 검증된 가중치·경로 확인')
             else:
-                add('E25 가중치', 'FAIL', '파일 또는 실행기 checksum 계약 없음: ' + str(checkpoint), '설치 가이드에서 가중치·경로 확인')
+                add(checkpoint_label, 'FAIL', '파일 또는 실행기 checksum 계약 없음: ' + str(checkpoint), '설치 가이드에서 가중치·경로 확인')
             if gpu:
                 probe('컨테이너 실제 GPU 연산', ['docker', 'run', '--rm', '--gpus', 'all', '--entrypoint', 'python', image, '-c',
                     'import torch; print(torch.cuda.get_device_name()); print((torch.ones(2,device="cuda")+1).cpu())'],

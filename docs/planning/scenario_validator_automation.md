@@ -186,6 +186,16 @@ ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_
 
 ## 알려진 제한
 
+### 2026-10-12 모델 프리셋·인지 분석 계약
+
+- 모델 선택은 `stack.bevfusion_model: e25 | base5_e24 | base5_e9`다. 생략은 E25이며 GUI·YAML·배치·snapshot/resume에 보존한다. E24는 별도 0.40/0.10/0.10, E9는 0.40/0.15/0.10의 threshold 미보정 후속 비교 후보다.
+- E25 보호 실행기는 수정하지 않는다. Base5 전용 실행기는 pinned checkpoint SHA와 전체 상속 config graph hash를 검증하고 별도 Docker 서버/bridge를 관리한다. 실제 sensor 사본을 양쪽에 전달하며 서버 handshake와 요청마다 정합을 확인한다. AMP/병렬화 on, compile off, native compressed JPEG와 서버 1회 intensity ÷255, single-frame·velocity off다.
+- 초기 검출 대기 전에 Base5 cold start·서버 준비를 최대 180초 확인한다. 이전 server_ready receipt는 보관 후 분리하므로 resume 때 과거 준비 상태를 현재 서버 준비로 오해하지 않는다. 중복 canonical publisher는 시작 전·bridge 실행 중·주행 중 검사한다. 종료 시 소유한 컨테이너/프로세스만 정리한다.
+- `recording.analysis_mode: true`는 별도 perception_analysis 프로파일 + 센서/영상 on을 요구한다. planner avoidance/debug는 실제 광고된 토픽을 정규식으로 추가 기록한다. indexed bag metadata의 실제 메시지 수로 audit하며, `/clock`과 선택 기능/debug 미발행은 0으로 남긴다. 주행 판정과 녹화 완전성을 구별한다.
+- 실행 사본에 model 계약·config 사본·source hash를 보존하고 실제 checkpoint/config/sensor·threshold/NMS/AMP/compile·Docker ID·명령·ROS 파라미터·Git SHA를 남긴다. 모델/핵심 설정/이미지가 달라진 resume는 거절한다. 이전 모델 계약 없는 결과에 Base5를 끼워 넣지 않는다.
+- 전체 코스 분석 예제는 baseline 1개와 변형 3개의 YAML을 분리한다. 기존 JSON·tracker 0.5/1초 기억·planner 설정은 유지한다. baseline의 주행·녹화 게이트가 확인되기 전에 나머지 사례를 정상 주행 검증으로 주장하지 않는다. planning 프로세스 종료는 단순 trajectory timeout과 구별한다.
+- 최신 인지 근거는 `docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md` 40·41절이다. 개별 실행 증거는 Git 제외 `planner_logs/analysis/261012_validator_base5/`와 해당 validation 결과에 보존한다. 로컬 5060 Ti+MORAI 기능 시험과 실제 4090/LAN 인증을 구분한다.
+
 - 최초 Sensor/Ego Network JSON 선택과 Connect는 MORAI GUI에서 수동이다. 시나리오 전환은 UDP로 자동 수행한다.
 - 시나리오별 goal이 다르면 별도 캠페인 YAML로 분리한다. JSON 자체에서 임의 목적지를 추측하지 않는다.
 - `full.json`은 알려진 토픽 inventory이며 새/비표준 토픽은 수동 추가해야 한다. `rosbag record -a`는 디스크 위험 때문에 사용하지 않는다.

@@ -63,6 +63,13 @@ class MissionPickerTests(unittest.TestCase):
 
         def ready(app):
             try:
+                picker = app['mission_box'].master
+                labels = [widget.cget('text') for widget in picker.winfo_children()
+                          if widget.winfo_class() == 'TLabel']
+                self.assertEqual(set(labels), {'담당 미션', '실험 YAML'})
+                buttons = [widget.cget('text') for widget in picker.winfo_children()
+                           if widget.winfo_class() == 'TButton']
+                self.assertIn('베이스 → 내 작업 폴더 복사 (최초 1회 실행)', buttons)
                 app['mission_value'].set('고주로')
                 app['actions']['select_mission']()
                 self.assertEqual(app['yaml_value'].get(), '예제 / example.yaml')

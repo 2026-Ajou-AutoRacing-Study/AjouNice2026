@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[5]
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE / "src"))
 from planning_scenario_validator.authoring import annotated_yaml
+from full_course_starter import build_full_course
 OUTPUT = PACKAGE / "config/missions"
 SAMPLE = ROOT / "configs/scenario/2026_molit_comp_sample_scene.json"
 ACTOR_LISTS = ("vehicleList", "pedestrianList", "objectList", "spawnPointList",
@@ -333,6 +334,7 @@ def build(output=OUTPUT):
                 ROOT / "configs/tf/morai_lanelet_static_tf.yaml")},
             "official_distribution": "unknown; illustrative validation variations, not competition guarantees",
             "cases": [x[3] for x in rows]}, ensure_ascii=False, indent=2) + "\n"
+    expected.update(build_full_course(sample, geom, template, ROOT, PACKAGE, output, validate))
     return expected
 
 
@@ -366,7 +368,10 @@ def main():
     obsolete = sorted(OUTPUT.glob("*/base/scenarios/*.case.yaml"))
     if obsolete:
         raise SystemExit("폐기된 보조 YAML이 {}개 남았습니다. 공유 base의 .case.yaml을 제거하세요".format(len(obsolete)))
-    print("{} files / 5 missions / 120 scenarios {}".format(len(expected), "verified" if args.check else "generated"))
+    missions = sum(path.name == "example.yaml" for path in expected)
+    scenes = sum(path.parent.name == "scenarios" for path in expected)
+    print("{} files / {} missions / {} scenarios {}".format(
+        len(expected), missions, scenes, "verified" if args.check else "generated"))
 
 
 if __name__ == "__main__":
