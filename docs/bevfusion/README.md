@@ -9,7 +9,12 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신은 [41절 원거리 bag GT·실제 ROS 기억 A/B](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)다.
+2026-10-12 최신 화면 검토는 [42절 안정적인 이전 완주 입력의 E9/E25 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012)다.
+Ego 평균 45.78 Hz의 수동 완주 2.19 km·3,369장 전체에서 두 모델을 추론하고 공통
+범위의 private RViz와 원본 투영 12장을 확인했다. 정확도 GT·실시간 제어 인증이
+아니며 production과 E24 별도 threshold는 유지한다. 다음은 화면 차이가 큰 구간 검토다.
+
+앞선 결과는 [41절 원거리 bag GT·실제 ROS 기억 A/B](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)다.
 동일 예측 1,570행을 유지하고 1,413장의 확정 가능한 GT를 100m까지 평가했다.
 현재 0.5/1초 기억은 유용하지만 1/2초 확대는 미대응 증가로 기각한다. E24 시험 threshold
 0.40/0.10/0.10 유지. 다음은 장애물 중복·잔류 구간 조사와 실제 대회 PC의 planner

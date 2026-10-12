@@ -8,6 +8,14 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 ## 현재 계획 허브 — 2026-10-12 원거리 평가·기억 A/B 완료와 후속 전달 안정화
 
+**10-12 안정적인 이전 완주 화면 비교 완료:** [42절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012)을 따른다.
+사용자 요청으로 이전 수동 완주까지 허용해 Ego 평균 45.78 Hz의 2.19 km 기록을 골랐다.
+E9 best/E25 모두 동일 3,369장 전체를 추론하고 private RViz·원본 카메라 투영 12장을
+확인했다. 관측 threshold는 비교용 0.40/0.15/0.10이며 E24 별도 선정값과 production은
+유지한다. 정확도 GT가 없는 화면 검토로 AP·추가 검출의 정답률·실시간 제어를 인증하지
+않는다. 다음은 차이가 큰 장면의 실제 객체·오검출·tracker 전달 구분이다. Vast·훈련·
+planning_validator와 live MORAI 설정은 변경하지 않았다.
+
 **10-12 원거리 GT·실제 ROS 기억 A/B 완료:** [41절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 우선한다.
 예측 1,570행을 바꾸지 않고 1,413장의 확정 가능한 catalog GT를 100m까지 평가했다.
 전체 이력은 1,570장 그대로 재생했다. 현재 0.5/1초 기억은 원거리 누락을 메우며 유지한다.

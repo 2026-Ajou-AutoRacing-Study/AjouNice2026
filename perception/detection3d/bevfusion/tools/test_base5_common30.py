@@ -3,7 +3,8 @@ import unittest
 from types import SimpleNamespace
 import numpy as np
 from compare_base5_common30 import (scope, fixed_matches, gt_identity, evaluate,
-                                   adapt_intensity, validate_payload, validate_runtime_switches, CLASSES)
+                                   adapt_intensity, validate_payload, validate_runtime_switches,
+                                   steady_median_ms, CLASSES)
 
 
 def row():
@@ -14,6 +15,11 @@ def row():
 
 
 class Common30Tests(unittest.TestCase):
+    def test_small_pilot_timing_has_no_empty_warmup_nan(self):
+        self.assertEqual(steady_median_ms([.01] * 8), 10.)
+        self.assertEqual(steady_median_ms([1.] * 10 + [.02] * 2), 20.)
+        with self.assertRaises(ValueError):steady_median_ms([])
+
     def test_runtime_switches_are_explicit_and_mutually_checked(self):
         validate_runtime_switches(SimpleNamespace())
         validate_runtime_switches(SimpleNamespace(compile_parts=['camera','neck'],parallel_camera=True))

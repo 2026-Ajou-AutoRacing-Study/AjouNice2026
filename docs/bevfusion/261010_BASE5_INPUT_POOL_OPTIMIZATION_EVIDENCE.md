@@ -5170,3 +5170,120 @@ O02 track14는 이전 GT 대응 뒤 위치가 5m 이상 벗어난 잔류였고, 
 구문·언어·whitespace와 owned process 종료도 확인했다. 전체 tools discover는 system
 Python에 Torch/mmengine이 없어 학습 등 11개 모듈의 import가 실패했다. 별도 CPU 관련
 검사는 통과했지만 전체 GPU·학습 suite를 통과한 것으로 기록하지 않는다.
+
+<a id="base5-stable-whole-route-view-261012"></a>
+
+## 42. 2026-10-12: 안정적인 이전 완주 입력의 E9/E25 화면 비교
+
+### 입력 선택과 한-PC 주행 문제의 분리
+
+사용자는 최근 한-PC full-stack 주행의 Ego 주기가 약 20 Hz여서 제어가 이상했다고
+설명했고, 이전의 안정적인 완주 기록을 수동주행까지 포함해 비교하도록 요청했다.
+10-12 17:15 E25 충돌 종료 기록을 완주로 대체하거나 최근 완주라고 부르지 않는다.
+그 기록의 controller 시작~충돌 구간에서는 Ego 평균 24.03 Hz, 수신 간격 p95
+106.12 ms인 반면 control state·steering·`/ctrl_cmd`는 50 Hz였다. 이동 구간의
+위치 변화 약 1,201 m와 wall-time 속도 적분 약 1,643 m도 일치하지 않았다.
+과거 localization의 비실시간율/receipt-time 문제와 일치하는 단서이며, 이번 측정만으로
+원인을 단일 확정하거나 production 제어·속도 bias를 수정하지 않는다.
+
+이전 두 완주 후보의 원본 Ego와 센서·Object 메시지를 직접 읽었다.
+
+| 이전 원본 | 경로 길이 | Ego 평균 주기 | 간격 p95 / 최대 | 100 ms 초과 공백 | 속도 적분 / 위치 거리 |
+|---|---:|---:|---:|---:|---:|
+| `raw_sensor_w_cam/sensor_cam_raw_full_slow.bag` | 2,192.99 m | 45.78 Hz | 48.12 / 126.79 ms | 4 | 1.00284 |
+| `raw_sensor/competition_route_full_highspeed.bag` | 2,249.38 m | 48.51 Hz | 38.39 / 63.51 ms | 0 | 1.00034 |
+
+속도 비율은 1 m/s 초과 이동, 250 ms 미만 간격, 5 m 미만 위치 변화의 동일 구간에서
+계산했다. 예전 slow bag에는 명시적 km/h→m/s 변환 1/3.6을 적용했으며, highspeed는
+m/s 그대로다. 원본 메시지는 변경하지 않았다. 이 비율 자체는 독립적인 simulator
+real-time factor 측정이 아니다. 파일명·보존 날짜가 아닌 bag의 원본 stamp로 보면 slow는
+2026-07-25 12:21 KST의 기록이다. 최근 local odom 변경 이후의 폐루프 기록과 혼동하지 않는다.
+
+highspeed의 Object 메시지 7,551개는 전부 빈 목록이다. 이것만으로 map 배경을 포함한
+모든 실제 객체의 부재나 완전한 negative GT를 확정하지 않는다. 객체 장면 확인에 더
+적합한 slow를 주 비교 입력으로 선택했다. slow의 Object 12,881개 중 12,024개가
+비어 있지 않았고, 한 메시지의 최대 객체 수는 17개였다.
+
+### 같은 센서 프레임과 실행 계약
+
+- slow의 동기화 가능한 고유 LiDAR **3,369장 전체**를 사용한다. 예산에 따른 표본
+  축소는 하지 않았다. 네 카메라의 가까운 JPEG를 ±50 ms에서 선택하며 원본 bytes와
+  XYZI를 보존했다. 카메라 절대 시간차 p50/p95/최대는 25.75/31.36/48.34 ms다.
+- `inputs_v1`의 모든 JPEG·point SHA256, token·timestamp 순서, Sensor_4 해시·카메라
+  순서·투영 행렬·native 해상도를 재확인했다. info SHA256은
+  `fad6d9fc29a3c2509e60bc027ce55b825f4a335e2734a1d5b41d60daa27b66a7`이다.
+- 전·후방 1280×720, 측방 640×480의 역사적인 Sensor_4 입력이다. 기존
+  `MoraiImageAug3D`가 padding을 제거하고 각 카메라의 원래 크기에 맞게 resize 및
+  homography를 계산한다. bag에 tf_static이 없어 기록 당시 mounting을 독립적으로
+  인증한 것은 아니다. 현재 대회 센서·ROS/LAN의 실시간 검증과 분리한다.
+- Base5 best는 현재 native validation 기준 **E9**다. E24는 마지막 epoch이며
+  모든 미션에서 E9가 우월하다는 뜻은 아니다. E9는 학습된 512×1056·5/20 cm·
+  depth 25 cm·X±100/Y±30 m 구조와 강도 ÷255를 유지한다.
+- 로컬 RTX 5060 Ti에서 추론했다. E9: AMP·camera 병렬화 ON, inference compile OFF.
+  E25: 원래 config·원래 강도,
+  이 오프라인 기준 실행은 FP32다. 두 모델의 실행 정밀도가 달라 순수 수치 통제나
+  공정한 latency benchmark로 해석하지 않는다. checkpoint는 strict load한다.
+- 두 모델의 관측 threshold를 **V/P/O 0.40/0.15/0.10**, rotated BEV NMS IoU 0.50으로
+  맞춘다. E24 별도 시험값 0.40/0.10/0.10과 production 기본값은 변경하지 않는다.
+- 비교 화면은 공통 **LiDAR-frame 중심 XY ±30 m, tensor bottom-Z −3~2 m 범위**다. radial 30 m와
+  다른 계약이다. E9의 전체 범위는 별도 기본 OFF 표시로 분리한다.
+- 정확도 정답은 만들지 않았다. `instances=[]`는 정답을 모르는 시각화용 입력 표시이며
+  장면에 객체가 없다는 GT가 아니다. 이 package로 AP·recall·FP 비율을 계산하지 않는다.
+
+### 실행 상태와 재현 경로
+
+산출물은 `artifacts/evaluation/bevfusion/base5_best_vs_e25_full_route_261012/`에
+분리한다. `bag_timing_audit.json`, `inputs_v1`, `e9_full_amp_parallel_v1`,
+`e25_full_fp32_v1`의 원본 입력 해시·checkpoint 해시·정밀도 receipt를 유지한다.
+E9/E25 모두 전체 3,369장 추론을 완료했다. token·info SHA256·빈 GT identity는
+두 실행에서 같다. 공통 범위 marker bag, 네 카메라 원본 투영 12장과 private-master
+RViz를 확인했다. 검토 이미지는 시간 균등 6장과 최소 8초 간격의 출력 개수 차이가
+큰 6장으로 구성하므로, 무작위 정확도 표본으로 해석하지 않는다.
+
+| 관측 범위·모델 | Vehicle 출력 관측 | Pedestrian 출력 관측 | Obstacle 출력 관측 | 출력이 있는 프레임 |
+|---|---:|---:|---:|---:|
+| 공통 범위 E25 | 811 | 88 | 58 | 696 |
+| 공통 범위 E9 | 888 | 281 | 205 | 994 |
+| E9 학습 전체 범위 | 2,250 | 388 | 305 | 1,452 |
+
+출력 관측 수는 frame마다 반환된 박스를 더한 값이며 고유 객체 수나 TP가 아니다.
+E9의 추가 검출을 곧바로 성능 향상으로 해석하지 않는다. 대표 투영에서는 두 모델이
+같은 차량·전방 장애물에 대응하는 사례와 E9만 사람·작은 장애물 주변에 반응하는
+사례를 확인했다. 특히 **`full_route_01451`** 등의 추가 박스는 annotation 없는
+건물·도로 배경과의 구분도 검토해야 한다. 이번 작업은
+그 구간을 보존하며 완전한 FP 판정을 하지 않는다.
+
+최신 재생 세션은 **`view_v2`**, 0.75배속 반복이다. 공통 범위 E25는 초록색, E9는
+하늘색이며 E9 전체 범위는 주황색의 기본 OFF display다. `/clock`·두 marker stream·
+LiDAR와 네 JPEG subscriber를 private master에서 확인했다. Sensor_4의 base→LiDAR
+정적 TF만 private master에 발행한다. 재생 중에는 detector GPU 추론·planning·controller·live Ego
+재생은 없으며 전역 ROS master와 MORAI는 변경하지 않았다. RViz를 닫으면 해당
+도구가 자신이 시작한 playback·TF·master만 정리한다. ROS1 EOL popup은 그 세션의
+환경변수만으로 숨겼다. compressed transport의 중복 dynamic-reconfigure service와
+기존 inotify watch 부족 경고는 남지만 네 영상·LiDAR 렌더링은 확인했다. 시스템
+설정이나 다른 프로세스를 수정해 경고를 없애지는 않았다.
+
+재생을 다시 시작할 때는 이미 있는 세션 경로를 덮어쓰지 않고 새 이름을 사용한다.
+
+```bash
+cd "$HOME/AjouNice2026"
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+OUT="$PWD/artifacts/evaluation/bevfusion/base5_best_vs_e25_full_route_261012"
+/usr/bin/python3 perception/detection3d/bevfusion/tools/view_base5_full_route_comparison.py view \
+  --bag "$PWD/rosbags/raw_sensor_w_cam/sensor_cam_raw_full_slow.bag" \
+  --markers "$OUT/comparison_markers_v1.bag" \
+  --output "$OUT/view_$(date +%Y%m%d_%H%M%S)" \
+  --rate 0.75
+```
+
+다음은 사용자가 화면을 검토한 뒤 차이가 큰 구간의 실제 객체·오검출·tracker 전달을
+분리해 평가하는 것이다. 이 수동 기록은 최근 Smooth controller 폐루프, 실제
+4090 24GB의 ROS/LAN latency 또는 현장 주행 안전성을 인증하지 않는다.
+
+도구는 `view_base5_full_route_comparison.py`의 `prepare / verify / audit / export /
+review / view`다. 준비·재생 결과는 fresh 경로만 허용하고 raw를 덮어쓰지 않는다.
+8장 correctness pilot에서 기존 timing helper가 10장 warmup을 모두 제외해 NaN을
+쓰려던 문제를 발견해 소량 표본의 median fallback을 보완했다. 모델 추론 오류나
+학습 변경은 아니며, 불완전 pilot 출력은 성공 근거로 사용하지 않는다. 관련 CPU 검사
+18개와 Python 구문 검사는 통과했다.

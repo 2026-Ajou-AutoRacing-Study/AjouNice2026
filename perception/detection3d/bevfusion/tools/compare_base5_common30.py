@@ -34,6 +34,14 @@ def digest(path):
     return h.hexdigest()
 
 
+def steady_median_ms(elapsed, warmup=10):
+    """Small correctness pilots must not emit NaN after dropping warmup."""
+    if not elapsed:
+        raise ValueError('At least one measured inference required')
+    selected = elapsed[warmup:] if len(elapsed) > warmup else elapsed
+    return float(np.median(selected) * 1000)
+
+
 def adapt_intensity(points, scale):
     """Explicit input-only adapter; never mutate raw files, XYZ or GT.
 
@@ -298,7 +306,8 @@ def infer(args):
         input_pipeline=loader_cfg.dataset.pipeline,
         point_intensity_scale=args.intensity_scale,
         point_intensity_adapter='input-only; XYZ/raw files/GT unchanged',
-        inference_ms_p50=float(np.median(elapsed[10:])*1000),
+        inference_ms_p50=steady_median_ms(elapsed),
+        inference_timing_warmup_excluded=min(10, len(elapsed)) if len(elapsed) > 10 else 0,
         inference_timing_scope='test_step including transfer/voxelization; not ROS latency certification',
         rows=rows)
     with gzip.open(args.output/'predictions.json.gz', 'wt') as f:
