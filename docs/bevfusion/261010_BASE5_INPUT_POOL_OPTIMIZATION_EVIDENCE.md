@@ -1,14 +1,14 @@
 # Base5 입력·격자 정합·pooling 최적화 — 2026-10-10
 
-## CURRENT / 다음 판단
+<a id="current--다음-판단"></a>
 
-현재 실행 순서는 [단일 계획 허브](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md#base5-current-plan-hub)를 따른다.
-최신 로컬 학습 비용 개선은 [21절](#base5-training-runtime-local-261011), 원격 이전·비용은
-19절, 실제 외부 백업 완료는 20절이다. 아래 날짜별 기록의 당시 ‘미완료’를 최신 상태로
-재사용하지 않는다. 본학습·AP 검증은 아직이며, 21절 소스는 아직 4090에 반영하지 않았다.
-raw·센서·클래스·GT 수·split·production E25는 보존한다. 최신 입력은 Q90 JPEG와
-`native_rpy_fixed_yaw_enclosure_v1` 라벨이다. 공간 7.5/30cm·ROI X±100/Y±30m를 유지한다.
-depth 25cm는 우선 후보이고, 기존 원격 준비 계약은 50cm다. 재수집하지 않는다.
+## 문서 역할과 읽는 방법
+
+문서 상태: EVIDENCE. 현재 모델·완료 상태·실행 선택은 [CURRENT](CURRENT.md)를 따른다.
+[주제 인덱스](README.md#evaluation)에서 관련 anchor의 절만 선택한다.
+아래 각 절의 ‘현재’, ‘최신’, ‘미완료’는 해당 검증 날짜의 상태다. 과거 7.5/30cm·
+4클래스·학습 미시작 기록을 지금의 실행 계약으로 복구하지 않는다.
+실측·실패·표본과 기존 anchor는 보존하며 이 문서 앞에 현재 상태를 다시 복사하지 않는다.
 
 ## 초기 기록의 요약 — 최신 실행 상태가 아닌 이력
 

@@ -1,5 +1,9 @@
 # Traffic light detection runtime
 
+[인지 작업 안내](../../../../docs/perception/README.md)에서 신호등 작업을 선택한다.
+3D detector 학습·dataset 문서를 먼저 읽을 필요는 없다. 아래 설치 이력과 실제 대상 호스트의
+Python·CUDA·device 설정을 구분하고 현재 launch를 확인한다.
+
 This package publishes
 `/perception/traffic_light_recognition/traffic_signals` for the AW149 planning
 stack. Its Python runtime is intentionally kept outside rosdep because the
@@ -71,11 +75,10 @@ node immediately use the existing distance fallback instead of retaining an
 old route ID. The separate 2-second message timeout only covers loss of the
 helper process itself.
 
-A clean install must load `weights/best.pt` on CUDA before enabling
-`start_traffic_light`. The v62 Lanelet2 map and projector are supplied by the
-parent launch. `morai_planning_stack.launch` keeps `use_sim_time:=false` for the
-UDP clock and therefore preserves the planning team's existing
-`is_simulation:=false` behavior.
+새 환경에서는 `start_traffic_light` 활성화 전에 `weights/best.pt`의 CUDA 로드를 확인한다.
+현재 launch의 지도 기본값은 v85이며 부모 launch가 map/projector를 override할 수 있다.
+실제 resolved 인자를 확인한다. `morai_planning_stack.launch`의 UDP 시간 계약은
+`use_sim_time:=false`이며 planning의 기존 `is_simulation:=false` 동작을 유지한다.
 
 ## Competition signal phase profiles
 

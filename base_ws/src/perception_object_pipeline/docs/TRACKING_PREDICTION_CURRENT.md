@@ -1,7 +1,8 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 코드 대조: 2026-09-25, `perception/static-obstacle-tracking-integration-260925`
+마지막 문서·launch 대조: 2026-10-12. 아래 9월 bag 실측은 당시 이력이다.
+현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
 
 ## Production 계약
 
@@ -75,7 +76,8 @@ prediction coverage를 함께 감시한다.
 
 ## Map-CV
 
-- map: `kcity_map/lanelet_map/lanelet2_map_v84.osm`.
+- `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
+  `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
 - horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
 - minimum map-following speed: `0.5 m/s`.
 - lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.
@@ -95,10 +97,16 @@ start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 
 
 모델 선택은 Detection만 보지 않고 같은 mission bag의 Tracking center/AVE, speed error,
 Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker 근거는
-`docs/bevfusion/README.md`와
-`docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`를 따른다.
+[근거 인덱스](../../../../docs/bevfusion/README.md#evaluation)를 따른다.
+과거 velocity A/B는 [9월 근거](../../../../docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)에서만 재현한다.
 
-다음은 계획일 뿐 현재 production에 구현되지 않았다.
+2026-10-12 원거리 실제 ROS 기억 A/B는 현재 bounded coasting을 유지하고 1/2초 확대를
+채택하지 않았다. 자세한 분모·중복·잔류 제한은
+[41절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 따른다.
+실제 planner의 기억이나 안전성을 이번 tracker 시험으로 인증하지 않는다.
+
+다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
+일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 
 - 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.

@@ -1,0 +1,263 @@
+# MORAI perception dataset agent context
+
+문서 작성 시 정상적인 한국어 띄어쓰기와 ‘~다’ 문체를 사용한다. 압축된 영어 키워드 나열은
+필요한 기술 식별자 외에는 문장으로 풀어 쓴다. 명령·경로·해시·측정 수치는 보존한다.
+아래는 최신 기록부터 쌓인 이력이다. 과거의 ‘최신’, ‘미시작’, ‘미구현’을 현재 상태로 재사용하지 않는다.
+
+2026-10-11 최신 학습용 파생 GT는 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`
+16절이다. `build_base5_bevfusion_infos.py`는 native full RPY의 8모서리를 포함하는 upright 7D
+크기를 기본 생성한다. 중심·yaw·가시성·클래스·split·native 원본은 유지한다.
+이미 수집한 5K의 최신 입력은 `../../artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
+센서 재수집은 불필요하며 collector/generator/runtime은 이번에 수정하지 않았다.
+기존 portable는 보존하고 `prepare_base5_upright_portable.py`로 새 infos를 파생한다.
+
+2026-10-10 최신 입력/GPU 후속은 `../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md`다.
+사용자가 MR/master 종료 후 로컬 실험을 승인했다. 완료 5K 전수 crop·448/512 파생 infos·실제 loader/online 정합,
+확대 sparse 축 수정·cache/분리 pooling·14장 전체 모델 동등성·3 step 역전파를 검증했다.
+아래의 GPU/crop 미시작 기록은 과거 이력이다. Sunny13/raw/ledger/수집기 release 해시/E25는 불변이다.
+4090 재측정·최종 입력 선택·본학습·새 shape의 ROS 후처리는 남아 있다.
+직접 실행 학습기·초기화 adapter·백업기·로컬 재개 시험은 후속 작업으로 준비했다. 실제 원격 설치·백업·재개는 아직 검증하지 않았다.
+원격 준비와 후보 GPU·스크린샷은 `../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md`를 따른다.
+
+2026-10-10 현재 작업은 `docs/261010_base5_postcollection_collector_work.md`부터 복구한다.
+사용자가 종료 후 수집기 쪽 작업을 승인했고 완료했다. Sunny13 v140/5000/0은 보존한다.
+전수 분포·시간 집계, 연속 Ego 위치의 5개 환경 25K 새 배치, 별도 guard AST adapter와 시간 A/B 검증을 완료했다.
+기존 core generator/collector와 이전 resume 해시는 불변이다. 새 output만 사용하며 25K 본 수집은 미시작이다.
+fresh_suite_final_v142/collector_release_v142가 최신이며 구 v141/v141b/v141c/실패 final_v141은 진단용이다.
+clean 정적 비용 22.553% 단축·200/200·구 이동 8/8·새 정적 63+보충 1=64·새 이동 7+보충 1=8,
+native QA·실제 gait·부모 보존·완료 resume 추가 0·CPU 64/merge 5064·5개 환경 prepare-only 검증을 통과했다.
+새 런북 261010_base5_fresh_environment_runbook.md·launcher --complete·8082 자동 선택 관측을 사용한다.
+early service-probe overlap은 실제 경쟁 조건 실패로 탈락했으며 실행을 거부한다. static-ready의 원래 서비스 확인 순서가 최종이다.
+이 수집기 작업 종료 시 worker 종료·Park를 확인했다. 이후 GPU 실험은 위 최신 문서를 따른다. 기존 5K·향후 30K에 pilot을 섞지 않는다.
+
+2026-10-10 최종 최신은 `docs/261010_base5_flexible_deficit_replacement.md`다.
+사용자가 exact 자산/거리/개수 복원 대신 같은패밀리 정상새장면 대체를 승인했다.
+collection_5k_sunny13_flexible_v140에서 기존4974행 그대로+새26장=5000승인/부족0/complete다.
+26모두첫시도·정적25/실제walking1·추가active567.915초. 실제전체정적4822/이동178이다.
+패밀리/미션맥락/primary semantic pool/split/실제이동mode는유지·자산/거리/방향/개수변경은명시기록이다.
+원래source/부모raw/journal/hash 불변·frozen collector/QA불변. arbitrary GT/검사완화/빈배경대체아니다.
+최종ledger하나만사용·replacement_mapping/adopted_manifest/validation_report로대체추적한다.
+coverage는adopted_manifest의실제primary로확인해야한다. 원래manifest exact셀과다르며거짓동일quota인증금지.
+122종effective floor결손0/PASS·CPU4255/745·GT10959·입력25000누락0/token/group중복0·507testsPASS다.
+최종run+resume 추가시도/raw0·SHA/시간/부모불변, 전child Park. 8075=v140/5000/0, collector종료/MR종료가능.
+현재CPU infos는320crop기반임시본이며crop확정후재변환. 다음crop/투영/runtime·다른5환경연속Ego 다양화다.
+기존30K계획유지·v139/v137집계는아래진행이력. 새flexible driver도state SHA고정·수정후강제resume금지.
+
+2026-10-10 최종 Sunny13 보충 종료: `docs/261010_base5_adaptive_completion.md` 상단 v139가 우선한다.
+최종 canonical은 collection_5k_sunny13_motion_contract_v139/selected_ledger.jsonl, 4974승인/26부족이다.
+v137 4975는 실제 이동 계약 후검사 전 집계다. 02912 walking secondary가 standing으로 바뀌어 제외했다.
+실제 이동 부족3중2복구/1미복구다. primary gait+이동mode별 최소인원 유지, 보조moving 추가는 허용한다.
+v138은 정확한 이동인원 강제의 과도한 pilot으로 보존; 유효2셀은 v139에서 그대로 유지한다.
+원래v135 4948행 전부보존, raw/source/runtime/부모journal 불변. 새ledger에 과거ledger 연결금지.
+자동115시도/3회차+실제motion 재시도3회 종료, 동일 resume 추가촬영0; 반복상한초기화/QA완화금지.
+490단위검사PASS·CPU train4235/val739·GT10921·입력24870누락0·group/token중복0·trainprimary122종이다.
+현재 crop기준 임시CPU infos이며 crop확정후재변환한다. 전수model성능/5000성공 인증이 아니다.
+8075는v139, collector없음/MR종료가능. 다음crop/투영/runtime실험과 남은5환경연속Ego 다양화다.
+30K계획유지·Sunny13전체재수집불필요하다는현재무결성근거와 quota26미달을구분한다.
+adaptive/repair driver SHA는journal고정: 직접수정후강제resume금지. ignored보고서/raw 강제추적금지.
+아래v137/4951/4941 진행기록은과거이력이다.
+
+2026-10-10 최신 운영은 `docs/261010_base5_adaptive_completion.md`다.
+사용자 v135 종료4948승인/52부족(완료50시도)을 frozen validator로 import한 별도
+collection_5k_sunny13_adaptive_v137에서 이유별 새후보/셀당 추가3회차를 자동 진행한다.
+정적one-shot/실제moving 기존지면준비quality경로·동일primary/전체spec/split/group/QA를유지한다.
+첫8셀3복구/4951승인·122종effective primary floor결손0이며 최종수치는v137 status를읽는다.
+원본/v135 raw/journal 불변, canonical ledger에원래4948행포함·재연결금지·8075는v137이다.
+20분예산안전경계pause/동일짧은명령resume·3회차누적상한은반복명령으로초기화되지않는다.
+완료/부족종료resume촬영0, unsafe/partial child는안전검사전재실행금지다.
+v136은offline import준비이력이며새code/hash로강제resume금지다. 아래수동8셀/4941등은과거이력이다.
+
+2026-10-09 최신 운영은 `docs/261009_base5_failure_aware_replenishment.md`다.
+Sunny13 본5K는4930승인/70부족으로 완료, 기존보충15셀중3복구 후paused/4933보존이다.
+내부 quality retry와 다음 quota initial의 동일scenarioSHA 재캡처를 실제 확인했다.
+원본 input/runtime/journal/raw를 수정하거나 기존 --replenish를 다시 시작하지 않는다.
+현재별도output collection_5k_sunny13_supplement_v135는실패상대시야 제외/다후보순위/정적one-shot/
+누적2회/안전시간예산PAUSE 경로다. 같은asset/spec/split/group/config·nativeGT/실제QA를유지한다.
+64정적/3이동 초기부족 중이동3은독립ground준비없이raw우회하지않는다.
+v134b의미촬영혼합후보actors변경계약오류를v135에서생성시필터한다. v134b 완료13시도/복구3장은
+실제raw/캡처계약검증후명시적import하며과거halted journal/hash를강제수정하지않는다.
+fast wrapper는cache선준비+별도hashguard며collector원본불변이다. 원본4933행은새ledger안에이미있다.
+새ledger와원본ledger단순연결금지·기존8075는원본paused만표시한다. 최신실제승인/잔여는새status를읽는다.
+최종실제15부족셀/25one-shot에서8복구, v135현재paused/4941승인/59부족이다.
+원본4933행/ledger/quota/journal불변·새/기존실패payload재촬영0·전세션Park검증했다.
+collector를켜두지않았다. 사용자재개시최신실행문서의새명령을쓴다. 원본/구v134b강제resume금지다.
+아래1888/수집중/미시작기록은당시이력이다. 다음5환경새공간배치합의는유지한다.
+
+2026-10-09 최신 환경·공간 다양성 합의:
+`docs/261009_base5_remaining_environments_spatial_diversity_plan.md`를 먼저 읽는다.
+현재 Sunny13 v132 입력/runtime v133 수집은 끝까지 유지·보존한다. 종료/Park/collector 종료 뒤
+구성표·primary 자산 할당·거리/방향/미션 quota는 유지하고 Ego 연속 위치 샘플링을 구현·검증한다.
+나머지 sunny11/15·foggy11/13/15는 각환경 새배치5K로 생성한다. 총30K 후 Sunny13 재수집 여부를 판단한다.
+이 합의가 아래 '같은5K를6환경 반복' 계획보다 우선하며 새생성기는 아직 미구현이다.
+기존 suite의 다른5환경 복사manifest를 다음수집으로 바로 실행하지 않는다. 현재Sunny13 계약은 변경 금지다.
+고정192개 bank/사용base98개 한계와 실제간격 약11m를 구분한다. seed만 바꾸면 frozen row/bank가 남는다.
+새식별·공간group/split·finalXY높이·live/resume·전수audit를 함께 검증하고 새release/output을 쓴다.
+
+2026-10-09 후속 사용자 합의: 수집을 유지하면서 작은 pooling 연산의 제한된 CUDA
+correctness 시험은 가능하다. 전체 모델/학습/공식 latency 시험과 collector 변경은 허용 범위가 아니다.
+`../../docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md`의
+VRAM·캡처 진행 확인/시험만 종료 경계를 따른다. 아래 '새실험 금지'의 예외는 이 범위뿐이다.
+문서 계획을 이미 구현된 cache/v2/adapter/GPU 시험으로 해석하지 않는다.
+
+이 디렉터리의 수집·변환 작업 전 다음을 읽는다.
+
+1. `docs/README.md`
+2. `docs/BASE3_ONLINE_CURRENT_STATE.md`
+   - MR 신규 수집은 `docs/MR_ASSET_COLLECTION_CURRENT.md`의 catalog/profile이 우선한다. 과거 MRP 교집합·quarantine을 MR에 적용하지 않는다.
+3. Base3-Online rosbag 수집이면 `docs/base3_online_rosbag_collection_runbook.md`
+4. Base4 temporal 작업이면 `docs/BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md`와
+   `docs/260920_base4_deskew_and_control_safety_evidence.md`
+5. Base5 독립 single-frame 수집이면 `docs/BASE5_V2_CURRENT.md` →
+   `docs/261007_base5_direct_5k_current_plan.md` →
+   `docs/261007_base5_5k_capture_runbook.md` →
+   `docs/261007_base5_final_gates_v105_evidence.md`를 읽는다.
+   Sunny13시 직접5K가 현재 목표다. v45/10K 명령·과거 ETA를 재사용하지 않는다.
+   **2026-10-09 최신 운영은 runtime v133 / 입력 v132다.**
+   `docs/261009_base5_stationary_failure_recovery_v133.md`를 먼저 읽는다.
+   14:20 정지 witness 중단 후 기존1887승인을 원래 runtime으로 검증해 import했다.
+   새output `collection_5k_final_v132_sunny13_recovered_v133`은 실제1장 추가 후 paused/1888승인/24부족/3088pending이다.
+   원래v132 output은 raw 참조 대상이므로 삭제/이름 변경/현재 코드 직접resume 금지다.
+   정적 순간 흔들림 최대2초 재확인, 증명된 정지 실패만 셀 부족분이다. 통신/Park 불명확은 전체 중단 유지.
+   master/bridge/8075는 살아 있고 본수집 계속 실행은 사용자 재개 명령 대기다.
+   아래 '수집 중/실험 금지'는 중단 전 이력이며 최신CURRENT/런북이 우선한다.
+   **2026-10-09 후속: 사용자가 v132 Sunny13 본5K를 시작해 수집 중이다.**
+   `docs/261009_base5_collection_cost_and_next_experiments.md`를 읽는다. 이번 runtime/input 고정,
+   끝난 뒤 상주 worker/조건부 대기 중첩으로 전체20% 단축 A/B를 검증한다. 아직 최적화 미구현이다.
+   collector/보충 종료·최종Park 확인 전 새실험 금지. 음영 동적24장 독립 준비 유지.
+   `docs/261009_base5_training_split_visibility_and_temporal_decisions.md`를함께읽는다.
+   30K수집유지/완료후표적보강, 생성train4255/val745·6환경동일split, rosbag dev-val/독립test다.
+   1771장 단서76.1%는학습충분성인증이아니다. BabyStroller3 3/21은7parent×3GT이며
+   camera대응모호성의과소집계다. camera조건false를실제보이지않음으로단정하지않는다.
+   E25/Base5 single-frame·OD velocity OFF, T1/T2/Q1보존과실제실행을구분한다.
+   OBJ는Vehicle, Animal은별도class3 보존. Ped로합치려면 후처리/모델/평가 매핑 변경이며 자동옵션은 없다.
+   아래v132 '미시작'은최종준비당시 이력이다. 실제수집완료/전수성공으로해석하지않는다.
+   **2026-10-09 v132가 아래 모든 v123/v125/v129 기록보다 우선한다.**
+   `docs/261009_base5_final_appearance_v132.md`를 읽는다.
+   current root는 `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release`,
+   입력 `environment_suite/sunny13/manifest.json`, 새output `collection_5k_final_v132_sunny13`이다.
+   정지 비차량 자유360°/primary12sector연속, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30.
+   실제 moving/고주로/로터리/횡단맥락 경로yaw는 유지한다. 음영24는 walk/run별 접근6/이탈6이다.
+   41종 승인 정지 raw parent envelope는 배치 간격/budget용이며 native component GT 수정 금지다.
+   범용 requested walking/running→actual standing에도 적용한다. police1 pivot 미검증은 fallback이다.
+   matched gap 대조를 근거로 pet_person 정적미션alongside3셀만gap0.8–1.0m로 보완한다.
+   `composite_spawn_gap_original_bounds_m`에 원래bin을보존하며 audit는 explicit policy/pool만허용한다.
+   2810재생성/2190payload보존·122종primary횟수/최소5·정적4822→이동178·6환경30K 유지.
+   계획 parent노출10738/64428은v132시각/manifest한정. 과거표와실제visible GT를구분한다.
+   v130 pilot은16/16후 PAUSE/Park종료했다. 구763/raw/v129/v130을보존하고새runtime강제resume금지다.
+   전수/실제MR/CPU/resume/backup/한계는최신EVIDENCE를따른다. 본5K는승인후이며미시작이다.
+   v132 대표55/55·추가compound1/1·CPU55/107GT·완료resume1858raw불변/추가0·416tests PASS다.
+   가중ETA9.635h/운영10–13h·저장32.572GiB/5K,6환경195.429GiB.후처리공간별도다.
+   production E25/threshold/tracker/planning/localization을이번배치변경으로수정하지않는다.
+   **아래 v129 및 이전 기록은 당시 이력이다.**
+   `docs/261008_base5_static_yaw_and_randomization_review.md`를 읽는다.
+   사용자가 구Sunny13수집을 중단했다. 기존763승인/raw/output은 원본과 tar.zst로 보존하며 강제resume하지 않는다.
+   현재입력은 `~/morai_cap/base5_v2_261008/yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,
+   새output은 같은root의 `collection_5k_yaw_v129_sunny13`다. 새본5K는 아직 미시작이다.
+   범용 정지ped/AI와정적회피ped계열만70%네방향±15°/30%360° yaw. yaw먼저→회피gap계산,
+   재시도attempt마다angle재표본화·mode유지·새helper runtime hash를 적용한다.
+   일반사람 정적미션alongside33셀만요청gap0.6–0.8m; 원래bin/probe근거보존·다른근접quota유지.
+   고주로/로터리/음영/이동178 payload·122종primary횟수·정적4822우선·6환경30K계약은유지한다.
+   새계획parent노출10081/60486이며구10079표는v123이력이다. live대표35/35·CPU35/91GT 검증이다.
+   완료resume886raw불변/추가capture0·10session Park·403tests PASS,8075는새root의not_started다.
+   아래 본수집미시작/현재root/v125상태는당시이력이며현재상태는v129문서와최신런북을따른다.
+   2026-10-08 dashboard준비후사용자확인은Sunny13 5K→기존6환경30K다(50K아님).
+   `docs/261008_base5_dashboard_and_launch_ready.md`를읽는다. 캡처runtime v125/배치v123은유지한다.
+   8075에graph/분모/사유/환경suite를연결했고dashboard-only cachejournal은capture밖에쓴다.
+   본수집root미생성/전수5000/6환경/입력backup확인이다. dashboard 변경은capture hash를바꾸지않는다.
+   2026-10-08 13:05 KST runtime v125는 아래v124 위의진단metadata 추가다.
+   `docs/261008_base5_motion_metadata_v125.md`를읽는다. bounded위치trace에원문velocity/heading/
+   source stamp/seq를추가했으나동기속도GT가아니며7D/velocity off·rosbag평가를유지한다.
+   새MR정지1+달리기1/CPU2/2GT/완료resume68raw불변/375tests PASS다. 추가wait/topic/촬영없음.
+   v123배치/명령은동일,본5K미시작이다. 구v124output은`4d4fdb06`에서재현하며새runtime resume금지다.
+   2026-10-08 v123가 아래 v122보다 우선한다. current는 `regions_5k_v123_release`다.
+   v124는같은v123배치의완료후보충runtime이다. `--resume --replenish`는부족원래셀만같은
+   primary/spec/split/group/config로재배치하며성공/raw를보존하고통합ledger를갱신한다.
+   기본2/최대3회차는셀당누적상한이고명령반복으로초기화하지않는다. ordinary완료resume은촬영하지않는다.
+   안전PAUSE재개·기존안전halt/hash계약을유지한다.본5K미시작·freshoutput필수/구v123pilot새runtime재개금지다.
+   `docs/261008_base5_completed_replenishment_evidence.md`와런북의완료후보충을읽는다.
+   기존`base5_replenishment.py`는소량visibility-only이력도구이고현재통합보충은`base5_campaign_replenishment.py`다.
+   2026-10-08 12:14 KST 최종준비는 `docs/261008_base5_prebulk_v124_final.md`를 먼저 읽는다.
+   현runtime 전수5000/6환경·새MR33/33·CPU/resume·370tests 확인이다. 본5K는 아직 미시작이며
+   다음은 승인 후 런북 터미널3이다. 캡처runtime/입력은 유지, dashboard 미시작/중단 표시만 수정했다.
+   8075는 현재 bulk root를 보고8081은 구10K다. 기존 master/bridge/dashboard를 중복 실행하지 않는다.
+   고주로740/600·로터리0/350·기타차량80/50·장애물770/600·사람830/250·음영500·배경230이다.
+   고주로/로터리 보조actor까지 일반차량만, 비차량 범용은 other구역으로 제한한다. 음영은 독립family다.
+   범용30/50/20·거리/근접quota·희귀primary를 유지하며 혼합사람270셀에서 장애물 노출을 보충한다.
+   122종 primary 최소5, 정적4822/이동178, 음영500geometry불변이다.
+   sunny/foggy×11/13/15로 같은5K를 반복해30K. 환경UI수동확인·별도output/명시token,
+   같은scene_group_id/split유지·merge leakage거부. 첫수집은 environment_suite/sunny13/manifest.json이다.
+   `docs/261008_base5_region_release_evidence.md`와 최신런북을 따르며 구output 새runtime resume금지다.
+   객체군노출10079/60474표는2026-10-08 11:05:24 KST/v123/c5ff1baf/manifest SHA9e1e3816…의동결계획이다.
+   이후배치변경시과거표를현재값으로재사용하지않는다. 새manifest로재계산해시각/버전/hash를기록하고
+   CURRENT참조를갱신하되구스냅샷은보존한다. 계획parent노출과실제가시GT/완료장수를구분한다.
+   `docs/261007_base5_sunny13_environment_correction.md`의 정정이 11시 오표기보다 우선한다.
+   진행 중인 수집의 manifest/계약은 덮어쓰지 않는다. 기존 sunny11 config는 13시 내용의 호환 alias다.
+   v111부터 정적 미션에도122종 전체를 정지 배치한다. family와 GT class를 혼동하지 않는다.
+   v112 동적 미션250셀 중12개는 차량 정지 외관 관측이다. 새manifest 정적4171/이동829,
+   구4160limit/구output을 재사용하지 않는다. 차량 양보만8–20m이며 희귀 quota는 유지한다.
+   생성기 코드 변경 후 구 output resume 금지. 원래 revision 또는 새 manifest/output을 사용한다.
+   v113 현재 manifest는 `final_5k_final_xy_ground_v113_final`이다. 최종 XY 도로 선분 높이와
+   자산 pivot을 사용하지만 roadside/unsupported 접지 인증은 아니다. QA 재촬영/대체 상한,
+   동일 payload witness1회·단일 master live lock을 유지한다. 구 v112는 `c67f62c3` 재현용이다.
+   본수집은 사용자 승인 후이며 raw GT·실패 근거를 보존한다.
+   v114는 Ego 최종 footprint 도로 지지·회피 쌍 공동 이동·실제 정지 witness 계약이다.
+   구 v113 동결 manifest/output은 보존하되 현재 코드로 본수집/resume하지 않는다.
+   v113 재현 revision은 `10578aa8`이다. 새 v114 5K manifest는 별도 준비해야 한다.
+   MGeo roadside 추정을 Ego 도로 지지로 인증하거나 Park ACK만으로 정지를 인증하지 않는다.
+   v115가 정적 QA 실행 기준이다. `static-single-capture-advisory-v115` 명시+전actor static/standing이면
+   원래 LiDAR만 검사한다. plane 부족/중간 높이 오차는 warning, 신뢰 plane 대비±0.40m 초과는 review다.
+   정적 높이 확인용 empty/near witness·height recapture를 추가하지 않는다. raw/GT는 수정하지 않는다.
+   이동actor 또는 calibration_only는 기존 엄격한 경로 유지, Ego 정지/CollisionData/가시성/GT는 유지한다.
+   40셀39승인271.322초→정적4171장8.115h 조건부 외삽; 이동829 포함 전체5K ETA가 아니다.
+   구v113/v114 output resume 금지. v115 새전체5K manifest는 아직 준비 전이다.
+   2026-10-08 다음은 `docs/261008_base5_intersection_manual_ground_plan.md`다.
+   이동 외관은 우선 사거리에서만 취득하는 설계 방향이며 음영 저격은 보류다.
+   수동10개/49waypoint·sidecar는 archive 후 MR에서 exact 파일만 정리했다.
+   v116 bounded lookup28종×두 구역56profile/132회 PASS다. actual XY 기반 높이를 보간하며
+   standalone5K는4846정적/154이동·122종 primary 최소4다. 기존4171/829는 이력이다.
+   새release require_covered_moving_paths=true는 경로 밖을 같은 quota로 초기 재생성한다.
+   all-editor movers만 terrain/static-reference 준비를 생략한다. 원본 검사/심한±40cm gap·Z step/
+   실제 이동·CollisionData·Ego 정지는 유지한다. 접지/지면 mesh/모든23종 외관 차이 인증은 아니다.
+   v116 당시 첫 횡단보도 사람 경로 끝이 짧아 running 방향 편향이 남았으며 다음 v117이 우선한다.
+   v117은 endpoint-linear-v117 opt-in으로 정확히 두 waypoint/선형 Z를 쓴다. 자동 지면 추종이 아니다.
+   짧은 사람 끝점은 같은 구역의 저장 donor 높이와 overlap offset 후보로 보완하고 각각 새 live QA를 했다.
+   28종×두 구역×양방향112개 승인용 캡처 PASS, 전체127시도/1LiDAR annotation review는 보존한다.
+   실제 이동 primary의 crossing×walk/run×subfamily 방향 차이≤1, same-quota replacement에서도 sign 유지다.
+   v117 manifest는 endpoint_linear_final_5k_v117이며4846정적/154이동·122종 최소4를 유지했다.
+   v116 raw/manifest는 이력으로 보존하고 새 코드로 기존 output을 resume하지 않는다.
+   `docs/261008_base5_intersection_ground_evidence.md`의 최신 batch/resume/경로를 따른다.
+   새bulk output에만 새정책을 적용하며 본수집은 보고 후 사용자 승인이다.
+   v119 현재 release는 roundabout_release_5k_v119이다. 로터리 미션250셀 geometry를 실제 경로 관측으로 교체한다.
+   접근20/대기30/진입60/원형 주행90/탈출50, NPC는 샘플spawn4 시작26→삭제9 범위의5개link만 쓴다.
+   원형 주행 앞뒤 NPC 두 대를 raw positive로 검사하며 진입도 두 대 가시성 조건을 적용한다.
+   누락은 bounded same-quota replacement/부족분이고 GT를 임의 채우지 않는다.
+   NPC 임의XY/yaw jitter 없음; Ego±0.30m/±6°는 최종 도로 지지·실제 정지검사를 유지한다.
+   나머지4750 geometry·이동v117/높이v115·122종 최소4는 보존한다. 본선 속도/간격/차종은 하드코딩하지 않는다.
+   static_vehicle_policy=park-static-snapshot-v119가 정적 vehicleList NPC의 세 저장 gear를 Park로 맞춘다.
+   나머지2314셀 control-only 갱신/2436셀 참조 보존, 이동 actor의 상태는 변경하지 않는다.
+   실제 pivot XY25cm 초과 이동/정보 누락, 원형 앞뒤 GT gap quota±30cm 초과는 review다.
+   v118 초기47승인 중3셀은 후속 정지 검사 FAIL로 보존하고 최종 검증본으로 쓰지 않는다.
+   `docs/261008_base5_roundabout_route_mission_evidence.md`를 읽고 런북 v119 새 경로를 사용한다.
+   구v117/v118개발 output에 새runtime resume 금지, 기본config만으로 현재release가 재생성되지는 않는다.
+   v121 현재 release는 shadow_release_5k_v121이다. `docs/261008_base5_shadow_observation_evidence.md`가 우선한다.
+   위 사거리 이동 한정/음영 보류는 당시 이력이다. 기존 범용500셀을 음영 입구120/내부260/출구120으로
+   재배정하며 전체5K/122종 최소4·음영122종 최소1을 유지한다. 기존1750미션/근접/로터리 범용과4500entry 불변이다.
+   전체4822정적/178이동(사거리154+음영24)이다. 음영의 static476에는 추가지면촬영이 없다.
+   터널 movers는 사거리lookup 인증을 빌리지 않고 independent terrain/static-reference/10–12m witness를 쓴다.
+   부족한 경로만 departure16m/12m 상보witness를 조건부추가한다. 전체근거가 확인되면 즉시멈추고8near 상한 유지다.
+   AI 이동 미검증은 standing, rigid 정적 자산은 정지, 차량은 Park 외관이며 실제 traffic rollout이 아니다.
+   원본GT/ROI/가시성·CollisionData·Park/실제정지·Z gate를 유지한다. 실패/부족분/oldraw는 보존한다.
+   본5K는 사용자 승인 후 새output으로 시작하며 개발 pilot에 새runtime으로 resume하지 않는다.
+   v121 실제정적25/25·이동6/7, Woman3 running1ground deficit이다. final_validation은1누락 FAIL이며
+   CPU31/54GT·최종runtime resume481raw불변/추가capture0·334tests PASS와 구분한다. 모든moving 성공 보장은 아니다.
+   v122 current는 shadow_approach_5k_v122_b다. `docs/261008_base5_shadow_approach_evidence.md`가 우선한다.
+   음영500셀은 바깥먼접근60/가까운접근60/직전30/진입90/내부190/출구70이며145바깥positive를
+   Ego밖/target안/전방/100m ROI joint placement로 보장한다. phase 이름만으로 가시성을 인증하지 않는다.
+   정적 primary lane80/20·좌우 엇갈림93셀, 중앙부 집중과 입구 target 예외를 함께 유지한다.
+   음영476정적만 변경/4524entry(기존4500+이동24) 불변이다.178이동/122종 최소4/거리quota는 유지한다.
+   runtime raw primary가 실제전방/ROI positive인지 검사하고 CAMERA_1 여부를 별도기록한다. GT는 그대로다.
+   대표20/20(실제23capture/실패3원본보존), 바깥양성9/9 CAMERA_1, CPU20/29GT·완료resume추가capture0다.
+   구v121 output 새runtime resume금지, 본5K는승인후fresh output이다. 기존running ground deficit 해결로 해석하지 않는다.
+
+CURRENT/EVIDENCE/PLAN/HISTORICAL 상태를 구분한다. 현재 학습 전달본은
+`base3_online_highway_motion_v2`이며 nearest-state V1을 자동 선택하지 않는다.

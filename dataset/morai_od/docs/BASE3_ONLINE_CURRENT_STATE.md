@@ -1,5 +1,8 @@
 # Base3-Online rosbag dataset — CURRENT STATE
 
+문서 역할: **Base3-Online 재현 기준**이다. 이 문서의 Motion V2/combined V3는
+현재 Base5의 기본 학습 데이터가 아니다. 새 생성·수집·변환은 [Base5 CURRENT](BASE5_V2_CURRENT.md)에서 시작한다.
+
 향후 MR 수집의 asset 기준은 [MR_ASSET_COLLECTION_CURRENT.md](MR_ASSET_COLLECTION_CURRENT.md)이다. 아래 Base3-Online 학습 전달본은 그대로 보존하며, 새 catalog의 객체가 과거 dataset에 자동 추가되지는 않는다.
 
 - 상태: **CURRENT**

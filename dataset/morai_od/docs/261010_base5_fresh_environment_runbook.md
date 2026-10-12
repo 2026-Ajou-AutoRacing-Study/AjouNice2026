@@ -105,5 +105,9 @@ python3 dataset/morai_od/scripts/base5_fresh_dashboard.py \
 pilot 실측을 구성 비율로 가중한 5K 예상은 7.22시간/27.04GiB다. 운영 예산은 5K당 8–11시간/35GiB이며 보장값은 아니다.
 이 수집기 release를 동결할 당시 디스크 여유는 약 187GiB였다. 다음 25K의 가중 예상은 약 135GiB, 보수 예산은 175GiB다. 후처리·대형 압축본 복사를 위한 여유는 별도로 필요하다.
 다음 25K의 예상 여유를 release/cost report에서 확인하며 기존 데이터 자동 삭제는 하지 않는다.
-OD는 single-frame 7D/velocity OFF와 4-class 구성을 유지한다. 최종 crop·해상도 정책 확정 후 visibility/infos를 재변환한다.
+수집 원본의 vehicle/pedestrian/obstacle/animal 의미와 component GT는 유지한다.
+현재 학습은 Animal을 Pedestrian에 통합한 3클래스 single-frame 7D이며 velocity supervision은 OFF다.
+이미지·crop·학습 입력은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md#model),
+새 raw의 파생 GT/JPEG 변환은 [데이터 GT 계약](BASE5_V2_CURRENT.md#gt)을 따른다.
+이 라벨 정책 정리는 동결 수집 release·시나리오·resume 해시를 변경하지 않는다.
 CPU 검증용 pilot을 본학습에 합치지 않는다.
