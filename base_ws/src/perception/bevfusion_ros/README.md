@@ -3,16 +3,18 @@
 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)에서 production과 시험 모델을 먼저 선택한다.
 이 패키지는 호스트 ROS 입력/후처리를 담당하며 GPU 서버·checkpoint는 별도로 준비한다.
 
-## Production E25
+## Production E24와 E25 복귀
 
-[production handoff](../../../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+[E24 production handoff](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+`bevfusion`은 E24 고정 weights·Base5 transport·AMP·병렬화와 canonical `base5_production.launch`를 사용한다.
+`bevfusion --model e25`는 [E25 복귀 계약](../../../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)을 선택한다.
 `base3_online.launch`는 canonical detection topic을 사용하며 class threshold와 rotated BEV NMS를 적용한다.
 기존 `bevfusion` 실행기는 서버 준비와 중복 canonical publisher를 검사한다.
 `zero_shot.launch`는 호환 경로이며 학습되지 않은 nuScenes를 현재 모델로 고르는 안내가 아니다.
 
 ## Base5 시험
 
-`base5_trial.launch`는 E25를 자동 교체하지 않는다. 별도 서버 29515와
+`base5_trial.launch`는 production을 자동 교체하지 않는다. 별도 서버 29515와
 `/perception/base5_trial/detection/objects`를 사용한다.
 status·latency·marker·projection도 `/perception/base5_trial/`로 분리한다.
 `base5_e24_calibrated_trial.launch`의 선정값은 E24 전용이며 E9나 다음 학습 모델에 자동 적용하지 않는다.

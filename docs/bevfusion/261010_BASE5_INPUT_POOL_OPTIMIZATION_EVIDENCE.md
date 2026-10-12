@@ -5594,3 +5594,34 @@ E24 FP32를 다시 실행했다. score가 높은 사례만 고르지 않았다. 
 현재 유효·nonzero mask로 원본에서 만든 배열과 정확히 같음을 다시 확인했다.
 문서 링크·기존 anchor·legacy 원문 SHA·Python 구문·whitespace 검사도 통과했다.
 이 작업의 추론 container는 모두 종료했고 다른 agent의 planning·MORAI 세션은 변경하지 않았다.
+
+<a id="base5-e24-production-261013"></a>
+
+## 45. 사용자 요청에 따른 E24 production 승격 — 2026-10-13
+
+E24를 production 기본값으로 승격하고 E25는 명시적 복귀로 보존했다.
+실행·weights 준비·팀원 증분 빌드는 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+판단팀 브랜치 머지, 로컬 무거운 풀스택·MORAI 실행, 실제 대회 PC 검증은 수행하지 않았다.
+
+- `bevfusion`은 profile e24의 512×1056·5cm/20cm·depth 0.25m 모델과 원본 JPEG·ros255,
+  AMP·camera 병렬화 ON/compile OFF, 0.40/0.10/0.10, canonical topic을 함께 선택한다.
+- E25 `base3_online.launch`·config·weights는 유지하고 `bevfusion --model e25`로 복귀한다.
+  기존 opt-in trial의 namespace·port·운영값은 유지한다.
+- `.env.bevfusion.local`의 옛 `BEVFUSION_INFERENCE_CHECKPOINT`는 E25 호환값으로만 사용한다.
+  명시적 `BEVFUSION_CHECKPOINT`는 선택 모델의 SHA가 맞아야 한다. 원래 .env는 수정하지 않았다.
+- 준비기는 기존 정상 weights를 다시 받지 않으며 다른 SHA 파일을 덮어쓰지 않는다.
+  서버 readiness는 checkpoint·model config·sensor SHA와 클래스·입력·옵션을 검사한다.
+  모델을 로드하지 않은 projection 서버나 다른 모델의 ready 응답을 정상으로 처리하지 않는다.
+- `~/bevfusion_artifacts/checkpoints/base5_e24_inference.pth` 설치 SHA는 E24 원본과 동일하다.
+  팀 Drive `model/bevfusion/production/base5_e24_261013/E24.pth`에 약 501MiB 원본을 올렸다.
+  공용 client의 quota 오류 후 전용 client를 사용했으며 원격 native MD5와 로컬 MD5
+  `caaf2a5583ff90a169ae969aea927980`가 같았다. 원격 전체 SHA readback을 수행한 것은 아니다.
+  팀원 준비기가 실제 다운로드 파일의 SHA256을 다시 검사한다.
+- 현재 Docker 이미지의 upstream `depth_lss.py`, `bevfusion.py`, `sparse_encoder.py` SHA는
+  checkout과 같았다. 다른 PC 이미지의 동일성이나 GPU 실행 인증으로 확대하지 않는다.
+- profile·weights 보존·readiness·기존 bridge 입력·context 단위 검사 19개, 실제 roslaunch
+  parser의 새 canonical launch 해석, Compose 해석·shell/Python 구문·문서 링크 검사가 통과했다.
+
+로컬 설치 tracker에는 최신 소스의 일부 옵션이 빠져 있었다. 팀원 handoff는 package 증분
+빌드를 요구하며 이후 정책 비교에는 기존 검증된 별도 tracker binary를 사용한다.
+이번 승격에서 tracker·planning의 기본 안전 정책을 자동으로 완화하지 않는다.

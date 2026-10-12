@@ -22,6 +22,13 @@ if [[ "${USE_AMP:-true}" == "true" ]]; then
   args+=(--amp)
 fi
 
+if [[ "${BASE5_RUNTIME:-false}" == "true" ]]; then
+  args+=(--base5-runtime --point-intensity-source "${POINT_INTENSITY_SOURCE:-ros255}")
+fi
+if [[ "${PARALLEL_CAMERA:-false}" == "true" ]]; then
+  args+=(--parallel-camera)
+fi
+
 if [[ "${PROJECTION_ONLY:-false}" == "true" ]]; then
   args+=(--projection-only)
 fi

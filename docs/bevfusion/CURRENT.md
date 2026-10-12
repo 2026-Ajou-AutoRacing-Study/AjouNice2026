@@ -1,8 +1,8 @@
 # BEVFusion 현재 모델과 실행 기준
 
 문서 상태: CURRENT. 최종 근거 확인: 2026-10-13.
-현재 production은 E25다. 완료된 Base5의 native-val best는 E9이고, 동일 조건 bag·tracker
-비교 후 최종 실주행 시험 모델은 E24로 선택했다. 두 선택 기준을 혼동하지 않는다.
+2026-10-13 사용자 요청으로 production 기본값은 E24다. E25는 명시적인 복귀 후보다.
+완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
 상세 결과는 [작업별 근거 인덱스](README.md)에서 필요한 절만 읽는다.
 
 <a id="model"></a>
@@ -45,7 +45,8 @@ Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 
 
 | 실행 역할 | 현재 계약 | 실행 기준 |
 |---|---|---|
-| Production E25 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), [전체 스택 런북](../runbooks/morai_full_stack_by_terminal.md) |
+| Production E24 | AMP·병렬화 ON, compile OFF, V/P/O 0.40/0.10/0.10, NMS 0.50 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion` |
+| E25 명시적 복귀 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion --model e25` |
 | Base5 baseline trial | 별도 namespace·서버. production을 자동 교체하지 않음 | [ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md), `base5_trial.launch` |
 | E24 선정 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.40/0.10/0.10 | `base5_e24_calibrated_trial.launch`, [threshold 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012) |
 | E9 선정 비교 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.30/0.20/0.12 | `base5_e9_calibrated_trial.launch`, [E9/E24 최종 선택](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |
@@ -83,7 +84,8 @@ E9 87.55%, E24 87.97%로, Base5 val의 난이도 차이만으로 격차를 설�
 구 Base3 입력의 자차 근처 LiDAR 회신점에 E24가 차량으로 반응했다. 32장 대조에서
 해당 점만 제외하자 자차 위치 차량 관측은 30→0건이 됐지만 장애물 AP는 개선되지 않았다.
 현재 Base5 val·개발 bag에는 그 회신점이 없었다. 일반적인 자차 제거 필터는 적용하지 않았다.
-다음 실주행 시험은 현재 입력 계약의 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+기본 실행은 현재 입력 계약의 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 완료를 뜻하지 않는다.
 구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 

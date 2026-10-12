@@ -9,7 +9,7 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 현재 모델·checkpoint·옵션 선택 | [CURRENT](CURRENT.md) |
-| Production E25 배포 | [production handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
+| Production E24 배포와 E25 복귀 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Base5 ROS 시험 | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md) |
 | 원격 학습·재개·백업 | [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
 | 생성·수집·GT 변환 | [Base5 데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md) |
@@ -23,6 +23,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| E24 production 기본값·실행 계약·팀 Drive | [45절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e24-production-261013) |
 | 원본 Base3 val E25/E9/E24·구 분포 장애물·자차 회신점 대조 | [44절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013) |
 | E9 threshold·E9/E24 최종 시험 모델 선택 | [43절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |
 | 안정적인 이전 완주 E9/E25·RViz | [42절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012) |
@@ -45,4 +46,4 @@
 
 [기존 연구 문서](legacy/README.md)와 [개편 전 context 원문](../perception/legacy/context_261012/README.md)은 재현용이다.
 Base4 temporal/velocity, PointPainting, Fast-BEV는 현재 Base5 기본 입력·모델로 자동 선택하지 않는다.
-Production E25 handoff는 이름에 Base3가 있어도 현재 운영 계약이므로 이력으로 폐기하지 않는다.
+E25 handoff는 명시적인 복귀 계약으로 유지하며 파일명 때문에 폐기하지 않는다.
