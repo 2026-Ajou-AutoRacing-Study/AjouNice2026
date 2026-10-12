@@ -41,6 +41,18 @@ def pose_at(ego,t):
     return ego[i-1,1:]+(ego[i,1:]-ego[i-1,1:])*(t-ego[i-1,0])/(ego[i,0]-ego[i-1,0])
 
 
+def validate_pair(off,on,candidate_thresholds):
+    if not off.get('parallel_camera') or off.get('compile_parts')!=[]:
+        raise ValueError('Reference requires parallel inference with compile OFF')
+    if candidate_thresholds is not None:
+        if len(candidate_thresholds)!=3 or not all(.1<=v<=1. for v in candidate_thresholds):
+            raise ValueError('Three thresholds at or above the frozen score floor 0.1 required')
+        if off!=on:raise ValueError('Threshold comparison requires identical inference options')
+    elif on.get('compile_parts')!=['camera','neck'] or {
+            k:v for k,v in off.items() if k!='compile_parts'}!={k:v for k,v in on.items() if k!='compile_parts'}:
+        raise ValueError('Compile comparison may differ only in camera/neck compilation')
+
+
 class Replay:
     def __init__(self,args):
         self.args=args;self.processes=[];self.logs=[];self.lock=threading.Lock()
@@ -134,10 +146,9 @@ class Replay:
             if p['frames']!=len(infos) or set(r['token'] for r in p['rows'])!=set(times):
                 raise ValueError('Saved outputs and prepared input frames differ')
         off,on=(payloads[k]['inference_optimization'] for k in ('off','on'))
-        if off.get('compile_parts')!=[] or on.get('compile_parts')!=['camera','neck'] or not off.get('parallel_camera'):
-            raise ValueError('Parallel-preserving compile OFF/ON outputs required')
-        if {k:v for k,v in off.items() if k!='compile_parts'}!={k:v for k,v in on.items() if k!='compile_parts'}:
-            raise ValueError('Only compile parts may differ')
+        validate_pair(off,on,a.candidate_thresholds)
+        if a.candidate_thresholds is not None and hashlib.sha256(a.off.read_bytes()).digest()!=hashlib.sha256(a.on.read_bytes()).digest():
+            raise ValueError('Threshold replay requires exactly the same prediction file')
         self.launch('roscore',['roscore','-p',str(self.port)])
         self.wait(lambda:rosgraph.is_master_online(),15,'Private ROS master did not start')
         rospy.init_node('base5_saved_detection_replay',anonymous=True,disable_signals=True)
@@ -220,7 +231,8 @@ class Replay:
                 for name in paths:
                     r=rows[name][index]
                     ds=delivered([dict(center=b[:3],size=b[3:6],yaw=b[6],score=s,label=int(l),class_name=CLASSES[l])
-                        for b,l,s in zip(r['pred_boxes'],r['pred_labels'],r['pred_scores'])],POLICIES['current'])
+                        for b,l,s in zip(r['pred_boxes'],r['pred_labels'],r['pred_scores'])],
+                        a.candidate_thresholds if name=='on' and a.candidate_thresholds is not None else POLICIES['current'])
                     if a.maximum_range_m:
                         ds=[d for d in ds if np.linalg.norm(d['center'][:2])<a.maximum_range_m and -3<=d['center'][2]<=2]
                     header=Header(seq=index,stamp=rospy.Time.from_sec(t),frame_id='probe_lidar')
@@ -252,6 +264,9 @@ class Replay:
             for pub in pubs.values():pub.unregister()
             with gzip.open(a.output/'messages.json.gz','wt') as f:json.dump(self.messages,f,allow_nan=False)
         result=dict(scope='Actual ROS TF + C++ tracker + UNKNOWN policy on saved detections; not GPU/queue/LAN/planning certification.',
+            comparison_kind='score_threshold' if a.candidate_thresholds is not None else 'compile',
+            reference_thresholds=list(POLICIES['current']),
+            candidate_thresholds=a.candidate_thresholds or list(POLICIES['current']),
             fixed_output_rate_hz=a.fixed_output_rate_hz,maximum_range_m=a.maximum_range_m,
             fixed_prediction_age_sec=.5,clock_wall_step_sec=a.clock_wall_step_sec,
             private_master_port=self.port,wall_seconds=time.monotonic()-started,cases=self.receipts,
@@ -278,6 +293,8 @@ if __name__=='__main__':
     p.add_argument('--cases',nargs='*');p.add_argument('--limit',type=int,default=0)
     p.add_argument('--maximum-range-m',type=float,choices=(30.,),default=None)
     p.add_argument('--fixed-output-rate-hz',type=float,choices=(0.,30.),default=0.)
+    p.add_argument('--candidate-thresholds',type=float,nargs=3,metavar=('VEHICLE','PEDESTRIAN','OBSTACLE'),
+                   help='Compare the same OFF predictions with a new score policy, not compilation.')
     p.add_argument('--clock-wall-step-sec',type=float,default=.005)
     args=p.parse_args()
     if args.limit<0 or args.clock_wall_step_sec<=0:p.error('Nonnegative limit and positive clock pacing required')

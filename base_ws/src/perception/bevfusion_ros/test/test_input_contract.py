@@ -51,5 +51,17 @@ class InputContractTest(unittest.TestCase):
         for name in ('markers','status','latency_ms'):
             self.assertEqual(remaps['/perception/bevfusion/'+name],'/perception/base5_trial/'+name)
 
+    def test_e24_calibrated_trial_is_named_opt_in_and_keeps_baseline(self):
+        launches=path.parents[1]/'launch'
+        root=ET.parse(launches/'base5_e24_calibrated_trial.launch').getroot()
+        args={item.attrib['name']:item.attrib.get('default') for item in root.findall('arg')}
+        self.assertEqual([args[n+'_score_threshold'] for n in ('vehicle','pedestrian','obstacle')],
+                         ['0.40','0.10','0.10'])
+        self.assertEqual(args['output_objects'],'/perception/base5_trial/detection/objects')
+        original=ET.parse(launches/'base5_trial.launch').getroot()
+        baseline={item.attrib['name']:item.attrib.get('default') for item in original.findall('arg')}
+        self.assertEqual([baseline[n+'_score_threshold'] for n in ('vehicle','pedestrian','obstacle')],
+                         ['0.40','0.15','0.10'])
+
 
 if __name__=='__main__':unittest.main()

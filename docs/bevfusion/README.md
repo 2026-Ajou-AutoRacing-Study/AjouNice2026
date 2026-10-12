@@ -9,7 +9,13 @@
 이번 학습의 rosbag val 제외·후속 구현도 허브에서 관리한다. 아래 비용·준비 이력은 관측 당시의
 상태이며 최신 실행 결정은 허브를 먼저 따른다.
 
-2026-10-12 최신은 [39절 실제 ROS tracker·TF·UNKNOWN 후처리 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)다.
+2026-10-12 최신은 [40절 로컬 threshold·실제 tracker 후보 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012)다.
+E24 AMP·병렬화 ON·추론 compile OFF의 별도 시험값은 **V/P/O 0.40/0.10/0.10**이다.
+dev bag 1,570프레임·native val 745장과 실제 ROS tracker 5개 프로필을 CPU로 비교했다.
+다음은 30m 밖 bag GT 확장·차량 평가와 팀장님의 실제 4090 24GB ROS/LAN·풀스택
+검증이다. production E25·baseline Base5 trial·훈련·tracker는 유지한다.
+
+앞선 결과는 [39절 실제 ROS tracker·TF·UNKNOWN 후처리 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)다.
 1,570프레임의 저장된 검출 이후 실제 ROS 노드·내부 30Hz 설정을 비교했다. UNKNOWN
 출력 속도는 0이지만 소수 위치·BBox 차이는 남아 compile 기본 ON 보류·병렬화 우선이다.
 다음은 실제 4090 24GB에서 센서→GPU→queue/LAN 전체 시험이며 production은 유지한다.

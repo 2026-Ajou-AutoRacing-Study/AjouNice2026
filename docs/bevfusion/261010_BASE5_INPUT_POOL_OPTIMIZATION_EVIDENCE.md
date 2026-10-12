@@ -4845,3 +4845,158 @@ planning·실주행 안전성·GT AVE·100m 정확도와 새로운 환경 검증
 관련 단위 검사 **36개 통과**, 실제 세 실행의 분모 보존 대조 **288건 통과**, 같은
 timestamp·반복 통제 0·후처리 보존·로그 오류 검사와 `py_compile`을 통과했다.
 자신이 시작한 private ROS master·노드만 종료했으며 다른 agent와 기존 GUI는 유지했다.
+
+<a id="base5-local-threshold-calibration-261012"></a>
+
+## 40. 로컬 threshold 선정·실제 tracker 후보 비교 — 2026-10-12
+
+사용자는 원거리 bag 평가·풀스택 영상 공유·tracker 개선을 후속 후보로 남기고,
+먼저 로컬 threshold를 정하도록 요청했다. 대여한 4090을 잠시 중단하겠다고 했으므로
+원격 접속·GPU 추론·학습·Drive 작업은 하지 않았다. 저장된 예측을 CPU로 분석하고
+private ROS master에서 실제 tracker·UNKNOWN policy를 재생했다.
+
+### 현재 채택: E24 로컬 시험값
+
+| 클래스 | 앞선 비교 기준 | 이번 로컬 시험값 | 판단 |
+|---|---:|---:|---|
+| Vehicle | 0.40 | **0.40** | 낮추면 native val recall은 개선되지만 현재 mission tracker에서는 recall 증가 없이 미대응 출력이 늘었다. 원거리 bag에서 다시 판단한다. |
+| Pedestrian | 0.15 | **0.10** | E24의 근접 사람·복합체를 일부 더 유지하며 현재 bag의 tracker 미대응·끊김 증가는 없었다. |
+| Obstacle | 0.10 | **0.10** | 0.12/0.15는 중복성 출력을 줄이지만 선명한 근접 GT도 잃는다. threshold만으로 tracker 중복을 해결하지 않는다. |
+
+이는 **2026-10-12 Sunny13 5K 학습의 E24·AMP·병렬화 ON·추론 compile OFF**를 위한
+개발 시험값이다. E24 SHA256은 33절과 같은
+`84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746`이다.
+E9나 향후 30K 재학습의 최적값, 다른 환경·실전 안전성을 인증한 값이 아니다.
+기존 E25 production과 기본 비교용 `base5_trial.launch`는 유지한다.
+
+### 분석 범위·평가 계약
+
+- 같은 4개 dev bag의 모든 적격 **1,570프레임**에 대해 E9 FP32·E24 FP32·E24 AMP
+  병렬화 출력을 사용했다. score **0.10~0.80, 간격 0.01의 71개 후보**를 각 클래스에
+  비교했다. 현재 server floor 0.1·상위100개·class-aware rotated NMS 0.5를 유지한다.
+  0.1 미만이 최적이 아니라는 결론은 내리지 않는다.
+- bag GT와 정확도 평가는 기존 **radial 30m 및 공통 XYZ 범위**에 한정한다.
+  30m 밖의 출력은 threshold별 개수만 따로 기록하며 FP로 세지 않는다.
+- primary TP는 score 순서의 동일 클래스 중심 거리 <1m greedy 대응이다. <2m도
+  별도로 계산하고, 미대응을 같은 클래스 GT 1m 이내·1~2m·다른 클래스 GT 2m 이내·
+  나머지로 분해했다. 이는 중복·위치 오차·클래스 혼동의 진단이지 실제 원인 확정이 아니다.
+- 누락 구간·hit/miss 전환은 GT key 안에서만 계산한다. 원본 LiDAR index가 끊기거나
+  GT/ROI에서 빠지거나 sensor gap>0.25s면 연결하지 않는다. 반복 프레임과 재구성된
+  GT key를 독립 표본·authoritative simulator ID로 해석하지 않는다.
+- ≥5 LiDAR points는 추가 진단이며 전체 GT를 삭제하는 기준이 아니다. 강한 point
+  지원이 있어도 낮은 score가 나오는 자산을 threshold 선정에서 확인했다.
+- 원격에서 이미 저장한 E9/E24의 **전체 native val 745장·AMP 병렬화**도 전수
+  분석했다. 현지 train 표본이 섞이지 않았는지 검사하고, native GT로 full ROI와
+  radial30을 구분했다. native 원거리 통계는 100m bag 평가를 대신하지 않는다.
+
+### E24 native val의 threshold 영향
+
+아래는 radial 30m의 **1m 중심 대응**이며 AP가 아니다. GT 관측 분모는 Vehicle 187,
+Pedestrian 493, Obstacle 539다. 표의 변화는 각 클래스 threshold만 바꾼 결과다.
+
+| 클래스·후보 | TP / FP | Precision / Recall (%) | 판단 |
+|---|---:|---:|---|
+| Vehicle 0.40 | 173 / 4 | 97.74 / 92.51 | mission 초기값 유지 |
+| Vehicle 0.20 | 179 / 5 | 97.28 / 95.72 | 범용 recall 대안, mission tracker 결과와 함께 보류 |
+| Vehicle 0.15 | 180 / 5 | 97.30 / 96.26 | 낮은 값이 항상 나쁘지는 않지만 아직 실전 기본으로 채택하지 않음 |
+| Pedestrian 0.15 | 439 / 14 | 96.91 / 89.05 | 앞선 비교 기준 |
+| Pedestrian 0.10 | 450 / 22 | 95.34 / 91.28 | 11개 GT 관측 회복·FP 8개 증가의 trade-off |
+| Obstacle 0.10 | 435 / 49 | 89.88 / 80.71 | 누락 억제 우선 |
+| Obstacle 0.12 | 427 / 42 | 91.04 / 79.22 | FP 7개 감소와 TP 8개 감소 |
+| Obstacle 0.15 | 407 / 30 | 93.14 / 75.51 | 근접 recall 손실이 큼 |
+
+Pedestrian 0.10으로 회복한 GT에는 Woman·police·유모차·반려동물 동반 사람과 Bike의
+구성 GT가 포함된다. ≥5 point 지원의 GT도 8개 회복됐다. full ROI의 전체 Pedestrian
+recall은 **81.80→84.13%**, precision은 **95.90→94.60%**다.
+
+Vehicle 0.20의 근접 회복 6건은 일반 차량 6대가 아니다. ElectricScooter1·NCAP_EBT·
+Bike2 등 해당 분류의 구성 GT와 Hyundai Genesis가 포함된다. 따라서 이를 고주로 NPC
+6대의 회복으로 설명하지 않는다. full ROI recall은 82.40→86.22%이나 실제 mission
+입력의 추가 미대응과 원거리 GT를 확인한 뒤 낮은 threshold를 채택해야 한다.
+
+Obstacle 0.12에서 잃은 8개 근접 GT 중 6개는 ≥5 point 지원이 있었다.
+예를 들어 Scooter_01은 175 points·약7.3m, Bicycle_city는 58 points·약7.8m였다.
+저점수라고 모두 보이지 않는 GT는 아니다. 0.12는 별도 정밀도 대안으로 기록하되
+이번 기본값으로 선택하지 않았다.
+
+### Bag의 검출과 실제 tracker 후보 검증
+
+세 클래스의 threshold를 함께 바꾼 5개 프로필을 각각 같은 E24 AMP 병렬화 출력으로
+재생했다. 각 실행은 기존값·후보·기존값의 독립 반복을 실제 C++ tracker/TF와 UNKNOWN
+policy에 넣는다. 모든 후보에서 **각 노드의 1,570개 input stamp와 raw/policy 출력이
+빠짐없이 대응**했고, 기존값의 독립 반복 차이는 0이었다. TF 실패·비증가 stamp·node
+오류가 없었으며 소유한 master·노드만 종료했다.
+
+| 프로필 V/P/O | 목적 |
+|---|---|
+| 0.15 / 0.10 / 0.10 | 낮은 차량 threshold의 recall 후보 |
+| 0.20 / 0.10 / 0.12 | 범용 recall·중복 억제 조합 |
+| 0.40 / 0.10 / 0.15 | 장애물 precision 우선 조합 |
+| 0.20 / 0.10 / 0.10 | 낮은 차량값·장애물 recall 유지 조합 |
+| **0.40 / 0.10 / 0.10** | **이번에 선택한 로컬 mission 초기 시험값** |
+
+모든 bag의 30m 내 해당 클래스 출력에 대해 primary 1m 중심 대응으로 집계한다.
+아래 FP는 중복·coasting·위치 차이·경계 효과 등을 포함한 평가 미대응이지, 모두
+실제로 없는 물체가 생겼다는 의미가 아니다. GT는 기존 보간·catalog 근사다.
+
+| 실제 tracker 후보 | Vehicle TP / FP | Pedestrian TP / FP | Obstacle TP / FP |
+|---|---:|---:|---:|
+| 기존 0.40 / 0.15 / 0.10 | 427 / 44 | 113 / 6 | 883 / 385 |
+| 0.15 / 0.10 / 0.10 | 427 / 63 | 113 / 6 | 883 / 385 |
+| 0.20 / 0.10 / 0.10 | 427 / 59 | 113 / 6 | 883 / 385 |
+| 0.20 / 0.10 / 0.12 | 427 / 59 | 113 / 6 | 882 / 340 |
+| 0.40 / 0.10 / 0.15 | 427 / 44 | 113 / 6 | 879 / 311 |
+| **이번 0.40 / 0.10 / 0.10** | **427 / 44** | **113 / 6** | **883 / 385** |
+
+낮은 Vehicle 후보는 native val 개선과 달리 현재 bag의 tracker recall을 늘리지 않고
+미대응 관측을 15~19건 늘렸다. 기존의 차량 1m 미대응 상당수는 GT 근처 1~2m 위치
+차이이며 높은 score도 포함한다. threshold를 높이거나 낮추는 것만으로 해결되지 않는다.
+이 때문에 0.40을 유일한 최적값으로 선언하지 않으면서, 현재 mission 초기값은 유지한다.
+
+Obstacle 0.12/0.15는 미대응을 줄였으나 0.15는 O02의 0~10m tracker TP도
+292→291로 줄었다. native 자산별 손실과 함께 보면 aggressive threshold 상승보다
+중복 birth·association·coasting을 별도 조사하는 편이 낫다. 이번에는 tracker를 수정하지
+않았다. 같은 GT key의 대응 track 변화 진단도 실제 simulator ID switch로 주장하지 않는다.
+
+이번 채택값은 현재 bag에서 기존값 대비 새 ≥0.5s 누락 구간이나 GT-key 대응 변화
+증가가 없었다. Pedestrian의 추가 검출은 기존 tracker coasting이 이미 채우던 일부
+프레임이어서 이 bag의 tracker recall 자체를 더 올리지는 않았다. native의 더 다양한
+사람·복합체 관측을 유지하는 이득과 구분한다.
+
+### 적용 경로와 다음 순서
+
+새 opt-in launch는 `base5_e24_calibrated_trial.launch`다. 내부에서 기존 Base5 trial을
+사용해 별도 topic/port 계약을 유지하고 V/P/O 0.40/0.10/0.10만 전달한다. 소스 파일을
+직접 진입점으로 쓸 수 있으며 E24용 서버를 준비한 뒤 실행한다.
+
+```bash
+roslaunch "$AJOUNICE_ROOT/base_ws/src/perception/bevfusion_ros/launch/base5_e24_calibrated_trial.launch"
+```
+
+launch 자체가 모델 서버를 시작하거나 E24 hash를 강제로 검증하는 것은 아니다.
+동일 E24·입력 계약·AMP 병렬화·compile OFF 서버를 별도로 준비해야 한다. 파일 이름과
+위 설명이 현재 적용 범위를 명시한다. production E25 및 baseline Base5 trial은 미변경이다.
+서버 score floor는 여전히 0.1이므로 모델의 forward 비용을 바꾸는 조정도 아니다.
+
+다음은 **30~50/50~80/80~100m bag GT 확장과 차량 평가**다. 그 뒤 필요하면 낮은 차량
+threshold·원거리 전달 안정성을 다시 판단하고, 팀장님의 실제 대회용 4090 24GB에서
+ROS 입력→GPU→queue/LAN·풀스택 및 영상을 확인한다. tracker 개선은 확인된 failure를
+근거로 별도 수행한다. 대여 인스턴스에서 실제 대회 PC의 검증을 대신하지 않는다.
+
+### 산출물·검사
+
+- 최신 fine sweep: `artifacts/evaluation/bevfusion/base5_threshold_calibration_261012_validated_v3/report.json`.
+- 실제 5개 ROS 후보·quality·독립 반복: `base5_threshold_calibration_261012_v2/ros_*`,
+  `tracking_quality.json`, `tracking_precision_quality.json`, `tracking_selected_quality.json`,
+  **`tracking_adopted_quality.json`**. `ros_selected_candidate`는 0.20 후보의 당시 이름이며
+  최종 채택은 **`ros_adopted_local_policy`**다.
+- 새 CPU 도구: `calibrate_base5_thresholds.py`, `evaluate_base5_threshold_tracking.py`.
+  기존 ROS replay는 동일 prediction file의 threshold-only 비교를 명시적으로 지원하고,
+  compile 비교와 threshold 비교의 입력·옵션 계약을 구분하도록 보완했다.
+
+초기 v1은 NumPy 정수의 JSON 저장 오류로 보고서가 완성되지 않았다. 보완한 v2와
+native payload 검사를 포함한 v3의 fine 결과는 완전히 같았다. 이전 coarse sweep의
+GT/TP/FP/FN **960개 항목 및 누락 구간 전체가 정확히 일치**했다. 캐시된 prefix matching은
+기존 scorer와 무작위·동점·빈 GT·범위·지원점·시간 구간·실제 ROS 좌표 역변환으로 검사했다.
+관련 CPU 단위 검사·launch 계약 검사 **49개 통과**, Python 구문·launch 해석·whitespace·
+문서 언어 검사를 완료했다. GPU·원격 비용·실전 30Hz 처리 성능을 새로 측정한 것은 아니다.

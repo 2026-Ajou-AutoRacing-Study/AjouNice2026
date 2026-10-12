@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from analyze_base5_ros_tracking import compare, indexed, policy_checks
-from replay_base5_ros_tracking import pose_at
+from replay_base5_ros_tracking import pose_at, validate_pair
 
 
 def obj(x=0.,label=2,vx=0.):
@@ -19,6 +19,13 @@ def frame(x=0.,stamp=1.,label=2,vx=0.):
 
 
 class RosTrackingReplayTests(unittest.TestCase):
+    def test_threshold_experiment_does_not_allow_compiled_or_different_options(self):
+        off=dict(compile_parts=[],parallel_camera=True)
+        validate_pair(off,dict(off),[.2,.1,.12])
+        with self.assertRaises(ValueError):validate_pair(off,dict(off),[.05,.1,.12])
+        with self.assertRaises(ValueError):validate_pair(off,dict(off,compile_parts=['camera']),[.2,.1,.12])
+        validate_pair(off,dict(off,compile_parts=['camera','neck']),None)
+
     def test_tf_pose_is_interpolated_only_within_recorded_bounds(self):
         ego=np.array([[1.,0.,0.,0.,0.],[1.1,1.,2.,3.,.2]])
         np.testing.assert_allclose(pose_at(ego,1.05),[.5,1.,1.5,.1])

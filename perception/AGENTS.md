@@ -1,6 +1,13 @@
 # Perception agent context
 
-2026-10-12 최신은 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
+2026-10-12 최신은 EVIDENCE 40절의 로컬 threshold 선정이다. 저장된 dev bag
+1,570프레임·native val 745장·71개 score 후보와 실제 ROS tracker 5개 프로필을
+비교해 E24 AMP/병렬화 ON/추론 compile OFF의 별도 시험값 V/P/O 0.40/0.10/0.10을
+선택했다. production E25와 baseline Base5 trial은 미변경이다. bag 정확도 GT는 아직
+30m이므로 다음은 30~50/50~80/80~100m GT 확장·차량 평가, 그 뒤 팀장님의 실제
+4090 24GB ROS/LAN·풀스택 검증이다. 이번에는 GPU·Vast·훈련·tracker를 변경하지 않았다.
+
+2026-10-12 앞선 결과는 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
 저장된 1,570프레임의 compile OFF/ON과 별도 OFF 반복 노드를 private master에서 실행했다.
 내부 30Hz 설정의 3,771개 출력 시각이 같고 반복 통제 차이는 0이다. UNKNOWN 출력 속도는
 0이지만 장애물 위치 평균/p95 0.631/1.408cm와 소수 BBox 차이는 남아 기본 ON은 보류한다.

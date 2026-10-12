@@ -99,11 +99,12 @@ def analyze(path,output):
         matching_note='Same map-frame timestamps; class-preserving XY Hungarian pairing; unmatched counts retained. Wider gate is sensitivity only.',
         policy_checks={},comparisons={})
     all_rows=defaultdict(list)
+    comparison_name='threshold_candidate' if receipt.get('comparison_kind')=='score_threshold' else 'compile'
     for c in receipt['cases']:
         case=c['case']
         for mode in ('off','on','off_repeat'):
             result['policy_checks'][case+'/'+mode]=policy_checks(data[case+'/'+mode+'/raw'],data[case+'/'+mode+'/policy'])
-        for comparison,candidate in (('compile','on'),('repeat_control','off_repeat')):
+        for comparison,candidate in ((comparison_name,'on'),('repeat_control','off_repeat')):
             for stage in ('raw','policy'):
                 for gate in (.5,2.):
                     key=f'{comparison}/{stage}/{gate}'

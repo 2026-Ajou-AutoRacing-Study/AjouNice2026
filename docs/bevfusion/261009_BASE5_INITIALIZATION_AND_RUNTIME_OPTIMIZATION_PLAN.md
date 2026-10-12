@@ -6,9 +6,18 @@ Sunny13 수집, 원본 annotation, collector runtime과 production E25는 변경
 
 <a id="base5-current-plan-hub"></a>
 
-## 현재 계획 허브 — 2026-10-12 학습 완료 모델의 4090 추론 검증
+## 현재 계획 허브 — 2026-10-12 로컬 threshold 선정과 후속 원거리 평가
 
-**10-12 실제 ROS tracker·후처리 비교 완료:** [39절 실제 노드 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)를 우선한다.
+**10-12 로컬 threshold 선정 완료:** [40절 fine sweep·실제 tracker 후보 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012)를 우선한다.
+E24 AMP·병렬화 ON·추론 compile OFF의 별도 시험값은 **V/P/O 0.40/0.10/0.10**이다.
+저장된 dev bag 1,570프레임·native val 745장·71개 score 후보와 실제 ROS tracker
+5개 프로필을 비교했다. 낮은 차량 threshold는 native recall 개선과 mission 미대응
+증가를 함께 보고 보류했다. 장애물 0.12/0.15도 선명한 근접 GT 손실로 채택하지 않았다.
+다음은 **30~50/50~80/80~100m bag GT 확장·차량 평가 → 팀장님의 실제 4090 24GB
+ROS 입력/GPU/queue/LAN·풀스택 검증**이다. tracker 개선은 관측된 failure를 근거로
+별도 판단한다. 이번에는 GPU·Vast·학습·production·tracker를 변경하지 않았다.
+
+**10-12 앞선 실제 ROS tracker·후처리 비교:** [39절 실제 노드 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)를 따른다.
 1,570프레임의 저장된 compile OFF/ON 출력과 별도 OFF 반복을 실제 TF·tracker·UNKNOWN
 policy에 넣었다. 내부 30Hz 설정의 출력 3,771시각이 같고 반복 차이는 0이다. 장애물
 출력 속도 차이는 0이지만 위치·BBox 차이는 남아 compile 기본 ON 보류·병렬화 우선을
@@ -148,11 +157,14 @@ Base5 모델·학습·최적화의 **현재 결정, 남은 순서와 상태는 �
 | 다음 환경 수집과 원거리 정보량 | 완료 5K와 현재 25K 계약은 유지한다. 실제 GT·crop 정보량 조사와 다음 25K의 primary 분포 검사를 완료했다. 먼 차량은 유지하고, 모든 사람·장애물을 최대 거리까지 늘리는 변경은 하지 않는다. | [32절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-evidence-local-261012). 보강 우선은 장애물 20~50m, 식별 가능한 사람·장애물 30~60m train 사례다. 최종 모델의 clear/weak·자산별 누락 확인 후 별도 보강을 설계한다. Foggy 첫 pilot에서는 RGB 대비를 실제 확인한다. |
 | 다음 임대의 실행 환경 | **의존성·CUDA 연산을 고정한 팀 이미지를 registry에 게시해 재사용하기로 결정. 빌드·게시·Vast pull 검증은 아직이다.** | 로컬 최적화 정리 후 이미지 준비. 현재 설치된 인스턴스는 유지하고 게시 때문에 이번 학습을 지연시키지 않는다. [게시·검증 계획](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#base5-fixed-image-publication-plan-261011) |
 | ROS 입력·연속 검출 | **별도 Base5 trial의 실제 메시지→TCP 입력/학습 출력 12장 정합, 대표 dev bag 1,570프레임 AP·threshold·연속 실패 진단을 완료했다.** E25 기본값은 유지한다. | [35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012). 장애물 0.15는 후속 tracker 시험 후보일 뿐 기본값 승격이 아니다. 고주로 1m 실패 중 위치 오차를 검출 부재와 구분한다. |
+| 로컬 threshold | **E24 AMP·병렬화 ON·추론 compile OFF의 opt-in trial은 V/P/O 0.40/0.10/0.10.** 71개 score 후보·native val 745장·dev bag 1,570프레임·실제 ROS tracker 5개 프로필 비교를 완료했다. | [40절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012). production E25와 baseline Base5 trial은 유지한다. 0.20 차량 후보는 원거리 bag GT 확장 후 재검토한다. 모든 환경·미래 재학습의 최적값으로 해석하지 않는다. |
 | 성능 확인·배포 | 장애물·보행자 개선은 공통 30m dev bag에서도 확인했다. **컴파일 영향의 1,570프레임 재추론·실제 EKF 코어 비교까지 완료. depth/정밀 격자 개별 효과·GT 속도 MAE, 실제 24GB·LAN·ROS 전체 비용은 아직 미검증.** production E25는 유지한다. | [37절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-delivery-tracking-review-261012)의 병렬화 우선 후보 → 실제24GB live ROS queue/tracker → 100m·미사용 bag·환경별 확인. 코어 상태 차이를 GT AVE/ID switch나 full-stack 인증으로 읽지 않는다. |
 
 현재 우선 순서는 **학습 완료·E9/E24 보존·공통30m 검출 비교·ROS 입력/TCP 정합·
 연속 dev bag 진단 완료 → 학습된 출력의 추론 OFF/ON·4090 비용·전체 val·수치 통제 완료 →
-실제 24GB·ROS queue·LAN·tracker와 100m/환경/자산별 확인**이다.
+실제 ROS tracker·후처리 비교와 로컬 threshold 선정 완료 →
+30~50/50~80/80~100m bag GT 확장·차량 평가 → 팀장님의 실제 24GB·ROS queue·LAN·
+풀스택과 새 환경/자산별 확인**이다.
 최초 본학습은 사용자가 직접 시작했으며 10-12에는 지표 수정 후 agent가 재개하도록 승인했다. 원격 학습은 tmux로
 실행하며 로컬 PC의 통신 중계·토큰 갱신을 유지한다. 상세 명령은 위 Vast 링크를 따른다.
 추론 compile은 비용 후보이며 출력 gate가 실패해 기본 OFF다. query 선택을 고정한 원인 분석을

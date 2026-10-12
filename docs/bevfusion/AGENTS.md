@@ -1,6 +1,13 @@
 # BEVFusion documentation agent context
 
-2026-10-12 최신은 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
+2026-10-12 최신은 EVIDENCE 40절의 로컬 threshold 선정이다. dev bag 1,570프레임·
+native val 745장·71개 score 후보와 실제 ROS tracker 5개 프로필을 비교했다.
+E24 AMP/병렬화 ON/추론 compile OFF의 별도 시험값은 V/P/O 0.40/0.10/0.10이다.
+production E25·baseline Base5 trial은 유지한다. bag GT는 아직 30m이므로 다음은
+30~50/50~80/80~100m GT 확장·차량 평가, 그 뒤 팀장님의 실제 4090 24GB ROS/LAN·
+풀스택 검증이다. GPU·Vast·훈련·tracker 수정 없이 CPU·private ROS로 비교했다.
+
+2026-10-12 앞선 결과는 EVIDENCE 39절의 실제 ROS tracker·TF·UNKNOWN 후처리 비교다.
 1,570프레임을 세 독립 노드에 넣었고 30Hz 설정의 출력 3,771시각이 모두 같으며 OFF
 반복 차이는 0이다. UNKNOWN 속도는 0이지만 소수 위치·BBox 차이는 남는다. compile
 기본 ON은 보류하며 병렬화 우선이다. 저장된 검출 이후의 실제 ROS 시험과 센서→GPU→
