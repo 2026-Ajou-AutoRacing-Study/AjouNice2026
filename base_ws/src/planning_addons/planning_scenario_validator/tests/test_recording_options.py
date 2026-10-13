@@ -35,6 +35,27 @@ class RecordingOptionsTests(unittest.TestCase):
         self.assertNotIn('bag_enabled', self.doc['recording'])
         self.assertTrue(self.cfg()['recording']['topics'])
 
+    def test_legacy_sensor_flag_displays_custom_and_noop_save_preserves_contract(self):
+        self.doc['recording']['include_sensors'] = True
+        values = gui.form_values(self.doc)
+        self.assertEqual(values['recording_mode'], options.CUSTOM)
+        result = gui.operator_document(self.doc, self.doc, values, self.doc['scenarios'].get('include'))
+        self.assertEqual(result, self.doc)
+        self.assertTrue(set(options.SENSORS) <= set(options.effective_topics(result['recording'], resolve_path)))
+
+    def test_custom_selection_can_remove_legacy_sensors_without_silent_readdition(self):
+        self.doc['recording']['include_sensors'] = True
+        values = gui.form_values(self.doc)
+        chosen = ['/Ego_topic', '/sensor/camera/front/compressed']
+        values['selected_topics'] = json.dumps(chosen)
+        result = gui.operator_document(self.doc, self.doc, values, self.doc['scenarios'].get('include'))
+        self.assertFalse(result['recording']['include_sensors'])
+        self.assertEqual(options.effective_topics(result['recording'], resolve_path), chosen)
+        values = gui.form_values(self.doc)
+        values['recording_mode'] = options.BASIC
+        basic = gui.operator_document(self.doc, self.doc, values, self.doc['scenarios'].get('include'))
+        self.assertFalse(set(options.SENSORS) & set(options.effective_topics(basic['recording'], resolve_path)))
+
     def test_off_needs_no_topic_profile_and_preserves_video(self):
         video = copy.deepcopy(self.doc['recording']['video'])
         values = gui.form_values(self.doc)
@@ -255,7 +276,7 @@ class RecordingOptionsTests(unittest.TestCase):
                 app['actions']['save']()
                 app['actions']['open_yaml'](self.path)
                 self.assertEqual(variables['recording_mode'].get(), options.OFF)
-                self.assertEqual(str(app['field_widgets']['include_sensors']['state']), 'disabled')
+                self.assertNotIn('include_sensors', app['field_widgets'])
                 variables['recording_mode'].set(options.CUSTOM)
                 variables['selected_topics'].set(json.dumps(['/Ego_topic', '/Object_topic']))
                 variables['include_sensors'].set(False)

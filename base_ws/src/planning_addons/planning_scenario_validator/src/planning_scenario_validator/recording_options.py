@@ -21,7 +21,7 @@ def mode_label(recording):
         return OFF
     if recording.get('analysis_mode', False):
         return ANALYSIS
-    if 'selected_topics' in recording:
+    if 'selected_topics' in recording or recording.get('include_sensors', False):
         return CUSTOM
     if recording.get('profile_preset') == 'lightweight':
         return LIGHT

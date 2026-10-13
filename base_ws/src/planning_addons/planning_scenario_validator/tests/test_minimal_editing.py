@@ -1,5 +1,6 @@
 """Minimal operator controls, comment-preserving save and fixed-field protection."""
 import copy
+import json
 import os
 import sys
 import tempfile
@@ -124,8 +125,10 @@ class MinimalGuiTests(unittest.TestCase):
                     values['repeat'].set('3')
                     values['detector'].set('od_gt')
                     values['pose_source'].set('maptf_morai')
-                    for key in ('traffic_light', 'include_sensors', 'upload_enabled'):
+                    for key in ('traffic_light', 'upload_enabled'):
                         values[key].set(True)
+                    values['recording_mode'].set('직접 선택')
+                    values['selected_topics'].set(json.dumps(['/Ego_topic'] + gui.bag_options.SENSORS))
                     values['video'].set(False)
                     values['upload_profile'].set(gui.UPLOAD_PROFILE_LABELS['bag'])
                     values['goal_x'].set('999')
@@ -144,7 +147,8 @@ class MinimalGuiTests(unittest.TestCase):
                     self.assertEqual(saved['stack']['detector'], 'od_gt')
                     self.assertEqual(saved['stack']['pose_source'], 'maptf_morai')
                     self.assertTrue(saved['stack']['traffic_light'])
-                    self.assertTrue(saved['recording']['include_sensors'])
+                    self.assertFalse(saved['recording']['include_sensors'])
+                    self.assertTrue(set(gui.bag_options.SENSORS) <= set(saved['recording']['selected_topics']))
                     self.assertFalse(saved['recording']['video']['enabled'])
                     self.assertTrue(saved['upload']['enabled'])
                     self.assertEqual(saved['upload']['profile'], 'bag')
