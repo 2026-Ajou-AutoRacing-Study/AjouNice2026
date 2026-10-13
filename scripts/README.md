@@ -86,6 +86,18 @@ UDP driver·GPU·planner·제어·MORAI는 켜지 않는다. 시험 clock은 원
 생성하며 실제 bag clock/센서 age를 재현하지 않는다. 실행 전 AW149를 source하고
 새 output 경로를 지정한다. `--rates 1`은 약 30Hz, 기본의 3×는 queue 포화 시험이다.
 
+`profile_pipeline_cpu_map_gc.py`는 실제 설치된 Map-CV에 전체 연속 bag을 스트리밍한다.
+입력/출력 전체를 child heap에 쌓지 않고 기본 GC 설정·bounded trace·원래 header cadence를
+유지한다. 수신 wire, 자연 GC 겹침, RSS와 queue 포화를 비교한다. 시험 driver의 수신 지연에는
+부모의 wire 검증까지 포함되므로 sensor age나 callback 시간으로 해석하지 않는다.
+
+`prepare_base5_nearest_compile_continuous.py`와 `experiment_base5_nearest_compile.py`는
+원본 입력 hash·stamp·제외 공백을 보존하고 연구 후보의 eager A/A·compile을 분리한다.
+`audit_tracking_continuity_variants.py`와 `audit_tracking_continuity_variant_review.py`는
+그 출력을 원형 C++ 코어에 재생해 평균·분위수·최대와 association/잔류 창을 대조한다.
+`audit_base5_offline_box_center_origin.py`는 native annotation의 물리적 중심과 tagged
+출력 원점을 감사한다. 이 도구들 자체가 production 옵션이나 GT를 바꾸지는 않는다.
+
 BEVFusion bridge의 stage JSON은 `BEVFUSION_PUBLISH_FRAME_TIMING=true`를
 `scripts/runtime/run_bevfusion.sh` 앞에 명시해서 선택한다. 기본 OFF이며 canonical 및
 Base5 trial의 `frame_timing`을 recorder가 모두 요청한다. 기존 latency 범위를 재정의하지

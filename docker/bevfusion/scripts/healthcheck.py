@@ -15,6 +15,8 @@ def validate_production_identity(metadata,args):
             or not identity.get('amp') or identity.get('compile_parts') != []
             or identity.get('parallel_camera') != expected_base5):
         raise ValueError('Server runtime differs from the pinned production checkpoint/options')
+    if identity.get('box_center_origin', 'lidar_bottom_v1') != 'lidar_bottom_v1':
+        raise ValueError('Production raw box-origin contract differs')
     if args.expected_config and identity.get('config_sha256') != args.expected_config:
         raise ValueError('Server model configuration differs')
     if args.expected_sensor and (metadata.get('calibration') or {}).get('config_sha256') != args.expected_sensor:

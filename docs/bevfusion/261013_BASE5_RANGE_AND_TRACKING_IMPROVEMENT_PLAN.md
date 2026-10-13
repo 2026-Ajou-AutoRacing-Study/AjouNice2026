@@ -28,6 +28,11 @@
 기각했다. 보행자 likelihood association은 구조 연구 후보이며 production은 미변경이다.
 20~30m 장애물은 camera 지원이 있는데 LiDAR 형상이 희소한 경우를 별도로 보강한다.
 전방 근접·얇은 barrier·희귀 passive OBJ support를 후보로 삼되 v150/기존 5K는 보존한다.
+같은 검토에서 output bottom-center→ROS geometric-center 계약 문제도 확인했다.
+versioned adapter의 기본은 legacy이며 실제 full-RPY TF·tracker reset·planner 기억 경계를
+시험한 뒤 승격한다. raw export·학습 GT 변경이나 재수집으로 해결할 문제가 아니다.
+nearest depth hint의 연속 A/A는 통과했지만 compile의 association·coasting 예외는 남아
+추론 compile OFF를 유지한다. 새 학습 전에 이 출력 계약과 평가 입력 조건을 먼저 고정한다.
 
 ## 유지할 정책과 보류할 제안
 

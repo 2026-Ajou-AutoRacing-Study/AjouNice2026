@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "base_ws/src/perception/bevfusion_ros"
 sys.path.insert(0, str(PACKAGE / "src"))
 from bevfusion_ros import rotated_bev_nms as baseline
+from bevfusion_ros.score_thresholds import filter_detections
 
 
 def candidate_indices(detections, iou_threshold):
@@ -123,7 +124,7 @@ def reference_index_function():
 reference_indices = reference_index_function()
 
 
-def operating_rows(path):
+def operating_rows(path, input_scope="bridge"):
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt") as stream:
         payload = json.load(stream)
@@ -136,9 +137,13 @@ def operating_rows(path):
             predictions = [dict(center=box[:3], size=box[3:6], yaw=box[6], score=score,
                                 class_name=classes[label])
                            for box, label, score in zip(row["pred_boxes"], row["pred_labels"], row["pred_scores"])]
-        # Only server floor/top100: actual bridge NMS runs before class gates.
+        # Server floor/top100 first, then the actual bridge class confidence
+        # filter BEFORE rotated NMS. Server-envelope is only an upper bound.
         predictions = sorted((point for point in predictions if point["score"] >= .1),
                              key=lambda point: -point["score"])[:100]
+        if input_scope == "bridge":
+            predictions = filter_detections(predictions, .1,
+                {"vehicle": .4, "pedestrian": .1, "obstacle": .1})
         result.append(predictions)
     return result
 
@@ -165,6 +170,7 @@ def main():
     parser.add_argument("--predictions", type=Path, action="append", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repeat", type=int, default=3)
+    parser.add_argument("--input-scope", choices=("bridge", "server-envelope"), default="bridge")
     args = parser.parse_args()
     if not 1 <= args.repeat <= 10:
         parser.error("repeat must be 1..10")
@@ -172,14 +178,16 @@ def main():
         raise FileExistsError("Fresh output directory required")
     args.output.mkdir(parents=True)
     report = dict(production_changed=False, baseline_sha256=digest(Path(baseline.__file__)),
+        input_scope=args.input_scope, bridge_sha256=digest(PACKAGE / "scripts/bevfusion_ros_bridge.py"),
         candidate_sha256=digest(Path(__file__)), cases=[],
         limits=["CPU-only offline dictionary NMS; not GPU inference, ROS bridge callback or live latency certification.",
                 "Normal GC enabled; paired interleaving reduces drift but does not remove host scheduler/concurrent work variation.",
                 "Plain JSON dictionary inputs; cache lives only within one invocation, no stale frame/global cache.",
-                "Server score floor0.1/top100 and NMS IoU0.50 unchanged; class gates follow NMS and are not part of timing."])
+                "Server score floor0.1/top100 and NMS IoU0.50 unchanged; bridge input scope applies V0.4/P0.1/O0.1 BEFORE NMS as actual bridge source does.",
+                "server-envelope scope omits pre-NMS class filtering and is only an upper-envelope CPU cost, not actual bridge input."])
     functions = {"baseline": baseline.class_aware_rotated_bev_nms, "candidate": candidate_nms}
     for path in args.predictions:
-        frames = operating_rows(path)
+        frames = operating_rows(path, args.input_scope)
         original = copy.deepcopy(frames)
         expected = [reference_indices(frame, .5) for frame in frames]
         for frame, wanted in zip(frames, expected):

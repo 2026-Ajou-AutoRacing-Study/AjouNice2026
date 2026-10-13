@@ -4,10 +4,11 @@ import math
 import pathlib
 import random
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from profile_pipeline_cpu_rotated_nms import baseline, candidate_indices, candidate_nms, reference_indices
+from profile_pipeline_cpu_rotated_nms import baseline, candidate_indices, candidate_nms, reference_indices, operating_rows
 
 
 def box(x=0., y=0., score=.5, cls="obstacle", size=(2., 1., 1.), yaw=0.):
@@ -86,6 +87,20 @@ class LazyNmsTests(unittest.TestCase):
                 size=(rng.uniform(.05, 6.), rng.uniform(.05, 3.), 1.), yaw=rng.uniform(-math.pi, math.pi))
                 for _ in range(rng.randrange(0, 40))]
             self.exact(detections, rng.choice((0., .1, .5, .8, 1.)))
+
+    def test_actual_bridge_class_filter_precedes_nms_but_follows_server_top100(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = pathlib.Path(temporary) / "predictions.json"
+            detections = [box(score=.2, cls="vehicle"), box(score=.5, cls="vehicle"),
+                          box(score=.08, cls="pedestrian"), box(score=.1, cls="pedestrian"),
+                          box(score=.12, cls="obstacle")]
+            path.write_text(json.dumps(dict(rows=[dict(predictions=detections)])))
+            self.assertEqual(len(operating_rows(path, "server-envelope")[0]), 4)
+            actual = operating_rows(path, "bridge")[0]
+            self.assertEqual([point["class_name"] for point in actual], ["vehicle", "obstacle", "pedestrian"])
+            detections = [box(score=.2, cls="vehicle") for _ in range(100)] + [box(score=.19)]
+            path.write_text(json.dumps(dict(rows=[dict(predictions=detections)])))
+            self.assertEqual(operating_rows(path, "bridge")[0], [])
 
 
 if __name__ == "__main__":

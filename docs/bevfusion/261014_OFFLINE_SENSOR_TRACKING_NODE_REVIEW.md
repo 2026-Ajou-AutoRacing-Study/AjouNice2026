@@ -7,6 +7,9 @@ E24 가중치, threshold, coasting, 지도 경로 선택, 기존 5K와 v150 rele
 실제 배포 기준은 [모델 CURRENT](CURRENT.md)와
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)가 관리한다.
 
+이번에 적용한 것은 출력 동일 후단 CPU 개선·기본 OFF 단계 진단과 시험용 adapter/분석 경로다.
+박스 원점·nearest depth hint·compile·association·packet 경계 후보는 자동 배포하지 않는다.
+
 ## 범위와 근거 보존
 
 이번 작업은 새 학습·본수집·원격 과금 작업·planner 정책 변경을 수행하지 않는다.
@@ -258,7 +261,122 @@ camera calibration·augmentation·BEV pooling·GT·sparse branch·가중치 key�
 새 학습/추론 후보를 같은 hint 조건에서 비교하고, compile A/B도 eager A/A 변동과
 분리하여 다시 검사한다. 모든 GPU·모든 입력의 bitwise 보장은 이번 표본보다 큰 주장이다.
 
-### 다음 생성·학습 실험
+### 안정화한 depth hint에서 compile 재검증
+
+Native 745장과 dev 200장의 945장 비교 뒤, 원래 연속 dev 입력 1,570장을 다시 추론했다.
+nearest eager의 독립 A/A는 **1,570/1,570 raw 출력이 정확히 같았고** 원형 C++ tracker
+상태도 네 bag 모두 정확히 같았다. 원래 stamp·JPEG/XYZI hash·GT·검사 제외 공백을
+유지했다. H03의 10.322초 입력 공백을 채우거나 다른 pose로 대체하지 않았다.
+
+Compile의 radial 30m GT 대응은 V/P/O 433/112/807개로 유지됐다. 그러나 threshold 아래로
+빠진 출력 2개와 yaw 예외가 남았다. 최종 detector 중심 변화 p95는 약 0.21~0.31mm,
+최대 1.23mm지만 yaw 축 변화 최대는 차량 14.72°·장애물 9.85°였다. 같은 query cell의
+회전 벡터 `(sin, cos)` norm이 각각 약 0.08/0.015로 작아 `atan2`가 작은 수치 변화에
+민감해지는 사례다. 낮은 score만의 문제는 아니며 차량 예외의 score는 약 0.783이었다.
+
+원형 tracker의 전체 GT 대응 수는 1,706개로 같고 평균 중심 오차는 30.300→30.292cm로
+거의 같다. 하지만 아래 일부 association·잔류 예외는 전체 평균에 숨겨진다.
+
+| 같은-class tracker 출력의 XY 차이 | 차량 | 보행자 | 장애물 |
+|---|---:|---:|---:|
+| 평균 | 0.273mm | 1.731mm | 2.095mm |
+| p95 | 0.472mm | 0.282mm | 0.843mm |
+| 최대 | 4.27cm | 8.43cm | 81.96cm |
+
+O02에서는 score 0.100135의 장애물 검출 하나가 빠져 가까운 기존 ID 두 개의 관측 소유가
+달라졌다. 81.96cm는 중복 출력을 포함한 **출력끼리의 최대 차이**이지 GT 오차가 그만큼
+나빠졌다는 뜻이 아니다. 해당 primary GT 오차 악화는 13.76cm다. P01에서는 detector XY가
+거의 같은데 두 track의 Mahalanobis 비용 순서가 뒤집혀 마지막 관측과 0.5초 만료가 한
+프레임 늦어졌고, 중복 출력이 6→8프레임으로 늘었다. 장애물 코어의 최대 속도 차이
+1.406m/s는 실제 UNKNOWN 정책이 속도를 0으로 만드는 경로이므로 planner 속도 회귀로
+주장하지 않는다. 전체 성능 악화라고 단정할 근거는 아니지만 기본 ON의 동등성 인증은 실패했다.
+
+LayerNorm/GELU를 eager로 남긴 23장 후보도 반복 내부 A/A는 같지만 yaw 차이가 남았다.
+로컬 5060Ti steady 평균은 124.6→111.0ms였고 첫 compile pass에는 warmup 뒤에도
+710.8ms 지연이 있었다. 새 프로세스의 eager 출력도 이전 프로세스와 조금 달라,
+14.72°→3.33°를 보장된 개선율로 비교하지 않는다. 앱의 `cudnn.benchmark=True`와
+알고리즘 선택은 추가 원인 가설이며, 이번 trace로 확정하지 않았다.
+[PyTorch 2.7의 convolution benchmarking 설명](https://docs.pytorch.org/docs/2.7/notes/randomness.html#cuda-convolution-benchmarking)을 참고한다.
+
+**현재 결론은 compile 기본 OFF 유지**다. 로컬 steady 비용 감소를 실제 4090 ROS 배포
+인증으로 쓰지 않는다. 근거는 `nearest_compile_full_v1/summary.json`, 최종 연속 요약
+`nearest_compile_continuous_summary_v1.json`, `nearest_compile_guarded_v1/summary.json`과
+tracking 루트의 `nearest_variant_review_v1/`이다. CPU 요약 예외 이전의
+`nearest_compile_continuous_v1/summary.json`은 최종 요약으로 사용하지 않는다.
+
+<a id="box-origin"></a>
+
+## 박스 바닥 좌표와 ROS 중심 좌표의 계약
+
+새로 확인한 문제는 수집 높이나 학습 GT가 아니라 **모델 출력→ROS 전달의 기준점**이다.
+MORAI 객체 자체가 공중에 뜨던 배치 문제와는 별개의 출력 계약 오류다.
+MMDetection3D decoder는 geometric center에서 높이 절반을 빼 LiDAR box의 bottom center를
+만든다. `bboxes_3d.tensor`의 XYZ가 이 바닥 기준인데, 앱이 이를 `center`로 내보내고
+ROS DetectedObjects pose와 Marker.CUBE가 물리적 중심으로 사용했다.
+
+Native Instance annotation 1,702 GT의 geometric center를 infos와 직접 대조했다.
+같은 XY/class로 대응한 1,338쌍에서 높이 절반을 한 번 더한 결과는 다음과 같다.
+검출 개수·XY 대응·yaw·shape를 다시 학습하거나 변경한 결과가 아니다.
+
+| Z 평균 절대 오차 | 기존 바닥 XYZ를 중심으로 사용 | `z + height/2` |
+|---|---:|---:|
+| 차량 281쌍 | 0.940m | 0.053m |
+| 보행자 578쌍 | 0.830m | 0.058m |
+| 장애물 479쌍 | 0.467m | 0.060m |
+
+Raw 모델 tensor·평가 export·기존 capture/GT·checkpoint는 보존한다. 새 서버는 원점
+`lidar_bottom_v1`을 response와 runtime identity에 명시하며 숫자 자체는 바꾸지 않는다.
+ROS adapter의 기본은 **`legacy_passthrough`**로 이전 DetectedObjects/Marker wire와 같다.
+시험 launch에서만 `box_center_output_origin:=gravity_center_v1`을 선택할 수 있다.
+태그가 없는 구 서버는 legacy에서 호환되지만 시험 변환은 추측하지 않고 실패한다.
+이미 `gravity_center_v1`인 응답은 재변환하지 않아 `+h/2` 중복을 막는다. 유한한 center와
+양의 height·변환 후 유한성을 검사하고 입력 response를 수정하지 않는다.
+
+Canonical production wrapper와 `base5_production.launch`는 이 시험 인자를 노출하지 않아
+기본 계약을 유지한다. 시험은 새 metadata를 제공하는 server 소스/이미지가 필요하며
+로컬 ROS 설치 완료가 GPU 이미지 배포 완료를 뜻하지 않는다. 실제 bridge publication과
+server response/healthcheck의 CPU 검사에서 기본 wire 불변과 한 번만 변환함을 확인했다.
+
+실제 tracker는 yaw만이 아닌 **전체 3D TF**를 사용한다. 따라서 local Z 수정이 roll/pitch
+상황에서 map XY까지 바꿀 수 있다. tracker의 Z·height EMA는 α=0.3이라 hot switch하면
+이전 원점 이력이 남는다. 첫 적용은 정지 경계에서 tracker를 reset/restart하고 planner가
+저장한 이전 객체가 남지 않는지 확인한다. Map-CV 차량의 future Z가 약 1.5초 후 도로
+centerline으로 수렴하는 별도 정책도 있어 단순히 RViz만 고치는 문제로 설명하지 않는다.
+현재 활성 planner에는 해당 standalone obstacle height gate가 없지만 활성 구성은 다시
+resolve해서 검증한다. 이 후단 경계를 검증하기 전 production Z 계약은 자동 승격하지 않는다.
+
+추가로 실제 generated ROS 메시지·`tf2_geometry_msgs.do_transform_pose`의 합성 24조건에서
+변환 차이 `R[:,2] × height/2`를 검증했다. oracle 최대 오차는 3.46e-14m다. 높이 1.8m의
+yaw-only 조건은 XY 변화 0이지만 roll 3°·pitch −5° 조건은 9.14cm로, 실제 주행의 측정값은
+아니다. 원형 core의 planar fresh 비교는 Z 이외 기록 상태가 같았다. 중간 전환의 0.9m
+원점 차이는 1/3/5/10회 관측 후 63/30.87/15.13/2.54cm 남아 `.7^n` EMA와 일치했다.
+fresh reset은 첫 track부터 Z를 맞추지만 confirmation/age 이력도 초기화한다.
+
+실제 pure Map-CV의 평평한 도로 합성 조건에서도 0.9m 초기 높이 차이가 0.5/1/1.5/2초
+horizon에서 0.6/0.3/0/0m로 사라지는 현재 정책을 확인했다. TF buffer의 실제 도착·stamp
+lookup, 30Hz 복제 일정, planner 저장 객체 초기화와 폐루프는 이 CPU 시험에 포함되지 않는다.
+근거는 tracking 루트 `actual_tf2_core_origin_v2/report.json`과 재사용 감사
+`audit_tracking_continuity_box_origin_tf.py`다.
+
+설치된 C++ EKF 노드도 private master에서 새 process로 legacy/gravity 각 30입력을 보냈다.
+현재 TF와 header 시각 TF를 서로 다르게 만들어 실제 header lookup·full-RPY·typed
+world center·안정 UUID 한 개와 30Hz copy를 확인했다. copy 간격은 모두 33.333333ms였다.
+원점 변환 뒤 center의 typed oracle 최대 오차는 3.55e-15m다. node의 중간 XYZ가 float32라
+unquantized double과 약 14~15µm 차이가 나는 것을 타입 축소로 설명하며 넓은 tolerance로
+덮지 않았다. 운영 core·node·설치본·시간 정책은 변경하지 않았다.
+
+다만 legacy/gravity 출력 수는 각각 100/94개이며 gravity 시작에 TF past-extrapolation 경고
+1개와 초기 확인 2입력 지연이 남았다. clock latch 정리 뒤에도 재현되어 startup negotiation/
+clock-clear 원인을 이 bounded gate로 확정하지 못했다. **전체 30입력 소비·TF 누락 0·안전한
+planner handoff 인증은 아니다.** 모든 소유 master/node process group은 종료했다.
+음성 근거를 포함한 최종 결과는 `private_cpp_origin_v3/report.json`과 두 node log이며,
+재사용 도구는 `audit_tracking_continuity_box_origin_private_ros.py`다.
+
+근거는 `box_origin_native_v2.json`, tracking 루트의 `z_origin_downstream_v1/assessment.json`,
+재사용 감사 `audit_base5_offline_box_center_origin.py`다. 이 수정 때문에 데이터 재수집이나
+재학습이 필요하다는 근거는 없다. 실제 3D TF·Map-CV·planner 상태 handoff 검증은 남아 있다.
+
+## 다음 생성·학습 실험
 
 기존 5K·v150은 보존한다. 전방 0~20m rich-floor, 얇은 barrier의 크기/방향/부분 관측,
 실제 근접 두 객체, rare passive OBJ의 자산별 train support를 독립 보강 후보로 삼는다.
@@ -295,8 +413,87 @@ loop/depth 순서를 유지했다. GC를 끄거나 의심 표본을 버리지 �
 
 풀주행 p50/p90/p99는 각각 1.657→0.684 / 5.237→2.291 / 7.942→3.167ms다.
 별도 프로세스의 후보 3회 반복은 평균 0.999ms·p95 2.554ms지만 **최대 86.976ms**이고,
-해당 spike의 generation-2 GC는 85.285ms다. 따라서 최대 지연 해결이라고 주장하지 않는다.
+해당 spike의 generation-2 GC는 85.285ms다. 다만 이 시험은 bag과 출력이 미리 로드된
+heap을 사용했다. 이것이 실제 ROS 노드에서도 발생하는 tail인지 별도로 확인했다.
 근거는 `final_safe_v7/report.json`, `isolated_safe_candidate_v8/`에 있다.
+
+### 실제 설치 노드의 연속 입력·자연 GC 대조
+
+최신 bag의 연속 5,461프레임을 원래 header cadence로 스트리밍하고 실제 설치된 Map-CV를
+private master에서 실행했다. child에 입력/출력 전체를 쌓지 않고 원래 GC 설정을 유지했다.
+**5,461/5,461 출력 wire가 기준과 같고**, nonempty 2,406프레임도 전부 전달됐다.
+자연 generation-2 GC 두 번의 최대는 9.389ms, callback wall p99/최대는
+5.156/13.135ms로 20ms 초과 callback은 없었다. child RSS는 첫 callback 약
+383,620KiB→종료 389,580KiB였다. 미리 로드한 heap의 87ms tail을 재현하지 못했으며
+모든 풀스택 GC tail이 해결됐다는 결론은 아니다.
+
+3배속에서는 5,461개 중 callback 4,469·출력 4,462개로 queue 포화가 생겼지만 받은
+출력은 정확한 subset이다. callback 최대 26.921ms·20ms 초과 4건은 generation-2 GC와
+겹치지 않았다. 서로 다른 master/관측자 부하를 포함하므로 실제 대회 drop 수치로 쓰지 않는다.
+
+시험 도구의 `driver_delivery_wall_ms`는 publish 시작부터 **부모의 수신 wire 검증 완료**까지다.
+평균 2.178ms·p95 8.698ms·최대 98.895ms는 관측자 scheduling/직렬화 검증까지 포함하며
+callback 계산 또는 downstream 전달 완료 시간만이 아니다. 최종 보고서에 token별 쌍이
+남지 않아 이 최대 원인이나 quantile 간 차이를 분해하지 못한다. TCP/Nagle·네트워크 원인으로
+단정하거나 transport 설정을 바꾸지 않는다. 다음 시험은 bounded token ledger에 publish
+시작/반환·observer 진입/검증 끝·child callback 경계를 기록한다.
+근거는 `live_heap_gc_full_v3/report.json`이며 초기 harness의 pacing이 잘못된 v2는 사용하지 않는다.
+
+이 한계를 보완한 다음 실행은 bounded token ledger로 publish 시작/반환·child callback
+시작/objects publish 반환/끝·observer 진입/wire 검증 끝을 같은 token에 연결했다.
+완료 token은 즉시 버리고 pending 512·큰 tail 4개만 유지한다. percentile용 scalar duration은
+별도 집계하며 진단 누락도 실제 값으로 남긴다. 독립 full 1×의 5,461개 출력·callback·진단·
+paired join 모두 일치했고 nonempty 2,406개를 전부 전달했다. wire 회귀와 token evict는 0이다.
+
+| 같은 프레임의 큰 tail 분해, ms | callback 시작 전 | callback→objects publish 반환 | publish 반환→observer 진입 | wire 검증 | 전체 |
+|---|---:|---:|---:|---:|---:|
+| 가장 큰 창 | 4.557 | 3.915 | 77.331 | 0.208 | 86.012 |
+| 두 번째 창 | 78.808 | 4.688 | 0.763 | 0.178 | 84.437 |
+
+해당 창에 generation-2 GC는 없고 generation-0 GC도 각각 약 0.062/0.051ms다.
+긴 구간이 어디인지는 분리했지만 receiver 역직렬화·TCP·host/observer scheduling 중
+무엇인지는 확정하지 않았다. 첫 구간에 포함되는 sender publish call을 다시 더하거나
+독립 p95끼리 빼지 않는다. publish 반환 전에 receiver가 움직일 수 있어 concurrent 경계의
+음수 차이를 0으로 보정하지 않는다. 이 run은 이전 98.895ms 창을 소급 분해한 것이 아니다.
+최종 근거는 `live_heap_gc_paired_v4/report.json`이다. 원 보고서의 동시 GPU 작업 문구는
+이 run에 맞지 않아 `scope_clarification.json`으로 정정했고 원본 fingerprint는 보존했다.
+
+### Private ROS TCP 저지연 옵션의 제한된 대조
+
+같은 연속 중간 1,200프레임을 기본→input/output Subscriber의 `tcp_nodelay` ON→기본으로
+재생했다. 세 번 모두 출력·callback·진단·paired 1,200개, nonempty 447프레임·680객체와
+wire가 같고 누락은 0이다. child input의 실제 요청도 false/true/false를 trace로 확인했다.
+clock·GC·운영 소스/transport는 바꾸지 않았으며 연구 도구의 옵션도 기본 false다.
+
+| parent 송신→observer wire 검증, ms | 평균 | p50 | p95 | p99 | 최대 |
+|---|---:|---:|---:|---:|---:|
+| 기본 1 | 1.226 | 0.484 | 5.149 | 11.001 | 23.215 |
+| private ON | 1.156 | 0.488 | 4.723 | 9.955 | 12.016 |
+| 기본 2 | 1.210 | 0.485 | 5.395 | 10.243 | 20.713 |
+
+평균 이득은 약 5%로 작고 관측 최대는 줄었지만 각 조건 1회다. output 구간의 p95는
+0.488/0.476/0.428ms라 ON이 항상 우월하지 않다. 이 창은 앞의 full-bag 86ms 창과 같지
+않고, Nagle이 237ms 원인이거나 모든 tail이 해결됐다고 해석하지 않는다. 실제 LAN과
+planner 소비까지 확인할 연구 후보로만 보존한다. 근거는 `transport_nodelay_aba_v1/`이다.
+
+GPU client/server의 별도 TCP protocol도 실제 `TcpTransport`와 loopback stub으로 검사했다.
+현재 코드는 이미 16-byte header·JSON·모든 blob을 하나의 bytes로 합쳐 `sendall` 한 번으로
+보낸다. immutable 20개 JPEG/XYZI fixture에서 request 평균 약 605KB·frozen E24 response
+649B를 사용했고 초기 교환을 포함한 820개 request/blob/response 동등성을 확인했다.
+실제 on-wire 녹화가 아니라 기존 prepared 입력으로 schema를 재구성한 transport 시험이다.
+
+| stub 조건 | 현재 one-write 평균 RTT | 양쪽 NODELAY |
+|---|---:|---:|
+| 계산 대기 0ms | 0.216ms | 0.194ms |
+| 인위적 대기 100ms | 100.704ms | 100.709ms |
+
+일부러 header를 분리한 음성 대조는 약 43.86ms로 늘고 NODELAY에서 0.276ms로 줄었다.
+그러나 그 분리 방식은 현재 구현이 아니다. 현행 framing의 40ms 대기 증거도, TCP 옵션으로
+큰 GPU 왕복 비용을 줄일 근거도 이 loopback에서 얻지 못했다. NN·GPU·ROS·Docker/LAN을
+포함한 시험이 아니므로 실제 237ms 원인을 확정하거나 배제하지 않는다. production protocol/
+socket은 미변경이다. 모델 근거 루트 `tcp_framing_loopback_v1.json`·`v2.json`과 재사용
+`audit_base5_offline_tcp_framing.py`를 따른다. v1 byte 통계의 잘못된 `over30ms` 필드는
+`tcp_framing_units_correction_note_v1.json`에 정정했으며 v2는 단위를 분리한다.
 
 이 PC의 `perception_object_pipeline`·`bevfusion_ros`·`sensor_interface` 세 패키지만
 `catkin_make_isolated --install --pkg`로 빌드했다. 설치 helper/launch와 소스의 hash도
@@ -403,12 +600,14 @@ C++ tracker의 marker 생성을 subscriber가 없을 때 생략하는 복사본�
 500개 retired marker 스트레스는 약 0.64→0.026ms다. 숨은 tentative/retired 상태까지
 원본 bag에서 재현한 것은 아니며 실전 주 병목이라고 할 근거가 없다. 원 tracker는 미변경이다.
 
-BEVFusion bridge의 Python rotated NMS도 계산 위치를 의심해 실제 4,985프레임의
-server floor 0.1/top100 입력에서 박스 기하 캐시를 비교했다. NMS 입력 수는 평균 약
-2개, 최대 7~10개였다. 기존 평균 0.005~0.007ms가 캐시 후보 0.006~0.008ms로
-오히려 늘었다. retained index·객체 identity·순서·입력 무변경과 경계 회귀는 같지만
-이득이 없어 기각했다. 최대 100개 설정이 실제로 매 프레임 100개를 처리한다는 뜻은 아니다.
-운영 NMS는 미변경이며 `rotated_nms_cache_v1/report.json`에 근거를 보존했다.
+BEVFusion bridge의 Python rotated NMS도 실제 순서인 server floor 0.1/top100→
+V/P/O 0.4/0.1/0.1 필터→NMS로 4,985프레임의 박스 기하 캐시를 비교했다.
+945 native/dev의 NMS 입력은 평균 2.03·최대 10개, 4,040 packet 입력은 평균 1.85·
+최대 6개였다. 기존 평균 0.00624/0.00380ms가 후보 0.00743/0.00512ms로 오히려 늘었다.
+retained index·객체 identity·순서·입력 무변경은 같지만 이득이 없어 기각했다.
+최대 100개 설정이 실제로 매 프레임 100개를 처리한다는 뜻은 아니다.
+운영 NMS는 미변경이며 `rotated_nms_actual_bridge_v2/report.json`을 최종 근거로 쓴다.
+class 필터 전 비용을 본 기존 v1은 상한 참고용으로 보존하며 실제 bridge 비용과 구분한다.
 
 이미 C++인 EKF의 cost loop도 독립 사본에서 확인했다. 원형은 비활성 slot에도 거리와
 2×2 Mahalanobis 계산을 수행한 뒤 비용을 1000으로 덮어쓴다. 후보는 그 slot만 동일한
@@ -431,12 +630,13 @@ active 상태·8×8 covariance·class vote·history·ID·생존 이력이 정확
 
 ## 다음 검증 순서
 
-1. Depth hint 안정화 후보에서 compile OFF/ON과 A/A를 다시 분리하고 독립 입력으로 회귀를 확인한다. 현재 E24의 proposal peak 변경은 기각했다.
-2. 출력 동일 CPU 개선·단계 진단의 로컬 설치와 private ROS 전달 검증을 완료했다. 팀장님 배포와 실제 풀스택 age/drop을 확인한다.
-3. packet/camera/pose reference는 shadow A/B로 비교한다. LAN clock·실제 ray time 불확실성을 해결하기 전 production stamp를 바꾸지 않는다.
-4. 보행자 association 후보를 실제 근접 두 사람 교차·가림·새 약한 관측에서 검증한다. 중복 박스를 없애려고 가까운 별개 사람을 합치지 않는다.
-5. 완료 5K/v150을 보존한 채 전방 근접·얇은 barrier·희귀 asset support를 새 배치 실험으로 보강한다. 중거리 지원량만 늘리면 해결된다고 가정하지 않는다.
-6. 독립 평가 split과 짧은 학습 비교 뒤 최종 학습한다. 학습되는 query 구성과 추론 구성을 일치시키고 개발 bag을 train으로 돌려쓰지 않는다.
+1. Versioned ROS 중심 adapter의 CPU tf2·원형 EMA·Map-CV 높이와 설치 EKF의 TF/30Hz 제한 대조는 완료했다. startup TF 누락·실제 reset·planner 상태 handoff를 검증한다. raw export/학습 GT는 보존한다.
+2. Depth hint 안정화의 반복 검증은 완료했다. compile 연속 tracker 예외 때문에 기본 OFF를 유지하고, nearest는 독립 ROS trial 뒤 승격 여부를 결정한다. 현재 E24의 proposal peak 사후 변경은 기각했다.
+3. 출력 동일 CPU 개선·단계 진단의 로컬 설치와 private ROS 전달 검증을 완료했다. 팀장님 배포와 실제 풀스택 age/drop을 확인한다.
+4. packet/camera/pose reference는 shadow A/B로 비교한다. LAN clock·실제 ray time 불확실성을 해결하기 전 production stamp를 바꾸지 않는다.
+5. 보행자 association 후보를 실제 근접 두 사람 교차·가림·새 약한 관측에서 검증한다. 중복 박스를 없애려고 가까운 별개 사람을 합치지 않는다.
+6. 완료 5K/v150을 보존한 채 전방 근접·얇은 barrier·희귀 asset support를 새 배치 실험으로 보강한다. 중거리 지원량만 늘리면 해결된다고 가정하지 않는다.
+7. 독립 평가 split과 짧은 학습 비교 뒤 최종 학습한다. 학습되는 query 구성과 추론 구성을 일치시키고 개발 bag을 train으로 돌려쓰지 않는다.
 
 단일 bag에 맞춰 threshold·거리·기억을 반복 조절하는 방식은 피한다.
 검증을 기다리는 후보와 출력 동일 소스 개선, 실제 배포 완료 상태를 문서에서 구분한다.

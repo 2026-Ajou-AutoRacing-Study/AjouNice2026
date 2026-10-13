@@ -1,18 +1,16 @@
 # AjouNice BEVFusion runtime
 
-This directory builds and runs the Base3 four-camera MORAI BEVFusion training
-and inference environment. The team image supports RTX 2080 Ti, 3090, 4090,
-and 5060 Ti with one CUDA 12.8 artifact. Sensor geometry comes only from
-`configs/sensors/Sensor.json` and the
-model contract comes from
-`perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py`.
-Algorithm runtime policy comes from
-`configs/perception/bevfusion_sensor4.yaml`.
+현재 production은 E24이며 선택·입력·가중치·최적화의 단일 기준은
+[모델 CURRENT](../../docs/bevfusion/CURRENT.md)다. 실행은
+[E24 handoff](../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의
+`scripts/runtime/run_bevfusion.sh`를 따른다. 이 디렉터리는 Base3 호환 환경과 Base5
+학습·추론 서버를 함께 관리한다. 파일명에 Base3가 있어도 현재 실행값이라고 가정하지 않는다.
+팀 CUDA 12.8 이미지의 하드웨어 지원과 새 호스트 qualification은 구분한다.
 
 The ROS host connects to a port published only on `127.0.0.1`. The simulator
-boundary remains the competition-provided UDP interface. Production deployment
-is documented in `docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`. The
-older `260720_*zero_shot*` documents are experiment history only.
+boundary remains the competition-provided UDP interface. E25 is an explicit
+[rollback profile](../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), not
+the current default. The older `260720_*zero_shot*` documents are history only.
 
 Team training and artifact installation are documented in
 `docs/bevfusion/TEAM_DOCKER_TRAINING_HANDOFF.md`.
@@ -44,6 +42,15 @@ Set `PROJECTION_ONLY=true` in `.env` to validate calibration without loading
 the model checkpoint.
 
 ## Online execution contract
+
+아래 RGB8·비용 표는 초기 Base3 경로의 재현 기록이다. 현재 Base5 호스트는 원본 JPEG와
+0~255 XYZI를 전달하고 서버가 JPEG decode/resize와 고정 강도 ÷255를 수행한다.
+현재 512×1056·5cm/20cm와 기존 표의 작은 모델을 혼용하지 않는다. 실제 흐름은
+[ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md)를 따른다.
+서버 raw box는 `lidar_bottom_v1`로 선언하며 원본 tensor·GT·가중치를 바꾸지 않는다.
+ROS의 `box_center_output_origin:=gravity_center_v1`은 명시적인 시험용 어댑터다.
+기본 `legacy_passthrough`를 유지하고, 선언 없는 이전 서버는 시험 모드에서 거부한다.
+[Z 계약·reset·TF 검증 경계](../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 먼저 확인한다.
 
 - ROS chooses the closest four camera messages for each LiDAR timestamp.
 - The ROS host decodes and resizes the four images concurrently with OpenCV.

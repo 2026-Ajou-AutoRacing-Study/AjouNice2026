@@ -104,6 +104,8 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    [50절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의 관측 적합도·횡이동 후보도 비교했다. 일부 평균 이득보다 소수 큰 순위 악화가 남아 예측 정책은 유지한다.
    출력 동일 geometry cache·독립 메시지 복사·DFS 최적화는 소스와 이 PC의 설치본에 반영했다. 팀장님 환경·실제 주행은 미검증이다. [CPU 근거](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
    중복 pixel 쓰기의 depth hint 변동도 분리했다. nearest 연구 후보는 945장 운영 집계를 유지했지만 production·학습 계약은 미변경이다. [모델 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)를 따른다.
+   nearest의 연속 1,570장 A/A는 정확히 같지만 compile association/잔류 예외가 남아 기본 OFF를 유지한다.
+   바닥 XYZ를 ROS 중심으로 쓰던 문제의 versioned adapter도 준비했다. 기본 legacy 유지, [Z 계약·정지/reset 경계](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin) 검증 뒤 시험하며 기존 GT·가중치는 보존한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
 5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.

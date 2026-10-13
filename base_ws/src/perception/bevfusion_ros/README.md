@@ -44,5 +44,11 @@ MORAI GT·ego oracle을 대회 detector 입력이나 production fallback으로 �
 raw/prepared queue·server·publish 범위는 [진단 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#diagnostics)을 따른다.
 기존 latency Float32나 입력 stamp·payload를 재정의하지 않으며 실제 server 비용은 별도로 기록한다.
 
+박스 원점 시험은 calibrated trial의 `box_center_output_origin:=gravity_center_v1`을 선택한다.
+기본은 `legacy_passthrough`이며 원점 metadata가 없는 구 서버는 시험 변환을 거부한다.
+새 서버 raw tensor는 바닥 기준 그대로 보존하고 ROS adapter에서 높이 절반을 한 번만 더한다.
+production 실행기는 자동 적용하지 않는다. 실제 3D TF와 tracker 정지/reset·planner 기억까지
+[출력 중심 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)을 검증한 뒤 사용한다.
+
 기존 Base3 실행 설명과 내부 구현 시점 기록은
 [원문 스냅샷](../../../../docs/perception/legacy/context_261012/README.md)에 보존했다.

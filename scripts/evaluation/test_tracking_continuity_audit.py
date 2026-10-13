@@ -15,6 +15,8 @@ from audit_tracking_continuity_packets import (
     cadence as packet_cadence, eligible_pairs, lifecycle as packet_lifecycle, paired_correspondence,
     switch_lifecycle_evidence)
 from audit_tracking_continuity_fastpath import ANCHOR, FAST, fast_source
+from audit_tracking_continuity_variants import declared_infos_sha, finite_difference_velocity, paired_outputs
+from audit_tracking_continuity_variant_review import xy_cost
 
 
 def box(x=0., y=0., cls='vehicle', identity='a', yaw=0., size=(4., 2., 1.)):
@@ -229,6 +231,44 @@ class TrackingContinuityAuditTest(unittest.TestCase):
         self.assertIn('cost_matrix(meas_idx, track_idx) = 1000.0;', patched)
         with self.assertRaises(ValueError):
             fast_source('different original')
+
+    def test_gt_center_velocity_is_bounded_and_not_extrapolated(self):
+        series = ([1., 1.1, 1.2, 2.], [box(0), box(1), box(2), box(50)])
+        self.assertAlmostEqual(finite_difference_velocity(series, 1.1)[0], 10.)
+        self.assertAlmostEqual(finite_difference_velocity(series, 1.2)[0], 10.)
+        self.assertIsNone(finite_difference_velocity(series, 2.))
+        self.assertIsNone(finite_difference_velocity(series, 1.15))
+
+    def test_variant_output_pairing_does_not_compare_numeric_id(self):
+        a = dict(box(identity='1'), score=.7, velocity=[1., 0.], associated=True, last_measurement_time=1.)
+        b = dict(a, id='99', center=[.1, 0., 0.], velocity=[1.2, 0.])
+        summary, rows = paired_outputs([dict(stamp=1., objects=[a])], [dict(stamp=1., objects=[b])])
+        self.assertEqual(summary['classes']['vehicle']['paired'], 1)
+        self.assertAlmostEqual(rows[0]['center_m'], .1)
+        self.assertAlmostEqual(rows[0]['velocity_delta_mps'], .2)
+
+    def test_variant_original_infos_lineage_must_be_consistent(self):
+        self.assertEqual(declared_infos_sha({'source_lineage': {'original_infos_sha256': 'same'}}), 'same')
+        self.assertEqual(declared_infos_sha({'info_sha256': 'same'}), 'same')
+        with self.assertRaises(ValueError):
+            declared_infos_sha({'info_sha256': 'one', 'source_lineage': {'original_infos_sha256': 'two'}})
+
+    def test_original_cost_diagnostic_caps_and_does_not_mutate(self):
+        prior = dict(center=[0., 0.], covariance=[100., 0., 100.], core_class=1)
+        before = json.dumps(prior, sort_keys=True)
+        value = xy_cost(box(1.), prior)
+        self.assertAlmostEqual(value['raw_mahalanobis'], .1)
+        self.assertAlmostEqual(value['cost'], .2)
+        self.assertTrue(value['eligible'])
+        self.assertEqual(json.dumps(prior, sort_keys=True), before)
+        self.assertAlmostEqual(xy_cost(box(1.), dict(prior, covariance=[.001, 0., .001]))['cost'], 3.)
+
+    def test_original_cost_diagnostic_ped_class_gate_and_covariance(self):
+        prior = dict(center=[0., 0.], covariance=[1., 0., 1.], core_class=3)
+        self.assertFalse(xy_cost(box(0., cls='vehicle'), prior)['eligible'])
+        self.assertFalse(xy_cost(box(2.01, cls='pedestrian'), prior)['eligible'])
+        self.assertTrue(xy_cost(box(1., cls='pedestrian'), prior)['eligible'])
+        self.assertIsNone(xy_cost(box(1.), dict(prior, covariance=[0., 0., 0.]))['cost'])
 
 
 if __name__ == '__main__':
