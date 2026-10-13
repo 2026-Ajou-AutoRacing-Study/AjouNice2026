@@ -88,6 +88,8 @@ prediction coverage를 함께 감시한다.
 - confidence는 heuristic route score를 남은 hypothesis 사이에서 정규화한다. 실제
   calibrated probability로 해석하지 않는다.
 - 저속, off-lane, wrong-direction, non-vehicle은 Cartesian CV fallback을 사용한다.
+- 경로 길이와 표본/접선은 경로별 arc index를 재사용한다. Scalar 기준과 14,546개 차량
+  관측의 경로·위치·yaw·confidence가 정확히 같은 계산 최적화이며 예측 정책 변경이 아니다.
 
 현재 predictor는 CTRV 곡률로 lane rank를 고르는 구조가 아니다. 현재 위치·yaw로
 start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 경로를 열거한다.
@@ -97,6 +99,9 @@ start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 
 Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검사 대상으로 삼는다.
 [49절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의
 시작 lanelet 이력은 진단 실행기에만 있고 발행 경로·confidence·production은 변경하지 않았다.
+추가 관측 적합도·횡이동 후보는 [50절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의
+별도 bag/30Hz 회귀까지 확인했다. 소수 큰 순위 악화 때문에 운영 정책에는 적용하지 않았다.
+Arc index는 소스에 반영했지만 실행 중 프로세스나 팀장님 배포본은 교체하지 않았다.
 
 ## 검증과 미구현 항목
 

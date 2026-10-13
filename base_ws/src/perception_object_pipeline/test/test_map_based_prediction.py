@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import random
 import unittest
 from unittest import mock
 
@@ -16,6 +17,30 @@ from perception_object_pipeline.map_based_prediction import (
 
 
 class MapBasedPredictionCoreTest(unittest.TestCase):
+    def test_arc_index_matches_scalar_reference_including_degenerate_segments(self):
+        random_source = random.Random(261014)
+        lines = [(), ((0.,0.,0.),), ((0.,0.,0.),(0.,0.,0.)),
+                 ((0.,0.,0.),(1.e-12,0.,0.),(1.,0.,1.)),
+                 ((0.,0.,0.),(1.,0.,0.),(1.,0.,0.),(1.,1.,2.))]
+        for _ in range(30):
+            points = [(0.,0.,0.)]
+            for _ in range(25):
+                old = points[-1]
+                points.append(tuple(old[i]+random_source.uniform(-5.,5.) for i in range(3)))
+            lines.append(tuple(points))
+        for line in lines:
+            indexed = map_prediction._RoutePolyline(line)
+            self.assertEqual(indexed.length,map_prediction.polyline_length(line))
+            if not line:
+                with self.assertRaises(ValueError):indexed.sample(0.)
+                continue
+            distances = [-1.,0.,indexed.length,indexed.length+1.]
+            distances += indexed.ends
+            distances += [random_source.uniform(0.,max(1.,indexed.length)) for _ in range(20)]
+            for distance in distances:
+                self.assertEqual(indexed.sample(distance),sample_polyline(line,distance))
+                self.assertEqual(indexed.tangent(distance),map_prediction.tangent_yaw(line,distance))
+
     def test_autoware_lanelet2_extension_is_loaded_once_and_globally(self):
         previous = map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE
         map_prediction._AUTOWARE_LANELET2_EXTENSION_HANDLE = None

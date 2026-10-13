@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import math
 import ctypes
+from bisect import bisect_left
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Tuple
@@ -132,6 +133,52 @@ def tangent_yaw(points: Sequence[Point3], distance: float, epsilon: float = 0.25
             return 0.0
         before, after = points[-2], points[-1]
     return math.atan2(after[1] - before[1], after[0] - before[0])
+
+
+class _RoutePolyline:
+    """Per-route arc index with the original scalar interpolation semantics.
+
+    Geometry is immutable for one prediction call. Cache lengths, not motion
+    or route decisions; avoid rescanning every segment for every future pose.
+    Tiny segments remain in total length but are skipped by sampling, exactly
+    as in polyline_length/sample_polyline above.
+    """
+
+    def __init__(self, points: Sequence[Point3]):
+        self.points = points
+        lengths = [_distance(a, b) for a, b in zip(points, points[1:])]
+        self.length = sum(lengths)
+        self.ends = []
+        self.segments = []
+        walked = 0.0
+        for first, second, length in zip(points, points[1:], lengths):
+            if length < 1.0e-9:
+                continue
+            self.segments.append((first, second, walked, length))
+            walked += length
+            self.ends.append(walked)
+
+    def sample(self, distance: float) -> Point3:
+        if not self.points:
+            raise ValueError("cannot sample an empty polyline")
+        if len(self.points) == 1:
+            return self.points[0]
+        target = max(0.0, float(distance))
+        index = bisect_left(self.ends, target)
+        if index == len(self.segments):
+            return self.points[-1]
+        first, second, walked, length = self.segments[index]
+        ratio = (target - walked) / length
+        return tuple(first[i] + ratio * (second[i] - first[i]) for i in range(3))
+
+    def tangent(self, distance: float, epsilon: float = 0.25) -> float:
+        before = self.sample(max(0.0, distance - epsilon))
+        after = self.sample(min(self.length, distance + epsilon))
+        if _distance(before, after) < 1.0e-9:
+            if len(self.points) < 2:
+                return 0.0
+            before, after = self.points[-2], self.points[-1]
+        return math.atan2(after[1] - before[1], after[0] - before[0])
 
 
 @dataclass(frozen=True)
@@ -453,7 +500,8 @@ class LaneletNetwork:
                 start_projection = project_point_to_polyline(route, x, y)
                 if start_projection is None:
                     continue
-                available = polyline_length(route) - start_projection.arc_length
+                geometry = _RoutePolyline(route)
+                available = geometry.length - start_projection.arc_length
                 if available + 0.5 < speed * max(horizons):
                     continue
                 offset_x = x - start_projection.x
@@ -462,7 +510,7 @@ class LaneletNetwork:
                 poses = []
                 for horizon in horizons:
                     route_distance = start_projection.arc_length + speed * horizon
-                    center = sample_polyline(route, route_distance)
+                    center = geometry.sample(route_distance)
                     if self.config.lateral_convergence_time_sec <= 1.0e-6:
                         residual = 0.0
                     else:
@@ -475,7 +523,7 @@ class LaneletNetwork:
                             center[0] + residual * offset_x,
                             center[1] + residual * offset_y,
                             center[2] + residual * offset_z,
-                            tangent_yaw(route, route_distance),
+                            geometry.tangent(route_distance),
                         )
                     )
                 raw_paths.append(
