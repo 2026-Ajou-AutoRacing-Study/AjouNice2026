@@ -103,6 +103,56 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 별도 bag/30Hz 회귀까지 확인했다. 소수 큰 순위 악화 때문에 운영 정책에는 적용하지 않았다.
 Arc index는 소스에 반영했지만 실행 중 프로세스나 팀장님 배포본은 교체하지 않았다.
 
+## 최신 팀장님 풀주행 확인 (2026-10-14)
+
+`full_baseline_00_sample_20261014_012302_01`의 bag·영상·시나리오·실행 파라미터를
+`rosbags/eval/perception/261014_teammate_fullstack/`에 복사했다. Music 원본은 보존했고
+bag SHA256은 `15698fa7c6ec264775c3b0e004980ad46a70cdf057f15e344416a7fd06dfb4d8`이다.
+개별 근거는 `planner_logs/analysis/full_baseline_00_sample_20261014_012302_01/`의
+`audit_v3/audit.json`, `map_v4/geometry_and_node_cost.json`,
+`map_v1/frozen_history_candidate.json`에 둔다. 학습·생성기·운영 정책은 변경하지 않았다.
+
+- 제어 시작/종료 events 사이 약 162.3초에 완주했고, 저장된 CollisionData의 접촉 목록은
+  비어 있다. 해당 구간의 detection은 9.93 Hz, tracking/prediction은 30.00 Hz,
+  최종 trajectory는 9.80 Hz이며 이 토픽들에 0.25초 초과 수신 공백은 없다.
+- 저장된 실행 파라미터에서 LC `use_all_predicted_paths=false`, Cruise outside 1개,
+  로터리 confidence 0.05를 확인했다. 정확한 최고점 동점은 0건이다. 이는 실행 설정 확인이며,
+  모듈이 실제 선택한 object/path index를 기록한 것은 아니다. Top-2가 RViz에 보이는 것과
+  planner가 그것을 소비하는 것은 여전히 구분한다.
+- Scalar/arc-index를 전체 5,461 tracking frame에서 비교해 ROS payload가 정확히 같았다.
+  기록본과 대응 가능한 5,417 prediction payload도 publisher별 `header.seq`만 정규화하면
+  정확히 같다. 소스가 최적화된 버전으로 배포됐음을 이 사실만으로 추정하지 않는다.
+- 로컬 CPU에서 nonempty 2,406 frame의 메시지 생성+직렬화 비용 평균은
+  `5.26 -> 2.19 ms`, p95는 `16.95 -> 6.02 ms`다. 객체 한 대가 아니라 전체 입력을
+  처리한 비용이며 팀장님 PC의 live/LAN 지연 측정은 아니다. 두 계산 방식 모두 드문 GC
+  spike가 있었다. indexed 최대 84.02 ms 표본에는 약 80.58 ms의 generation-2 GC가
+  측정됐다. 제외하지 않고 보고했으며, 분석 프로세스의 heap/GC를 실제 노드의 tail로
+  일반화하거나 GC를 운영에서 임의로 끄지 않는다.
+- 고정한 lane-history 후보는 3초 조건부 위치 오차 평균 `4.625 -> 4.623 m`로 거의
+  같고, 변경된 30표본 중 5m 초과 개선 12·악화 9였다. 새 bag으로 재튜닝하지 않았으며
+  기존 운영 미적용 결론을 유지한다. 원거리 저점수 갱신 후보는 raw 센서/저점수 검출이
+  없어서 이 bag만으로 검증할 수 없다.
+- 주행 중 trajectory validator 1,589건 중 7건이 invalid였다(최대 감속 4, 전방 길이 3).
+  주행 중 latency invalid는 0건이고, 시작 전 초기 궤적에서 1건 있었다. MPT 실패 진단도
+  있으므로 완주를 모든 중간 계산의 정상 판정으로 해석하지 않는다. 음영 구간에 배치
+  객체가 없는 이 주행은 그 구간의 객체 상호작용을 검증하지 않는다.
+
+다음 latency 관측에는 `/perception/base5_trial/status`와
+`/perception/base5_trial/latency_ms`도 필요하다. Base5 trial launch가 canonical 상태
+토픽을 이 namespace로 remap하지만 이번 녹화는 canonical 이름만 요청해 둘 다 빠졌다.
+Detection header→bag 수신 age 평균 237 ms는 scan 누적·전처리·큐·추론 등을 포함할 수
+있으며, 순수 GPU 추론 시간으로 부르거나 고정값을 빼서 보정하지 않는다. 정확한
+Map-CV 입력/출력 stamp·frame·UUID 대응 4,870건의 수신 차이는 평균 3.91 ms지만,
+subscriber별 녹화 순서 차이로 음수 7건도 있어 callback CPU와 같지 않다.
+
+추가 녹화는 [노드 지연 실행기](../../../../scripts/README.md#후단과-노드-지연-분석)를
+따른다. 기존 validator는 수정하지 않았고, 디버그를 자동 활성화하지도 않는다.
+C++ 포팅은 lane projection/route geometry 등 CPU 비용이 큰 부분부터 검토하되,
+동일 입력에서 UUID·class·shape·시각·경로 순서·confidence·31개 pose 동등성,
+empty/저속/off-lane fallback, 전체 콜백의 p95/p99·최대 지연·관측 age·queue/drop을
+확인한다. 이미 작은 직렬화 비용만 줄이는 작업보다 센서 누적과 큐, planner 개별
+processing-time 진단을 먼저 분리한다.
+
 ## 검증과 미구현 항목
 
 모델 선택은 Detection만 보지 않고 같은 mission bag의 Tracking center/AVE, speed error,

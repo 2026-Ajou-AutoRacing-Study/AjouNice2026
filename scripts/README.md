@@ -33,3 +33,42 @@
 
 - live MORAI: `/use_sim_time=false`
 - rosbag replay: `/use_sim_time=true`, `rosbag play --clock`
+
+## 후단과 노드 지연 분석
+
+`scripts/evaluation/audit_fullstack_recording.py`는 validator의 bag·결과 JSON·events·
+`ros_parameters.yaml`이 있는 한 run 폴더를 읽는다. 제어 시작부터 종료까지의 토픽 주기,
+수신/header 차이, 충돌 메시지, 궤적 검사와 실제 planner 설정을 분리한다. 새 ROS master,
+GPU 추론이나 MORAI를 실행하지 않는다. 분석 결과는 `planner_logs/analysis/<run_id>/`에 둔다.
+
+```bash
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+source planning_ws/install_isolated/setup.bash
+python3 scripts/evaluation/audit_fullstack_recording.py --run "$RUN_DIR" --output "$ANALYSIS_DIR/audit_v1"
+```
+
+`profile_recorded_map_prediction.py`는 같은 입력에서 scalar/arc-index 계산의 ROS 메시지를
+비교하고, 차량 전체의 예측·메시지 생성·직렬화 CPU 비용을 나눈다. 기본 실행은 고정된
+lane-history 연구 후보도 검증하되 production을 변경하지 않는다. `--skip-candidate`는
+계산 비교만 반복한다. 실행에는 인지 후단·평가 패키지의 Python 경로가 필요하다.
+
+```bash
+export PYTHONPATH="$PWD/base_ws/src/perception_object_pipeline/src:$PWD/base_ws/src/tracking_prediction_evaluation/src:$PWD/perception/detection3d/bevfusion/tools:$PYTHONPATH"
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 scripts/evaluation/profile_recorded_map_prediction.py \
+  --run "$RUN_DIR" --output "$ANALYSIS_DIR/map_v1"
+```
+
+다음 실제 주행에서 GPU 입력 대기/전처리/추론과 planner 개별 비용을 더 보려면 기존 녹화와
+별도로 아래 가벼운 trace를 쓸 수 있다. canonical 및 Base5 trial namespace를 모두 기록해
+latency 토픽 remap 누락을 방지한다. 원본 센서는 추가하지 않는다. 발행되지 않는 debug
+토픽을 생성하거나 노드를 재시작하지 않으므로 녹화 후 실제 topic count를 확인한다.
+
+```bash
+bash scripts/rosbag/record/rosbag_for_perception_latency_eval.sh --list  # 파일 생성·ROS 실행 없음
+bash scripts/rosbag/record/rosbag_for_perception_latency_eval.sh --duration 60
+```
+
+수신 시각 차이는 callback CPU 비용이나 GPU 연산 시간과 같지 않다. tracker의 30 Hz 새
+출력 header 역시 새 detector 관측이 아니다. C++ 포팅은 실제 비용과 출력 동등성을 확인한
+노드부터 별도 A/B로 수행하며, 이 실행기들이 운영 정책을 자동 승격하지 않는다.
