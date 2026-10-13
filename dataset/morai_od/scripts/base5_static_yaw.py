@@ -7,7 +7,7 @@ FINAL_POLICY = 'static-free-sector-yaw-v130'
 PED_POOLS = ('person', 'dummy', 'animal', 'pet_person', 'stroller', 'rider')
 
 
-def final_sample(asset, row, motion, ordinal, road_yaw, attempt=0):
+def final_sample(asset, row, motion, ordinal, road_yaw, attempt=0, size=None):
     """Balanced primary sectors, continuous angles; retry retains its stratum."""
     policy = row['static_yaw_policy']
     scope = policy['scope']
@@ -27,10 +27,14 @@ def final_sample(asset, row, motion, ordinal, road_yaw, attempt=0):
     key = f"{row['seed']}:{ordinal}:{asset['data_id']}:{attempt}:{FINAL_POLICY}"
     rng = random.Random(int(hashlib.sha256(key.encode()).hexdigest()[:16], 16))
     mode = policy.get('primary_mode') if ordinal == 0 else None
+    from base5_parked_npc_placement import yaw_override
+    override = yaw_override(row, asset, ordinal, motion, size)
+    if override is not None:
+        mode = override
     if mode is None:
         mode = 'road_aligned' if rng.random() < aligned_fraction else 'uniform'
     if mode == 'uniform':
-        sector = policy.get('primary_sector') if ordinal == 0 else None
+        sector = policy.get('primary_sector') if ordinal == 0 and override is None else None
         sector = rng.randrange(12) if sector is None else sector
         if type(sector) is not int or not 0 <= sector < 12:
             raise ValueError('Static yaw sector must be 0..11')
@@ -46,12 +50,12 @@ def final_sample(asset, row, motion, ordinal, road_yaw, attempt=0):
                 moving_path_alignment_changed=False)
 
 
-def sample(asset, row, motion, ordinal, road_yaw, attempt=0):
+def sample(asset, row, motion, ordinal, road_yaw, attempt=0, size=None):
     policy = row.get('static_yaw_policy')
     if not policy:
         return None
     if policy.get('policy') == FINAL_POLICY:
-        return final_sample(asset, row, motion, ordinal, road_yaw, attempt)
+        return final_sample(asset, row, motion, ordinal, road_yaw, attempt, size)
     if policy.get('policy') != POLICY:
         raise ValueError('Unknown static yaw policy')
     if motion not in ('static', 'standing') or asset['source_list'] == 'vehicleList':

@@ -17,9 +17,9 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 준비본 | 보강 `~/morai_cap/base5_obstacle_improvement_261013/final_v149/future_suite`의 독립 25K offline 계획. v142 baseline 보존 |
-| 보강 후보 release | 같은 실험 root의 `release_v149_sunny13/release.json`. Sunny13 소량 검증·복구 확인, `bulk_ready=false` |
-| 남은 live 조건 | Simulator Vulkan SIGSEGV 후 재연결·Park 확인, 음영 긴 NPC road-aligned 4장 probe. 본수집 미실행 |
+| 다음 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite`의 독립 25K offline 계획. v142/v149 보존 |
+| Sunny13 동결 release | 같은 실험 root의 `release_v150_sunny13/release.json`. 버스 4/4, 정적 보충 64/64, 이동 8/8, `bulk_ready=true` |
+| 본수집 상태 | 미실행. 새 Sunny13는 CPU prepare-only 0장. 다른 날씨는 실제 UI 확인과 소량 검증 필요 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 다섯 환경의 새 geometry·CPU preflight·소량 live 검증은
@@ -47,9 +47,15 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 
 현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다.
 범용 regular/dense의 일부에 19종 물리 장애물을 최대 하나 더하고 기존 0~20/20~30m 보조를 보호한다.
-30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
+장애물 보강은 30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
 같은 승인 ID 43장 대조에서 근거리 GT 64→98, LiDAR 20점 이상 39→55이고 Vehicle 36/Pedestrian 69는 유지됐다.
 이는 배치·센서 지원의 증거이며 재학습 AP 개선의 인증은 아니다.
+
+별도 긴 NPC 보완은 정적 회피·음영의 길이 8m 이상 정지 물리 차량에만 적용한다. 차체의 도로 지지를
+추정하지 못한 배치만 다시 생성하고 필요한 actor의 yaw fallback을 명시한다. 새 Sunny13에서
+24장 재배치·15개 actor 방향 fallback이며 4,976개 payload는 유지했다. 자산·거리/방향 계약·split은 보존한다.
+고주로·로터리의 경로 기반 차량, 일반 범용 차량, passive OBJ·사람·동물·복합체의 자유 yaw와 이동 경로는 유지한다.
+[정지 NPC 검증](261013_base5_parked_npc_support_evidence.md)에 실제 근거와 지도 추정의 한계를 기록했다.
 
 v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 반복하는 대신
 허용 도로를 따라 연속 Ego 위치를 샘플링한다.
@@ -82,8 +88,8 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
   음영의 이동은 독립 terrain/reference 준비를 유지한다. 자동 지면 추종 기능이 아니다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
-v149의 어려운 strata 64+8장 QA 포함 가중 예상은 5K 약 11.37시간/40.87GiB다.
-보수 예산은 10~13시간/약 51GiB이며 표본 편향·부족분에 따라 달라진다. v142의 8~11시간/35GiB와 혼용하지 않는다.
+v150의 64+8장 QA 포함 가중 예상은 5K 약 8.14시간/31.25GiB다. 운영 예산은 8~12시간/45GiB이며
+실제 본수집 rate로 갱신한다. v149와 표본이 달라 순수 속도 개선율로 해석하지 않는다. 현재 여유 약 110GiB로 25K 전체 보관은 부족하다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>

@@ -130,7 +130,7 @@ def pose(gen, ctx, route, arc, base, ego, asset, size, off, row, index, rng):
     else:
         yaw += rng.choice([0., 90., 180., 270.])+rng.uniform(-12., 12.)
     from base5_static_yaw import sample
-    static_yaw=sample(asset,row,'walking' if row.get('shadow_moving') else 'static',index,p['yaw'],row.get('_yaw_attempt',0))
+    static_yaw=sample(asset,row,'walking' if row.get('shadow_moving') else 'static',index,p['yaw'],row.get('_yaw_attempt',0),size=size)
     if static_yaw is not None:
         yaw=static_yaw['placement_yaw_deg']
         p=dict(p,_static_yaw_road_deg=p['yaw'])

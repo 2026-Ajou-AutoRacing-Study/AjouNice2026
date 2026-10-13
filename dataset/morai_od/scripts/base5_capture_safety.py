@@ -199,6 +199,9 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_support_policy.py']=sha256(scripts/'base5_obstacle_support_policy.py')
         contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
+    if json.loads(Path(manifest).read_text()).get('config',{}).get('parked_npc_placement'):
+        for name in ('base5_parked_npc_placement.py','base5_static_yaw.py'):
+            contract['safety_code_sha256'][name]=sha256(scripts/name)
     if reference:
         if sha256(reference['path'])!=reference['sha256']:
             raise ValueError('Placement geometry reference changed')

@@ -2,6 +2,9 @@
 
 문서 상태: 구현과 실험 근거. 기준일: 2026-10-13.
 
+아래 v149는 장애물 보강의 초기 근거다. 재연결 뒤 긴 NPC 보완·4장 probe·64+8장·실제 보충을 완료한
+현재 v150 준비 상태는 [정지 NPC 검증](261013_base5_parked_npc_support_evidence.md)과 [수집 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
+
 완료 Sunny13 5K는 보존하고 새 경로에서 생성·소량 캡처·native GT 분석을 수행한다.
 5K 본수집은 실행하지 않는다. 현재 MORAI UI는 사용자가 연결한 Sunny13이며 다른 날씨의
 실제 가시성을 검증한 것으로 해석하지 않는다.
@@ -108,13 +111,13 @@ mask·depth·native annotation·LiDAR·metadata는 무손실 보존했다. 시�
 새 시나리오를 로드하지 않은 부족분으로 기록한다. 일반 ValueError, hash 변경, 통신·제어 불확실은
 계속 전체 중단한다. 빈 report를 Park 근거로 사용하지 않으며 이전 report SHA와 실제 child session을 재검사한다.
 
-### 남은 긴 NPC 배치와 시뮬레이터 종료
+### v149 당시 남은 긴 NPC 배치와 시뮬레이터 종료
 
 음영 구간의 `2016_Hyundai_Universe`를 도로에 거의 수직으로 놓은 장면은 NPC가 실제 이동했다.
 첫 보충에서 Object position이 before→after 약 0.69m 움직였고 계획 pivot과 최대 2.08m 차이를 보였다.
 이는 고정된 pivot 오프셋만으로 설명할 수 없으며 기존 정지 검사로 올바르게 거부됐다.
 12m 차체가 도로 측면 지지 범위를 벗어났을 가능성을 시험하기 위해 같은 자산·미션의
-road-aligned 4장 후보를 `long_vehicle_probe4`에 생성했지만 실제 캡처는 아직 하지 못했다.
+road-aligned 4장 후보를 `long_vehicle_probe4`에 생성했지만 당시에는 실제 캡처를 하지 못했다.
 이를 이유로 버스를 제외하거나 정지 검사 25cm를 완화하지 않는다.
 
 저장된 전방 RGB에서도 해당 버스가 음영 구간 양쪽 측벽에 걸쳐 있고 차체가 기울어진 모습이 보인다.
@@ -125,7 +128,7 @@ road-aligned 4장 후보를 `long_vehicle_probe4`에 생성했지만 실제 캡�
 새 5K를 read-only로 감사한 `parked_npc_support_sunny13.json`에는 정지 NPC actor 4,260개,
 두 모서리 이상에서 도로 지지를 추정하지 못한 후보 65개가 있다. 긴 NPC 359개 중 해당 후보는 16개다.
 이는 map 선별 신호이고 실패율이 아니므로 65개를 자동 삭제하지 않는다. road-aligned 4장 후보는
-이 선별 신호가 없지만 native 실제 정지·접지는 아직 확인하지 않았다. 생성·학습 GT는 변경하지 않았다.
+이 선별 신호가 없지만 당시에는 native 실제 정지·접지를 확인하지 못했다. 생성·학습 GT는 변경하지 않았다.
 
 추가 대조 실험의 `sunny13_sunny11_b5v2_01122` 로드 뒤 Simulator가 종료됐다.
 Player.log의 마지막 스택은 `signo:11`과 Vulkan descriptor cache / `GfxDeviceVKBase::DrawBuffers`다.
@@ -135,8 +138,8 @@ Player.log의 마지막 스택은 `signo:11`과 Vulkan descriptor cache / `GfxDe
 재시작으로 로그가 덮어써지는 것을 막기 위해 `simulator_crash_261013_Player.log`를 실험 root에 보존했다.
 원본과 복사본의 SHA256은 `489759a2f40aa9036ffb74863594f89aa9ace46d11dbb933dd789adf33632264`로 동일하다.
 
-따라서 동결 release는 `bulk_ready=false`다. 일반 배치 보강과 복구 경로의 근거는 확보했지만,
-MORAI를 재연결하고 긴 NPC의 4장 후보를 실제 확인한 뒤 본수집 가능 여부를 결정한다.
+당시 v149 동결 release는 `bulk_ready=false`였다. 일반 배치 보강과 복구 경로의 근거는 확보했지만,
+MORAI 재연결과 긴 NPC의 4장 후보 확인이 남아 있었다. 이후 v150의 결과는 위 연결 문서를 따른다.
 halted 대조 output을 강제 resume하지 않는다. 재학습 AP와 Foggy 성능은 이번 배치 검증만으로 인증하지 않는다.
 
 ## 다음 환경과 비용
@@ -148,12 +151,12 @@ halted 대조 output을 강제 resume하지 않는다. 재학습 AP와 Foggy 성
 
 정적 64장과 실제 이동 8장의 QA·실패 raw를 포함한 group 가중 예상은 5K 약 11.37시간/40.87GiB다.
 이 표본은 어려운 strata를 포함하므로 전체 5K의 확정 비용이나 기존 대비 느려진 원인의 인증이 아니다.
-현재 보수 운영 예산은 10~13시간/약 51GiB이며 실제 본수집 초반 rate로 갱신한다.
-현재 여유 약 113GiB로는 다른 환경 25K 전체를 동시에 보관하기 부족하다. 완료 데이터 자동 삭제는 하지 않는다.
+당시 보수 운영 예산은 10~13시간/약 51GiB였다. 현재 예산은 v150 근거와 런북을 따른다.
+당시 여유 약 113GiB로는 다른 환경 25K 전체를 동시에 보관하기 부족했다. 완료 데이터 자동 삭제는 하지 않는다.
 
 CPU 사전 확인과 남은 live 절차는 [보강 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
 
-## 최종 코드 검증
+## v149 코드 검증
 
 - `python3 -m unittest discover -s dataset/morai_od/tests`: 684개 통과.
 - scripts/tests의 `compileall`, `git diff --check`: 통과.

@@ -34,6 +34,8 @@ def contract(source, indices, rounds):
     reference=data['config'].get('static_placement_geometry')
     if data['config'].get('obstacle_support_policy'):
         names.extend(['base5_obstacle_support_policy.py','base5_obstacle_rich_floor.py'])
+    if data['config'].get('parked_npc_placement'):
+        names.append('base5_parked_npc_placement.py')
     if reference and sha256(reference['path'])!=reference['sha256']:
         raise ValueError('Placement geometry reference changed')
     sources=[]

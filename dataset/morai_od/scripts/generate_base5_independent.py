@@ -800,7 +800,7 @@ def build(row,config,ctx,attempt=0):
             pose=dict(pose,yaw=actor_yaw)
             if asset['source_list']!='objectList': pose['yaw']=base['yaw']+rng.choice([-90.,90.])
         from base5_static_yaw import sample as sample_static_yaw
-        yaw_policy=sample_static_yaw(asset,row,actor_motion,i,pose.get('_static_yaw_road_deg',base['yaw']),attempt)
+        yaw_policy=sample_static_yaw(asset,row,actor_motion,i,pose.get('_static_yaw_road_deg',base['yaw']),attempt,size=size)
         if yaw_policy is not None:
             # Primary avoidance yaw must be selected before the gap solver.
             # Moving/crossing/vehicle rows have no opt-in and retain path yaw.
@@ -885,6 +885,10 @@ def build(row,config,ctx,attempt=0):
         if actor_motion in ('static','standing'):
             from base5_map_surface import initial_pose
             runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx)
+        from base5_parked_npc_placement import screen as screen_parked_npc
+        npc_support=screen_parked_npc(asset,actor_motion,size,ground_initializer,config.get('parked_npc_placement'),row)
+        if npc_support and not npc_support['road_supported']:
+            raise ValueError('Long parked NPC footprint outside estimated road support')
         stationary_policy=config['capture'].get('static_vehicle_policy')
         set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path,
                  stationary_vehicle_policy=stationary_policy)
@@ -909,6 +913,7 @@ def build(row,config,ctx,attempt=0):
         if stationary_policy and asset['source_list']=='vehicleList':
             actor_records[-1]['stationary_vehicle_policy']=stationary_policy
         if ground_initializer is not None:actor_records[-1]['map_ground_initializer']=ground_initializer
+        if npc_support is not None:actor_records[-1]['parked_npc_placement']=npc_support
         if actor_crossing:
             actor_records[-1]['mission_crossing_id']=actor_crossing['crosswalk_id']
         if not i: desired=actual
