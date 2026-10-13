@@ -81,6 +81,12 @@ PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 
 입력은 변경하지 않는다. `--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
 확인한다. `--run`만 bag을 기록하며 ROS 노드 기동·파라미터 변경·차량 제어는 하지 않는다.
 
+네트워크 연결 이후 자동 로드·운전·녹화까지 맡기는 경우에는
+`run_lidar_packet_probe_auto.py --run`을 쓴다. 이 실행기는 기존 validator를 GT 모드로
+재사용하며 별도 실험 설정을 생성한다. MORAI는 `ego_network_validator_local`에 연결하고
+사용자 `rc`만 유지한다. 다른 캠페인과 동시에 실행하지 않는다. standalone recorder와
+달리 이 자동 실행기는 시험 노드 기동·시나리오 로드·차량 제어를 수행한다.
+
 시나리오 이름·로컬 UDP 설정·세 터미널 명령과 수동 운전 구간은
 [benchmark 준비 절차](../configs/scenario/perception_benchmark/README.md#2026-10-14-원시-lidar-패킷-실험-준비)를 따른다.
 완료한 bag을 같은 원본의 50/51/회전각 A/B에 쓰고, MORAI OFF 상태에서 후속 분석한다.

@@ -21,6 +21,10 @@ CASES = {
     "highway": "bench_highway_merge_raw.json",
     "curve": "bench_roundabout_raw.json",
 }
+NETWORKS = {
+    "competition": "configs/network/ego_network_competition_local.json",
+    "validator": "base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json",
+}
 REQUIRED = {
     "/sensor/lidar1/packets": "velodyne_msgs/VelodyneScan",
     "/sensor/lidar1": "sensor_msgs/PointCloud2",
@@ -76,7 +80,7 @@ def require_driver_contract(params):
         raise RuntimeError("npackets override가 51이 아니야.")
 
 
-def preflight(timeout):
+def preflight(timeout, network_profile="competition"):
     import rosgraph
     import rospy
 
@@ -92,11 +96,11 @@ def preflight(timeout):
     # Verify that the receiver and the documented profiles describe the same input.
     for node, key, expected in (
         ("morai_sensor_udp_receiver", "sensor_config", "configs/sensors/Sensor_competition_local.json"),
-        ("morai_ego_udp_receiver", "network_config", "configs/network/ego_network_competition_local.json"),
+        ("morai_ego_udp_receiver", "network_config", NETWORKS[network_profile]),
     ):
         actual = pathlib.Path(rospy.get_param(f"/{node}/{key}"))
         if actual.read_bytes() != (ROOT / expected).read_bytes():
-            raise RuntimeError(f"{node} 설정이 competition_local과 달라: {actual}")
+            raise RuntimeError(f"{node} 설정이 지정한 프로필과 달라: {actual}")
     counts, types, lock = {}, {}, threading.Lock()
 
     def callback(message, topic):
@@ -129,10 +133,10 @@ def preflight(timeout):
             "types": types, "use_sim_time": False}
 
 
-def provenance(case, live):
+def provenance(case, live, network_profile="competition"):
     files = {
         "sensor": ROOT / "configs/sensors/Sensor_competition_local.json",
-        "network": ROOT / "configs/network/ego_network_competition_local.json",
+        "network": ROOT / NETWORKS[network_profile],
         "declared_scenario": ROOT / "configs/scenario/perception_benchmark" / CASES[case],
     }
     snapshots = {key: {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -177,6 +181,7 @@ def stop_recorder(process):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=CASES, default="static")
+    parser.add_argument("--network-profile", choices=NETWORKS, default="competition")
     parser.add_argument("--duration", type=int, default=30)
     parser.add_argument("--preflight-timeout", type=int, default=10)
     parser.add_argument("--output-root", type=pathlib.Path,
@@ -192,12 +197,12 @@ def main():
         print(json.dumps({"required": REQUIRED, "optional_regex": OPTIONAL_REGEX,
                           "scenarios": CASES}, ensure_ascii=False, indent=2))
         return 0
-    live = preflight(args.preflight_timeout)
+    live = preflight(args.preflight_timeout, args.network_profile)
     print("필수 입력 수신과 기존 드라이버 설정 확인 완료.", flush=True)
     if args.check:
         print(json.dumps(live, ensure_ascii=False, indent=2))
         return 0
-    snapshot = provenance(args.case, live)
+    snapshot = provenance(args.case, live, args.network_profile)
     name = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "_" + args.case
     output = args.output_root / name
     output.mkdir(parents=True, exist_ok=False)
