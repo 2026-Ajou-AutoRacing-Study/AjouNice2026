@@ -6015,3 +6015,154 @@ OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 python3 perception/detection3d/bevfusio
 python3 perception/detection3d/bevfusion/tools/qualify_base5_low_score_probe.py \
   --replay /tmp/base5_low_score_replay_new --build /tmp/base5_low_score_build_new --output /tmp/base5_low_score_qualification_new.json
 ```
+
+<a id="base5-map-path-consumers-261014"></a>
+
+## 49. 지도 보조·모듈별 경로 소비·차선 이력 진단 — 2026-10-14
+
+팀장님 새 bag을 기다리는 동안 기존 기록과 현재 소스로 Top-1 설명을 재검토했다.
+GPU·MORAI·ROS master·유료 인스턴스·planner를 실행하지 않았다. Production 코드·
+설정·하위 submodule·원본 bag·동결 추적 결과는 변경하지 않았다.
+
+### 발행·시각화·planner 소비를 구분한다
+
+Map-CV는 현재 위치/yaw와 차선 중심선 거리로 시작 후보를 고르고 연결된 successor를
+열거한다. 과거 lanelet 이력은 사용하지 않는다. 최대 6개의 구별되는 물리 경로를 발행하며,
+RViz가 그 경로를 표시하는 것과 특정 planner module이 모든 경로를 검사하는 것은 다르다.
+
+| 현재 소스의 소비자 | 현재 통합 설정과 동작 |
+|---|---|
+| Lane Change | `use_all_predicted_paths=false`. 최고 confidence의 **정확한 동점 전체**를 유지한다. near-tie는 동점이 아니다. |
+| Obstacle Cruise inside | confidence 정렬 뒤 1개를 재표본화하여 검사한다. |
+| Obstacle Cruise outside | 설정 개수의 경로를 선택한다. 통합 YAML의 `outside_obstacle/num_of_predicted_paths`는 1이다. |
+| Roundabout | confidence 0.05 이상 경로를 순회한다. 유효 길이·attention 대상·시간/형상 교차 조건을 검사하고 위험 충돌이면 조기 중단한다. |
+
+LC 근거는 `objects_filtering.hpp:157`, `safety_core.cpp:305`, LC `utils.cpp:748`이다.
+Cruise는 `obstacle_cruise_module.cpp:548/607`과 통합 `motion_velocity_modules.yaml`을
+대조했다. 기본 `bvp_experimental=true` 경로는 `experimental::RoundaboutModulePlugin`이며,
+해당 `experimental/scene_roundabout_collision.cpp:188`을 확인했다. Normal 구현도 같은
+confidence 순회 방식이다. 실제 실행의 module override와 parameter는 팀장님 bag/런타임으로
+별도 확인한다. 정확한 동점에서 Cruise의 C++ 정렬 순서는 보장되지 않는다.
+
+### 기존 실제 기록의 사용 가능 범위
+
+기존 inventory에서 E24 선택 receipt 7개, 고주로 E25 기록 1개, E25 전체 코스 1개,
+9월 전체 코스 1개를 read-only 조사했다. 10개 모두 prediction 토픽이 있었다.
+E24 7개와 해당 고주로 기록은 차량 class 관측이 0개라 원거리 차량 경로 검증으로 쓰지 않는다.
+빈 객체 메시지와 비차량만 있는 메시지는 구분하며 실패 원인으로 추정하지 않는다.
+
+E25 전체 코스의 차량 관측 1,810개 중 다중 경로는 1,265개, 9월 전체 코스의 6,864개 중
+다중 경로는 4,989개였다. 두 기록의 최고점 **정확한 동점은 0개**여서 현재 LC 정책을
+재적용하면 모두 한 경로만 남는다. 반면 0.05 이상 복수 경로는 각각 1,053/4,552개다.
+이 두 기록에는 이번 auditor가 확인한 LC/Cruise/Roundabout debug 토픽이 없었다.
+과거 발행 경로의 현재 정책 재해석이지 당시 planner가 선택한 경로의 직접 기록은 아니다.
+9월 기록의 detector 가중치와 실행 소스는 파일명으로 식별하지 않았다.
+
+동일 ID·frame·0.25초 이내 관측만 연결하고 동일한 미래 절대 시각에서 Top-1 경로의
+수정량을 계산했다. 3초 forecast revision의 평균/중앙값/p95는 E25 전체 코스
+0.381/0.003/1.627m, 9월 전체 코스 0.416/0.002/1.770m였다. 이는 GT 오차·차선 변경 횟수·
+조향 jerk가 아니라 예측 갱신 진단이며 실제 속도 변경과 지도 분기 변화도 섞여 있다.
+
+### 현재 지도와 E24 추적 상태의 재생
+
+46절의 실제 ROS tracker 출력 `promotion_ros_v2/messages.json.gz`의 `off/policy`를
+현재 v85 지도와 현재 Map-CV 코어에 넣었다. Detector 재추론·coasting 변경 없이
+고주로/로터리 및 비차량 구간의 차량으로 분류된 상태를 함께 조사했다.
+
+이 기존 tracker A/B fixture는 `/Ego_topic`의 MGeo 위치를 world 원점으로 쓰면서 header를
+`map`으로 명명한다. Lanelet 지도에 직접 넣으면 잘못된 위치가 된다. 새 도구는 명시적인
+physical coordinate 계약을 요구하고 `configs/tf/morai_lanelet_static_tf.yaml`의
+`morai_map -> map` 변환(+131.559130220, +545.911338186m)을 **한 번만** 적용했다.
+공식 START의 알려진 변환으로 단위 검사했다. 원점 정합이 없던 `map_v1`은 채택하지 않았다.
+이것은 독립 평가 fixture의 좌표 정합이며 production localization/TF 오류를 발견하거나
+수정했다는 뜻이 아니다. 이전 tracker A/B의 동일 world 좌표 기반 상대 오차는 보존된다.
+
+| E24 상태·현재 Map-CV | 고주로 H03 | 로터리 R01 |
+|---|---:|---:|
+| 차량 관측 | 796 | 693 |
+| 지도 경로 생성 | 796 | 665 |
+| 낮은 속도/지도 미매칭 fallback | 0/0 | 6/22 |
+| 지도 다중 경로 | 258 | 641 |
+| Top-2가 같은 시작 lanelet에서 다른 route로 분기 | 74 | 406 |
+| Top-2의 시작 lanelet 자체가 다름 | 184 | 235 |
+| 최고점 정확한 동점 | 0 | 0 |
+
+로터리 다중 후보에는 **시작 차선의 모호성**과 **같은 시작 차선 이후의 실제 지도 분기**가
+함께 있다. 둘을 구분하지 않고 Top-1으로 자르는 방식은 채택하지 않는다.
+지도 branch가 열려 있다는 사실만으로 NPC의 실제 출제 route를 확정한 것은 아니다.
+
+### 미래 GT 비교: 순위 개선 여지와 분기 보존
+
+기존 catalog/보간 GT를 동일 좌표로 변환했다. 현재 중심 2m 이내 1:1 대응이 있고 미래
+GT의 0.15초 이내 interpolation이 지원되는 관측만 집계했다. 매칭 누락·fallback은 위에서
+별도로 보고하고 이 조건부 평균에 0오차로 넣지 않는다. 평가 시각과 ROI 지원에 따라
+1/2/3초 분모가 달라진다. 미래 GT는 경로 생성이나 이력 선택에 쓰지 않는다.
+
+| 3초 FDE·동일 조건부 관측 | n | 현재 Map Top-1 평균/중앙값/p95 | 평가용 minFDE-K 평균/중앙값/p95 | 직선 CV 평균/중앙값/p95 |
+|---|---:|---:|---:|---:|
+| H03 | 142 | 2.335/0.998/8.583m | 2.303/0.983/8.583m | 4.089/3.082/10.178m |
+| R01 | 530 | 4.953/2.440/17.106m | 2.444/1.754/6.489m | 8.455/8.067/14.140m |
+
+1초 Top-1/minK 평균은 H03(n=204) 0.991/0.934m, R01(n=611) 1.050/0.799m다.
+2초는 H03(n=173) 1.524/1.503m, R01(n=574) 2.596/1.560m다.
+3초 minK가 Top-1보다 0.5m 이상 좋은 관측은 H03 2/142, R01 113/530이다.
+minK는 미래 정답을 보고 고른 **평가용 oracle**이지 실제 planner가 쓸 수 있는 정책이 아니다.
+관측들은 같은 몇 차량의 연속 표본이며 독립 테스트·대회 전체 확률로 해석하지 않는다.
+
+고주로는 현재 map Top-1이 CV보다 유리하고 순위 gap이 작다. 로터리는 map 자체의
+장점을 유지하면서 순위/차선 이력을 개선할 여지가 크다. 속도·pose·초기 추정 오차가
+섞인 FDE이므로 큰 tail을 모두 잘못된 분기 탓으로 돌리지 않는다.
+
+### 차선 이력 원형의 효과와 한계
+
+새 연구 실행기에서만 이전 시작 lanelet 또는 직접 successor를 보조했다. 현재 거리/yaw
+gate 안의 후보 중 최고 score가 이력 후보의 1.25배 이하일 때만 이력 후보를 우선한다.
+이력은 0.5초 이내·같은 ID에서만 쓰고 미매칭/저속 시 초기화한다. 명확한 새 후보는 전환한다.
+지도에서 사라진 후보를 복원하거나 미래 분기를 삭제하지 않는다.
+
+H03의 시작 lanelet 변화는 23→23회, 직접 successor가 아닌 변화는 2→2회다.
+R01은 51→27회, 직접 successor가 아닌 변화는 39→15회였다. 그러나 후자는 실제
+차선 변경·겹치는 지도 segment를 포함할 수 있어 전부 오매칭이라고 단정하지 않는다.
+첫 원형은 **진단용 시작 lanelet만 선택**하며 발행 route/confidence를 바꾸지 않았다.
+따라서 이 수치로 Top-1 FDE나 planner 안전성이 개선됐다고 주장하지 않는다.
+새로운 lane-change/분기 GT와 route-level 재생 후에만 실제 predictor 이식 여부를 판단한다.
+
+이 진단을 실제 예측 정확도 개선으로 오인하지 않도록 두 번째 후보도 비교했다.
+현재 predictor의 독립 메모리 복사본에서만 이력으로 선택한 시작 후보의 score를 1.25배로
+보조하고, 원래 lane 후보와 successor 분기는 삭제하지 않았다. 현재 clustering/6개 cap을
+그대로 재사용했다. H03 Top-1 route ID는 3개 관측, R01은 60개 관측에서 달라졌다.
+R01에서 route-ID 집합도 17개 관측에서 달라졌으나 동일 미래의 representative 변경이
+섞일 수 있어 실제 분기 소실로 단정하지 않는다. 0.05 이상 경로 개수는 같았다.
+
+| R01 동일 미래 GT 관측 | n | 기존 Top-1 평균/p95 | 이력 가중 Top-1 평균/p95 | 0.5m 이상 개선/악화 관측 |
+|---|---:|---:|---:|---:|
+| 1초 | 611 | 1.050/3.031m | 1.071/3.181m | 10/14 |
+| 2초 | 574 | 2.596/8.794m | 2.721/9.819m | 14/19 |
+| 3초 | 530 | 4.953/17.106m | 5.079/18.419m | 14/14 |
+
+H03의 조건부 FDE는 그대로였다. R01의 minFDE-K 평균은 1/3초 그대로이고 2초도
+1.5595815→1.5595331m의 미소 차이뿐이라 주로 후보의 순위 문제로 보인다.
+**시작 lanelet 진동 감소와 더 정확한 예측은 동일하지 않다.** 이전의 잘못된 후보를
+붙잡거나 실제 이동/지도 segment 변화를 늦게 따라가는 위험이 있어 이 가중 후보를 기각한다.
+관측 이력의 route residual과 실제 lateral motion을 사용하는 후속은 별도 후보이며
+이번에 구현·검증됐다는 뜻이 아니다. 이 시험 후보도 실제 publisher나 planner에 넣지 않았다.
+
+O02에는 차량으로 분류된 관측 35개 중 26개가 지도 경로를 얻었다. 실제 정적 장애물
+six-asset 장면이라는 기존 catalog와 함께 보면 **지도 위 차량처럼 보인다는 사실은
+진짜 차량의 증거가 아니다.** Road prior만으로 Vehicle을 확정·UNKNOWN을 강제 승격하지 않는다.
+미매칭을 바로 삭제하지 않고 off-lane/합류/역방향의 기존 Cartesian fallback을 유지한다.
+
+### 산출물·검증·다음 단계
+
+- Root: `artifacts/evaluation/bevfusion/base5_map_path_review_261014`.
+- `recorded_v2.json`: 10개 bag 기록과 현재 consumer source/YAML SHA. Runtime 검증은 false다.
+- `map_v6.json`: map/projector/alignment/predictor/센서/GT/추적 상태/도구 SHA, 후보 lanelet trace와 baseline/이력 가중 조건부 FDE.
+- 최종 SHA256은 recorded_v2 `8a0b129d58ab62096b3e2f9dc048d66abd8a289687466a76e1505de550932443`,
+  map_v6 `9670440aced4f4b9f567212191bb65aa19b91476bab1a6148aded7750639d459`다. 반복 수치와 baseline FDE 불변을 대조했다.
+- 도구: `audit_base5_predicted_path_selection.py`, `probe_base5_map_lane_history.py`.
+- 선택·동점·시간 정합·좌표 변환·fallback·이력·soft prior 비파괴 synthetic 검사 16개와 기존 map core 검사 5개를 통과했다.
+- 다음은 시작 차선 score의 시간적 안정화와 실제 분기 의도를 분리한 route-level A/B다.
+  팀장님 bag에서 module 실행값·최고점/동점/0.05 후보·관측 age·lanelet/route ID·선택된 충돌 대상과
+  Ego 후보 궤적을 확인한다. Prediction 시각화만으로 Top-2가 추월 실패 원인이라고 결론내리지 않는다.
+- Production 경로 개수·confidence·planner 안전 조건은 유지한다. 로터리 일괄 Top-1이나
+  관측 없이 지도만으로 차량을 새로 만드는 기능은 적용하지 않았다.

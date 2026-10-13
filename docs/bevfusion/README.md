@@ -1,6 +1,6 @@
 # BEVFusion 작업별 문서 인덱스
 
-문서 상태: ROUTER. 정리 기준: 2026-10-13.
+문서 상태: ROUTER. 정리 기준: 2026-10-14.
 현재 모델·실행 선택·남은 과제는 [CURRENT](CURRENT.md)에서 한 번만 관리한다.
 이 문서는 필요한 근거를 고르는 안내이며 날짜별 진행 결과를 복사하지 않는다.
 
@@ -24,6 +24,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| 모듈별 예측 경로 소비·고주로/로터리 Top-K·지도와 차선 이력 원형 | [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014) |
 | 저신뢰도 갱신의 실제 EKF 코어·초기 검출 한계·위치/속도·부작용 보호 | [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013) |
 | 원거리 score 비교·GT 노출·지도/Top-1 검토 기점 | [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013) |
 | 저장 bag·E24 tracker guard A/B·planning 필터 검토 | [46절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013) |

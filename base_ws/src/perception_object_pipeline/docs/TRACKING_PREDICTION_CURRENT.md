@@ -1,7 +1,7 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 문서·launch 대조: 2026-10-13. 아래 9월 bag 실측은 당시 이력이다.
+마지막 문서·launch 대조: 2026-10-14. 아래 9월 bag 실측은 당시 이력이다.
 현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
 
 ## Production 계약
@@ -92,6 +92,11 @@ prediction coverage를 함께 감시한다.
 현재 predictor는 CTRV 곡률로 lane rank를 고르는 구조가 아니다. 현재 위치·yaw로
 start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 경로를 열거한다.
 따라서 고주로 인접 차선 Top-1 의도 추정은 tracker history 없이 완전히 해결되지 않는다.
+
+모든 planner가 Top-1만 쓰지는 않는다. 현재 통합 설정의 LC는 최고점 정확한 동점 전체,
+Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검사 대상으로 삼는다.
+[49절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의
+시작 lanelet 이력은 진단 실행기에만 있고 발행 경로·confidence·production은 변경하지 않았다.
 
 ## 검증과 미구현 항목
 

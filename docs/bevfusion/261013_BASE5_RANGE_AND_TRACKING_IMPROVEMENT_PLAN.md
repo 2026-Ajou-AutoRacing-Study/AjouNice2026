@@ -1,6 +1,6 @@
 # Base5 원거리 차량과 근거리 객체 개선 계획
 
-문서 상태: PLAN. 기준일: 2026-10-13.
+문서 상태: PLAN. 기준일: 2026-10-14. 2026-10-13 계획을 최신 로컬 근거로 갱신했다.
 현재 실행값은 [모델 CURRENT](CURRENT.md), 배치 release는
 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md), 후단 실행값은
 [Tracking CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)가 관리한다.
@@ -14,7 +14,7 @@
 | 1 E24 실제 풀스택 | 팀장님 수행 예정. 결과 대기 | 모델·센서·실행값이 기록된 주행 bag과 실패 장면 확보 |
 | 2 저장 검출의 원거리 score 분석 | 로컬 CPU 비교 완료 | 동일 입력의 거리별 누락·미대응·위치 오차를 구분하고 후단 후보 선정 |
 | 3 낮은 score로 기존 차량 track 갱신 | 독립 실제 EKF 코어 원형과 12프로필 비교 완료. production OFF | 이동·클래스 안정·XY 갱신 후보의 실제 ROS 및 새 초기 접근 구간 검증 |
-| 4 지도 보조와 예측 경로 안정화 | 원인 조사 후보. 미구현 | 실제 사용 경로·동점·차선 매칭·안전 조건을 구분한 재현 근거 |
+| 4 지도 보조와 예측 경로 안정화 | 소비 코드·기존 bag·현재 지도/E24 상태 재생 완료. 단순 이력 가중 후보는 FDE tail 악화로 기각. production 유지 | 신규 maneuver GT·runtime parameter·안전 조건으로 관측 이력/순위 후보의 효과 확인 |
 | 5 다음 생성 분포 조정 | 후보 방향 정리. v150은 그대로 유지 | primary·asset·거리/방향·split 변경을 명시하고 CPU 감사와 소량 캡처 검증 |
 | 6 다른 PC의 병렬 수집 | 전달 실행기 미구현 | 독립 배치·resume·유한 보충·JPEG 전달본·업로드 검증의 한 묶음 시험 |
 | 7 짧은 학습 비교와 최종 학습 | 미실행 | 입력·GT·평가 split을 고정하고 후보 효과와 근접 회귀를 확인 |
@@ -104,16 +104,32 @@ last measurement를 갱신하므로 총 유지 시간이 늘 수 있다. 실제 
 ## 예측 경로와 planner 검사
 
 현재 저장소의 Lane Change는 `use_all_predicted_paths=false`이지만 최고 confidence가
-동점인 경로는 모두 남긴다. Obstacle Cruise의 주요 경로 선택은 하나다. 실제 팀장님 실행
-parameter와 소비 module을 확인하기 전에는 Top-K 때문에 추월이 막혔다고 확정하지 않는다.
+정확히 동점인 경로는 모두 남긴다. Obstacle Cruise는 inside 검사에서 하나, outside에서
+설정 개수를 선택하며 통합 설정의 outside 값도 1이다. 로터리 전용 모듈은 confidence
+0.05 이상 경로를 순회하며 위험 충돌 시 중단한다. RViz에 Top-2가 보인다는 사실만으로
+차선 변경이 그 경로까지 사용했다고 판단하지 않는다. 실제 팀장님 실행 parameter와
+소비 module을 확인하기 전에는 Top-K 때문에 추월이 막혔다고 확정하지 않는다.
 
 먼저 발행 path 수와 각 confidence, planner가 고른 path, 현재 차선 및 미래 경로와 Ego 후보
 경로의 충돌을 기록한다. 동점, 잘못된 Top-1, lane association 흔들림, 속도/BBox 오차와
 관측 age, planner 안전거리 조건을 구분한다. 단순 Top-1으로 바꾸고 해결됐다고 결론내지 않는다.
 
-차선 이력 기반 매칭과 Top-1 hysteresis를 우선 검토한다. 구역별 정책이 필요하면 Ego geofence
+2026-10-14 [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의
+고주로/로터리 E24 상태·현재 지도 비교에서, 3초 Top-1/minFDE-K 평균은 각각 2.33/2.30m와
+4.95/2.44m였다. 정답에 현재 대응하고 미래 GT가 지원되는 조건부 표본이며 minK는 미래를
+사용한 평가 상한이다. 따라서 고주로 후보 전체 삭제의 이득은 미확인이고 로터리의 실제 분기는 유지한다.
+로터리 시작 lanelet의 일반 successor가 아닌 변화는 이력 진단에서 39→15회였지만,
+그 진단만으로 실제 Top-1 정확도 향상으로 해석하지 않는다. 별도 연구 복사본에서 이력
+시작 차선의 score를 1.25배로 반영하자 R01 3초 FDE 평균/p95는 4.953/17.106→
+5.079/18.419m로 악화했다. 단순 이력 유지의 production 적용은 기각한다.
+
+후속은 실제 관측의 경로 적합성과 lateral motion을 사용하는 이력이다. 단순 Top-1
+hysteresis를 해결책으로 고정하지 않는다. 구역별 정책이 필요하면 Ego geofence
 하나가 아니라 대상 차량의 도로 구간·진입/탈출·이력도 사용한다. 로터리의 실제 분기 후보를
 임의로 삭제하거나 남긴 경로의 confidence를 자동으로 1.0으로 만들지 않는다.
+이력은 관측 gap·클래스 변경·새 ID·지면/좌표 미정합에서 초기화하고, 현재 거리/yaw gate를
+벗어난 이전 lanelet을 강제로 복원하지 않는다. 명확한 차선 변경은 새 후보로 전환하며
+실제 분기의 확률은 시작 차선 안정화와 별도로 다룬다. 지도 위라는 사실로 새 차량을 확정하지 않는다.
 [Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
 과거 lanelet 연결성·maneuver 이력은 참고이며 현재 커스텀 Map-CV에 구현됐다는 뜻은 아니다.
 
