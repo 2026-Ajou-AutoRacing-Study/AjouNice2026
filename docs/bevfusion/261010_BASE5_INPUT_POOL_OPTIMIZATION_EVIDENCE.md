@@ -5854,3 +5854,164 @@ Top-1·관측 age/속도/BBox·안전거리 조건을 구분하기 전에 Ego ge
 관련 참고는 [ByteTrackV2](https://arxiv.org/abs/2303.15334)의 계층적 low-score association과
 [Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
 lanelet/차선 변경 이력이다. 현재 custom tracker/predictor에 이 기능을 구현했다거나 논문 성능을 재현한 것은 아니다.
+
+<a id="base5-low-score-core-probe-261013"></a>
+
+## 48. 저신뢰도 갱신의 실제 EKF 코어 비교와 한계 — 2026-10-13
+
+사용자는 초기 threshold 실패, 확인 후 누락, 위치/속도 변화, 유지한 장점과 새 부작용을
+다각도로 분석한 뒤 판단할 것을 요청했다. 새 GPU 추론·MORAI·원격 학습·ROS master를
+실행하지 않고 47절의 동일 E24 검출을 실제 C++ EKF 코어에 재생했다.
+설치된 tracker·submodule·production config·checkpoint와 원본 bag은 변경하지 않았다.
+
+### 독립 원형과 비교 조건
+
+`build_base5_low_score_probe.py`는 현재 헤더/CPP를 읽고 엄격한 anchor를 검사한 뒤
+artifact 안에 원형을 생성한다. 원본 source와 수정 복사본을 각각 별도 바이너리로 컴파일한다.
+비활성 원형과 원본 코어, 원본 독립 반복은 네 bag의 모든 state에서 정확히 같았다.
+기존 EKF prediction/update/lifecycle을 재사용하며 매 frame에 한 번만 lifecycle을 진행한다.
+현재 MatchPairs는 Mahalanobis cost 정렬 후 greedy 대응이고 Hungarian이 아니다.
+
+CTRV·association 5m·XY noise 0.40m·dimension alpha 0.3·yaw-rate filtering ON·
+OD velocity/center-motion fusion OFF와 원래 0.5/1초 coast를 사용했다. Recorded Ego와
+Sensor_4로 모든 관측을 동일 map 좌표로 옮겼다. 1,570장 전부를 이력에 넣고
+기존 GT 적격 1,413장만 집계했다. TF node·orientation canonicalizer·30Hz scheduler·
+Map-CV·planner·실시간 queue는 실행하지 않았다. Z는 이 core probe의 bottom 기준이다.
+
+12개 프로필은 baseline/반복, 약한 floor 0.30/0.20/0.10의 XY 갱신, 0.20 전체 갱신,
+약한 허용 창 1초, 클래스 평활 score 0.80/0.90, 이동 조건, 단순 0.20 새 birth 허용이다.
+변경 요인을 분리하며 개발 bag으로 후보를 정제했다. 이를 untouched test로 부르지 않는다.
+
+높은 관측을 먼저 대응하고 남은 confirmed CAR/TRUCK에만 약한 Vehicle을 연결한다.
+30m 이상·XY innovation 2m 이내·pi 대칭 yaw 60도 이내·길이/너비 ratio 2 이내를 요구한다.
+낮은 후보의 새 birth나 tentative confirmation은 금지한다. XY 전용은 약한 관측의 크기·Z·
+클래스 score를 반영하지 않고 yaw 측정을 비정보적으로 만든다. XY와 state covariance의
+연결 때문에 EKF 속도/yaw state가 전혀 변하지 않는다는 뜻은 아니다.
+
+### 원거리 누락과 threshold의 관계
+
+GT/ROI/원래 frame index/0.25초 공백마다 연속 구간을 분리했다. 다음은 50~80m GT 276개에
+대한 같은 floor 0.10/NMS 뒤의 진단이다. GT는 tracker 입력이나 association에 사용하지 않았다.
+
+| 관측 상태 | GT 관측 수 |
+|---|---:|
+| 0.40 이상 Vehicle, 중심 2m 이내 대응 | 192 |
+| 이전 높은 대응 이후 0.10~0.40 Vehicle 대응 | 21 |
+| Vehicle 후보가 있지만 중심 차이 2~4m | 4 |
+| 다른 클래스 후보가 GT 2m 이내 | 2 |
+| 2m 대응도 없고 Vehicle 4m 이내 후보도 없음 | 57 |
+
+0.40→0.10으로 살릴 수 있는 raw 대응은 21/276이다. 나머지를 단순 threshold 문제라고
+설명하지 않는다. 마지막 열에는 floor 미만 score·큰 위치 오차·다른 원인이 섞일 수 있어
+센서나 모델에 후보가 전혀 없었다고 단정하지 않는다.
+80~100m GT 91개는 높은 대응 12, 기존 높은 대응 뒤 약한 대응 14, 나머지 65개다.
+
+이 적격 구간에서 올바르게 대응한 약한 Vehicle은 모두 이전 높은 대응 이후였다.
+두 never-high 구간은 각각 3개 관측이고 거의 ROI 끝이라 초기 획득 실패의 대표로 쓰지 않는다.
+H03은 주요 차량이 약 26/29/65m에서 시작해 멀어진다. R01의 주요 후방 차량도 약
+30~52m에서 이미 보던 뒤 80~100m로 멀어진다. 대부분 first-high는 구간 시작부터 있어
+최초 탐지 거리가 left-censored다. 이 결과로 100m에서 접근하는 미확인 차량의 bootstrap을 인증하지 않는다.
+
+참고로 기존 native val의 독립 50~80m Vehicle 51개는 1m gate에서 score 0.40 대응 28개,
+0.10 대응 32개였다. 이 역시 threshold만으로 모든 원거리 미탐을 해결한다는 근거가 아니다.
+단일 장면이므로 이 숫자로 연속 track 생성 가능성을 판단하지 않는다.
+
+### 효과와 평균 및 tail 분포
+
+최종 시험 후보는 `weak010_moving_class090_xy`다. 약한 창 0.5초, 클래스 평활 score 0.90,
+현재 정지 판정 경계인 world speed 2m/s 초과를 추가한다. 클래스 score는 실제 확률이 아니다.
+정지·저속 차량은 삭제하지 않고 baseline 처리를 유지한다. 낮은 관측이 last measurement를
+갱신하므로 총 유지 시간은 늘 수 있으며, 약한 창과 삭제 타이머를 같은 것으로 설명하지 않는다.
+
+아래는 tracking의 중심 2m 이내 recall과 prediction 거리의 미대응 관측 수다.
+미대응은 의미상 오검출 확정 수가 아니다. 동작을 실제 ROS가 아니라 core probe에서 비교했다.
+
+| 거리 | baseline TP / GT | 시험 후보 TP / GT | baseline / 후보 미대응 |
+|---|---:|---:|---:|
+| 0~30m | 346 / 350 | 346 / 350 | 22 / 22 |
+| 30~50m | 269 / 306 | 271 / 306 | 3 / 3 |
+| 50~80m | 254 / 276 | 257 / 276 | 47 / 47 |
+| 80~100m | 28 / 91 | 38 / 91 | 6 / 6 |
+
+50~80m은 92.03→93.12%의 작은 증가다. 80~100m은 30.77→41.76%지만 이득이 일부
+이미 보던 차량에 집중되어, 원거리 전체 성능이 해결됐다고 보지 않는다.
+H03 14회/R01 28회의 실제 약한 갱신이 있었고 O02/P01은 0회다.
+
+평균·p50·p90·p95는 양쪽 모두 4m 이내로 대응한 같은 GT 관측만 사용한다.
+miss는 별도 recall로 보고하며 새 대응이 조건부 평균을 바꾸는 selection bias를 구분한다.
+
+| 동일 관측의 중심 오차 | 관측 수 | 평균 baseline→후보 | p50 | p90 | p95 |
+|---|---:|---:|---:|---:|---:|
+| H03 50~80m | 123 | 0.807→0.801m | 0.467→0.466 | 1.769→1.769 | 1.903→1.900 |
+| R01 50~80m | 135 | 0.667→0.657m | 0.533→0.533 | 1.238→1.196 | 1.437→1.418 |
+| H03 80~100m | 14 | 1.245→1.245m | 1.148→1.148 | 1.931→1.931 | 2.026→2.026 |
+| R01 80~100m | 16 | 1.326→0.570m | 1.259→0.461 | 1.890→0.906 | 1.985→1.103 |
+
+R01 80~100m 16개 동일 관측에서 속도 벡터 오차 평균/p50/p90/p95는
+2.574/2.492/3.829/3.886→0.689/0.755/0.999/1.042 m/s다.
+이는 교정된 BBox-center trajectory의 ±0.2초 local fit를 기준으로 한 오차이며,
+순간 UDP velocity GT나 실전 AVE 인증이 아니다. Future fit는 평가에만 사용한다.
+H03의 이득은 작고 R01 한 주요 후방 궤적의 이득이 크므로 평균만으로 보편적 향상을 주장하지 않는다.
+
+연속 같은 ID의 속도 벡터 변화와 CV 이동 residual의 평균·p50·p90·p95·최대도
+association/coasting으로 나눠 저장했다. 이것은 실제 조향 jerk나 exact CTRV innovation이 아니다.
+약한 갱신이 큰 새 spike를 만들었다는 근거는 이번 후보에서 없지만, 표본 구성과 조건부
+분포를 구분하고 기존 수 m/s의 초기/강한 관측 변동까지 해결했다고 주장하지 않는다.
+
+H03의 큰 속도 오차도 원인을 따로 확인했다. `H03_162301_00070/00071`은 새로운
+ID 3이 age 4에서 confirmed된 직후이며 reference 대비 약 7.36~7.37m/s 차이가 있었다.
+selected 후보에서도 동일하다. 이는 약한 보충이 새로 만든 spike가 아니라 기존의 재확인/
+초기 속도 추정 문제이며, GT reference의 근사도 함께 고려한다. 확인 여부와 속도 성숙도를
+같은 것으로 취급하지 않는다. ID 변화 지표 0도 GT 제외/누락 구간을 넘는 새 ID를 부정하지 않는다.
+
+### 발견한 부작용과 보호 조건
+
+단순 floor 0.20과 새 birth 허용은 전체 ROI Vehicle 미대응 78→111, R01 인접 GT-key↔
+track-ID 변화 0→1이었다. 근접 Vehicle 미대응도 22→37로 증가했다. 이를 채택하지 않는다.
+약한 관측의 크기/yaw/클래스까지 갱신한 0.20 후보는 50~80m Vehicle 미대응 47→52였고,
+약한 창을 0.5→1초로 늘린 0.20 후보는 차량 이득 없이 O02 갱신만 추가했다.
+
+XY만 쓰는 일반 0.10 후보에서도 CAR였던 track이 이후 UNKNOWN이 되며 O02의 11개
+UNKNOWN 관측에 최대 0.2746m 위치 차이가 전파됐다. 최대 차이는 약 61m에 있었다.
+CAR 클래스 평활 score 1.0과 크기 5.17×2.18m도 실제 차량임을 보증하지 않았다.
+클래스 margin 0.90만으로는 이 부작용이 사라지지 않았다.
+
+해당 false-vehicle track의 약한 갱신 때 속도는 약 0.44~0.73m/s였다. 현재 정지 경계
+2m/s를 약한 보충의 이동 조건으로 사용하자 O02 갱신은 0회가 됐고 그 bag의 모든
+track state가 baseline과 같아졌다. P01도 전부 같으며, H03/R01의 confirmed 비차량
+출력 state도 모두 같았다. R01 후방 이득은 유지됐다. 이 조건은 약한 보충만 제한하며,
+실제 정지 차량을 없애거나 저속 차량을 오검출로 단정하지 않는다. 가짜 world motion이나
+새 환경의 진짜 저속 차량에서 같은 효과가 난다는 인증도 아니다.
+
+### 검증과 다음 판단
+
+원형은 별도 artifact 바이너리일 뿐 production node의 기능을 추가한 상태가 아니다.
+보호 조건을 적용한 프로필만 실험 후보로 유지한다. 실제 ROS boundary와 새 incoming
+차량 구간에서 검증하기 전에는 기본 ON으로 바꾸지 않는다. 강한/모든 관측 age,
+약한 갱신 여부·측정/track confidence를 구분해 후단과 planner가 불확실성을 확인해야 한다.
+새 bag은 전방 및 후방 80~100→30m의 초기 접근, 가림/가감속, 정지 차량과 도로 배경을 포함한다.
+이전에 보던 차량이 멀어지는 이번 조건과 분리하며 threshold 아래 후보나 짧은 raw가 필요하다.
+
+- Root: `artifacts/evaluation/bevfusion/base5_low_score_tracking_261013`.
+- 최종 build: `build_v3/build.json`, `original`, `probe`. 최종 matrix: `replay_v6/report.json`, `frames.json.gz`.
+- Report SHA256: `69faf365c6dbf24cb9c262c9a4c86af6c15b516a7eed788d9634d1c1a71e4863`.
+- Frames SHA256: `8d757bf67ddc17ed9a1b357e01e8d3ce003000ef2b90334e7677785294791de7`.
+- Production CPP/Header SHA: `9b413ea8b7786df408650b706f516052f27d24e117c48a548729f38d95a9827b` /
+  `6f00ac4890215e9b415324edc0d08f9db7cf7df8a535b65374e61cb950b7944a`. 원본은 유지됐다.
+- `qualification_v2.json`은 frozen source·원본 반복·동일 이력/stamp·비차량/근접 회귀를 확인한다. `production_enabled=false`, 새 bag/full-stack 미검증이다.
+- `review_r01_gt4_v2`와 `review_h03_gt5_v2`의 SVG/PNG/trace JSON에 거리·score·중심/속도 오차를 남겼다. R01 하나의 이득만 보여주지 않고 H03의 작은 이득도 보존했다.
+- 초기 분석 v1의 score 필드 누락과 ROI 이후 ID indexing을 보완했다. ROI 경계를 넘는 track의 quality index는 ID로 다시 찾는다. 이전 단계는 보존하되 최종 수치에 섞지 않는다.
+- CPU/실제 compiled-core 관련 검사 40개가 통과했다. 저신뢰도 무생성·tentative 보호·high 우선·shape/innovation gate·pi 모호성·무한 유지 방지·XY 속성 보호·클래스/정지 보호·원본 반복을 포함한다.
+
+재현은 새 artifact 경로로 build → evaluate → qualify 순서로 수행한다. ROS master나 GPU는 필요 없다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/build_base5_low_score_probe.py --output /tmp/base5_low_score_build_new
+OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 python3 perception/detection3d/bevfusion/tools/evaluate_base5_low_score_probe.py \
+  --inputs artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1 \
+  --predictions artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1/predictions_0.json.gz \
+  --build /tmp/base5_low_score_build_new --sensor-config configs/sensors/Sensor_4.json \
+  --output /tmp/base5_low_score_replay_new
+python3 perception/detection3d/bevfusion/tools/qualify_base5_low_score_probe.py \
+  --replay /tmp/base5_low_score_replay_new --build /tmp/base5_low_score_build_new --output /tmp/base5_low_score_qualification_new.json
+```

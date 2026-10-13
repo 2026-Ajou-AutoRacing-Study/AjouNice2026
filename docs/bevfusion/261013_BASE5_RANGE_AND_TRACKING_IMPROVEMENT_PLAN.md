@@ -13,7 +13,7 @@
 |---|---|---|
 | 1 E24 실제 풀스택 | 팀장님 수행 예정. 결과 대기 | 모델·센서·실행값이 기록된 주행 bag과 실패 장면 확보 |
 | 2 저장 검출의 원거리 score 분석 | 로컬 CPU 비교 완료 | 동일 입력의 거리별 누락·미대응·위치 오차를 구분하고 후단 후보 선정 |
-| 3 낮은 score로 기존 차량 track 갱신 | 설계 후보. 미구현 | 새 track 생성과 기존 track 갱신을 분리한 opt-in A/B, 누락·잔류·ID·위치/속도 비교 |
+| 3 낮은 score로 기존 차량 track 갱신 | 독립 실제 EKF 코어 원형과 12프로필 비교 완료. production OFF | 이동·클래스 안정·XY 갱신 후보의 실제 ROS 및 새 초기 접근 구간 검증 |
 | 4 지도 보조와 예측 경로 안정화 | 원인 조사 후보. 미구현 | 실제 사용 경로·동점·차선 매칭·안전 조건을 구분한 재현 근거 |
 | 5 다음 생성 분포 조정 | 후보 방향 정리. v150은 그대로 유지 | primary·asset·거리/방향·split 변경을 명시하고 CPU 감사와 소량 캡처 검증 |
 | 6 다른 PC의 병렬 수집 | 전달 실행기 미구현 | 독립 배치·resume·유한 보충·JPEG 전달본·업로드 검증의 한 묶음 시험 |
@@ -70,6 +70,23 @@ OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 python3 \
 차량과 association될 때만 갱신에 활용하는 방식이다. Pedestrian/Obstacle, duplicate-birth guard,
 UNKNOWN stationary policy와 coasting은 첫 A/B에서 바꾸지 않는다. GT는 평가에만 사용한다.
 
+현재 남긴 독립 시험 후보는 `weak010_moving_class090_xy`다. 30m 이상에서 0.10~0.40
+Vehicle 후보를 기존 confirmed 이동 차량에만 연결한다. 높은 관측을 먼저 대응하고, 거리 2m·
+pi 대칭 yaw 60도·길이/너비 비율 2 이내를 요구한다. 클래스 평활 score 0.90과 현재 정지
+판정 경계인 world speed 2m/s 초과를 보조 조건으로 사용한다. 두 값은 검증 후보이며 실제 확률이나 정답 판정이 아니다.
+정지·저속 차량은 삭제하지 않고 원래 정책을 유지한다. 약한 관측으로 새 ID를 만들지 않는다.
+
+약한 관측은 XY 정보만 보충하고 크기·Z·클래스 score를 유지한다. 마지막 높은 Vehicle
+관측 이후 0.5초까지만 허용한다. 이것은 원래 삭제 타이머와 다른 제한이며, 약한 관측이
+last measurement를 갱신하므로 총 유지 시간이 늘 수 있다. 실제 잔류 episode를 함께 평가한다.
+일반 저신뢰도 갱신은 장애물로 클래스가 바뀐 뒤 최대 27cm의 위치 차이가 남았고,
+클래스 안정도만으로는 사라지지 않았다. 이동 조건 추가 뒤 이번 네 bag의 confirmed
+비차량 출력 상태는 baseline과 같았다. [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013)을 따른다.
+
+이 원형은 별도 생성·컴파일한 코어이며 설치된 tracker/node/launch나 하위 submodule을 바꾸지 않았다.
+기존 동일 bag에서 확인된 이득은 대부분 이미 보던 차량이 멀어질 때의 갱신이다.
+처음부터 80~100m에서 접근하는 차량의 bootstrap 효과나 실제 ROS 안전성을 인증하지 않는다.
+
 후보 갱신에는 위치·크기·시간·motion 일관성을 확인한다. 낮은 score를 confidence가 높은
 측정처럼 취급하거나 갱신되지 않은 예측을 새 센서 관측처럼 표시하지 않는다. 새 낮은 후보를
 여러 개 받아 기존 서로 다른 차량을 합치는 회귀도 검사한다. 검출 recall 증가만으로 채택하지 않는다.
@@ -99,6 +116,12 @@ parameter와 소비 module을 확인하기 전에는 Top-K 때문에 추월이 �
 임의로 삭제하거나 남긴 경로의 confidence를 자동으로 1.0으로 만들지 않는다.
 [Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
 과거 lanelet 연결성·maneuver 이력은 참고이며 현재 커스텀 Map-CV에 구현됐다는 뜻은 아니다.
+
+다음 replay에는 높은 관측 이후 age와 모든 실제 관측 이후 age, 약한 association 여부와
+측정/추적 confidence를 구분해 기록한다. 낮은 갱신을 무관측 coasting이나 확실한 새 검출로 표시하지 않는다.
+새 초기 접근 검증에는 앞/뒤 80~100m에서 30m로 접근하는 차량 구간이 필요하다.
+0.40으로 걸러진 detection만 저장하면 낮은 후보를 복원할 수 없으므로 짧은 raw 센서 구간이나
+별도 이름으로 저장한 0.10 후보가 필요하다. canonical planner 입력을 몰래 낮춰 녹화하지 않는다.
 
 ## 다음 데이터 수집과 학습
 

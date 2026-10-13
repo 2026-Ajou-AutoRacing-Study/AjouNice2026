@@ -115,9 +115,11 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 
 [원거리 개선 계획](../../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)에 따라
-저장 검출의 score 비교 다음에는 낮은 score의 기존 차량 track 갱신과 지도 보조를 opt-in으로 검토한다.
+저장 검출 다음에 실제 EKF의 독립 코어 복사본으로 낮은 score 갱신 12프로필을 비교했다.
+이동·클래스 안정·XY 갱신 원형만 후보로 유지하며 [48절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013)에 효과와 한계를 기록했다.
+설치된 코어·ROS node·launch는 미변경이고 production은 여전히 높은 score만 입력한다. 지도 보조는 미구현이다.
 현재 Map-CV는 검출 삭제 필터가 아니며, 현재 Lane Change의 최고 confidence 동점 처리를 실제 실행값과 대조한다.
-이번 문서화와 CPU 분석은 tracker·prediction의 production 동작을 바꾸지 않았다.
+현재 코어의 association은 cost 정렬 후 greedy matching이다. Hungarian으로 설명하지 않는다.
 
 - 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.

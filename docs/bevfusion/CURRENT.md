@@ -96,7 +96,9 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 1. 팀장님이 실제 4090 24GB 풀스택 검증을 수행할 예정이다. ROS/LAN age·queue·누락·tracker→planner와 실제 사용 parameter를 확인한다.
 2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
    [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
-3. 낮은 score를 기존 차량 track 갱신에만 쓰는 opt-in 후보와 지도 보조를 검토한다. 중복 birth guard와 빠른 차량 승격 OFF를 유지한다.
+3. 낮은 score 갱신의 독립 실제 EKF 원형과 12프로필 비교를 완료했다. 이동·클래스 안정·XY 전용 후보만 시험용으로 남겼다.
+   [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013)의 효과는 주로 멀어지는 차량이며 실제 ROS·새 초기 접근 검증 전에는 production에 적용하지 않는다.
+   중복 birth guard와 빠른 차량 승격 OFF를 유지한다. 지도 보조는 미구현 후속이다.
    고주로 Top-1은 planner의 최고점 동점 처리·실제 소비 경로·차선 이력과 함께 확인한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
