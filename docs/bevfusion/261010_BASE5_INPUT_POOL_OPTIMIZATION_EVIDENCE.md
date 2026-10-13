@@ -5748,3 +5748,109 @@ Validator의 녹화 설정 변경은 해당 담당 작업으로 전달하며 이
 
 production profile·bridge 입력·tracker replay·bag audit·거리 평가·checkpoint 선택·context 관련
 CPU 단위 검사 **46개**가 통과했다. 문서 링크·원문 보존·Python 구문·whitespace 검사도 통과했다.
+
+<a id="base5-range-tracking-pivot-261013"></a>
+
+## 47. 원거리 차량과 다음 수집의 개선 기점 — 2026-10-13
+
+팀장님 논의는 새로운 가설이며 실제 실행 정책으로 간주하지 않는다. 사용자는 팀장님이 E24
+실제 풀스택 검증을 수행할 예정이라고 확인했고, 로컬에서는 문서화와 후속 문제 해결을 요청했다.
+[공통 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)에 담당·순서·상태·채택 기준을 기록했다.
+E24 production·MORAI·학습 source·v150 배치·기존 데이터와 원본 bag은 변경하지 않았다.
+
+### 실제 train GT 노출
+
+32절의 `base5_range_evidence_release_261012/objects.json`에서 split=train인 실제 파생 라벨을
+객체 중심 XY 방사 거리로 집계했다. 4,255프레임의 9,350 GT이며 고유 자산 수나 실제
+BEV 증강 뒤 gradient 노출량이 아니다. Animal은 현재 학습 class인 Pedestrian에 포함한다.
+
+| 거리 | Vehicle | Pedestrian | Obstacle |
+|---|---:|---:|---:|
+| 0~30m | 2,542 | 2,218 | 2,227 |
+| 30~50m | 1,046 | 311 | 324 |
+| 50~100m | 590 | 28 | 64 |
+| 합계 | 4,178 | 2,557 | 2,615 |
+
+40m 이상 P/O는 299개(전체 GT의 3.20%), 50m 이상 92개(0.98%), 60m 이상 51개(0.55%)다.
+50m 이상 Vehicle 590개 중 native LiDAR 20점 이상은 13개였다. 현재 crop의 카메라 정보량
+proxy는 실제 학습 성능이나 depth 정확도를 보증하지 않는다. 적은 원거리 비차량이 전체
+차량 학습을 크게 방해했다는 인과 근거는 없으며, 객체 수만으로 영향이 없다고 증명하지도 않는다.
+새 수집에서 먼 작은 비차량의 의도적 quota를 줄이는 후보와 기존 양성 라벨 삭제는 구분한다.
+
+현재 TransFusion target은 GT가 없는 heatmap을 0으로 만들고 unmatched query에도 classification
+loss를 준다. 실제 센서에 남은 객체의 GT만 제거하면 중립적인 ignore가 되지 않는다.
+종류별·거리별 무시 정책을 적용하려면 assignment·heatmap/query loss를 별도로 검증해야 한다.
+
+### 저장 검출의 Vehicle score 비교
+
+새 `analyze_base5_far_vehicle_scores.py`는 CPU에서 41절의 full-ROI 개발용 입력과
+동일 E24 저장 검출을 사용한다. 서버 floor 0.1/top100·class-aware NMS 0.5 뒤 Vehicle
+score만 0.40/0.35/0.30/0.20/0.10으로 바꿨다. P/O score는 0.10으로 고정했다.
+새 GPU 추론·ROS replay·지도 필터·tracker·planner 실행이나 production threshold 변경은 없다.
+
+입력 1,570장 중 기존 기준과 같은 1,413장만 정확도에 사용했다. 미확정 GT 157장은 제외한다.
+원래 LiDAR index와 case별 시각 공백을 보존하고, 제외된 frame을 넘어 누락 구간을 연결하지 않는다.
+ROI 전체에서 먼저 대응한 뒤 GT 거리로 recall, prediction 거리로 미대응을 집계한다.
+0.40의 각 case·거리·1/2/4m gate의 GT/TP/prediction/미대응 count는 기존 validated_v6와 정확히 같다.
+누락 시간은 이번 도구의 case별 적격 시각 median으로 추정하며 기존 시간 통계와의 완전 동일성을 주장하지 않는다.
+
+아래 recall은 2m 중심 gate이며 분모는 30~50m 306, 50~80m 276, 80~100m 91개의 GT 관측이다.
+미대응은 같은 gate에서 50~80m 위치에 발행될 Vehicle 박스의 관측 수다. 의미상 오검출 확정 수가 아니다.
+
+| Vehicle score | 30~50m recall | 50~80m recall | 80~100m recall | 50~80m 미대응 | 전체 ROI 미대응 |
+|---|---:|---:|---:|---:|---:|
+| 0.40 | 84.31% | 69.57% | 13.19% | 12 | 23 |
+| 0.35 | 85.95% | 71.01% | 14.29% | 14 | 25 |
+| 0.30 | 87.58% | 72.46% | 16.48% | 14 | 28 |
+| 0.20 | 90.20% | 74.28% | 18.68% | 20 | 43 |
+| 0.10 | 91.83% | 77.17% | 28.57% | 26 | 61 |
+
+0~30m Vehicle recall@2m는 모두 350/350이나 해당 prediction 거리의 미대응은 8→22로 증가했다.
+이는 four-bag 개발용 분모의 결과이며 전체 근거리 클래스·안전성이나 보편적 threshold 인증이 아니다.
+0.30은 50~80m에서 TP +8, 0.10은 +21로, threshold만으로 큰 누락이 해소되지 않았다.
+80~100m는 0.10에서도 recall 28.57%이므로 안정적인 전달 범위로 격상하지 않는다.
+
+전체 ROI의 미대응 위치 진단은 다음과 같다. 같은 클래스 GT와 1~2m인 박스도 이미 다른
+박스가 대응했거나 ROI 밖 알려진 actor 근처일 수 있어, 단독으로 ID 중복을 확정하지 않는다.
+
+| score | 다른 클래스 catalog actor 4m 이내 | 같은 클래스 1~2m | 같은 클래스 2~4m | catalog actor 4m 이내 없음 |
+|---|---:|---:|---:|---:|
+| 0.40 | 17 | 1 | 3 | 2 |
+| 0.30 | 19 | 2 | 4 | 3 |
+| 0.10 | 41 | 2 | 8 | 10 |
+
+0.10의 O02 미대응 중 21개는 다른 클래스 actor 근처다. 도로 polygon 필터만으로
+도로 위 장애물의 Vehicle 오분류까지 해결된다고 가정하지 않는다. catalog가 지도 배경을
+모두 포함하지 않으므로 마지막 열을 모두 존재하지 않는 물체라고 해석하지 않는다.
+각 cell의 최대 5개 예시는 시간순 진단 후보이며 대표 오검출 표본이 아니다.
+
+### 후단과 수집 정책의 판단
+
+Production 0.40을 유지한다. 다음 후보는 높은 score·반복 관측으로 새 차량을 확인하고
+낮은 score는 기존 확인 차량의 갱신에만 활용하는 opt-in association이다. 검출 recall뿐 아니라
+실제 tracker의 ID·오차·잔류와 planner 반응을 확인한다. 현행 기억 시간을 일괄 늘리지 않는다.
+
+현재 Map-CV는 매칭 실패 시 Cartesian CV로 fallback하며 검출 삭제 필터가 아니다.
+현재 Lane Change의 `use_all_predicted_paths=false`는 최고 confidence 동점을 모두 남긴다.
+`objects_filtering.hpp`와 `safety_core.cpp`에서 동일 정책을 확인했다. 현재 Obstacle Cruise는
+주요 경로와 outside-cruise 설정에서 한 경로를 사용한다. 실제 소비 module·동점·잘못된
+Top-1·관측 age/속도/BBox·안전거리 조건을 구분하기 전에 Ego geofence로 전역 Top-1을 강제하지 않는다.
+
+다음 배치의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 의도적 quota 축소와
+차량 50~80m 보강은 다음 후보다. 기존 v150 payload나 실행 정책은 그대로이며 완료 5K를
+폐기하지 않는다. JPEG 자동 전달과 업로드 검증 후 RGB PNG 정리는 향후 구현 항목이고,
+현재 원본 해시 기반 collector resume 중 파일을 삭제하지 않는다.
+
+### 산출물과 검증
+
+- 출력: `artifacts/evaluation/bevfusion/base5_range_tracking_improvement_261013/score_sweep_v1.json`.
+- 출력 SHA256: `9fc8ee46ccb91e50b56f37e746583ba414b28b169949be71ea36cefa501ef139`.
+- GT infos SHA256: `64ef1a1dacb95e3e00b1f3b4e0556bee4f18538dd712dcca7ba5c9a51665b866`.
+- 입력 prediction SHA256: `c2f89327a3105143b460032000a24de0707294989dc619870da88e345ff192fa`.
+- 기준 report SHA256: `ac0a70f32168f6942e43cba6d82668f8a50b6298144b98693e61c4c3b417ca84`.
+- 시작/끝 input SHA를 재확인해 원본 불변을 검사했다. GT geometry·label·token·적격 분모를 대조했다.
+- 거리 경계 정상 대응·원거리 무점 GT·다른 클래스·중복/미대응·frame 제외·JSON·기존 matching 관련 CPU 검사 23개가 통과했다.
+
+관련 참고는 [ByteTrackV2](https://arxiv.org/abs/2303.15334)의 계층적 low-score association과
+[Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
+lanelet/차선 변경 이력이다. 현재 custom tracker/predictor에 이 기능을 구현했다거나 논문 성능을 재현한 것은 아니다.

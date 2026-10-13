@@ -1,0 +1,140 @@
+# Base5 원거리 차량과 근거리 객체 개선 계획
+
+문서 상태: PLAN. 기준일: 2026-10-13.
+현재 실행값은 [모델 CURRENT](CURRENT.md), 배치 release는
+[데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md), 후단 실행값은
+[Tracking CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)가 관리한다.
+이 계획은 E24 풀스택 검증, 원거리 차량 전달 안정화, 다음 데이터 수집과 최종 학습을 연결한다.
+검증 후보를 production에 자동 적용하지 않으며 각 단계의 결과에 따라 계획을 수정한다.
+
+## 진행 순서와 현재 상태
+
+| 단계 | 담당과 현재 상태 | 다음 단계로 넘어가는 기준 |
+|---|---|---|
+| 1 E24 실제 풀스택 | 팀장님 수행 예정. 결과 대기 | 모델·센서·실행값이 기록된 주행 bag과 실패 장면 확보 |
+| 2 저장 검출의 원거리 score 분석 | 로컬 CPU 비교 완료 | 동일 입력의 거리별 누락·미대응·위치 오차를 구분하고 후단 후보 선정 |
+| 3 낮은 score로 기존 차량 track 갱신 | 설계 후보. 미구현 | 새 track 생성과 기존 track 갱신을 분리한 opt-in A/B, 누락·잔류·ID·위치/속도 비교 |
+| 4 지도 보조와 예측 경로 안정화 | 원인 조사 후보. 미구현 | 실제 사용 경로·동점·차선 매칭·안전 조건을 구분한 재현 근거 |
+| 5 다음 생성 분포 조정 | 후보 방향 정리. v150은 그대로 유지 | primary·asset·거리/방향·split 변경을 명시하고 CPU 감사와 소량 캡처 검증 |
+| 6 다른 PC의 병렬 수집 | 전달 실행기 미구현 | 독립 배치·resume·유한 보충·JPEG 전달본·업로드 검증의 한 묶음 시험 |
+| 7 짧은 학습 비교와 최종 학습 | 미실행 | 입력·GT·평가 split을 고정하고 후보 효과와 근접 회귀를 확인 |
+
+단계 1의 결과를 기다리는 동안 단계 2와 후보 설계를 진행한다. 단계 1의 실패를 보기 전에
+후단과 planner를 동시에 바꾸지 않는다. 본수집·학습·임대 인스턴스 조작·원본 삭제는
+별도 실행 요청과 해당 release 계약을 따른다.
+
+## 유지할 정책과 보류할 제안
+
+- E24 production의 클래스·threshold·NMS·추론 옵션과 현재 bounded coasting을 유지한다.
+- 완료 Sunny13 5K와 원래 native 의미·component 관계·가중치·학습 source는 보존한다.
+- 50m 밖 객체의 클래스를 모두 Vehicle로 바꾸지 않는다. 저신뢰도 검출도 원래 클래스와 score를 보존한다.
+- 센서에 남아 있는 원거리 사람·장애물의 GT만 지우지 않는다. 학습에서 무시하려면 heatmap·query loss 등을 별도로 검증해야 한다.
+- 객체를 한 번 봤다는 이유만으로 확정하거나 기억 시간을 두 배로 늘리지 않는다.
+- AP·detector score·track confidence·경로 confidence를 독립 검출 확률로 해석하지 않는다.
+- 고주로·로터리 차량 전용 배치와 음영 구간의 별도 예외를 유지한다.
+
+50m 이상 사람·장애물은 기존 train GT의 약 0.98%다. 이들이 원거리 차량 학습을 크게
+방해했다고 확정하지 않는다. 공유 feature의 학습 영향과 새 데이터 수집 예산의 우선순위는
+별개로 판단한다. 기존 노출과 첫 score 비교의 수치·해시는
+[47절 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)에 둔다.
+
+## 원거리 score 분석
+
+저장된 E24 AMP·병렬화 ON·compile OFF 출력에 같은 서버 floor 0.1/top100과
+class-aware rotated NMS 0.5를 적용한다. 동일한 1,570개 입력 중 정확도 집계에는
+기존의 full-ROI GT 적격 1,413장을 사용한다. 새 추론이나 새 GT를 만들지 않는다.
+
+첫 비교는 Vehicle 0.40/0.35/0.30/0.20/0.10이다. Pedestrian과 Obstacle은 0.10으로 유지한다.
+ROI 전체에서 먼저 대응한 뒤 GT 거리로 recall, 예측 거리로 미대응 수를 집계한다.
+거리 경계를 넘는 정상 대응을 FP로 잘못 세지 않는다. 0~30m 회귀와 30~50/50~80/80~100m를 함께 본다.
+
+각 case에서 원래 LiDAR index·GT 제외·0.25초 초과 시간 공백을 기준으로 누락 구간을 나눈다.
+catalog에 없는 배경, 다른 클래스 주변 후보, 같은 객체의 중복/위치 오차를 분리한다.
+미대응 후보가 실제 오검출인지는 대표 이미지·point·연속 이력을 확인한 뒤 판정한다.
+현재 score를 낮추는 것만으로 80~100m 검출이 안정화된다는 근거는 없다.
+
+재현 명령은 저장된 개발용 입력에만 적용한다. 출력 경로는 매번 새 이름을 사용한다.
+
+```bash
+OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 python3 \
+  perception/detection3d/bevfusion/tools/analyze_base5_far_vehicle_scores.py \
+  --inputs artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1 \
+  --predictions artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1/predictions_0.json.gz \
+  --reference-report artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/report_validated_v6.json \
+  --output artifacts/evaluation/bevfusion/base5_range_tracking_improvement_261013/score_sweep_v2.json
+```
+
+## 기존 track 갱신과 지도 보조
+
+우선 후보는 높은 score와 반복 관측으로 새 track을 확인하고, 낮은 score 후보는 이미 확인된
+차량과 association될 때만 갱신에 활용하는 방식이다. Pedestrian/Obstacle, duplicate-birth guard,
+UNKNOWN stationary policy와 coasting은 첫 A/B에서 바꾸지 않는다. GT는 평가에만 사용한다.
+
+후보 갱신에는 위치·크기·시간·motion 일관성을 확인한다. 낮은 score를 confidence가 높은
+측정처럼 취급하거나 갱신되지 않은 예측을 새 센서 관측처럼 표시하지 않는다. 새 낮은 후보를
+여러 개 받아 기존 서로 다른 차량을 합치는 회귀도 검사한다. 검출 recall 증가만으로 채택하지 않는다.
+
+필수 보고 항목은 거리별 1m/2m recall, 누락 구간, ID 변화, 미대응·중복·잔류 episode,
+중심/BBox 경계/속도 오차의 평균·p50·p90·p95와 대표 실패다. 실제 ROS replay와
+팀장님 주행의 planner 반응을 별도로 확인한다. 현재 추적기에 바로 이식할 완성 알고리즘은 아니다.
+[ByteTrackV2](https://arxiv.org/abs/2303.15334)는 낮은 score 후보의 계층적 association 참고다.
+
+지도는 차량 후보의 신뢰도를 보조하는 opt-in 후보로 시작한다. 도로 polygon과 BBox,
+방향의 모호성, 합류·차선 변경, 지도/localization 불확실성을 고려한다. centerline 거리 하나로
+삭제하지 않으며 관측 시각의 좌표 변환을 사용한다. 지도 매칭 실패 시 기존 경로로 fallback한다.
+현재 Map-CV는 검출 삭제 필터가 아니며 매칭 실패를 Cartesian CV로 처리한다.
+
+## 예측 경로와 planner 검사
+
+현재 저장소의 Lane Change는 `use_all_predicted_paths=false`이지만 최고 confidence가
+동점인 경로는 모두 남긴다. Obstacle Cruise의 주요 경로 선택은 하나다. 실제 팀장님 실행
+parameter와 소비 module을 확인하기 전에는 Top-K 때문에 추월이 막혔다고 확정하지 않는다.
+
+먼저 발행 path 수와 각 confidence, planner가 고른 path, 현재 차선 및 미래 경로와 Ego 후보
+경로의 충돌을 기록한다. 동점, 잘못된 Top-1, lane association 흔들림, 속도/BBox 오차와
+관측 age, planner 안전거리 조건을 구분한다. 단순 Top-1으로 바꾸고 해결됐다고 결론내지 않는다.
+
+차선 이력 기반 매칭과 Top-1 hysteresis를 우선 검토한다. 구역별 정책이 필요하면 Ego geofence
+하나가 아니라 대상 차량의 도로 구간·진입/탈출·이력도 사용한다. 로터리의 실제 분기 후보를
+임의로 삭제하거나 남긴 경로의 confidence를 자동으로 1.0으로 만들지 않는다.
+[Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
+과거 lanelet 연결성·maneuver 이력은 참고이며 현재 커스텀 Map-CV에 구현됐다는 뜻은 아니다.
+
+## 다음 데이터 수집과 학습
+
+새 후보는 장애물·보행자를 주로 0~40m에 배치하고, 40~50m에서 선행 회피에 유용하고
+센서 지원이 있는 사례를 소량 유지하는 방향이다. 50m 이상 작은 비차량의 의도적 quota를
+줄이고 차량의 50~80m 전후방·인접 차선·부분 가림과 위치/형상 사례를 우선 보강한다.
+80~100m 차량은 어려운 사례로 유지하되 안정적인 실전 인지 범위로 인증하지 않는다.
+
+이 방향은 v150의 실행 정책 변경이 아니다. 다음 manifest에서 바뀐 primary/secondary,
+family·asset·거리·방향·scene/group split을 명시한다. 보강 전후 실제 GT와 센서 지원을
+확인하며 희귀 자산·초근접 통과·음영 예외·배경 negative를 잃지 않는다. 새로운 Sunny13는
+기존 30K에 자동 합산하거나 기존 5K를 자동 교체하지 않는다.
+
+기존 근거리 보강은 생성기와 소량 native 검증까지 완료한 상태다. 새 5K 본수집·재학습은
+완료하지 않았다. 다음 수집은 [보강 런북](../../dataset/morai_od/docs/261013_base5_obstacle_support_runbook.md)과
+새 release의 검증 경계를 따른다. 최종 학습에서 근접 장애물 AP·경계 정밀도의 회귀를 반드시 확인한다.
+
+같은 초기화·입력·평가 split을 사용한 짧은 비교로 주요 회귀를 먼저 거른다. 1~2 epoch는
+조기 문제 검사용이며 최종 성능 증명이 아니다. 최종 학습 기회가 적으므로 공간 격자·depth·
+이미지와 후단을 한 번에 바꾸지 않는다. 개발용 bag이나 Base3 val을 train에 넣지 않는다.
+
+## 병렬 수집 전달본
+
+PC별 독립 seed/shard와 환경을 할당하고 수집 source·release·센서·환경을 기록한다.
+같은 geometry의 파생 장면은 물리 group split을 공유해 train/val 누출을 방지한다.
+다른 PC에서도 부족분 보충 상한과 성공분의 중복 없는 resume를 유지한다.
+
+완료 묶음 검증 → RGB Q90 JPEG 변환 → GT/보정/metadata를 포함한 상대 경로 전달본 확정
+→ Drive 업로드와 원격 checksum 검증 → 허용된 RGB PNG만 정리하는 순서다.
+Instance·depth·annotation·LiDAR는 JPEG로 바꾸거나 삭제하지 않는다. Collector의 원본
+해시를 유지하는 resume와 JPEG 전달본의 완료 receipt를 구분한다. 업로드·변환 실패 시 원본을 보존한다.
+현재는 이 자동 전달·삭제 경로를 구현한 상태가 아니다. 공용 PC의 무인/원격 사용은 관리자의 허용을 전제로 한다.
+
+## 갱신과 종료 기준
+
+각 후보는 baseline → 한 요인 변경 → 회귀/효과 비교 → 유지·수정·기각으로 기록한다.
+수치·실패·hash는 EVIDENCE에, 실행값은 각 CURRENT에, 단계와 다음 선택은 이 계획에 둔다.
+팀장님 검증 결과가 들어오면 새 bag을 기존 개발용 분석과 구분하고 해당 단계 상태를 갱신한다.
+Production 채택은 실제 입력·후단·planner 회귀와 사용자 선택을 확인한 뒤 수행한다.

@@ -17,6 +17,7 @@ AGENTS = (
 )
 ACTIVE = AGENTS + (
     'docs/perception/README.md', 'docs/bevfusion/CURRENT.md', 'docs/bevfusion/README.md',
+    'docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md',
     'dataset/morai_od/docs/README.md', 'dataset/morai_od/docs/BASE5_V2_CURRENT.md',
     'dataset/morai_od/docs/MR_ASSET_COLLECTION_CURRENT.md',
     'dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md',

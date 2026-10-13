@@ -90,13 +90,18 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
-1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
-2. [tracker/Planning 검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)의
-   중복 birth guard는 유지하고 빠른 차량 승격은 OFF로 둔다. Confidence와 실제 관측 age는 후속 확인한다.
-3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
-4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)에 따라
-   근거리 노출·20~30m 지원·원거리 사례를 배치 실험으로 확인하고 새 환경 수집 정책을 조정한다.
-5. 고정 이미지 registry 게시·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
+후속의 기준은 [원거리 차량과 근거리 객체 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)이다.
+팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
+
+1. 팀장님이 실제 4090 24GB 풀스택 검증을 수행할 예정이다. ROS/LAN age·queue·누락·tracker→planner와 실제 사용 parameter를 확인한다.
+2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
+   [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
+3. 낮은 score를 기존 차량 track 갱신에만 쓰는 opt-in 후보와 지도 보조를 검토한다. 중복 birth guard와 빠른 차량 승격 OFF를 유지한다.
+   고주로 Top-1은 planner의 최고점 동점 처리·실제 소비 경로·차선 이력과 함께 확인한다.
+4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
+   다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
+5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.
+   고정 이미지 registry·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 
 원격 명령·재개·백업은 [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md)를 따른다.
 인스턴스 실행 여부를 문서 날짜로 추정하지 않으며 사용자 요청 없이 임대·Stop·Destroy하지 않는다.

@@ -114,6 +114,11 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
 일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 
+[원거리 개선 계획](../../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)에 따라
+저장 검출의 score 비교 다음에는 낮은 score의 기존 차량 track 갱신과 지도 보조를 opt-in으로 검토한다.
+현재 Map-CV는 검출 삭제 필터가 아니며, 현재 Lane Change의 최고 confidence 동점 처리를 실제 실행값과 대조한다.
+이번 문서화와 CPU 분석은 tracker·prediction의 production 동작을 바꾸지 않았다.
+
 - 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.
 - detector 9D velocity를 tracker update에 fusion.

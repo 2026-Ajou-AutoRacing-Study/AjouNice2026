@@ -62,11 +62,11 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
 같은 slot의 환경 A/B라고 부르지 않으며 물리 link·final support·100m 시야 중복을 따로 감사한다.
 보강 배치·새 정책은 현재 성공분을 폐기하는 이유가 아니다.
 
-다음 25K 전에는 [장애물 보강 실험 근거](261013_base5_obstacle_support_experiments.md)와
-[현재 후보 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
-0~20m 노출뿐 아니라 20~30m의 자산별 분산·센서 지원·형상/위치를 확인하며 30m 이상도 제외하지 않는다.
-개수·거리 비율은 고정하지 않고 배치 실험으로 수정한다. MR 통제권을 별도로 받은 뒤 live 실험하며,
-새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다. 새 Sunny13 5K preview는 원래 30K에 자동 합산하지 않는다.
+다음 25K는 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)과 [보강 근거](261013_base5_obstacle_support_experiments.md)를 따른다.
+[원거리 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 quota 축소는 후속 후보이며 v150에 적용하지 않았다.
+개수·거리 비율은 실측으로 수정하되 실제 보이는 원거리 GT를 삭제하거나 Vehicle로 바꾸지 않는다.
+MR 통제권을 별도로 받은 뒤 live 실험한다. 새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다.
+`fresh_suite_final_v142`는 이전 baseline으로 보존한다. 새 Sunny13는 원래 30K에 자동 합산하지 않는다.
 
 <a id="capture"></a>
 
@@ -98,6 +98,7 @@ v150의 64+8장 QA 포함 가중 예상은 5K 약 8.14시간/31.25GiB다. 운영
 
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
+다른 PC용 완료 묶음의 JPEG 전달·원격 검증 후 RGB PNG 정리는 후속 설계다. 현재 원본 해시 기반 resume 중 자동 삭제하지 않는다.
 학습 GT는 native full RPY의 8모서리를 포함하는 upright 7D enclosure를 사용하며 중심·yaw·구성요소를 임의 합치지 않는다.
 
 현재 native JPEG/upright 전달본은
