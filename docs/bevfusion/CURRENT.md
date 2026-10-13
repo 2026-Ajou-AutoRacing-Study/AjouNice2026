@@ -90,10 +90,11 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
-후속의 기준은 [원거리 차량과 근거리 객체 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)이다.
+후속의 기준은 [원거리 차량과 근거리 객체 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)과
+[오프라인 센서·중복·노드 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)다.
 팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
 
-1. 팀장님이 실제 4090 24GB 풀스택 검증을 수행할 예정이다. ROS/LAN age·queue·누락·tracker→planner와 실제 사용 parameter를 확인한다.
+1. 최신 팀장님 E24 완주·무충돌 bag을 확인했다. raw 센서·stage latency·실제 consumed path와 YOLO 동시 부하가 없어 이를 추가 검증한다.
 2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
    [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
 3. 낮은 score 갱신의 독립 실제 EKF 원형과 12프로필 비교를 완료했다. 이동·클래스 안정·XY 전용 후보만 시험용으로 남겼다.
@@ -101,7 +102,8 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    중복 birth guard와 빠른 차량 승격 OFF를 유지한다. 지도 보조는 미구현 후속이다.
    [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의 소비 코드·기존 bag·현재 지도 재생을 확인했다. LC는 최고점 동점 전체, Cruise는 현재 설정 1개, 로터리는 0.05 이상 후보를 검사한다.
    [50절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의 관측 적합도·횡이동 후보도 비교했다. 일부 평균 이득보다 소수 큰 순위 악화가 남아 예측 정책은 유지한다.
-   출력이 정확히 같은 경로 길이/접선 계산 최적화만 소스에 반영했다. 실행 중 노드·팀장님 환경은 재시작/변경하지 않았다.
+   출력 동일 geometry cache·독립 메시지 복사·DFS 최적화는 소스와 이 PC의 설치본에 반영했다. 팀장님 환경·실제 주행은 미검증이다. [CPU 근거](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
+   중복 pixel 쓰기의 depth hint 변동도 분리했다. nearest 연구 후보는 945장 운영 집계를 유지했지만 production·학습 계약은 미변경이다. [모델 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)를 따른다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
 5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.

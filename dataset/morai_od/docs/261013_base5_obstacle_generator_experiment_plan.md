@@ -15,6 +15,15 @@ Sunny13 정적 64/64·이동 8/8 검증을 거쳐 v150 release를 준비했다. 
 원거리 차량 전달과 다음 거리 분포의 후속 방향은 [공통 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)을 따른다.
 비차량의 근중거리 집중은 다음 후보이며 기존 원거리 GT 삭제나 v150의 무검증 변경을 뜻하지 않는다.
 
+2026-10-14 MORAI OFF 분석의 후속 근거는 [센서·모델·중복 검토](../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)에 있다.
+완료 5K의 native component→infos 누락은 없었다. 장애물 yaw는 이미 균등하고,
+0~10m의 후방 495/전방 285개 노출은 전방 보충의 근거다. 20~30m는 610 GT 중
+LiDAR 20점 이상 4.43%지만 camera mask-rich까지 합치면 75.25%로, 전부 비가시인
+것이 아니다. v150의 짝 표본에서 해당 구간 LiDAR-rich 증가가 확인되지 않아 개수
+증가와 sensor support 개선을 구분한다. 현 E24의 query peak만 바꾸는 실험은 중복을
+없앴지만 장애물 TP를 479→369로 줄여 기각했다. 학습 query 구성·depth hint 안정화도
+모델 측 별도 요인으로 검토하고, 생성기 비율이나 기존 GT를 이 결과만으로 바꾸지 않는다.
+
 ## 현재 근거와 해석
 
 모델 비교는 [Base3 val 교차 평가 44절](../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)을 따른다.

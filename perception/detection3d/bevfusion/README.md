@@ -17,6 +17,11 @@
 [ROS 패키지](../../../base_ws/src/perception/bevfusion_ros/README.md)에서 입력/실행 계약을 연결한다.
 [근거 인덱스](../../../docs/bevfusion/README.md)에서 요청에 필요한 절만 선택한다.
 
+2026-10-14의 nearest depth-raster와 proposal-peak trial은 production·완료 학습과 분리한
+연구 config다. peak3/5는 현 E24에서 recall 회귀로 기각했으며, nearest는 반복 안정화의
+검증 후보다. [실험 근거와 다음 gate](../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)를 따르고
+가중치·GT·grid가 같다는 이유로 추론 query/입력 표현 변경을 자동 적용하지 않는다.
+
 초기 Base3 feasibility·smoke·팀 학습 명령은
 [무손실 원문](../../../docs/perception/legacy/context_261012/README.md)에 보존했다.
 그 초기 README의 ‘production 대체 아님’, 12 epoch, ±30m 입력 등을 현재 Base5 기본값으로 쓰지 않는다.
