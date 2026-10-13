@@ -175,6 +175,8 @@ default_case:
 
 ## 녹화 및 판정
 
+2026-10-14: 기본 녹화에 E24/E25 status·latency 및 `tracking/measurement_objects`를 포함하며 원본 센서 기본값은 계속 OFF다. **지연 분석 (센서 제외)**는 planner processing-time을 함께 수집한다. 모든 bag ON 모드는 마감 후 실제 메시지 수를 검사하고 주행 PASS/FAIL과 녹화 경고를 별도로 저장·표시한다. 구 실행에 복사된 목록은 자동 덮어쓰지 않는다. [상세 계약·구 bag 검사](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md#기본-녹화지연-분석-계약-2026-10-14)를 따른다.
+
 2026-10-13 (`dataset/base5`): GUI의 **rosbag 녹화**에서 `끄기 / 경량 / 기본 / 인지 분석 / 직접 선택`을 고른다. **화면 영상 녹화**는 별도이다. `토픽 선택…`은 검색·그룹·일괄 선택을 제공하며 선택을 YAML에 저장한다. bag OFF는 rosbag 프로세스 자체를 만들지 않지만 실시간 판정·JSON·CSV를 유지한다. 기존 YAML의 `bag_enabled` 생략은 ON이다. 변경은 **YAML 저장 → 새 실험 시작**에 적용되고, 재개는 보관된 설정을 사용한다. 상세 사용법은 [짧은 런북](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md#rosbag-onoff토픽-선택-2026-10-13)을 참고한다.
 
 - `basic.json`: camera/LiDAR 제외, planning/인지/제어/GT 핵심 토픽

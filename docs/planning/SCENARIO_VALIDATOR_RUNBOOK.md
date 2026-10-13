@@ -2,6 +2,26 @@
 
 ## rosbag ON/OFF·토픽 선택 (2026-10-13)
 
+### 기본 녹화·지연 분석 계약 (2026-10-14)
+
+새 기본 bag에는 E25 `/perception/bevfusion/{status,latency_ms}`와 Base5 `/perception/base5_trial/{status,latency_ms}`, tracking `measurement_objects`를 함께 요청합니다. 원본 카메라·LiDAR는 기본 제외입니다. 실행 모델의 namespace만 완료 검사 필수로 취급하며, 사용하지 않는 다른 namespace의 0개 메시지는 오류가 아닙니다. 모델 실행기의 토픽 계약과 실제 Base5 launch remap도 실행 전에 대조합니다.
+
+GUI의 **지연 분석 (센서 제외)**는 위 진단 토픽과 planner processing-time 토픽을 정규식으로 기록합니다. 디버그 발행을 자동 활성화하거나 planner 설정을 바꾸지는 않습니다. 해당 토픽이 발행되지 않으면 메시지 0개를 경고로 남깁니다. 영상은 별도 선택입니다. 단순 계산시간을 센서부터 제어까지의 종단 지연 또는 순수 GPU 시간으로 해석하지 마세요.
+
+bag ON인 모든 모드에서 종료 후 `recording_audit.json`에 실제 indexed 메시지 수를 기록합니다. `status: WARN`/`missing_required`/`complete_for_latency`를 보며, 주행 PASS/FAIL과 녹화 경고는 분리합니다. GUI 완료 문구와 CSV의 `recording_warning`, `latency_complete`도 별도로 표시합니다. 고의로 제외한 경량/직접 선택 토픽은 기본 모드의 필수 목록을 일괄 강요하지 않습니다.
+
+이미 실행된 캠페인의 `topic_profile.json`은 당시 목록을 복사한 파일입니다. Git의 기본 프로파일을 업데이트해도 이 사본은 바뀌지 않습니다. 구 사본은 변경하지 않고 누락을 경고하며, 새 목록 적용은 **새 실험 시작**으로 합니다. 녹화되지 않은 과거 latency 메시지는 복원할 수 없습니다. 토픽 계약 메타데이터가 달라진 구 실행은 기존 모델/hash resume 보호를 완화하지 않습니다.
+
+과거 결과를 읽기 전용으로 검사하려면 ROS 환경을 source한 뒤:
+
+```bash
+python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/audit_validation_recording.py \
+  --execution planner_logs/validation/실험명
+# 다른 PC에서 받은 시나리오 결과 폴더(input.json 포함)는 --case-folder 경로 사용
+```
+
+`--output`을 명시하지 않으면 출력만 하고 원본을 수정하지 않습니다. 기록 검사에서 사용자 요청 목록과 실제 메시지 수를 구분합니다.
+
 GUI 실행 탭의 **rosbag 녹화**는 `끄기 / 경량 / 기본 / 인지 분석 / 직접 선택`입니다. **화면 영상 녹화**는 별도 체크입니다. 직접 선택은 **토픽 선택… → 검색 또는 그룹 → 표시된 토픽 일괄 선택/해제 → 적용 → YAML 저장** 순서입니다. 빈 목록 대신 bag 끄기를 사용하세요.
 
 bag OFF에서는 rosbag 프로세스를 띄우지 않으며 성공/실패 판정·JSON·CSV는 유지합니다. 설정은 다음 새 실행에 적용됩니다. 기존 기록 재개는 당시 사본의 설정을 사용하고, 주행 중 변경은 막습니다. bag OFF가 MORAI 센서 생성·인지 추론 부하를 없애지는 않습니다.

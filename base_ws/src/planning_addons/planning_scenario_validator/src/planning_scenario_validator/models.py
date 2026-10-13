@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import yaml
+from .topic_contract import DETECTION, model_topics, validate_trial_remaps
 
 E25_SHA = '36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011'
 BASE5_CONFIG = 'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py'
@@ -21,7 +22,7 @@ PRESETS = {
 }
 DEFAULT_MODEL = 'base5_e24'
 LABEL_PRESETS = {v['label']: k for k, v in PRESETS.items()}
-CANONICAL = '/perception/object_recognition/detection/objects'
+CANONICAL = DETECTION
 
 
 def selected_model(stack):
@@ -154,7 +155,8 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         'server_port': 29500 if name == 'e25' else 29515,
         'cpu_threads': 4 if name != 'e25' else None,
         'image': env.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'),
-        'detection_topic': CANONICAL, 'threshold_calibrated': True}
+        'detection_topic': CANONICAL, 'threshold_calibrated': True,
+        'topic_contract': model_topics(name)}
     if name == 'e25':
         result['production_environment'] = {key: value for key, value in env.items() if key.startswith('BEVFUSION_') or key in ('PROJECTION_ONLY', 'INTRINSIC_SOURCE')}
     result['fingerprint'] = fingerprint({key: value for key, value in result.items() if key != 'sensor_config'})
@@ -173,6 +175,7 @@ def verify_contract(contract, stack, sensor, root):
 
 def trial_commands(contract, root, container_name):
     root = Path(root)
+    validate_trial_remaps(root, contract['preset'])
     command = ['docker', 'run', '--rm', '--name', container_name, '--gpus', 'all', '--network', 'host', '--shm-size', '4g',
         '-v', '{}:/workspace/AjouNice2026:ro'.format(root),
         '-v', '{}:/opt/ajounice/app:ro'.format(root / 'docker/bevfusion/app'),
@@ -189,6 +192,6 @@ def trial_commands(contract, root, container_name):
               else 'base5_e9_calibrated_trial.launch')
     bridge = ['roslaunch', str(root / 'base_ws/src/perception/bevfusion_ros/launch' / launch),
               'sensor_config:=' + contract['sensor_config'], 'config:=' + contract['runtime_config'],
-              'output_objects:=' + CANONICAL]
+              'output_objects:=' + model_topics(contract['preset'])['detection']]
     bridge += ['{}_score_threshold:={}'.format(name, value) for name, value in contract['thresholds'].items()]
     return command, bridge

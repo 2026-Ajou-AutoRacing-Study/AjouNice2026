@@ -652,11 +652,13 @@ class Recording:
             topics = self.config['topics']
             if not topics:
                 raise RuntimeFailure('bag ON인데 선택된 녹화 토픽이 없습니다')
-            if self.config.get('analysis_mode', False):
+            patterns = self.config.get('topic_regex', [])
+            if self.config.get('analysis_mode', False) or patterns:
                 import re
                 # Debug/info topics differ across planner versions. Capture actual publishers too.
-                topics = ['--regex'] + ['^' + re.escape(t) + '$' for t in topics] + [
-                    '^/planning/.*(avoidance|static_obstacle|debug).*']
+                topics = ['--regex'] + ['^' + re.escape(t) + '$' for t in topics] + list(patterns)
+                if self.config.get('analysis_mode', False):
+                    topics += ['^/planning/.*(avoidance|static_obstacle|debug).*']
             self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
                                          *topics], stdout=bag_log,
                                         stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
