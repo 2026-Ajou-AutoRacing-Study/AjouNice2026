@@ -35,7 +35,7 @@ COMMENTS = {
     "default_case.arrival_mode": "stop: 목적지에서 정지까지 확인. pass_through: 목적지 통과 확인.",
     "stack.pose_source": "localization: 실제 측위, maptf_morai: Ego GT 위치 대조. 빠른 대조는 planning 탭.",
     "stack.detector": "bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.",
-    'stack.bevfusion_model': 'e25=production(기본), base5_e24=시험 0.40/0.10/0.10, base5_e9=threshold 미보정 비교 후보.',
+    'stack.bevfusion_model': 'base5_e24=production(기본) 0.40/0.10/0.10, e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.',
     'recording.analysis_mode': 'true=인지 분석. 센서 원본+영상 필수, 마감 후 실제 bag 메시지 수 검사. 기본 basic 모드는 유지.',
     'recording.bag_enabled': 'false=rosbag 프로세스 자체를 실행하지 않음. 실시간 판정·JSON·CSV와 별도 영상 설정은 유지. 생략 시 기존처럼 true.',
     'recording.selected_topics': '직접 선택한 절대 토픽 목록. topic_profile 대신 사용. include_sensors가 true면 센서 5개를 추가.',

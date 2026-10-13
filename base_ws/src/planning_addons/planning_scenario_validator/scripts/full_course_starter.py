@@ -60,7 +60,8 @@ def build_full_course(sample, geometry, template, root, package, output, validat
     campaign['default_case'] = {'goal': goal, 'waypoints': waypoints,
                                 'timeout_sec': 600, 'arrival_mode': 'stop'}
     campaign['stack'].update(pose_source='localization', detector='bevfusion', traffic_light=True,
-        traffic_light_runtime='virtualenv', traffic_light_python=DEFAULT_PYTHON, traffic_light_device='0')
+        bevfusion_model='base5_e24', traffic_light_runtime='virtualenv',
+        traffic_light_python=DEFAULT_PYTHON, traffic_light_device='0')
     campaign['recording'].update(include_sensors=False, minimum_free_disk_gib=10)
     campaign['recording']['video'].update(enabled=True, window_layout='split', focus_planviz=False,
                                          bottom_bar_px='auto', fps=10)
@@ -102,7 +103,7 @@ def build_full_course(sample, geometry, template, root, package, output, validat
 4. 샘플 하나의 연결·배우·경로·녹화를 확인한 뒤 **예제 / example.yaml**도 복사하면 네 장면을 순서대로 실행합니다.
 
 [example.yaml](example.yaml): 전체 4장면. [sample_only.yaml](sample_only.yaml): 샘플 1장면.
-E24 인지 분석은 **[base5_e24_analysis_sample.yaml](base5_e24_analysis_sample.yaml)**로 샘플 하나부터 확인합니다. 연결·route·배우·녹화 마감을 확인한 뒤 **[base5_e24_analysis_variants.yaml](base5_e24_analysis_variants.yaml)**로 나머지 세 장면을 시험합니다. 모두 workspace로 복사한 뒤 실행하세요. 기존 example/sample_only는 계속 E25 기본값입니다.
+E24 인지 분석은 **[base5_e24_analysis_sample.yaml](base5_e24_analysis_sample.yaml)**로 샘플 하나부터 확인합니다. 연결·route·배우·녹화 마감을 확인한 뒤 **[base5_e24_analysis_variants.yaml](base5_e24_analysis_variants.yaml)**로 나머지 세 장면을 시험합니다. 모두 workspace로 복사한 뒤 실행하세요. example/sample_only도 E24 production을 사용합니다.
 개인 파일은 `../workspace/`에 생기며 Git에서 제외됩니다. 새 YAML·JSON도 여기에 넣고 새로고침하세요.
 공통 사용 순서는 저장소 `docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md`를 참고합니다.
 
@@ -132,7 +133,7 @@ E24 인지 분석은 **[base5_e24_analysis_sample.yaml](base5_e24_analysis_sampl
 - **전체 live 주행은 미검증**입니다. 생성 재현성과 YAML/JSON 계약 검사는 폐루프 성공 증명이 아닙니다. 먼저 샘플 한 장면에서 route 생성과 NPC 동작을 보세요.
 - 기본은 localization + BEVFusion + 신호등 on, basic bag + 카메라/LiDAR 원본 녹화 제외 + 영상 on입니다. 실제 센서는 계속 켜둡니다.
 - 별도 E24 분석 YAML은 AMP·카메라 병렬화 on / compile off, V/P/O 0.40/0.10/0.10이며 **센서 원본 + 영상 on**입니다. 용량이 훨씬 큽니다. 원본 센서가 없는 bag은 사후 재추론할 수 없습니다. 서버·bridge는 검증기가 함께 시작/종료하고 canonical detection publisher 중복을 거부합니다.
-- 모델은 GUI에서 선택하거나 stack.bevfusion_model로 지정합니다. 항목이 없으면 E25입니다. E9는 threshold 미보정 비교 후보입니다. 모델·config·sensor·스택 설정 hash가 바뀌면 같은 결과에 resume하지 말고 새 실험을 시작하세요.
+- 모델은 GUI에서 선택하거나 stack.bevfusion_model로 지정합니다. 항목이 없으면 E24 production입니다. E25는 명시적 복귀, E9는 별도 threshold를 선정한 비교 후보입니다. 모델·config·sensor·스택 설정 hash가 바뀌면 같은 결과에 resume하지 말고 새 실험을 시작하세요.
 - 마감 후 recording_audit.json의 토픽별 실제 message_count를 확인합니다. 주행 판정과 녹화 완전성은 별개입니다. /clock·선택 기능·debug 토픽의 미발행도 0으로 남기며 존재하지 않는 데이터를 녹화됐다고 표시하지 않습니다.
 - 신호등 가상환경 설치가 필요합니다. 이미 시스템 Python으로 준비했다면 YAML의 stack.traffic_light_runtime을 system으로 바꾸세요. 신호등 off 결과를 정상 풀스택 결과와 섞지 마세요.
 - 4장면 모두 제한시간까지 가면 주행만 40분입니다. 초기 준비/로드/마감을 더하면 더 걸립니다. 용량은 장면 하나의 실제 bag·영상 크기로 판단하세요.

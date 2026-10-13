@@ -433,9 +433,10 @@ localization_sigma_0p05_qxy_0p05  # sigma=0.05 m, Global Qxy=0.05
 Bag은 Camera, LiDAR, PointCloud topic을 포함하지 않는다. 주행 후
 `Ego position distance / integral(velocity.x dt)`가 `0.98~1.02`인지 먼저 확인한다.
 
-## 수동 통합 launch 참고
+## E25 복귀용 수동 통합 launch 참고
 
-아래 절차는 alias별 분리 실행 대신 통합 launch를 사용할 때의 참고 절차다. 위 현장
+아래 절차는 E25 복귀용 구 입력 계약이다. 현재 E24 production은 위의 alias별 실행과
+[E24 설치 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
 절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
 중복될 수 있으므로 둘 중 하나만 사용한다.
 

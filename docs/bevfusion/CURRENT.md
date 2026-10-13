@@ -1,7 +1,8 @@
 # BEVFusion 현재 모델과 실행 기준
 
 문서 상태: CURRENT. 최종 근거 확인: 2026-10-13.
-2026-10-13 사용자 요청으로 production 기본값은 E24다. E25는 명시적인 복귀 후보다.
+2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
+validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
 상세 결과는 [작업별 근거 인덱스](README.md)에서 필요한 절만 읽는다.
 

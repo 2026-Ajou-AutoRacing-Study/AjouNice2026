@@ -1,4 +1,5 @@
 """Inspect indexed bag metadata, not requested topic names or replayed messages."""
+from .models import selected_model
 SENSORS = ['/sensor/lidar1'] + ['/sensor/camera/{}/compressed'.format(name)
     for name in ('front', 'front_left', 'front_right', 'back')]
 CORE = ['/Ego_topic', '/Competition_topic', '/Object_topic', '/CollisionData',
@@ -19,7 +20,7 @@ def audit_bag(path, cfg, *, driving_started=False):
     if cfg['stack']['pose_source'] != 'localization':
         required.remove('/localization/control_kinematic_state')
     if cfg['stack']['detector'] == 'bevfusion':
-        base = '/perception/bevfusion' if cfg['stack'].get('bevfusion_model', 'e25') == 'e25' else '/perception/base5_trial'
+        base = '/perception/bevfusion' if selected_model(cfg['stack']) == 'e25' else '/perception/base5_trial'
         required += [base + '/status', base + '/latency_ms']
     if cfg['stack'].get('traffic_light', False):
         required.append('/perception/traffic_light_recognition/traffic_signals')

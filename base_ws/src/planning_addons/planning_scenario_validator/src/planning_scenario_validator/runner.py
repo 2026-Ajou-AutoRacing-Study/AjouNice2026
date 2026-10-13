@@ -18,7 +18,7 @@ from pathlib import Path
 from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
-from .models import resolve_contract, verify_contract, CANONICAL
+from .models import resolve_contract, verify_contract, selected_model, CANONICAL
 from .recording_audit import audit_bag
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .repetitions import sampled_scene
@@ -114,8 +114,8 @@ def _start_persistent(cfg, processes, monitor):
         if bound.returncode != 0 or not bound.stdout.strip():
             raise RuntimeFailure("MORAI가 ScenarioLoad UDP {}을 열지 않았습니다. MR GUI Ego Network에 ego_network_validator_local.json을 다시 Load/Connect하세요".format(scenario_port))
     if stack["detector"] == "bevfusion":
-        if stack.get('bevfusion_model', 'e25') == 'e25':
-            command = ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), str(sensor)]
+        if selected_model(stack) == 'e25':
+            command = ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), "--model", "e25", str(sensor)]
         else:
             receipt = cfg['output'] / 'model_process_receipt.json'
             if receipt.exists():
@@ -124,7 +124,7 @@ def _start_persistent(cfg, processes, monitor):
                        '--contract', str(cfg['output'] / 'model_runtime.json')]
         atomic_json(cfg['output'] / 'model_launch.json', {'command': command, 'model': cfg.get('model_contract')})
         processes.start("bevfusion", command)
-        if stack.get('bevfusion_model', 'e25') != 'e25':
+        if selected_model(stack) != 'e25':
             def server_ready():
                 if processes.running['bevfusion'].poll() is not None:
                     raise RuntimeFailure('Base5 서버 준비 중 종료. stack_logs/bevfusion.log를 확인하세요')
@@ -679,7 +679,7 @@ def main(argv=None):
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)
         if args.check or args.dry_run:
-            if cfg['stack']['detector'] == 'bevfusion' and cfg['stack'].get('bevfusion_model', 'e25') != 'e25':
+            if cfg['stack']['detector'] == 'bevfusion' and selected_model(cfg['stack']) != 'e25':
                 model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
                 print('모델 계약 확인: {} / SHA256 {} / V/P/O {}'.format(
                     model['label'], model['checkpoint_sha256'], model['thresholds']))

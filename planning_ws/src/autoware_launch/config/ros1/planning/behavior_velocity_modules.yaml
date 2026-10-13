@@ -161,7 +161,7 @@ intersection:
     max_accel: -6.0
     max_jerk: -10.0
     delay_response_time: 0.0
-    enable_pass_judge_before_default_stopline: false
+    enable_pass_judge_before_default_stopline: true
   stuck_vehicle:
     target_type:
       car: true
@@ -315,9 +315,11 @@ roundabout:
   common:
     attention_area_margin: 0.75
     attention_area_angle_threshold: 0.785
-    default_stopline_margin: 0.0
+    default_stopline_margin: 0.3
     path_interpolation_ds: 0.1
-    enable_pass_judge_before_default_stopline: false
+    # Simulator experiment: avoid an infeasible late stop after a safe approach.
+    # Retain collision detection and the committed-state smooth-stop check.
+    enable_pass_judge_before_default_stopline: true
   collision_detection:
     collision_detection_hold_time: 0.0
     min_predicted_path_confidence: 0.05

@@ -1,4 +1,4 @@
-"""Pinned opt-in detector contracts. Never weaken run_bevfusion.sh's E25 guard."""
+"""Pinned production E24 and explicit comparison/rollback detector contracts."""
 import ast
 import hashlib
 import json
@@ -11,20 +11,21 @@ E25_SHA = '36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011'
 BASE5_CONFIG = 'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py'
 BASE5_CONFIG_GRAPH_SHA = '88ac69c228daae7b8c7a96a97e412c51d9694e2ef6207093bab9e880dea479e4'
 PRESETS = {
-    'e25': {'label': 'E25 production', 'sha256': E25_SHA, 'thresholds': [0.40, 0.15, 0.10]},
-    'base5_e24': {'label': 'Base5 E24 trial',
+    'base5_e24': {'label': 'Base5 E24 production',
                   'sha256': '84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746',
                   'thresholds': [0.40, 0.10, 0.10], 'epoch': 24},
-    'base5_e9': {'label': 'Base5 E9 best (threshold 미보정)',
+    'e25': {'label': 'E25 rollback', 'sha256': E25_SHA, 'thresholds': [0.40, 0.15, 0.10]},
+    'base5_e9': {'label': 'Base5 E9 val best (비교용)',
                  'sha256': '067205c3f5f5b0abc1bb775116c2b8bca2c9a7f31a0727b959db0ab1ce70b271',
-                 'thresholds': [0.40, 0.15, 0.10], 'epoch': 9},
+                 'thresholds': [0.30, 0.20, 0.12], 'epoch': 9},
 }
+DEFAULT_MODEL = 'base5_e24'
 LABEL_PRESETS = {v['label']: k for k, v in PRESETS.items()}
 CANONICAL = '/perception/object_recognition/detection/objects'
 
 
 def selected_model(stack):
-    value = stack.get('bevfusion_model', 'e25')
+    value = stack.get('bevfusion_model', DEFAULT_MODEL)
     if not isinstance(value, str) or value not in PRESETS:
         raise ValueError('stack.bevfusion_model은 e25, base5_e24, base5_e9 중 하나입니다')
     if any(key in stack for key in ('bevfusion_checkpoint', 'bevfusion_config')):
@@ -88,7 +89,8 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         runtime_config = root / 'configs/perception/bevfusion_sensor4.yaml'
         amp = env.get('BEVFUSION_USE_AMP', 'true') == 'true'
     else:
-        checkpoint = root / ('artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/checkpoints/E{}.pth'.format(preset['epoch']))
+        checkpoint = (Path.home() / 'bevfusion_artifacts/checkpoints/base5_e24_inference.pth' if name == 'base5_e24'
+                      else root / 'artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/checkpoints/E9.pth')
         model_config = root / BASE5_CONFIG
         runtime_config = root / 'configs/perception/bevfusion_base5_trial.yaml'
         amp = True
@@ -152,7 +154,7 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         'server_port': 29500 if name == 'e25' else 29515,
         'cpu_threads': 4 if name != 'e25' else None,
         'image': env.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'),
-        'detection_topic': CANONICAL, 'threshold_calibrated': name != 'base5_e9'}
+        'detection_topic': CANONICAL, 'threshold_calibrated': True}
     if name == 'e25':
         result['production_environment'] = {key: value for key, value in env.items() if key.startswith('BEVFUSION_') or key in ('PROJECTION_ONLY', 'INTRINSIC_SOURCE')}
     result['fingerprint'] = fingerprint({key: value for key, value in result.items() if key != 'sensor_config'})
@@ -183,7 +185,8 @@ def trial_commands(contract, root, container_name):
         '--config', '/workspace/AjouNice2026/' + str(Path(contract['model_config']).relative_to(root)),
         '--camera-order', 'camera_front', 'camera_front_left', 'camera_front_right', 'camera_back',
         '--base5-runtime', '--point-intensity-source', 'ros255', '--amp', '--parallel-camera']
-    launch = 'base5_e24_calibrated_trial.launch' if contract['preset'] == 'base5_e24' else 'base5_trial.launch'
+    launch = ('base5_e24_calibrated_trial.launch' if contract['preset'] == 'base5_e24'
+              else 'base5_e9_calibrated_trial.launch')
     bridge = ['roslaunch', str(root / 'base_ws/src/perception/bevfusion_ros/launch' / launch),
               'sensor_config:=' + contract['sensor_config'], 'config:=' + contract['runtime_config'],
               'output_objects:=' + CANONICAL]

@@ -2,7 +2,11 @@
 
 공유·실행 브랜치는 `planning/autoware-universe-to-ros1`이다. 업데이트는 캠페인·스택 종료 → pull → planning/base 증분 빌드 → 환경 재source·노드 재실행 순서다. 초기 설치/clean을 매번 반복하지 않는다. 복붙 명령은 [팀원 안내 4-1](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있다.
 
-2026-10-11 GUI 단순화·반복 검증 변경은 `dataset/base5` 작업분이다. 공유 planning 브랜치에 통합되기 전까지 그쪽에도 새 UI가 배포됐다고 가정하지 않는다.
+2026-10-13 Base5 통합본의 기본 detector는 E24 production이다. 기존 팀 Docker 이미지를 재사용하고
+`bash scripts/runtime/install_base5_production.sh`로 Drive 가중치 다운로드·검증·증분 빌드를 수행한다.
+[E24 배포 안내](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+GUI 기본값과 모델 없는 새 YAML은 E24이며 명시적인 `e25`는 복귀 모델이다. 기존 실행 결과는 모델·코드
+계약이 다르면 강제 resume하지 않는다. 아래의 공용 이미지/E25 초기 설치는 E24 가중치 설치를 대신하지 않는다.
 
 팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오의 실시간 판정 결과를 저장하며, bag과 화면 영상은 선택한 녹화 설정에 따라 별도로 남긴다.
 

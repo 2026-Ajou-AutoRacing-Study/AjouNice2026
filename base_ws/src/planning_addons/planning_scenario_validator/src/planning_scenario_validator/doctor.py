@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 
 from .config import ROOT, load_campaign
 from .traffic_light import runtime_settings, runtime_mode
-from .models import resolve_contract
+from .models import resolve_contract, selected_model, E25_SHA
 
 
 def command(args, timeout=8):
@@ -39,9 +39,7 @@ def bev_settings():
     checkpoint = values.get('BEVFUSION_CHECKPOINT') or values.get('BEVFUSION_INFERENCE_CHECKPOINT') or str(Path.home() / 'bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth')
     checkpoint = Path(os.path.expandvars(checkpoint)).expanduser()
     checkpoint = checkpoint if checkpoint.is_absolute() else ROOT / checkpoint
-    script = (ROOT / 'scripts/runtime/run_bevfusion.sh').read_text()
-    checksum = re.search(r'EXPECTED_SHA256="([a-f0-9]{64})"', script)
-    return values.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'), checkpoint, checksum.group(1) if checksum else None
+    return values.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'), checkpoint, E25_SHA
 
 
 def inspect_environment(cfg, *, live=False, gpu=False):
@@ -94,7 +92,7 @@ def inspect_environment(cfg, *, live=False, gpu=False):
     if cfg['stack'].get('detector') == 'bevfusion':
         try:
             checkpoint_label = 'E25 가중치'
-            if cfg['stack'].get('bevfusion_model', 'e25') == 'e25':
+            if selected_model(cfg['stack']) == 'e25':
                 image, checkpoint, expected = bev_settings()
             else:
                 model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)

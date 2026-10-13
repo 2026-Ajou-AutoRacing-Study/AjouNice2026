@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import yaml
 
@@ -24,15 +25,16 @@ class ModelsAndAuditTests(unittest.TestCase):
         self.document = gui.load_document(gui.MISSIONS / 'full_course/base/base5_e24_analysis_sample.yaml')
         self.sensor = ROOT / 'configs/sensors/Sensor_competition_local.json'
 
-    def test_legacy_yaml_defaults_to_e25_without_inserting_selection(self):
+    def test_new_execution_defaults_to_promoted_e24_without_rewriting_yaml(self):
         old = gui.load_document(gui.MISSIONS / 'highway/base/example.yaml')
         self.assertNotIn('bevfusion_model', old['stack'])
-        self.assertEqual(models.selected_model(old['stack']), 'e25')
+        self.assertEqual(models.selected_model(old['stack']), 'base5_e24')
         self.assertEqual(gui.build_document(old, gui.form_values(old)), old)
         self.assertEqual(models.PRESETS['e25']['thresholds'], [0.4, 0.15, 0.1])
 
     def test_gui_operator_round_trip_preserves_model_analysis_and_fixed_parameters(self):
         old = gui.load_document(gui.MISSIONS / 'full_course/base/example.yaml')
+        old['stack']['bevfusion_model'] = 'e25'
         values = gui.form_values(old)
         values['bevfusion_model'] = models.PRESETS['base5_e24']['label']
         values['recording_mode'] = '인지 분석 (센서+영상)'
@@ -48,6 +50,7 @@ class ModelsAndAuditTests(unittest.TestCase):
 
     def test_model_choice_conflicts_with_external_yaml_edit_are_rejected(self):
         old = gui.load_document(gui.MISSIONS / 'full_course/base/example.yaml')
+        old['stack']['bevfusion_model'] = 'e25'
         latest = copy.deepcopy(old)
         latest['stack']['bevfusion_model'] = 'base5_e9'
         values = gui.form_values(old)
@@ -76,7 +79,7 @@ class ModelsAndAuditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'config 계약'):
                 models.resolve_contract(self.document['stack'], self.sensor, ROOT)
         real_hash = models.sha256
-        with patch.object(models, 'sha256', side_effect=lambda p: 'wrong' if str(p).endswith('E24.pth') else real_hash(p)):
+        with patch.object(models, 'sha256', side_effect=lambda p: 'wrong' if str(p).endswith('base5_e24_inference.pth') else real_hash(p)):
             with self.assertRaisesRegex(ValueError, 'checkpoint SHA256'):
                 models.resolve_contract(self.document['stack'], self.sensor, ROOT)
 
@@ -93,9 +96,31 @@ class ModelsAndAuditTests(unittest.TestCase):
         self.assertTrue(contract['checkpoint_verified'])
         self.assertEqual(contract['thresholds'], {'vehicle': 0.4, 'pedestrian': 0.1, 'obstacle': 0.1})
 
-    def test_e9_is_explicitly_uncalibrated(self):
-        self.assertIn('미보정', models.PRESETS['base5_e9']['label'])
-        self.assertEqual(models.PRESETS['base5_e9']['thresholds'], [0.4, 0.15, 0.1])
+    def test_e9_is_calibrated_but_not_the_production_default(self):
+        self.assertIn('비교용', models.PRESETS['base5_e9']['label'])
+        self.assertEqual(models.PRESETS['base5_e9']['thresholds'], [0.3, 0.2, 0.12])
+        self.assertNotEqual(models.DEFAULT_MODEL, 'base5_e9')
+        contract = models.resolve_contract(dict(detector='bevfusion', bevfusion_model='base5_e9'), self.sensor, ROOT)
+        _, bridge = models.trial_commands(contract, ROOT, 'comparison-test')
+        self.assertTrue(any('base5_e9_calibrated_trial.launch' in part for part in bridge))
+
+    def test_e24_uses_the_portable_installed_path_not_ignored_evaluation_artifacts(self):
+        contract = models.resolve_contract(self.document['stack'], self.sensor, ROOT)
+        self.assertEqual(contract['checkpoint_path'], str(Path.home() / 'bevfusion_artifacts/checkpoints/base5_e24_inference.pth'))
+        self.assertNotIn('artifacts/evaluation', contract['checkpoint_path'])
+
+    def test_explicit_e25_selection_passes_model_argument_to_promoted_runner(self):
+        with tempfile.TemporaryDirectory() as t:
+            cfg = dict(network=dict(sensor_json=str(self.sensor), ego_network_json='network',
+                                   has_lidar=True, camera_count=4),
+                       stack=dict(detector='bevfusion', bevfusion_model='e25', planviz=False),
+                       document={}, output=Path(t))
+            processes = unittest.mock.Mock()
+            monitor = SimpleNamespace(stamps={'ego': 1}, wait=unittest.mock.Mock())
+            with patch.object(runner.shutil, 'which', return_value=None):
+                runner._start_persistent(cfg, processes, monitor)
+            args = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'bevfusion')
+            self.assertEqual(args[-3:], ['--model', 'e25', str(self.sensor)])
 
     def test_changed_checkpoint_path_in_receipt_is_rejected_before_loading(self):
         contract = models.resolve_contract(self.document['stack'], self.sensor, ROOT)

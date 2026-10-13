@@ -8,6 +8,12 @@
 
 현재 공유·실행 브랜치는 **planning/autoware-universe-to-ros1**입니다. 시나리오 검증기도 판단·제어·인지·측위와 같은 브랜치에 합칩니다. 팀원은 자동화 개발 브랜치로 따로 이동하지 않고, 이 브랜치를 pull하고 증분 빌드해서 사용하면 됩니다. 아래 내용은 개인 PC에서 MORAI와 알고리즘을 같이 켜는 기준입니다. 현장 LAN 설정과 섞지 말아 주세요.
 
+**2026-10-13 인지 기본 모델은 Base5 E24로 변경했습니다.** 기존 팀 Docker·풀스택이 있으면 브랜치를
+pull한 뒤 `bash scripts/runtime/install_base5_production.sh`만 실행하세요. E24 ZIP 다운로드·검증·고정 경로
+설치와 필요한 증분 빌드를 자동 수행합니다. [E24 전달 안내](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따르세요.
+아래 5·6장의 공용 이미지/E25 설치는 초기 환경·복귀 준비이며 E24 설치 완료를 뜻하지 않습니다.
+GUI에서 E24 production을 확인하고 새 실험을 시작하세요. 명시적인 e25는 E25로 실행되며 이전 결과에 다른 모델을 강제로 resume하지 않습니다.
+
 **이미 Docker에 BEVFusion 이미지를 등록했고 E25 가중치도 준비한 분은 다시 설치하거나 다운로드하지 마세요.** 우리 풀스택도 준비돼 있으면 **1장 브랜치 갱신 → 4장 업데이트 빌드 → 7장 검증기 Network 준비 → 8장 GUI 실행**으로 가면 됩니다. **5·6장의 Docker 설치, 이미지 다운로드·docker load, E25 압축 해제는 건너뜁니다.** 7장의 `install.sh --gui`는 도구 검사와 검증기 Network 생성이므로 기존 준비자도 실행합니다. 신호등도 켤 사람만 7-1의 환경 설치/선택을 추가 확인해 주세요.
 
 기존 환경은 지우지 말고 GUI의 **환경 검사**에서 실제 사용하는 이미지·E25 경로를 확인하세요. `.env.bevfusion.local`에 본인 경로가 있으면 기본 경로보다 우선합니다. GPU 사용 확인이 필요하면 설치기의 GPU 검사 또는 planning_validator_doctor.py --gpu 검사를 사용합니다. Docker만 설치됐거나 학습용 이미지만 있는 경우는 BEVFusion 추론/E25까지 준비됐다는 뜻이 아니니 아래 5장의 구분을 참고하세요. GUI·녹화 도구가 빠졌다면 그 도구만 추가하면 됩니다.

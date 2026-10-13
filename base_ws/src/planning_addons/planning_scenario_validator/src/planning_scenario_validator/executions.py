@@ -83,6 +83,9 @@ def prepare_execution(source, *, check_install=True):
                 resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
         model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'),
                                  require_assets=check_install)
+        if cfg['stack'].get('detector') == 'bevfusion':
+            # Freeze the resolved default so a later promotion cannot alter this execution.
+            document['stack']['bevfusion_model'] = model['preset']
         for relative in model.get('config_files_sha256', {}):
             copy_input(resolve_path(relative), 'model_configs/' + relative)
         if model.get('runtime_config'):

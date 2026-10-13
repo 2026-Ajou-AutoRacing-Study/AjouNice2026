@@ -364,13 +364,41 @@ class CampaignTest(unittest.TestCase):
         monitor.stamps = {}
         events = []
         monitor.event = lambda name, **fields: events.append((name, fields))
-        contact = SimpleNamespace(collision_object=[SimpleNamespace(unique_id=4101)])
         empty = SimpleNamespace(collision_object=[])
+        monitor.ego = None
+        contact = SimpleNamespace(collision_object=[SimpleNamespace(
+            unique_id=4101, position=SimpleNamespace(x=0.0, y=0.0))])
         monitor._collision(contact)
         monitor._collision(empty)
         monitor._collision(contact)
         self.assertEqual(monitor.collision_count, 1)
-        self.assertEqual(events, [("COLLISION", {"object_id": 4101})])
+        self.assertEqual(events, [("COLLISION", {"object_id": 4101, "distance_m": None})])
+
+    def test_collision_far_from_ego_is_morai_contamination_not_fail(self):
+        monitor = LiveMonitor.__new__(LiveMonitor)
+        monitor.armed = True
+        monitor.collision_ids = set()
+        monitor.seen_collision_ids = set()
+        monitor.collision_count = 0
+        monitor.far_collision = None
+        monitor.stamps = {}
+        monitor.ego = SimpleNamespace(position=SimpleNamespace(x=-99.4, y=303.5))
+        events = []
+        monitor.event = lambda name, **fields: events.append((name, fields))
+        # 2026-10-05 관측: spawn point(-111.3, 358.3)에서 막 생성된 NPC가 충돌로 보고됨
+        far = SimpleNamespace(collision_object=[SimpleNamespace(
+            unique_id=10, position=SimpleNamespace(x=-111.3, y=358.3))])
+        monitor._collision(far)
+        self.assertEqual(monitor.collision_count, 0)
+        self.assertEqual(monitor.far_collision, (10, 56.1))
+        self.assertEqual(events[0][0], "COLLISION_FAR_FROM_EGO")
+        # 실제 접촉(중심 간 5.5m)은 그대로 충돌
+        monitor.ego = SimpleNamespace(position=SimpleNamespace(x=-98.3, y=321.0))
+        near = SimpleNamespace(collision_object=[SimpleNamespace(
+            unique_id=8, position=SimpleNamespace(x=-101.5, y=325.5))])
+        monitor._collision(near)
+        self.assertEqual(monitor.collision_count, 1)
+        self.assertEqual(events[-1], ("COLLISION", {"object_id": 8, "distance_m": 5.5}))
 
     def test_planviz_focus_retries_transient_wnck_crash(self):
         with patch("planning_scenario_validator.runtime.subprocess.run", side_effect=[

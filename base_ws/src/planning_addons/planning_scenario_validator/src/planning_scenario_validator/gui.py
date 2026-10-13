@@ -28,7 +28,7 @@ from . import executions
 from . import batch
 from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
 from .scenario_selection import choose_scenarios
-from .models import PRESETS, LABEL_PRESETS
+from .models import PRESETS, LABEL_PRESETS, DEFAULT_MODEL
 from . import recording_options as bag_options
 
 
@@ -175,7 +175,7 @@ def form_values(document):
         "timeout_sec": case.get("timeout_sec", 180),
         "pose_source": stack.get("pose_source", "localization"),
         "detector": stack.get("detector", "od_gt"),
-        'bevfusion_model': PRESETS[stack.get('bevfusion_model', 'e25')]['label'],
+        'bevfusion_model': PRESETS[stack.get('bevfusion_model', DEFAULT_MODEL)]['label'],
         'recording_mode': bag_options.mode_label(recording),
         'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
@@ -232,10 +232,10 @@ def build_document(template, values):
     for key in ("pose_source", "detector"):
         stack[key] = str(values[key])
     stack["traffic_light"] = bool(values["traffic_light"])
-    model = LABEL_PRESETS.get(values.get('bevfusion_model', PRESETS['e25']['label']))
+    model = LABEL_PRESETS.get(values.get('bevfusion_model', PRESETS[DEFAULT_MODEL]['label']))
     if model is None:
         raise ValueError('모델 프리셋을 선택하세요')
-    if model != template['stack'].get('bevfusion_model', 'e25'):
+    if model != template['stack'].get('bevfusion_model', DEFAULT_MODEL):
         stack['bevfusion_model'] = model
     mode = LABEL_MODES.get(str(values["traffic_light_runtime"]))
     if mode is None:
