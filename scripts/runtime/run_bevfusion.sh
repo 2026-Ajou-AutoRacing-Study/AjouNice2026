@@ -8,6 +8,16 @@ if [[ -f "$ROOT/.env.bevfusion.local" ]]; then
   source "$ROOT/.env.bevfusion.local"
   set +a
 fi
+# Optional sidecar diagnostics do not alter the frozen inference contract.
+# Validate before any Docker operation, including readiness/image checks.
+PUBLISH_FRAME_TIMING="${BEVFUSION_PUBLISH_FRAME_TIMING-false}"
+case "$PUBLISH_FRAME_TIMING" in
+  true|false) ;;
+  *)
+    echo "[ERROR] BEVFUSION_PUBLISH_FRAME_TIMING must be true or false." >&2
+    exit 2
+    ;;
+esac
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"
 MODEL="${BEVFUSION_PRODUCTION_MODEL:-e24}"
 if [[ "${1:-}" == "--model" ]]; then
@@ -117,10 +127,12 @@ fi
 source "$ROOT/scripts/workspace/source_aw149.sh"
 
 echo "[BEVFusion] Starting ROS bridge on $DETECTION_TOPIC"
+echo "[BEVFusion] Optional frame timing: $PUBLISH_FRAME_TIMING"
 echo "[BEVFusion] Ctrl-C stops both the ROS bridge and Docker inference server"
 if [[ -n "$SENSOR_CONFIG" ]]; then
   echo "[BEVFusion] Using sensor config: $SENSOR_CONFIG"
-  roslaunch bevfusion_ros "${profile[4]}" sensor_config:="$SENSOR_CONFIG"
+  roslaunch bevfusion_ros "${profile[4]}" sensor_config:="$SENSOR_CONFIG" \
+    publish_frame_timing:="$PUBLISH_FRAME_TIMING"
 else
-  roslaunch bevfusion_ros "${profile[4]}"
+  roslaunch bevfusion_ros "${profile[4]}" publish_frame_timing:="$PUBLISH_FRAME_TIMING"
 fi

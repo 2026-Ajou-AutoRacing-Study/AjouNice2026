@@ -79,6 +79,19 @@ callback/header age·메시지 생성·publish 비용 JSON도 보조 녹화에 �
 `profile_pipeline_cpu_offline.py`는 명시한 Git reference와 현재 소스를 6 bag 등 동일 입력에서
 wire-exact 비교한다. [CPU 검토와 포팅 gate](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
 
+`replay_pipeline_diagnostics_offline.py`는 설치된 UNKNOWN→Map-CV만 별도 localhost
+master·`/offline_probe/*` 토픽에서 실행한다. 원본 tracking bag의 empty/차량/사람/UNKNOWN
+표본, 기준 wire와 출력 subset, 진단 OFF/ON을 비교하고 종료 시 소유 프로세스를 정리한다.
+UDP driver·GPU·planner·제어·MORAI는 켜지 않는다. 시험 clock은 원래 object header에서
+생성하며 실제 bag clock/센서 age를 재현하지 않는다. 실행 전 AW149를 source하고
+새 output 경로를 지정한다. `--rates 1`은 약 30Hz, 기본의 3×는 queue 포화 시험이다.
+
+BEVFusion bridge의 stage JSON은 `BEVFUSION_PUBLISH_FRAME_TIMING=true`를
+`scripts/runtime/run_bevfusion.sh` 앞에 명시해서 선택한다. 기본 OFF이며 canonical 및
+Base5 trial의 `frame_timing`을 recorder가 모두 요청한다. 기존 latency 범위를 재정의하지
+않고 raw/prepared queue·host 준비·server·publish를 나눈다. publish 시간은 downstream
+전달 완료 시간이 아니다. 자세한 범위는 [진단 계약](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#diagnostics)을 따른다.
+
 ## 원시 LiDAR 패킷·카메라 녹화
 
 51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
@@ -96,3 +109,16 @@ PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 
 시나리오 이름·로컬 UDP 설정·세 터미널 명령과 수동 운전 구간은
 [benchmark 준비 절차](../configs/scenario/perception_benchmark/README.md#2026-10-14-원시-lidar-패킷-실험-준비)를 따른다.
 완료한 bag을 같은 원본의 50/51/회전각 A/B에 쓰고, MORAI OFF 상태에서 후속 분석한다.
+
+오프라인 분석 도구는 실행 역할을 구분한다. `lidar_packet_reassembly.py`는 bag을 읽어
+packet 경계/시각만 감사한다. `decode_lidar_packet_candidates.py`는 별도 ROS master와
+transform-only nodelet을 띄우며 UDP driver·제어는 실행하지 않는다. 원본 51 cloud의
+typed fields 동등성을 먼저 검사한다. `infer_lidar_packet_candidates.py`는 입력 선정과
+GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy의 결과를
+분리한다. `audit_tracking_continuity_packets.py`는 독립 C++ 코어를 재생한다.
+각 `--help`의 새 output 경로와 source/calibration/weight 계약을 확인하고 실행한다.
+현재 결과와 해석 한계는 [packet 검토](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#packet)에 있다.
+
+선택적 live LiDAR 비교 인자는 `lidar.launch`의 `npackets`/`cut_angle`과 상위
+`morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. default는 이전과
+같고 이 문서 추가만으로 후보 driver를 실행하지 않는다. cut 단위는 라디안이다.

@@ -35,6 +35,7 @@ from bevfusion_ros.score_thresholds import (
 )
 from bevfusion_ros.rotated_bev_nms import class_aware_rotated_bev_nms
 from bevfusion_ros.transport import TcpTransport
+from bevfusion_ros.frame_timing import FrameTimingLedger
 
 
 DEFAULT_CAMERA_ORDER = [
@@ -195,6 +196,12 @@ class BevFusionRosBridge:
         self.nms_suppressed_total = 0
         self.last_marker_count = 0
         self.shutting_down = False
+        self.frame_timing = None
+        self.frame_timing_pub = None
+        if bool(rospy.get_param('~publish_frame_timing', False)):
+            self.frame_timing = FrameTimingLedger(capacity=16)
+            self.frame_timing_pub = rospy.Publisher(
+                '/perception/bevfusion/frame_timing', String, queue_size=1)
 
         self.marker_pub = rospy.Publisher(
             "/perception/bevfusion/markers", MarkerArray, queue_size=1
@@ -349,6 +356,9 @@ class BevFusionRosBridge:
             self.camera_buffers[frame].append(message)
 
     def _lidar_callback(self, message):
+        ledger = getattr(self, 'frame_timing', None)
+        ticket = ledger.begin(message.header.stamp.to_nsec(), message.header.frame_id,
+                              rospy.Time.now().to_nsec()) if ledger else None
         lidar_stamp = stamp_seconds(message)
         timing = None
         point_time_offsets = None
@@ -359,6 +369,8 @@ class BevFusionRosBridge:
                     message, "time", np.float64
                 )
             except ValueError as error:
+                if ledger:
+                    ledger.count('deskew_timing_reject')
                 self.dropped_deskew_timing += 1
                 rospy.logwarn_throttle(2.0, "BEVFusion deskew rejected: %s", error)
                 return
@@ -368,6 +380,8 @@ class BevFusionRosBridge:
                 self.lidar_deskew_reference,
             )
             if timing is None:
+                if ledger:
+                    ledger.count('deskew_timing_reject')
                 self.dropped_deskew_timing += 1
                 rospy.logwarn_throttle(
                     2.0, "BEVFusion deskew rejected invalid point-time span"
@@ -379,6 +393,8 @@ class BevFusionRosBridge:
         with self.buffer_lock:
             for frame, buffer in self.camera_buffers.items():
                 if not buffer:
+                    if ledger:
+                        ledger.count('camera_empty_reject')
                     return
                 nearest = min(
                     buffer,
@@ -386,6 +402,8 @@ class BevFusionRosBridge:
                 )
                 difference = abs(stamp_seconds(nearest) - reference_stamp)
                 if difference > self.sync_tolerance:
+                    if ledger:
+                        ledger.count('camera_sync_reject')
                     rospy.logwarn_throttle(
                         2.0,
                         "BEVFusion sync rejected: %s differs by %.3f sec",
@@ -398,6 +416,8 @@ class BevFusionRosBridge:
         with self.pipeline_condition:
             if self.raw_pending is not None:
                 self.dropped_raw += 1
+                if ledger:
+                    ledger.discard(self.raw_pending[-1], 'raw_overwrite')
             self.raw_pending = (
                 message,
                 selected,
@@ -407,6 +427,8 @@ class BevFusionRosBridge:
                 reference_stamp,
                 time.monotonic(),
             )
+            if ledger:
+                ledger.accept(ticket, self.raw_pending[-1], reference_stamp, differences)
             self.pipeline_condition.notify_all()
 
     def _preprocess_loop(self):
@@ -419,13 +441,24 @@ class BevFusionRosBridge:
                 frame = self.raw_pending
                 self.raw_pending = None
             try:
+                ledger = getattr(self, 'frame_timing', None)
+                if ledger:
+                    ledger.stage(frame[-1], 'preprocess_start')
                 prepared = self._prepare_frame(*frame)
+                if ledger:
+                    ledger.stage(frame[-1], 'preprocess_end')
                 with self.pipeline_condition:
                     if self.prepared_pending is not None:
                         self.dropped_prepared += 1
+                        if ledger:
+                            ledger.discard(self.prepared_pending[-1], 'prepared_overwrite')
                     self.prepared_pending = prepared
+                    if ledger:
+                        ledger.stage(prepared[-1], 'prepared_enqueued')
                     self.pipeline_condition.notify_all()
             except Exception as error:
+                if getattr(self, 'frame_timing', None):
+                    self.frame_timing.discard(frame[-1], 'preprocess_error')
                 self._publish_status("error: {}".format(error))
                 rospy.logwarn_throttle(
                     2.0, "BEVFusion preprocessing failed: %s", error
@@ -623,12 +656,31 @@ class BevFusionRosBridge:
         return frame, np.ascontiguousarray(image)
 
     def _request_and_publish(self, prepared):
+        ledger = getattr(self, 'frame_timing', None)
+        if ledger:
+            ledger.bind_request(prepared[-1])
+        try:
+            self._request_and_publish_body(prepared)
+        except Exception:
+            if ledger:
+                ledger.discard(prepared[-1], 'request_error')
+            raise
+        finally:
+            if ledger:
+                ledger.unbind_request()
+
+    def _request_and_publish_body(self, prepared):
         metadata, blobs, stamp, received_at = prepared
+        ledger = getattr(self, 'frame_timing', None)
         request_start = time.monotonic()
+        if ledger:
+            ledger.stage(received_at, 'request_start', request_start)
         response, response_blobs = self.transport.request(metadata, blobs)
         transport_ms = (time.monotonic() - request_start) * 1000.0
         latency_ms = (time.monotonic() - received_at) * 1000.0
         self.latency_pub.publish(Float32(data=latency_ms))
+        if ledger:
+            ledger.stage(received_at, 'response_returned', request_start+transport_ms/1000.)
         if response.get("operation") == "projection":
             self._publish_projection(response, response_blobs)
         else:
@@ -661,6 +713,21 @@ class BevFusionRosBridge:
                 self.nms_suppressed_total,
             )
         )
+        if ledger:
+            self._publish_frame_timing(prepared, response, latency_ms)
+
+    def _publish_frame_timing(self, prepared, response, latency_ms):
+        # Diagnostics must never turn a successful detector frame into an
+        # inference error or alter the legacy Float32/metadata time definitions.
+        metadata, _blobs, stamp, received_at = prepared
+        try:
+            record = self.frame_timing.finish(received_at, metadata.get('sequence', 0),
+                stamp.to_nsec(), rospy.Time.now().to_nsec(), metadata, response, latency_ms)
+            if record is not None:
+                self.frame_timing_pub.publish(String(data=json.dumps(record, allow_nan=False, separators=(',', ':'))))
+        except Exception as error:
+            self.frame_timing.count('diagnostic_error')
+            rospy.logwarn_throttle(2., 'BEVFusion frame timing diagnostic failed: %s', error)
 
     def _write_query_memory_diagnostics(self, response, request_metadata):
         if self.query_memory_diagnostics_handle is None:
@@ -731,6 +798,8 @@ class BevFusionRosBridge:
                 maximum_velocity_mps=self.detector_maximum_velocity_mps,
             )
         )
+        if getattr(self, 'frame_timing', None):
+            self.frame_timing.output_published(rospy.Time.now().to_nsec())
         for index, detection in enumerate(detections):
             box = Marker()
             box.header.frame_id = frame_id
@@ -774,6 +843,8 @@ class BevFusionRosBridge:
 
     def shutdown(self):
         self.shutting_down = True
+        if getattr(self, 'frame_timing', None):
+            self.frame_timing.clear()
         self.transport.close()
         if self.query_memory_diagnostics_handle is not None:
             self.query_memory_diagnostics_handle.close()

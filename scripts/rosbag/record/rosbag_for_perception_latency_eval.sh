@@ -17,8 +17,8 @@ if [[ ! "$DURATION" =~ ^[1-9][0-9]*$ ]] || ((DURATION>600)); then
   echo "duration must be 1..600 seconds" >&2; exit 2
 fi
 TOPICS=(
-  '^/perception/bevfusion/(status|latency_ms)$'
-  '^/perception/base5_trial/(status|latency_ms)$'
+  '^/perception/bevfusion/(status|latency_ms|frame_timing)$'
+  '^/perception/base5_trial/(status|latency_ms|frame_timing)$'
   '^/perception/object_recognition/(detection/objects|tracking/measurement_objects|tracking/objects|objects)$'
   '^/map_based_prediction/diagnostics/processing_time_ms$'
   '^/tracked_object_motion_policy/diagnostics/processing_time_ms$'

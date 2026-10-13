@@ -90,7 +90,7 @@ prediction coverage를 함께 감시한다.
 - 저속, off-lane, wrong-direction, non-vehicle은 Cartesian CV fallback을 사용한다.
 - 경로 arc index와 고정 지도 segment·bounded route geometry를 재사용하고 독립 메시지
   복사·동일 순서 DFS로 계산 비용을 줄인다. 6 bag의 10,433 tracking frame·11,021객체를
-  두 번 비교해 직렬화 출력이 정확히 같다. 예측 정책 변경이 아니며 설치본은 아직 별도다.
+  두 번 비교해 직렬화 출력이 정확히 같다. 이 PC의 설치본까지 갱신했으며 예측 정책 변경은 아니다.
 
 현재 predictor는 CTRV 곡률로 lane rank를 고르는 구조가 아니다. 현재 위치·yaw로
 start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 경로를 열거한다.
@@ -103,7 +103,8 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 추가 관측 적합도·횡이동 후보는 [50절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의
 별도 bag/30Hz 회귀까지 확인했다. 소수 큰 순위 악화 때문에 운영 정책에는 적용하지 않았다.
 [오프라인 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)의
-계산 최적화는 소스에 반영했지만 실행 중 프로세스나 팀장님 배포본은 교체하지 않았다.
+계산 최적화는 소스·이 PC의 설치본에 반영했다. 별도 private ROS의 30Hz 600개 입력은
+진단 OFF/ON 모두 누락 없이 기준 wire를 유지했다. 팀장님 배포·실제 폐루프는 미검증이다.
 
 ## 최신 팀장님 풀주행 확인 (2026-10-14)
 
