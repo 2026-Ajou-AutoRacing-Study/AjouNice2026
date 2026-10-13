@@ -20,6 +20,8 @@ TOPICS=(
   '^/perception/bevfusion/(status|latency_ms)$'
   '^/perception/base5_trial/(status|latency_ms)$'
   '^/perception/object_recognition/(detection/objects|tracking/measurement_objects|tracking/objects|objects)$'
+  '^/map_based_prediction/diagnostics/processing_time_ms$'
+  '^/tracked_object_motion_policy/diagnostics/processing_time_ms$'
   '^/planning/trajectory$'
   '^/planning/validation_status$'
   '^/planning/.*/debug/(processing_time.*|calculation_time)$'

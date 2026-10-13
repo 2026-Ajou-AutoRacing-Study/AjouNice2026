@@ -73,6 +73,12 @@ bash scripts/rosbag/record/rosbag_for_perception_latency_eval.sh --duration 60
 출력 header 역시 새 detector 관측이 아니다. C++ 포팅은 실제 비용과 출력 동등성을 확인한
 노드부터 별도 A/B로 수행하며, 이 실행기들이 운영 정책을 자동 승격하지 않는다.
 
+후단의 `publish_processing_diagnostics:=true`를 명시하면 Map-CV·UNKNOWN 정책의
+callback/header age·메시지 생성·publish 비용 JSON도 보조 녹화에 포함된다. 기본 OFF이며
+30Hz tracking header age를 마지막 detector 관측 age로 해석하지 않는다.
+`profile_pipeline_cpu_offline.py`는 명시한 Git reference와 현재 소스를 6 bag 등 동일 입력에서
+wire-exact 비교한다. [CPU 검토와 포팅 gate](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
+
 ## 원시 LiDAR 패킷·카메라 녹화
 
 51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는

@@ -22,7 +22,7 @@ def test_production_tracking_and_prediction_values_are_explicit():
         "canonicalize_vehicle_orientation_to_motion": "true",
         "compensate_tracking_output_to_current_time": "false",
         "tracking_internal_publish_rate_hz": "30.0",
-        "maximum_tracking_internal_prediction_age_sec": "0.25",
+        "maximum_tracking_internal_prediction_age_sec": "$(arg maximum_tracking_internal_prediction_age_sec)",
         "detection_velocity_fusion_mode": "$(arg tracker_detection_velocity_fusion_mode)",
         "tracking_publish_rate_hz": "0.0",
         "force_unknown_stationary": "true",
@@ -32,6 +32,11 @@ def test_production_tracking_and_prediction_values_are_explicit():
     }
     for name, value in expected.items():
         assert arguments.get(name) == value, (name, arguments.get(name))
+    root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
+    defaults = {item.attrib["name"]: item.attrib.get("default") for item in root.findall("arg")}
+    # Standalone default remains 0.25; the operating alias explicitly selects
+    # 0.50. Validate forwarding instead of requiring a hardcoded child value.
+    assert defaults["maximum_tracking_internal_prediction_age_sec"] == "0.25"
 
 
 def test_tracker_ablation_defaults_preserve_production_contract():
@@ -66,7 +71,7 @@ def test_tracker_ablation_defaults_preserve_production_contract():
     )
 
 
-def test_production_topics_and_v76_map_are_explicit():
+def test_production_topics_and_v85_map_are_explicit():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     top_level = {item.attrib["name"]: item.attrib for item in root.findall("arg")}
     arguments = _included_arguments()
@@ -78,3 +83,18 @@ def test_production_topics_and_v76_map_are_explicit():
     assert top_level["projector_file"]["default"].endswith("/map_projector_info_v1.yaml")
     assert arguments["map_file"] == "$(arg map_file)"
     assert arguments["projector_file"] == "$(arg projector_file)"
+
+
+def test_callback_processing_diagnostics_are_opt_in_without_policy_change():
+    pipeline = ET.parse(PACKAGE_ROOT / "launch" / "object_pipeline.launch").getroot()
+    defaults = {item.attrib["name"]: item.attrib.get("default") for item in pipeline.findall("arg")}
+    assert defaults["publish_processing_diagnostics"] == "false"
+    policy = next(node for node in pipeline.findall("node") if node.attrib["name"] == "tracked_object_motion_policy")
+    params = {item.attrib["name"]: item.attrib["value"] for item in policy.findall("param")}
+    assert params["publish_processing_diagnostics"] == "$(arg publish_processing_diagnostics)"
+    prediction = ET.parse(PACKAGE_ROOT / "launch" / "object_prediction.launch").getroot()
+    prediction_defaults = {item.attrib["name"]: item.attrib.get("default") for item in prediction.findall("arg")}
+    assert prediction_defaults["publish_processing_diagnostics"] == "false"
+    map_node = next(node for node in prediction.iter("node") if node.attrib["name"] == "map_based_prediction")
+    map_params = {item.attrib["name"]: item.attrib.get("value") for item in map_node.findall("param")}
+    assert map_params["publish_processing_diagnostics"] == "$(arg publish_processing_diagnostics)"

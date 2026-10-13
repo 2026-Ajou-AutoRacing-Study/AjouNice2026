@@ -6,6 +6,7 @@
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
   <arg name="prediction_model" default="ctrv"/>
+  <arg name="publish_processing_diagnostics" default="false"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
@@ -31,6 +32,8 @@
           name="map_based_prediction"
           output="screen"
           respawn="false">
+      <param name="publish_processing_diagnostics"
+             value="$(arg publish_processing_diagnostics)"/>
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <rosparam command="load"

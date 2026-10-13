@@ -88,8 +88,9 @@ prediction coverage를 함께 감시한다.
 - confidence는 heuristic route score를 남은 hypothesis 사이에서 정규화한다. 실제
   calibrated probability로 해석하지 않는다.
 - 저속, off-lane, wrong-direction, non-vehicle은 Cartesian CV fallback을 사용한다.
-- 경로 길이와 표본/접선은 경로별 arc index를 재사용한다. Scalar 기준과 14,546개 차량
-  관측의 경로·위치·yaw·confidence가 정확히 같은 계산 최적화이며 예측 정책 변경이 아니다.
+- 경로 arc index와 고정 지도 segment·bounded route geometry를 재사용하고 독립 메시지
+  복사·동일 순서 DFS로 계산 비용을 줄인다. 6 bag의 10,433 tracking frame·11,021객체를
+  두 번 비교해 직렬화 출력이 정확히 같다. 예측 정책 변경이 아니며 설치본은 아직 별도다.
 
 현재 predictor는 CTRV 곡률로 lane rank를 고르는 구조가 아니다. 현재 위치·yaw로
 start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 경로를 열거한다.
@@ -101,7 +102,8 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 시작 lanelet 이력은 진단 실행기에만 있고 발행 경로·confidence·production은 변경하지 않았다.
 추가 관측 적합도·횡이동 후보는 [50절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의
 별도 bag/30Hz 회귀까지 확인했다. 소수 큰 순위 악화 때문에 운영 정책에는 적용하지 않았다.
-Arc index는 소스에 반영했지만 실행 중 프로세스나 팀장님 배포본은 교체하지 않았다.
+[오프라인 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)의
+계산 최적화는 소스에 반영했지만 실행 중 프로세스나 팀장님 배포본은 교체하지 않았다.
 
 ## 최신 팀장님 풀주행 확인 (2026-10-14)
 
@@ -122,12 +124,14 @@ bag SHA256은 `15698fa7c6ec264775c3b0e004980ad46a70cdf057f15e344416a7fd06dfb4d8`
 - Scalar/arc-index를 전체 5,461 tracking frame에서 비교해 ROS payload가 정확히 같았다.
   기록본과 대응 가능한 5,417 prediction payload도 publisher별 `header.seq`만 정규화하면
   정확히 같다. 소스가 최적화된 버전으로 배포됐음을 이 사실만으로 추정하지 않는다.
-- 로컬 CPU에서 nonempty 2,406 frame의 메시지 생성+직렬화 비용 평균은
-  `5.26 -> 2.19 ms`, p95는 `16.95 -> 6.02 ms`다. 객체 한 대가 아니라 전체 입력을
-  처리한 비용이며 팀장님 PC의 live/LAN 지연 측정은 아니다. 두 계산 방식 모두 드문 GC
-  spike가 있었다. indexed 최대 84.02 ms 표본에는 약 80.58 ms의 generation-2 GC가
-  측정됐다. 제외하지 않고 보고했으며, 분석 프로세스의 heap/GC를 실제 노드의 tail로
-  일반화하거나 GC를 운영에서 임의로 끄지 않는다.
+- 로컬 CPU의 arc-index 기준 이후 추가 최적화는 평균 `2.160 -> 0.982 ms`, p95
+  `6.002 -> 2.576 ms`다. 팀장님 PC의 live/LAN 전체 지연이 아니다. 별도 후보 프로세스
+  반복의 최대는 86.976ms이며 GC가 85.285ms를 차지했다. 최대 지연 해결이나 GC OFF를
+  주장하지 않는다. 소스·지도·bag 해시와 분모는 [근거](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)에 둔다.
+- 같은 Man1에 낮은-IoU 중복 UUID가 붙은 50/4,870프레임과 5개 ID 분절을 확인했다.
+  원본 코어에서 중복 검출 birth→관측 경쟁→기존 ID coasting 만료를 재현했다. 가까운 두
+  사람을 합칠 반례 때문에 threshold/guard를 강화하지 않는다. association 후보는
+  [별도 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#tracking)이며 production은 미변경이다.
 - 고정한 lane-history 후보는 3초 조건부 위치 오차 평균 `4.625 -> 4.623 m`로 거의
   같고, 변경된 30표본 중 5m 초과 개선 12·악화 9였다. 새 bag으로 재튜닝하지 않았으며
   기존 운영 미적용 결론을 유지한다. 원거리 저점수 갱신 후보는 raw 센서/저점수 검출이
@@ -146,7 +150,8 @@ Map-CV 입력/출력 stamp·frame·UUID 대응 4,870건의 수신 차이는 평�
 subscriber별 녹화 순서 차이로 음수 7건도 있어 callback CPU와 같지 않다.
 
 추가 녹화는 [노드 지연 실행기](../../../../scripts/README.md#후단과-노드-지연-분석)를
-따른다. 기존 validator는 수정하지 않았고, 디버그를 자동 활성화하지도 않는다.
+따른다. Map-CV/UNKNOWN callback 진단은 `publish_processing_diagnostics:=true`로 선택하며
+기본 OFF다. 기존 validator는 수정하지 않았고 디버그를 자동 활성화하지도 않는다.
 C++ 포팅은 lane projection/route geometry 등 CPU 비용이 큰 부분부터 검토하되,
 동일 입력에서 UUID·class·shape·시각·경로 순서·confidence·31개 pose 동등성,
 empty/저속/off-lane fallback, 전체 콜백의 p95/p99·최대 지연·관측 age·queue/drop을
