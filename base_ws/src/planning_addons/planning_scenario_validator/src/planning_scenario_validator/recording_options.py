@@ -1,13 +1,15 @@
 """Bag choices independent of screen video and live validation subscriptions."""
 import json
 from pathlib import Path
+from .topic_contract import PLANNER_TIME_PATTERNS
 
 OFF = '끄기 (bag 없음)'
 LIGHT = '경량 녹화'
 BASIC = '기본 녹화'
 ANALYSIS = '인지 분석 (센서+영상)'
 CUSTOM = '직접 선택'
-MODES = (OFF, LIGHT, BASIC, ANALYSIS, CUSTOM)
+LATENCY = '지연 분석 (센서 제외)'
+MODES = (OFF, LIGHT, BASIC, LATENCY, ANALYSIS, CUSTOM)
 PROFILE_ROOT = 'base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles'
 SENSORS = ['/sensor/lidar1'] + [
     '/sensor/camera/{}/compressed'.format(camera)
@@ -25,7 +27,11 @@ def mode_label(recording):
         return CUSTOM
     if recording.get('profile_preset') == 'lightweight':
         return LIGHT
+    if recording.get('profile_preset') == 'basic':
+        return BASIC
     stem = Path(str(recording.get('topic_profile', ''))).stem
+    if recording.get('profile_preset') == 'latency_analysis' or stem == 'latency_analysis':
+        return LATENCY
     return LIGHT if stem == 'lightweight' else BASIC if stem in ('basic', 'topic_profile') else CUSTOM
 
 
@@ -35,8 +41,8 @@ def apply_mode(document, label):
     recording = document.setdefault('recording', {})
     recording['bag_enabled'] = label != OFF
     recording['analysis_mode'] = label == ANALYSIS
-    if label in (LIGHT, BASIC, ANALYSIS):
-        name = {LIGHT: 'lightweight', BASIC: 'basic', ANALYSIS: 'perception_analysis'}[label]
+    if label in (LIGHT, BASIC, ANALYSIS, LATENCY):
+        name = {LIGHT: 'lightweight', BASIC: 'basic', ANALYSIS: 'perception_analysis', LATENCY: 'latency_analysis'}[label]
         recording['topic_profile'] = PROFILE_ROOT + '/' + name + '.json'
         recording['profile_preset'] = name
         recording.pop('selected_topics', None)
@@ -52,6 +58,12 @@ def checked_topics(topics):
             or any(c in t for c in '*?[]()|^$\\') for t in topics):
         raise ValueError('녹화 토픽은 비어 있지 않은 절대 토픽명 목록이어야 합니다 (정규식 불가)')
     return list(dict.fromkeys(topics))
+
+
+def topic_patterns(recording):
+    if recording.get('bag_enabled', True) and mode_label(recording) == LATENCY:
+        return list(PLANNER_TIME_PATTERNS)
+    return []
 
 
 def effective_topics(recording, resolve_path):
@@ -74,7 +86,7 @@ def effective_topics(recording, resolve_path):
 
 def topic_catalog(root, current=()):
     topics = set(current) | set(SENSORS)
-    for name in ('lightweight', 'basic', 'perception_analysis', 'full'):
+    for name in ('lightweight', 'basic', 'perception_analysis', 'latency_analysis', 'full'):
         path = Path(root) / PROFILE_ROOT / (name + '.json')
         if path.is_file():
             topics.update(checked_topics(json.loads(path.read_text(encoding='utf-8'))))

@@ -203,7 +203,8 @@ def _record_result(cfg, state, case, result, folder):
         "failure_category": result["failure_analysis"]["category"],
         "suspected_stage": result["failure_analysis"]["suspected_stage"],
         "result_path": str(folder / (result["basename"] + ".json")),
-        "attempts": int(state["results"].get(case.name, {}).get("attempts", 0)) + 1}
+        "attempts": int(state["results"].get(case.name, {}).get("attempts", 0)) + 1,
+        "recording_warning": (result.get('recording_audit') or {}).get('status') == 'WARN'}
     state["updated_at"] = now()
     _write_state(cfg, state)
 
@@ -219,7 +220,7 @@ def _write_state(cfg, state):
                          "minimum_goal_distance_m", "attempts", "result_path",
                          "source_scenario", "repeat_index", "random_seed", "model_preset",
                          "recording_complete", "sensor_replayable", "missing_recorded_topics",
-                         "bag_enabled", "video_enabled"])
+                         "bag_enabled", "video_enabled", "recording_warning", "latency_complete"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
             try:
@@ -242,7 +243,9 @@ def _write_state(cfg, state):
                 (details.get('recording_audit') or {}).get('re_inference_possible', ''),
                 ';'.join((details.get('recording_audit') or {}).get('missing_required', [])),
                 details.get('recording', {}).get('bag_enabled', True),
-                details.get('recording', {}).get('video_enabled', bool(details.get('files', {}).get('video')))])
+                details.get('recording', {}).get('video_enabled', bool(details.get('files', {}).get('video'))),
+                (details.get('recording_audit') or {}).get('status') == 'WARN',
+                (details.get('recording_audit') or {}).get('complete_for_latency', '')])
     os.replace(temporary, path)
 
 
@@ -329,7 +332,8 @@ def _run_case(cfg, processes, monitor, case, state):
                     "network_sha256": hashlib.sha256(cfg["network"]["ego_network_json"].read_bytes()).hexdigest(),
                     "topic_profile": str(cfg["recording"].get("topic_profile", "")),
                     "bag_enabled": cfg['recording'].get('bag_enabled', True),
-                    "recorded_topics": cfg["recording"]["topics"]}
+                    "recorded_topics": cfg["recording"]["topics"],
+                    "recorded_topic_regex": cfg['recording'].get('topic_regex', [])}
     atomic_json(folder / "input.json", cfg_snapshot)
     state["current"] = {"scenario": case.name, "phase": "SCENARIO_LOAD", "attempt": attempt,
                         "started_at": now(), "metrics": {}}
@@ -434,6 +438,7 @@ def _run_case(cfg, processes, monitor, case, state):
     finally:
         monitor.event("CASE_RESULT", reason=reason, error=error)
         drive_evidence = monitor.drive_evidence()
+        driving_started = monitor.drive_started_at is not None
         processes.stop("controller")
         if brake_hold is not None:
             brake_hold.stop()
@@ -458,15 +463,16 @@ def _run_case(cfg, processes, monitor, case, state):
             error = str(exc)
             final_base = basename.replace("_R_", "_E_")
             recording_audit = {'error': str(exc)}
-        if bag is not None and cfg['recording'].get('analysis_mode', False):
+        if bag is not None:
             try:
-                recording_audit = audit_bag(bag, cfg, driving_started=monitor.drive_started_at is not None)
+                recording_audit = audit_bag(bag, cfg, driving_started=driving_started)
             except Exception as exc:
-                recording_audit = {'error': str(exc), 'complete_for_drive': False}
+                recording_audit = {'error': str(exc), 'status': 'WARN', 'warnings': [str(exc)],
+                                   'complete_for_drive': False, 'complete_for_latency': False}
             atomic_json(folder / 'recording_audit.json', recording_audit)
-            if not recording_audit.get('complete_for_drive'):
-                print('[WARN] 주행 판정과 별개: 녹화 미완전/주행 미시작. recording_audit.json 확인: {}'.format(
-                    recording_audit.get('missing_required', recording_audit.get('error'))), flush=True)
+            if recording_audit.get('status') == 'WARN':
+                print('[WARN] 주행 판정과 별개: 녹화 경고. recording_audit.json 확인: {}'.format(
+                    recording_audit.get('warnings', recording_audit.get('error'))), flush=True)
         processes.stop_many(CASE_STACK)
         metrics = {"elapsed_sec": round(elapsed, 2),
             "wall_elapsed_sec": round(time.monotonic() - wall_started, 2),
@@ -501,7 +507,8 @@ def _run_case(cfg, processes, monitor, case, state):
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
             "recording": {'bag_enabled': cfg['recording'].get('bag_enabled', True),
                           'video_enabled': cfg['recording'].get('video', {}).get('enabled', False),
-                          'requested_topics': cfg['recording']['topics']},
+                          'requested_topics': cfg['recording']['topics'],
+                          'requested_regex': cfg['recording'].get('topic_regex', [])},
             "files": {"bag": bag.name if bag else None, "video": video.name if video else None,
                       "events": "events.jsonl"}}
         atomic_json(folder / (final_base + ".json"), result)
@@ -601,6 +608,10 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
         raise RuntimeFailure('모델 계약 없는 이전 결과에 Base5 resume은 금지합니다. 새 실험을 시작하세요')
     cfg['model_contract'] = model
     state['model_contract'] = model
+    from .recording_audit import profile_contract_warnings
+    state['recording_profile_warnings'] = profile_contract_warnings(cfg)
+    for warning in state['recording_profile_warnings']:
+        print('[WARN] ' + warning + ' · 기존 사본은 수정하지 않습니다. 새 실험으로 갱신하세요.', flush=True)
     if model['preset'] != 'od_gt':
         image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', model['image']], text=True).strip()
         if previous_model and previous_model.get('image_id') not in (None, image_id):

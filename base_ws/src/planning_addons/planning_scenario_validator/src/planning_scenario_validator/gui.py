@@ -547,6 +547,9 @@ def completion_label(code, state):
         completed, total, counts["PASS"], counts["FAIL"], counts["ERROR"], code)
     if state.get("upload_errors"):
         label += " | Drive 업로드 오류 {}건 (로컬 결과 보존)".format(len(state["upload_errors"]))
+    warnings = sum(bool(row.get('recording_warning')) for row in state.get('results', {}).values())
+    if warnings:
+        label += ' | 녹화 경고 {}건 (주행 판정과 별개)'.format(warnings)
     return label
 
 
@@ -877,7 +880,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     def select_recording_mode(_=None):
         label = vars_['recording_mode'].get()
-        if label in (bag_options.LIGHT, bag_options.BASIC, bag_options.ANALYSIS):
+        if label in (bag_options.LIGHT, bag_options.BASIC, bag_options.ANALYSIS, bag_options.LATENCY):
             vars_['selected_topics'].set('')
             vars_['include_sensors'].set(label == bag_options.ANALYSIS)
         if label == bag_options.ANALYSIS:
