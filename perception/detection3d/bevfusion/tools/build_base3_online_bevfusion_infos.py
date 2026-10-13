@@ -41,6 +41,7 @@ from audit_base3_online_gt_alignment import (  # noqa: E402
     selected_indices,
 )
 from analyze_morai_lidar_deskew import point_field_array  # noqa: E402
+from base5_sparse_gt_policy import reviewed_camera_support  # noqa: E402
 from perception_object_pipeline.rolling_lidar import (  # noqa: E402
     deskew_points_to_reference_pose,
     scan_time_contract,
@@ -56,6 +57,10 @@ def arguments():
     parser.add_argument("bags", nargs="+", type=Path)
     parser.add_argument("--calibration", type=Path, required=True)
     parser.add_argument("--asset-offsets", type=Path, required=True)
+    parser.add_argument(
+        "--unknown-asset-policy", choices=('error', 'drop'), default='error',
+        help='Stop on missing geometric GT calibration; drop is explicit historical reproduction only',
+    )
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument(
         "--samples-per-scene", type=int, default=3,
@@ -84,6 +89,10 @@ def arguments():
         help="total sweeps including current; 3 adds two causal past sweeps",
     )
     parser.add_argument("--minimum-gt-points", type=int, default=5)
+    parser.add_argument(
+        "--sparse-camera-review", type=Path,
+        help="JSON reviewed_instances [{sample_idx, instance_id}]; nearfield only, model crop required",
+    )
     parser.add_argument("--max-state-age-sec", type=float, default=0.10)
     parser.add_argument(
         "--state-alignment", choices=("interpolate", "nearest"),
@@ -268,6 +277,13 @@ def main():
         raise ValueError("samples-per-scene must be >= 0")
     if args.causal_sweep_count < 1:
         raise ValueError("causal-sweep-count must be >= 1")
+    if args.minimum_gt_points < 0:
+        raise ValueError("minimum-gt-points must be >= 0")
+    reviewed = set()
+    if args.sparse_camera_review:
+        review = json.loads(args.sparse_camera_review.read_text())
+        reviewed = {(row['sample_idx'], int(row['instance_id']))
+                    for row in review['reviewed_instances']}
     output = args.output_root.expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
     stored_root = args.serialized_root or output
@@ -518,6 +534,14 @@ def main():
             lidar_path = sample_dir / "lidar.bin"
 
             instances = []
+            projection_cameras = {}
+            if reviewed:
+                for name in CAMERA_ORDER:
+                    camera = calibration['cameras'][CALIBRATION_CAMERA_NAMES[name]]
+                    projection_cameras[name] = dict(
+                        lidar2cam=np.asarray(camera['ego_to_sensor']) @ lidar_to_ego,
+                        cam2img=camera['intrinsic'],
+                        width=camera['resolution_px'][0], height=camera['resolution_px'][1])
             for class_name, actor in actors(object_state):
                 _naive, box = corrected_box(
                     ego_state, class_name, actor, calibration, catalog,
@@ -525,6 +549,12 @@ def main():
                 )
                 if box is None:
                     unknown_assets.add(str(actor.name))
+                    if args.unknown_asset_policy == 'error':
+                        raise ValueError(
+                            'Missing geometric GT reference for asset {!r} in {}; '
+                            'collect sensor-capture calibration before training. '
+                            'Do not leave a visible actor as unlabeled background.'.format(
+                                actor.name, sample_id))
                     continue
                 if not keep_box_for_distance(
                     box, args.distance_filter, args.distance_threshold_m,
@@ -533,9 +563,13 @@ def main():
                     rejected_distance[class_name] += 1
                     continue
                 count, _mask = points_in_box(points, box)
+                sparse_exception = False
                 if count < args.minimum_gt_points:
-                    rejected[class_name] += 1
-                    continue
+                    sparse_exception, _reason = reviewed_camera_support(
+                        sample_id, actor.unique_id, box, projection_cameras, reviewed)
+                    if not sparse_exception:
+                        rejected[class_name] += 1
+                        continue
                 kept[class_name] += 1
                 asset = catalog[str(actor.name)]
                 yaw_rate, yaw_rate_audit = actor_yaw_rate_at(
@@ -566,6 +600,7 @@ def main():
                         "bbox_3d": training_box.tolist(),
                         "bbox_label_3d": label_index[class_name],
                         "num_lidar_pts": count,
+                        "sparse_camera_reviewed_exception": sparse_exception,
                         "bbox_3d_isvalid": True,
                         "instance_id": int(actor.unique_id),
                         "asset_name": str(actor.name),
@@ -776,6 +811,8 @@ def main():
         "classes": CLASSES,
         "box_dim": 9 if args.with_velocity_targets else 7,
         "minimum_gt_points": args.minimum_gt_points,
+        "unknown_asset_policy": args.unknown_asset_policy,
+        "sparse_camera_review": str(args.sparse_camera_review) if args.sparse_camera_review else None,
         "coordinate_frame": "lidar",
         "state_alignment": args.state_alignment,
         "max_state_age_sec": args.max_state_age_sec,
@@ -810,6 +847,9 @@ def main():
         "scenes": dict(scene_count),
         "frames": {key: len(value) for key, value in split_rows.items()},
         "kept_gt": dict(final_kept),
+        "sparse_camera_reviewed_instances": sum(
+            instance.get('sparse_camera_reviewed_exception', False)
+            for rows in split_rows.values() for row in rows for instance in row['instances']),
         "pre_temporal_kept_gt": dict(kept),
         "rejected_sparse_gt": dict(rejected),
         "rejected_distance_gt": dict(rejected_distance),
@@ -818,6 +858,7 @@ def main():
         "dropped_scene_assets": dict(dropped_scene_assets),
         "dropped_scenes": dropped_scenes,
         "unknown_assets": sorted(unknown_assets),
+        "unknown_asset_policy": args.unknown_asset_policy,
         "deskew_rejected": dict(deskew_rejected),
         "state_rejected": dict(state_rejected),
         "center_velocity_sources": dict(final_center_velocity_sources),

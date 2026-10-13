@@ -1,0 +1,103 @@
+# BEVFusion 현재 모델과 실행 기준
+
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-13.
+2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
+validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
+완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
+상세 결과는 [작업별 근거 인덱스](README.md)에서 필요한 절만 읽는다.
+
+<a id="model"></a>
+
+## Base5 모델과 학습 상태
+
+| 항목 | 현재 선택과 상태 |
+|---|---|
+| 학습 완료 | Sunny13 5K로 24 epoch 완료. native val 기준 best E9, 마지막 E24 |
+| 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
+| 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
+| 이미지 | 원본 Q90 JPEG, 모델 입력 512×1056, resize 0.825. 카메라별 native 크기와 homography 유지 |
+| 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
+| 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
+| 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
+| 완료 학습 계약 | 48GB 4090·batch 4·누적 1·camera backbone 학습 compile ON. 새 학습의 자동 기본값 승격은 아님 |
+| 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
+
+데이터 원본·학습용 파생 infos·다른 환경 준비 상태는
+[데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다.
+과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
+새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.
+
+<a id="checkpoints"></a>
+
+## 평가 checkpoint
+
+| 후보 | 로컬 파일 | SHA256 |
+|---|---|---|
+| E9 native-val best | `artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/checkpoints/E9.pth` | `067205c3f5f5b0abc1bb775116c2b8bca2c9a7f31a0727b959db0ab1ce70b271` |
+| E24 마지막 epoch | 같은 디렉터리의 `E24.pth` | `84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746` |
+
+Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 뜻은 아니다.
+기본 추론 config는
+[merged runtime config](../../perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py)다.
+
+<a id="runtime"></a>
+
+## Production과 시험 실행
+
+| 실행 역할 | 현재 계약 | 실행 기준 |
+|---|---|---|
+| Production E24 | AMP·병렬화 ON, compile OFF, V/P/O 0.40/0.10/0.10, NMS 0.50 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion` |
+| E25 명시적 복귀 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion --model e25` |
+| Base5 baseline trial | 별도 namespace·서버. production을 자동 교체하지 않음 | [ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md), `base5_trial.launch` |
+| E24 선정 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.40/0.10/0.10 | `base5_e24_calibrated_trial.launch`, [threshold 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012) |
+| E9 선정 비교 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.30/0.20/0.12 | `base5_e9_calibrated_trial.launch`, [E9/E24 최종 선택](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013) |
+| E9/E25 완주 화면 비교 | 동일 3,369장·공통 중심 XY±30 m·두 모델 모두 0.40/0.15/0.10 | [완주 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-stable-whole-route-view-261012) |
+
+Base5 ROS 입력은 원본 JPEG를 재압축하지 않고 원본 XYZI 0–255를 전달한다.
+서버의 `--base5-runtime --point-intensity-source ros255`가 강도를 정확히 한 번 ÷255 한다.
+E25의 원래 강도 계약과 혼용하지 않는다. Launch만 실행해서 GPU 서버·checkpoint가 자동 준비된다고 가정하지 않는다.
+[후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)의
+topic·coasting·motion policy는 detector 선택과 별도다.
+
+<a id="optimization"></a>
+
+## 추론 최적화의 현재 결론
+
+학습 compile ON과 추론 compile은 다른 선택이다. 병렬화는 검증된 시험 경로에서 우선 사용하지만
+일반 추론 compile은 출력·연속 tracker 예외 때문에 기본 ON으로 승격하지 않는다.
+[학습된 4090 비용/메모리](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012)와
+[실제 ROS tracker 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)를 구분한다.
+48GB 카드의 20GiB 제한 시험은 실제 대회 24GB 카드의 ROS/LAN·풀스택 인증이 아니다.
+비용용 빈 출력·query 고정 통제를 완성 모델의 정확도/배포 근거로 사용하지 않는다.
+
+BEVPool/CUDA 경로 개선은 적용된 구현을 따른다. CUDA-BEVFusion은 참고 구현이며
+TensorRT나 새 프레임워크로 실제 배포를 마친 상태가 아니다. 필요하면 [구현·배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md)를 읽는다.
+
+<a id="next"></a>
+
+## 완료 결과와 남은 작업
+
+완료: 학습·백업, 원본/파생 GT 보완, ROS 입력/TCP 정합, 연속 dev bag, threshold 비교,
+원거리 GT 평가·기억 A/B, 안정적인 이전 수동 완주 E9/E25 화면 비교다.
+E9 별도 threshold 선정과 동일 조건 E9/E24 최종 비교도 완료했다.
+원본 Base3 val 1,635장 교차 평가도 완료했다. 해당 분포의 Obstacle AP는 E25 97.95%,
+E9 87.55%, E24 87.97%로, Base5 val의 난이도 차이만으로 격차를 설명할 수 없다.
+구 Base3 입력의 자차 근처 LiDAR 회신점에 E24가 차량으로 반응했다. 32장 대조에서
+해당 점만 제외하자 자차 위치 차량 관측은 30→0건이 됐지만 장애물 AP는 개선되지 않았다.
+현재 Base5 val·개발 bag에는 그 회신점이 없었다. 일반적인 자차 제거 필터는 적용하지 않았다.
+기본 실행은 현재 입력 계약의 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 완료를 뜻하지 않는다.
+구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
+각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
+
+1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
+2. [tracker/Planning 검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)의
+   중복 birth guard는 유지하고 빠른 차량 승격은 OFF로 둔다. Confidence와 실제 관측 age는 후속 확인한다.
+3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
+4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)에 따라
+   근거리 노출·20~30m 지원·원거리 사례를 배치 실험으로 확인하고 새 환경 수집 정책을 조정한다.
+5. 고정 이미지 registry 게시·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
+
+원격 명령·재개·백업은 [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md)를 따른다.
+인스턴스 실행 여부를 문서 날짜로 추정하지 않으며 사용자 요청 없이 임대·Stop·Destroy하지 않는다.
+현재 결정은 이 문서의 기존 항목만 갱신한다. 과거 계획은 [보존된 원문](../perception/legacy/context_261012/README.md)에 있다.

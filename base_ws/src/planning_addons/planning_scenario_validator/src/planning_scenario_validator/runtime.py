@@ -63,10 +63,13 @@ class Processes:
         self.running = {}
         self.handles = {}
         self.split_layout_initialized = False
+        self.commands = []
 
     def start(self, name, command):
         if name in self.running:
             raise RuntimeFailure("이미 실행 중인 프로세스: {}".format(name))
+        self.commands.append({'name': name, 'command': [str(c) for c in command], 'started_at': now()})
+        atomic_json(self.log_dir / 'commands.json', self.commands)
         logfile = (self.log_dir / (name + ".log")).open("ab", buffering=0)
         try:
             process = subprocess.Popen([str(c) for c in command], stdout=logfile,
@@ -121,6 +124,10 @@ def check_no_conflicting_publishers():
 def prepare_scenario(case, install_dir, ego_network_json):
     """원본은 유지하고 ExternalCtrl 정지 시작 + network sidecar만 설치한다."""
     scene = json.loads(case.source.read_text(encoding="utf-8"))
+    from .repetitions import sampled_scene
+    scene, _ = sampled_scene(scene, source_sha256=case.source_sha256,
+                             repeat_index=getattr(case, "repeat_index", 1),
+                             settings=getattr(case, "randomization", {}))
     ego = scene["egoVehicle"]
     ego["beforeControlMode"] = 2
     ego["currentControlMode"] = 2
@@ -341,11 +348,15 @@ class LiveMonitor:
             time.sleep(0.1)
         raise RuntimeFailure("BEVFusion detection 준비 제한시간({:.0f}초) 초과. LiDAR/카메라/서버 연결을 확인하세요".format(timeout))
 
-    def wait_route_and_trajectory(self, route_uuid, *, after, timeout):
-        self.wait(lambda: self.route is not None and self.stamps.get("route", 0) > after
+    def wait_route_and_trajectory(self, route_uuid, *, after, timeout, process=None):
+        def alive():
+            if process is not None and process.poll() is not None:
+                raise RuntimeFailure('planning 스택이 route/trajectory 준비 중 종료됐습니다. stack_logs/planning.log 확인')
+            return True
+        self.wait(lambda: alive() and self.route is not None and self.stamps.get("route", 0) > after
                   and list(self.route.uuid.uuid) == list(route_uuid), timeout, "요청한 route")
         route_time = self.stamps["route"]
-        self.wait(lambda: self.trajectory is not None
+        self.wait(lambda: alive() and self.trajectory is not None
                   and self.stamps.get("trajectory", 0) > route_time
                   and bool(self.trajectory.points), timeout, "새 planning trajectory")
 
@@ -498,7 +509,7 @@ def _pose_message(value):
     return pose
 
 
-def request_route(case, monitor, *, timeout):
+def request_route(case, monitor, *, timeout, process=None):
     import rospy
     from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteRequest
     rospy.wait_for_service("/planning/set_waypoint_route", timeout=timeout)
@@ -515,8 +526,10 @@ def request_route(case, monitor, *, timeout):
     if not response.status.success:
         raise ScenarioFailure("ROUTE_FAILURE", "route 요청 거부: {}".format(response.status))
     try:
-        monitor.wait_route_and_trajectory(route_id, after=after, timeout=timeout)
+        monitor.wait_route_and_trajectory(route_id, after=after, timeout=timeout, process=process)
     except RuntimeFailure as error:
+        if process is not None and process.poll() is not None:
+            raise RuntimeFailure(str(error)) from error
         raise ScenarioFailure("NO_TRAJECTORY", str(error)) from error
     monitor.event("ROUTE_READY", uuid=str(uuid.UUID(bytes=route_id)))
     return str(uuid.UUID(bytes=route_id))
@@ -633,14 +646,23 @@ class Recording:
     def start(self, basename):
         self.output.mkdir(parents=True, exist_ok=True)
         self.bag_prefix = self.output / (basename + "_recording")
-        bag_log = (self.output / "rosbag.log").open("wb")
-        self.handles.append(bag_log)
-        self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
-                                     *self.config["topics"]], stdout=bag_log,
-                                    stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
-        time.sleep(0.7)
-        if self.bag.poll() is not None:
-            raise RuntimeFailure("rosbag 시작 실패: {}".format(self.output / "rosbag.log"))
+        if self.config.get('bag_enabled', True):
+            bag_log = (self.output / "rosbag.log").open("wb")
+            self.handles.append(bag_log)
+            topics = self.config['topics']
+            if not topics:
+                raise RuntimeFailure('bag ON인데 선택된 녹화 토픽이 없습니다')
+            if self.config.get('analysis_mode', False):
+                import re
+                # Debug/info topics differ across planner versions. Capture actual publishers too.
+                topics = ['--regex'] + ['^' + re.escape(t) + '$' for t in topics] + [
+                    '^/planning/.*(avoidance|static_obstacle|debug).*']
+            self.bag = subprocess.Popen(["rosbag", "record", "-O", str(self.bag_prefix),
+                                         *topics], stdout=bag_log,
+                                        stderr=subprocess.STDOUT, start_new_session=True, env=self.env)
+            time.sleep(0.7)
+            if self.bag.poll() is not None:
+                raise RuntimeFailure("rosbag 시작 실패: {}".format(self.output / "rosbag.log"))
         video = self.config.get("video", {})
         if video.get("enabled", False):
             if not shutil.which("ffmpeg"):

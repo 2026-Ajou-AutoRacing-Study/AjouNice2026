@@ -16,6 +16,16 @@ SPEC.loader.exec_module(MONITOR)
 
 
 class CaptureMonitorV2Test(unittest.TestCase):
+    def test_static_manifest_uses_capture_policy_frame_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'manifest.json'
+            path.write_text(json.dumps(dict(capture_policy=dict(captures_per_scene=3),
+                scenes=[dict(id='s1', file_name='s1'), dict(id='s2', file_name='s2')])))
+            manifest = MONITOR.load_manifest(path, [])
+            args = types.SimpleNamespace(stall_warning_sec=60., disk_warning_gb=0., failure_rate_warning=.1)
+            snapshot = MONITOR.build_snapshot(Path(directory), {}, [], [], [], manifest, args)
+            self.assertEqual(snapshot['progress']['target_frames'], 6)
+
     def test_load_manifest_accepts_production_sized_document(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"

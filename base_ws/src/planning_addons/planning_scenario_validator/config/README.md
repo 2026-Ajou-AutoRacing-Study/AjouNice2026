@@ -17,6 +17,10 @@ config/
 
 미션은 `roundabout`, `static_obstacle`, `dynamic_obstacle`, `gps_shadow`, `highway`다. 사용자 이름 대신 미션으로 구분한다.
 
+GUI 상단 **내 미션 선택하기 → 담당 미션 → 실험 YAML**로 고른다. 목록은 그 미션의 base/예제와 workspace/내 작업 파일만 표시하고 자유 경로 입력·붙여넣기는 받지 않는다. 기본 탭에서 일상 옵션·파일 패턴/장면 선택·반복·측위/탐지·녹화/공유를 수정하고 `YAML 저장`을 누른다. 회색 목적지·시간·네트워크·Python 환경은 확인용이며 필요한 경우만 VSCode에서 수정·저장한 뒤 새로고침한다. 새 YAML도 해당 미션 workspace에 저장한 뒤 새로고침한다. 주석의 ‘여기부터 수정 X’ 아래는 미션 고정 설정이다.
+
+고주로 반복용은 `missions/highway/base/random_example.yaml`이다. JSON 2개 × 10회 = 20회이며 repeat/seed/범위를 위쪽에서 바꾼다. planning 팀의 JSON 1–2개 대조는 GUI `planning 빠른 테스트` 탭에 별도로 둔다.
+
 **캠페인 YAML 하나 = 공통 목적지·시간·스택·녹화 조건 하나.** 시나리오 JSON 여러 개를 선택할 수 있지만, 장면별 조건을 덮어쓰는 보조 YAML은 없다. 다른 조건은 다른 캠페인 이름의 YAML로 만든다.
 
 여러 개인 YAML은 GUI `실행 목록 / 배치`에서 순서대로 실행한다. 별도의 배치 YAML을 작성할 필요는 없다. 목록과 재개 경로는 홈 설정 폴더의 `batch.json`에 자동 저장하며 결과는 `planner_logs/validation_batches/`에 보관한다. 목록 초기화는 기존 YAML·녹화 결과를 지우지 않는다.
@@ -40,4 +44,4 @@ config/
 - [첫 설치부터 실행까지](../../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)
 - [시나리오·YAML 직접 제작](../../../../../docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)
 
-이전 v1 YAML은 GUI에서 읽어 공통 설정을 확인한 뒤 v2 새 캠페인으로 저장한다. 이전 실행 결과는 유지하지만 v2 캠페인과 섞어서 resume하지 않는다. 이전 `.case.yaml`은 실행 시 무시되고 실행용 YAML로 열 수 없다.
+이전 v1 YAML은 GUI에서 공통 설정을 확인만 하고 주석 있는 v2 예제로 옮겨 사용한다. 이전 실행 결과는 유지하지만 v2 캠페인과 섞어서 resume하지 않는다. 이전 `.case.yaml`은 실행 시 무시되고 실행용 YAML로 열 수 없다.

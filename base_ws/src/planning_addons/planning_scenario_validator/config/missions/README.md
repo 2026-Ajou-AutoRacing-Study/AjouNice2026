@@ -17,6 +17,7 @@
 | `dynamic_obstacle` | 샘플 사거리 양방향 보행자·스쿠터, 도로 교차 차량 | 24 | 70초 |
 | `gps_shadow` | 공식 음영 영역의 정적 장애물·정지 차량 회피 | 24 | 90초 |
 | `highway` | 원본 3개 spawn 위치·종료 링크, MiddleSize RandomMode | 24 | 90초 |
+| `full_course` | 샘플 전체 + 차량·장애물·보행자 종류 변경, Route A 경유점 | 4 | 600초 |
 
 미션 폴더마다 `base/`와 `workspace/` 두 폴더를 둔다.
 
@@ -29,15 +30,19 @@ config/missions/highway/
 │  └─ scenarios/         # 실행할 MORAI JSON만
 └─ workspace/            # 개인 작업: .gitignore만 Git 추적
    ├─ .gitignore
-   ├─ highway_starter_<시간>.yaml
+   ├─ highway_starter.yaml
    ├─ highway_other_goal.yaml # 다른 목적지/조건은 다른 YAML
    └─ scenarios/         # 베이스 복사 버튼으로 준비 후 자유롭게 수정
 ```
 
 `base/`는 `README.md`, `example.yaml`, `manifest.json`, `scenarios/*.json`으로 구성한다.
-각각 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 이름은 검증 분류이며 성공 보장이 아니다.
+개별 미션은 baseline 2개 → 일반 변형 14개 → stress 8개 순서다. 전체 코스는 샘플 기준선 1개와 객체 종류 변형 3개다. 이름은 검증 분류이며 성공 보장이 아니다.
 Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔다.
 공유 YAML·JSON·manifest는 Git에 추적한다. 개인 YAML과 녹화 결과는 Git에서 제외한다.
+
+GUI의 **내 미션 선택하기**에서 담당 미션을 고르고, 해당 미션의 실험 YAML 목록에서 예제·내 작업 파일을 선택한다. 예제는 베이스 복사 후 실행한다. 자유 경로 입력은 없으며 새 YAML은 미션 workspace에 저장한 뒤 새로고침한다. 일상 설정은 기본 탭에서 수정 → `YAML 저장` → 보조 기능의 설정 검사·실행 순서다. 패턴·장면 선택·반복·측위/탐지·신호등·녹화/공유를 바꿀 수 있다. 같은 개인 YAML에 저장하고 고정값·주석을 유지한다. 주석의 ‘여기부터 수정 X’ 아래 목적지·시간·네트워크와 회색 설정은 유지하며, 고급 설정만 VSCode에서 수정·저장 → GUI에 다시 불러온다.
+
+고주로는 [random_example.yaml](highway/base/random_example.yaml)도 제공한다. JSON 2개 × 10회 = 20회, NPC 목표 50–60km/h·path offset −10–10%의 좁은 첫 시험용 범위다. repeat/seed/범위는 YAML에서 바꾸며 실제 로드한 JSON과 추출값은 회차별 보관한다. MORAI RandomMode 차종·physics seed까지 고정하는 기능은 아니다.
 
 ## 담당 미션부터 읽기
 
@@ -50,6 +55,9 @@ Manifest는 실행용 시나리오가 아니므로 `base/scenarios/` 밖에 둔�
 - [일반 정적 장애물](static_obstacle/base/README.md)
 - [GPS 음영 정적 장애물](gps_shadow/base/README.md)
 - [사거리 동적 장애물](dynamic_obstacle/base/README.md)
+- [전체 코스 주행](full_course/base/README.md)
+
+전체 코스는 **신호등 on + localization + BEVFusion**이다. 먼저 `full_course/base/sample_only.yaml`을 개인 작업 폴더로 복사해 샘플 하나를 시험하고, `example.yaml`로 네 장면을 실행한다. v85 Route A 경유점과 출발선 재진입 직전 종료점을 사용하므로 공식 결승선 통과·Route A/B 자동 전환 시험은 아니다. 장면당 600초 상한이며 실제 전체 주행은 미검증이다. 기본 가상환경 신호등 설치 여부도 먼저 확인한다.
 
 GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README도 만든다. 기존 개인 README·JSON은 덮어쓰지 않는다. 공유 안내는 원본 베이스 설명이므로 개인 변경 조건·실기 확인 여부는 workspace README에 별도로 기록한다. 생성기는 README 좌표도 함께 재현 검사한다. 새 AGENTS 지침이나 planning/control의 동작 변경은 아니다.
 
@@ -59,13 +67,13 @@ GUI 베이스 복사는 workspace에 공유 미션 안내로 연결하는 README
 
 1. 저장소 루트에서 패키지 `install.sh`를 실행하고, MORAI에 validator 전용 Ego Network와 `Sensor_competition_local.json`을 Load·Connect한다. 카메라와 LiDAR는 **실제로 켜둔다**.
 2. `./planning_validator_gui`를 열고 예제 선택 목록의 `missions/<미션>/base/example.yaml`을 고른 뒤 **베이스 → 내 작업 폴더 복사** 버튼을 누른다. 시나리오 JSON을 workspace로 복사하고 timestamp 없는 `<미션>_starter.yaml`을 만들어 바로 연다. 이미 있으면 기존 개인 YAML을 열며 사용자 수정값을 덮어쓰지 않는다.
-3. 개인 복사본에서 파일 패턴을 `*_baseline_*.json`으로 바꿔 두 기준선을 실행한다. 실제 배우 위치/움직임·목적지·센서 주기가 맞는지 본다. 복사 버튼을 생략하면 개인 시나리오 사본이 준비되지 않으므로 먼저 복사한다.
+3. GUI 파일 패턴을 `*_baseline_*.json`으로 바꾸고 `YAML 저장`으로 두 기준선을 준비한다. 실제 배우 위치/움직임·목적지·센서 주기가 맞는지 본다. 복사 버튼을 생략하면 개인 시나리오 사본이 준비되지 않으므로 먼저 복사한다.
 4. 확인 후 같은 개인 YAML의 패턴을 `*.json`으로 바꿔 저장·설정 검사 후 `새 실험 시작`을 누른다. 재개는 `실험 기록 / 재개`에서 별도로 선택한다. 기준선을 통과시키려고 판단 파라미터나 장애물 위치를 억지로 바꾸지 않는다.
 5. FAIL은 조사 대상이다. `summary.csv`, 해당 run JSON/이벤트/영상으로 관측 근거를 확인한다. 시스템 오류나 시나리오 배우 오작동은 planning 실패와 구별한다.
 
-기본은 localization + BEVFusion + 신호등 off, basic bag + **원시 센서 녹화 제외** + 10fps 전체 화면 split 영상이다.
+개별 미션 기본은 localization + BEVFusion + 신호등 off, basic bag + **원시 센서 녹화 제외** + 10fps 전체 화면 split 영상이다. 전체 코스는 신호등 on이다.
 신호등 자체가 아닌 해당 미션을 격리해 보는 예제이며, 신호등 on 통합 시험을 대체하지 않는다.
-GT 대조는 GUI 탐지기를 `od_gt`로 바꿔 별도 캠페인으로 저장한다. 측위 원인 분리는 `maptf_morai`를 사용하되 대회용 측위 검증으로 오해하지 않는다.
+GT 대조는 GUI의 planning 빠른 테스트 탭에서 `od_gt`로 실행하거나 별도 YAML의 stack.detector를 바꿔 저장한다. 측위 원인 분리는 `maptf_morai`를 사용하되 대회용 측위 검증으로 오해하지 않는다.
 GUI 없이 실행할 때도 먼저 GUI 복사 버튼으로 준비한 `workspace/`의 개인 YAML을 `./planning_validator`에 지정한다. CLI에서 공유 base를 직접 실행하는 기능은 유지되지만 팀원의 일반 작업 흐름으로는 권장하지 않는다.
 
 ### 여러 조건을 걸어놓을 때
@@ -78,10 +86,10 @@ GUI 없이 실행할 때도 먼저 GUI 복사 버튼으로 준비한 `workspace/
 
 - 미션 base를 열면 저장은 같은 미션 workspace에 하고, base 원본은 보호한다. workspace YAML은 실행 후에도 수정·재사용한다. 입력 사본 없는 이전 고정 이름 결과의 재개는 당시 원본을 유지해야 한다.
 - 같은 개인 YAML은 계속 수정·재사용한다. `새 실험 시작`은 timestamp 결과 폴더와 입력 사본을 만들고, `실험 기록 / 재개`는 당시 사본으로 이어간다. YAML 키 campaign_name은 실험 이름이며 날짜를 직접 붙일 필요 없다.
-- 현재 실행 계약은 `schema_version: 2`다. 이전 v1 YAML은 GUI에서 열어 새 캠페인으로 저장할 수 있지만, 예전 결과와 새 계약을 섞어서 resume하지 않는다. 기존 결과는 삭제하지 않는다. 남아 있는 `.case.yaml`은 실행 시 경고하고 무시하며 GUI에서 실행용 YAML로 열 수 없다.
+- 현재 실행 계약은 `schema_version: 2`다. 이전 v1 YAML은 GUI에서 확인만 하고 v2 주석 예제로 옮기며, 예전 결과와 새 계약을 섞어서 resume하지 않는다. 기존 결과는 삭제하지 않는다. 남아 있는 `.case.yaml`은 실행 시 경고하고 무시하며 GUI에서 실행용 YAML로 열 수 없다.
 - ‘베이스 복사’를 다시 누르면 기존 시나리오는 유지하고 누락된 베이스 파일만 복사하며 기존 `<미션>_starter.yaml`을 연다. 기존 사용자 설정을 초기화하고 싶다면 새 시나리오 폴더를 직접 준비하고 새 YAML을 사용한다.
-- `내 YAML 열기`는 선택한 미션의 workspace에서 시작한다. 기존 `config/users/<사용자>/` YAML도 열 수 있고 그곳의 기존 저장 방식은 유지한다. 기존 파일을 강제로 이주시키지 않는다.
-- 마지막으로 연/저장한 YAML 기억은 workspace에서도 동일하다. 예전 `config/examples/missions/...` 경로는 해당 공유 base의 새 위치로 읽기 호환 처리한다. 기존 YAML·결과 스냅샷을 소급 수정하지 않는다.
+- `내 미션 선택하기`의 YAML 목록은 선택한 미션의 base/예제와 workspace/내 작업 파일만 표시한다. 경로 입력·붙여넣기·내 YAML 파일 선택창은 없다. 이전 `config/users/<사용자>/` 파일은 삭제하지 않으며 미션 workspace로 복사해 사용할 수 있다. CLI·과거 기록 재개는 유지한다.
+- 마지막으로 연/저장한 미션 폴더 내 YAML을 기억한다. 외부 경로·다른 미션 연결 symlink·보조 파일·실행 사본은 선택 목록에서 제외한다. 기존 YAML·결과 스냅샷을 소급 수정하지 않는다.
 - 팀원마다 별도의 로컬 workspace를 가진다. 개인 YAML·시나리오는 자동으로 Git에서 제외된다. 팀에 공유할 사례는 검토 후 base/생성기에 선별 반영한다. 녹화 결과는 workspace가 아닌 기존 `planner_logs/validation/`에 남는다.
 
 ## 주최측 답변 반영과 가정
@@ -105,7 +113,7 @@ GUI 없이 실행할 때도 먼저 GUI 복사 버튼으로 준비한 `workspace/
 회피/추월 성공을 주장하려면 영상과 궤적을 함께 확인해야 한다.
 
 팀원은 workspace의 JSON을 복사하여 한두 조건씩 바꾸고, 공통 조건을 담은 캠페인 YAML에서 해당 폴더·패턴을 선택한다. 장면마다 보조 YAML을 만들지 않는다. 목적지나 제한시간이 다르면 새 캠페인 이름의 YAML로 분리한다.
-새 시나리오는 workspace/scenarios 또는 그 아래 별도 실험 폴더에 두고 GUI의 시나리오 폴더를 바꾼다. 하위 폴더를 자동 재귀 실행하지는 않는다. 원본을 수정해도 기존 실험은 보관된 입력 사본으로 재개한다. 결과 폴더의 사본은 수정하지 않는다.
+새 시나리오는 workspace/scenarios 또는 그 아래 별도 실험 폴더에 두고 YAML의 시나리오 폴더를 VSCode에서 바꾼 뒤 GUI에 불러온다. 폴더는 회색 고정값이고 하위 폴더를 자동 재귀 실행하지는 않는다. 원본을 수정해도 기존 실험은 보관된 입력 사본으로 재개한다. 결과 폴더의 사본은 수정하지 않는다.
 담당 AI에게는 이 README와 해당 base/manifest.json을 먼저 읽히고, 원본 sample anchor와 일반/스트레스 균형을 유지하도록 요청한다.
 공유 스타터를 수정하려면 생성기를 수정한 뒤 재생성한다. 기존 JSON 손수 수정 후 생성기를 돌리면 덮어써지므로 개인 변형은 별도 폴더에 보관한다.
 

@@ -1,10 +1,15 @@
 # Base3 BEVFusion production handoff
 
-> **문서 상태: CURRENT.** Production E25 online inference 기준이다.
+> **문서 상태: ROLLBACK.** E25 명시적 복귀 계약이다. 2026-10-13 기본 production은
+> [Base5 E24](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)로 승격했으며 아래 E25 명령·가중치는 보존한다.
 
 이 문서는 판단·플래닝 PC에서 `B3-BF0-F40 E25`를 동일 조건으로 실행하기 위한
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.
+
+2026-10-12 Base5 입력·연속 bag 검사는 [EVIDENCE 35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)에
+분리해 기록한다. `base5_trial.launch`는 별도 topic·port를 사용하는 opt-in 시험용이며
+이 문서의 E25 모델·입력·threshold를 자동 교체하지 않는다.
 
 터미널별 전체 실행 순서는
 [`morai_full_stack_by_terminal.md`](../runbooks/morai_full_stack_by_terminal.md)를

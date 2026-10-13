@@ -29,13 +29,15 @@ Ego는 기존 고주로 합류 평가 장면의 접근 위치입니다. 목적�
 
 다른 좌표 후보를 임의로 제공하지 않았습니다. 합류만/순항만 등 검증 구간을 바꾸려면 지도에서 연결되는 시작·끝점을 확인하고 별도 YAML로 먼저 한 장면을 실행하세요.
 
+소수 JSON을 여러 번 돌릴 때는 [random_example.yaml](random_example.yaml)을 GUI에서 선택하고 workspace로 복사하세요. 기존 high_baseline_01/high_normal_06 두 장면 × 10회 = 총 20회이며, NPC 목표 속도 50–60km/h와 path offset −10–10%를 회차마다 추출합니다. 위치·주행/종료 링크·MiddleSize 필터와 초기 속도는 원본대로 유지합니다. 대회 공식 속도 범위는 아닙니다. repeat/seed/범위만 YAML 위쪽에서 바꾸면 되고, 랜덤을 끄려면 enabled: false입니다. 실제로 로드한 scenario.json과 추출값이 input.json/결과 JSON에 남습니다. 같은 seed/JSON/회차는 같은 파라미터지만 native RandomMode 차종과 physics까지 고정하지는 않습니다.
+
 MORAI 객체 좌표를 goal에 그대로 복사하지 마세요. 현재 변환은 `configs/tf/morai_lanelet_static_tf.yaml`의 map_to_morai_map이며 map = R × MORAI + translation입니다. 지도/TF가 바뀌면 다시 확인합니다. 위 yaw는 지도상의 배치 방향이지 localization heading 보정 파라미터가 아닙니다.
 
 ## 3. 기존 24개를 어떻게 배치했나
 
 기준선 2개(`high_baseline_*`) → 일반 변형 14개(`high_normal_*`) → stress 8개(`high_stress_*`)입니다. normal/stress는 설계상 분류이지 성공/실패 예측이나 대회 출제 확률이 아닙니다.
 
-00은 NPC 없는 기준선입니다. 01은 spawn ID 10/6/8에 각각 목표 40/50/60km/h, 초기 0km/h, 10초 간격을 줍니다. 나머지는 목표 30/40/50/60/70/80km/h를 spawn별로 순환 배정하고 간격 3/5/7/10/14초, 초기 0/10/20/목표속도를 조합합니다. 16–23에는 횡 offset ±0.35m도 포함합니다. RandomMode의 MiddleSize 필터 [2]를 유지하지만 실제 spawn 차종은 실행마다 달라질 수 있습니다.
+00은 NPC 없는 기준선입니다. 01은 spawn ID 10/6/8에 각각 목표 40/50/60km/h, 초기 0km/h, 10초 간격을 줍니다. 나머지는 목표 30/40/50/60/70/80km/h를 spawn별로 순환 배정하고 간격 3/5/7/10/14초, 초기 0/10/20/목표속도를 조합합니다. 16–23의 MinLatBias/MaxLatBias는 ±0.35%입니다 (m 단위가 아닙니다). RandomMode의 MiddleSize 필터 [2]를 유지하지만 실제 spawn 차종은 실행마다 달라질 수 있습니다.
 
 정확한 장면별 배우·파라미터·출처는 [manifest.json](manifest.json), 실제 설정은 [scenarios/](scenarios/)에서 봅니다. "baseline"도 풀스택 주행 성공을 보장하지 않습니다. 01은 샘플 조건을 참고한 단순 대조이며 원본 본선 시나리오 전체를 복제한 것은 아닙니다.
 
@@ -54,7 +56,7 @@ MORAI 객체 좌표를 goal에 그대로 복사하지 마세요. 현재 변환�
 2. 같은 간격에서 차선별 목표속도 조합을 바꿔 보세요. 특정 차선이 항상 가장 빠르다는 가정을 넣지 마세요.
 3. 초기 0으로 가속하는 장면과 초기=목표로 순항하는 장면을 구분하세요. Ego가 지나갈 때 NPC가 실제로 만나는지도 보세요.
 
-처음에는 기존 JSON 하나를 `../workspace/scenarios/`에 새 이름으로 복사해 한두 조건만 바꾸세요. 일반 상황을 충분히 두고 스트레스를 섞습니다. 새 YAML은 기존 example 전체를 복사하거나 GUI로 저장하세요. 빈 YAML·장면별 .case.yaml은 만들지 않습니다. 경로는 YAML 옆 기준이 아니라 저장소 루트 기준입니다.
+처음에는 기존 JSON 하나를 `../workspace/scenarios/`에 새 이름으로 복사해 한두 조건만 바꾸세요. 일반 상황을 충분히 두고 스트레스를 섞습니다. GUI의 내 미션 선택하기에서 담당 미션 → 실험 YAML의 예제 / example.yaml → 베이스 복사로 준비합니다. 목록에는 해당 미션의 예제와 내 작업 YAML만 표시되며 경로를 직접 입력하지 않습니다. 새 YAML은 미션 workspace에 저장한 뒤 새로고침하세요. 이름·파일 패턴/장면 선택·반복·측위/탐지·신호등·녹화/공유는 기본 탭에서 수정하고 상단 YAML 저장을 누릅니다. 같은 개인 파일에 저장되며 날짜 파일을 새로 만들지 않습니다. ‘여기부터 수정 X’ 아래 목적지·시간·네트워크와 회색 GUI 값은 그대로 유지하세요. 랜덤 범위·Python 환경은 VSCode에서만 수정합니다. 빈 YAML·장면별 .case.yaml은 만들지 않습니다. 경로는 YAML 옆 기준이 아니라 저장소 루트 기준입니다.
 
 주의할 점:
 

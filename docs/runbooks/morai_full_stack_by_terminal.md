@@ -10,7 +10,7 @@
 ```text
 MORAI sensors/Ego
   -> UDP bridge
-  -> B3-BF0-F40 E25 BEVFusion
+  -> Base5 E24 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -23,9 +23,10 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-현재 production detector는 `B3-BF0-F40 E25`, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.15/0.10`이다. E10은 rollback
-baseline이며 BF1은 실험 모델로 이 runbook의 기본 모델이 아니다.
+2026-10-13 사용자 요청으로 production detector는 Base5 E24, class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.10/0.10`이다. 최초 weights·증분 빌드는
+[E24 배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+E25 명시적 복귀는 `bevfusion --model e25`이며 실제 24GB 풀스택 점검은 별도다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
 뜻한다. 개인 개발은 MRP, 대회 환경 재현과 현장 실행은 MR을 기준으로 하되,
@@ -432,9 +433,10 @@ localization_sigma_0p05_qxy_0p05  # sigma=0.05 m, Global Qxy=0.05
 Bag은 Camera, LiDAR, PointCloud topic을 포함하지 않는다. 주행 후
 `Ego position distance / integral(velocity.x dt)`가 `0.98~1.02`인지 먼저 확인한다.
 
-## 수동 통합 launch 참고
+## E25 복귀용 수동 통합 launch 참고
 
-아래 절차는 alias별 분리 실행 대신 통합 launch를 사용할 때의 참고 절차다. 위 현장
+아래 절차는 E25 복귀용 구 입력 계약이다. 현재 E24 production은 위의 alias별 실행과
+[E24 설치 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
 절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
 중복될 수 있으므로 둘 중 하나만 사용한다.
 

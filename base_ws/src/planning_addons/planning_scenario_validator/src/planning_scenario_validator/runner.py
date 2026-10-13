@@ -18,7 +18,10 @@ from pathlib import Path
 from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
+from .models import resolve_contract, verify_contract, selected_model, CANONICAL
+from .recording_audit import audit_bag
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
+from .repetitions import sampled_scene
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
@@ -111,7 +114,23 @@ def _start_persistent(cfg, processes, monitor):
         if bound.returncode != 0 or not bound.stdout.strip():
             raise RuntimeFailure("MORAI가 ScenarioLoad UDP {}을 열지 않았습니다. MR GUI Ego Network에 ego_network_validator_local.json을 다시 Load/Connect하세요".format(scenario_port))
     if stack["detector"] == "bevfusion":
-        processes.start("bevfusion", ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), str(sensor)])
+        if selected_model(stack) == 'e25':
+            command = ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), "--model", "e25", str(sensor)]
+        else:
+            receipt = cfg['output'] / 'model_process_receipt.json'
+            if receipt.exists():
+                receipt.rename(processes.log_dir / ('model_process_receipt_previous_' + str(time.time_ns()) + '.json'))
+            command = ['/usr/bin/python3', str(ROOT / 'base_ws/src/planning_addons/planning_scenario_validator/scripts/run_bevfusion_trial.py'),
+                       '--contract', str(cfg['output'] / 'model_runtime.json')]
+        atomic_json(cfg['output'] / 'model_launch.json', {'command': command, 'model': cfg.get('model_contract')})
+        processes.start("bevfusion", command)
+        if selected_model(stack) != 'e25':
+            def server_ready():
+                if processes.running['bevfusion'].poll() is not None:
+                    raise RuntimeFailure('Base5 서버 준비 중 종료. stack_logs/bevfusion.log를 확인하세요')
+                path = cfg['output'] / 'model_process_receipt.json'
+                return path.is_file() and bool(json.loads(path.read_text()).get('server_ready'))
+            monitor.wait(server_ready, 180, 'Base5 checkpoint·센서 정합·cold start')
     if stack.get("planviz", True):
         processes.start("planviz", _launch("bringup", "aw149_planning_rviz.launch"))
 
@@ -197,7 +216,10 @@ def _write_state(cfg, state):
         writer = csv.writer(stream)
         writer.writerow(["scenario", "status", "reason", "failure_category", "suspected_stage",
                          "evidence_summary", "elapsed_sec", "collision_count",
-                         "minimum_goal_distance_m", "attempts", "result_path"])
+                         "minimum_goal_distance_m", "attempts", "result_path",
+                         "source_scenario", "repeat_index", "random_seed", "model_preset",
+                         "recording_complete", "sensor_replayable", "missing_recorded_topics",
+                         "bag_enabled", "video_enabled"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
             try:
@@ -213,7 +235,14 @@ def _write_state(cfg, state):
             writer.writerow([name, row["status"], row["reason"], analysis.get("category", ""),
                 analysis.get("suspected_stage", ""), compact_summary(analysis),
                 metric.get("elapsed_sec", ""), metric.get("collision_count", ""),
-                metric.get("minimum_goal_distance_m", ""), row["attempts"], shared_result_path])
+                metric.get("minimum_goal_distance_m", ""), row["attempts"], shared_result_path,
+                Path(details.get("scenario", name)).name, details.get("repeat_index", 1),
+                details.get("randomization", {}).get("seed", ""), (details.get('model') or {}).get('preset', ''),
+                (details.get('recording_audit') or {}).get('complete_for_drive', ''),
+                (details.get('recording_audit') or {}).get('re_inference_possible', ''),
+                ';'.join((details.get('recording_audit') or {}).get('missing_required', [])),
+                details.get('recording', {}).get('bag_enabled', True),
+                details.get('recording', {}).get('video_enabled', bool(details.get('files', {}).get('video')))])
     os.replace(temporary, path)
 
 
@@ -278,19 +307,28 @@ def _run_case(cfg, processes, monitor, case, state):
     case_log_offsets = log_offsets(processes.log_dir)
     attempt = int(state["results"].get(case.name, {}).get("attempts", 0)) + 1
     timestamp = _stamp()
-    safe_name = "".join(c if c.isascii() and (c.isalnum() or c in "_-") else "_" for c in case.name)[:50]
+    safe_name = "".join(c if c.isascii() and (c.isalnum() or c in "_-") else "_" for c in case.name)
+    suffix = '_r{:03d}'.format(case.repeat_index) if case.repeat_total > 1 else ''
+    safe_name = safe_name[:-len(suffix)][:50 - len(suffix)] + suffix if suffix else safe_name[:50]
     basename = "planbag_{}_{}_{}".format(safe_name, "R", timestamp)
     folder = cfg["output"] / "running" / ("{}_{}_{:02d}".format(safe_name, timestamp, attempt))
     folder.mkdir(parents=True, exist_ok=False)
+    _, randomization = sampled_scene(json.loads(case.source.read_text(encoding="utf-8")),
+        source_sha256=case.source_sha256, repeat_index=case.repeat_index, settings=case.randomization)
     cfg_snapshot = {"campaign": cfg["name"], "scenario": str(case.source),
+                    "repeat_index": case.repeat_index, "repeat_total": case.repeat_total,
+                    "randomization": randomization,
                     "scenario_sha256": case.source_sha256, "goal": case.goal,
                     "waypoints": case.waypoints, "timeout_sec": case.timeout_sec,
                     "pose_source": cfg["stack"]["pose_source"],
                     "detector": cfg["stack"]["detector"],
+                    "model": cfg.get('model_contract'),
+                    "git_sha": subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(ROOT), text=True).strip(),
                     "sensor_json": str(cfg["network"]["sensor_json"]),
                     "ego_network_json": str(cfg["network"]["ego_network_json"]),
                     "network_sha256": hashlib.sha256(cfg["network"]["ego_network_json"].read_bytes()).hexdigest(),
-                    "topic_profile": str(cfg["recording"]["topic_profile"]),
+                    "topic_profile": str(cfg["recording"].get("topic_profile", "")),
+                    "bag_enabled": cfg['recording'].get('bag_enabled', True),
                     "recorded_topics": cfg["recording"]["topics"]}
     atomic_json(folder / "input.json", cfg_snapshot)
     state["current"] = {"scenario": case.name, "phase": "SCENARIO_LOAD", "attempt": attempt,
@@ -345,11 +383,12 @@ def _run_case(cfg, processes, monitor, case, state):
         state["current"]["phase"] = "STACK_READY"
         _write_state(cfg, state)
         _start_case_stack(cfg, processes, monitor)
+        subprocess.run(['rosparam', 'dump', str(folder / 'ros_parameters.yaml')], check=True, timeout=10, env=processes.env)
         state["current"]["phase"] = "ROUTE_REQUEST"
         _write_state(cfg, state)
         monitor.event("ROUTE_REQUEST")
         route_id = request_route(case, monitor,
-            timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)))
+            timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)), process=processes.running['planning'])
         monitor.arm(folder / "events.jsonl")
         monitor.event("CONTROLLER_START")
         brake_hold.stop()
@@ -369,6 +408,13 @@ def _run_case(cfg, processes, monitor, case, state):
         def progress(metrics):
             if processes.running["controller"].poll() is not None:
                 raise RuntimeFailure("controller가 주행 중 종료됐습니다")
+            if cfg['stack']['detector'] == 'bevfusion':
+                if processes.running['bevfusion'].poll() is not None:
+                    raise RuntimeFailure('선택 모델 서버/bridge가 주행 중 종료됐습니다')
+                import rosgraph
+                owners = dict(rosgraph.Master('/planning_validator_guard').getSystemState()[0]).get(CANONICAL, [])
+                if len(owners) != 1:
+                    raise RuntimeFailure('canonical detection publisher는 정확히 하나여야 합니다: {}'.format(owners))
             if time.monotonic() - last_state[0] > 1.0:
                 state["current"]["metrics"] = metrics
                 _write_state(cfg, state)
@@ -398,6 +444,12 @@ def _run_case(cfg, processes, monitor, case, state):
         monitor.disarm()
         code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT") else "F"
         final_base = basename.replace("_R_", "_{}_".format(code))
+        recording_audit = None
+        if not cfg['recording'].get('bag_enabled', True):
+            recording_audit = {'status': 'DISABLED', 'bag_enabled': False,
+                               're_inference_possible': False, 'complete_for_drive': False,
+                               'note': '사용자가 bag OFF 선택. 실시간 분석·JSON·CSV는 유지됩니다.'}
+            atomic_json(folder / 'recording_audit.json', recording_audit)
         try:
             bag, video = recorder.stop(final_base)
         except Exception as exc:
@@ -405,6 +457,16 @@ def _run_case(cfg, processes, monitor, case, state):
             reason, code = "RECORDING_FAILURE", "E"
             error = str(exc)
             final_base = basename.replace("_R_", "_E_")
+            recording_audit = {'error': str(exc)}
+        if bag is not None and cfg['recording'].get('analysis_mode', False):
+            try:
+                recording_audit = audit_bag(bag, cfg, driving_started=monitor.drive_started_at is not None)
+            except Exception as exc:
+                recording_audit = {'error': str(exc), 'complete_for_drive': False}
+            atomic_json(folder / 'recording_audit.json', recording_audit)
+            if not recording_audit.get('complete_for_drive'):
+                print('[WARN] 주행 판정과 별개: 녹화 미완전/주행 미시작. recording_audit.json 확인: {}'.format(
+                    recording_audit.get('missing_required', recording_audit.get('error'))), flush=True)
         processes.stop_many(CASE_STACK)
         metrics = {"elapsed_sec": round(elapsed, 2),
             "wall_elapsed_sec": round(time.monotonic() - wall_started, 2),
@@ -428,10 +490,18 @@ def _run_case(cfg, processes, monitor, case, state):
                 ensure_ascii=False) + "\n")
         result = {"schema_version": 1, "basename": final_base,
             "scenario": str(case.source), "scenario_sha256": case.source_sha256,
+            "repeat_index": case.repeat_index, "repeat_total": case.repeat_total,
+            "randomization": randomization,
+            "realized_scenario_sha256": (hashlib.sha256((folder / "scenario.json").read_bytes()).hexdigest()
+                                          if (folder / "scenario.json").is_file() else None),
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
             "metrics": metrics, "failure_analysis": failure_analysis,
+            "model": cfg.get('model_contract'), "recording_audit": recording_audit,
+            "recording": {'bag_enabled': cfg['recording'].get('bag_enabled', True),
+                          'video_enabled': cfg['recording'].get('video', {}).get('enabled', False),
+                          'requested_topics': cfg['recording']['topics']},
             "files": {"bag": bag.name if bag else None, "video": video.name if video else None,
                       "events": "events.jsonl"}}
         atomic_json(folder / (final_base + ".json"), result)
@@ -491,6 +561,8 @@ def _recover_interrupted(cfg):
 
 def check_free_disk(cfg):
     minimum = cfg["recording"].get("minimum_free_disk_gib")
+    if not cfg['recording'].get('bag_enabled', True) and not cfg['recording'].get('video', {}).get('enabled'):
+        minimum = 0.1  # Still reserve room for results and logs, not a multi-GB bag.
     if minimum is not None:
         free = shutil.disk_usage(cfg["output"]).free / (1024 ** 3)
         if free < float(minimum):
@@ -521,6 +593,20 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
     except BlockingIOError as error:
         raise RuntimeFailure("같은 캠페인이 이미 실행 중입니다") from error
     state = _load_state(cfg, resume)
+    model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
+    previous_model = state.get('model_contract') or cfg.get('model_contract')
+    if previous_model:
+        verify_contract(previous_model, cfg['stack'], cfg['network']['sensor_json'], ROOT)
+    elif state.get('results') and model.get('preset') != 'e25' and model.get('preset') != 'od_gt':
+        raise RuntimeFailure('모델 계약 없는 이전 결과에 Base5 resume은 금지합니다. 새 실험을 시작하세요')
+    cfg['model_contract'] = model
+    state['model_contract'] = model
+    if model['preset'] != 'od_gt':
+        image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', model['image']], text=True).strip()
+        if previous_model and previous_model.get('image_id') not in (None, image_id):
+            raise RuntimeFailure('Docker image가 이전 모델 실행과 다릅니다. 같은 결과에 resume할 수 없습니다')
+        model['image_id'] = image_id
+    atomic_json(cfg['output'] / 'model_runtime.json', model)
     state.update(run_status='RUNNING', runner_pid=os.getpid())
     snapshot = cfg["output"] / "campaign_config.yaml"
     if not snapshot.exists():
@@ -593,10 +679,16 @@ def main(argv=None):
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)
         if args.check or args.dry_run:
-            print("설정 확인: {} | 시나리오 {}개 | 설치 {}".format(cfg["name"], len(cfg["cases"]), cfg["install"]))
+            if cfg['stack']['detector'] == 'bevfusion' and selected_model(cfg['stack']) != 'e25':
+                model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
+                print('모델 계약 확인: {} / SHA256 {} / V/P/O {}'.format(
+                    model['label'], model['checkpoint_sha256'], model['thresholds']))
+            print("설정 확인: {} | JSON {}개 × 반복 {}회 = 총 {}회 | 설치 {}".format(
+                cfg["name"], len({case.source for case in cfg["cases"]}),
+                cfg['cases'][0].repeat_total, len(cfg["cases"]), cfg["install"]))
             if args.dry_run:
                 for index, case in enumerate(cfg["cases"], 1):
-                    print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.source.name,
+                    print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.name,
                         case.goal["x"], case.goal["y"], case.timeout_sec))
             return 0
         if args.execution or is_snapshot(cfg['path']):

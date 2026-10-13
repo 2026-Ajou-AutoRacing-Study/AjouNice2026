@@ -21,6 +21,8 @@ from .trajectory import (
 
 
 VEHICLE_LABELS = frozenset((1, 2, 3, 4, 5, 6))
+CLASS_LABELS = {"vehicle": VEHICLE_LABELS, "pedestrian": frozenset((7,)),
+                "obstacle": frozenset((0,))}
 
 
 @dataclass(frozen=True)
@@ -176,7 +178,7 @@ def _predicted_paths(obj):
     )
 
 
-def read_output_frames(bag_path, tracking_topic, prediction_topic):
+def read_output_frames(bag_path, tracking_topic, prediction_topic, class_name="vehicle"):
     import rosbag
 
     tracking_frames = {}
@@ -188,7 +190,7 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
             timestamp = message_timestamp(message, bag_timestamp)
             estimates = []
             for obj in message.objects:
-                if dominant_label(obj) not in VEHICLE_LABELS:
+                if dominant_label(obj) not in CLASS_LABELS[class_name]:
                     continue
                 if topic == tracking_topic:
                     pose = obj.kinematics.pose_with_covariance.pose
@@ -236,7 +238,7 @@ def read_output_frames(bag_path, tracking_topic, prediction_topic):
     return tracking_frames, prediction_frames
 
 
-def read_detection_frames(bag_path, detection_topic):
+def read_detection_frames(bag_path, detection_topic, class_name="vehicle"):
     """Read vehicle detections in their source sensor frame."""
     import rosbag
 
@@ -246,7 +248,7 @@ def read_detection_frames(bag_path, detection_topic):
             timestamp = message_timestamp(message, bag_timestamp)
             estimates = []
             for obj in message.objects:
-                if dominant_label(obj) not in VEHICLE_LABELS:
+                if dominant_label(obj) not in CLASS_LABELS[class_name]:
                     continue
                 pose = obj.kinematics.pose_with_covariance.pose
                 estimates.append(
@@ -782,7 +784,20 @@ def evaluate_pipeline(
     prediction_motion_slice="all",
     maximum_longitudinal_acceleration_mps2=0.5,
     gt_reference="object-status",
+    pedestrian_velocity_reference="position",
+    pedestrian_message_unit=None,
+    pedestrian_message_frame=None,
+    pedestrian_message_frame_yaw=0.0,
 ):
+    from .velocity_reference import pedestrian_message_available, pedestrian_message_velocity, pedestrian_velocity_source
+    if pedestrian_velocity_reference not in ('position', 'message-preferred'):
+        raise ValueError('Unknown pedestrian velocity reference')
+    if pedestrian_velocity_reference == 'message-preferred':
+        if pedestrian_message_unit not in ('mps', 'kmh') or pedestrian_message_frame not in ('body', 'morai-map'):
+            raise ValueError('Message-preferred requires audited pedestrian unit and frame')
+    velocity_sources = defaultdict(int)
+    message_availability = {s.key: pedestrian_message_available(s) for s in segments
+                            if s.class_name == 'pedestrian'} if pedestrian_velocity_reference == 'message-preferred' else {}
     tracking_counts = defaultdict(int)
     tracking_errors = []
     tracking_speed_errors = []
@@ -833,7 +848,6 @@ def evaluate_pipeline(
                 history.append(gt_items[gt_index][1])
             state = estimate_motion_state(history)
             if state is not None:
-                tracking_speed_errors.append(abs(estimate.speed - state.speed))
                 estimate_vx = (
                     estimate.speed * math.cos(estimate.yaw)
                     - estimate.lateral_speed * math.sin(estimate.yaw)
@@ -844,6 +858,36 @@ def evaluate_pipeline(
                 )
                 state_vx = state.speed * math.cos(state.yaw)
                 state_vy = state.speed * math.sin(state.yaw)
+                if segment.class_name == "pedestrian":
+                    # A pedestrian's mesh heading need not follow its motion;
+                    # some MORAI bags also report zero ObjectStatus.velocity.
+                    # Retain the full causal position derivative, not its
+                    # projection onto mesh heading. Vehicle contract unchanged.
+                    times = np.asarray([p.timestamp for p in history])
+                    times = times - times[-1]
+                    degree = 2 if len(history) >= 5 else 1
+                    state_vx = float(np.polyfit(times, [p.x for p in history], degree)[-2])
+                    state_vy = float(np.polyfit(times, [p.y for p in history], degree)[-2])
+                    source = 'position'
+                    if pedestrian_velocity_reference == 'message-preferred':
+                        source = pedestrian_velocity_source(segment, history, (state_vx, state_vy),
+                                                            message_availability[segment.key])
+                        current = gt_items[gt_index][1]
+                        if source == 'message' and all(math.isfinite(v) for v in
+                                (current.longitudinal_velocity, current.lateral_velocity)):
+                            state_vx, state_vy = pedestrian_message_velocity(
+                                current, pedestrian_message_unit, pedestrian_message_frame,
+                                pedestrian_message_frame_yaw)
+                        elif source == 'message':
+                            source = 'position_fallback_nonfinite'
+                    velocity_sources['pedestrian:' + source] += 1
+                    tracking_speed_errors.append(abs(
+                        math.hypot(estimate_vx, estimate_vy)
+                        - math.hypot(state_vx, state_vy)
+                    ))
+                else:
+                    velocity_sources[segment.class_name + ':legacy_position_projected'] += 1
+                    tracking_speed_errors.append(abs(estimate.speed - state.speed))
                 error_vx = estimate_vx - state_vx
                 error_vy = estimate_vy - state_vy
                 tracking_velocity_l2_errors.append(
@@ -1179,8 +1223,11 @@ def evaluate_pipeline(
 
     return {
         "evaluation": {
-            "class": "vehicle",
+            "class": next(iter(sorted({s.class_name for s in segments})), "vehicle"),
             "gt_reference": gt_reference,
+            "pedestrian_velocity_reference": pedestrian_velocity_reference,
+            "pedestrian_message_unit": pedestrian_message_unit,
+            "pedestrian_message_frame": pedestrian_message_frame,
             "maximum_range_m": maximum_range_m,
             "maximum_association_distance_m": maximum_association_distance_m,
             "horizons_sec": list(horizons),
@@ -1208,7 +1255,7 @@ def evaluate_pipeline(
             "motp_center_error_m": statistics(tracking_errors),
             "motp_center_error_caveat": (
                 "Validated bbox-center distance for the supported calibrated "
-                "vehicle subset"
+                "object subset"
                 if gt_reference in (
                     "bbox-center-calibrated-v1",
                     "asset-catalog-bbox-center-v1",
@@ -1228,6 +1275,7 @@ def evaluate_pipeline(
             ),
             "absolute_speed_error_mps": statistics(tracking_speed_errors),
             "velocity_l2_error_mps": statistics(tracking_velocity_l2_errors),
+            "velocity_gt_source_counts": dict(velocity_sources),
             "absolute_longitudinal_velocity_error_mps": statistics(
                 tracking_longitudinal_velocity_errors
             ),
@@ -1235,6 +1283,10 @@ def evaluate_pipeline(
                 tracking_lateral_velocity_errors
             ),
             "velocity_metric_contract": (
+                "Pedestrian speed MAE uses vector norms; 2-D map-frame AVE "
+                "uses full map XY; GT policy=" + pedestrian_velocity_reference
+                if any(segment.class_name == "pedestrian" for segment in segments)
+                else
                 "absolute_speed_error_mps preserves signed body-x speed MAE; "
                 "velocity_l2_error_mps is true 2-D map-frame AVE using both "
                 "body-x and body-y twist components"

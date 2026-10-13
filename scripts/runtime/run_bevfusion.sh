@@ -9,22 +9,44 @@ if [[ -f "$ROOT/.env.bevfusion.local" ]]; then
   set +a
 fi
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"
-SENSOR_CONFIG="${1:-${BEVFUSION_SENSOR_CONFIG:-}}"
+MODEL="${BEVFUSION_PRODUCTION_MODEL:-e24}"
+if [[ "${1:-}" == "--model" ]]; then
+  MODEL="${2:?Use --model e24 or --model e25}"
+  shift 2
+fi
+resolved="$(python3 "$ROOT/scripts/runtime/bevfusion_production_profile.py" --model "$MODEL" --fields)"
+mapfile -t profile <<<"$resolved"
+SENSOR_CONFIG="${1:-${BEVFUSION_SENSOR_CONFIG:-$ROOT/${profile[7]}}}"
+SENSOR_CONFIG="$(realpath "$SENSOR_CONFIG")"
 if [[ -n "$SENSOR_CONFIG" && ! -f "$SENSOR_CONFIG" ]]; then
   echo "[ERROR] BEVFusion sensor config not found: $SENSOR_CONFIG" >&2
   exit 1
 fi
-CHECKPOINT="${BEVFUSION_CHECKPOINT:-${BEVFUSION_INFERENCE_CHECKPOINT:-$HOME/bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth}}"
+CHECKPOINT="${profile[0]}"
 IMAGE="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
-EXPECTED_SHA256="36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011"
+EXPECTED_SHA256="${profile[1]}"
 DETECTION_TOPIC="/perception/object_recognition/detection/objects"
 
 export AJOUNICE_ROOT="$ROOT"
 export BEVFUSION_CHECKPOINT="$CHECKPOINT"
 export BEVFUSION_IMAGE="$IMAGE"
+export BEVFUSION_SENSOR_CONFIG="$SENSOR_CONFIG"
+export BEVFUSION_MODEL_CONFIG="/workspace/AjouNice2026/${profile[2]}"
+export BEVFUSION_BASE5_RUNTIME="${profile[5]}"
+export BEVFUSION_PARALLEL_CAMERA="${profile[6]}"
+export BEVFUSION_POINT_INTENSITY_SOURCE=native
+if [[ "$MODEL" == e24 ]]; then export BEVFUSION_POINT_INTENSITY_SOURCE=ros255; fi
+# Bridge/server port and precision are one frozen production contract.
+export BEVFUSION_PORT=29500
+export BEVFUSION_USE_AMP=true
+export BEVFUSION_TEMPORAL_FEATURE_CACHE=false
+export PROJECTION_ONLY=false
+server_owned=false
 
 cleanup() {
-  docker compose -f "$COMPOSE_FILE" stop inference >/dev/null 2>&1 || true
+  if [[ "$server_owned" == true ]]; then
+    docker compose -f "$COMPOSE_FILE" stop inference >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT INT TERM
 
@@ -38,6 +60,7 @@ if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
   echo "[ERROR] BEVFusion checkpoint SHA-256 mismatch" >&2
   echo "  expected: $EXPECTED_SHA256" >&2
   echo "  actual:   $actual_sha256" >&2
+  echo "Check BEVFUSION_CHECKPOINT overrides; rollback is --model e25." >&2
   exit 1
 fi
 
@@ -61,14 +84,24 @@ if topic_info="$(rostopic info "$DETECTION_TOPIC" 2>/dev/null)"; then
   fi
 fi
 
+if [[ -n "$(docker compose -f "$COMPOSE_FILE" ps --status running -q inference)" ]]; then
+  echo "[ERROR] An inference service is already running. Stop its owning session before switching models." >&2
+  exit 1
+fi
+
 echo "[BEVFusion] Starting Docker inference server"
+echo "[BEVFusion] Production $MODEL; hash $EXPECTED_SHA256; sensor $SENSOR_CONFIG"
 docker compose -f "$COMPOSE_FILE" up -d inference
+server_owned=true
 
 echo "[BEVFusion] Waiting for model readiness"
 ready=false
 for _ in $(seq 1 60); do
   if PYTHONPATH="$ROOT/docker/bevfusion" \
-      python3 "$ROOT/docker/bevfusion/scripts/healthcheck.py" >/dev/null 2>&1; then
+      python3 "$ROOT/docker/bevfusion/scripts/healthcheck.py" --expected-checkpoint "$EXPECTED_SHA256" \
+      --expected-base5 "${profile[5]}" \
+      --expected-config "$(sha256sum "$ROOT/${profile[2]}" | awk '{print $1}')" \
+      --expected-sensor "$(sha256sum "$SENSOR_CONFIG" | awk '{print $1}')" >/dev/null 2>&1; then
     ready=true
     break
   fi
@@ -87,7 +120,7 @@ echo "[BEVFusion] Starting ROS bridge on $DETECTION_TOPIC"
 echo "[BEVFusion] Ctrl-C stops both the ROS bridge and Docker inference server"
 if [[ -n "$SENSOR_CONFIG" ]]; then
   echo "[BEVFusion] Using sensor config: $SENSOR_CONFIG"
-  roslaunch bevfusion_ros base3_online.launch sensor_config:="$SENSOR_CONFIG"
+  roslaunch bevfusion_ros "${profile[4]}" sensor_config:="$SENSOR_CONFIG"
 else
-  roslaunch bevfusion_ros base3_online.launch
+  roslaunch bevfusion_ros "${profile[4]}"
 fi

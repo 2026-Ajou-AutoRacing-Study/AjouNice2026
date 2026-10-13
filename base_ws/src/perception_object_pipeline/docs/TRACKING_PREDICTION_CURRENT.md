@@ -1,12 +1,13 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 코드 대조: 2026-09-25, `perception/static-obstacle-tracking-integration-260925`
+마지막 문서·launch 대조: 2026-10-13. 아래 9월 bag 실측은 당시 이력이다.
+현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
 
 ## Production 계약
 
 ```text
-BEVFusion B3-BF0-F40 E25 DetectedObjects
+BEVFusion Base5 E24 DetectedObjects
   -> EKF tracker
   -> UNKNOWN stationary policy
   -> Lanelet2 Map-CV predictor
@@ -26,7 +27,7 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 
 ## Tracker
 
-- E25 ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
+- Production ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
   적용한다. Barricade duplicate가 unmatched detection으로 남아 새 ID를 만드는 현상을
   막기 위한 production 기본값이며 tracker association gate 변경은 아니다.
 - Confirmed-track 삭제는 detector frame 수가 아니라 message stamp 경과시간을 사용한다.
@@ -49,7 +50,7 @@ BEVFusion B3-BF0-F40 E25 DetectedObjects
 
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.
-- detector velocity fusion: `off`; production E25는 7D detector다.
+- detector velocity fusion: `off`; production E24도 7D detector다.
 - detector measurement timestamp state를 current time으로 강제 보상하지 않는다.
 - EKF 내부 scheduler가 30 Hz로 prediction copy를 발행한다.
 - production `tracking` alias의 maximum measurement age는 `0.50 s`다. generic
@@ -75,7 +76,8 @@ prediction coverage를 함께 감시한다.
 
 ## Map-CV
 
-- map: `kcity_map/lanelet_map/lanelet2_map_v84.osm`.
+- `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
+  `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
 - horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
 - minimum map-following speed: `0.5 m/s`.
 - lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.
@@ -95,10 +97,22 @@ start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 
 
 모델 선택은 Detection만 보지 않고 같은 mission bag의 Tracking center/AVE, speed error,
 Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker 근거는
-`docs/bevfusion/README.md`와
-`docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`를 따른다.
+[근거 인덱스](../../../../docs/bevfusion/README.md#evaluation)를 따른다.
+과거 velocity A/B는 [9월 근거](../../../../docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)에서만 재현한다.
 
-다음은 계획일 뿐 현재 production에 구현되지 않았다.
+2026-10-12 원거리 실제 ROS 기억 A/B는 현재 bounded coasting을 유지하고 1/2초 확대를
+채택하지 않았다. 자세한 분모·중복·잔류 제한은
+[41절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 따른다.
+실제 planner의 기억이나 안전성을 이번 tracker 시험으로 인증하지 않는다.
+
+2026-10-13 E24 고정 실제 ROS A/B에서 중복 birth guard OFF는 근접 대응 887/897을
+늘리지 못하고 O02 전체 미대응을 531→748로 늘렸다. 빠른 차량 승격 ON은 R01 관측
+1건만 개선해 기존 OFF를 유지한다. [bag·planning 검토 46절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)을 따른다.
+30Hz tracking의 새 출력 stamp를 최신 detector 관측으로 해석하지 않는다. 설치 binary의
+소스 반영 여부와 실제 관측 age를 별도로 확인한다.
+
+다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
+일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 
 - 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.

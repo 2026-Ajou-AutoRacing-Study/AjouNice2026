@@ -2,9 +2,47 @@
 
 ## 목적
 
-팀원이 만든 임의 MORAI JSON을 같은 풀스택으로 차례로 실행해, 대회에서 대응하지 못하는 상황을 찾는다. 실행 전 과도한 시나리오 생성 기능은 넣지 않는다. 팀원은 JSON 폴더와 캠페인 YAML의 목적지·선택 스택만 관리한다.
+팀원이 만든 MORAI JSON을 같은 풀스택으로 차례로 실행해, 대회에서 대응하지 못하는 상황을 찾는다. 실행 전 과도한 시나리오 생성 기능은 넣지 않는다. 미션별 목적지·스택·네트워크는 제공된 기본값을 사용하고, 팀원은 JSON과 YAML 위쪽의 선택·반복 설정을 관리한다.
 
 ## 현재 구현
+
+### 팀원용 단순화와 고주로 반복 검증 (2026-10-11, 현재 GUI 계약)
+
+이번 구현은 `dataset/base5`에서 작업했다. 아래 10-03 절은 구현 이력이며 **현재 UI는 이 절의 제한된 편집 계약을 따른다.** 목적지까지 전부 편집하던 GUI와 별도 신호등 환경 탭은 사용하지 않는다. 공유 실행 브랜치는 기존 planning 브랜치이며 이 변경을 그쪽에 반영하기 전까지 자동 배포됐다고 가정하지 않는다.
+
+- 기본 탭의 이름·파일 패턴/장면 선택·반복·측위/탐지·신호등·영상·센서 bag·Drive 업로드·공유 모드는 수정 가능하다. 상단 왼쪽 **YAML 저장**은 현재 개인 파일에 저장하며 파일 이름을 새로 만들지 않는다. 목적지·시간·네트워크·Python 환경은 회색 읽기 전용이고 랜덤 seed/범위도 YAML에서만 수정한다. 입력 파일은 아래 미션 선택 계약으로 제한하며 자유 경로 입력·붙여넣기는 제거했다.
+- `operator_document`는 허용 필드의 GUI 변경분만 최신 파일에 병합하고, 같은 필드의 VSCode/GUI 충돌은 재불러오도록 거절한다. `authoring.updated_yaml`은 변경값만 수정해 고정 설정·사용자 주석을 유지한다. 변경이 없으면 byte-identical이다. 앵커/별칭 사용 YAML은 GUI 수정 시 거절하고 VSCode 편집을 안내한다. 공유 base/실행 사본 쓰기와 실행·검사 중 편집을 잠근다. 일반 검사·새 실행 전에도 변경분을 저장하되 빠른 테스트는 원본을 수정하지 않는다.
+- 장면 선택은 기존 검색·일괄 체크 대화창을 재사용한다. 패턴을 직접 수정하면 include를 해제하고 패턴으로 돌아간다. JSON 수 × 반복 수를 실시간으로 표시한다. `authoring.annotated_yaml`은 다섯 미션 example과 신규 workspace YAML의 한국어 주석·순서를 통일한다. 이름·JSON 선택·반복·스택·녹화/공유를 위로, 목적지·시간·네트워크를 ‘여기부터 수정 X’ 아래로 둔다. Ego 시작점은 JSON이다. 기존 개인 파일을 일괄 재작성하지 않는다.
+- 공유 예제 복사는 **실제로 선택한 base YAML**을 사용한다. random_example이나 GT 비교 YAML을 골랐는데 일반 example 설정으로 복사되던 경로를 수정했다. workspace 재복사는 이미 열린 개인 파일과 사용자 수정값을 유지한다.
+- `scenarios.repeat`(1–1000)은 JSON 한 개당 실행 횟수다. A/B를 2회면 A_r001/B_r001/A_r002/B_r002로 확장하며 총 10,000회까지 허용한다. 기존 repeat 없는 YAML은 1회이고 기존 case 이름을 유지한다. 회차별 결과·bag·영상·PASS/FAIL/ERROR·중단 재개가 독립된다. snapshot에는 원본 JSON을 한 번만 복사하고 반복/추출 계약을 유지한다.
+- `repetitions.sampled_scene`은 source hash·seed·회차로 vehicleList/spawnPointList의 목표 속도와 path offset을 추출한다. 원본 배치·경로·차종·초기 속도·Ego는 유지한다. 실제 로드한 scenario.json과 input.json/결과 JSON의 추출 내역·realized hash를 보관한다. CSV에 source_scenario/repeat_index/random_seed를 추가한다. **이 seed는 MORAI native RandomMode 차종·physics의 재현 seed가 아니다.** 재시도는 같은 validator 파라미터를 사용한다.
+- highway/base/random_example.yaml은 기존 샘플 spawn 경로·MiddleSize 조건인 두 JSON × 10회다. 50–60km/h/−10–10%는 좁은 시작용 범위이며 본선 범위를 확정하지 않는다. MR GUI에서 저장된 random_parameter.json은 단일 속도/offset 값만 포함하므로 그 파일을 반복 로드하면 편집 화면의 범위대로 다시 추출한다고 가정하지 않았다. validator가 회차마다 값을 추출·설치하는 방식이다.
+- `planning 빠른 테스트`는 JSON 1–2개 선택·GT/BEVFusion·GT/측위·신호등 대조를 빠르게 수행한다. 현재 설정의 목적지·시간·Network·녹화는 그대로, repeat=1·랜덤 추출 off·upload off인 PID별 임시 설정으로 별도 실행한다. 원본 YAML/JSON은 수정하지 않는다. 검색·환경 검사·ROS 수신 검사·연결 경로 복사도 이 탭으로 모았다.
+- 배치·입력 사본·재개·실시간 실패 근거·Drive 공유·split 영상/모니터 기능은 유지한다. 제거/정렬/초기화/이전 목록/새 준비는 목록 관리 메뉴로 옮기고 실행 버튼 위주로 줄인다. 모니터 모드 전환 자체로 YAML 영상 설정을 바꾸지 않는다. 판단·제어·측위·인지 알고리즘과 센서 timestamp 정책은 변경하지 않는다.
+
+검증은 순수 함수·snapshot/재개·가짜 runner 배치·실제 Tk GUI의 제한 편집/저장/경로 붙여넣기/빠른 실행/원본 보존으로 수행했고 180개 테스트를 통과했다. 허용 필드만 같은 YAML에 저장되는지, 주석·고정값·외부 수정 보존, 장면 선택 후 패턴 전환, Drive 기본 경로 보완도 검사했다. 테스트는 source package를 PYTHONPATH 맨 앞에 두어 오래된 catkin install 복사본을 검사하지 않도록 한다. 생성기는 `build_mission_starters.py --check`로 136파일/120JSON을 검사한다. 실제 MR에서는 GT pose+GT detection의 2회 연속 랜덤 반복, offset 단위 대조, localization+BEVFusion의 폐루프와 수정 후 재실행으로 목적지 도착·bag/MP4 마감·파라미터 적용을 확인했다. 이후 GUI 편집 범위를 여는 수정은 Tk GUI와 저장·재불러오기 테스트로 검증했으며 주행을 추가 재실행하지 않았다. spawn의 MinLatBias/MaxLatBias도 % 단위로 기록하며 /100 변환을 하지 않는다. 과거 manifest의 lateral_m 표기도 lateral_percent로 바로잡았고, 기존 시나리오 JSON은 변경하지 않았다. **이 범위는 전체 미션 성공률·대회 적합성·모든 PC 환경 검증이 아니다.** 일회성 로그/캡처/정량 결과는 Git 제외 `planner_logs/analysis/261011_validator_simplification/`에 둔다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+PYTHONPATH="$PWD/base_ws/src/planning_addons/planning_scenario_validator/src:$PYTHONPATH" \
+  xvfb-run -a /usr/bin/python3 -m unittest discover \
+  -s base_ws/src/planning_addons/planning_scenario_validator/tests -q
+/usr/bin/python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/build_mission_starters.py --check
+```
+
+### 후속 실행 버튼·YAML 재불러오기 안내 (2026-10-11)
+
+상단 왼쪽은 `YAML 저장 / 불러오기·새로고침 / ▶ 새 실험 시작` 세 버튼만 표시한다. 원색 대신 연한 청회색·회녹색 배경과 짙은 글씨로 강조한다. 오른쪽 보조 기능 메뉴에 설정 검사·실험 기록·결과 폴더를 모으고 중단·모니터 모드는 바로 표시한다. 실행·검사 중 잠금과 모니터 모드의 세 버튼 숨김/복원 계약은 유지한다. VSCode Ctrl+S만으로 GUI 표시를 자동 변경하지 않으며 재불러오기 버튼을 누른다. 새로고침 시 GUI의 미저장 변경은 버려지므로 먼저 저장해야 한다. 검사·새 실행에서는 최신 파일에 GUI 변경분만 병합하며, 진행 중인 실험은 당시 입력 사본을 사용한다.
+
+추가 Tk 테스트에서 외부 저장 후 표시가 그대로인 상태와 재불러오기 후 변경값 반영, 세 버튼 순서·색상, 850px 창에서 좌우 그룹 분리, 실행 중 버튼·메뉴 잠금, 모니터 모드 숨김·복원을 확인했다. 최종 182개 테스트와 scoped install을 통과했고 실제 Tk 캡처에서 배치를 확인했다. 이번 UI 변경에서는 MORAI 주행을 새로 시작하지 않았다.
+
+### 내 미션 선택하기와 YAML 입력 제한 (2026-10-11, 현재)
+
+자유 경로 입력·붙여넣기·내 YAML 파일 선택창을 제거했다. 고주로·회전교차로·정적 장애물·동적 장애물·GPS 음영 구간 다섯 미션 중 하나를 readonly 목록으로 선택하고, 그 미션의 `예제 / ...` 또는 `내 작업 / ...` YAML만 고른다. 목록은 base/workspace의 .yaml/.yml을 다시 탐색하며 보조 .case.yaml·실행 사본·폴더 밖/다른 미션/공유 base로 연결한 workspace symlink는 제외한다. 예제 복사·저장·새로고침 시 선택 목록도 동기화하며 신규 YAML은 해당 미션 workspace에 저장한다. 마지막 미션 내 파일은 복원하고 외부의 이전 마지막 경로는 초기 선택에서 제외한다. 기존 users/외부 YAML·원본·실험 기록을 삭제하거나 이동하지 않는다.
+
+배치의 신규 파일 추가도 현재 선택한 미션 workspace로 제한하고 다른 경로는 거절한다. 기존 배치 입력 사본·목록 복원·재개는 유지한다. YAML을 바꿀 때 quick-test 장면 선택을 새 입력으로 초기화하지만 같은 YAML 저장·새로고침은 수동 quick 선택을 유지한다. 실제 CLI와 기존 입력 사본 형식에는 이 GUI 입력 제한을 적용하지 않는다.
+
+185개 source-first 테스트를 통과했다. 고정 미션·예제/개인 파일 목록·경로 붙여넣기 차단·symlink/보조/사본 제외·예제 복사·새 목록 갱신·실행 중 잠금·배치 추가/기존 재개를 확인했다. 생성기 136파일/5미션/120JSON 검증과 실제 Tk 화면 확인도 수행했으며 MORAI 주행을 새로 시작하지 않았다. 테스트의 이전 자유 경로·초기 고정 데모 전제는 새 UI 계약과 미션 폴더 fixture로 갱신했다.
 
 ### 시나리오 검색·일괄 선택 (2026-10-03)
 
@@ -147,6 +185,16 @@ BEVFusion 포함 `soa_bevfusion_smoke_01`의 첫 시도에서는 이전 장면�
 ScenarioLoad 패킷은 `trajectory_batch_runner.morai_udp_client.build_scenario_load_payload`를 재사용한다. dataset 수집 PoC의 UDP builder와 같은 요청으로 출력한 패킷이 **69바이트 전체에서 byte-identical**함을 확인했다. dataset 쪽 builder는 대형 실험 스크립트 안에 있고 입력 검사가 적다. 본 도구는 batch runner의 독립된 packet builder를 쓰고, 필요한 3회 재시도와 Ego 위치 확인은 validator에서 수행한다. dataset PoC 전체를 planning 런타임에 의존시키지 않는다.
 
 ## 알려진 제한
+
+### 2026-10-12 모델 프리셋·인지 분석 계약
+
+- 모델 선택은 `stack.bevfusion_model: e25 | base5_e24 | base5_e9`다. 생략은 E25이며 GUI·YAML·배치·snapshot/resume에 보존한다. E24는 별도 0.40/0.10/0.10, E9는 0.40/0.15/0.10의 threshold 미보정 후속 비교 후보다.
+- E25 보호 실행기는 수정하지 않는다. Base5 전용 실행기는 pinned checkpoint SHA와 전체 상속 config graph hash를 검증하고 별도 Docker 서버/bridge를 관리한다. 실제 sensor 사본을 양쪽에 전달하며 서버 handshake와 요청마다 정합을 확인한다. AMP/병렬화 on, compile off, native compressed JPEG와 서버 1회 intensity ÷255, single-frame·velocity off다.
+- 초기 검출 대기 전에 Base5 cold start·서버 준비를 최대 180초 확인한다. 이전 server_ready receipt는 보관 후 분리하므로 resume 때 과거 준비 상태를 현재 서버 준비로 오해하지 않는다. 중복 canonical publisher는 시작 전·bridge 실행 중·주행 중 검사한다. 종료 시 소유한 컨테이너/프로세스만 정리한다.
+- `recording.analysis_mode: true`는 별도 perception_analysis 프로파일 + 센서/영상 on을 요구한다. planner avoidance/debug는 실제 광고된 토픽을 정규식으로 추가 기록한다. indexed bag metadata의 실제 메시지 수로 audit하며, `/clock`과 선택 기능/debug 미발행은 0으로 남긴다. 주행 판정과 녹화 완전성을 구별한다.
+- 실행 사본에 model 계약·config 사본·source hash를 보존하고 실제 checkpoint/config/sensor·threshold/NMS/AMP/compile·Docker ID·명령·ROS 파라미터·Git SHA를 남긴다. 모델/핵심 설정/이미지가 달라진 resume는 거절한다. 이전 모델 계약 없는 결과에 Base5를 끼워 넣지 않는다.
+- 전체 코스 분석 예제는 baseline 1개와 변형 3개의 YAML을 분리한다. 기존 JSON·tracker 0.5/1초 기억·planner 설정은 유지한다. baseline의 주행·녹화 게이트가 확인되기 전에 나머지 사례를 정상 주행 검증으로 주장하지 않는다. planning 프로세스 종료는 단순 trajectory timeout과 구별한다.
+- 최신 인지 근거는 `docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md` 40·41절이다. 개별 실행 증거는 Git 제외 `planner_logs/analysis/261012_validator_base5/`와 해당 validation 결과에 보존한다. 로컬 5060 Ti+MORAI 기능 시험과 실제 4090/LAN 인증을 구분한다.
 
 - 최초 Sensor/Ego Network JSON 선택과 Connect는 MORAI GUI에서 수동이다. 시나리오 전환은 UDP로 자동 수행한다.
 - 시나리오별 goal이 다르면 별도 캠페인 YAML로 분리한다. JSON 자체에서 임의 목적지를 추측하지 않는다.

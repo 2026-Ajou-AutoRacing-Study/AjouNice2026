@@ -3,12 +3,14 @@ import hashlib
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
 from .traffic_light import runtime_settings
+from .repetitions import repetition_settings
+from .models import selected_model
 
 
 ROOT = Path(__file__).resolve().parents[6]
@@ -115,10 +117,18 @@ def validate_campaign_document(document, *, allow_legacy=False):
     for key in required - {"campaign_name"}:
         if not isinstance(document[key], dict):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
+    try:
+        selected_model(document['stack'])
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     for key in ("directory", "glob"):
         if not isinstance(document["scenarios"].get(key), str) or not document["scenarios"][key].strip():
             raise ConfigError("scenarios.{}이 비어 있습니다".format(key))
     validate_scenario_include(document["scenarios"])
+    try:
+        repetition_settings(document["scenarios"])
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     common = document["default_case"]
     if set(common) - {"description", "goal", "waypoints", "timeout_sec", "arrival_mode"}:
         raise ConfigError("default_case에는 공통 목적지·경유점·시간·도착 방식만 설정합니다")
@@ -200,6 +210,9 @@ class Case:
     waypoints: list
     timeout_sec: float
     arrival_mode: str
+    repeat_index: int = 1
+    repeat_total: int = 1
+    randomization: dict = field(default_factory=dict)
 
 
 def _load_case(source, default):
@@ -230,11 +243,20 @@ def load_campaign(path, *, check_install=True):
     scenarios = document.get("scenarios", {})
     sources = scenario_sources(scenarios)
     default = document.get("default_case", {})
-    cases = [_load_case(source, default) for source in sources]
-    if len({case.install_stem for case in cases}) != len(cases):
+    originals = [_load_case(source, default) for source in sources]
+    if len({case.install_stem for case in originals}) != len(originals):
         raise ConfigError("시나리오 설치 이름이 충돌합니다")
+    repeat, randomization = repetition_settings(scenarios)
+    if repeat * len(originals) > 10000:
+        raise ConfigError("한 YAML의 총 실행은 10000회 이하로 나누세요")
+    # Round-robin order: A1/B1/A2/B2, rather than exhausting only A first.
+    cases = [replace(case, name=(case.name + "_r{:03d}".format(index) if repeat > 1 else case.name),
+                     repeat_index=index, repeat_total=repeat, randomization=randomization)
+             for index in range(1, repeat + 1) for case in originals]
     expected_map = document.get("morai", {}).get("map_name", "R_KR_PR_K-city_2025")
-    for case in cases:
+    if len({case.name for case in cases}) != len(cases):
+        raise ConfigError("반복 시나리오 실행 이름이 충돌합니다")
+    for case in originals:
         try:
             scene = json.loads(case.source.read_text(encoding="utf-8"))
             actual_map = scene["mapInfo"]["mapName"]
@@ -285,21 +307,16 @@ def load_campaign(path, *, check_install=True):
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
     recording = document.get("recording", {})
+    if recording.get('analysis_mode', False) and recording.get('bag_enabled', True) and (
+            not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
+        raise ConfigError('인지 분석 모드는 include_sensors: true + video.enabled: true가 필요합니다')
     if "minimum_free_disk_gib" in recording:
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
-    profile = resolve_path(recording.get("topic_profile"))
+    from .recording_options import effective_topics
     try:
-        topic_list = json.loads(profile.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ConfigError("토픽 프로파일을 읽을 수 없습니다: {}".format(profile)) from error
-    if not isinstance(topic_list, list) or not topic_list or any(
-            not isinstance(t, str) or not t.startswith("/") for t in topic_list):
-        raise ConfigError("토픽 프로파일은 절대 토픽명 JSON 배열이어야 합니다")
-    if recording.get("include_sensors", False):
-        topic_list += ["/sensor/lidar1"] + [
-            "/sensor/camera/{}/compressed".format(camera)
-            for camera in ("front", "front_left", "front_right", "back")]
-    recording["topics"] = list(dict.fromkeys(topic_list))
+        recording['topics'] = effective_topics(recording, resolve_path)
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     video = recording.get("video", {})
     if video.get("enabled", False) and not video.get("display"):
         raise ConfigError("영상 녹화에는 recording.video.display가 필요합니다")

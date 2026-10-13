@@ -238,6 +238,15 @@ class GuiWindowTests(unittest.TestCase):
         config_patch.start()
         self.addCleanup(config_patch.stop)
 
+    def open_fixture(self, app, directory, **changes):
+        document = load_document(EXAMPLES / 'static_pair_mission_gt_split.yaml')
+        document.update(campaign_name='gui_fixture', output_root=str(Path(directory) / 'results'))
+        document.update(changes)
+        path = Path(directory) / 'personal.yaml'
+        path.write_text(yaml.safe_dump(document), encoding='utf-8')
+        app['actions']['open_yaml'](path)
+        return path
+
     def test_work_folder_button_and_running_guard(self):
         from tkinter import ttk
         with tempfile.TemporaryDirectory() as temp:
@@ -251,7 +260,7 @@ class GuiWindowTests(unittest.TestCase):
                     app["actions"]["open_yaml"](personal)
                     top = next(widget for widget in app["root"].winfo_children()[0].winfo_children()
                                if isinstance(widget, ttk.LabelFrame)
-                               and widget.cget("text").startswith("설정 파일"))
+                               and widget.cget("text") == "내 미션 선택하기")
                     button = next(widget for widget in top.winfo_children()
                                   if isinstance(widget, ttk.Button) and widget.cget("text") == "내 작업 폴더 열기")
                     with patch.object(gui_module.subprocess, "Popen") as popen, \
@@ -272,7 +281,7 @@ class GuiWindowTests(unittest.TestCase):
             with patch.object(gui_module, "USERS", users):
                 gui_module.main(on_ready=ready)
 
-    def test_traffic_environment_is_only_in_its_tab_and_keeps_yaml_bindings(self):
+    def test_only_fixed_settings_are_readonly_and_reload_reads_saved_yaml(self):
         from tkinter import ttk
         captured = {}
 
@@ -288,14 +297,13 @@ class GuiWindowTests(unittest.TestCase):
                 tabs = {notebook.tab(tab, 'text'): app['root'].nametowidget(tab)
                         for tab in notebook.tabs()}
                 runtime_var = str(app['fields']['traffic_light_runtime'])
-                basic_widgets = list(descendants(tabs['기본 설정']))
+                path = self.open_fixture(app, os.environ['XDG_CONFIG_HOME'])
+                original = path.read_bytes()
+                basic_widgets = list(descendants(tabs['실행']))
                 self.assertFalse(any(str(widget.cget('textvariable')) == runtime_var
                                      for widget in basic_widgets
                                      if 'textvariable' in widget.keys()))
-                toggle = next(widget for widget in basic_widgets
-                              if isinstance(widget, ttk.Checkbutton)
-                              and str(widget.cget('variable')) == str(app['fields']['traffic_light']))
-                env_widgets = list(descendants(tabs['신호등 환경']))
+                env_widgets = list(descendants(tabs['설정 확인 (YAML 수정)']))
                 mode = next(widget for widget in env_widgets
                             if isinstance(widget, ttk.Combobox)
                             and str(widget.cget('textvariable')) == runtime_var)
@@ -303,27 +311,23 @@ class GuiWindowTests(unittest.TestCase):
                                     if isinstance(widget, ttk.Entry)
                                     and str(widget.cget('textvariable')) == str(app['fields']['traffic_light_python']))
                 self.assertEqual(tuple(mode.cget('values')), tuple(gui_module.MODE_LABELS.values()))
-                app['fields']['traffic_light'].set(False)
                 self.assertEqual(str(mode.cget('state')), 'disabled')
-                toggle.invoke()
-                self.assertTrue(app['fields']['traffic_light'].get())
-                self.assertEqual(str(mode.cget('state')), 'readonly')
-                app['fields']['campaign_name'].set('gui_traffic_environment')
-                app['fields']['traffic_light_python'].set(gui_module.DEFAULT_PYTHON)
-                app['fields']['traffic_light_device'].set('cpu')
-                for runtime in ('system', 'virtualenv'):
-                    app['fields']['traffic_light_runtime'].set(gui_module.MODE_LABELS[runtime])
-                    self.assertEqual(str(python_entry.cget('state')),
-                                     'normal' if runtime == 'virtualenv' else 'disabled')
-                    document = load_document(app['actions']['save']())
-                    self.assertTrue(document['stack']['traffic_light'])
-                    self.assertEqual(document['stack']['traffic_light_runtime'], runtime)
-                    self.assertEqual(document['stack']['traffic_light_device'], 'cpu')
-                app['fields']['traffic_light'].set(False)
-                document = load_document(app['actions']['save']())
-                self.assertFalse(document['stack']['traffic_light'])
-                self.assertEqual(document['stack']['traffic_light_runtime'], 'virtualenv')
-                self.assertEqual(document['stack']['traffic_light_python'], gui_module.DEFAULT_PYTHON)
+                self.assertEqual(str(python_entry.cget('state')), 'readonly')
+                for key, widget in app['field_widgets'].items():
+                    if key in gui_module.EDITABLE_FIELDS:
+                        self.assertIn(str(widget.cget('state')), ('normal', 'readonly'))
+                    else:
+                        self.assertIn(str(widget.cget('state')), ('readonly', 'disabled'))
+                app['fields']['goal_x'].set('999')  # Not editable through UI; ignore injected variable too.
+                self.assertEqual(app['actions']['save'](), path)
+                self.assertEqual(path.read_bytes(), original)
+                document = load_document(path)
+                document['stack']['traffic_light_device'] = 'cpu'
+                path.write_text('# VSCode comment retained\n' + yaml.safe_dump(document), encoding='utf-8')
+                changed = path.read_bytes()
+                app['actions']['save']()
+                self.assertEqual(app['fields']['traffic_light_device'].get(), 'cpu')
+                self.assertEqual(path.read_bytes(), changed)
                 captured['ok'] = True
             finally:
                 app['root'].destroy()
@@ -350,7 +354,9 @@ class GuiWindowTests(unittest.TestCase):
                 path = app['active']['config']
                 self.assertEqual(path.parent, missions / 'roundabout/workspace')
                 self.assertEqual(app['fields']['directory'].get(), 'missions/roundabout/workspace/scenarios')
-                app['fields']['timeout_sec'].set('42')
+                document = load_document(path)
+                document['default_case']['timeout_sec'] = 42
+                path.write_text(yaml.safe_dump(document))
                 self.assertEqual(app['actions']['save'](), path)
                 self.assertEqual(load_document(path)['default_case']['timeout_sec'], 42)
                 captured['ok'] = True
@@ -406,8 +412,7 @@ class GuiWindowTests(unittest.TestCase):
             def ready(app):
                 root = app["root"]
                 captured["app"] = app
-                app['active']['template']['output_root'] = str(Path(temp) / 'results')
-                app["fields"]["campaign_name"].set("gui_process_smoke")
+                self.open_fixture(app, temp)
                 app["rerun_failed"].set(True)
                 root.after(50, app["actions"]["check"])
                 root.after(250, app["actions"]["start"])  # Must not overlap dry-run.
@@ -452,10 +457,7 @@ class GuiWindowTests(unittest.TestCase):
 
             def ready(app):
                 root = app["root"]
-                app['active']['template']['output_root'] = str(Path(temp) / 'results')
-                app["fields"]["campaign_name"].set("gui_video_interrupt")
-                app["fields"]["video"].set(True)
-                app["fields"]["video_layout"].set("manual")
+                self.open_fixture(app, temp)
                 root.after(50, app["actions"]["start"])
 
                 def interrupt():
@@ -533,12 +535,12 @@ class GuiWindowTests(unittest.TestCase):
         self.assertTrue(captured.get("expand_mapped"))
         self.assertLess(captured.get("expand_button_bottom", 9999),
                         captured.get("compact_height", 0))
-        self.assertEqual(captured.get("video_layout"), "split")
+        self.assertEqual(captured.get("video_layout"), "manual")
         self.assertGreater(captured.get("expanded_width", 0),
                            captured.get("compact_width", 9999))
         self.assertEqual(captured.get("button_text"), "모니터 모드")
 
-    def test_changed_executed_campaign_offers_new_name_and_preserves_old_yaml(self):
+    def test_saved_yaml_can_be_reloaded_without_automatic_copy_or_rewrite(self):
         with tempfile.TemporaryDirectory() as temp:
             captured = {}
 
@@ -546,14 +548,15 @@ class GuiWindowTests(unittest.TestCase):
                 root = app["root"]
 
                 def exercise():
-                    app["active"]["template"]["output_root"] = temp
-                    app["fields"]["campaign_name"].set("gui_clone_test")
+                    self.open_fixture(app, temp)
                     first = app["actions"]["save"]()
                     original = first.read_bytes()
                     output = campaign_output(app["active"]["document"])
-                    output.mkdir()
+                    output.mkdir(parents=True)
                     (output / "campaign_state.json").write_text("{}", encoding="utf-8")
-                    app["fields"]["goal_x"].set("42.5")
+                    document = load_document(first)
+                    document['default_case']['goal']['x'] = 42.5
+                    first.write_text('# user comment\n' + yaml.safe_dump(document))
                     second = app["actions"]["save"]()
                     captured.update(first=first, second=second, original=original,
                                     old_bytes=first.read_bytes(), new_doc=load_document(second),
@@ -565,8 +568,8 @@ class GuiWindowTests(unittest.TestCase):
             with patch.object(gui_module, "USERS", Path(temp) / "users"), \
                  patch("tkinter.messagebox.askyesno", return_value=True):
                 gui_module.main(on_ready=ready)
-            self.assertNotEqual(captured["first"], captured["second"])
-            self.assertEqual(captured["old_bytes"], captured["original"])
+            self.assertEqual(captured["first"], captured["second"])
+            self.assertTrue(captured['old_bytes'].startswith(b'# user comment'))
             self.assertEqual(captured["new_doc"]["default_case"]["goal"]["x"], 42.5)
             self.assertEqual(captured["new_doc"]["campaign_name"], captured["selected_name"])
 
@@ -578,12 +581,12 @@ class GuiWindowTests(unittest.TestCase):
                 root = app["root"]
 
                 def exercise():
-                    self.assertEqual(app["active"]["source_path"].stem, "static_pair_mission_gt_split")
-                    app["active"]["template"]["output_root"] = temp
-                    app["fields"]["campaign_name"].set("gui_live_metrics")
+                    self.assertEqual(gui_module.mission_directory(app["active"]["source_path"]).name,
+                                     "static_obstacle")
+                    self.open_fixture(app, temp)
                     config_path = app["actions"]["save"]()
                     state_path = campaign_output(app["active"]["document"]) / "campaign_state.json"
-                    state_path.parent.mkdir()
+                    state_path.parent.mkdir(parents=True)
                     state_path.write_text(json.dumps({
                         "config_path": str(config_path.resolve()), "total": 1,
                         "results": {}, "current": {"scenario": "test_scene", "phase": "DRIVING",

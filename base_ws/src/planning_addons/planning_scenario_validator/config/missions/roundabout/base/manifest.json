@@ -36,7 +36,7 @@
             "goal_kmh": 20,
             "initial_kmh": 0,
             "period_sec": 5,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100004
           }
         ]
@@ -61,7 +61,7 @@
             "goal_kmh": 25,
             "initial_kmh": 0,
             "period_sec": 7,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100014
           }
         ]
@@ -86,7 +86,7 @@
             "goal_kmh": 30,
             "initial_kmh": 0,
             "period_sec": 10,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30200014
           }
         ]
@@ -111,7 +111,7 @@
             "goal_kmh": 35,
             "initial_kmh": 0,
             "period_sec": 14,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100004
           }
         ]
@@ -136,7 +136,7 @@
             "goal_kmh": 40,
             "initial_kmh": 0,
             "period_sec": 3,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100007
           }
         ]
@@ -161,7 +161,7 @@
             "goal_kmh": 15,
             "initial_kmh": 0,
             "period_sec": 5,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100014
           }
         ]
@@ -186,7 +186,7 @@
             "goal_kmh": 20,
             "initial_kmh": 0,
             "period_sec": 7,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30200014
           }
         ]
@@ -211,7 +211,7 @@
             "goal_kmh": 25,
             "initial_kmh": 25,
             "period_sec": 10,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100004
           }
         ]
@@ -236,7 +236,7 @@
             "goal_kmh": 30,
             "initial_kmh": 10,
             "period_sec": 14,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100007
           }
         ]
@@ -261,7 +261,7 @@
             "goal_kmh": 35,
             "initial_kmh": 20,
             "period_sec": 3,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100014
           }
         ]
@@ -286,7 +286,7 @@
             "goal_kmh": 40,
             "initial_kmh": 40,
             "period_sec": 5,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30200014
           }
         ]
@@ -311,7 +311,7 @@
             "goal_kmh": 15,
             "initial_kmh": 10,
             "period_sec": 7,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100004
           }
         ]
@@ -336,7 +336,7 @@
             "goal_kmh": 20,
             "initial_kmh": 20,
             "period_sec": 10,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100007
           }
         ]
@@ -361,7 +361,7 @@
             "goal_kmh": 25,
             "initial_kmh": 25,
             "period_sec": 14,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30100014
           }
         ]
@@ -386,7 +386,7 @@
             "goal_kmh": 30,
             "initial_kmh": 10,
             "period_sec": 3,
-            "lateral_m": 0,
+            "lateral_percent": 0,
             "model_id": 30200014
           }
         ]
@@ -411,7 +411,7 @@
             "goal_kmh": 35,
             "initial_kmh": 20,
             "period_sec": 5,
-            "lateral_m": -0.35,
+            "lateral_percent": -0.35,
             "model_id": 30100004
           }
         ]
@@ -436,7 +436,7 @@
             "goal_kmh": 40,
             "initial_kmh": 40,
             "period_sec": 7,
-            "lateral_m": 0.35,
+            "lateral_percent": 0.35,
             "model_id": 30100007
           }
         ]
@@ -461,7 +461,7 @@
             "goal_kmh": 15,
             "initial_kmh": 10,
             "period_sec": 10,
-            "lateral_m": -0.35,
+            "lateral_percent": -0.35,
             "model_id": 30100014
           }
         ]
@@ -486,7 +486,7 @@
             "goal_kmh": 20,
             "initial_kmh": 20,
             "period_sec": 14,
-            "lateral_m": 0.35,
+            "lateral_percent": 0.35,
             "model_id": 30200014
           }
         ]
@@ -511,7 +511,7 @@
             "goal_kmh": 25,
             "initial_kmh": 25,
             "period_sec": 3,
-            "lateral_m": -0.35,
+            "lateral_percent": -0.35,
             "model_id": 30100004
           }
         ]
@@ -536,7 +536,7 @@
             "goal_kmh": 30,
             "initial_kmh": 10,
             "period_sec": 5,
-            "lateral_m": 0.35,
+            "lateral_percent": 0.35,
             "model_id": 30100007
           }
         ]
@@ -561,7 +561,7 @@
             "goal_kmh": 35,
             "initial_kmh": 20,
             "period_sec": 7,
-            "lateral_m": -0.35,
+            "lateral_percent": -0.35,
             "model_id": 30100014
           }
         ]
@@ -586,7 +586,7 @@
             "goal_kmh": 40,
             "initial_kmh": 40,
             "period_sec": 10,
-            "lateral_m": 0.35,
+            "lateral_percent": 0.35,
             "model_id": 30200014
           }
         ]

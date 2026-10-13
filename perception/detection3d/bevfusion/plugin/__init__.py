@@ -4,6 +4,8 @@ from .morai_base3_dataset import MoraiBase3Dataset
 from .morai_assigner import MoraiHungarianAssigner3D
 from .morai_metric import MoraiCenterMetric
 from .morai_image_aug import MoraiImageAug3D, MoraiOnlineImageDomainAug3D
+from .morai_jpeg_cache import MoraiUseNativeJPEGCache
+from .morai_point_filter import MoraiFilterInvalidPoints
 from .morai_transfusion_head import (
     MoraiQueryMemoryTransFusionHead,
     MoraiTransFusionHead,
@@ -30,6 +32,8 @@ __all__ = [
     "MoraiHungarianAssigner3D",
     "MoraiImageAug3D",
     "MoraiOnlineImageDomainAug3D",
+    "MoraiUseNativeJPEGCache",
+    "MoraiFilterInvalidPoints",
     "MoraiTransFusionHead",
     "MoraiQueryMemoryTransFusionHead",
     "MoraiLoadPointsFromCausalSweeps",

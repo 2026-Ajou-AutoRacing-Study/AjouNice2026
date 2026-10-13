@@ -1,0 +1,301 @@
+# Base5 Sunny 13시 직접 5K — 최신 수집 목표
+
+2026-10-07. 사용자가 이번 수집을10K→5K로 변경했다.
+**10K를 수집한 뒤 절반 선별하는 방식이 아니라, 처음부터 균형5K를 설계한다.**
+2026-10-09 사용자가 Sunny13 v132 본5K를 시작했다. 기존10K manifest/raw/pilot은 삭제하지 않는다.
+이번 배치를 유지하고 종료 후 반복 비용 개선을 검증한다.
+[현재 상태·결정·다음 실행 계획](261009_base5_collection_cost_and_next_experiments.md)이 아래 준비 이력보다 우선한다.
+
+## 최신 후속 계획 — Sunny13 완료 후 나머지25K 새 배치
+
+2026-10-09 사용자 합의는 [공간 다양성 계획](261009_base5_remaining_environments_spatial_diversity_plan.md)을 따른다.
+현재Sunny13을 완료·보존하고 구성표·주요자산 할당은 유지한다. 종료/Park 뒤 연속Ego 위치와
+환경별 새공간배치를 구현·검증해 나머지5환경에서5K씩 수집한다. 총30K 뒤 Sunny13 교체 필요성을 판단한다.
+아래 같은geometry6환경과 구split/노출 합계는 해당버전 이력이며 새생성본 확정값이 아니다.
+새생성기는 아직 미구현이다. 현재수집 계약을 바꾸거나 다른환경 구manifest로 바로 수집하지 않는다.
+
+## 최신 / 2026-10-09 v132 — 최종 자유 yaw·배치 형상
+
+현재 입력 `final_appearance_5k_v132_release/environment_suite/sunny13/manifest.json`,
+새output `collection_5k_final_v132_sunny13`이다. 구본수집763승인과 v129/v130 검증 raw는 보존한다.
+정지 실체/사람/동물/복합360°, OBJ 자유70/도로30·일반 정적 차량 도로70/자유30이며,
+고주로/로터리 NPC·횡단 맥락·실제 이동은 경로 yaw다. 41종 static parent 형상은 배치용, native GT는 그대로다.
+5K family 비율·122종 primary 횟수·거리/개수budget·4822정적/178이동·6환경30K 유지.
+음영24이동은 걷기/달리기별 접근6/이탈6, 계획 parent노출10738/64428이다.
+[현재12카테고리·검증·한계](261009_base5_final_appearance_v132.md),
+[실행 런북](261007_base5_5k_capture_runbook.md)을 따른다. 본수집은 현재 진행 중이며 입력·코드는 고정한다.
+
+## 이전 / 2026-10-08 v129 — 정지 외관 방향 보강
+
+아래v123/v125의현재경로·미시작기록은당시이력이다. 구Sunny13 수집은사용자가중단했고763승인/raw를
+원본·압축백업으로유지했다. 새입력 `yaw_5k_v129_release/environment_suite/sunny13/manifest.json`,
+새output `collection_5k_yaw_v129_sunny13`를사용한다. 새본5K는재시작하지않았다.
+5K패밀리비율·122종primary배분·거리/혼합budget·이동178/6환경30K는유지한다.
+범용정지ped/AI와정적회피ped계열만70%네방향±15°/30%360°로보강하고retry에서도재표본화한다.
+일반사람alongside33셀만spawn여유0.6–0.8m로조절한다. 새계획parent노출10081/60486이다.
+전수5K·6환경·대표live35/35·CPU35/91GT확인,실패근거/기존raw보존이다.
+[최신 변경과 검증](261008_base5_static_yaw_and_randomization_review.md),
+[현재 명령](261007_base5_5k_capture_runbook.md)이이하계획보다우선한다.
+
+## 2026-10-08 완료 후 보충 — runtime v124
+
+v123의5K 배치/거리/자산/6환경 계획은 유지한다. 완료 부족분에만 명시적 `--resume --replenish`를 사용해
+같은 셀/primary/spec/split/group/config의 새 배치를 취득한다. 성공 raw/원본 manifest는 보존한다.
+기본2회차의 누적 상한(명시적 최대3)과 안전 halt를 유지하며 통합 selected ledger/quota/dashboard를 갱신한다.
+본5K 미시작, 소량 MR 통합/CPU 검증 결과와 한계는
+[v124 EVIDENCE](261008_base5_completed_replenishment_evidence.md), 명령은 [런북](261007_base5_5k_capture_runbook.md)이다.
+구runtime output에 새코드로 resume하지 않는다. 본수집은 현재 코드와 fresh output에서 시작한다.
+
+## 2026-10-08 구역별 재배정 — v123 배치 유지
+
+현재5K는 고주로1340(범용740/미션600), 로터리350(전부미션), 기타차량130(80/50),
+장애물1370(770/600), 사람·동물·복합1080(830/250), 음영500, 배경230이다.
+고주로/로터리에는 보조 객체까지 일반 차량만 두며 비차량 범용은 다른 허용 구역으로 옮긴다.
+음영은 별도 family로 두고 외부에서 내부 객체를 보는 장면도 이500셀에 포함한다.
+범용30/50/20 크기 예산·거리 deck·사람 전후좌우50/10/20/20을 유지한다.
+혼합 사람270셀에서 보조 실체 장애물1개를 조건으로 넣어 전체 실체 장애물 노출2973개를 확보한다.
+복합/동물 희귀 primary를 교체하거나 실제 안 보이는 GT를 추가하는 방법은 사용하지 않는다.
+
+Sunny13 5K 뒤 sunny11/15 및 foggy11/13/15로 같은5000geometry를 반복해 총30K를 취득한다.
+같은 geometry의6환경은 동일 split이며 환경별 새output/명시 token을 사용한다.
+날씨 자동 적용은 없고 MR UI를 확인해야 한다. 현재5K의 생성·순서·6환경manifest는 준비됐으며
+본수집은 승인 후다. [CURRENT](BASE5_V2_CURRENT.md), [v123 근거](261008_base5_region_release_evidence.md),
+[현재 명령](261007_base5_5k_capture_runbook.md)이 아래 구계획보다 우선한다.
+
+## 2026-10-08 음영 사전 접근 — v122 이력
+
+음영500셀 총량을 유지하고 바깥 먼 접근60/가까운 접근60/입구 직전30/진입 직후90/내부190/출구70으로 바꾼다.
+바깥145positive는 Ego0.5–50m 전/내부 전방 객체를 joint placement로 배정한다.122종/기존1750미션/근접은 유지한다.
+정적 primary 오른쪽80/왼쪽20%, 다중 좌우 엇갈림93셀, 내부 중앙부 집중과 입구 대상 예외를 함께 둔다.
+거리quota40/240/160/40 및 검증된 음영 이동 제안24셀은 보존한다.476정적만 변경/4524entry 불변이다.
+current: `shadow_approach_5k_v122_b/scenarios_5k/manifest.json`. 대표20/20 live·CPU/resume 검증,
+본5K 미시작/승인 대기다. [근거·한계](261008_base5_shadow_approach_evidence.md), [런북](261007_base5_5k_capture_runbook.md).
+
+## 2026-10-08 음영 관측500셀 — v121 이력
+
+기존5K에 더하지 않고 범용positive480/배경20을 재배정한다. 입구120/내부260/출구120,
+122종 primary 최소1(전체 최소4), 거리3–10/10–30/30–60/60–100m는40/240/160/40셀이다.
+기존1750미션/로터리 범용100/초근접 셀과 나머지4500 entry는 그대로 보존한다.
+
+| 현재 의미별 구성 | 셀 |
+|---|---:|
+| 음영 외 범용 positive |2520|
+| 음영 외 빈 배경 |230|
+| 기존 미션 |1750|
+| 음영 positive |480|
+| 음영 빈 배경 |20|
+| 전체 |5000|
+
+음영 차량은 Park 정지 외관이며 사람/동물/반려동물 동반24셀은 실제 이동한다.
+전역 정적4822/이동178, 나머지 유모차/탑승자 fixed-pose 및 rigid 정적 정책은 유지한다.
+고주로 정차/정적 장애물 없음과 터널 모든 객체 가능이라는 공식 답변의 scope를 구분한다.
+터널 이동은 독립 지면 준비를 사용하며 사거리 끝점 lookup의 인증을 공유하지 않는다.
+모델/학습/임계값은 변경하지 않았다. GT/ROI 계약도 유지한다.
+[CURRENT](BASE5_V2_CURRENT.md), [음영 근거](261008_base5_shadow_observation_evidence.md),
+[런북](261007_base5_5k_capture_runbook.md)이 최신 경로다. 아래 v119는 보호된 기존 구성의 이력이다.
+
+## 2026-10-08 로터리 실제 경로 관측 + 정적 NPC Park — v119 유지
+
+전체 패밀리 비율은 아래와 동일하다. 로터리 미션250장만 접근20/대기30/진입60/원형 주행90/탈출50으로 바꾼다.
+NPC는 샘플 시작→삭제 경로에만 배치하며 NPC XY/yaw jitter는 없다. Ego는 실제 통과 경로 위의
+촘촘한 구간에서 road-support를 지키며 yaw±6°/횡±0.30m로 관측한다. 원형 주행은 앞뒤 NPC가 필수다.
+간격·속도·차종·생성주기는 본선 수치로 고정하지 않는다.43종 순환과 여러 밀집도를 유지한다.
+고주로66근접셀과 로터리 범용100 및 나머지4750셀의 배치 geometry는 그대로 유지한다.
+정지속도0/D에서도 일부 차량이 움직여 모든 정적 vehicleList NPC의 기어를 Park로 맞춘다.
+나머지 중2314셀은 기어·실제 위치 검사 metadata만 갱신한다. 이동 높이/객체/GT/학습 quota 변경은 없다.
+최신manifest/실제 검증은 [CURRENT](BASE5_V2_CURRENT.md), [로터리 근거](261008_base5_roundabout_route_mission_evidence.md)를 따른다.
+아래v117 재확인표는 당시 근거다. 현재 수집명령은 런북의 v119 새manifest/output을 사용한다.
+
+## 2026-10-08 출발→도착 2점·양방향 — v117 이동 계약 유지
+
+샘플처럼 이동 경로를 두 waypoint의 선형 이동으로 구성한다. 자동 지면 추종으로 해석하지 않는다.
+수동 저장 끝점 높이 후보를 28종×두 횡단보도×양방향112캡처로 새로 검증했다.
+첫 사람 경로의 짧은 끝점 범위 때문에 생기던 방향 편향을 보완하고 실제 primary 방향을 먼저 고정한다.
+걷기/달리기와 사람/희귀 그룹 각각 양방향 차이≤1이며, 같은-quota 재시도에서도 방향을 유지한다.
+일반 사람은 첫 횡단보도 걷기20/20·달리기15/14, 뒤 횡단보도 걷기19/19·달리기13/13이다.
+5K 구성은4846정적/154이동·122종 최소4로 유지한다. 새 파일은
+`~/morai_cap/base5_v2_261008/endpoint_linear_final_5k_v117/scenarios_5k/manifest.json`이다.
+기존 v116 raw/manifest는 보존하며 본수집은 별도 사용자 승인 후다.
+자세한 검증·누락1건·남은 한계는 [EVIDENCE](261008_base5_intersection_ground_evidence.md)를 따른다.
+
+## 2026-10-08 이동 외관·사거리 수동 높이 보정 — v116 이력
+
+이동 캡처는 우선 신호등 사거리로 제한하고 범용에서는 정지 외관을 캡처한다.
+GPS 음영 저격은 후속 설계다. 사용자 수동10개/49waypoint로28종×두 구역56profile을 live 검증했다.
+actual-XY 투영/경로 높이를 사용하고 실측 밖은 같은 자산/quota로 초기 생성 재시도한다.
+새5K는4846정적/154이동·122종 primary 최소4, family·미션·거리/근접 계약은 유지한다.
+매 이동장면 terrain/static-reference 준비 대신 입력 높이를 lookup으로 맞추고 원래 capture만 검사한다.
+작은 gap/plane 부족은 warning, 심각한 높이 오류/실제 충돌/정지 실패는 기존 안전 정책대로 처리한다.
+첫 횡단보도 사람 경로가 짧아 running 방향 편향이 남는다. 전체 지면/외관 인증으로 해석하지 않는다.
+새 manifest/결과는 [CURRENT](BASE5_V2_CURRENT.md), [EVIDENCE](261008_base5_intersection_ground_evidence.md)를 따른다.
+과거4171/829 수량·ETA는 이전 분포다. 기존 output resume에 새 코드를 섞지 않는다.
+
+## 2026-10-07 정적 QA 비용 정책 — v115 우선
+
+정적은 원래 캡처의 지면 검사만 하고, 부족한 plane 근거/중간 높이 오차는 warning으로 보존한다.
+명확한 local-plane 높이 오차±40cm 초과는 제외하되 지면 확인용 Ego 이동/추가 촬영/높이 재촬영은 하지 않는다.
+Ego footprint/정지·CollisionData·GT/가시성은 유지하고 이동/calibration은 기존 엄격한 경로를 유지한다.
+실제40셀39승인/1부족분, 실패·재배치 포함271.322초; 정적4171장 family 가중8.115h 조건부 외삽이다.
+분포/수량4171+829는 그대로이며 전체5K 시간이8.1h라는 뜻이 아니다.
+다음은 새 v115 5K manifest/전수검사 및 승인 후 정적 우선 수집이다. 구 v113/v114 output resume 금지.
+실행·세부 근거는 [CURRENT](BASE5_V2_CURRENT.md)의 v115 항목을 따른다.
+
+## 2026-10-07 Ego 드리프트 보완 — v114 유지
+
+회피 시점 합성에서 Ego를 roadside로 밀어내던 문제를 A/B로 분리하고 보완했다.
+최종 Ego footprint 도로 지지·최종 XY 높이·Park 뒤 실제 정지 확인이 현재 계약이다.
+Ego만 옮겨 근접 간격을 깨뜨리지 않으며, 정적 회피 쌍은 함께 옮기거나 같은 자산/phase로 재배치한다.
+기존 5K 설계 전수 재구성5000/5000·122종 primary 최소4 확인, 본수집/새5K 파일 생성은 아니다.
+기존 v113 manifest/raw는 보존한다. **현재 코드로 아래 구 v113 본수집 명령을 사용하지 않는다.**
+현재 다음은 위 v115 새 manifest/output 준비와 전수 검사이며 실제 검증은
+[CURRENT](BASE5_V2_CURRENT.md) 및 [EVIDENCE](261007_base5_static_height_evidence.md#ego-드리프트-원인-분리와-보완--v114)를 따른다.
+
+## 2026-10-07 최종 XY 초기 높이 — v113 이력
+
+배치 비율은 바꾸지 않고 최종 actor XY의 실제 MGeo road segment/연결 lane boundary 높이를
+자산 pivot 후보와 결합한다. 가상 차선 변경 link는 지면 근거에서 제외한다.
+5K의 Ego·객체 XY/yaw·quota·split·이동 경로를 유지한 새 manifest는
+`final_5k_final_xy_ground_v113_final`이다. 전수 OFFLINE_PASS/122종 planned 최소4다.
+Dog2 실제 부유 사례는 같은 위치 A/B로 ground gate를 통과했고 정상 근접도 유지했다.
+지도 외부/roadside와 일부 reference mismatch는 남으므로 전체 접지 해결로 보지 않는다.
+높이 재촬영1회·배치 대체1회·동일 actor payload의 witness1회로 비용을 제한하며,
+부족분/통신·Park 실패 계약은 유지한다. 실제 결과/한계는 CURRENT와 높이 EVIDENCE를 따른다.
+본수집은 자동 시작하지 않는다. 구 manifest/output resume에 새 코드를 섞지 않는다.
+
+## 2026-10-07 동적 미션 차량 소량 보강 — v112 이력
+
+동적 미션250장면 중12장면(4.8%)을 차량으로 배정한다. 일반 사람 quota만12줄이고,
+동물·반려동물 동반·유모차·탑승자·dummy를 줄이지 않는다. 전체5K와family총량은 유지한다.
+보행자 관련 subfamily는 person926/dummy62/animal63/pet_person62/stroller62/rider63/vehicle12다.
+family명은 구분용 맥락이며 GT 클래스를 Pedestrian으로 덮어쓰지 않는다.
+차량은 실제 교차 방향 MGeo 도로에 정지 배치하며 접근6/횡단3/양보2/통과후1이다.
+차량 양보는8–20m,나머지 단계는 기존20–50/8–20/6–15m다. 길이6m 이하12종을 사용한다.
+추가 차량 이동·속도 예측용 데이터가 아니라 진입·횡단 상황의 상대 시점 보강이다.
+새manifest `final_5k_dynamic_vehicle_v112_ready`는4988개 기존 payload를 유지한다.
+정적4171/실제이동829순서이며 기존4160limit와 구output을 새runtime에 섞지 않는다.
+실제 근거/운영은 [CURRENT](BASE5_V2_CURRENT.md)와 최신 런북을 따른다.
+
+## 2026-10-07 정적 미션 확장 — v111 우선
+
+정적 미션 650개 슬롯에서 제외 자산 외의 122종 전체를 정지 상태로 배치한다.
+실체 장애물224/일반 차량180/정적 차량66/사람90/dummy12/동물18/
+반려동물 동반12/유모차18/탑승자30이다. 아래 family 표는 슬롯 구분이지 GT 클래스 총량이 아니다.
+일반 차량도 정적 미션에서는 속도0, 사람·동물·복합 actor에도 waypoint 이동을 부여하지 않는다.
+회피 단계·좌우 관측·근접 gap·미션 actor 수는 유지한다. GT는 원본 component별 클래스다.
+나머지4350 기존 장면은 변경하지 않는다. 전수5000 OFFLINE_PASS,122종 전체 planned-primary
+최소4장/정적 미션 자체 최소3장이다. 자세한 현재 계약은 [CURRENT](BASE5_V2_CURRENT.md)를 따른다.
+새 manifest는 `final_5k_static_all_v111_ready`이며 구 output에 새 runtime으로 resume하지 않는다.
+
+## 구성
+
+| 패밀리 | 범용 | 미션 | 합계 |
+|---|---:|---:|---:|
+| 고주로 차량 |900 |600 |1,500 |
+| 로터리 차량 |100 |250 |350 |
+| 기타·정적 차량 |100 |50 |150 |
+| 실체 장애물 |900 |600 |1,500 |
+| 보행자·동물·복합 |1,000 |250 |1,250 |
+| 빈 배경 |250 |0 |250 |
+| 합계 |3,250 |1,750 |5,000 |
+
+범용positive3,000장: 단일900/일반혼합1,500/밀집혼합600.
+배경250장은 별도다. 크기 비용·10–14/16–22점·최대8개·가시성 하한은 유지한다.
+미션은 상황별1–3개 정책을 유지하며generic예산으로객체를더채우지않는다.
+v111 이전 보행자 관련은person938/dummy62/animal63/pet_person62/stroller62/rider63으로
+합계1,250장을맞춘다. 홀수quota반올림의차이는최대1장이다.
+
+## 설정 및 변경 범위
+
+- 명시적config:`dataset/morai_od/configs/base5_independent_5k_sunny13.json`.
+- generator의기존기본경로`base5_independent_5k_sunny11.json`은파일명만호환alias로
+  남기며내용은동일Sunny13이다. code hash/resume를깨뜨리지않는다.
+- 구 `base5_independent_v2.json`은10K재현용으로보존한다.
+- weather/hour는수집의도metadata이며MR실제설정자동적용·인증을뜻하지않는다.
+  live전Sunny13시실제세팅을확인한다.
+- 4class/scale1/단일정지Ego/필요자산실제애니메이션/GT·접지·충돌·resume계약은유지한다.
+- 기존output에새config를섞어resume하지않는다. 최종manifest/output은새경로로만든다.
+- [13시환경정정](261007_base5_sunny13_environment_correction.md):원본v105는보존하고
+  새header는`final_5k_ordered_sunny13_v109`다. 기존수집중에는manifest를바꾸지않는다.
+
+## 남은 보완
+
+구10K/A·B 선별 대신 **직접5K의균형·희귀자산유효coverage감사**를 구현했다.
+v105는새5K전수OFFLINE_PASS/122종planned-primary최소4장을확인했다.
+종류coverage와실제로보이는횟수는별개다. actual visible-primary 최소4장과
+generic visible-parent 하한은본수집후별도감사한다.4장은학습충분성보장이아니다.
+최종6환경×5K=30K목표는유지하되이번수집은Sunny13시5K만이다.
+최신완료근거/미확인조건은[CURRENT](BASE5_V2_CURRENT.md)와
+[v117 evidence](261008_base5_intersection_ground_evidence.md)를따른다. v105는이력이다.
+
+## 다음 작업 순서 — 현재 실행 기준
+
+이 절은2026-10-08 v117재확인 이력이다. 로터리 교체와 현재manifest는 위v119가 우선한다.
+개발완료/대표검증과본수집승인을구분한다. 새본수집은아직시작하지않았다.
+
+| 순서 | 수행할 일 | 현재 상태 / 완료 판단 |
+|---|---|---|
+| 1 | Ego·객체 배치 기준 및 동적 미션 구역 | 완료. 두 횡단보도 미션250셀 유지, 실제이동154/범용정지. 두점높이56profile/112승인용검증 |
+| 2 | 범용·정적 회피 초근접 | 완료. 범용175셀/회피좌우·경계gap 유지. 낮은객체/센서blind spot은본수집가시성검사로제외·기록 |
+| 3 | 고주로 추월·로터리 밀집 | 완료. 차량133셀(고주로66/로터리67), 원거리quota/실제도로NPC 유지 |
+| 4 | 자산·거리·방향·객체 수 계획coverage | 완료. 122종primary최소4/혼합예산/양방향균형전수PASS. 실제visible-primary는수집후감사 |
+| 5 | 일반 생성기 live·GT·resume | 완료. 대표18셀18승인/실제21촬영·184.685초, CPU28GT. 실패raw/부족분경로보존·완료resume추가촬영0 |
+| 6 | 새5K 동결·runtime 계약 재확인 | 완료. endpoint_linear_final_5k_v117/5000고유payload/오류0. 정적4846+이동154/184mover 모두현재QA와일치 |
+| 7 | 최종 운영 준비·보고 | 완료. fresh3topic≈50Hz/무접촉/정지/252GiB, 현재런북/새dashboard. 예상10–12h, 본수집승인대기 |
+
+객체 수 정책은 구현 및 소량 검증이 끝났으므로 비율 자체를 계속 바꾸기보다,
+남은 배치·가시성 문제를 우선 해결한다. 범용 positive는 단일30%/일반혼합50%/
+밀집20%, 미션은 현실적인 1–3개 상황을 유지한다.7개실제7positive까지확인했으며
+8개전부가항상가시하다는뜻은아니다. 전패밀리·전자산 live 인증으로확대하지않는다.
+현재 v117은 범용 전체를 정지 배치하고 사거리 미션에서만 실제 이동한다.
+같은 자산·전체 배치 수 quota는 유지한다. 범용 동시 이동 최대2개는 구v105 정책 이력이다.
+
+[v98 범용 초근접 근거](261007_base5_generic_close_v98.md): 원거리 quota를 유지하고
+근거리 일부175셀을 경계 간격 기준으로 보강했다. Ego는 도로 anchor에 유지하며
+  작은 낮은 객체의 센서 blind spot은 미해결이다. 차량 근접은 v100에서 추가 검증했다.
+
+### 동적 장애물 미션의 Ego 배치 — v95 구현
+
+아래는 위치/관측분포의v95구현근거다. 실제이동범위/높이준비방식은위v117계약이우선한다.
+
+변경 전 구현은 starter 시나리오의 Ego 위치를 전역 경로에 투영한 뒤, 경로를 따라
+35m 이전부터 55m 이후까지 Ego 후보를 뽑는다. 이는 객체까지의 거리가 아니다.
+객체도 선택된 Ego 기준으로 배치했으므로, 과거 장면을 실제 횡단 지점의 접근·대기·
+통과 단계로 해석하면 안 된다. 이 범위만 줄여도 미션 의미가 자동으로 복구되지 않는다.
+
+v95에서 적용한 정책은 다음과 같다.
+
+- 샘플 시나리오·미션 구역·지도 및 사용 가능한 planning_validator 기록으로
+  실제 횡단/진입 후보 위치와 객체 이동 경로를 먼저 정한다.
+- 샘플의 뒤쪽 횡단보도 하나에 고정하지 않는다. 구역 안 앞/뒤 횡단보도와
+  합법적인 차량 진입 경로를 검토하고, 지형·충돌 검증 가능한 후보를 사용한다.
+- 그 객체 위치를 기준으로 Ego의 접근·횡단 관측·양보 대기 위치를 주로 배정한다.
+  통과 직후 측방·측후방은 소량 보완하며, 넓은 앞뒤 랜덤 관측은 범용에서 담당한다.
+- 현재 단계는 접근113장(20–50m), 횡단 관측62장(8–20m), 양보50장(5–10m),
+  통과 직후25장(6–15m)이다. 객체 중심까지의 거리 bin이며 접근/관측/양보90%,
+  통과 직후10%다. 과거 starter 이후 +55m를 미션 quota로 인정하지 않는다.
+- MGeo에서 starter 반경90m·Ego 경로 근처12m·경로에 횡단하는 축을 가진 후보를
+  골라 현재 CW000000/CW000002를 사용한다. 넓은 미션 구역의 모든 차량 진입로를
+  구현한 것은 아니다. 경로와 평행한 횡단보도는 이 Ego 접근 관측에서 제외한다.
+- 객체 geometric center는 선택한 횡단보도 중심의 횡단 축 ±3m에 고정한다.
+  두 actor 장면은 인접한 실제 횡단보도로 분산하여 겹치는 이동 corridor를 피한다.
+  이 분산이 유일한 대회 배치 방식이라는 뜻은 아니다.
+- 움직이는 객체는 실제 횡단 축을 사용하고, 목표까지 뒤쪽 출발 및 독립 지형 준비를
+  유지한다. 정지 외관 자산을 강제로 움직이지 않는다. 변경 전 10K config는 보존한다.
+- Ego는 계속 Park·정지·장면당 한 프레임이다. 실제 회피 제어/트리거 재생은 필수가
+  아니다. 외관 변화가 있는 객체만 기존 자연 이동·지형 준비 정책을 사용한다.
+
+[v95 구현·실측·한계](261007_base5_dynamic_map_observation_v95.md)를 참고한다.
+
+### 공통 유지 계약과 보고 항목
+
+- 독립 Base5 single-frame, scale1, 4-class 후보, Ego Park. Temporal/velocity head 학습 없음.
+- GT/ROI는 LiDAR·Ego 좌표계 `[-100,-30,-3,100,30,2]` 기준이다.
+  도로 접선은 배치 설계에 사용하되 Ego yaw 때문에 GT 범위를 도로 좌표계로 바꾸지 않는다.
+- 원본 LiDAR Instance GT 보존, `lidar1_camera0` 유지. 낮은 point 수만으로
+  camera-visible 객체를 일괄 제거하지 않으며, 안 보이는 객체도 무조건 positive로 넣지 않는다.
+- 접지·실제 CollisionData·Park·통신·resume 검증 유지. 실패 대체는 원래 quota를
+  보충하며, 안전/통신 halt를 강제 resume하지 않는다.
+- 대표 검증 후 배치/가시 actor 수, 실제 clearance, 거리/방향 coverage, 실패/부족분,
+  GT 검사 및 시간 비용을 보고한다. 현 production E25·threshold·tracker는 변경하지 않는다.
+- 새 5K 전체 생성·전수 검사는 완료했다. 본캡처·학습은 아직 미실행이다.
+  구 10K manifest로 대신 시작하지 않는다.

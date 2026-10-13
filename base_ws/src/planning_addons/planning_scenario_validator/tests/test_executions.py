@@ -171,7 +171,8 @@ class ExecutionTests(unittest.TestCase):
                 self.assertIsNotNone(first)
                 app['active']['process'].wait(timeout=3)
                 app['active']['process'] = None
-                app['fields']['goal_x'].set('321')
+                self.doc['default_case']['goal']['x'] = 321
+                self.source.write_text(yaml.safe_dump(self.doc))
                 self.assertEqual(app['actions']['save'](), self.source)
                 with patch('tkinter.messagebox.askokcancel', return_value=True):
                     app['actions']['start']()

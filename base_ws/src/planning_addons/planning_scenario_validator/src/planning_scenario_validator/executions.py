@@ -10,6 +10,7 @@ import yaml
 
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
+from .models import resolve_contract, verify_contract
 
 
 def sha256(path):
@@ -60,17 +61,37 @@ def prepare_execution(source, *, check_install=True):
         copy_input(cfg['path'], 'source_config.yaml')
         if (directory / 'source_config.yaml').read_bytes() != source_bytes:
             raise ValueError('사본 준비 중 YAML이 변경됐습니다. 다시 시작하세요')
-        for case in cfg['cases']:
+        for case in {case.source: case for case in cfg['cases']}.values():
             copy_input(case.source, 'scenarios/' + case.source.name)
             if files['scenarios/' + case.source.name] != case.source_sha256:
                 raise ValueError('사본 준비 중 시나리오가 변경됐습니다. 다시 시작하세요')
         document['campaign_name'] = identifier
         document['output_root'] = str(root)
-        document['scenarios'] = {'directory': str(directory / 'scenarios'), 'glob': '*.json'}
+        document['scenarios']['directory'] = str(directory / 'scenarios')
+        document['scenarios']['glob'] = '*.json'
+        document['scenarios'].pop('include', None)
         for key in ('sensor_json', 'ego_network_json'):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
-        document['recording']['topic_profile'] = copy_input(
-            resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
+        if not cfg['recording'].get('bag_enabled', True) or 'selected_topics' in cfg['recording']:
+            # A disabled/custom bag does not depend on a mutable external profile.
+            destination = directory / 'topic_profile.json'
+            destination.write_text(json.dumps(cfg['recording']['topics'], ensure_ascii=False) + '\n', encoding='utf-8')
+            files['topic_profile.json'] = sha256(destination)
+            document['recording']['topic_profile'] = str(destination)
+        else:
+            document['recording']['topic_profile'] = copy_input(
+                resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
+        model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'),
+                                 require_assets=check_install)
+        if cfg['stack'].get('detector') == 'bevfusion':
+            # Freeze the resolved default so a later promotion cannot alter this execution.
+            document['stack']['bevfusion_model'] = model['preset']
+        for relative in model.get('config_files_sha256', {}):
+            copy_input(resolve_path(relative), 'model_configs/' + relative)
+        if model.get('runtime_config'):
+            copy_input(model['runtime_config'], 'model_configs/bridge.yaml')
+        atomic_json(directory / 'model_contract.json', model)
+        files['model_contract.json'] = sha256(directory / 'model_contract.json')
         # Calibration/map/model binaries are intentionally referenced, not copied.
         path = directory / 'config_snapshot.yaml'
         path.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding='utf-8')
@@ -79,6 +100,7 @@ def prepare_execution(source, *, check_install=True):
             raise ValueError('사본 준비 중 원본 입력이 변경됐습니다. 다시 시작하세요')
         atomic_json(directory / 'execution.json', {
             'schema_version': 1, 'execution_id': identifier, 'experiment_name': label,
+            'total': len(cfg['cases']),
             'created_at': now(), 'source_yaml': str(cfg['path']), 'snapshot': path.name,
             'files': files, 'original_hashes': originals,
             'note': '편집용 YAML과 독립된 실행 사본. 재개는 이 폴더의 입력만 사용합니다.'})
@@ -120,6 +142,11 @@ def load_execution(directory, *, check_install=True):
         if directory not in path.parents or not path.is_file() or sha256(path) != digest:
             raise ValueError('실험 사본이 변경되거나 사라졌습니다: {}'.format(relative))
     cfg = load_campaign(directory / manifest['snapshot'], check_install=check_install)
+    if 'model_contract.json' in manifest['files']:
+        model = json.loads((directory / 'model_contract.json').read_text())
+        if check_install:
+            verify_contract(model, cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'))
+        cfg['model_contract'] = model
     if cfg['output'] != directory or cfg['name'] != manifest.get('execution_id'):
         raise ValueError('실험 사본의 결과 경로가 기록과 다릅니다')
     expected_scenes = {relative for relative in manifest['files'] if relative.startswith('scenarios/')}
@@ -148,7 +175,8 @@ def history(root):
             results = state.get('results', {})
             counts = {key: sum(row.get('status') == key for row in results.values())
                       for key in ('PASS', 'FAIL', 'ERROR')}
-            total = state.get('total', len([key for key in manifest.get('files', {}) if key.startswith('scenarios/')]))
+            total = state.get('total', manifest.get('total', sum(
+                key.startswith('scenarios/') for key in manifest.get('files', {}))))
             if total and counts['PASS'] + counts['FAIL'] == total:
                 status = 'DONE'
             elif state.get('run_status') == 'RUNNING':

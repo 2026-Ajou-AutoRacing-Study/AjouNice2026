@@ -1,11 +1,33 @@
 # Base3-Online rosbag dataset — CURRENT STATE
 
+문서 역할: **Base3-Online 재현 기준**이다. 이 문서의 Motion V2/combined V3는
+현재 Base5의 기본 학습 데이터가 아니다. 새 생성·수집·변환은 [Base5 CURRENT](BASE5_V2_CURRENT.md)에서 시작한다.
+
+향후 MR 수집의 asset 기준은 [MR_ASSET_COLLECTION_CURRENT.md](MR_ASSET_COLLECTION_CURRENT.md)이다. 아래 Base3-Online 학습 전달본은 그대로 보존하며, 새 catalog의 객체가 과거 dataset에 자동 추가되지는 않는다.
+
 - 상태: **CURRENT**
 - 마지막 검증: 2026-09-20
 - 기준 branch: `perception/base3-online-rosbag-dataset`
 - 최소 구현 commit: `b1a341c9`
 
 ## 한 줄 결론
+
+2026-10-05 Base5 E25-init E2 pilot과 [E1 보행자·장애물9-bag rosbag A/B](../../../docs/bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. 소폭 개선이지만 근접·원거리 공백 미해결로 아래 Base3-Online 전달본과 production E25를 대체하지 않는다. [거리 공백·후속 보강](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 참고한다.
+
+Base5 후속 보강 smoke는 [24+2 scene 결과 및 런북](261004_base5_reinforcement_smoke_runbook.md)을 따른다.
+canonical 선택 데이터는 84 frame이며 기존 Base3 학습 전달본을 대체하지 않는다.
+
+2026-10-04 Base5 소량 live 진단은 [별도 증거 문서](../../../docs/bevfusion/261004_BASE5_LIVE_ACQUISITION_PROBE.md)에 있다.
+7개 정지 scene의 rosbag→21-frame 변환을 검증했으며, 본 학습 dataset이나 production 대체본은 아니다.
+동기 캡처는 저장되지만 현재 capture mode에서 Instance annotation이 없어 paired GT 비교는 미완료이다.
+
+2026-10-04 평가 GT 보충: 이름이 없는 UDP 차량은
+[`morai_asset_bbox_offsets_status_size_v2.json`](../configs/morai_asset_bbox_offsets_status_size_v2.json)의
+관측된 ObjectStatus 기본 제원을 먼저 매칭하고 geometric size/center offset으로 변환한다.
+기본 제원 자체를 geometric BBox 크기와 직접 매칭하지 않는다.
+같은 기본 제원이라도 geometry가 다른 후보는 추측하지 않는다.
+자세한 검증은 [차량 GT 복구 기록](../../../docs/bevfusion/261004_VEHICLE_STATUS_SIZE_GT_RECOVERY.md)을 참고한다.
+이는 평가 보충이며 기존 dataset의 자동 재변환·재학습을 수행했다는 뜻이 아니다.
 
 MORAI scenario 생성기의 다양성은 유지하되 production과 같은 UDP 카메라/LiDAR ROS
 stream을 rosbag으로 기록하고, LiDAR timestamp에 Ego/Object pose를 보간해 만든 고주로

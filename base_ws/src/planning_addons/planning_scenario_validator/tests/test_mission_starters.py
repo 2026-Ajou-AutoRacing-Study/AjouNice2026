@@ -63,7 +63,7 @@ class StarterTests(unittest.TestCase):
             if not family.is_dir():
                 continue
             cfg = load_campaign(family / "base/example.yaml", check_install=False)
-            self.assertEqual(len(cfg["cases"]), 24)
+            self.assertEqual(len(cfg["cases"]), 4 if family.name == 'full_course' else 24)
             self.assertEqual(cfg["document"]["schema_version"], 2)
             common = cfg["document"]["default_case"]
             self.assertTrue(all(case.goal == common["goal"] and case.timeout_sec == common["timeout_sec"]
@@ -76,8 +76,9 @@ class StarterTests(unittest.TestCase):
             self.assertFalse(any(t.startswith('/sensor/camera/') or t == '/sensor/lidar1'
                                  for t in cfg["recording"]["topics"]))
             meta = read(family / "base/manifest.json")
-            self.assertEqual(Counter(x["tier"] for x in meta["cases"]),
-                             {"baseline": 2, "normal": 14, "stress": 8})
+            if family.name != 'full_course':
+                self.assertEqual(Counter(x["tier"] for x in meta["cases"]),
+                                 {"baseline": 2, "normal": 14, "stress": 8})
             self.assertFalse(meta["live_verified"])
 
     def test_spawns_keep_official_anchors_and_middle_size_filter(self):
@@ -115,7 +116,7 @@ class StarterTests(unittest.TestCase):
 
     def test_gui_discovers_campaigns_but_not_case_sidecars(self):
         choices = campaign_examples()
-        self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT and p.name == 'example.yaml']), 5)
+        self.assertEqual(len([p for p in choices if p.parent.parent.parent == OUTPUT and p.name == 'example.yaml']), 6)
         self.assertFalse(any(p.name.endswith('.case.yaml') for p in choices))
         self.assertEqual(default_name(OUTPUT / 'highway/base/example.yaml'), 'highway_starter')
 

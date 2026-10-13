@@ -1,0 +1,17 @@
+<launch>
+  <!-- User-promoted E24, 2026-10-13. Canonical topics; E25 rollback stays separate.
+       AMP + camera parallel ON, compile OFF are owned by the GPU runner. -->
+  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_lan.json"/>
+  <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_production.yaml"/>
+  <arg name="start_rviz" default="false"/>
+  <arg name="output_objects" default="/perception/object_recognition/detection/objects"/>
+  <include file="$(find bevfusion_ros)/launch/base3_online.launch">
+    <arg name="sensor_config" value="$(arg sensor_config)"/>
+    <arg name="config" value="$(arg config)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="output_objects" value="$(arg output_objects)"/>
+    <arg name="vehicle_score_threshold" value="0.40"/>
+    <arg name="pedestrian_score_threshold" value="0.10"/>
+    <arg name="obstacle_score_threshold" value="0.10"/>
+  </include>
+</launch>

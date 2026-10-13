@@ -1,4 +1,4 @@
-"""In-memory OpenCV preprocessing matching the Base3 BEVFusion test pipeline."""
+"""Config-driven in-memory OpenCV preprocessing for Base3 and opt-in Base5."""
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -6,6 +6,45 @@ import cv2
 import numpy as np
 import torch
 from mmdet3d.structures import Det3DDataSample, LiDARInstance3DBoxes
+
+
+def preprocessing_options_from_config(config):
+    """Use the deterministic test augmentation contract, including new sizes.
+
+    Refuse unsupported crops/rotations instead of silently serving pixels with
+    a projection matrix different from training. This does not extend model ROI.
+    """
+    loader = config.get('test_dataloader') or config.get('val_dataloader')
+    if loader is None:
+        raise ValueError('runtime requires a deterministic test or validation pipeline')
+    pipeline = loader['dataset']['pipeline']
+    transforms = [item for item in pipeline if item['type'] == 'MoraiImageAug3D']
+    if len(transforms) != 1:
+        raise ValueError('runtime requires exactly one MoraiImageAug3D')
+    aug = transforms[0]
+    for key in ('bot_pct_lim', 'rot_lim'):
+        if tuple(aug.get(key, (0.0, 0.0))) != (0.0, 0.0):
+            raise ValueError('runtime requires zero ' + key)
+    if aug.get('rand_flip', False) or aug.get('is_train', False):
+        raise ValueError('runtime requires deterministic test augmentation')
+    resize_lim = tuple(aug['resize_lim'])
+    if len(resize_lim) != 2 or resize_lim[0] != resize_lim[1]:
+        raise ValueError('runtime requires a fixed resize factor')
+    final_dim = tuple(aug['final_dim'])
+    if any(d <= 0 or d % 32 for d in final_dim):
+        raise ValueError('Swin/depth fusion requires image dimensions divisible by 32')
+    view = config['model']['view_transform']
+    if tuple(view['image_size']) != final_dim:
+        raise ValueError('augmentation and view-transform image sizes differ')
+    if tuple(view['feature_size']) != tuple(d // 8 for d in final_dim) or any(d % 8 for d in final_dim):
+        raise ValueError('runtime requires stride-8 view-transform features')
+    base5_valid_returns = any(item['type'] == 'MoraiFilterInvalidPoints'
+                             for item in pipeline)
+    return dict(final_dim=final_dim, resize=float(resize_lim[0]),
+                reference_width=aug.get('reference_width', 1280),
+                point_cloud_range=config['point_cloud_range'],
+                remove_zero_returns=base5_valid_returns,
+                strict_point_range=base5_valid_returns)
 
 
 class Base3OnlinePreprocessor:
@@ -20,6 +59,10 @@ class Base3OnlinePreprocessor:
         resize=0.55,
         reference_width=1280,
         point_cloud_range=(-30.0, -30.0, -3.0, 30.0, 30.0, 2.0),
+        remove_zero_returns=False,
+        strict_point_range=False,
+        rgb_after_crop=False,
+        point_intensity_source='native',
     ):
         self.calibration = calibration
         self.final_dim = tuple(int(value) for value in final_dim)
@@ -28,6 +71,13 @@ class Base3OnlinePreprocessor:
         self.point_cloud_range = np.asarray(point_cloud_range, dtype=np.float32)
         self.camera_workers = max(1, int(camera_workers))
         self.point_dim = int(point_dim)
+        # Explicitly config-driven for Base5; production E25 stays unchanged.
+        self.remove_zero_returns = bool(remove_zero_returns)
+        self.strict_point_range = bool(strict_point_range)
+        self.rgb_after_crop = bool(rgb_after_crop)
+        if point_intensity_source not in ('native', 'ros255'):
+            raise ValueError('point_intensity_source must be native or ros255')
+        self.point_intensity_source = point_intensity_source
         if self.point_dim not in (4, 5):
             raise ValueError("BEVFusion runtime point_dim must be 4 or 5")
         self.executor = (
@@ -156,11 +206,14 @@ class Base3OnlinePreprocessor:
                     frame_id, image.shape[:2], expected_shape
                 )
             )
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        if not self.rgb_after_crop:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         resize_dims, crop = self._resize_crop(camera)
         image = cv2.resize(image, resize_dims, interpolation=cv2.INTER_CUBIC)
         left, top, right, bottom = crop
         image = image[top:bottom, left:right]
+        if self.rgb_after_crop:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if image.shape[:2] != self.final_dim:
             raise ValueError(
                 "{} preprocessed shape {} differs from {}".format(
@@ -228,9 +281,22 @@ class Base3OnlinePreprocessor:
             )
         lower, upper = self.point_cloud_range[:3], self.point_cloud_range[3:]
         keep = np.isfinite(points).all(axis=1)
-        keep &= (points[:, :3] >= lower).all(axis=1)
-        keep &= (points[:, :3] <= upper).all(axis=1)
+        if self.remove_zero_returns:
+            keep &= (points[:, :3] != 0).any(axis=1)
+        if self.strict_point_range:
+            # Match MMDetection3D PointsRangeFilter's open interval exactly.
+            keep &= (points[:, :3] > lower).all(axis=1)
+            keep &= (points[:, :3] < upper).all(axis=1)
+        else:
+            keep &= (points[:, :3] >= lower).all(axis=1)
+            keep &= (points[:, :3] <= upper).all(axis=1)
         filtered = np.ascontiguousarray(points[keep])
         if not len(filtered):
             raise ValueError("no finite LiDAR points remain inside the Base3 range")
+        if self.point_intensity_source == 'ros255':
+            if not ((filtered[:, 3] >= 0).all() and (filtered[:, 3] <= 255).all()):
+                raise ValueError('ROS intensity must be finite and in 0..255')
+            # Only the model-bound copy is normalized; raw ROS bytes and XYZ
+            # remain intact. Never use the current frame's maximum.
+            filtered[:, 3] *= np.float32(1.0 / 255.0)
         return filtered

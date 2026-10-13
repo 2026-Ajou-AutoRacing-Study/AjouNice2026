@@ -1,78 +1,99 @@
 # 설치 끝났으면 이것만 보고 돌리면 됩니다
 
-시나리오 검증기 설치·ROS 빌드·맵·BEVFusion 준비까지 끝난 분용입니다. GUI 전체 설명이 아니라 실제 작업 순서만 적었습니다. 처음 설치는 [설치 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md), 버튼 위치는 [화면 5장 안내](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)를 보세요.
+설치·맵·ROS 빌드·BEVFusion 준비가 끝난 분용입니다. 처음 설치는 [설치 가이드](SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)를 보세요. **일상 설정은 GUI에서 수정 → YAML 저장 → 실행합니다.** 회색 목적지·시간·네트워크 등 고정값은 확인용입니다.
 
-## 1. MORAI 연결하고 GUI 켜기
+## 1. 연결하고 GUI 켜기
 
-MORAI MR에서 K-City를 켜고 아래 파일을 Load·Connect합니다. 전에 연결했던 그대로면 다시 바꿀 필요 없습니다.
+MORAI MR의 K-City에서 아래 파일을 Load·Connect합니다. 수동 udp·측위·인지·planning·제어는 끄고 MORAI만 켜둡니다.
 
 - Sensor: configs/sensors/Sensor_competition_local.json
 - Ego Network: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
 
-일반 주행용 Ego Network가 아니라 **검증기 전용 파일**입니다. 경로가 헷갈리면 GUI 고급 / 네트워크 탭의 **연결 JSON 경로 복사**를 누르세요. YAML의 파일과 MORAI에 실제로 로드한 파일이 같아야 합니다. 센서도 실제로 켜두세요.
-
-수동으로 켜놓은 udp·측위·인지·planning·제어는 종료합니다. 검증기가 켜고 끕니다. MORAI는 켜둡니다. Conda가 꺼진 터미널에서:
+일반 주행용이 아니라 검증기 전용 Ego Network입니다. 경로가 헷갈리면 planning 빠른 테스트 탭의 연결 JSON 경로 복사를 누르세요.
 
 ```bash
 cd ~/AjouNice2026
-source scripts/workspace/source_aw149.sh
-source docs/common_alias.txt
-pvgui
+./planning_validator_gui
+# alias를 쓰면 pvgui
 ```
 
-## 2. 처음이면 예제를 내 폴더로 복사
+## 2. 예제를 개인 작업 폴더로 복사
 
-**담당 미션의 base/example.yaml을 선택 → 베이스 → 내 작업 폴더 복사. 예제에서 바로 실행하지 마세요.**
+상단 **내 미션 선택하기**에서 전체 코스 주행·고주로·회전교차로·정적 장애물·동적 장애물·GPS 음영 구간 중 담당 미션을 고릅니다. 옆 실험 YAML에서 **예제 / example.yaml → 베이스 → 내 작업 폴더 복사 (최초 1회 실행)**부터 합니다. 복사 후 **내 작업 / highway_starter.yaml**처럼 표시됩니다. 예제에서 바로 실행하지 마세요. 같은 폴더 README에 시작점·목적지·시나리오 의도가 있습니다.
 
-예를 들어 고주로면 config/missions/highway/base/example.yaml을 고르고 복사합니다. 열린 경로가 highway/workspace/highway_starter.yaml인지 확인하세요. 앞의 config는 검증기 패키지 안의 폴더입니다. 미션 옆 README도 한 번 읽어 주세요.
+**전체 코스 주행**은 처음에 **예제 / sample_only.yaml**을 복사해서 샘플 하나부터 확인하세요. `example.yaml`은 샘플 + 객체 종류 변형 총 4장면입니다. 기본은 localization + BEVFusion + 신호등 on, 센서 원본 bag 제외 + 영상 on이며 주행 상한은 장면당 600초입니다. 기존 Route A 경유점을 따라 출발선 재진입 직전까지만 시험하며 공식 결승선 통과·A/B 자동 전환 시험은 아닙니다. 아직 전체 live 주행은 미검증입니다. 자세한 내용은 [전체 코스 안내](../../base_ws/src/planning_addons/planning_scenario_validator/config/missions/full_course/base/README.md)를 보세요.
 
-이미 개인 YAML이 있으면 **내 YAML 열기**로 그 파일을 고르면 됩니다. GUI는 마지막에 연 파일을 기억합니다. 작업 파일 이름은 매일 바꾸지 않아도 됩니다.
+고주로의 소수 장면 반복 시험은 미션을 고주로로 고른 뒤 **예제 / random_example.yaml**을 복사하면 됩니다. JSON 2개를 각 10번, 총 20회 실행하며 NPC 목표 속도 50–60 km/h와 차로 내 offset −10–10%를 회차마다 추출합니다. 대회 공식 범위가 아니라 첫 시험용 값입니다.
 
-## 3. 첫 두 장면 확인
+복사 후 열린 경로가 workspace인지 확인하세요. 기존 파일이 있으면 덮어쓰지 않고 다시 엽니다. 개인 파일은 Git 제외입니다.
 
-기본 설정에서 아래만 확인합니다.
+## 3. 기본 탭에서 수정 → YAML 저장 → 실행
 
-- 장면 선택: **장면 선택 → 기본 장면 → 검색 결과 전체 체크 → 체크한 장면 적용**. 처음부터 24개 전부 돌리지 않습니다. 기존처럼 파일 패턴 *_baseline_*.json만 써도 됩니다.
-- 목적지: 처음에는 예제 값 그대로. 다른 목적지가 필요할 때만 YAML을 따로 만듭니다.
-- 측위 localization / 객체 탐지 bevfusion. GT 대조를 할 때만 od_gt.
-- 화면 영상 녹화 ON / bag에 카메라·LiDAR OFF / Drive 자동 업로드 OFF.
-- 신호등은 미션에 필요할 때만 ON. 그때 신호등 환경 탭에서 설치해 둔 가상환경 또는 시스템 Python을 고릅니다.
+Base5 풀스택 인지 분석은 전체 코스 미션에서 `base5_e24_analysis_sample.yaml`을 복사해 샘플 하나부터 확인합니다. 이후에만 `base5_e24_analysis_variants.yaml`의 나머지 3장면을 진행하세요. 실행 탭의 모델은 E24 trial, 녹화 모드는 인지 분석(센서+영상)입니다. 기존 YAML은 모델 항목이 없어도 E25로 유지됩니다. 분석용 bag은 원본 센서 때문에 용량이 커지며, 마감 후 recording_audit.json의 실제 메시지 수를 확인합니다. 자세한 계약은 [런북](SCENARIO_VALIDATOR_RUNBOOK.md#모델-선택인지-분석-녹화)을 참고하세요.
 
-**개인 YAML 저장 → 설정 검사 → 고급 / 네트워크의 환경 검사 → 새 실험 시작.** 처음 BEVFusion을 준비한 PC는 실제 GPU 검사도 한 번 합니다. 검사 FAIL은 해결하고, WARN은 내용을 확인합니다.
+기본 탭에서 이름, 파일 패턴/장면 선택, JSON당 반복 횟수, 측위·탐지, 신호등·영상·센서 bag·Drive 업로드와 공유 모드를 바꿉니다. **상단 왼쪽 YAML 저장**을 누르면 지금 열린 개인 YAML에 저장됩니다. 파일을 새로 만들거나 이름에 timestamp를 붙이지 않습니다. 고정값과 주석은 유지합니다.
 
-처음 두 장면에서 연결·배우 움직임·bag·영상이 실제로 잘 나오는지 봅니다. PASS만 떴다고 모든 기능이 맞다는 뜻은 아닙니다. 영상은 전체 화면이므로 다른 창으로 가리거나 화면을 잠그지 마세요. 모니터 모드로 진행 상황을 볼 수 있습니다.
+### 녹화는 필요한 만큼만
 
-## 4. 장면을 늘리고 다시 시험
+실행 탭의 **rosbag 녹화**에서 고릅니다. 화면 영상은 옆 **화면 영상 녹화** 체크로 별도 설정합니다.
 
-**내 작업 폴더 열기**로 workspace/scenarios 안에 JSON을 추가·수정합니다. 기존 JSON 하나를 복사해서 한두 조건씩 바꾸면 편합니다. 일반적인 장면도 넣고 어려운 장면도 섞으세요. 실패를 없애려고 장애물을 치우거나 판단 파라미터를 억지로 바꾸는 게 목적은 아닙니다.
+- **끄기 (bag 없음)**: rosbag 프로세스·구독을 만들지 않습니다. 실시간 성공/실패 판정, JSON·CSV·로그는 남습니다. 영상만 남기는 것도 가능합니다.
+- **경량 녹화**: Ego·충돌·측위·최종 궤적·제어 등 최소 13개 토픽.
+- **기본 녹화**: 기존 basic 토픽. 원본 센서는 기본 제외입니다.
+- **인지 분석 (센서+영상)**: 기존 분석 계약대로 센서 원본 5개와 영상 필수. 사후 재추론용이며 용량이 큽니다.
+- **직접 선택 / 토픽 선택…**: 검색·그룹으로 좁혀 표시된 토픽을 한 번에 선택/해제합니다. 선택은 YAML에 저장됩니다. 원본 센서 추가 체크를 켜면 LiDAR+compressed 카메라 4개를 더 기록합니다.
 
-전체를 돌릴 때는 **장면 선택 → 전체 실행(패턴)**으로 돌아간 뒤 패턴을 *.json으로 바꿉니다. 일부만 돌릴 때는 이름을 검색하고 **검색 결과 전체 체크 / 체크 해제**를 쓰세요. baseline,stress처럼 쉼표로 여러 묶음을 한 번에 찾을 수도 있습니다. 기존 체크는 검색을 바꿔도 유지됩니다. 새 조합으로 고르려면 먼저 **모든 체크 지우기**를 누르세요.
+렉 원인 비교는 먼저 **bag 끄기 + 화면 영상도 끄기 → YAML 저장 → 새 실험 시작**으로 해보세요. 센서 생성이나 BEVFusion 추론 입력을 끄는 기능은 아닙니다. 부하 개선 폭은 실제 비교가 필요합니다.
 
-**개인 YAML 저장 → 설정 검사 → 새 실험 시작**하면 선택한 장면을 다시 처음부터 돕니다. 선택 목록도 이 YAML 안에 저장됩니다. 목록 모드에서는 나중에 추가한 JSON이 자동 포함되지 않으며, 패턴 모드에서는 패턴에 맞으면 포함됩니다. 같은 YAML의 목적지·제한시간·스택이 선택한 모든 장면에 적용됩니다. 자세한 제작법은 [시나리오·YAML 제작 가이드](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_AUTHOR_GUIDE.md)에 있습니다.
+실행 중 녹화 설정 변경은 막습니다. 기존 실험 **재개**는 당시 녹화 설정을 사용하므로, 새 옵션을 적용하려면 새 실험을 시작하세요. 기존 YAML은 `bag_enabled`가 없으면 예전처럼 bag을 기록합니다. 센서 5개가 빠진 bag 또는 bag OFF 실행은 사후 센서 재추론이 불가능합니다. 토픽 선택 목록은 설정 후보이며 실제 발행·기록을 보장하지 않습니다.
 
-개인 YAML·JSON은 workspace에 두면 Git에 안 올라갑니다. base는 공유 원본입니다. 파일 탐색기에서 삭제·이름 변경도 가능하지만, 삭제한 YAML이 GUI에 아직 열려 있으면 다른 파일을 여세요. 그대로 저장하면 다시 생길 수 있습니다.
+패턴은 `*.json`이면 전체, `high_baseline_*.json`이면 해당 장면들입니다. 장면 선택 버튼에서는 검색·일괄 체크로 일부 JSON만 고를 수도 있습니다. **패턴을 직접 바꾸면 기존 개별 선택 목록이 해제됩니다.** 반복 횟수는 선택한 JSON 하나당 횟수입니다.
 
-## 5. YAML 여러 개 걸어놓기
+목적지·시간·네트워크 같은 회색 값과 랜덤 seed/범위·Python 환경은 필요할 때만 YAML 편집 (VSCode)에서 수정합니다. **‘여기부터 수정 X’ 아래는 기본값을 유지합니다.** Ego 시작점은 시나리오 JSON에 있습니다.
 
-각 조건을 개인 YAML로 저장한 뒤 **실행 목록 / 배치 → YAML 여러 개 추가 → 순서 정리 → 전체 검사 → 새 배치 시작**으로 갑니다. 현재 열린 파일 하나를 넣을 때는 현재 YAML 추가를 누르면 됩니다.
+자유 경로 입력·붙여넣기·내 YAML 파일 선택창은 없습니다. **선택한 미션 안의 YAML만** 목록에 나옵니다. 조건별 YAML을 추가하려면 내 작업 폴더 열기에서 해당 미션 workspace에 .yaml/.yml로 저장하고 상단 불러오기/새로고침을 누른 뒤 목록에서 고르세요. 다른 미션 파일·외부 경로를 연결한 symlink·장면별 보조 YAML·실행 사본은 표시하지 않습니다. 예전 users/외부 YAML은 삭제하지 않으며, 필요하면 담당 미션 workspace로 복사해 사용합니다.
 
-같은 Sensor/Ego Network로 돌아가는 YAML만 함께 넣습니다. 목적지·탐지기 등은 YAML마다 달라도 됩니다. 모니터 바에서 배치 2/5처럼 현재 순서를 봅니다. 배치 안에 또 배치를 넣는 구조는 아닙니다.
+이미 열어둔 YAML을 VSCode에서 Ctrl+S로 저장해도 GUI 표시가 자동 갱신되지는 않습니다. **불러오기/새로고침**을 눌러 파일을 다시 읽으세요. 새로고침은 GUI의 아직 저장하지 않은 변경을 버리므로, GUI 수정분을 유지하려면 먼저 YAML 저장을 누르세요. 실행 중에는 재불러오기를 잠그며, 해당 실험은 시작 당시 입력 사본을 계속 사용합니다.
 
-## 6. 중단했으면 재개, 다시 시험이면 새 시작
+상단 왼쪽에는 **YAML 저장 / 불러오기·새로고침 / ▶ 새 실험 시작** 세 버튼만 있습니다. 설정 검사·실험 기록·결과 폴더는 오른쪽 **보조 기능** 메뉴에 있습니다. 중단과 모니터 모드는 메뉴를 열지 않고 바로 누를 수 있습니다.
 
-- **중단**: 녹화 마감·스택 정리가 끝날 때까지 기다립니다. 강제 종료하지 마세요.
-- 단일 실험 이어가기: **실험 기록 / 재개 → 기록 선택 → 선택 실험 재개**.
-- 배치 이어가기: 기존 목록에서 **배치 재개**. 목록이 없으면 이전 목록 열기에서 배치 결과의 queue.json을 고릅니다.
-- 같은 조건을 처음부터 다시: **새 실험 시작 / 새 배치 시작**. YAML을 매번 새로 복사할 필요 없습니다.
+**YAML 저장 → 보조 기능의 설정 검사 → 새 실험 시작.** 검사·새 실행 전에도 GUI 변경분을 저장합니다. VSCode에서 바꾼 고정값은 보존하며, 같은 항목을 양쪽에서 바꿨다면 다시 불러오도록 안내합니다. 실행 직전에도 JSON 개수 × 반복 횟수를 확인하세요. YAML 하나에는 목적지·시간·스택 하나만 사용합니다.
 
-새 시작은 timestamp 결과 폴더를 따로 만들고, 재개는 당시 보관된 입력 사본으로 이어갑니다. **재개 시 FAIL도 재실행**은 단일 실험을 재개할 때만 사용합니다. 배치에서는 주행 FAIL도 완료된 결과라 넘어가고 ERROR·미완료를 다시 시도합니다.
+첫 두 장면만 확인하고 싶으면 planning 빠른 테스트 탭에서 JSON 1–2개를 선택해 실행하세요. 실제 장면·객체·bag·영상이 잘 나오는지 보고 본 시험을 걸어두면 됩니다.
 
-## 7. 결과 보고 공유
+## 4. 고주로 반복 시험
 
-**결과 폴더**에서 영상과 summary.csv를 봅니다. 실패 행을 더블클릭하면 관측 근거·조사 우선 단계가 나옵니다. 의심 단계는 확정 원인이 아닙니다. 배치는 배치 CSV로 전체 진행을 봅니다.
+개인 YAML의 scenarios.repeat가 JSON 한 개당 횟수입니다. randomization.enabled가 false면 JSON 값 그대로 반복하고, true면 지정 범위에서 매회 추출합니다. seed를 바꾸면 다른 조합을 시험합니다.
 
-결과는 planner_logs/validation/실험이름_날짜시간/에 남고 배치 요약은 planner_logs/validation_batches/배치ID/에 남습니다. PASS는 도착, FAIL은 충돌·시간 초과 같은 주행 실패, ERROR는 설치·수신·녹화·중단 등 시스템 문제를 포함합니다. ERROR를 곧바로 판단 알고리즘 실패로 보지는 마세요.
+원본 JSON은 보존합니다. 실제 로드한 scenario.json과 추출값이 적힌 input.json/결과 JSON을 각 회차에 남깁니다. 같은 seed·JSON·회차는 재시도해도 같은 파라미터지만 **MORAI RandomMode 차종과 physics까지 재현하는 seed는 아닙니다.** PASS/FAIL은 회차별로 별도 집계합니다.
 
-Drive로 공유할 때만 기본 설정의 자동 업로드를 켜고 공유 모드를 고릅니다. 기본 공유는 CSV·JSON, bag 공유는 여기에 bag, 영상 공유는 MP4, 원본 공유는 둘 다입니다. 기본 경로는 AjouNice2026/planning_validator/입니다. 배치 CSV는 자동 업로드하지 않으므로 필요하면 별도로 공유하세요.
+## 5. planning 팀이 한두 장면만 빠르게 볼 때
 
-업데이트가 올라오면 실행·GUI 종료 후 **pull → planning/base 증분 빌드 → GUI 다시 실행**합니다. 설치를 다시 할 필요는 없습니다. 복붙 명령은 [설치 가이드 4-1](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있습니다.
+개인 YAML을 불러온 뒤 기본 탭 옵션을 저장하고 **planning 빠른 테스트** 탭에서 JSON 1–2개를 선택합니다. 파일명으로 검색하고 Ctrl/Shift로 함께 선택할 수 있습니다.
+
+필요하면 od_gt / bevfusion, maptf_morai / localization을 대조합니다. **선택한 JSON 빠른 실행**은 원본 YAML을 바꾸지 않고 임시 설정으로 1회씩 실행합니다. 랜덤 파라미터와 Drive 업로드는 꺼집니다. 목적지·시간·네트워크·녹화 설정은 불러온 YAML 그대로입니다. 회차 랜덤 검증은 일반 새 실험 시작을 사용하세요.
+
+환경 검사·ROS 수신 검사·연결 경로 복사도 이 탭에 있습니다. 도착 실패나 궤적 미생성도 결과로 남기는 게 목적입니다.
+
+## 6. 밤새 여러 YAML 돌리기 / 중단·재개
+
+실행 목록 / 배치에서 **YAML 여러 개 추가 → 전체 검사 → 새 배치 시작**입니다. 새 파일 추가는 선택한 미션 workspace의 YAML만 받습니다. 같은 Sensor/Ego Network를 사용하는 개인 YAML만 넣으세요. 기존 배치 기록·재개는 보존합니다. 순서 변경·목록 초기화·이전 목록 열기는 목록 관리 메뉴에 있습니다.
+
+- 중단은 GUI 버튼을 누르고 bag·영상과 ROS 정리가 끝날 때까지 기다립니다.
+- 단일 실험: 실험 기록 / 재개 → 기록 선택 → 선택 실험 재개.
+- 배치: 배치 재개. 이전 목록은 목록 관리 → 이전 목록 열기에서 queue.json을 고릅니다.
+- 다시 처음부터: 새 실험 시작 / 새 배치 시작.
+
+재개는 당시 보관한 입력 사본으로 완료된 PASS/FAIL 회차를 건너뛰고 ERROR·미완료부터 진행합니다. 현재 YAML 수정값을 과거 실험에 섞지 않습니다.
+
+## 7. 결과 보기
+
+결과 폴더의 summary.csv와 회차별 bag·영상·JSON을 봅니다. 실패 행을 더블클릭하면 관측 근거와 조사 우선 단계가 나옵니다. 의심 단계가 확정 원인은 아닙니다.
+
+단일 결과는 planner_logs/validation/실험이름_날짜시간/, 배치 요약은 planner_logs/validation_batches/배치ID/에 남습니다. PASS는 도착, FAIL은 충돌·시간 초과 같은 주행 실패, ERROR는 수신·스택·녹화·중단 등 시스템 문제입니다. 실패를 없애려고 시나리오나 판단 코드를 임의로 고치는 시험이 아닙니다.
+
+기본은 basic 토픽 + 카메라/LiDAR 원본 제외 + 화면 영상입니다. 센서 입력 자체는 켜둡니다. 영상은 전체 화면이므로 다른 창으로 가리거나 화면을 잠그지 마세요. 모니터 모드에서 현재 회차·배치 순서·주행 상황을 봅니다.
+
+Drive 공유가 필요할 때만 GUI에서 자동 업로드와 공유 모드를 선택하고 YAML 저장을 누릅니다. basic/bag/video/full은 업로드할 자료만 고르며 로컬 원본은 남습니다. rclone 인증은 먼저 필요하고, 배치 CSV는 별도 공유합니다.
+
+업데이트는 실행·GUI 종료 → pull → planning/base 증분 빌드 → GUI 재실행입니다. Docker·가중치를 매번 다시 설치하지 않습니다.

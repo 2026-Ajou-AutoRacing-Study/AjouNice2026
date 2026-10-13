@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 
 from .config import ROOT, load_campaign
 from .traffic_light import runtime_settings, runtime_mode
+from .models import resolve_contract, selected_model, E25_SHA
 
 
 def command(args, timeout=8):
@@ -38,9 +39,7 @@ def bev_settings():
     checkpoint = values.get('BEVFUSION_CHECKPOINT') or values.get('BEVFUSION_INFERENCE_CHECKPOINT') or str(Path.home() / 'bevfusion_artifacts/checkpoints/base3_bf0_f40_e25_inference.pth')
     checkpoint = Path(os.path.expandvars(checkpoint)).expanduser()
     checkpoint = checkpoint if checkpoint.is_absolute() else ROOT / checkpoint
-    script = (ROOT / 'scripts/runtime/run_bevfusion.sh').read_text()
-    checksum = re.search(r'EXPECTED_SHA256="([a-f0-9]{64})"', script)
-    return values.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'), checkpoint, checksum.group(1) if checksum else None
+    return values.get('BEVFUSION_IMAGE', 'ajounice/bevfusion:team-cu128-v1'), checkpoint, E25_SHA
 
 
 def inspect_environment(cfg, *, live=False, gpu=False):
@@ -54,6 +53,11 @@ def inspect_environment(cfg, *, live=False, gpu=False):
         add(label, 'PASS' if ok else 'FAIL', detail or '확인 완료', remedy if not ok else '')
         return ok
     add('파일·YAML', 'PASS', '{} / 장면 {}개. 주행 성공 판정이 아닙니다'.format(cfg['name'], len(cfg['cases'])))
+    bag_enabled = cfg['recording'].get('bag_enabled', True)
+    add('rosbag 녹화', 'PASS', '{} · 선택 {}개 토픽. 실시간 분석·JSON·CSV는 항상 유지'.format(
+        'ON' if bag_enabled else 'OFF', len(cfg['recording']['topics'])))
+    if bag_enabled:
+        probe('rosbag 도구', ['rosbag', '--help'], 'ROS 환경을 source한 터미널에서 실행하세요')
     add('MORAI 최초 연결', 'WARN', 'GUI에서 Sensor/Ego Network Load·Connect를 직접 확인해야 합니다',
         'Network: {}\nSensor: {}'.format(cfg['network']['ego_network_json'], cfg['network']['sensor_json']))
     probe('ROS 패키지·메시지', ['/usr/bin/python3', '-c',
@@ -82,11 +86,18 @@ def inspect_environment(cfg, *, live=False, gpu=False):
     while not parent.exists() and parent != parent.parent:
         parent = parent.parent
     free = shutil.disk_usage(parent).free / 1024**3
-    minimum = float(cfg['recording'].get('minimum_free_disk_gib', 10))
+    results_only = not bag_enabled and not cfg['recording'].get('video', {}).get('enabled')
+    minimum = 0.1 if results_only else float(cfg['recording'].get('minimum_free_disk_gib', 10))
     add('디스크', 'PASS' if free >= minimum else 'FAIL', '여유 {:.1f}GiB / 시작 기준 {:.1f}GiB. 전체 배치 용량 보장은 아닙니다'.format(free, minimum), '결과를 백업하고 공간 확보')
     if cfg['stack'].get('detector') == 'bevfusion':
         try:
-            image, checkpoint, expected = bev_settings()
+            checkpoint_label = 'E25 가중치'
+            if selected_model(cfg['stack']) == 'e25':
+                image, checkpoint, expected = bev_settings()
+            else:
+                model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
+                image, checkpoint, expected = model['image'], Path(model['checkpoint_path']), model['checkpoint_sha256']
+                checkpoint_label = model['label'] + ' 가중치·config'
             probe('BEVFusion Docker 이미지', ['docker', 'image', 'inspect', image, '--format', '{{.Id}}'],
                   '설치 가이드의 공용 이미지 다운로드·docker load 및 Docker 권한 확인')
             probe('Docker Compose', ['docker', 'compose', 'version'], '설치 가이드의 Docker Compose 플러그인 설치')
@@ -96,9 +107,9 @@ def inspect_environment(cfg, *, live=False, gpu=False):
                 with checkpoint.open('rb') as handle:
                     for chunk in iter(lambda: handle.read(1024**2), b''):
                         sha.update(chunk)
-                add('E25 가중치', 'PASS' if sha.hexdigest() == expected else 'FAIL', str(checkpoint), '가이드의 E25 inference 가중치 재다운로드')
+                add(checkpoint_label, 'PASS' if sha.hexdigest() == expected else 'FAIL', str(checkpoint), '선택 모델의 SHA256 검증된 가중치·경로 확인')
             else:
-                add('E25 가중치', 'FAIL', '파일 또는 실행기 checksum 계약 없음: ' + str(checkpoint), '설치 가이드에서 가중치·경로 확인')
+                add(checkpoint_label, 'FAIL', '파일 또는 실행기 checksum 계약 없음: ' + str(checkpoint), '설치 가이드에서 가중치·경로 확인')
             if gpu:
                 probe('컨테이너 실제 GPU 연산', ['docker', 'run', '--rm', '--gpus', 'all', '--entrypoint', 'python', image, '-c',
                     'import torch; print(torch.cuda.get_device_name()); print((torch.ones(2,device="cuda")+1).cpu())'],

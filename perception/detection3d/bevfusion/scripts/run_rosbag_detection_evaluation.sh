@@ -26,7 +26,7 @@ query_memory_diagnostics_path="${BEVFUSION_EVAL_QUERY_MEMORY_DIAGNOSTICS_PATH:-$
 publish_detector_velocity="${BEVFUSION_EVAL_PUBLISH_DETECTOR_VELOCITY:-false}"
 detector_velocity_noise_std_mps="${BEVFUSION_EVAL_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
 gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
-asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_base3_v1.json}"
+asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json}"
 morai_heading_correction_deg="${BEVFUSION_EVAL_MORAI_HEADING_CORRECTION_DEG:-0.0}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_EVAL_ROS_PORT:-$((14000 + ($$ % 18000)))}"
@@ -53,6 +53,11 @@ trap cleanup EXIT INT TERM
 cd "$repo_root"
 source /opt/ros/noetic/setup.bash
 source base_ws/devel/setup.bash
+export PYTHONPATH="$repo_root/base_ws/src/tracking_prediction_evaluation/src:${PYTHONPATH:-}"
+evaluation_extra_args=()
+if [[ -n "${BEVFUSION_EVAL_ASSET_NAME_MAP:-}" ]]; then
+  evaluation_extra_args+=(--asset-name-map "$BEVFUSION_EVAL_ASSET_NAME_MAP")
+fi
 
 roscore -p "$ros_port" >"$output_dir/roscore.log" 2>&1 &
 roscore_pid=$!
@@ -128,7 +133,8 @@ bridge_pid=""
   --output "$output_dir/summary.json" \
   --gt-reference "$gt_reference" \
   --asset-bbox-catalog "$asset_bbox_catalog" \
-  --morai-heading-correction-deg "$morai_heading_correction_deg"
+  --morai-heading-correction-deg "$morai_heading_correction_deg" \
+  "${evaluation_extra_args[@]}"
 
 /usr/bin/python3 - "$output_dir/summary.json" \
   "$score_threshold" "$vehicle_score_threshold" \

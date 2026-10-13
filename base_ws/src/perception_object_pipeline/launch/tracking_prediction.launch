@@ -8,6 +8,7 @@
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="use_sim_time" default="false"/>
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
   <arg name="projector_file"
@@ -17,6 +18,8 @@
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
+  <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
+  <arg name="tracker_vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
   <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
   <arg name="tracker_meas_noise_std_yaw_deg" default="10.0"/>
@@ -78,7 +81,8 @@
     <arg name="compensate_tracking_output_to_current_time" value="false"/>
     <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
     <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
-    <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+    <arg name="maximum_tracking_internal_prediction_age_sec"
+         value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
     <arg name="time_aware_track_lifecycle"
          value="$(arg tracker_time_aware_track_lifecycle)"/>
     <arg name="confirmed_track_max_coast_time_sec"
@@ -89,6 +93,10 @@
          value="$(arg tracker_lifecycle_stationary_speed_threshold_mps)"/>
     <arg name="suppress_duplicate_track_birth"
          value="$(arg tracker_suppress_duplicate_track_birth)"/>
+    <arg name="fast_confirmed_vehicle_promotion"
+         value="$(arg tracker_fast_confirmed_vehicle_promotion)"/>
+    <arg name="vehicle_promotion_min_confidence"
+         value="$(arg tracker_vehicle_promotion_min_confidence)"/>
     <arg name="duplicate_birth_suppression_distance_m"
          value="$(arg tracker_duplicate_birth_suppression_distance_m)"/>
     <arg name="duplicate_birth_minimum_max_dimension_m"

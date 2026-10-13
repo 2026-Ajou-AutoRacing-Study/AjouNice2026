@@ -129,7 +129,7 @@ class TrafficRuntimeTests(unittest.TestCase):
             Path(path + ".install.lock").unlink(missing_ok=True)
 
     @unittest.skipUnless(os.environ.get("DISPLAY"), "requires Xvfb or X11")
-    def test_tk_switches_environment_and_keeps_path_field_disabled_for_system(self):
+    def test_tk_traffic_environment_is_inspect_only(self):
         failure = []
         with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.root)}):
             def ready(ui):
@@ -150,10 +150,10 @@ class TrafficRuntimeTests(unittest.TestCase):
                         self.assertEqual(str(mode.cget("state")), "disabled")
                         fields["traffic_light"].set(True)
                         fields["traffic_light_runtime"].set(MODE_LABELS["virtualenv"])
-                        self.assertEqual(str(mode.cget("state")), "readonly")
-                        self.assertEqual(str(python.cget("state")), "normal")
+                        self.assertEqual(str(mode.cget("state")), "disabled")
+                        self.assertEqual(str(python.cget("state")), "readonly")
                         fields["traffic_light_runtime"].set(MODE_LABELS["system"])
-                        self.assertEqual(str(python.cget("state")), "disabled")
+                        self.assertEqual(str(python.cget("state")), "readonly")
                     except Exception as error:
                         failure.append(error)
                     finally:
