@@ -72,3 +72,15 @@ bash scripts/rosbag/record/rosbag_for_perception_latency_eval.sh --duration 60
 수신 시각 차이는 callback CPU 비용이나 GPU 연산 시간과 같지 않다. tracker의 30 Hz 새
 출력 header 역시 새 detector 관측이 아니다. C++ 포팅은 실제 비용과 출력 동등성을 확인한
 노드부터 별도 A/B로 수행하며, 이 실행기들이 운영 정책을 자동 승격하지 않는다.
+
+## 원시 LiDAR 패킷·카메라 녹화
+
+51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
+부족하다. `scripts/rosbag/record/record_lidar_packet_probe.py`는 raw VelodyneScan과
+PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 기존 900 RPM·51패킷
+입력은 변경하지 않는다. `--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
+확인한다. `--run`만 bag을 기록하며 ROS 노드 기동·파라미터 변경·차량 제어는 하지 않는다.
+
+시나리오 이름·로컬 UDP 설정·세 터미널 명령과 수동 운전 구간은
+[benchmark 준비 절차](../configs/scenario/perception_benchmark/README.md#2026-10-14-원시-lidar-패킷-실험-준비)를 따른다.
+완료한 bag을 같은 원본의 50/51/회전각 A/B에 쓰고, MORAI OFF 상태에서 후속 분석한다.
