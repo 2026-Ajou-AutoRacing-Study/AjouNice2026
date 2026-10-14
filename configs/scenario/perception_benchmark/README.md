@@ -20,6 +20,17 @@ is map infrastructure rather than a perception actor.
 
 ## 2026-10-14 원시 LiDAR 패킷 실험 준비
 
+### 독립 차량과 실제 50/51 후속
+
+새 고주로 출발·교통 흐름·로터리 회전은
+`scripts/rosbag/record/build_independent_vehicle_probe_scenes.py`로 준비하고,
+`run_independent_vehicle_lidar_campaign.py`로 별도 GT 제어·원본 녹화를 수행한다.
+이 후속은 로드·경로 준비 동안 실제 P·정지를 유지한 뒤 D 제어기로 전환한다.
+초기 이전 장면을 `SCENARIO_READY`로 구분하고, 종료 시 장면 재로드 없이 P·기본 51을 확인한다.
+기존 자동 실행기의 과거 완료/실패와 구분하여 아래 네트워크를 그대로 사용한다.
+소량 시험·원본 경로·채택 여부는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
+현재 production LiDAR 기본값은 계속 51이다.
+
 ### 권장: 네트워크만 연결하고 자동 실행
 
 사용자는 MORAI의 대회 맵·Sunny13을 유지하고 센서 `Sensor_competition_local`,

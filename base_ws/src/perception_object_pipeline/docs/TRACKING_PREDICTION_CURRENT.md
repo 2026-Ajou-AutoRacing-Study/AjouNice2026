@@ -202,6 +202,12 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 경합·TF 실패 손상을 수정했다. source와 이 PC 설치본에 반영했고 정상 1,825개 입력의
 네 모드×5,486개 ROS 출력은 수정 전과 wire-exact다. 팀 planning 후속 통합은 별도다.
 
+같은 날 [독립 차량·패킷 검증](../../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)의
+새 고주로/회전 6회와 E24 3,325개 새 장면 입력을 대조했다. 방향 가드는 정상 출력과
+정확히 같지만 신뢰 이력이 아직 없는 생성 후 0.152초의 반전 1개는 수정하지 못했다.
+재취득 공분산 분리/reset도 ID 이득과 별개로 실제 Map-CV 개별 악화가 남아 운영 미적용이다.
+실제 50의 단일 source batch와 수신 age 감소를 확인했지만 기본 51은 유지한다.
+
 다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
 일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
 

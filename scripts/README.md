@@ -152,3 +152,16 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 자동 GT 주행은 `run_lidar_live_policy_campaign.py`이며 첫 안전/주행 실패에서 중단한다.
 현재 적용 결정·실패 원본·실행 범위는 [Live 후보 검토](../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
 기본 LiDAR 정책은 51로 유지하되 재시작 시 driver private namespace의 이전 override만 지운다.
+
+새 독립 차량 3장면은 `build_independent_vehicle_probe_scenes.py`로 준비하고
+`run_independent_vehicle_lidar_campaign.py --scene-manifest <plan.json> --output <새 폴더> --run`으로
+GT 제어·실제 51/50 녹화를 수행한다. 준비 동안 실제 P·정지를 확인한 뒤 D 제어기로 전환한다.
+`--finalize-existing`는 모든 원본이 검사 통과한 경우에만 P/51 복귀를 재확인하며 주행은 반복하지 않는다.
+다른 validator·제어기·UDP 수신기와 동시에 실행하지 않는다.
+
+`prepare_independent_vehicle_inputs.py`는 움직이는 Ego와 ScenarioLoad 이전 구간을 구분한다.
+`scene_epoch_valid` 이후 초기 Park부터 fresh tracker로 비교하며 이전 장면 입력을 섞지 않는다.
+`audit_independent_vehicle_direction.py`와 `qualify_vehicle_covariance_recovery.py`는 별도 코어 원형이다.
+`lidar_followup_packet_audit.py`의 실제 수신 age와 가상 재조립 span을 구분하고,
+`prepare_source_footer_gt_sensitivity.py`는 GT-only 현재 중심 민감도에만 사용한다.
+현재 근거·보류 원형·원본 경로는 [독립 검증](../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
