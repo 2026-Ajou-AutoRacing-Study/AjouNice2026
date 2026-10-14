@@ -22,8 +22,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 완료 학습 계약 | 48GB 4090·batch 4·누적 1·camera backbone 학습 compile ON. 새 학습의 자동 기본값 승격은 아님 |
 | 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
 
-데이터 원본·학습용 파생 infos·다른 환경 준비 상태는
-[데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다.
+데이터 원본·학습용 파생 infos·다른 환경 준비 상태는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
 새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.
 
@@ -37,8 +36,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | E24 마지막 epoch | 같은 디렉터리의 `E24.pth` | `84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746` |
 
 Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 뜻은 아니다.
-기본 추론 config는
-[nearest runtime config](../../perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py)다.
+기본 추론 config는 [nearest runtime config](../../perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py)다.
 
 <a id="runtime"></a>
 
@@ -98,7 +96,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 [오프라인 센서·중복·노드 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)다.
 팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
 
-1. 최신 팀장님 E24 완주·무충돌 bag을 확인했다. raw 센서·stage latency·실제 consumed path와 YOLO 동시 부하가 없어 이를 추가 검증한다.
+1. 최신 팀장님 E24 완주·무충돌 bag 분석은 완료했다. [활성 우선순위](../ACTIVE_PRIORITIES.md#perception-latency)에 따라 새 계측 bag 도착 시 단계별 지연·실제 consumed path·YOLO 동시 부하를 우선 분석한다. 생성기 보완은 기다리지 않는다.
 2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
    [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
 3. 낮은 score 갱신의 독립 실제 EKF 원형과 12프로필 비교를 완료했다. 이동·클래스 안정·XY 전용 후보만 시험용으로 남겼다.
@@ -114,7 +112,9 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    [Z 계약·정지/reset 경계](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 따라 fresh stack으로 시작한다.
    E9/E25 비교·복귀의 legacy 표현, Map-CV future-Z·실제 planner 확인은 별도다. 기존 GT·가중치는 보존한다.
    [연결·이동 후속](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)의 보행자 Gaussian 순위는 운영 pipeline에 ON이다. 허용 조건·수명·차량·장애물 정책은 유지하고 OFF 복귀를 제공한다.
-   복합체는 별도 관측한다. 50/cut0은 저속 이동 확인만 완료했으므로 고속/LAN 검증 전에는 기본 51을 유지한다. E24 head peak 변경은 native 검출 손실로 계속 기각한다.
+   복합체는 별도 관측한다. [차량 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)의 입력 경합·TF 실패 pending 보존은 수정·로컬 설치했다.
+   [독립 차량·패킷 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)의 새 고주로/회전 6회는 도착·무접촉이다. 방향 가드는 원형이고 재취득 공분산 후보도 복구 예외 악화로 운영 미적용이다.
+   실제 50은 단일 source batch·수신 age 감소를 재현했고 2026-10-14 사용자 승인으로 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유지하며 51은 명시적 복귀 값이다. LAN 실전 인증은 별도이고 E24 head peak 변경은 계속 기각한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
 5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.

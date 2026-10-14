@@ -1,5 +1,11 @@
 # 2026-10-14 인지 후보 live 검토
 
+> 2026-10-15 읽기 안내: 후보와 기본값의 채택/보류는 아래 각 시험 당시의 기록이다.
+> LiDAR는 후속 검증·사용자 승인으로 현재 기본값 50에 전환했다. 당시 51/50/cut0 입력과 수치는 변경하지 않는다.
+> 현재 상태는 [CURRENT](CURRENT.md#next), 전환 근거는
+> [독립 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md#같은-날-lidar-50-운영-전환),
+> 재시작·51 복귀는 [handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+
 상태: EVIDENCE — 1차 검토·반영, 2026-10-14. 보행자 순위 적용과 저속 이동의 후속은
 [연결·이동 비교](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)에 기록했다.
 현재 운영 계약은 [CURRENT](CURRENT.md)를 따른다.

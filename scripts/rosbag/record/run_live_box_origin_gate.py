@@ -128,7 +128,7 @@ def main():
             '/Ego_topic','/Object_topic','/CollisionData','/tf','/tf_static','/sensor/lidar1','/sensor/lidar1/packets',
             '/perception/bevfusion/frame_timing','/perception/bevfusion/status','/perception/bevfusion/latency_ms',
             *['/origin_live/'+m+'/'+t for m in tracks for t in ('detection','tracking')]])
-        lidar_args=['npackets:=50'] if a.policy=='fixed50' else ['cut_angle:=0'] if a.policy=='cut0' else []
+        lidar_args=['npackets:=50'] if a.policy=='fixed50' else ['cut_angle:=0'] if a.policy=='cut0' else ['npackets:=51']
         processes.start('lidar',['roslaunch','sensor_interface','lidar.launch',*lidar_args])
         start=time.monotonic()
         while time.monotonic()-start<a.duration:

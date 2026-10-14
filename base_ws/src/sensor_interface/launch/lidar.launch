@@ -3,8 +3,8 @@
   <arg name="port" default="2368"/>
   <arg name="frame_id" default="lidar1"/>
   <arg name="rpm" default="900.0"/>
-  <!-- Explicit experiments only. Empty preserves driver's ceil(754 / Hz). -->
-  <arg name="npackets" default="" doc="Optional positive integer packet count; empty keeps driver-derived count."/>
+  <!-- MORAI source batch: 50 packets = 360 degrees. Explicit 51 restores legacy grouping. -->
+  <arg name="npackets" default="50" doc="MORAI default 50; explicit 51 restores legacy grouping. XML empty uses driver-derived count."/>
   <arg name="cut_angle" default="-0.01" doc="-0.01 disables azimuth cutting; otherwise finite radians in [0, 2*pi)."/>
   <!-- Constant args validate at launch evaluation, before any driver starts. -->
   <arg name="validated_npackets" value="$(eval '' if str(arg('npackets')) == '' else (str(int(arg('npackets'))) if str(int(arg('npackets'))) == str(arg('npackets')) and 0 &lt; int(arg('npackets')) &lt;= 2147483647 else int('npackets_must_be_positive_integer_or_empty')))"/>

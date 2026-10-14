@@ -10,7 +10,8 @@ from .runtime import atomic_json
 from .recording_options import sharing_warnings
 
 SECRET = re.compile(r'(password|passwd|secret|token|api_key|access_key|private_key|authorization|credential|cookie)', re.I)
-ALLOWED = {'.json', '.jsonl', '.yaml', '.yml', '.csv', '.log', '.py', '.png', '.jpg', '.bag', '.mp4'}
+ALLOWED = {'.json', '.jsonl', '.yaml', '.yml', '.csv', '.log', '.py', '.launch', '.cpp', '.hpp', '.h',
+           '.png', '.jpg', '.bag', '.mp4'}
 
 
 def redact(value):
@@ -29,7 +30,7 @@ def redact(value):
     return value
 
 
-def safe_copy(source, target):
+def safe_copy(source, target, *, expected_sha256=None):
     source, target = Path(source), Path(target)
     if source.is_symlink() or not source.is_file() or source.suffix not in ALLOWED:
         return False
@@ -45,7 +46,10 @@ def safe_copy(source, target):
         except OSError:
             shutil.copy2(source, target)
     else:
-        text = source.read_text(encoding='utf-8', errors='replace')
+        raw = source.read_bytes()
+        if expected_sha256 is not None and hashlib.sha256(raw).hexdigest() != expected_sha256:
+            return False
+        text = raw.decode('utf-8', errors='replace')
         if source.suffix == '.json':
             text = json.dumps(redact(json.loads(text)), ensure_ascii=False, indent=2)
         elif source.suffix in ('.yaml', '.yml'):
@@ -85,6 +89,7 @@ def build_bundle(cfg, folder):
             continue
         safe_copy(path, target / path.relative_to(folder))
     for name in ('model_runtime.json', 'model_launch.json', 'model_process_receipt.json',
+                 'localization_contract.json', 'localization_runtime.json',
                  'execution.json', 'campaign_config.yaml', 'campaign_state.json', 'summary.csv'):
         safe_copy(cfg['output'] / name, target / 'execution' / name)
     for path in (cfg['output'] / 'stack_logs').glob('*'):
@@ -94,7 +99,30 @@ def build_bundle(cfg, folder):
     model = cfg.get('model_contract') or {}
     sources += [model.get(key) for key in ('model_config', 'runtime_config')]
     sources += list(model.get('config_files_sha256', {}))
+    localization = cfg.get('localization_contract') or {}
     from .config import ROOT
+    provenance_missing = []
+    for role, row in localization.get('config_files', {}).items():
+        path = Path(row['path'])
+        try:
+            relative = path.relative_to(ROOT)
+        except ValueError:
+            relative = Path(path.name)
+        if not safe_copy(path, target / 'configs' / relative, expected_sha256=row['sha256']):
+            provenance_missing.append('localization config hash/파일 불일치: ' + role)
+    # Only the explicit code allowlist in the contract, never a home/env dump.
+    # Binary hashes remain in the receipt; compiled executables are not uploaded.
+    if localization.get('fingerprint'):
+        for relative in localization.get('source_files_sha256', {}):
+            if not safe_copy(ROOT / relative, target / 'code/source' / relative,
+                             expected_sha256=localization['source_files_sha256'][relative]):
+                provenance_missing.append('source hash/파일 불일치: ' + relative)
+        install_root = Path(localization.get('install_root', ROOT / 'base_ws/install_aw149'))
+        for relative in localization.get('installed_files_sha256', {}):
+            if Path(relative).suffix in ALLOWED and not safe_copy(install_root / relative,
+                    target / 'code/installed' / relative,
+                    expected_sha256=localization['installed_files_sha256'][relative]):
+                provenance_missing.append('installed hash/파일 불일치: ' + relative)
     for source in filter(None, sources):
         path = Path(source)
         if not path.is_absolute():
@@ -107,11 +135,19 @@ def build_bundle(cfg, folder):
     warnings = sharing_warnings(cfg.get('recording', {}), cfg['upload'])
     audit_path = folder / 'recording_audit.json'
     audit = json.loads(audit_path.read_text()) if audit_path.is_file() else {}
-    metadata_missing = []
+    metadata_missing = list(provenance_missing)
     if audit.get('complete_for_analysis'):
         if not (target / 'stack_logs/commands.json').is_file():
             metadata_missing.append('stack_logs/commands.json')
-        if model.get('preset') not in (None, 'od_gt'):
+        if audit.get('analysis_kind') == 'localization':
+            if not (target / 'execution/localization_runtime.json').is_file():
+                metadata_missing.append('execution/localization_runtime.json')
+            if not (target / 'runtime_receipt.json').is_file():
+                metadata_missing.append('runtime_receipt.json')
+            safety = target / 'safety_receipt.json'
+            if not safety.is_file() or json.loads(safety.read_text()).get('shutdown', {}).get('status') != 'VERIFIED':
+                metadata_missing.append('verified safety_receipt.json')
+        elif model.get('preset') not in (None, 'od_gt'):
             receipt = target / 'actual_model_receipt.json'
             if not receipt.is_file() or json.loads(receipt.read_text()).get('status') != 'VERIFIED':
                 metadata_missing.append('verified actual_model_receipt.json')

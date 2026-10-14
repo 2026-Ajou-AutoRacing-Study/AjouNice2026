@@ -24,6 +24,8 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
   <arg name="global_ekf_gt_config"
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
+  <arg name="use_lateral_velocity_constraint" default="true"/>
+  <arg name="lateral_velocity_stddev_mps" default="0.20"/>
 
   <arg name="gt_source" default="ego"/>
   <arg name="initial_position_source" default="ego"/>
@@ -50,6 +52,9 @@
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="control_state_use_vehicle_pivot" default="true"/>
+  <arg name="control_lateral_tau_sec" default="0.1"/>
+  <arg name="control_max_lateral_correction_rate_mps" default="0.3"/>
   <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
   <arg name="quantized_control_grid_yaw_deg" default="-1.347"/>
   <arg name="control_state_reset_translation_error_m" default="0.5"/>
@@ -75,6 +80,15 @@
   <rosparam command="load"
             file="$(arg measurement_noise_config)"
             ns="$(arg noise_namespace)"/>
+  <!-- Pin publisher and Global subscription together after profile loading.
+       This clears retained values and supports old custom profiles.
+       An explicit false selects the reproducible pre-soft baseline. -->
+  <param name="$(arg noise_namespace)/lateral_model/enabled"
+         type="bool" value="$(arg use_lateral_velocity_constraint)"/>
+  <param name="$(arg noise_namespace)/lateral_model/stddev_mps"
+         type="double" value="$(arg lateral_velocity_stddev_mps)"/>
+  <param name="$(arg noise_namespace)/lateral_model/topic"
+         value="/localization/constraints/lateral_velocity"/>
 
   <node pkg="localization_manager"
         type="morai_gt_motion_adapter.py"
@@ -195,6 +209,12 @@
         output="screen">
     <rosparam command="load" file="$(arg global_ekf_base_config)"/>
     <rosparam command="load" file="$(arg global_ekf_gt_config)"/>
+    <param name="twist1" value="/localization/constraints/lateral_velocity"/>
+    <rosparam param="twist1_config" subst_value="true">[false, false, false, false, false, false, false, $(arg use_lateral_velocity_constraint), false, false, false, false, false, false, false]</rosparam>
+    <param name="twist1_queue_size" type="int" value="100"/>
+    <param name="twist1_nodelay" type="bool" value="true"/>
+    <param name="twist1_differential" type="bool" value="false"/>
+    <param name="twist1_relative" type="bool" value="false"/>
     <remap from="odometry/filtered" to="$(arg global_odom_topic)"/>
     <remap from="accel/filtered" to="$(arg acceleration_topic)"/>
     <remap from="set_pose" to="$(arg initial_pose_topic)"/>
@@ -234,6 +254,12 @@
     <param name="translation_tau_sec"
            value="$(arg control_translation_tau_sec)"/>
     <param name="yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <param name="use_vehicle_pivot" type="bool"
+           value="$(arg control_state_use_vehicle_pivot)"/>
+    <param name="lateral_translation_tau_sec"
+           value="$(arg control_lateral_tau_sec)"/>
+    <param name="max_lateral_translation_rate_mps"
+           value="$(arg control_max_lateral_correction_rate_mps)"/>
     <param name="max_local_age_sec" value="0.05"/>
     <param name="max_translation_rate_mps" value="0.0"/>
     <param name="max_yaw_rate_degps" value="0.0"/>

@@ -20,10 +20,11 @@ from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
 from .models import resolve_contract, verify_contract, selected_model, CANONICAL
 from .recording_audit import audit_bag
-from .recording_options import diagnostics_enabled, sharing_warnings
+from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
+from .localization_contract import effective_localization_args, effective_gt_pose_args, resolve_localization_contract
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .repetitions import sampled_scene
-from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
+from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure, SafetyFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
                       arrange_split_windows, focus_planviz, master_alive, now, prepare_scenario, publish_brake,
@@ -146,13 +147,14 @@ def _start_case_stack(cfg, processes, monitor):
     after = time.monotonic()
     if stack["pose_source"] == "localization":
         processes.start("pose", _launch("bringup", "localization_gnss_imu_gt_ctra.launch",
-            gt_source="competition", use_heading_correction=True, heading_yaw_offset_deg=-1.347,
-            publish_sensor_tf=False, publish_control_state=True,
-            use_quantized_gnss_control_state=False, control_translation_tau_sec=0.5,
-            control_yaw_tau_sec=0.5, sensor_config=network["sensor_json"]))
+            **effective_localization_args(cfg, ROOT)))
     else:
-        processes.start("pose", _launch("bringup", "maptf_morai.launch",
-            ego_topic="/Ego_topic", start_lanelet_map=False))
+        if cfg.get('gt_pose_launch_args'):
+            processes.start("pose", _launch("bringup", "localization_morai_gt.launch",
+                **effective_gt_pose_args(cfg, ROOT)))
+        else:
+            processes.start("pose", _launch("bringup", "maptf_morai.launch",
+                ego_topic="/Ego_topic", start_lanelet_map=False))
     monitor.wait_odom(after=after, timeout=timeout)
     if stack["detector"] == "od_gt":
         processes.start("detector", _launch("perception_object_pipeline", "morai_gt_detection.launch"))
@@ -288,7 +290,7 @@ def _upload(cfg, folder, state, case):
     if not upload.get("enabled", False):
         report = {'status': 'DISABLED', 'verified': False,
                   'warnings': sharing_warnings(cfg.get('recording', {}), upload)}
-        if diagnostics_enabled(cfg.get('recording', {})):
+        if sharing_enabled(cfg.get('recording', {})):
             # Manual sharing must receive the same logs/receipts/sanitization.
             from .sharing import build_bundle
             try:
@@ -413,6 +415,76 @@ def _capture_model_receipt(cfg, folder):
     return receipt
 
 
+def _control_sender_ready(processes):
+    if processes.running['udp_control'].poll() is not None:
+        raise SafetyFailure('UDP 제어 송신기가 준비 중 종료됐습니다')
+    import rosgraph
+    subscriptions = dict(rosgraph.Master('/planning_validator_control_guard').getSystemState()[1])
+    return '/morai_ctrl_cmd_udp_sender' in subscriptions.get('/ctrl_cmd', [])
+
+
+def _verify_control_owner(monitor, after=0):
+    import rosgraph
+    owners = dict(rosgraph.Master('/planning_validator_control_guard').getSystemState()[0]).get('/ctrl_cmd', [])
+    if owners != ['/longi_pi_autoware']:
+        raise SafetyFailure('/ctrl_cmd 소유권 불일치: {}'.format(owners))
+    if monitor.control_source != '/longi_pi_autoware' or monitor.stamps.get('control', 0) <= after:
+        raise SafetyFailure('현재 제어기의 새로운 명령이 확인되지 않았습니다')
+
+
+def _capture_runtime_receipt(cfg, processes, folder, stage='control_ready'):
+    import rosgraph
+    subprocess.run(['rosparam', 'dump', str(folder / 'ros_parameters_after_control.yaml')],
+                   check=True, timeout=10, env=processes.env)
+    master = rosgraph.Master('/planning_validator_runtime_receipt')
+    atomic_json(folder / 'runtime_receipt.json', {
+        'recorded_at': now(), 'stage': stage, 'localization_contract': cfg.get('localization_contract'),
+        'python_executable': sys.executable, 'runner_module': str(Path(__file__).resolve()),
+        'git_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(ROOT), text=True).strip(),
+        'tracked_modified_files': subprocess.check_output(['git', 'diff', '--name-only', 'HEAD'],
+            cwd=str(ROOT), text=True).splitlines(),
+        'commands': processes.commands, 'ros_system_state': master.getSystemState(),
+        'topic_types': master.getTopicTypes(), 'controller_state_topic':
+            '/localization/control_kinematic_state' if cfg['stack']['pose_source'] == 'localization'
+            else '/localization/kinematic_state',
+        'resolved_parameters': 'ros_parameters_after_control.yaml'})
+
+
+def _stop_and_verify(cfg, processes, monitor):
+    """Opt-in trial shutdown: brake, observed stop, owned P sender, observed P."""
+    safety = cfg['localization_safety']
+    hold = None
+    stopped_after = time.monotonic()
+    try:
+        processes.stop('parking_prepare')
+        publish_brake()
+        if 'udp_control' in processes.running:
+            monitor.verify_stopped(after=stopped_after, timeout=safety['stop_timeout_sec'],
+                hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
+                freshness_sec=safety['freshness_sec'])
+        processes.stop('udp_control')
+        if safety['park_after_run']:
+            hold = BrakeHold()
+            hold.start()
+            parked_after = time.monotonic()
+            processes.start('udp_control', ['roslaunch', str(ROOT /
+                'base_ws/src/planning_addons/planning_scenario_validator/launch/parking_hold.launch'),
+                'network_config:=' + str(cfg['network']['ego_network_json'])])
+            monitor.wait(lambda: _control_sender_ready(processes), safety['stop_timeout_sec'], 'Park 송신기')
+            receipt = monitor.verify_stopped(after=parked_after, timeout=safety['stop_timeout_sec'],
+                hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
+                freshness_sec=safety['freshness_sec'], require_park=True)
+        else:
+            receipt = monitor.verify_stopped(after=stopped_after, timeout=safety['stop_timeout_sec'],
+                hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
+                freshness_sec=safety['freshness_sec'])
+        return {'status': 'VERIFIED', 'stop': receipt}
+    finally:
+        if hold is not None:
+            hold.stop()
+        processes.stop('udp_control')
+
+
 def _run_case(cfg, processes, monitor, case, state):
     case_log_offsets = log_offsets(processes.log_dir)
     attempt = int(state["results"].get(case.name, {}).get("attempts", 0)) + 1
@@ -447,6 +519,8 @@ def _run_case(cfg, processes, monitor, case, state):
     _write_state(cfg, state)
     recorder = Recording(cfg["recording"], folder, processes.env)
     brake_hold = None
+    safety = cfg.get('localization_safety', {'enabled': False})
+    safety_receipt, halt_campaign = {'enabled': safety['enabled']}, False
     reason, elapsed, route_id, error = "SYSTEM_ERROR", 0.0, None, None
     started_at = now()
     wall_started = time.monotonic()
@@ -456,6 +530,12 @@ def _run_case(cfg, processes, monitor, case, state):
         shutil.copy2(installed, folder / "scenario.json")
         brake_hold = BrakeHold()
         brake_hold.start()
+        if safety['enabled']:
+            # The prepare sender sends P + brake, never D. Keep it separate
+            # from driving control until route and stationary gates pass.
+            processes.start('parking_prepare', ['roslaunch', str(ROOT /
+                'base_ws/src/planning_addons/planning_scenario_validator/launch/parking_hold.launch'),
+                'network_config:=' + str(cfg['network']['ego_network_json'])])
         # Route rejection and stack startup failures are useful campaign evidence too.
         # Start both recorders before ScenarioLoad instead of only after route readiness.
         video_cfg = cfg["recording"].get("video", {})
@@ -481,8 +561,15 @@ def _run_case(cfg, processes, monitor, case, state):
                 print("[WARN] {}: 영상은 계속 녹화합니다".format(exc), file=sys.stderr)
         recorder.start(basename)
         monitor.event("SCENARIO_LOAD_REQUEST", installed=installed.name)
+        loaded_after = time.monotonic()
         _load_scene(cfg, installed, monitor, ego_xy)
         monitor.event("SCENARIO_READY")
+        if safety['enabled']:
+            safety_receipt['startup'] = monitor.wait_stationary(after=loaded_after,
+                timeout=safety['startup_timeout_sec'], hold_sec=safety['stationary_hold_sec'],
+                speed_max_mps=safety['speed_max_mps'], freshness_sec=safety['freshness_sec'],
+                required=('ego', 'gear', 'control_mode', 'collision', 'competition', 'gps', 'imu'),
+                require_valid_gps=safety['require_valid_gps'])
         if cfg["stack"]["detector"] == "bevfusion":
             detector_after = time.monotonic()
             monitor.wait_detection(after=detector_after, timeout=max(
@@ -501,11 +588,16 @@ def _run_case(cfg, processes, monitor, case, state):
         monitor.event("ROUTE_REQUEST")
         route_id = request_route(case, monitor,
             timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)), process=processes.running['planning'])
+        if safety['enabled']:
+            monitor.wait_stationary(after=loaded_after, timeout=safety['startup_timeout_sec'],
+                hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
+                freshness_sec=safety['freshness_sec'], required=('ego', 'gear', 'control_mode', 'collision'))
         monitor.arm(folder / "events.jsonl")
         # The UDP sender puts the vehicle in D on every command, including brake.
         # Never start it with the persistent sensor receivers. Route/trajectory
         # readiness must precede any control packet reaching MORAI.
         monitor.event("CONTROL_TRANSPORT_START")
+        processes.stop('parking_prepare')
         processes.start("udp_control", _launch("sensor_interface", "morai_udp_interface.launch",
             network_config=cfg["network"]["ego_network_json"],
             enable_sensors=False, enable_lidar=False, enable_ego_network=False,
@@ -532,6 +624,10 @@ def _run_case(cfg, processes, monitor, case, state):
         import rospy
         from morai_msgs.msg import CtrlCmd
         rospy.wait_for_message("/ctrl_cmd", CtrlCmd, timeout=15)
+        if safety['enabled']:
+            monitor.wait(lambda: monitor.control_source == '/longi_pi_autoware', 15, '제어기 명령 발행자')
+            _verify_control_owner(monitor)
+            _capture_runtime_receipt(cfg, processes, folder)
         state["current"]["phase"] = "DRIVING"
         _write_state(cfg, state)
         drive_start = time.monotonic()
@@ -539,6 +635,12 @@ def _run_case(cfg, processes, monitor, case, state):
         last_state = [0.0]
 
         def progress(metrics):
+            if safety['enabled']:
+                monitor.localization_watchdog(pose_source=cfg['stack']['pose_source'],
+                    freshness_sec=safety['freshness_sec'])
+                _verify_control_owner(monitor)
+                if processes.running['udp_control'].poll() is not None:
+                    raise SafetyFailure('주행 중 UDP 제어 송신기 종료')
             if processes.running["controller"].poll() is not None:
                 raise RuntimeFailure("controller가 주행 중 종료됐습니다")
             if cfg['stack']['detector'] == 'bevfusion':
@@ -555,9 +657,19 @@ def _run_case(cfg, processes, monitor, case, state):
 
         reason, elapsed = monitor.run_until_done(case, cfg["document"].get("validation", {}),
                                                   drive_start, progress)
+        if safety['enabled'] and reason == 'SUCCESS':
+            # Arrival can return before the next progress callback. Do not
+            # certify SUCCESS using a stale final observation/control stream.
+            monitor.localization_watchdog(pose_source=cfg['stack']['pose_source'],
+                freshness_sec=safety['freshness_sec'])
+            _verify_control_owner(monitor)
+            if processes.running['udp_control'].poll() is not None:
+                raise SafetyFailure('도착 확인 직전 UDP 제어 송신기 종료')
         monitor.event("RUN_FINISHED", reason=reason)
     except ScenarioFailure as exc:
         reason, error = exc.reason, str(exc)
+    except SafetyFailure as exc:
+        reason, error, halt_campaign = 'SAFETY_FAILURE', str(exc), True
     except KeyboardInterrupt:
         reason, error = "MANUAL_ABORT", "사용자 중단"
     except Exception as exc:
@@ -571,13 +683,33 @@ def _run_case(cfg, processes, monitor, case, state):
         processes.stop("controller")
         if brake_hold is not None:
             brake_hold.stop()
-        try:
-            publish_brake()
-        except Exception:
-            pass
-        processes.stop("udp_control")
+        drive_reason = reason
+        if safety['enabled']:
+            if drive_reason == 'SYSTEM_ERROR':
+                halt_campaign = True
+            try:
+                safety_receipt['shutdown'] = _stop_and_verify(cfg, processes, monitor)
+            except Exception as exc:
+                reason, error, halt_campaign = 'SAFETY_STOP_UNCONFIRMED', str(exc), True
+                safety_receipt['shutdown'] = {'status': 'UNCONFIRMED', 'error': str(exc)}
+            if drive_reason == 'COLLISION' and safety['stop_on_collision']:
+                halt_campaign = True
+            atomic_json(folder / 'safety_receipt.json', safety_receipt)
+            if not (folder / 'runtime_receipt.json').is_file():
+                try:
+                    _capture_runtime_receipt(cfg, processes, folder, stage='failed_before_control_ready')
+                except Exception as exc:
+                    atomic_json(folder / 'runtime_receipt.json', {'stage': 'failed_before_control_ready',
+                        'status': 'UNCONFIRMED', 'error': str(exc),
+                        'localization_contract': cfg.get('localization_contract')})
+        else:
+            try:
+                publish_brake()
+            except Exception:
+                pass
+            processes.stop("udp_control")
         monitor.disarm()
-        code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT") else "F"
+        code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT", 'SAFETY_FAILURE', 'SAFETY_STOP_UNCONFIRMED') else "F"
         final_base = basename.replace("_R_", "_{}_".format(code))
         recording_audit = None
         if not cfg['recording'].get('bag_enabled', True):
@@ -633,10 +765,14 @@ def _run_case(cfg, processes, monitor, case, state):
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
+            "drive_reason": drive_reason, "safety": safety_receipt, "halt_campaign": halt_campaign,
             "metrics": metrics, "failure_analysis": failure_analysis,
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
             "analysis_available": bool((recording_audit or {}).get('complete_for_analysis'))
                 and (processes.log_dir / 'commands.json').is_file()
+                and (not localization_analysis_enabled(cfg['recording']) or
+                     (safety_receipt.get('shutdown', {}).get('status') == 'VERIFIED'
+                      and (folder / 'runtime_receipt.json').is_file()))
                 and (cfg['stack']['detector'] != 'bevfusion' or
                      ((folder / 'actual_model_receipt.json').is_file() and
                       json.loads((folder / 'actual_model_receipt.json').read_text()).get('status') == 'VERIFIED')),
@@ -729,11 +865,16 @@ def run(cfg, resume=True, rerun_failed=False):
 
 def _run_campaign(cfg, resume=True, rerun_failed=False):
     cfg["output"].mkdir(parents=True, exist_ok=True)
-    lock = (cfg["output"] / ".lock").open("w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as error:
-        raise RuntimeFailure("같은 캠페인이 이미 실행 중입니다") from error
+    # Close even when preflight/contract checks reject a run before Processes exists.
+    with (cfg["output"] / ".lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeFailure("같은 캠페인이 이미 실행 중입니다") from error
+        return _run_campaign_locked(cfg, resume, rerun_failed)
+
+
+def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
     state = _load_state(cfg, resume)
     model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
     previous_model = state.get('model_contract') or cfg.get('model_contract')
@@ -743,6 +884,16 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
         raise RuntimeFailure('모델 계약 없는 이전 결과에 Base5 resume은 금지합니다. 새 실험을 시작하세요')
     cfg['model_contract'] = model
     state['model_contract'] = model
+    localization = resolve_localization_contract(cfg, ROOT)
+    previous_localization = state.get('localization_contract') or cfg.get('localization_contract')
+    if previous_localization and previous_localization.get('fingerprint') != localization['fingerprint']:
+        raise RuntimeFailure('측위·제어 소스/설치본/config가 기존 실행과 다릅니다. 새 실험을 시작하세요')
+    if not previous_localization and state.get('results') and (
+            cfg.get('localization_safety', {}).get('enabled') or localization_analysis_enabled(cfg['recording'])):
+        raise RuntimeFailure('측위 계약이 없는 이전 실행은 측위 실험으로 재개할 수 없습니다. 새 실험을 시작하세요')
+    cfg['localization_contract'] = localization
+    state['localization_contract'] = localization
+    atomic_json(cfg['output'] / 'localization_runtime.json', localization)
     from .recording_audit import profile_contract_warnings
     state['recording_profile_warnings'] = profile_contract_warnings(cfg)
     state['recording_profile_warnings'] += sharing_warnings(cfg['recording'], cfg['upload'])
@@ -792,6 +943,9 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
             print("[{}/{}] {}".format(index, len(todo), case.name), flush=True)
             result = _run_case(cfg, processes, monitor, case, state)
             print("  -> {} ({})".format(result["status"], result["reason"]), flush=True)
+            if result.get('halt_campaign'):
+                print('안전 gate에 의해 후속 시나리오를 중단합니다.', flush=True)
+                break
             if result["reason"] == "MANUAL_ABORT":
                 break
             if result["status"] == "ERROR" and not cfg["document"].get("continue_on_system_error", False):
@@ -805,7 +959,6 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
         total_complete = sum(row['status'] in ('PASS', 'FAIL') for row in state['results'].values()) == len(cfg['cases'])
         state['run_status'] = 'DONE' if total_complete else 'INTERRUPTED'
         _write_state(cfg, state)
-        lock.close()
     counts = {label: sum(row["status"] == label for row in state["results"].values())
               for label in ("PASS", "FAIL", "ERROR")}
     print("캠페인: {} | 성공 {} / 실패 {} / 시스템 오류 {} / 전체 {}".format(

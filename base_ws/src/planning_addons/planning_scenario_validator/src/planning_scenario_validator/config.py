@@ -11,6 +11,9 @@ from .layout import normalize_bar_setting
 from .traffic_light import runtime_settings
 from .repetitions import repetition_settings
 from .models import selected_model
+from .localization_contract import (normalize_localization_launch_args,
+                                    normalize_gt_pose_launch_args,
+                                    normalize_localization_safety)
 
 
 ROOT = Path(__file__).resolve().parents[6]
@@ -119,6 +122,9 @@ def validate_campaign_document(document, *, allow_legacy=False):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
     try:
         selected_model(document['stack'])
+        normalize_localization_launch_args(document['stack'], check_paths=False)
+        normalize_gt_pose_launch_args(document['stack'], check_paths=False)
+        normalize_localization_safety(document)
     except ValueError as error:
         raise ConfigError(str(error)) from error
     for key in ("directory", "glob"):
@@ -295,6 +301,12 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("stack.pose_source는 localization 또는 maptf_morai입니다")
     if stack.get("detector") not in ("od_gt", "bevfusion"):
         raise ConfigError("stack.detector는 od_gt 또는 bevfusion입니다")
+    try:
+        localization_launch_args = normalize_localization_launch_args(stack, resolve_path)
+        gt_pose_launch_args = normalize_gt_pose_launch_args(stack, resolve_path)
+        localization_safety = normalize_localization_safety(document)
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
     try:
@@ -312,8 +324,9 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError('인지 분석 모드는 include_sensors: true + video.enabled: true가 필요합니다')
     if "minimum_free_disk_gib" in recording:
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
-    from .recording_options import effective_topics, topic_patterns
+    from .recording_options import effective_topics, topic_patterns, ensure_video_display
     try:
+        ensure_video_display(recording)
         recording['topics'] = effective_topics(recording, resolve_path)
         recording['topic_regex'] = topic_patterns(recording)
     except ValueError as error:
@@ -341,5 +354,8 @@ def load_campaign(path, *, check_install=True):
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording,
             "output": output, "install": install, "upload": upload,
+            "localization_launch_args": localization_launch_args,
+            "gt_pose_launch_args": gt_pose_launch_args,
+            "localization_safety": localization_safety,
             "ignored_case_yamls": [str(source.with_suffix(".case.yaml")) for source in sources
                                    if source.with_suffix(".case.yaml").is_file()]}

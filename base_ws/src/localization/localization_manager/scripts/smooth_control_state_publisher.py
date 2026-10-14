@@ -72,6 +72,17 @@ def limit_vector_step(dx, dy, limit):
     return dx * scale, dy * scale
 
 
+def finite_planar_pose(value):
+    """Reject invalid corrections before they can poison the recursive state."""
+    try:
+        result = tuple(float(component) for component in value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("planar pose must contain three finite numbers") from error
+    if len(result) != 3 or not all(math.isfinite(component) for component in result):
+        raise ValueError("planar pose must contain three finite numbers")
+    return result
+
+
 class PlanarAlignmentSmoother:
     """Low-pass and rate-limit the global correction, not vehicle motion."""
 
@@ -84,7 +95,14 @@ class PlanarAlignmentSmoother:
         reset_gap_sec=0.5,
         reset_translation_error_m=0.0,
         reset_yaw_error_rad=0.0,
+        lateral_translation_tau_sec=None,
+        use_vehicle_pivot=True,
+        max_lateral_translation_rate_mps=0.0,
     ):
+        if type(use_vehicle_pivot) is not bool:
+            raise ValueError("use_vehicle_pivot must be a bool")
+        if lateral_translation_tau_sec is None:
+            lateral_translation_tau_sec = translation_tau_sec
         values = (
             translation_tau_sec,
             yaw_tau_sec,
@@ -93,6 +111,8 @@ class PlanarAlignmentSmoother:
             reset_gap_sec,
             reset_translation_error_m,
             reset_yaw_error_rad,
+            lateral_translation_tau_sec,
+            max_lateral_translation_rate_mps,
         )
         if not all(math.isfinite(value) and value >= 0.0 for value in values):
             raise ValueError("smoother parameters must be finite and non-negative")
@@ -105,17 +125,29 @@ class PlanarAlignmentSmoother:
         self.reset_gap_sec = reset_gap_sec
         self.reset_translation_error_m = reset_translation_error_m
         self.reset_yaw_error_rad = reset_yaw_error_rad
+        self.lateral_translation_tau_sec = lateral_translation_tau_sec
+        self.use_vehicle_pivot = use_vehicle_pivot
+        self.max_lateral_translation_rate_mps = max_lateral_translation_rate_mps
         self.value = None
         self.stamp_sec = None
         self.last_reset_reason = None
 
     def reset(self, alignment, stamp_sec):
-        self.value = tuple(float(value) for value in alignment)
-        self.stamp_sec = float(stamp_sec)
+        alignment = finite_planar_pose(alignment)
+        stamp_sec = float(stamp_sec)
+        if not math.isfinite(stamp_sec) or stamp_sec < 0.0:
+            raise ValueError("alignment timestamp must be finite and non-negative")
+        self.value = alignment
+        self.stamp_sec = stamp_sec
         return self.value
 
     def update(self, target, stamp_sec, reference_pose=None):
+        target = finite_planar_pose(target)
         stamp_sec = float(stamp_sec)
+        if not math.isfinite(stamp_sec) or stamp_sec < 0.0:
+            raise ValueError("alignment timestamp must be finite and non-negative")
+        if reference_pose is not None:
+            reference_pose = finite_planar_pose(reference_pose)
         if self.value is None:
             self.last_reset_reason = "initialization"
             return self.reset(target, stamp_sec)
@@ -154,8 +186,31 @@ class PlanarAlignmentSmoother:
         self.last_reset_reason = None
 
         alpha_xy = exponential_alpha(dt_sec, self.translation_tau_sec)
-        step_x = alpha_xy * (target[0] - self.value[0])
-        step_y = alpha_xy * (target[1] - self.value[1])
+        vehicle_pivot = self.use_vehicle_pivot and reference_pose is not None
+        if vehicle_pivot:
+            # Predict through Local motion first; filter only Global correction
+            # at the current vehicle, not translation at a far-away odom origin.
+            # This makes unequal longitudinal/lateral/yaw responses independent
+            # of arbitrary odom origin position and orientation.
+            current_pose = compose_planar(self.value, reference_pose)
+            target_pose = compose_planar(target, reference_pose)
+            dx = target_pose[0] - current_pose[0]
+            dy = target_pose[1] - current_pose[1]
+            cosine = math.cos(target_pose[2])
+            sine = math.sin(target_pose[2])
+            longitudinal_step = alpha_xy * (cosine * dx + sine * dy)
+            lateral_step = exponential_alpha(
+                dt_sec, self.lateral_translation_tau_sec
+            ) * (-sine * dx + cosine * dy)
+            if self.max_lateral_translation_rate_mps > 0.0:
+                lateral_limit = self.max_lateral_translation_rate_mps * dt_sec
+                lateral_step = max(-lateral_limit, min(lateral_limit, lateral_step))
+            step_x = cosine * longitudinal_step - sine * lateral_step
+            step_y = sine * longitudinal_step + cosine * lateral_step
+        else:
+            # Explicit rollback of the historic origin-based SE(2) smoother.
+            step_x = alpha_xy * (target[0] - self.value[0])
+            step_y = alpha_xy * (target[1] - self.value[1])
         if self.max_translation_rate_mps > 0.0:
             step_x, step_y = limit_vector_step(
                 step_x,
@@ -169,11 +224,20 @@ class PlanarAlignmentSmoother:
             yaw_limit = self.max_yaw_rate_radps * dt_sec
             step_yaw = max(-yaw_limit, min(yaw_limit, step_yaw))
 
-        self.value = (
-            self.value[0] + step_x,
-            self.value[1] + step_y,
-            normalize_angle(self.value[2] + step_yaw),
-        )
+        new_yaw = normalize_angle(self.value[2] + step_yaw)
+        if vehicle_pivot:
+            new_pose = (
+                current_pose[0] + step_x,
+                current_pose[1] + step_y,
+                normalize_angle(reference_pose[2] + new_yaw),
+            )
+            self.value = planar_alignment(new_pose, reference_pose)
+        else:
+            self.value = (
+                self.value[0] + step_x,
+                self.value[1] + step_y,
+                new_yaw,
+            )
         self.stamp_sec = stamp_sec
         return self.value
 
@@ -231,6 +295,13 @@ class SmoothControlStatePublisher:
             reset_yaw_error_rad=math.radians(
                 float(rospy.get_param("~reset_yaw_error_deg", 20.0))
             ),
+            lateral_translation_tau_sec=float(
+                rospy.get_param("~lateral_translation_tau_sec", 0.1)
+            ),
+            use_vehicle_pivot=rospy.get_param("~use_vehicle_pivot", True),
+            max_lateral_translation_rate_mps=float(
+                rospy.get_param("~max_lateral_translation_rate_mps", 0.3)
+            ),
         )
         self.local_message = None
         self.last_global_stamp = None
@@ -242,12 +313,16 @@ class SmoothControlStatePublisher:
             self.global_topic, Odometry, self.global_callback, queue_size=100
         )
         rospy.loginfo(
-            "smooth_control_state_publisher: %s + %s -> %s; tau=(%.3f, %.3f)s",
+            "smooth_control_state_publisher: %s + %s -> %s; "
+            "tau(long,lat,yaw)=(%.3f, %.3f, %.3f)s, vehicle_pivot=%s, lateral_rate=%.3fm/s",
             self.global_topic,
             self.local_topic,
             self.output_topic,
             self.smoother.translation_tau_sec,
+            self.smoother.lateral_translation_tau_sec,
             self.smoother.yaw_tau_sec,
+            self.smoother.use_vehicle_pivot,
+            self.smoother.max_lateral_translation_rate_mps,
         )
 
     def local_callback(self, message):
@@ -263,7 +338,10 @@ class SmoothControlStatePublisher:
 
     def global_callback(self, message):
         stamp = message.header.stamp
-        if stamp.is_zero() or self.local_message is None:
+        # rospy callbacks for different topics may run on different threads.
+        # Use one immutable snapshot for age, extrapolation, and output twist.
+        local_message = self.local_message
+        if stamp.is_zero() or local_message is None:
             return
         if message.header.frame_id.lstrip("/") != self.map_frame:
             rospy.logerr_throttle(2.0, "Control global state is not in map")
@@ -276,7 +354,7 @@ class SmoothControlStatePublisher:
             return
 
         stamp_sec = stamp.to_sec()
-        local_age_sec = stamp_sec - self.local_message.header.stamp.to_sec()
+        local_age_sec = stamp_sec - local_message.header.stamp.to_sec()
         if abs(local_age_sec) > self.max_local_age_sec:
             rospy.logwarn_throttle(
                 2.0,
@@ -286,14 +364,16 @@ class SmoothControlStatePublisher:
             )
             return
 
-        local_pose = extrapolated_local_pose(self.local_message, stamp_sec)
-        global_pose = (
-            message.pose.pose.position.x,
-            message.pose.pose.position.y,
-            yaw_from_quaternion(message.pose.pose.orientation),
-        )
-        raw_alignment = planar_alignment(global_pose, local_pose)
         try:
+            local_pose = finite_planar_pose(
+                extrapolated_local_pose(local_message, stamp_sec)
+            )
+            global_pose = finite_planar_pose((
+                message.pose.pose.position.x,
+                message.pose.pose.position.y,
+                yaw_from_quaternion(message.pose.pose.orientation),
+            ))
+            raw_alignment = planar_alignment(global_pose, local_pose)
             smooth_alignment = self.smoother.update(
                 raw_alignment, stamp_sec, reference_pose=local_pose
             )
@@ -315,7 +395,7 @@ class SmoothControlStatePublisher:
         output.pose.pose.orientation.y = quaternion[1]
         output.pose.pose.orientation.z = quaternion[2]
         output.pose.pose.orientation.w = quaternion[3]
-        output.twist = copy.deepcopy(self.local_message.twist)
+        output.twist = copy.deepcopy(local_message.twist)
 
         self.last_global_stamp = stamp
         self.publisher.publish(output)

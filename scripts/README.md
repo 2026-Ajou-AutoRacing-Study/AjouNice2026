@@ -95,6 +95,14 @@ UDP driver·GPU·planner·제어·MORAI는 켜지 않는다. 시험 clock은 원
 원본 입력 hash·stamp·제외 공백을 보존하고 연구 후보의 eager A/A·compile을 분리한다.
 `audit_tracking_continuity_variants.py`와 `audit_tracking_continuity_variant_review.py`는
 그 출력을 원형 C++ 코어에 재생해 평균·분위수·최대와 association/잔류 창을 대조한다.
+차량 초기 방향과 재취득은 `audit_vehicle_reacquisition_core.py`·
+`qualify_vehicle_innovation_gate.py`·`build_vehicle_direction_probe.py`·
+`audit_vehicle_direction_probe.py`로 독립 코어와 후보를 비교한다. `audit_vehicle_map_prediction.py`는
+같은 GT·시각에서 실제 Map-CV의 1/2/3초 오차를 대조한다. `build_vehicle_ros_candidates.py`와
+`replay_vehicle_ros_candidates.py`는 별도 localhost master의 연구 wrapper·입력/처리 barrier를
+사용하며 production binary를 설치하지 않는다. 원본 입력 age와 출력 시계를 분리하고
+guard의 중심·ID 동등성 검사를 통과해야 효과를 계산한다.
+현재 결정과 재현 범위는 [차량 검증](../docs/bevfusion/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)을 따른다.
 `audit_base5_offline_box_center_origin.py`는 native annotation의 물리적 중심과 tagged
 출력 원점을 감사한다. 이 도구들 자체가 production 옵션이나 GT를 바꾸지는 않는다.
 
@@ -106,10 +114,12 @@ Base5 trial의 `frame_timing`을 recorder가 모두 요청한다. 기존 latency
 
 ## 원시 LiDAR 패킷·카메라 녹화
 
-51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
+50/51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
 부족하다. `scripts/rosbag/record/record_lidar_packet_probe.py`는 raw VelodyneScan과
-PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 기존 900 RPM·51패킷
-입력은 변경하지 않는다. `--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
+PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 현재 운영 기본값은
+900 RPM·50패킷·첫 패킷 stamp다. 녹화기는 driver 설정을 바꾸지 않고 기본으로 50 계약을 검사한다.
+과거 51 입력 재현은 driver에 명시적 51과 recorder에 `--expected-packets 51`을 함께 지정한다.
+`--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
 확인한다. `--run`만 bag을 기록하며 ROS 노드 기동·파라미터 변경·차량 제어는 하지 않는다.
 
 네트워크 연결 이후 자동 로드·운전·녹화까지 맡기는 경우에는
@@ -120,7 +130,9 @@ PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 
 
 시나리오 이름·로컬 UDP 설정·세 터미널 명령과 수동 운전 구간은
 [benchmark 준비 절차](../configs/scenario/perception_benchmark/README.md#2026-10-14-원시-lidar-패킷-실험-준비)를 따른다.
-완료한 bag을 같은 원본의 50/51/회전각 A/B에 쓰고, MORAI OFF 상태에서 후속 분석한다.
+과거 51 원본과 완료된 50/51 비교는 이력으로 보존한다. 현재 운영·과거 재현의 구분은
+[LiDAR 전환 안내](../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+새 비교를 할 때만 명시적 정책별 입력을 확보하고 MORAI OFF 상태에서 후속 분석한다.
 
 오프라인 분석 도구는 실행 역할을 구분한다. `lidar_packet_reassembly.py`는 bag을 읽어
 packet 경계/시각만 감사한다. `decode_lidar_packet_candidates.py`는 별도 ROS master와
@@ -132,8 +144,9 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 현재 결과와 해석 한계는 [packet 검토](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#packet)에 있다.
 
 선택적 live LiDAR 비교 인자는 `lidar.launch`의 `npackets`/`cut_angle`과 상위
-`morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. default는 이전과
-같고 이 문서 추가만으로 후보 driver를 실행하지 않는다. cut 단위는 라디안이다.
+`morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. 2026-10-14 운영 default는
+50이며 51 재현에는 명시적 `lidar_npackets:=51`이 필요하다. cut 단위는 라디안이다.
+원시 녹화기의 기본 검사도 50이며 과거 51 재현에는 `--expected-packets 51`을 사용한다.
 
 새 정지·보행 후보 비교는 `run_perception_candidate_probe.py --run`으로 실행한다.
 유한 시나리오 사본·Ego 제동·실제 로드 UID·충돌·드리프트·원본 저장을 검사하며 본수집이 아니다.
@@ -143,4 +156,17 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 `run_live_box_origin_gate.py`와 `analyze_live_box_origin_gate.py`로 분리한다.
 자동 GT 주행은 `run_lidar_live_policy_campaign.py`이며 첫 안전/주행 실패에서 중단한다.
 현재 적용 결정·실패 원본·실행 범위는 [Live 후보 검토](../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
-기본 LiDAR 정책은 51로 유지하되 재시작 시 driver private namespace의 이전 override만 지운다.
+기본 LiDAR 정책은 50이며 재시작 시 driver private namespace의 이전 override만 지운다.
+
+새 독립 차량 3장면은 `build_independent_vehicle_probe_scenes.py`로 준비하고
+`run_independent_vehicle_lidar_campaign.py --scene-manifest <plan.json> --output <새 폴더> --run`으로
+GT 제어·실제 51/50 녹화를 수행한다. 준비 동안 실제 P·정지를 확인한 뒤 D 제어기로 전환한다.
+`--finalize-existing`는 모든 원본이 검사 통과한 경우에만 P/50 복귀를 재확인하며 주행은 반복하지 않는다.
+다른 validator·제어기·UDP 수신기와 동시에 실행하지 않는다.
+
+`prepare_independent_vehicle_inputs.py`는 움직이는 Ego와 ScenarioLoad 이전 구간을 구분한다.
+`scene_epoch_valid` 이후 초기 Park부터 fresh tracker로 비교하며 이전 장면 입력을 섞지 않는다.
+`audit_independent_vehicle_direction.py`와 `qualify_vehicle_covariance_recovery.py`는 별도 코어 원형이다.
+`lidar_followup_packet_audit.py`의 실제 수신 age와 가상 재조립 span을 구분하고,
+`prepare_source_footer_gt_sensitivity.py`는 GT-only 현재 중심 민감도에만 사용한다.
+현재 근거·보류 원형·원본 경로는 [독립 검증](../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.

@@ -20,6 +20,23 @@ is map infrastructure rather than a perception actor.
 
 ## 2026-10-14 원시 LiDAR 패킷 실험 준비
 
+> 2026-10-15 읽기 안내: 아래 최초 녹화 결과는 51패킷을 사용한 당시 실측이다.
+> ‘아직 A/B를 수행하지 않았다’는 문장도 그 시점의 이력이며 후속 독립 비교는 완료했다.
+> 현재 MORAI 기본값은 50이다. 최신 선택·재시작·51 재현은
+> [production handoff](../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀),
+> 후속 결과는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
+
+### 독립 차량과 실제 50/51 후속
+
+새 고주로 출발·교통 흐름·로터리 회전은
+`scripts/rosbag/record/build_independent_vehicle_probe_scenes.py`로 준비하고,
+`run_independent_vehicle_lidar_campaign.py`로 별도 GT 제어·원본 녹화를 수행한다.
+이 후속은 로드·경로 준비 동안 실제 P·정지를 유지한 뒤 D 제어기로 전환한다.
+초기 이전 장면을 `SCENARIO_READY`로 구분하고, 종료 시 장면 재로드 없이 P·기본 50을 확인한다.
+기존 자동 실행기의 과거 완료/실패와 구분하여 아래 네트워크를 그대로 사용한다.
+소량 시험·원본 경로·채택 여부는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
+2026-10-14 후속 사용자 승인으로 production LiDAR 기본값은 50이다. 아래 최초 51 녹화는 보존된 이력이다.
+
 ### 권장: 네트워크만 연결하고 자동 실행
 
 사용자는 MORAI의 대회 맵·Sunny13을 유지하고 센서 `Sensor_competition_local`,
@@ -91,7 +108,8 @@ ScenarioLoad UDP 9095까지 닫혀 추가 요청도 처리되지 않았다. 이�
 
 ### 대안: 사람이 로드·운전하는 수동 실행
 
-학습용 수집이 아니라 기존 51패킷 입력을 그대로 보존하는 짧은 녹화다. MORAI의
+학습용 수집이 아니라 현재 50패킷 입력을 보존하는 짧은 녹화다. 과거 51 재현은
+게이트웨이에 `lidar_npackets:=51`, 녹화기에 `--expected-packets 51`을 함께 지정한다. MORAI의
 시나리오 목록에 아래 이름으로 원본과 동일한 파일을 복사했다. 위치는
 `~/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/`다.
 로드만으로 Ego가 자동 주행하지 않으며 세 파일 모두 Keyboard·P·정지 상태로 시작한다.
@@ -117,8 +135,8 @@ ScenarioLoad UDP 9095까지 닫혀 추가 요청도 처리되지 않았다. 이�
    카메라 `9291/9293/9295/9297`, GPS `9301`, IMU `9303`, Ego `9110`,
    Competition `9099`, Object `7505`, Collision `9092`를 사용한다.
 5. LiDAR 15Hz 설정, 카메라 30Hz·1280×720·JPEG Q90을 유지한다. ROS 드라이버도
-   900 RPM·첫 패킷 stamp·cut_angle 비활성 상태를 유지한다. `npackets=50`으로
-   바꾸거나 deskew를 켜지 않는다. native SaveSensorData/annotation 저장과
+   900 RPM·첫 패킷 stamp·cut_angle 비활성 상태를 유지한다. 현재 기본 묶음은
+   `npackets=50`이며 deskew는 켜지 않는다. native SaveSensorData/annotation 저장과
    rosbridge는 이번 UDP 녹화의 필수 경로가 아니다.
 
 ### 실행할 최소 ROS 구성
@@ -176,9 +194,11 @@ perception diagnostic namespace는 발행 중이면 추가 기록한다. Collisi
 수신 검사는 토픽 이름만 보는 것이 아니라 실제 메시지 두 개와 타입을 확인한다.
 현재 live 드라이버 설정, 센서·네트워크 JSON, 선언한 시나리오, calibration 원문과
 SHA256도 저장한다. 파일은 덮어쓰지 않는다. 로드한 시나리오와 날씨는 사용자 선언이며
-실시간으로 읽어 검증한 값이 아니다. 종료 검사는 raw scan의 51×1206 byte 및 첫 패킷
-stamp 계약을 확인한다. 이는 최소 입력 검사이고 주행 성공·센서 무누락 인증은 아니다.
+실시간으로 읽어 검증한 값이 아니다. 현재 종료 검사는 raw scan의 50×1206 byte 및 첫 패킷
+stamp 계약을 확인한다. 명시적 `--expected-packets 51` 재현에서는 51×1206 byte를 검사한다.
+이는 최소 입력 검사이고 주행 성공·센서 무누락 인증은 아니다.
 
+아래 후속 순서는 최초 준비 시점의 계획이다. 당시 녹화와 A/B 상태를 현재 운영 상태로 읽지 않는다.
 녹화 후 MORAI와 UDP 수신기를 끄고 기존 bag 시간축 조사 → 동일 패킷의 50/51/회전각
 재조립 비교 → 같은 가중치로 검출·추적 비교 → 변경 채택 여부를 정한다. 기존 bag에는
 원시 패킷이 없는 것이 있어 이번 녹화가 필요하다. 로컬 단일 PC 시험은 팀장님

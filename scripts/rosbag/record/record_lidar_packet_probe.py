@@ -67,7 +67,9 @@ def packet_summary(scans):
     }
 
 
-def require_driver_contract(params):
+def require_driver_contract(params, expected_packets=50):
+    if expected_packets not in (50, 51):
+        raise ValueError("Expected packet count must be 50 or legacy 51")
     if params.get("model") != "VLP16" or params.get("rpm") != 900.0:
         raise RuntimeError("기존 VLP16 / 900 RPM 설정이 아니야. 값을 바꾸지 말고 확인해 줘.")
     if params.get("timestamp_first_packet") is not True:
@@ -76,11 +78,11 @@ def require_driver_contract(params):
         raise RuntimeError("현재 cut_angle 비활성 / time_offset=0 계약과 달라.")
     if params.get("gps_time") is not False or params.get("pcap_time") is not False:
         raise RuntimeError("live 호스트 시간 계약과 달라.")
-    if "npackets" in params and params["npackets"] != 51:
-        raise RuntimeError("npackets override가 51이 아니야.")
+    if params.get("npackets", 51) != expected_packets:
+        raise RuntimeError(f"npackets가 요청한 {expected_packets}와 다르다.")
 
 
-def preflight(timeout, network_profile="competition"):
+def preflight(timeout, network_profile="competition", expected_packets=50):
     import rosgraph
     import rospy
 
@@ -92,7 +94,7 @@ def preflight(timeout, network_profile="competition"):
     if rospy.get_param("/use_sim_time", False):
         raise RuntimeError("live 녹화는 /use_sim_time=false가 필요해. 실행기가 자동 변경하지는 않아.")
     params = rospy.get_param("/lidar/lidar_driver")
-    require_driver_contract(params)
+    require_driver_contract(params, expected_packets)
     # Verify that the receiver and the documented profiles describe the same input.
     for node, key, expected in (
         ("morai_sensor_udp_receiver", "sensor_config", "configs/sensors/Sensor_competition_local.json"),
@@ -149,7 +151,9 @@ def provenance(case, live, network_profile="competition"):
             "scope": "local raw input; not team 4090 full-stack/LAN latency certification"}
 
 
-def audit_bag(path):
+def audit_bag(path, expected_packets=50):
+    if expected_packets not in (50, 51):
+        raise ValueError("Expected packet count must be 50 or legacy 51")
     import rosbag
 
     with rosbag.Bag(str(path)) as bag:
@@ -157,11 +161,11 @@ def audit_bag(path):
         packets = packet_summary(message for _, message, _ in bag.read_messages(topics=["/sensor/lidar1/packets"]))
         duration = bag.get_end_time() - bag.get_start_time()
     missing = missing_inputs(counts)
-    valid_packets = (packets["packet_counts"] == [51] and packets["packet_bytes"] == [1206]
+    valid_packets = (packets["packet_counts"] == [expected_packets] and packets["packet_bytes"] == [1206]
                      and packets["header_minus_first_packet_sec_max_abs"] is not None
                      and packets["header_minus_first_packet_sec_max_abs"] < 1e-6
                      and packets["packet_span_sec_min"] >= 0)
-    return {"counts": counts, "duration_sec": duration, "packets": packets,
+    return {"counts": counts, "duration_sec": duration, "packets": packets, "expected_packets": expected_packets,
             "missing_inputs": missing, "pass": not missing and valid_packets,
             "limitations": "Presence/packet contract only; motion, collisions, frame gaps and GT quality need offline review."}
 
@@ -182,6 +186,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=CASES, default="static")
     parser.add_argument("--network-profile", choices=NETWORKS, default="competition")
+    parser.add_argument("--expected-packets", type=int, choices=(50, 51), default=50,
+                        help="Production 50; use 51 only with an explicit legacy driver override")
     parser.add_argument("--duration", type=int, default=30)
     parser.add_argument("--preflight-timeout", type=int, default=10)
     parser.add_argument("--output-root", type=pathlib.Path,
@@ -197,7 +203,7 @@ def main():
         print(json.dumps({"required": REQUIRED, "optional_regex": OPTIONAL_REGEX,
                           "scenarios": CASES}, ensure_ascii=False, indent=2))
         return 0
-    live = preflight(args.preflight_timeout, args.network_profile)
+    live = preflight(args.preflight_timeout, args.network_profile, args.expected_packets)
     print("필수 입력 수신과 기존 드라이버 설정 확인 완료.", flush=True)
     if args.check:
         print(json.dumps(live, ensure_ascii=False, indent=2))
@@ -223,7 +229,7 @@ def main():
         raise RuntimeError(f"녹화 종료 시간 초과. {output}의 원본을 보존하고 프로세스 상태를 확인해 줘.")
     if returncode != 0:
         raise RuntimeError(f"rosbag 종료 코드 {returncode}; 원본 보존: {output}")
-    audit = audit_bag(bag_path)
+    audit = audit_bag(bag_path, args.expected_packets)
     (output / "audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(audit, ensure_ascii=False, indent=2))
     return 0 if audit["pass"] else 1

@@ -1,5 +1,11 @@
 # 보행자 연결 개선과 LiDAR 이동 비교
 
+> 2026-10-15 읽기 안내: 이 문서의 ‘기본 51 유지’는 저속 이동 검증 당시의 결정이다.
+> 후속 독립 고속/회전 검증과 2026-10-14 사용자 승인으로 현재 MORAI 기본값은 50이다.
+> 아래 scan·수신 age·검출/추적 수치는 당시 입력 그대로 보존한다. 현재 상태는 [CURRENT](CURRENT.md#next),
+> 후속 근거는 [독립 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md#같은-날-lidar-50-운영-전환),
+> 현재 명령·51 복귀는 [handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+
 상태: EVIDENCE. 검증일: 2026-10-14. 현재 실행 기준은 [CURRENT](CURRENT.md)를 따른다.
 일반 보행자 연결 순위 개선은 운영 경로에 적용했다. LiDAR 50개와 회전 경계 묶음은
 저속 이동 검증을 보완했지만 기본 51개를 유지한다. E24 가중치·threshold·학습·기존 5K는 변경하지 않았다.

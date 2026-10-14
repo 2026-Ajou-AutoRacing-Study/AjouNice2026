@@ -69,18 +69,20 @@ class LidarLaunchTrialTests(unittest.TestCase):
         self.assertTrue(result.returncode != 0 or error, result.stdout + result.stderr)
         return result.stdout + result.stderr
 
-    def test_defaults_exactly_preserve_all_head_driver_and_gateway_parameters(self):
+    def test_defaults_change_only_packet_count_from_head(self):
         for filename in ("lidar.launch", "morai_udp_interface.launch"):
             with self.subTest(filename=filename):
                 before = self.dump(filename, reference=True)
                 after = self.dump(filename)
+                before[DRIVER + "npackets"] = 50
                 self.assertEqual(after, before)
-                self.assertNotIn(DRIVER + "npackets", after)
+                self.assertEqual(after[DRIVER + "npackets"], 50)
+                self.assertEqual(after[DRIVER + "rpm"], 900.0)
                 self.assertEqual(after[DRIVER + "cut_angle"], -0.01)
                 self.assertIs(after[DRIVER + "gps_time"], False)
                 self.assertIs(after[DRIVER + "timestamp_first_packet"], True)
 
-    def test_explicit_empty_packet_override_preserves_default_parameter_absence(self):
+    def test_cli_empty_packet_mapping_keeps_default50(self):
         self.assertEqual(self.dump(arguments=("npackets:=",)), self.dump())
         self.assertEqual(self.dump("morai_udp_interface.launch", ("lidar_npackets:=",)),
                          self.dump("morai_udp_interface.launch"))
@@ -97,6 +99,14 @@ class LidarLaunchTrialTests(unittest.TestCase):
                 candidate = self.dump(filename, (argument,))
                 self.assertEqual(candidate, expected)
                 self.assertIs(type(candidate[DRIVER + "npackets"]), int)
+
+    def test_legacy51_changes_only_packet_count(self):
+        for filename, argument in (("lidar.launch", "npackets:=51"),
+                                   ("morai_udp_interface.launch", "lidar_npackets:=51")):
+            with self.subTest(filename=filename):
+                expected = self.dump(filename)
+                expected[DRIVER + "npackets"] = 51
+                self.assertEqual(self.dump(filename, (argument,)), expected)
 
     def test_cut_zero_changes_only_azimuth_cut(self):
         for filename, argument in (("lidar.launch", "cut_angle:=0"),

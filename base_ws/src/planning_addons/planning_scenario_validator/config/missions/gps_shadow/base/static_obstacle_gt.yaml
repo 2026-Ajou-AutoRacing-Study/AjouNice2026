@@ -14,6 +14,7 @@ default_case:
   timeout_sec: 75                       # 한 시나리오의 최대 주행 시간
   arrival_mode: stop                    # stop: 목적지 정차 / pass_through: 통과
 stack:
+  planviz: true
   pose_source: localization             # localization | maptf_morai
   detector: od_gt                       # od_gt | bevfusion
   traffic_light: false                  # false면 planner의 신호등 판단도 꺼짐
@@ -21,10 +22,12 @@ recording:
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
   include_sensors: false                # true면 카메라 4대와 LiDAR도 bag에 추가
   video:
-    enabled: true                       # 전체 X11 화면을 시나리오마다 녹화합니다.
-    display: ":0.0"                     # echo $DISPLAY와 맞추세요.
-    fps: 15
-    focus_planviz: true                 # 녹화 전 RViz 창 전면/최대화, ROS1 EOL 팝업 비활성화
+    window_layout: split
+    bottom_bar_px: auto
+    enabled: true
+    display: ":0.0"
+    fps: 10
+    focus_planviz: false
 
 # 보통 수정하지 않는 연결/운영 설정입니다.
 network:

@@ -130,7 +130,7 @@ def load(path):
     return start, frames, excluded
 
 
-def build_original(output, params, policy=None):
+def build_original(output, params, policy=None, extended_state=False):
     sys.path.insert(0, str(ROOT/'perception/detection3d/bevfusion/tools'))
     from build_base5_low_score_probe import HARNESS, TRACKER
     source = TRACKER/'src/algorithm/ekf_multi_object_tracking.cpp'
@@ -152,6 +152,15 @@ def build_original(output, params, policy=None):
         if key in fields and isinstance(value, (bool, int, float)):
             settings.append('  config.{} = {};'.format(key, str(value).lower() if isinstance(value, bool) else value))
     text = HARNESS.replace('  auto tracker =', '\n'.join(settings)+'\n  auto tracker =', 1)
+    # Extra native state is diagnostic only. Keep the original leading TRACK
+    # fields so existing trace readers and frozen binaries remain compatible.
+    if extended_state:
+        track_anchor = '<< t.last_measurement_time << " " << t.age << "\\n";'
+        if text.count(track_anchor) != 1:
+            raise ValueError('Harness TRACK state anchor changed')
+        text = text.replace(track_anchor,
+            '<< t.last_measurement_time << " " << t.age << " " << t.state_vec(S_YAW_RATE)'
+            ' << " " << t.initialization_time << "\\n";', 1)
     # Printing predicted prior covariance makes l2/Mahalanobis rejection
     # auditable without changing the core or exposing private methods.
     anchor = '    tracker->RunUpdate(frame);'
@@ -265,7 +274,8 @@ def build_original(output, params, policy=None):
     if original != {p: sha(p) for p in original}:
         raise ValueError('Production core changed during build')
     receipt = dict(production_source_sha256=original, harness_sha256=sha(harness), binary_sha256=sha(binary),
-                   settings=settings, unused_runtime_parameters=sorted(set(params)-fields), production_modified=False)
+                   settings=settings, unused_runtime_parameters=sorted(set(params)-fields), production_modified=False,
+                   extended_state=extended_state)
     receipt['policy_candidate'] = policy
     receipt['linked_source_sha256'] = sha(linked_source)
     receipt['linked_header_sha256'] = sha(linked_include/'algorithm'/header.name)
@@ -273,7 +283,7 @@ def build_original(output, params, policy=None):
     return binary, receipt
 
 
-def replay(binary, frames):
+def replay(binary, frames, extra_args=()):
     selected = [f for f in frames if f['world_objects'] is not None]
     times = [f['stamp'] for f in selected]
     if any(b <= a for a, b in zip(times, times[1:])):
@@ -285,7 +295,7 @@ def replay(binary, frames):
         for obj in objects:
             label = ('vehicle', 'pedestrian', 'obstacle').index(obj['class_name'])
             lines.append(' '.join(format(v, '.17g') for v in (label, *obj['center'], obj['yaw'], *obj['size'], obj['score'])))
-    result = subprocess.run([str(binary.resolve())], input='\n'.join(lines)+'\n',
+    result = subprocess.run([str(binary.resolve()), *map(str, extra_args)], input='\n'.join(lines)+'\n',
                             text=True, capture_output=True, check=True, timeout=240)
     before = defaultdict(list)
     rows = []
@@ -303,11 +313,14 @@ def replay(binary, frames):
         elif tokens[0] == 'FRAME':
             rows.append(dict(stamp=float(tokens[1]), expected_tracks=int(tokens[2]), tracks=[]))
         elif tokens[0] == 'TRACK':
-            rows[-1]['tracks'].append(dict(id=int(tokens[1]), core_class=int(tokens[2]), confirmed=bool(int(tokens[3])),
+            track = dict(id=int(tokens[1]), core_class=int(tokens[2]), confirmed=bool(int(tokens[3])),
                                           associated=bool(int(tokens[4])), center=list(map(float, tokens[5:8])),
                                           velocity=list(map(float, tokens[8:10])), yaw=float(tokens[10]),
                                           size=list(map(float, tokens[11:14])), score=float(tokens[14]),
-                                          last_measurement_time=float(tokens[15]), age=int(tokens[16])))
+                                          last_measurement_time=float(tokens[15]), age=int(tokens[16]))
+            if len(tokens) >= 19:
+                track.update(yaw_rate=float(tokens[17]), initialization_time=float(tokens[18]))
+            rows[-1]['tracks'].append(track)
     if len(rows) != len(selected) or any(len(r['tracks']) != r['expected_tracks'] for r in rows):
         raise ValueError('Incomplete core replay')
     for row in rows:

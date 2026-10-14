@@ -12,6 +12,7 @@ default_case:
   timeout_sec: 75
   arrival_mode: stop
 stack:
+  planviz: true
   pose_source: localization
   detector: bevfusion
   traffic_light: false
@@ -19,10 +20,12 @@ recording:
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
   include_sensors: false                # 기본은 bag에서 원시 센서 제외. 인지 재현이 필요할 때만 true.
   video:
+    window_layout: split
+    bottom_bar_px: auto
     enabled: true
     display: ":0.0"
-    fps: 15
-    focus_planviz: true
+    fps: 10
+    focus_planviz: false
 network:
   sensor_json: configs/sensors/Sensor_competition_local.json
   ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json

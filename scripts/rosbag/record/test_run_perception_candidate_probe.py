@@ -42,7 +42,7 @@ class ProbeTests(unittest.TestCase):
             probe.pedestrian({}, 301, 'Man1', 50100001, profile)
 
     def test_driver_trials_do_not_change_rpm_or_stamp(self):
-        self.assertEqual(probe.POLICIES['fixed51'], [])
+        self.assertEqual(probe.POLICIES['fixed51'], ['lidar_npackets:=51'])
         self.assertEqual(probe.POLICIES['fixed50'], ['lidar_npackets:=50'])
         self.assertEqual(probe.POLICIES['cut0'], ['lidar_cut_angle:=0'])
 

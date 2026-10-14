@@ -11,6 +11,8 @@ import yaml
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
+from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
+                                    effective_gt_pose_args, resolve_localization_contract)
 
 
 def sha256(path):
@@ -32,6 +34,10 @@ def prepare_execution(source, *, check_install=True):
     if is_snapshot(cfg['path']):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
+    if cfg['recording'].get('video', {}).get('enabled', False):
+        # Freeze the effective host display even for CLI authoring YAMLs that
+        # omit it. Resuming under another DISPLAY must not select a new screen.
+        document['recording']['video']['display'] = cfg['recording']['video']['display']
     root = resolve_path(document.get('output_root', 'planner_logs/validation'))
     root.mkdir(parents=True, exist_ok=True)
     label = cfg['name']
@@ -81,6 +87,34 @@ def prepare_execution(source, *, check_install=True):
         else:
             document['recording']['topic_profile'] = copy_input(
                 resolve_path(document['recording']['topic_profile']), 'topic_profile.json')
+        # Candidate config bytes must belong to this execution, even when OD is
+        # GT. A later authoring config edit must not alter a resumed experiment.
+        repo_root = resolve_path('.')
+        localization_before = resolve_localization_contract(cfg, repo_root)
+        fusion = cfg['stack']['pose_source'] == 'localization'
+        active_args = (effective_localization_args(cfg, repo_root) if fusion
+                       else effective_gt_pose_args(cfg, repo_root))
+        key = 'localization_args' if fusion else 'gt_pose_args'
+        candidate_args = dict(document['stack'].get(key, {}))
+        for role in CONFIG_DEFAULTS:
+            if role in active_args:
+                candidate_args[role] = copy_input(active_args[role], 'localization_configs/' + role + '.yaml')
+        if not fusion:
+            # Explicitly preserve the old uncorrected GT alias semantics; an
+            # opt-in corrected GT experiment remains a different identity.
+            candidate_args.update({name: active_args[name] for name in
+                                   ('use_heading_correction', 'heading_yaw_offset_deg')})
+        document['stack'][key] = candidate_args
+        snapshot_cfg = dict(cfg, network=dict(cfg['network']))
+        snapshot_cfg['network']['sensor_json'] = document['network']['sensor_json']
+        snapshot_cfg['localization_launch_args'] = dict(cfg.get('localization_launch_args', {}))
+        snapshot_cfg['gt_pose_launch_args'] = dict(cfg.get('gt_pose_launch_args', {}))
+        snapshot_cfg['localization_launch_args' if fusion else 'gt_pose_launch_args'].update(candidate_args)
+        localization = resolve_localization_contract(snapshot_cfg, repo_root)
+        if localization['fingerprint'] != localization_before['fingerprint']:
+            raise ValueError('사본 준비 중 localization 코드·설치본·설정이 변경됐습니다. 다시 시작하세요')
+        atomic_json(directory / 'localization_contract.json', localization)
+        files['localization_contract.json'] = sha256(directory / 'localization_contract.json')
         model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'),
                                  require_assets=check_install)
         if cfg['stack'].get('detector') == 'bevfusion':
@@ -147,6 +181,18 @@ def load_execution(directory, *, check_install=True):
         if check_install:
             verify_contract(model, cfg['stack'], cfg['network']['sensor_json'], resolve_path('.'))
         cfg['model_contract'] = model
+    if 'localization_contract.json' in manifest['files']:
+        localization = json.loads((directory / 'localization_contract.json').read_text())
+        if (not isinstance(localization, dict) or localization.get('schema_version') != 1
+                or not isinstance(localization.get('fingerprint'), str)
+                or len(localization['fingerprint']) != 64):
+            raise ValueError('localization 실행 계약 형식이 잘못됐습니다')
+        if check_install:
+            actual = resolve_localization_contract(cfg, resolve_path('.'))
+            if actual['fingerprint'] != localization['fingerprint']:
+                raise ValueError('localization 코드·설치본·설정·heading·제어 계약이 이전 실행과 다릅니다. '
+                                 '같은 결과에 resume할 수 없습니다. 새 실험을 시작하세요')
+        cfg['localization_contract'] = localization
     if cfg['output'] != directory or cfg['name'] != manifest.get('execution_id'):
         raise ValueError('실험 사본의 결과 경로가 기록과 다릅니다')
     expected_scenes = {relative for relative in manifest['files'] if relative.startswith('scenarios/')}

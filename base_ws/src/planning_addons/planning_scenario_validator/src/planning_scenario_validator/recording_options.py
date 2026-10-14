@@ -1,5 +1,6 @@
 """Bag choices independent of screen video and live validation subscriptions."""
 import json
+import os
 from pathlib import Path
 from .topic_contract import PLANNER_TIME_PATTERNS, DOWNSTREAM_TIMING, MODEL_NAMESPACES
 
@@ -9,13 +10,31 @@ BASIC = '기본 녹화'
 ANALYSIS = '인지 분석 (센서+영상)'
 CUSTOM = '직접 선택'
 LATENCY = '지연 분석 (센서 제외)'
-MODES = (OFF, LIGHT, BASIC, LATENCY, ANALYSIS, CUSTOM)
+LOCALIZATION = '측위 분석 (센서 원본 제외)'
+MODES = (OFF, LIGHT, BASIC, LATENCY, LOCALIZATION, ANALYSIS, CUSTOM)
 PROFILE_ROOT = 'base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles'
 SENSORS = ['/sensor/lidar1'] + [
     '/sensor/camera/{}/compressed'.format(camera)
     for camera in ('front', 'front_left', 'front_right', 'back')]
 RECORDING_PATHS = [('recording', key) for key in
                    ('bag_enabled', 'analysis_mode', 'topic_profile', 'include_sensors', 'selected_topics', 'profile_preset')]
+
+
+def ensure_video_display(recording, environ=None):
+    """Resolve a missing X11 address only for enabled screen recording.
+
+    Preserve explicit user addresses and minimal video-OFF documents. New GUI
+    saves/execution snapshots persist the resolved address for later resume.
+    """
+    video = recording.get('video', {})
+    if not isinstance(video, dict):
+        raise ValueError('recording.video는 YAML mapping이어야 합니다')
+    if not video.get('enabled', False):
+        return
+    display = video.get('display')
+    if display is None or (isinstance(display, str) and not display.strip()):
+        environment = os.environ if environ is None else environ
+        video['display'] = str(environment.get('DISPLAY') or '').strip() or ':0'
 
 
 def mode_label(recording):
@@ -32,6 +51,8 @@ def mode_label(recording):
     stem = Path(str(recording.get('topic_profile', ''))).stem
     if recording.get('profile_preset') == 'latency_analysis' or stem == 'latency_analysis':
         return LATENCY
+    if recording.get('profile_preset') == 'localization_analysis' or stem == 'localization_analysis':
+        return LOCALIZATION
     return LIGHT if stem == 'lightweight' else BASIC if stem in ('basic', 'topic_profile') else CUSTOM
 
 
@@ -41,8 +62,9 @@ def apply_mode(document, label):
     recording = document.setdefault('recording', {})
     recording['bag_enabled'] = label != OFF
     recording['analysis_mode'] = label == ANALYSIS
-    if label in (LIGHT, BASIC, ANALYSIS, LATENCY):
-        name = {LIGHT: 'lightweight', BASIC: 'basic', ANALYSIS: 'perception_analysis', LATENCY: 'latency_analysis'}[label]
+    if label in (LIGHT, BASIC, ANALYSIS, LATENCY, LOCALIZATION):
+        name = {LIGHT: 'lightweight', BASIC: 'basic', ANALYSIS: 'perception_analysis',
+                LATENCY: 'latency_analysis', LOCALIZATION: 'localization_analysis'}[label]
         recording['topic_profile'] = PROFILE_ROOT + '/' + name + '.json'
         recording['profile_preset'] = name
         recording.pop('selected_topics', None)
@@ -50,6 +72,7 @@ def apply_mode(document, label):
     if label == ANALYSIS:
         # Preserve the existing raw-analysis contract. Other modes never change video.
         recording.setdefault('video', {})['enabled'] = True
+        ensure_video_display(recording)
 
 
 def checked_topics(topics):
@@ -70,9 +93,20 @@ def diagnostics_enabled(recording):
     return recording.get('bag_enabled', True) and mode_label(recording) in (ANALYSIS, LATENCY)
 
 
+def localization_analysis_enabled(recording):
+    """Explicit localization evidence profile, without perception timing overhead."""
+    return recording.get('bag_enabled', True) and mode_label(recording) == LOCALIZATION
+
+
+def sharing_enabled(recording):
+    """Analysis modes that need a self-contained manual or automatic share bundle."""
+    return diagnostics_enabled(recording) or localization_analysis_enabled(recording)
+
+
 def sharing_warnings(recording, upload):
-    if diagnostics_enabled(recording) and upload.get('profile', 'basic') not in ('bag', 'full'):
-        return ['분석 녹화지만 공유에서 bag 제외: 공유 자료만으로 프레임·지연 분석 불가. bag/원본 공유를 선택하세요.']
+    if sharing_enabled(recording) and upload.get('profile', 'basic') not in ('bag', 'full'):
+        analysis = '측위 입력·드리프트' if localization_analysis_enabled(recording) else '프레임·지연'
+        return ['분석 녹화지만 공유에서 bag 제외: 공유 자료만으로 {} 분석 불가. bag/원본 공유를 선택하세요.'.format(analysis)]
     return []
 
 
@@ -98,7 +132,7 @@ def effective_topics(recording, resolve_path):
 
 def topic_catalog(root, current=()):
     topics = set(current) | set(SENSORS)
-    for name in ('lightweight', 'basic', 'perception_analysis', 'latency_analysis', 'full'):
+    for name in ('lightweight', 'basic', 'perception_analysis', 'latency_analysis', 'localization_analysis', 'full'):
         path = Path(root) / PROFILE_ROOT / (name + '.json')
         if path.is_file():
             topics.update(checked_topics(json.loads(path.read_text(encoding='utf-8'))))

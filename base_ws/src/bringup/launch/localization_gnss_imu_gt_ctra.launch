@@ -22,6 +22,8 @@
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_local.yaml"/>
   <arg name="global_ekf_gt_config"
        default="$(arg repo_root)/configs/localization/robot_localization_gnss_imu_gt_ctra_global.yaml"/>
+  <arg name="use_lateral_velocity_constraint" default="true"/>
+  <arg name="lateral_velocity_stddev_mps" default="0.20"/>
   <arg name="gnss_quantization_input_mode" default="off"/>
   <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
@@ -34,6 +36,9 @@
        default="/localization/control_kinematic_state"/>
   <arg name="control_translation_tau_sec" default="0.5"/>
   <arg name="control_yaw_tau_sec" default="0.5"/>
+  <arg name="control_state_use_vehicle_pivot" default="true"/>
+  <arg name="control_lateral_tau_sec" default="0.1"/>
+  <arg name="control_max_lateral_correction_rate_mps" default="0.3"/>
   <arg name="quantized_control_yaw_tau_sec" default="0.0"/>
   <arg name="control_state_reset_translation_error_m" default="0.5"/>
   <arg name="control_state_reset_yaw_error_deg" default="20.0"/>
@@ -81,6 +86,10 @@
     <arg name="global_ekf_base_config" value="$(arg global_ekf_base_config)"/>
     <arg name="local_ekf_gt_config" value="$(arg local_ekf_gt_config)"/>
     <arg name="global_ekf_gt_config" value="$(arg global_ekf_gt_config)"/>
+    <arg name="use_lateral_velocity_constraint"
+         value="$(arg use_lateral_velocity_constraint)"/>
+    <arg name="lateral_velocity_stddev_mps"
+         value="$(arg lateral_velocity_stddev_mps)"/>
     <arg name="gnss_quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
     <arg name="gnss_quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
@@ -93,6 +102,11 @@
     <arg name="control_translation_tau_sec"
          value="$(arg control_translation_tau_sec)"/>
     <arg name="control_yaw_tau_sec" value="$(arg control_yaw_tau_sec)"/>
+    <arg name="control_state_use_vehicle_pivot"
+         value="$(arg control_state_use_vehicle_pivot)"/>
+    <arg name="control_lateral_tau_sec" value="$(arg control_lateral_tau_sec)"/>
+    <arg name="control_max_lateral_correction_rate_mps"
+         value="$(arg control_max_lateral_correction_rate_mps)"/>
     <arg name="quantized_control_yaw_tau_sec"
          value="$(arg quantized_control_yaw_tau_sec)"/>
     <arg name="control_state_reset_translation_error_m"

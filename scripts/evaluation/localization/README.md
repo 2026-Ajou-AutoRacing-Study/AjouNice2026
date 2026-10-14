@@ -36,6 +36,24 @@ Do not infer this value from the bag filename or recording computer. Recover
 the launcher, alias, `gt_source`, and runtime parameter provenance first. See
 `docs/localization/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md`.
 
+## Validator GPS shadow phase analysis
+
+`analyze_gps_shadow_validator.py BAG --output analysis.json --markdown analysis.md`
+reads raw GPS invalid/stale transitions, raw Ego oracle, recorded Global/Local/Smooth,
+TF, planning and control. It excludes ScenarioLoad teleports and bounds interpolation
+across gaps. Sibling validator events select the actual driving window; `--events`
+can supply original events for same-input estimator replay. Use the MR heading offset
+`-1.347` only when supported by the run provenance.
+Gracefully interrupted validator drives end at the recorded `CASE_RESULT` when no
+`RUN_FINISHED` exists, excluding brake/P shutdown; this does not relabel an abort as PASS.
+
+Estimator error against independent Ego and actual Ego error to the causally received
+recorded trajectory are separate metrics. Replayed recorded trajectories/commands do
+not prove candidate closed-loop performance. Per-phase signed/absolute mean, p50/p90/
+p95/max, recovery, topic availability, TF and control diagnostics are preserved.
+See `docs/localization/261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md` and the original
+validator receipts for the experiment contract.
+
 ## Smooth controller-state pre-screen
 
 `analyze_odom_frame_control_contract_bag.py INPUT.bag` compares recorded
@@ -48,6 +66,24 @@ recorded in `docs/localization/LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md`
 outputs while smoothing only their `map -> odom` alignment. This is a
 counterfactual offline pre-screen: it does not re-run the controller and cannot
 approve a production change.
+
+Current production (2026-10-15 user approval) additionally enables the Global-only
+soft body vy prior and uses vehicle-pivot Smooth with longitudinal/lateral/yaw tau
+0.5/0.1/0.5s and a lateral correction cap of 0.3m/s. Old origin-based pre-screen
+results and 0.5/0.5s historical scripts are not measurements of this new default.
+Preserve the source snapshot, effective launch parameters and callback/replay
+limitations when comparing versions. The current five-bag source-verified study is
+`planner_logs/analysis/261015_soft_production_smooth_improvement/evaluate_candidates.py`
+(Git-excluded experiment artifact); its frozen legacy source comes from the
+original validator receipt, not the newly changed production defaults. Tables and
+remaining live/LAN gates are consolidated in
+`docs/localization/261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md`.
+
+For a new launch reproducing the historical no-prior + legacy Smooth baseline,
+explicitly pass `use_lateral_velocity_constraint:=false` and
+`control_state_use_vehicle_pivot:=false`. Never force-resume an old execution
+after changing the localization source/config. Recording must actually contain
+`/localization/constraints/lateral_velocity` for a soft-ON prior audit.
 
 For a new bag that already records `/localization/control_kinematic_state`,
 `analyze_localization_stability_bag.py` reports Global pose, controller-state

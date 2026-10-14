@@ -1,6 +1,6 @@
 # 인지와 데이터셋 작업 안내
 
-문서 상태: ROUTER. 정리 기준: 2026-10-12.
+문서 상태: ROUTER. 정리 기준: 2026-10-14.
 에이전트는 아래에서 **현재 요청에 해당하는 한 행**을 선택한다.
 모델·데이터·ROS·후단을 모두 바꾸는 작업이 아니라면 다른 영역의 문서를 미리 전부 읽지 않는다.
 
@@ -8,6 +8,7 @@
 
 | 작업 | 먼저 읽을 문서 | 필요한 경우에만 추가 |
 |---|---|---|
+| 다음 인지 작업·새 bag 수령 후 우선 분석 | [활성 우선순위](../ACTIVE_PRIORITIES.md#perception-priorities) | 단계별 지연 입력은 같은 문서의 [확인 목록](../ACTIVE_PRIORITIES.md#perception-latency) |
 | Base5 학습·checkpoint·공간 격자·추론 최적화 | [모델 CURRENT](../bevfusion/CURRENT.md) | [근거 인덱스](../bevfusion/README.md)에서 관련 절 |
 | Base5 생성·수집·resume·부족분 보충 | [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md#capture) | [새 환경 수집 런북](../../dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md) |
 | Native GT·JPEG·가시성·학습 클래스 변환 | [데이터 GT 계약](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md#gt) | 모델 입력을 바꾸면 [모델 CURRENT](../bevfusion/CURRENT.md#model) |
