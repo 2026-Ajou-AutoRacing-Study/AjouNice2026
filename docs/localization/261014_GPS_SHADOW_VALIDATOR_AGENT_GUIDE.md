@@ -1,6 +1,6 @@
 # GPS 음영 횡방향 드리프트 실험 — Validator 에이전트 가이드
 
-상태: **LOCAL MR FUNCTIONAL CHECK PASSED / 측위 개선은 미판정**. 기준: 2026-10-14, Asia/Seoul.
+상태: **LOCAL MR FUNCTIONAL CHECK PASSED / 측위 후보 평가는 별도 EVIDENCE**. 기준: 2026-10-14, Asia/Seoul.
 현재 validator의 CLI·후보 전달·입력 사본·측위 녹화·안전 gate와 대조한 작업 안내다.
 아래 구현 지원과 실제 주행 성공·측위 개선을 구별한다. 사용자는 필요한 validator 구현과
 연결된 MR 시험을 허용했다. Production localization Q/R·heading·시간축·제어 입력 기본값을
@@ -8,6 +8,12 @@
 
 목표는 음영 진입·유지·복귀의 **측위 횡오차**와 **실제 Ego의 횡방향 움직임**을 분리하고
 같은 장면의 localization 후보를 비교하는 것이다. Base5 본수집·학습은 범위 밖이다.
+
+2026-10-15 후속 실제 폐루프와 Global-only soft 횡속도 제약의 검증·악화·한계는
+[`261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md`](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)에 기록했다.
+이 가이드의 기존 기능 시험 표를 후보 성능 표로 재사용하지 않는다. 이후 사용자 승인으로
+모델 prior는 기본 ON이며 개선 Smooth도 반영됐다. 현재 값과 미완료 gate는 CURRENT와
+위 EVIDENCE의 마지막 절을 따른다. 과거 기준선 재현에는 두 OFF 인자를 명시한다.
 
 ## 1. 읽을 문서와 작업 경계
 
@@ -96,6 +102,7 @@ stack:
   pose_source: localization
   detector: od_gt
   traffic_light: false
+  planviz: true
   localization_args: {}
 recording:
   bag_enabled: true
@@ -103,8 +110,22 @@ recording:
   profile_preset: localization_analysis
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/localization_analysis.json
   include_sensors: false
-  # 이 기능 시험 예제는 video/RViz OFF. 부하 조건을 A/B 내내 유지.
+  video:
+    enabled: true
+    display: ':0'
+    fps: 10
+    focus_planviz: false
+    window_layout: split
+    bottom_bar_px: auto
 ```
+
+2026-10-15 사용자 관찰용 기본값은 RViz/영상 ON, split(RViz 왼쪽·MORAI 오른쪽,
+GUI 하단)이다. `gps_shadow/base/`의 예제 6개와 현재 개인 `workspace/`의 캠페인
+12개에 동일 표시 옵션을 적용했다. 현재 runner는 영상 ON + RViz ON일 때 split
+배치를 적용하므로 layout만 지정하고 video를 OFF하면 자동 배치는 실행되지 않는다.
+과거 영상/RViz OFF 실험 결과와 새 ON 주행은 부하 조건이 다르며, A/B에서는 이 값을
+동일하게 유지한다. GUI에 이미 열어 둔 YAML은 **다시 불러오기**하고 새 실행을 시작한다.
+과거 결과의 snapshot/resume로는 바뀐 원본 옵션이 반영되지 않는다.
 
 예제 validation: 안에 다음을 추가한다. **안전 gate는 opt-in이며 기존 모든 캠페인에
 자동 적용되는 기본값이 아니다.** 이번 실험에서는 켜고 A/B 내내 유지한다.
@@ -215,9 +236,9 @@ stack.localization_args는 임의 ROS parameter/launch 전달 경로가 아니�
 | 역할 | 허용 키/값 |
 |---|---|
 | config YAML 경로 | localization_manager_config, measurement_noise_config, local_ekf_base_config, global_ekf_base_config, local_ekf_gt_config, global_ekf_gt_config |
-| bool | use_quantized_gnss_control_state, enable_relocation_guard, relocation_guard_monitor_only |
-| 0 이상 유한 숫자 | control_translation_tau_sec, control_yaw_tau_sec, quantized_control_yaw_tau_sec, control_state_reset_translation_error_m, control_state_reset_yaw_error_deg(≤180), relocation_guard_cooldown_sec |
-| 양수/양의 정수 | relocation_guard_threshold_m; relocation_guard_consecutive_samples(정수 ≥1) |
+| bool | use_quantized_gnss_control_state, enable_relocation_guard, relocation_guard_monitor_only, use_lateral_velocity_constraint, control_state_use_vehicle_pivot |
+| 0 이상 유한 숫자 | control_translation_tau_sec, control_lateral_tau_sec, control_yaw_tau_sec, control_max_lateral_correction_rate_mps, quantized_control_yaw_tau_sec, control_state_reset_translation_error_m, control_state_reset_yaw_error_deg(≤180), relocation_guard_cooldown_sec |
+| 양수/양의 정수 | lateral_velocity_stddev_mps, relocation_guard_threshold_m; relocation_guard_consecutive_samples(정수 ≥1) |
 | 선택값 | gnss_quantization_input_mode: off / cell_transition; initial_position_source: ego / official_start |
 
 기본 config는 configs/localization/의 localization_manager.yaml,
@@ -229,7 +250,23 @@ EKF 행렬/필드의 모든 의미를 검증하지는 않는다. 실제 ROS para
 MR Fusion은 gt_source=competition, heading correction ON/−1.347°, live use_sim_time=false,
 publish_sensor_tf=false, publish_control_state=true로 고정한다. Sensor config는 실행 YAML의
 실제 Sensor JSON을 전달한다. 이 값은 candidate dictionary로 우회할 수 없다.
-기본 Smooth tau 0.5/0.5초, quantized control OFF, relocation guard OFF를 유지한다.
+현재 기본값은 Global-only soft body vy prior ON(σ=0.20m/s), vehicle-pivot Smooth
+종/횡/yaw tau=0.5/0.1/0.5초, 횡 correction cap=0.3m/s다. quantized control OFF,
+relocation guard OFF는 유지한다. custom noise/Global YAML보다 prior launch 인자가
+우선하며 publisher/mask가 함께 켜지거나 꺼진다. 과거 기준선에는 아래 두 인자를
+명시하고 반드시 **새 실행**을 만든다(옛 결과 강제 resume 금지).
+
+```yaml
+stack:
+  pose_source: localization
+  detector: od_gt
+  localization_args:
+    use_lateral_velocity_constraint: false
+    control_state_use_vehicle_pivot: false
+```
+
+현재 사용자 승인 승격과 동일입력 Smooth 검증/남은 폐루프·LAN gate는
+`261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md` 마지막 절을 따른다.
 
 gt_source=competition은 heading/velocity 입력이지 GT 위치 대체가 아니다. 개발 초기 위치만 Ego를
 사용한다. 음영 출발점은 공식 START가 아니므로 initial_position_source=official_start를 임의로
@@ -247,6 +284,7 @@ analysis_mode=true는 별개 인지 분석이다. 측위 프리셋은 BEV frame 
   /Ego_topic /Competition_topic /competition/raw_twist /sensor/gps /sensor/imu
 Fusion 내부 (localization에서만 필수):
   /localization/imu /localization/gt/orientation /localization/gt/twist
+  /localization/constraints/lateral_velocity  (soft ON에서 발행·녹화 확인)
   /localization/gnss/odom /localization/odometry/local /localization/odom
   /localization/control_kinematic_state /localization/initialpose
 공통 상태/TF/제어:
@@ -346,6 +384,17 @@ map↔morai_map static transform만 좌표 변환에 쓴다. MR −1.347°는 es
 
 ROS header·bag receipt·monotonic·simulator 시간은 다르다. Live safety는 monotonic receipt freshness,
 offline 분석은 header 우선/없는 경우 bag time이다. MR 비실시간율을 실제 velocity scale로 보정하지 않는다.
+
+**원본 재실행의 초기화 gate:** Validator는 ScenarioLoad 전 raw 입력도 녹화할 수 있다.
+따라서 bag 전체를 곧바로 현재 localization에 넣으면 로드 전 첫 Ego로 초기화돼,
+실제 SCENARIO_READY 이후 시작한 estimator와 다른 초기 조건이 된다. 분석에서 준비
+표본을 제외하는 것만으로 이 filter 이력을 없앨 수는 없다. 원본 events/rosout의 실제
+초기화 시각·pose를 확인하고, replay도 같은 post-load Ego/Competition 초기화가 되는지
+직접 대조한다. 입력을 잘라야 한다면 원시 메시지/header/receipt 시각을 보존하고 원본
+static TF도 빠짐없이 유지한다. `rosbag play --start`로 TF까지 누락시키지 않는다.
+derived input의 원본/결과 SHA와 제외 규칙을 저장하며, 초기 조건이 다른 whole-bag replay는
+production 비교 표가 아니라 별도 진단으로 분류한다.
+
 로드 teleport·긴 gap·stamp 역행을 넘겨 다른 시각 pose를 보간하지 않는다.
 
 ```bash

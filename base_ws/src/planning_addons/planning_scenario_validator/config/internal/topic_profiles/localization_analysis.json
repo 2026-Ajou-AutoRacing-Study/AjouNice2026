@@ -12,6 +12,7 @@
   "/localization/imu",
   "/localization/gt/orientation",
   "/localization/gt/twist",
+  "/localization/constraints/lateral_velocity",
   "/localization/gnss/odom",
   "/localization/odometry/local",
   "/localization/odom",

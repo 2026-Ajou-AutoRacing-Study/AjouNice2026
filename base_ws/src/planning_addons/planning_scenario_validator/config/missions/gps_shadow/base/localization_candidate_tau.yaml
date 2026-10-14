@@ -12,7 +12,7 @@ stack:
   pose_source: localization
   detector: od_gt
   traffic_light: false
-  planviz: false
+  planviz: true
   localization_args:
     control_translation_tau_sec: 0.25
     # yaw는 A의 기본 0.5s와 같게 유지합니다. heading/시간축 계약은 고정입니다.
@@ -23,7 +23,12 @@ recording:
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/localization_analysis.json
   include_sensors: false
   video:
-    enabled: false
+    display: ":0"
+    fps: 10
+    focus_planviz: false
+    window_layout: split
+    bottom_bar_px: auto
+    enabled: true
   minimum_free_disk_gib: 2
 upload:
   enabled: false

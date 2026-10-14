@@ -1,13 +1,15 @@
 # Competition Localization 현재 상태
 
 상태: **CURRENT**
-마지막 갱신: 2026-09-26
+마지막 갱신: 2026-10-15 (Global soft vy prior + vehicle-pivot Smooth 실제 MR 폐루프 확인)
 
 ## 한 줄 결론
 
 현재 production은 GNSS 양자화에 맞춘 Q/R과 Local EKF 기반 Smooth controller
-state를 함께 사용한다. Planning과 TF는 Global state를 유지하고 controller만
-translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음영 중에도 마지막
+state를 함께 사용한다. Global-only soft body `vy≈0` prior(σ=0.20m/s)가 기본 ON이다.
+Planning과 TF는 Global state를 유지하고 controller는 vehicle-pivot Smooth의
+종/횡/yaw tau `0.5/0.1/0.5 s`, 횡 correction rate cap `0.3m/s`를 사용한다.
+이 cap은 차량의 횡이동/조향 속도가 아니라 측위 보정 성분만 제한한다. GPS 음영 중에도 마지막
 유효 z를 유지하며 planar state를 계속 발행한다.
 
 ## Production 계약
@@ -22,7 +24,9 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
 | Global EKF Qxy | `0.0005` | `0.0005` |
 | planning/TF state | `/localization/kinematic_state` | 동일 |
 | controller-facing state | `/localization/control_kinematic_state` | 동일 |
-| control translation/yaw tau | `0.5 / 0.5 s` | 동일 |
+| Global soft lateral prior | ON, σ `0.20 m/s`, body vy만 융합 | 동일 기본값; 별도 MRP 폐루프 미검증 |
+| control longitudinal/lateral/yaw tau | `0.5 / 0.1 / 0.5 s`, vehicle pivot | 동일 |
+| control lateral correction rate cap | `0.3 m/s` | 동일 |
 
 공통 계약:
 
@@ -31,6 +35,11 @@ translation/yaw tau `0.5/0.5 s`의 연속적인 state를 사용한다. GPS 음�
 - `publish_sensor_tf=false`.
 - UDP는 ROS host receipt-time 정책을 유지한다.
 - localization provider는 한 번에 하나만 실행한다.
+- Local EKF에는 횡속도 prior를 추가하지 않는다. 기존 GT heading/vx 메시지와 IMU
+  yaw-rate/ax, IMU ay OFF, sigma/Qxy 및 UDP 정책은 유지한다.
+- `use_lateral_velocity_constraint`와 `lateral_velocity_stddev_mps` launch 인자가
+  custom noise/Global YAML보다 우선해 publisher와 Global mask를 함께 설정한다.
+  구형 config를 줬다는 이유로 prior의 절반만 켜지는 상태를 허용하지 않는다.
 - 대회에서 `/Ego_topic`과 `/Object_topic`을 기대하지 않는다.
 - MR 개발용 `localization`은 초기 위치에만 `/Ego_topic`을 쓴다. 초기 yaw와
   연속 GT yaw는 모두 `/Competition_topic.heading - 1.347 deg`다.
@@ -84,7 +93,9 @@ MRP의 `0 deg`는 현재 alias 설정과 기존 MRP replay 비교 계약이다. 
 Local EKF  : odom -> base_link, GNSS가 직접 들어가지 않는 smooth motion
 Global EKF : map pose, GNSS x/y correction 포함
 Publisher  : Global pose + 최신/마지막 유효 GNSS z -> /localization/kinematic_state
-Smooth     : 저역통과한 map -> odom 정합 x 최신 Local pose
+Prior      : source-stamped body vy≈0 (σ=0.20m/s) -> Global EKF only
+Smooth     : Local motion 예측 + 현재 차량 기준점의 Global correction
+             (종/횡/yaw tau=0.5/0.1/0.5s, 횡 correction cap=0.3m/s)
              -> /localization/control_kinematic_state
 Planning/TF: /localization/kinematic_state
 Controller : /localization/control_kinematic_state
@@ -112,8 +123,59 @@ Controller : /localization/control_kinematic_state
    `1.77 -> 0.88 cm`로 감소했다.
 10. 약 `7.25 s` GPS 음영 재획득 직후 첫 1초의 조향 변화율 p95는
     `0.698 -> 0.221 rad/s`로 `68.3%` 감소했다.
+11. 새 soft+vehicle-pivot Smooth로 사용자 실제 무객체 전체 코스2회와 음영 pair2회가
+    목적지PASS·충돌0·약50Hz를 확인했다. 최신 pair의 실제12.844초 GPS 음영에서
+    Global/Smooth 횡p95는6.61/6.60cm였다. Ego 위치는 초기화1회뿐이며 음영 중
+    GNSS odometry는0개다. 이는 MR 확인이며 LAN·장시간 정차·슬립 검증은 아니다.
+12. 같은 최신 pair raw 입력에서 soft만 OFF/ON한1× estimator replay는 초기pose와
+    입력payload/header를 일치시킨 뒤 음영 Global 횡p95를56.44→6.59cm로 줄였다.
+    ON에서 내부ay/vy가0에 수렴하는 효과를 분리했다. 실제 OFF 차량 재주행은 아니다.
 
 ## 남은 위험과 우선순위
+
+### 개선·승격. GPS 음영 중 미관측 횡상태 발산
+
+최종 state의 연속 발행과 실제 위치 정확도는 별개다. 2026-10-15 실제 Validator의
+localization + od_gt + Planning/제어 폐루프에서 약 11.4초 음영 동안 Global의
+미관측 `ay`가 유지돼 `vy`와 횡위치가 적분되고, 횡오차 최대 2.49m가 확인됐다.
+Smooth는 그 Global drift를 완만하게 따라가므로 이를 자체적으로 제거하지 못한다.
+
+Global에만 별도 soft `vy=0` 모델 prior(σ=0.20m/s)를 주는 방식을 사용자 승인으로 승격했다.
+이는 IMU `ay` 입력을 새로 끄는 변경이 아니다. 현재 CTRA overlay의 Local/Global
+IMU `ay` mask는 이미 OFF이며, 그와 별개로 15-state EKF 내부 `ay/vy`는 남는다.
+모델 prior는 기본 ON이며 기존 GT twist를 바꾸거나 Competition의 미제공 vel_y를
+실측으로 사용하지 않는다. 매 launch에서 noise/Global overlay를 로드한 뒤 명시적
+launch 인자로 publisher와 Global vy mask를 같이 확정해 parameter 잔류를 막는다.
+동일입력/실제 폐루프 근거와 작은 악화·남은 gate는
+[`261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md`](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)를 따른다.
+production alias 명칭, Q/R, heading, 시간 정책은 유지한다. 아래 비교의 Smooth 0.5/0.5s
+수치는 승격 전 기준이며 현재 새 Smooth 기본값의 실제 폐루프 성능으로 재사용하지 않는다.
+후속 actor-free 전체 코스에서도 후보 두 번과 기존 반복 한 번이 완주했다.
+음영 Global 횡 p95는 기존 1.343m에서 후보 0.084/0.085m로 줄었으나 Smooth 전체 횡
+p95는 약 1.4~1.6cm 악화했다. 최초 기존 주행의 먼 목적지 궤적·정차는 GPS 유효
+상태에서 발생했고 반복에서 재현되지 않아 측위 후보의 완주 효과로 세지 않는다.
+이후 RViz/영상 ON인 사용자 후보 주행 두 번(`024445`, `024803`)에서 동일한 고주로
+경로 붕괴가 다시 재현됐다. 직전 횡측위 오차는 cm 수준이며 GPS는 유효했고,
+경로 최적화 실패와 차선 변경 영역 전환이 먼저 관측됐다. 별도의 Planning/제어
+통합 진단으로 분리하며 이 실패를 후보 횡측위 발산으로 세지 않는다. 관련 증거는
+같은 EVIDENCE 문서와 `planner_logs/analysis/261015_fullcourse_route_collapse/`에 누적한다.
+이는 로컬 후보 근거이며 대회 LAN·장시간 음영 정차·슬립 gate를 대신하지 않는다.
+승격 승인은 이후 사용자에게 받았지만 LAN·장시간 정차·슬립 검증을 완료한 것으로
+기록하지 않는다. 새 Smooth는 동일입력5개 bag·단위/transport 이후 사용자 실제
+전체 코스2회·음영pair2회도 확인했다. 최신 전체 코스와 과거 같은scene의 보조 비교에서
+Smooth 횡mean/p50은2.43/1.67→2.09/1.23cm지만 횡p95는6.70→8.12cm로 악화했다.
+반복·부하·초기상태 차이가 있고 모든 통계의 일괄 개선을 주장하지 않는다.
+최신 E24 동일 입력을 원본 post-ScenarioLoad 초기 pose와 맞춰 재실행한 결과도 Global
+음영 횡 p95 1.261→0.117m였다. 단순 Global IMU ay ON 진단은 16.693m로 악화해
+기각했다. 반면 후보의 Smooth 선회 평가(음영·재획득 포함) p95 0.070→0.119m 및
+10cm 복귀 기준 손해가 있었다. 이후 음영·재획득 첫1초를 제외한 정상 선회에서
+같은 입력의 개선 Smooth는 p95를0.114→0.059m로 줄였다. 같은 soft 입력의
+10cm 복귀 시간도1.185→0.199s로 줄었다. 정상 GNSS 이동/선회를 pre-soft까지
+세 단계로 대조하면 횡p95는5.35→9.78→4.92cm / 6.90→11.45→5.88cm였다.
+이는 동일입력 estimator replay와 출력 재구성이지 세 번의 신규 폐루프가 아니다.
+세부 표와 서로 다른 비교 창은 같은 EVIDENCE를 따른다. 새 전체 코스의 종오차는
+Global과 Smooth 모두 평균약26~28cm로 남아 있으며, Smooth 단독 지연으로
+단정하지 않고 속도·가감속·입력 시각 정합을 다음 원인 분리 대상으로 둔다.
 
 ### 해결. GPS 음영 중 최종 state 연속성
 
@@ -141,7 +203,16 @@ Local EKF의 연속성을 controller에 전달하는 전용 map-frame state를 �
 pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 현재 Local pose와
 합성한다. planning과 TF는 기존 Global state를 유지한다.
 
-offline/open-loop 검증 뒤 동일 전체 경로 폐루프 A/B를 수행했다. `tau=0.5/0.5 s`
+현재는 차량 위치를 기준으로 correction을 종/횡으로 나눠 `tau=0.5/0.1s`를 적용한다.
+yaw tau=0.5s, 횡 correction cap=0.3m/s다. co-time Local 운동 예측 뒤 Global
+correction만 보정하며, odom 원점을 바꿔도 차량 출력이 같도록 vehicle-pivot을 쓴다.
+현재 5개 bag의 동일입력 검증은 횡 p95를 모두 줄였지만 motion residual p95가
+0.05~0.07cm 증가했다. 이후 실제 MR 폐루프에서 기존 판단/제어 설정으로4회PASS를
+확인했고, 최신 전체 코스의 steering-rate mean/p95는 과거0.0704/0.3438에서
+0.0664/0.3144rad/s였다. 완주시간은 사실상 같고 횡p95 악화도 함께 기록한다.
+GPS 음영에서 수 m급 발산 억제는 확인됐지만 종방향/전체 XY 오차가0인 것은 아니다.
+
+**이전 Smooth 승격 근거:** offline/open-loop 검증 뒤 동일 전체 경로 폐루프 A/B를 수행했다. `tau=0.5/0.5 s`
 후보는 gate-to-gate 완주 시간 차이 `0.28%` 이내에서 steering-rate 평균을 `15.4%`,
 sign flip을 `23.8%` 줄였다. GPS 재획득 직후 조향 변화율 p95도 `68.3%` 감소했다.
 따라서 production alias는 `publish_control_state=true`, controller 기본 입력은
@@ -251,6 +322,10 @@ adapter에서 중복 보정하지 않는다. 자세한 근거는
 
 Offline 위치 오차 하나만 좋아졌다는 이유로 기본값을 바꾸지 않는다. 횡·종 오차,
 frame jump, yaw, state rate, steering-rate와 sign flip을 함께 본다.
+2026-10-15 soft·개선 Smooth 기본값은 사용자의 즉시 승격 승인에 따른 변경이다.
+soft에는 이전 실제 장애물/전체 코스 폐루프 근거가 있고, 개선 Smooth도 동일입력
+5 bag 및 단위/설치본 transport 이후 사용자 신규 MR 폐루프4회를 확인했다.
+이 사용자 승인과 로컬 결과를 LAN·장기음영·슬립 gate 완료로 기록하지 않는다.
 
 ## 변경하지 않을 항목
 

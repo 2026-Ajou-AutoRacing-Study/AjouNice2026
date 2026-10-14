@@ -12,7 +12,7 @@ stack:
   pose_source: localization
   detector: od_gt
   traffic_light: false
-  planviz: false
+  planviz: true
   # localization_args 미지정: 현재 fusion 기본 설정 그대로 비교합니다.
 recording:
   bag_enabled: true
@@ -20,7 +20,12 @@ recording:
   topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/localization_analysis.json
   include_sensors: false
   video:
-    enabled: false
+    display: ":0"
+    fps: 10
+    focus_planviz: false
+    window_layout: split
+    bottom_bar_px: auto
+    enabled: true
   minimum_free_disk_gib: 2
 upload:
   enabled: false

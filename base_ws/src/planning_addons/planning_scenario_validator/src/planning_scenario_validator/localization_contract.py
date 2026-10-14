@@ -25,17 +25,22 @@ MR_PINNED_ARGS = {
     'publish_control_state': True, 'use_sim_time': False,
 }
 BOOL_ARGS = {'use_quantized_gnss_control_state', 'enable_relocation_guard',
-             'relocation_guard_monitor_only'}
+             'relocation_guard_monitor_only', 'use_lateral_velocity_constraint',
+             'control_state_use_vehicle_pivot'}
 NONNEGATIVE_ARGS = {'control_translation_tau_sec', 'control_yaw_tau_sec',
                     'quantized_control_yaw_tau_sec',
                     'control_state_reset_translation_error_m',
                     'control_state_reset_yaw_error_deg', 'relocation_guard_cooldown_sec'}
-POSITIVE_ARGS = {'relocation_guard_threshold_m'}
+NONNEGATIVE_ARGS |= {'control_lateral_tau_sec', 'control_max_lateral_correction_rate_mps'}
+POSITIVE_ARGS = {'relocation_guard_threshold_m', 'lateral_velocity_stddev_mps'}
 ENUM_ARGS = {'gnss_quantization_input_mode': {'off', 'cell_transition'},
              # The lower node also has a manual-pose mode; deliberately do not
              # expose it in unattended validator runs (it can disagree with Ego).
              'initial_position_source': {'ego', 'official_start'}}
 LOCALIZATION_DEFAULTS = {
+    'use_lateral_velocity_constraint': True, 'lateral_velocity_stddev_mps': 0.20,
+    'control_state_use_vehicle_pivot': True, 'control_lateral_tau_sec': 0.1,
+    'control_max_lateral_correction_rate_mps': 0.3,
     'use_quantized_gnss_control_state': False, 'control_translation_tau_sec': 0.5,
     'control_yaw_tau_sec': 0.5, 'quantized_control_yaw_tau_sec': 0.0,
     'control_state_reset_translation_error_m': 0.5,

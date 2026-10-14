@@ -16,6 +16,7 @@ scenarios:
 
 # 측위·탐지·신호등 on/off는 GUI에서도 수정·저장 가능. Python 실행 환경은 YAML에서만 수정.
 stack:
+  planviz: true
   # localization: 실제 측위, maptf_morai: Ego GT 위치 대조. 빠른 대조는 planning 탭.
   pose_source: localization
   # bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.
@@ -32,7 +33,7 @@ recording:
   video:
     # 화면 영상 녹화 여부. true일 때 다른 창으로 가리거나 화면을 잠그지 마세요.
     enabled: true
-    display: :0.0
+    display: ":0.0"
     fps: 10
     focus_planviz: false
     # split: RViz 왼쪽, MORAI 오른쪽, GUI 왼쪽 아래. manual: 수동 배치.
