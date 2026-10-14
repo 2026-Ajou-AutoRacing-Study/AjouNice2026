@@ -84,6 +84,8 @@
 
 ## PLAN
 
+- [`261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md`](261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md)
+  - Agent 전용 초안. Validator 담당자의 구현 검토 후 사용할 GPS 음영 드리프트 실험 안내이며 실행 승인이 아니다.
 - [`LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md`](LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md)
   - GNSS 입력 양자화 대응, odom-frame 경로·제어, 이후 판단·제어 공동 곡선 추종 A/B.
 - [`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)
