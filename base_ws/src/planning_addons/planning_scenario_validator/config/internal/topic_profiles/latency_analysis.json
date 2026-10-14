@@ -22,5 +22,9 @@
   "/ctrl_cmd",
   "/diagnostics",
   "/rosout",
-  "/clock"
+  "/clock",
+  "/perception/bevfusion/frame_timing",
+  "/perception/base5_trial/frame_timing",
+  "/tracked_object_motion_policy/diagnostics/processing_time_ms",
+  "/map_based_prediction/diagnostics/processing_time_ms"
 ]

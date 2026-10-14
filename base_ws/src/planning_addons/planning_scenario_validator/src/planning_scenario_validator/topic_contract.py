@@ -1,11 +1,13 @@
 """Detector telemetry names shared by execution, recording and bag audits."""
 DETECTION = '/perception/object_recognition/detection/objects'
 MEASUREMENT = '/perception/object_recognition/tracking/measurement_objects'
+DOWNSTREAM_TIMING = ['/tracked_object_motion_policy/diagnostics/processing_time_ms',
+                     '/map_based_prediction/diagnostics/processing_time_ms']
 MODEL_NAMESPACES = {'e25': '/perception/bevfusion',
                     'base5_e24': '/perception/base5_trial',
                     'base5_e9': '/perception/base5_trial'}
 PLANNER_TIME_PATTERNS = [
-    '^/planning/.*/debug/(processing_time.*|calculation_time)$',
+    '^/planning/.*/debug/(.*/)?(processing_time.*|calculation_time)$',
     '^/planning/.*/(processing_time_ms|debug/processing_time_ms_diag)$',
 ]
 
@@ -13,7 +15,8 @@ PLANNER_TIME_PATTERNS = [
 def model_topics(preset):
     namespace = MODEL_NAMESPACES[preset]
     return {'detection': DETECTION, 'measurement_objects': MEASUREMENT,
-            'status': namespace + '/status', 'latency_ms': namespace + '/latency_ms'}
+            'status': namespace + '/status', 'latency_ms': namespace + '/latency_ms',
+            'frame_timing': namespace + '/frame_timing'}
 
 
 def all_telemetry_topics():

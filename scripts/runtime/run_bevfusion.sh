@@ -24,6 +24,10 @@ if [[ "${1:-}" == "--model" ]]; then
   MODEL="${2:?Use --model e24 or --model e25}"
   shift 2
 fi
+if [[ "${1:-}" == "--publish-frame-timing" ]]; then
+  PUBLISH_FRAME_TIMING=true
+  shift
+fi
 resolved="$(python3 "$ROOT/scripts/runtime/bevfusion_production_profile.py" --model "$MODEL" --fields)"
 mapfile -t profile <<<"$resolved"
 SENSOR_CONFIG="${1:-${BEVFUSION_SENSOR_CONFIG:-$ROOT/${profile[7]}}}"

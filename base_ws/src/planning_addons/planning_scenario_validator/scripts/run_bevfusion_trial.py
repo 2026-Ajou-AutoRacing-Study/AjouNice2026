@@ -51,6 +51,7 @@ def check_ready(contract):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--contract', required=True)
+    parser.add_argument('--publish-frame-timing', action='store_true')
     args = parser.parse_args()
     path = Path(args.contract)
     contract = json.loads(path.read_text())
@@ -63,6 +64,7 @@ def main():
         probe.bind(('127.0.0.1', 29515))
     name = 'planning-validator-base5-' + uuid.uuid4().hex[:12]
     server_command, bridge_command = trial_commands(contract, ROOT, name)
+    bridge_command += ['publish_frame_timing:=' + str(args.publish_frame_timing).lower()]
     image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', contract['image']], text=True).strip()
     if contract.get('image_id', image_id) != image_id:
         raise RuntimeError('Docker image가 실행 준비 후 바뀌었습니다. 새 실험을 시작하세요')

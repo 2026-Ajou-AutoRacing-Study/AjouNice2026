@@ -1,7 +1,7 @@
 """Bag choices independent of screen video and live validation subscriptions."""
 import json
 from pathlib import Path
-from .topic_contract import PLANNER_TIME_PATTERNS
+from .topic_contract import PLANNER_TIME_PATTERNS, DOWNSTREAM_TIMING, MODEL_NAMESPACES
 
 OFF = '끄기 (bag 없음)'
 LIGHT = '경량 녹화'
@@ -61,8 +61,18 @@ def checked_topics(topics):
 
 
 def topic_patterns(recording):
-    if recording.get('bag_enabled', True) and mode_label(recording) == LATENCY:
+    if diagnostics_enabled(recording):
         return list(PLANNER_TIME_PATTERNS)
+    return []
+
+
+def diagnostics_enabled(recording):
+    return recording.get('bag_enabled', True) and mode_label(recording) in (ANALYSIS, LATENCY)
+
+
+def sharing_warnings(recording, upload):
+    if diagnostics_enabled(recording) and upload.get('profile', 'basic') not in ('bag', 'full'):
+        return ['분석 녹화지만 공유에서 bag 제외: 공유 자료만으로 프레임·지연 분석 불가. bag/원본 공유를 선택하세요.']
     return []
 
 
@@ -81,6 +91,8 @@ def effective_topics(recording, resolve_path):
             raise ValueError('토픽 프로파일을 읽을 수 없습니다: {} ({})'.format(profile, error)) from error
     if recording.get('include_sensors', False):
         topics += SENSORS
+    if diagnostics_enabled(recording):
+        topics += DOWNSTREAM_TIMING + [namespace + '/frame_timing' for namespace in set(MODEL_NAMESPACES.values())]
     return list(dict.fromkeys(topics))
 
 

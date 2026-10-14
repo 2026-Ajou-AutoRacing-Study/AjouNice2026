@@ -111,7 +111,8 @@ class LatencyContractTests(unittest.TestCase):
         topics = CORE + [contract['status'], contract['latency_ms']]
         missing = audit_bag(self.bag(topics), cfg, driving_started=True)
         self.assertEqual(missing['status'], 'WARN')
-        topics += ['/planning/scenario_planning/debug/processing_time_ms']
+        topics += ['/planning/scenario_planning/debug/processing_time_ms',
+                   contract['frame_timing']] + options.DOWNSTREAM_TIMING
         actual = audit_bag(self.bag(topics), cfg, driving_started=True)
         self.assertTrue(actual['complete_for_latency'])
         self.assertEqual(actual['planner_processing_time']['message_count'], 1)

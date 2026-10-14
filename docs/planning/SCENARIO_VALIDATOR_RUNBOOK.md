@@ -6,7 +6,7 @@
 
 새 기본 bag에는 E25 `/perception/bevfusion/{status,latency_ms}`와 Base5 `/perception/base5_trial/{status,latency_ms}`, tracking `measurement_objects`를 함께 요청합니다. 원본 카메라·LiDAR는 기본 제외입니다. 실행 모델의 namespace만 완료 검사 필수로 취급하며, 사용하지 않는 다른 namespace의 0개 메시지는 오류가 아닙니다. 모델 실행기의 토픽 계약과 실제 Base5 launch remap도 실행 전에 대조합니다.
 
-GUI의 **지연 분석 (센서 제외)**는 위 진단 토픽과 planner processing-time 토픽을 정규식으로 기록합니다. 디버그 발행을 자동 활성화하거나 planner 설정을 바꾸지는 않습니다. 해당 토픽이 발행되지 않으면 메시지 0개를 경고로 남깁니다. 영상은 별도 선택입니다. 단순 계산시간을 센서부터 제어까지의 종단 지연 또는 순수 GPU 시간으로 해석하지 마세요.
+GUI의 **지연 분석 (센서 제외)**와 **인지 분석 (센서+영상)**은 BEVFusion frame timing, motion policy·map-based prediction의 callback 진단을 자동 발행하고 planner processing-time을 하위 모듈까지 정규식으로 기록합니다. planner는 기존 계산시간 발행 경로를 사용하며 알고리즘·threshold는 바꾸지 않습니다. 해당 토픽이 발행되지 않으면 메시지 0개를 경고로 남깁니다. 지연 분석의 영상은 별도 선택입니다. 단순 계산시간을 센서부터 제어까지의 종단 지연 또는 순수 GPU 시간으로 해석하지 마세요.
 
 bag ON인 모든 모드에서 종료 후 `recording_audit.json`에 실제 indexed 메시지 수를 기록합니다. `status: WARN`/`missing_required`/`complete_for_latency`를 보며, 주행 PASS/FAIL과 녹화 경고는 분리합니다. GUI 완료 문구와 CSV의 `recording_warning`, `latency_complete`도 별도로 표시합니다. 고의로 제외한 경량/직접 선택 토픽은 기본 모드의 필수 목록을 일괄 강요하지 않습니다.
 
@@ -37,7 +37,7 @@ recording:
 
 직접 선택은 `bag_enabled: true`와 `selected_topics: [/Ego_topic, /CollisionData, /planning/trajectory]`를 사용합니다. 이 목록은 `topic_profile` 대신 기록 대상을 지정하며, `include_sensors: true`라면 원본 센서 5개가 추가됩니다. 인지 분석 모드는 기존처럼 원본 센서+영상 필수이고 실제 메시지 수를 검사합니다. 일반/직접 선택 목록에 토픽이 있다는 것만으로 발행·녹화됐다고 판단하지 마세요.
 
-**이 변경은 dataset/base5 작업 브랜치 기준입니다. 공유 planning 브랜치에 통합하기 전에는 그쪽에도 배포됐다고 가정하지 않습니다.**
+공유 planning 브랜치를 pull하고 증분 빌드한 뒤 GUI를 다시 시작하세요. 기존 실행의 고정 사본은 자동 변경하지 않으므로 **새 실험 시작**으로 최신 계약을 적용합니다.
 
 설치가 끝나고 **작업하면서 볼 문서는 [딸깍 작업 순서](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)**입니다. 이 문서는 연결·입력 계약·문제 해결을 조금 더 자세히 다룹니다. [자주 쓰는 버튼을 표시한 화면 5장](https://github.com/2026-Ajou-AutoRacing-Study/AjouNice2026/blob/planning/autoware-universe-to-ros1/docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)도 참고하세요.
 
@@ -123,6 +123,12 @@ YAML 하나의 목적지·시간·스택은 모든 장면에 공통입니다. �
 이전 고정 이름 결과는 그대로 보존합니다. 목록에 `(이전)`으로 표시되며, 당시 원본 YAML/JSON이 변경되지 않았을 때만 재개할 수 있습니다. 새 실험부터 입력 사본 보호가 적용됩니다.
 
 ## 5. 결과 확인·공유
+
+분석 자료를 보내려면 **인지 분석 (센서+영상) + bag 공유 또는 원본 공유**를 선택하세요. 기본/영상 공유는 bag을 제외하므로 GUI와 manifest에 경고가 표시됩니다. 인지 분석에는 원본 LiDAR·카메라가 있고, 지연 분석은 원본 센서가 없어 재추론은 불가능합니다.
+
+공유되는 장면 폴더에는 `share_manifest.json`, `stack_logs/`(명령 포함), `execution/`(YAML·모델 설정·프로세스 receipt), `actual_model_receipt.json`, `configs/`(실제 센서·모델 config), 시나리오·결과·녹화 audit가 함께 들어갑니다. 체크포인트 자체는 복사하지 않으며 경로·SHA를 기록합니다. 알려진 자격증명 key/header는 제거하고 `.env`, rclone 인증 파일, credential 파일·symlink는 공유하지 않습니다. 원본 bag·영상은 그대로이며 임의로 인증정보를 ROS 토픽에 발행한 경우까지 내용 제거를 보장하는 기능은 아닙니다.
+
+**주행 PASS ≠ 녹화 완전 ≠ 분석 가능 ≠ 공유 완료**입니다. `recording_audit.json`의 실제 메시지 수·`complete_for_analysis`, `share_manifest.json`의 `analysis_available_in_share`, `sharing_audit.json`의 `verified`를 따로 보세요. rclone 복사 종료 코드만으로 완료하지 않고 실제 업로드 파일의 크기·MD5/SHA256을 대조합니다. 원격이 hash를 제공하지 않으면 검증 완료로 표시하지 않습니다. 공유용 staging은 `share_payload/`에 두며 bag은 가능하면 hard link로 중복 용량을 피합니다. 로그는 장면 종료 시점까지의 스냅샷입니다.
 
 ```text
 planner_logs/

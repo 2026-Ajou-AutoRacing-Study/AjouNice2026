@@ -20,6 +20,7 @@ from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
 from .models import resolve_contract, verify_contract, selected_model, CANONICAL
 from .recording_audit import audit_bag
+from .recording_options import diagnostics_enabled, sharing_warnings
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .repetitions import sampled_scene
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure,
@@ -116,12 +117,16 @@ def _start_persistent(cfg, processes, monitor):
     if stack["detector"] == "bevfusion":
         if selected_model(stack) == 'e25':
             command = ["bash", str(ROOT / "scripts/runtime/run_bevfusion.sh"), "--model", "e25", str(sensor)]
+            if diagnostics_enabled(cfg.get('recording', {})):
+                command.insert(-1, '--publish-frame-timing')
         else:
             receipt = cfg['output'] / 'model_process_receipt.json'
             if receipt.exists():
                 receipt.rename(processes.log_dir / ('model_process_receipt_previous_' + str(time.time_ns()) + '.json'))
             command = ['/usr/bin/python3', str(ROOT / 'base_ws/src/planning_addons/planning_scenario_validator/scripts/run_bevfusion_trial.py'),
                        '--contract', str(cfg['output'] / 'model_runtime.json')]
+            if diagnostics_enabled(cfg.get('recording', {})):
+                command += ['--publish-frame-timing']
         atomic_json(cfg['output'] / 'model_launch.json', {'command': command, 'model': cfg.get('model_contract')})
         processes.start("bevfusion", command)
         if selected_model(stack) != 'e25':
@@ -153,6 +158,7 @@ def _start_case_stack(cfg, processes, monitor):
         processes.start("detector", _launch("perception_object_pipeline", "morai_gt_detection.launch"))
     processes.start("tracking", _launch("perception_object_pipeline", "object_pipeline.launch",
         start_detector=False, prediction_model="map_based",
+        publish_processing_diagnostics=diagnostics_enabled(cfg.get('recording', {})),
         maximum_tracking_internal_prediction_age_sec=0.5))
     if stack.get("traffic_light", False):
         python, device = runtime_settings(stack, ROOT, check_exists=True)
@@ -204,6 +210,7 @@ def _record_result(cfg, state, case, result, folder):
         "suspected_stage": result["failure_analysis"]["suspected_stage"],
         "result_path": str(folder / (result["basename"] + ".json")),
         "attempts": int(state["results"].get(case.name, {}).get("attempts", 0)) + 1,
+        "analysis_complete": (result.get('recording_audit') or {}).get('complete_for_analysis', False),
         "recording_warning": (result.get('recording_audit') or {}).get('status') == 'WARN'}
     state["updated_at"] = now()
     _write_state(cfg, state)
@@ -220,7 +227,8 @@ def _write_state(cfg, state):
                          "minimum_goal_distance_m", "attempts", "result_path",
                          "source_scenario", "repeat_index", "random_seed", "model_preset",
                          "recording_complete", "sensor_replayable", "missing_recorded_topics",
-                         "bag_enabled", "video_enabled", "recording_warning", "latency_complete"])
+                         "bag_enabled", "video_enabled", "recording_warning", "latency_complete",
+                         "analysis_complete", "share_status"])
         for name, row in sorted(state["results"].items()):
             result_path = Path(row["result_path"])
             try:
@@ -245,7 +253,8 @@ def _write_state(cfg, state):
                 details.get('recording', {}).get('bag_enabled', True),
                 details.get('recording', {}).get('video_enabled', bool(details.get('files', {}).get('video'))),
                 (details.get('recording_audit') or {}).get('status') == 'WARN',
-                (details.get('recording_audit') or {}).get('complete_for_latency', '')])
+                (details.get('recording_audit') or {}).get('complete_for_latency', ''),
+                row.get('analysis_complete', False), row.get('share_status', 'NOT_UPLOADED')])
     os.replace(temporary, path)
 
 
@@ -277,13 +286,25 @@ def _upload_drive_flags(cfg):
 def _upload(cfg, folder, state, case):
     upload = cfg["upload"]
     if not upload.get("enabled", False):
+        atomic_json(folder / 'sharing_audit.json', {'status': 'DISABLED', 'verified': False,
+            'warnings': sharing_warnings(cfg.get('recording', {}), upload)})
         return
     state.setdefault("upload_errors", [])
     if not shutil.which("rclone"):
         state["upload_errors"].append({"scenario": case.name, "message": "rclone 미설치"})
         _write_state(cfg, state)
         return
-    case_command, metadata_commands = _upload_commands(cfg, folder)
+    from .sharing import build_bundle, verify_listing, safe_copy
+    try:
+        payload_root, payload, manifest = build_bundle(cfg, folder)
+    except Exception as error:
+        state['upload_errors'].append({'scenario': case.name, 'message': '공유 자료 준비 실패: ' + str(error)})
+        atomic_json(folder / 'sharing_audit.json', {'status': 'ERROR', 'verified': False, 'error': str(error)})
+        _write_state(cfg, state)
+        return
+    share_cfg = dict(cfg, output=payload_root)
+    case_command, metadata_commands = _upload_commands(share_cfg, payload)
+    errors_before = len(state['upload_errors'])
     state_command = ["rclone", "copyto", str(cfg["output"] / "campaign_state.json"),
                      "{}/{}/campaign_state.json".format(str(upload["rclone_remote"]).rstrip("/"),
                                                           cfg["name"])] + _upload_drive_flags(cfg)
@@ -296,6 +317,8 @@ def _upload(cfg, folder, state, case):
             state["upload_errors"].append({"scenario": case.name, "target": command[3],
                                            "message": str(error)[-500:]})
     _write_state(cfg, state)
+    safe_copy(cfg['output'] / 'campaign_state.json', payload_root / 'campaign_state.json')
+    state_command[2] = str(payload_root / 'campaign_state.json')
     try:
         completed = subprocess.run(state_command, capture_output=True, text=True, timeout=3600)
         if completed.returncode:
@@ -304,6 +327,67 @@ def _upload(cfg, folder, state, case):
         state["upload_errors"].append({"scenario": case.name, "target": state_command[3],
                                        "message": str(error)[-500:]})
         _write_state(cfg, state)
+    report = {'status': 'ERROR', 'verified': False, 'profile': upload.get('profile', 'basic'),
+              'target': case_command[3], 'warnings': manifest['warnings'],
+              'analysis_available_in_share': manifest['analysis_available_in_share'],
+              'manifest': 'share_manifest.json'}
+    if len(state['upload_errors']) == errors_before:
+        try:
+            listing_command = ['rclone', 'lsjson', case_command[3], '--recursive', '--hash'] + _upload_drive_flags(cfg)
+            listing = subprocess.run(listing_command, capture_output=True, text=True, timeout=3600, check=True)
+            missing = verify_listing(payload, json.loads(listing.stdout))
+            if missing:
+                raise RuntimeError('공유 파일 크기/hash 불일치 또는 hash 미제공: ' + ', '.join(missing))
+            report.update(status='VERIFIED', verified=True, verified_files=len(manifest['files']) + 1)
+        except Exception as error:
+            report['error'] = str(error)[-500:]
+            state['upload_errors'].append({'scenario': case.name, 'message': report['error']})
+    atomic_json(folder / 'sharing_audit.json', report)
+    if case.name in state.get('results', {}):
+        state['results'][case.name]['share_status'] = report['status']
+    _write_state(cfg, state)
+    # Publish the verification receipt only after inspecting actual remote files.
+    if report['verified']:
+        safe_copy(folder / 'sharing_audit.json', payload / 'sharing_audit.json')
+        try:
+            subprocess.run(['rclone', 'copyto', str(payload / 'sharing_audit.json'),
+                            case_command[3] + '/sharing_audit.json'] + _upload_drive_flags(cfg),
+                           capture_output=True, text=True, timeout=3600, check=True)
+            listing = subprocess.run(['rclone', 'lsjson', case_command[3], '--recursive', '--hash']
+                                     + _upload_drive_flags(cfg), capture_output=True, text=True,
+                                     timeout=3600, check=True)
+            if verify_listing(payload, json.loads(listing.stdout)):
+                raise RuntimeError('공유 검증 receipt 업로드 확인 실패')
+        except Exception as error:
+            report.update(status='ERROR', verified=False, error=str(error)[-500:])
+            atomic_json(folder / 'sharing_audit.json', report)
+            state['upload_errors'].append({'scenario': case.name, 'message': report['error']})
+            if case.name in state.get('results', {}):
+                state['results'][case.name]['share_status'] = 'ERROR'
+            _write_state(cfg, state)
+
+
+def _capture_model_receipt(cfg, folder):
+    """Capture the live server identity, not just the requested launch config."""
+    receipt = {'model': cfg.get('model_contract'), 'status': 'UNKNOWN'}
+    try:
+        if str(ROOT / 'docker/bevfusion') not in sys.path:
+            sys.path.insert(0, str(ROOT / 'docker/bevfusion'))
+        from app.protocol import TYPE_PING, TYPE_PONG, send_message, recv_message
+        with socket.create_connection(('127.0.0.1', cfg['model_contract']['server_port']), timeout=2) as connection:
+            connection.settimeout(2)
+            send_message(connection, TYPE_PING)
+            kind, metadata, _ = recv_message(connection)
+        receipt['server_ping'] = metadata
+        identity = metadata.get('runtime_identity', {})
+        receipt['status'] = 'VERIFIED' if (kind == TYPE_PONG and metadata.get('model_loaded')
+            and identity.get('checkpoint_sha256') == cfg['model_contract']['checkpoint_sha256']
+            and identity.get('config_sha256') == cfg['model_contract']['model_config_sha256']
+            and metadata.get('calibration', {}).get('config_sha256') == cfg['model_contract']['sensor_sha256']) else 'MISMATCH'
+    except Exception as error:
+        receipt['error'] = str(error)
+    atomic_json(folder / 'actual_model_receipt.json', receipt)
+    return receipt
 
 
 def _run_case(cfg, processes, monitor, case, state):
@@ -383,6 +467,7 @@ def _run_case(cfg, processes, monitor, case, state):
                 process=processes.running["bevfusion"],
                 log_path=processes.log_dir / "bevfusion.log")
             monitor.event("BEVFUSION_READY")
+            _capture_model_receipt(cfg, folder)
         publish_brake()
         state["current"]["phase"] = "STACK_READY"
         _write_state(cfg, state)
@@ -632,6 +717,7 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
     state['model_contract'] = model
     from .recording_audit import profile_contract_warnings
     state['recording_profile_warnings'] = profile_contract_warnings(cfg)
+    state['recording_profile_warnings'] += sharing_warnings(cfg['recording'], cfg['upload'])
     for warning in state['recording_profile_warnings']:
         print('[WARN] ' + warning + ' · 기존 사본은 수정하지 않습니다. 새 실험으로 갱신하세요.', flush=True)
     if model['preset'] != 'od_gt':
