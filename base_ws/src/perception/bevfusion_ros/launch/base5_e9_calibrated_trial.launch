@@ -10,6 +10,7 @@
   <arg name="vehicle_score_threshold" default="0.30"/>
   <arg name="pedestrian_score_threshold" default="0.20"/>
   <arg name="obstacle_score_threshold" default="0.12"/>
+  <arg name="publish_frame_timing" default="false"/>
   <include file="$(find bevfusion_ros)/launch/base5_trial.launch">
     <arg name="sensor_config" value="$(arg sensor_config)"/>
     <arg name="config" value="$(arg config)"/>
@@ -17,5 +18,6 @@
     <arg name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
     <arg name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
     <arg name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
+    <arg name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
   </include>
 </launch>
