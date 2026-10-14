@@ -550,6 +550,9 @@ def completion_label(code, state):
     warnings = sum(bool(row.get('recording_warning')) for row in state.get('results', {}).values())
     if warnings:
         label += ' | 녹화 경고 {}건 (주행 판정과 별개)'.format(warnings)
+    analyzed = sum(bool(row.get('analysis_complete')) for row in state.get('results', {}).values())
+    shared = sum(row.get('share_status') == 'VERIFIED' for row in state.get('results', {}).values())
+    label += ' | 분석 가능 {} / 공유 검증 완료 {}'.format(analyzed, shared)
     return label
 
 
@@ -874,7 +877,11 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             text = ('bag OFF · 실시간 판정·JSON·CSV 유지 · 영상은 별도 선택' if not enabled else
                     'bag {}개 토픽 · 원본 센서 {}/5개 · {}'.format(len(topics), sensor_count,
                     '사후 재추론 가능' if sensor_count == 5 else '원본 센서 부족: 사후 재추론 불가'))
-            recording_summary.set(text + '\n녹화만 변경합니다. MORAI 센서 생성·인지 입력은 유지 · 설정 변경은 다음 실행부터 적용')
+            profile = next((key for key, value in UPLOAD_PROFILE_LABELS.items()
+                            if value == vars_['upload_profile'].get()), 'basic')
+            warnings = bag_options.sharing_warnings(form_recording(), {'profile': profile})
+            recording_summary.set(text + ('\n' + warnings[0] if warnings else '')
+                                  + '\nMORAI 센서·모델 유지. 분석 프리셋은 상세 진단도 발행 · 다음 실행부터 적용')
         except (ValueError, OSError):
             recording_summary.set('토픽 선택을 확인하세요. 화면 영상은 bag과 별도로 켜고 끕니다.')
 
@@ -903,6 +910,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             show_error('녹화 토픽 선택', error)
     field_widgets['recording_mode'].bind('<<ComboboxSelected>>', select_recording_mode)
+    vars_['upload_profile'].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
     for key in ('include_sensors', 'selected_topics', 'video'):
         vars_[key].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
 

@@ -1,7 +1,7 @@
 """Inspect indexed bag metadata, not requested topic names or replayed messages."""
 from .models import selected_model
-from .topic_contract import model_topics, MEASUREMENT, PLANNER_TIME_PATTERNS
-from .recording_options import mode_label, BASIC, ANALYSIS, LATENCY
+from .topic_contract import model_topics, MEASUREMENT, PLANNER_TIME_PATTERNS, DOWNSTREAM_TIMING
+from .recording_options import mode_label, BASIC, ANALYSIS, LATENCY, diagnostics_enabled
 import re
 SENSORS = ['/sensor/lidar1'] + ['/sensor/camera/{}/compressed'.format(name)
     for name in ('front', 'front_left', 'front_right', 'back')]
@@ -53,11 +53,17 @@ def audit_bag(path, cfg, *, driving_started=False):
                     'recorded': counts.get(topic, 0) > 0} for topic in dict.fromkeys(requested + required + list(counts))}
     planner_counts = {topic: count for topic, count in counts.items()
                       if any(re.fullmatch(pattern, topic) for pattern in PLANNER_TIME_PATTERNS)}
-    planner_requested = bool(cfg['recording'].get('topic_regex')) or mode_label(cfg['recording']) == LATENCY
+    planner_requested = diagnostics_enabled(cfg['recording'])
     planner_complete = any(planner_counts.values())
     warnings = ['필수 녹화 토픽 누락: ' + ', '.join(missing)] if missing else []
     if planner_requested and not planner_complete:
         warnings.append('planner processing-time 메시지 0개 (미발행 또는 녹화 누락)')
+    analysis_topics = list(DOWNSTREAM_TIMING) if diagnostics_enabled(cfg['recording']) else []
+    if analysis_topics and cfg['stack']['detector'] == 'bevfusion':
+        analysis_topics.append(contract['frame_timing'])
+    missing_analysis = [topic for topic in analysis_topics if counts.get(topic, 0) == 0]
+    if missing_analysis:
+        warnings.append('분석 진단 메시지 누락: ' + ', '.join(missing_analysis))
     return {'schema_version': 2, 'bag': str(path), 'driving_started': driving_started,
             'status': 'WARN' if warnings else 'OK', 'warnings': warnings,
             'topics': rows, 'missing_required': missing,
@@ -65,7 +71,10 @@ def audit_bag(path, cfg, *, driving_started=False):
             'missing_requested': [t for t in requested if not counts.get(t, 0)],
             'complete_for_drive': driving_started and not missing,
             'complete_for_latency': bool(model_required) and all(counts.get(t, 0) > 0 for t in model_required)
-                                    and (not planner_requested or planner_complete),
+                                    and not missing_analysis and (not planner_requested or planner_complete),
+            'complete_for_analysis': diagnostics_enabled(cfg['recording']) and driving_started
+                                    and not missing and not missing_analysis and planner_complete,
+            'missing_analysis_topics': missing_analysis,
             'model_telemetry_topics': model_required,
             'planner_processing_time': {'requested': planner_requested, 'topics': planner_counts,
                                         'message_count': sum(planner_counts.values()),
