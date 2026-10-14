@@ -887,7 +887,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
 
     def select_recording_mode(_=None):
         label = vars_['recording_mode'].get()
-        if label in (bag_options.LIGHT, bag_options.BASIC, bag_options.ANALYSIS, bag_options.LATENCY):
+        if label in (bag_options.LIGHT, bag_options.BASIC, bag_options.ANALYSIS, bag_options.LATENCY, bag_options.LOCALIZATION):
             vars_['selected_topics'].set('')
             vars_['include_sensors'].set(label == bag_options.ANALYSIS)
         if label == bag_options.ANALYSIS:

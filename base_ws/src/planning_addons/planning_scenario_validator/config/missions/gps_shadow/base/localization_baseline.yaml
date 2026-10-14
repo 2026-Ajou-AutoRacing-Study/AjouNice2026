@@ -1,0 +1,60 @@
+# Agent 측위 실험 A: 무장애물 GPS 음영 기준선. 공유 base는 복사해서 사용합니다.
+# ./planning_validator <복사한 YAML> --check  → 새 실행은 --check 없이 실행.
+# 재개는 원본 YAML 재실행이 아니라 --execution <해당 결과폴더>로 합니다.
+schema_version: 2
+campaign_name: gps_shadow_localization_baseline
+scenarios:
+  directory: base_ws/src/planning_addons/planning_scenario_validator/config/missions/gps_shadow/base/scenarios
+  glob: '*.json'
+  include: [hid_soa_baseline_00.json]
+  repeat: 1
+stack:
+  pose_source: localization
+  detector: od_gt
+  traffic_light: false
+  planviz: false
+  # localization_args 미지정: 현재 fusion 기본 설정 그대로 비교합니다.
+recording:
+  bag_enabled: true
+  profile_preset: localization_analysis
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/localization_analysis.json
+  include_sensors: false
+  video:
+    enabled: false
+  minimum_free_disk_gib: 2
+upload:
+  enabled: false
+  rclone_remote: ajou_drive:planning_validator
+  # 자동 업로드 OFF여도 수동 공유 자료에 bag을 포함하도록 선택합니다.
+  profile: bag
+
+# === 여기부터 미션 고정 설정: 기존 시작점/목적지/경로를 바꾸지 않습니다 ===
+default_case:
+  goal: {x: -13.382585757, y: 93.78275452, z: 28.489, yaw_deg: 60.815}
+  waypoints: []
+  timeout_sec: 90
+  arrival_mode: stop
+network:
+  sensor_json: configs/sensors/Sensor_competition_local.json
+  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
+morai:
+  map_name: R_KR_PR_K-city_2025
+  scenario_install_dir: auto
+  scenario_load_host: 127.0.0.1
+  scenario_load_port: 9095
+validation:
+  goal_tolerance_m: 2.0
+  goal_hold_sec: 1.0
+  goal_speed_max_mps: 0.5
+  topic_loss_timeout_sec: 4.0
+  stuck_timeout_sec: 0.0
+  # 이 예제만 opt-in: 준비 중 실제 Ego 정지/P와 유효 GPS를 확인합니다.
+  # 종료도 실제 정지/P feedback을 확인하며 미확인·충돌 시 다음 장면을 중단합니다.
+  localization_safety:
+    enabled: true
+output_root: planner_logs/validation
+resume: true
+continue_on_system_error: false
+readiness_timeout_sec: 60
+scenario_ready_timeout_sec: 35
+route_ready_timeout_sec: 75

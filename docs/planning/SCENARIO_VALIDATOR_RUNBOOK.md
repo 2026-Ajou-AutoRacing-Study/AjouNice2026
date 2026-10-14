@@ -1,5 +1,18 @@
 # 시나리오 검증기 짧은 사용법
 
+## 측위 에이전트의 GPS 음영 A/B (2026-10-14)
+
+GUI 녹화 모드에 **측위 분석 (센서 원본 제외)**를 추가했습니다. GNSS·IMU·Competition·
+Local/Global EKF·Smooth state·TF·제어를 기록하고, 종료 후 조건별 실제 메시지 수를 검사합니다.
+카메라/LiDAR·인지 timing을 자동으로 켜지는 않습니다. 주행 PASS와 측위 분석 자료 준비는 별개입니다.
+
+`gps_shadow/base/`의 `localization_baseline.yaml`, `localization_gt_pose.yaml`,
+`localization_candidate_tau.yaml`은 같은 무장애물 1장면의 opt-in 예제입니다.
+개인 workspace로 복사해서 사용하세요. 준비 중 P·정지 확인, 제어기 마지막 시작,
+종료 후 실제 정지/P 확인을 켜며, 기존 미션 기본값은 바꾸지 않습니다.
+인자/config 전달·실행 사본·resume·안전 제약은
+[측위 에이전트 가이드](../localization/261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md)를 따릅니다.
+
 ## rosbag ON/OFF·토픽 선택 (2026-10-13)
 
 ### 기본 녹화·지연 분석 계약 (2026-10-14)
@@ -24,7 +37,7 @@ python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/audit_va
 
 `--output`을 명시하지 않으면 출력만 하고 원본을 수정하지 않습니다. 기록 검사에서 사용자 요청 목록과 실제 메시지 수를 구분합니다.
 
-GUI 실행 탭의 **rosbag 녹화**는 `끄기 / 경량 / 기본 / 인지 분석 / 직접 선택`입니다. **화면 영상 녹화**는 별도 체크입니다. 직접 선택은 **토픽 선택… → 검색 또는 그룹 → 표시된 토픽 일괄 선택/해제 → 적용 → YAML 저장** 순서입니다. 빈 목록 대신 bag 끄기를 사용하세요.
+GUI 실행 탭의 **rosbag 녹화**는 `끄기 / 경량 / 기본 / 지연 분석 / 측위 분석 / 인지 분석 / 직접 선택`입니다. **화면 영상 녹화**는 별도 체크입니다. 직접 선택은 **토픽 선택… → 검색 또는 그룹 → 표시된 토픽 일괄 선택/해제 → 적용 → YAML 저장** 순서입니다. 빈 목록 대신 bag 끄기를 사용하세요.
 
 원본 센서 추가 체크는 제거했습니다. 카메라·LiDAR는 인지 분석 모드 또는 직접 선택창에서 고릅니다. 기존 YAML의 `include_sensors: true`는 호환 지원하며, 기본/경량+센서 조합은 직접 선택으로 표시합니다. 토픽 선택창 수정 후에는 명시적 목록을 저장하고 이 추가 플래그를 해제해, 사용자가 뺀 센서가 다시 기록되지 않도록 합니다.
 

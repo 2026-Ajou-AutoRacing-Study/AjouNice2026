@@ -1,6 +1,6 @@
 # Localization 문서 index
 
-마지막 정리: 2026-09-26.
+마지막 정리: 2026-10-14.
 
 이 디렉터리의 문서는 날짜가 아니라 `CURRENT / EVIDENCE / PLAN / HISTORICAL`
 상태로 판단한다. 코드와 문서가 다르면 현재 branch의 tracked launch/config/code를
@@ -85,7 +85,7 @@
 ## PLAN
 
 - [`261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md`](261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md)
-  - Agent 전용 초안. Validator 담당자의 구현 검토 후 사용할 GPS 음영 드리프트 실험 안내이며 실행 승인이 아니다.
+  - Validator 구현과 대조한 agent 전용 GPS 음영 실험 안내. 후보/config snapshot, 측위 전용 녹화/count audit, opt-in 준비·통신·실제 정지/P gate를 설명한다. 코드 지원과 실제 폐루프 결과·드리프트 개선·production 승격은 별개다.
 - [`LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md`](LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md)
   - GNSS 입력 양자화 대응, odom-frame 경로·제어, 이후 판단·제어 공동 곡선 추종 A/B.
 - [`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)

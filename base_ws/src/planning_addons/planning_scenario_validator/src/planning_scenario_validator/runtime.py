@@ -22,6 +22,10 @@ class RuntimeFailure(RuntimeError):
     pass
 
 
+class SafetyFailure(RuntimeFailure):
+    """A failed live safety gate must stop a campaign, not auto-advance a case."""
+
+
 class ScenarioFailure(RuntimeFailure):
     """입력 시나리오에서 route/trajectory를 만들지 못한 유효한 실패."""
     def __init__(self, reason, message):
@@ -154,14 +158,24 @@ class LiveMonitor:
         import rospy
         from autoware_perception_msgs.msg import DetectedObjects
         from autoware_planning_msgs.msg import LaneletRoute, Trajectory
-        from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus
+        from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus, GPSMessage
         from nav_msgs.msg import Odometry
+        from sensor_msgs.msg import Imu
+        from std_msgs.msg import Int8
         self.rospy = rospy
         self.ego = None
         self.odom = None
         self.route = None
         self.trajectory = None
         self.detections = None
+        self.competition = None
+        self.gps = None
+        self.imu = None
+        self.control_odom = None
+        self.gear = None
+        self.control_mode = None
+        self.control_source = None
+        self.preparation_collisions = {}
         self.stamps = {}
         self.last_ego_gap_at = 0.0
         self.previous_ego_stamp = 0.0
@@ -204,6 +218,39 @@ class LiveMonitor:
         rospy.Subscriber("/perception/object_recognition/detection/objects",
                          DetectedObjects, self._detections, queue_size=10)
         rospy.Subscriber("/ctrl_cmd", CtrlCmd, self._control, queue_size=10)
+        # Receipt time, not GNSS validity, is the watchdog's stream contract.
+        # A GPS shadow may publish zero coordinates while the receiver is healthy.
+        rospy.Subscriber("/Competition_topic", EgoVehicleStatus, self._competition, queue_size=10)
+        rospy.Subscriber("/sensor/gps", GPSMessage, self._gps, queue_size=10)
+        rospy.Subscriber("/sensor/imu", Imu, self._imu, queue_size=10)
+        rospy.Subscriber("/localization/control_kinematic_state", Odometry,
+                         self._control_odom, queue_size=10)
+        rospy.Subscriber("/vehicle/status/gear", Int8, self._gear, queue_size=10)
+        rospy.Subscriber("/vehicle/status/control_mode", Int8, self._control_mode, queue_size=10)
+
+    def _competition(self, message):
+        self.competition = message
+        self.stamps["competition"] = time.monotonic()
+
+    def _gps(self, message):
+        self.gps = message
+        self.stamps["gps"] = time.monotonic()
+
+    def _imu(self, message):
+        self.imu = message
+        self.stamps["imu"] = time.monotonic()
+
+    def _control_odom(self, message):
+        self.control_odom = message
+        self.stamps["control_state"] = time.monotonic()
+
+    def _gear(self, message):
+        self.gear = int(message.data)
+        self.stamps["gear"] = time.monotonic()
+
+    def _control_mode(self, message):
+        self.control_mode = int(message.data)
+        self.stamps["control_mode"] = time.monotonic()
 
     def _ego(self, message):
         self.ego = message
@@ -263,6 +310,8 @@ class LiveMonitor:
                     self.detection_nonempty_message_count += 1
 
     def _control(self, message):
+        self.stamps["control"] = time.monotonic()
+        self.control_source = (getattr(message, "_connection_header", None) or {}).get("callerid")
         with self.evidence_lock:
             if self.drive_started_at is None:
                 return
@@ -274,6 +323,18 @@ class LiveMonitor:
 
     def _collision(self, message):
         current = {int(obj.unique_id) for obj in message.collision_object}
+        received_at = time.monotonic()
+        if not self.armed and getattr(self, "events_path", None) is not None:
+            # Keep preparation contacts distinct from armed drive collision counts.
+            # An opted-in gate can reject them using the scene-ready receipt time.
+            for obj in message.collision_object:
+                object_id = int(obj.unique_id)
+                distance = self._ego_distance(obj.position)
+                detail = {"object_id": object_id, "receipt_monotonic": received_at,
+                          "distance_m": None if distance is None else round(distance, 3)}
+                if object_id not in self.preparation_collisions:
+                    self.event("PREPARATION_COLLISION", **detail)
+                self.preparation_collisions[object_id] = detail
         if self.armed:
             for obj in message.collision_object:
                 object_id = int(obj.unique_id)
@@ -293,7 +354,148 @@ class LiveMonitor:
                            distance_m=None if distance is None else round(distance, 1))
             self.seen_collision_ids.update(current)
         self.collision_ids = current
-        self.stamps["collision"] = time.monotonic()
+        self.stamps["collision"] = received_at
+
+    def require_fresh_inputs(self, required, *, after=0.0, freshness_sec=1.0):
+        """Opt-in guard: absent, stale, or pre-gate packets cannot prove readiness."""
+        ages = {}
+        for key in required:
+            stamp = self.stamps.get(key)
+            if stamp is None or not math.isfinite(stamp) or stamp <= after:
+                raise SafetyFailure("안전 입력 topic {}의 새 메시지가 없습니다".format(key))
+            # Sample now after the selected stamp: callbacks can update stamps
+            # concurrently, so a once-per-loop 'now' can appear slightly older
+            # than a perfectly valid received packet and cause false aborts.
+            age = time.monotonic() - stamp
+            if not 0.0 <= age <= freshness_sec:
+                raise SafetyFailure("안전 입력 topic {}이 오래됐습니다: {:.3f}s".format(key, age))
+            ages[key] = round(age, 4)
+        return {"required": list(required), "receipt_age_sec": ages}
+
+    def raw_ego_speed_mps(self):
+        """The native UDP receiver already converts km/h to ROS SI units once."""
+        if self.ego is None:
+            raise SafetyFailure("실제 Ego 속도 수신이 없습니다")
+        try:
+            components = [float(getattr(self.ego.velocity, axis)) for axis in ("x", "y", "z")]
+        except (AttributeError, TypeError, ValueError) as error:
+            raise SafetyFailure("실제 Ego 속도 메시지가 올바르지 않습니다") from error
+        if not all(math.isfinite(value) for value in components):
+            raise SafetyFailure("실제 Ego 속도가 유한하지 않습니다")
+        return math.sqrt(sum(value * value for value in components))
+
+    def gps_is_valid(self):
+        message = getattr(self, "gps", None)
+        if message is None:
+            return False
+        # This validity contract is only used at pre-shadow startup. During an
+        # outage the zero coordinates are expected and must not trip a watchdog.
+        try:
+            latitude, longitude = float(message.latitude), float(message.longitude)
+            quality = int(message.status)
+        except (AttributeError, TypeError, ValueError):
+            return False
+        return (math.isfinite(latitude) and math.isfinite(longitude)
+                and latitude != 0.0 and longitude != 0.0
+                and quality > 0)
+
+    def preparation_contacts(self, *, after):
+        # Callbacks may add another contact while the runner evaluates a gate.
+        rows = list(getattr(self, "preparation_collisions", {}).values())
+        return [dict(row) for row in rows
+                if row["receipt_monotonic"] > after]
+
+    def wait_stationary(self, *, after, timeout=15.0, hold_sec=1.0,
+                        speed_max_mps=0.05,
+                        required=("ego", "gear", "control_mode", "collision"),
+                        freshness_sec=1.0, expected_gears=(1,),
+                        expected_control_mode=2, require_valid_gps=False,
+                        check_preparation_collision=True, process=None):
+        """Require fresh raw Ego/gear feedback and a continuous stationary hold.
+
+        This method is not called by generic campaigns unless the runner opts in.
+        It returns measured evidence; it never infers Park from a sent command.
+        """
+        deadline = time.monotonic() + timeout
+        stationary_since = None
+        first_stationary_ego_stamp = None
+        issue = "새 입력 대기"
+        receipt = None
+        names = tuple(dict.fromkeys(tuple(required) + (("gps",) if require_valid_gps else ())))
+        while not self.rospy.is_shutdown() and time.monotonic() < deadline:
+            if process is not None and process.poll() is not None:
+                raise SafetyFailure("정지 확인 중 소유한 프로세스가 종료됐습니다")
+            if check_preparation_collision:
+                contacts = self.preparation_contacts(after=after)
+                if contacts:
+                    self.event("SAFETY_PREPARATION_CONTACT", contacts=contacts)
+                    raise SafetyFailure("준비 중 CollisionData 접촉 보고가 있습니다: {}".format(contacts))
+            try:
+                receipt = self.require_fresh_inputs(names, after=after, freshness_sec=freshness_sec)
+                speed = self.raw_ego_speed_mps()
+                if expected_gears is not None and self.gear not in expected_gears:
+                    raise SafetyFailure("실제 gear {}: 요구 {}".format(self.gear, expected_gears))
+                if expected_control_mode is not None and self.control_mode != expected_control_mode:
+                    raise SafetyFailure("실제 control mode {}: 요구 {}".format(
+                        self.control_mode, expected_control_mode))
+                if require_valid_gps and not self.gps_is_valid():
+                    raise SafetyFailure("음영 진입 전 GNSS가 유효하지 않습니다")
+                if speed > speed_max_mps:
+                    raise SafetyFailure("실제 Ego 속도 {:.3f}m/s: 정지 기준 {:.3f}m/s".format(
+                        speed, speed_max_mps))
+            except SafetyFailure as error:
+                issue = str(error)
+                stationary_since = None
+                first_stationary_ego_stamp = None
+                time.sleep(0.05)
+                continue
+            tick = time.monotonic()
+            stationary_since = tick if stationary_since is None else stationary_since
+            ego_stamp = self.stamps.get("ego", 0.0)
+            if first_stationary_ego_stamp is None:
+                first_stationary_ego_stamp = ego_stamp
+            # Polling the same fresh message for half a second is not evidence
+            # of a half-second measured stop. Require new Ego feedback spanning
+            # the complete hold interval as well as the wall-time interval.
+            if (tick - stationary_since >= hold_sec
+                    and ego_stamp - first_stationary_ego_stamp >= hold_sec):
+                receipt.update(speed_mps=round(speed, 6), gear=self.gear,
+                    control_mode=self.control_mode, park_verified=self.gear == 1,
+                    hold_sec=round(tick - stationary_since, 3),
+                    gate_after_monotonic=after, verified_at_monotonic=tick,
+                    gps_valid=self.gps_is_valid() if require_valid_gps else None)
+                self.event("SAFETY_STATIONARY_CONFIRMED", **receipt)
+                return receipt
+            time.sleep(0.05)
+        raise SafetyFailure("실제 Ego 정지/기어 확인 실패 ({:.1f}s): {}".format(timeout, issue))
+
+    def verify_stopped(self, *, after=None, timeout=10.0, hold_sec=0.5,
+                       speed_max_mps=0.05, freshness_sec=1.0, require_park=False):
+        """Call after braking starts, with receivers/sender alive, before bag close."""
+        receipt = self.wait_stationary(after=time.monotonic() if after is None else after,
+            timeout=timeout, hold_sec=hold_sec, speed_max_mps=speed_max_mps,
+            required=("ego", "gear", "control_mode"), freshness_sec=freshness_sec,
+            expected_gears=(1,) if require_park else None, expected_control_mode=None,
+            check_preparation_collision=False)
+        self.event("SAFETY_STOP_CONFIRMED", **receipt)
+        return receipt
+
+    def localization_watchdog(self, *, pose_source="localization", freshness_sec=1.0,
+                              require_collision=True, require_control=True):
+        """Opted-in closed-loop stream guard; invalid GPS remains an expected outage."""
+        required = ["ego", "odom", "gear", "control_mode"]
+        if require_collision:
+            required.append("collision")
+        if require_control:
+            required.append("control")
+        if pose_source == "localization":
+            required.extend(("competition", "gps", "imu", "control_state"))
+        elif pose_source != "maptf_morai":
+            raise SafetyFailure("지원하지 않는 안전 측위 source: {}".format(pose_source))
+        receipt = self.require_fresh_inputs(required, freshness_sec=freshness_sec)
+        receipt.update(raw_ego_speed_mps=self.raw_ego_speed_mps(),
+                       gps_valid=self.gps_is_valid() if pose_source == "localization" else None)
+        return receipt
 
     def _ego_distance(self, position):
         """Ego(/Ego_topic)와 충돌 객체 사이 거리. 둘 다 MORAI 좌표. Ego를 모르면 None."""
@@ -447,6 +649,7 @@ class LiveMonitor:
         self.collision_count = 0
         self.goal_min = float("inf")
         self.max_speed = 0.0
+        self.preparation_collisions = {}
 
     def disarm(self):
         self.armed = False

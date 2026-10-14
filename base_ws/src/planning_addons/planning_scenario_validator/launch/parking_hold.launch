@@ -1,0 +1,12 @@
+<launch>
+  <!-- Opt-in localization trial shutdown only. Owns one brake/P sender. -->
+  <arg name="network_config"/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <node pkg="sensor_interface" type="morai_ctrl_cmd_udp_sender"
+        name="morai_ctrl_cmd_udp_sender" output="screen" required="true">
+    <param name="network_config" value="$(arg network_config)"/>
+    <param name="ctrl_mode" value="2"/>
+    <param name="gear" value="1"/>
+    <rosparam command="load" file="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
+  </node>
+</launch>
