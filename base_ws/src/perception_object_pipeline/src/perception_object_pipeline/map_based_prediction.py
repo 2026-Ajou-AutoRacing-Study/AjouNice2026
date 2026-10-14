@@ -10,6 +10,9 @@ from __future__ import annotations
 import hashlib
 import math
 import ctypes
+import threading
+from bisect import bisect_left
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Sequence, Tuple
@@ -97,6 +100,45 @@ def project_point_to_polyline(
     return best
 
 
+class _ProjectionPolyline:
+    """Immutable segment invariants; retain scalar projection/tie semantics.
+
+    Only map geometry is cached. The projected point, minimum distance and
+    lane match still depend on the current observation and are never reused.
+    """
+
+    def __init__(self, points: Sequence[Point3]):
+        self.segments = []
+        walked = 0.0
+        for first, second in zip(points, points[1:]):
+            dx = second[0] - first[0]
+            dy = second[1] - first[1]
+            length_sq = dx * dx + dy * dy
+            length = math.sqrt(length_sq)
+            if length < 1.0e-9:
+                continue
+            self.segments.append((first, dx, dy, second[2] - first[2],
+                                  length_sq, length, math.atan2(dy, dx), walked))
+            walked += length
+
+    def project(self, x: float, y: float) -> Optional[PolylineProjection]:
+        best = None
+        best_distance = None
+        for first, dx, dy, dz, length_sq, length, yaw, walked in self.segments:
+            ratio = ((x - first[0]) * dx + (y - first[1]) * dy) / length_sq
+            ratio = max(0.0, min(1.0, ratio))
+            projected_x = first[0] + ratio * dx
+            projected_y = first[1] + ratio * dy
+            distance = math.hypot(x - projected_x, y - projected_y)
+            # Strict comparison keeps the first segment when distances tie,
+            # just like project_point_to_polyline (including NaN behavior).
+            if best is None or distance < best_distance:
+                best_distance = distance
+                best = (projected_x, projected_y, first[2] + ratio * dz,
+                        yaw, distance, walked + ratio * length)
+        return PolylineProjection(*best) if best is not None else None
+
+
 def polyline_length(points: Sequence[Point3]) -> float:
     return sum(_distance(a, b) for a, b in zip(points, points[1:]))
 
@@ -132,6 +174,52 @@ def tangent_yaw(points: Sequence[Point3], distance: float, epsilon: float = 0.25
             return 0.0
         before, after = points[-2], points[-1]
     return math.atan2(after[1] - before[1], after[0] - before[0])
+
+
+class _RoutePolyline:
+    """Per-route arc index with the original scalar interpolation semantics.
+
+    Geometry is immutable for one prediction call. Cache lengths, not motion
+    or route decisions; avoid rescanning every segment for every future pose.
+    Tiny segments remain in total length but are skipped by sampling, exactly
+    as in polyline_length/sample_polyline above.
+    """
+
+    def __init__(self, points: Sequence[Point3]):
+        self.points = points
+        lengths = [_distance(a, b) for a, b in zip(points, points[1:])]
+        self.length = sum(lengths)
+        self.ends = []
+        self.segments = []
+        walked = 0.0
+        for first, second, length in zip(points, points[1:], lengths):
+            if length < 1.0e-9:
+                continue
+            self.segments.append((first, second, walked, length))
+            walked += length
+            self.ends.append(walked)
+
+    def sample(self, distance: float) -> Point3:
+        if not self.points:
+            raise ValueError("cannot sample an empty polyline")
+        if len(self.points) == 1:
+            return self.points[0]
+        target = max(0.0, float(distance))
+        index = bisect_left(self.ends, target)
+        if index == len(self.segments):
+            return self.points[-1]
+        first, second, walked, length = self.segments[index]
+        ratio = (target - walked) / length
+        return tuple(first[i] + ratio * (second[i] - first[i]) for i in range(3))
+
+    def tangent(self, distance: float, epsilon: float = 0.25) -> float:
+        before = self.sample(max(0.0, distance - epsilon))
+        after = self.sample(min(self.length, distance + epsilon))
+        if _distance(before, after) < 1.0e-9:
+            if len(self.points) < 2:
+                return 0.0
+            before, after = self.points[-2], self.points[-1]
+        return math.atan2(after[1] - before[1], after[0] - before[0])
 
 
 @dataclass(frozen=True)
@@ -195,6 +283,37 @@ class LaneletNetwork:
             5.0, 2.0 * float(self.config.maximum_lane_distance_m)
         )
         self._spatial_index = self._build_spatial_index()
+        # The map's frozen LaneletRecord geometry is constant for this network.
+        # Cache invariants, never observations, route scores or future poses.
+        self._projection_geometry = {
+            lanelet_id: _ProjectionPolyline(record.centerline)
+            for lanelet_id, record in self.records.items()
+        }
+        self._lane_lengths = {
+            lanelet_id: record.length for lanelet_id, record in self.records.items()
+        }
+        self._geometry_records = dict(self.records)
+        self._transition_scores = OrderedDict()
+        self._transition_score_cache_limit = 512
+        self._route_geometry_cache = OrderedDict()
+        self._route_geometry_cache_limit = 128
+        # rospy may invoke one callback per publisher connection. Keep the
+        # get/move/evict LRU operations atomic; geometry work is outside locks.
+        self._geometry_cache_lock = threading.RLock()
+
+    def _refresh_lane_geometry(self, lanelet_id: int) -> None:
+        record = self.records[lanelet_id]
+        if self._geometry_records.get(lanelet_id) is record:
+            return
+        # Production creates a new network on map load. Also keep diagnostics
+        # correct when they explicitly replace a frozen LaneletRecord.
+        self._geometry_records[lanelet_id] = record
+        self._projection_geometry[lanelet_id] = _ProjectionPolyline(record.centerline)
+        self._lane_lengths[lanelet_id] = record.length
+
+    def _lane_length(self, lanelet_id: int) -> float:
+        self._refresh_lane_geometry(lanelet_id)
+        return self._lane_lengths[lanelet_id]
 
     def _grid_cell(self, x: float, y: float) -> Tuple[int, int]:
         return (
@@ -307,8 +426,8 @@ class LaneletNetwork:
     def lane_candidates(self, x: float, y: float, yaw: float) -> Tuple[_LaneCandidate, ...]:
         candidates = []
         for lanelet_id in self._nearby_record_ids(x, y):
-            record = self.records[lanelet_id]
-            projection = project_point_to_polyline(record.centerline, x, y)
+            self._refresh_lane_geometry(lanelet_id)
+            projection = self._projection_geometry[lanelet_id].project(x, y)
             if projection is None or projection.distance > self.config.maximum_lane_distance_m:
                 continue
             yaw_error = abs(normalize_angle(yaw - projection.yaw))
@@ -325,26 +444,41 @@ class LaneletNetwork:
         return tuple(candidates[: max(1, int(self.config.maximum_start_lanelets))])
 
     def _transition_score(self, first_id: int, second_id: int) -> float:
-        first = self.records[first_id].centerline
-        second = self.records[second_id].centerline
+        key = (first_id, second_id)
+        first_record = self.records[first_id]
+        second_record = self.records[second_id]
+        with self._geometry_cache_lock:
+            cached = self._transition_scores.get(key)
+            if cached is not None and cached[0] is first_record and cached[1] is second_record:
+                self._transition_scores.move_to_end(key)
+                return cached[2]
+        first = first_record.centerline
+        second = second_record.centerline
         first_yaw = tangent_yaw(first, polyline_length(first))
         second_yaw = tangent_yaw(second, 0.0)
         delta = abs(normalize_angle(second_yaw - first_yaw))
-        return math.exp(-0.5 * (delta / math.radians(30.0)) ** 2)
+        score = math.exp(-0.5 * (delta / math.radians(30.0)) ** 2)
+        with self._geometry_cache_lock:
+            self._transition_scores[key] = (first_record, second_record, score)
+            if len(self._transition_scores) > self._transition_score_cache_limit:
+                self._transition_scores.popitem(last=False)
+        return score
 
     def _route_sequences(
         self, start_id: int, start_arc_length: float, required_length: float
     ) -> Tuple[Tuple[Tuple[int, ...], float], ...]:
-        start_remaining = max(0.0, self.records[start_id].length - start_arc_length)
+        start_remaining = max(0.0, self._lane_length(start_id) - start_arc_length)
         completed = []
-
-        def visit(ids, available_length, score, occurrences):
-            if len(completed) >= self.config.maximum_paths * 3:
-                return
+        # A nested recursive function captures its own closure, retaining one
+        # reference cycle per start-lanelet call until cyclic GC. An explicit
+        # DFS stack preserves visitation/tie order without cyclic allocations.
+        pending = [([start_id], start_remaining, 1.0, {start_id: 1})]
+        while pending and len(completed) < self.config.maximum_paths * 3:
+            ids, available_length, score, occurrences = pending.pop()
             last_id = ids[-1]
             if available_length >= required_length or len(ids) >= self.config.maximum_route_depth:
                 completed.append((tuple(ids), score))
-                return
+                continue
             followers = [
                 lanelet_id
                 for lanelet_id in self.records[last_id].following_ids
@@ -352,23 +486,20 @@ class LaneletNetwork:
             ]
             if not followers:
                 completed.append((tuple(ids), score))
-                return
+                continue
             branch_prior = 1.0 / len(followers)
             followers.sort(
                 key=lambda lanelet_id: self._transition_score(last_id, lanelet_id),
                 reverse=True,
             )
-            for lanelet_id in followers:
+            # Reversed push preserves recursive depth-first follower order.
+            for lanelet_id in reversed(followers):
                 next_occurrences = dict(occurrences)
                 next_occurrences[lanelet_id] = next_occurrences.get(lanelet_id, 0) + 1
-                visit(
-                    ids + [lanelet_id],
-                    available_length + self.records[lanelet_id].length,
-                    score * branch_prior * self._transition_score(last_id, lanelet_id),
-                    next_occurrences,
-                )
-
-        visit([start_id], start_remaining, 1.0, {start_id: 1})
+                pending.append((ids + [lanelet_id],
+                                available_length + self._lane_length(lanelet_id),
+                                score * branch_prior * self._transition_score(last_id, lanelet_id),
+                                next_occurrences))
         completed.sort(key=lambda item: item[1], reverse=True)
         return tuple(completed[: max(1, int(self.config.maximum_paths))])
 
@@ -381,6 +512,24 @@ class LaneletNetwork:
             else:
                 points.extend(centerline)
         return tuple(points)
+
+    def _route_geometry(self, lanelet_ids: Sequence[int]):
+        # Include the geometry class in the key so scalar reference patches in
+        # offline regression tools cannot accidentally reuse an indexed route.
+        key = (_RoutePolyline, tuple(lanelet_ids))
+        records = tuple(self.records[lanelet_id] for lanelet_id in lanelet_ids)
+        with self._geometry_cache_lock:
+            entry = self._route_geometry_cache.get(key)
+            if entry is not None and all(old is current for old, current in zip(entry[0], records)):
+                self._route_geometry_cache.move_to_end(key)
+                return entry[1]
+        points = self._stitch_route(lanelet_ids)
+        geometry = (_RoutePolyline(points), _ProjectionPolyline(points))
+        with self._geometry_cache_lock:
+            self._route_geometry_cache[key] = (records, geometry)
+            if len(self._route_geometry_cache) > self._route_geometry_cache_limit:
+                self._route_geometry_cache.popitem(last=False)
+        return geometry
 
     def _same_trajectory_hypothesis(
         self,
@@ -449,11 +598,11 @@ class LaneletNetwork:
                 candidate.projection.arc_length,
                 required_length,
             ):
-                route = self._stitch_route(lanelet_ids)
-                start_projection = project_point_to_polyline(route, x, y)
+                geometry, projection_geometry = self._route_geometry(lanelet_ids)
+                start_projection = projection_geometry.project(x, y)
                 if start_projection is None:
                     continue
-                available = polyline_length(route) - start_projection.arc_length
+                available = geometry.length - start_projection.arc_length
                 if available + 0.5 < speed * max(horizons):
                     continue
                 offset_x = x - start_projection.x
@@ -462,7 +611,7 @@ class LaneletNetwork:
                 poses = []
                 for horizon in horizons:
                     route_distance = start_projection.arc_length + speed * horizon
-                    center = sample_polyline(route, route_distance)
+                    center = geometry.sample(route_distance)
                     if self.config.lateral_convergence_time_sec <= 1.0e-6:
                         residual = 0.0
                     else:
@@ -475,7 +624,7 @@ class LaneletNetwork:
                             center[0] + residual * offset_x,
                             center[1] + residual * offset_y,
                             center[2] + residual * offset_z,
-                            tangent_yaw(route, route_distance),
+                            geometry.tangent(route_distance),
                         )
                     )
                 raw_paths.append(

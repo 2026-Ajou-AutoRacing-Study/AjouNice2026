@@ -59,7 +59,6 @@ EDITABLE_FIELDS = {
     'bevfusion_model': ('stack', 'bevfusion_model'),
     'selected_topics': ('recording', 'selected_topics'),
     'video': ('recording', 'video', 'enabled'),
-    'include_sensors': ('recording', 'include_sensors'),
     'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
 }
 
@@ -349,6 +348,11 @@ def operator_document(template, latest, values, include):
         # The dialog can select exact topics while changing from a preset to custom.
         if values['recording_mode'] == bag_options.CUSTOM and values['selected_topics']:
             proposed['recording']['selected_topics'] = bag_options.checked_topics(json.loads(values['selected_topics']))
+    if values['selected_topics'] != baseline['selected_topics'] and values['selected_topics']:
+        # The dialog's explicit list is authoritative, including any sensor removals.
+        # Do not append legacy include_sensors behind the user's back.
+        proposed['recording']['include_sensors'] = False
+        paths += [('recording', 'include_sensors')]
     missing = object()
 
     def at(document, path):
@@ -830,6 +834,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
     add_field(basic, 6, 'bevfusion_model', 'BEVFusion 모델', choices=[v['label'] for v in PRESETS.values()])
     vars_['selected_topics'] = tk.StringVar()
+    vars_['include_sensors'] = tk.BooleanVar()  # Legacy YAML state only; no second GUI control.
     add_field(basic, 7, 'recording_mode', 'rosbag 녹화', choices=list(bag_options.MODES))
     field_widgets['recording_mode'].configure(state='readonly')
     topics_button = ttk.Button(basic, text='토픽 선택…', command=lambda: select_bag_topics())
@@ -837,7 +842,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     toggle_bar = ttk.Frame(basic)
     toggle_bar.grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
     for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 영상 녹화'),
-                       ('include_sensors', '원본 센서 추가 (고용량)'), ('upload_enabled', 'Drive 자동 업로드')):
+                       ('upload_enabled', 'Drive 자동 업로드')):
         vars_[key] = tk.BooleanVar()
         widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
         widget.pack(side='left', padx=6)
@@ -864,7 +869,6 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         label = vars_['recording_mode'].get()
         enabled = label != bag_options.OFF
         running = active.get('ui_running', False) or any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process'))
-        field_widgets['include_sensors'].configure(state='normal' if enabled and label != bag_options.ANALYSIS and not running else 'disabled')
         field_widgets['video'].configure(state='disabled' if label == bag_options.ANALYSIS or running else 'normal')
         topics_button.configure(state='normal' if enabled and not running else 'disabled')
         try:

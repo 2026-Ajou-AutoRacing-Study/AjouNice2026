@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-13.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-14.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -38,7 +38,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 
 Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 뜻은 아니다.
 기본 추론 config는
-[merged runtime config](../../perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py)다.
+[nearest runtime config](../../perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py)다.
 
 <a id="runtime"></a>
 
@@ -46,7 +46,7 @@ Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 
 
 | 실행 역할 | 현재 계약 | 실행 기준 |
 |---|---|---|
-| Production E24 | AMP·병렬화 ON, compile OFF, V/P/O 0.40/0.10/0.10, NMS 0.50 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion` |
+| Production E24 | AMP·병렬화·nearest hint ON, compile OFF, gravity-center ROS 출력, V/P/O 0.40/0.10/0.10, NMS 0.50 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion` |
 | E25 명시적 복귀 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion --model e25` |
 | Base5 baseline trial | 별도 namespace·서버. production을 자동 교체하지 않음 | [ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md), `base5_trial.launch` |
 | E24 선정 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.40/0.10/0.10 | `base5_e24_calibrated_trial.launch`, [threshold 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012) |
@@ -58,6 +58,10 @@ Base5 ROS 입력은 원본 JPEG를 재압축하지 않고 원본 XYZI 0–255를
 E25의 원래 강도 계약과 혼용하지 않는다. Launch만 실행해서 GPU 서버·checkpoint가 자동 준비된다고 가정하지 않는다.
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)의
 topic·coasting·motion policy는 detector 선택과 별도다.
+
+평가 pose는 [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md)을 따른다. 운영 localization/TF와 독립 raw Ego GT를 구분하고 MR −1.347°를 중복 적용하지 않는다.
+2026-10-14 planning 전체 통합은 nearest·ROS 중심·보행자 순위·CPU 최적화와 validator 진단/공유 구현을 함께 포함한다.
+Validator 분석은 [현재 런북](../planning/SCENARIO_VALIDATOR_RUNBOOK.md#5-결과-확인공유)을 따른다. [최초 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md)는 이력이며 실제 팀 PC 실행·공유 검증은 별도다.
 
 <a id="optimization"></a>
 
@@ -90,13 +94,31 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.
 
-1. 구 분포 장애물의 누락·중복과 asset별 학습 노출을 확인한다. Base3 val을 학습에 재사용하지 않는다.
-2. [tracker/Planning 검토](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)의
-   중복 birth guard는 유지하고 빠른 차량 승격은 OFF로 둔다. Confidence와 실제 관측 age는 후속 확인한다.
-3. 팀장님 실제 4090 24GB에서 자차 회신점·자차 위치 출력, ROS/LAN 입력 지연·queue·누락과 tracker→planner를 검증한다.
-4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)에 따라
-   근거리 노출·20~30m 지원·원거리 사례를 배치 실험으로 확인하고 새 환경 수집 정책을 조정한다.
-5. 고정 이미지 registry 게시·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
+후속의 기준은 [원거리 차량과 근거리 객체 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)과
+[오프라인 센서·중복·노드 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)다.
+팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
+
+1. 최신 팀장님 E24 완주·무충돌 bag을 확인했다. raw 센서·stage latency·실제 consumed path와 YOLO 동시 부하가 없어 이를 추가 검증한다.
+2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
+   [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
+3. 낮은 score 갱신의 독립 실제 EKF 원형과 12프로필 비교를 완료했다. 이동·클래스 안정·XY 전용 후보만 시험용으로 남겼다.
+   [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013)의 효과는 주로 멀어지는 차량이며 실제 ROS·새 초기 접근 검증 전에는 production에 적용하지 않는다.
+   중복 birth guard와 빠른 차량 승격 OFF를 유지한다. 지도 보조는 미구현 후속이다.
+   [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의 소비 코드·기존 bag·현재 지도 재생을 확인했다. LC는 최고점 동점 전체, Cruise는 현재 설정 1개, 로터리는 0.05 이상 후보를 검사한다.
+   [50절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의 관측 적합도·횡이동 후보도 비교했다. 일부 평균 이득보다 소수 큰 순위 악화가 남아 예측 정책은 유지한다.
+   출력 동일 geometry cache·독립 메시지 복사·DFS 최적화는 소스와 이 PC의 설치본에 반영했다. 팀장님 환경·실제 주행은 미검증이다. [CPU 근거](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
+   중복 pixel 쓰기의 depth hint 변동을 분리하고 E24 추론에 nearest를 반영했다.
+   [Live 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)의 새 3,647장·실제 서버 반복은 차이 0이며 이전 native/dev 945장 근거와 함께 검증했다. 학습·가중치는 미변경이다.
+   nearest의 연속 1,570장 A/A는 정확히 같지만 compile association/잔류 예외가 남아 기본 OFF를 유지한다.
+   E24 현재 ROS 박스는 tagged bottom→gravity adapter를 사용한다. 실제 ROS 170프레임·512박스와 fresh tracker를 확인했다.
+   [Z 계약·정지/reset 경계](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 따라 fresh stack으로 시작한다.
+   E9/E25 비교·복귀의 legacy 표현, Map-CV future-Z·실제 planner 확인은 별도다. 기존 GT·가중치는 보존한다.
+   [연결·이동 후속](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)의 보행자 Gaussian 순위는 운영 pipeline에 ON이다. 허용 조건·수명·차량·장애물 정책은 유지하고 OFF 복귀를 제공한다.
+   복합체는 별도 관측한다. 50/cut0은 저속 이동 확인만 완료했으므로 고속/LAN 검증 전에는 기본 51을 유지한다. E24 head peak 변경은 native 검출 손실로 계속 기각한다.
+4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
+   다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
+5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.
+   고정 이미지 registry·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 
 원격 명령·재개·백업은 [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md)를 따른다.
 인스턴스 실행 여부를 문서 날짜로 추정하지 않으며 사용자 요청 없이 임대·Stop·Destroy하지 않는다.

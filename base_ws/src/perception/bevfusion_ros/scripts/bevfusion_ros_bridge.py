@@ -36,6 +36,7 @@ from bevfusion_ros.score_thresholds import (
 from bevfusion_ros.rotated_bev_nms import class_aware_rotated_bev_nms
 from bevfusion_ros.transport import TcpTransport
 from bevfusion_ros.frame_timing import FrameTimingLedger
+from bevfusion_ros.box_center_origin import LEGACY_OUTPUT, response_for_ros, validate_output_origin
 
 
 DEFAULT_CAMERA_ORDER = [
@@ -63,6 +64,8 @@ class BevFusionRosBridge:
             os.path.expanduser(rospy.get_param("~sensor_config"))
         )
         self.operation = rospy.get_param("~operation", "inference")
+        self.box_center_output_origin = validate_output_origin(
+            rospy.get_param('~box_center_output_origin', LEGACY_OUTPUT))
         self.intrinsic_source = rospy.get_param("~intrinsic_source", "horizontal_fov")
         self.camera_order = rospy.get_param("~camera_order", DEFAULT_CAMERA_ORDER)
         self.sync_tolerance = float(rospy.get_param("~sync_tolerance_sec", 0.10))
@@ -684,7 +687,9 @@ class BevFusionRosBridge:
         if response.get("operation") == "projection":
             self._publish_projection(response, response_blobs)
         else:
-            self._publish_detections(response, stamp)
+            ros_response = response_for_ros(
+                response, getattr(self, 'box_center_output_origin', LEGACY_OUTPUT))
+            self._publish_detections(ros_response, stamp)
             self._write_query_memory_diagnostics(response, metadata)
         self._publish_status(
             "ok operation={} sequence={} latency_ms={:.1f} host_preprocess_ms={:.1f} "

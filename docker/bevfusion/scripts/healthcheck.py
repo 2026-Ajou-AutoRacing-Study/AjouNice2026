@@ -15,6 +15,13 @@ def validate_production_identity(metadata,args):
             or not identity.get('amp') or identity.get('compile_parts') != []
             or identity.get('parallel_camera') != expected_base5):
         raise ValueError('Server runtime differs from the pinned production checkpoint/options')
+    if identity.get('box_center_origin', 'lidar_bottom_v1') != 'lidar_bottom_v1':
+        raise ValueError('Production raw box-origin contract differs')
+    if getattr(args,'require_box_origin_tag',False) and identity.get('box_center_origin')!='lidar_bottom_v1':
+        raise ValueError('Corrected ROS output requires an explicitly tagged producer')
+    policy=getattr(args,'expected_depth_raster_policy',None)
+    if policy is not None and identity.get('depth_raster_policy')!=policy:
+        raise ValueError('Server depth-hint policy differs from the selected contract')
     if args.expected_config and identity.get('config_sha256') != args.expected_config:
         raise ValueError('Server model configuration differs')
     if args.expected_sensor and (metadata.get('calibration') or {}).get('config_sha256') != args.expected_sensor:
@@ -34,6 +41,8 @@ def main():
     parser.add_argument("--expected-base5", choices=('true','false'))
     parser.add_argument("--expected-config")
     parser.add_argument("--expected-sensor")
+    parser.add_argument('--require-box-origin-tag',action='store_true')
+    parser.add_argument('--expected-depth-raster-policy',choices=('nearest_positive',))
     args = parser.parse_args()
     with socket.create_connection((args.host, args.port), args.timeout) as connection:
         send_message(connection, TYPE_PING, {"client": "healthcheck"})

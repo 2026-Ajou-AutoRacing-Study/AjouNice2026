@@ -1,6 +1,6 @@
 # BEVFusion 작업별 문서 인덱스
 
-문서 상태: ROUTER. 정리 기준: 2026-10-12.
+문서 상태: ROUTER. 정리 기준: 2026-10-14.
 현재 모델·실행 선택·남은 과제는 [CURRENT](CURRENT.md)에서 한 번만 관리한다.
 이 문서는 필요한 근거를 고르는 안내이며 날짜별 진행 결과를 복사하지 않는다.
 
@@ -9,8 +9,11 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 현재 모델·checkpoint·옵션 선택 | [CURRENT](CURRENT.md) |
+| 원거리 차량·후단·다음 수집과 최종 학습의 진행 순서 | [개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md) |
 | Production E24 배포와 E25 복귀 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Base5 ROS 시험 | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md) |
+| 운영 localization과 독립 평가 GT의 heading·pose 기준 | [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md) |
+| Validator 녹화 프리셋·로그·공유 묶음의 누락과 담당자 전달 | [분석 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md) |
 | 원격 학습·재개·백업 | [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
 | 생성·수집·GT 변환 | [Base5 데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md) |
 | Tracker·motion policy·prediction | [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md) |
@@ -23,6 +26,13 @@
 
 | 주제 | 근거 |
 |---|---|
+| 원시 패킷 시간축·보행자 ID 분절·출력 동일 CPU 개선·C++ 전환 gate | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |
+| 새 MORAI 입력의 51/50/cut0·두 사람·복합체·depth hint·출력 원점 대조 | [Live 후보 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md) |
+| 보행자 순위 운영 적용·OFF 복귀·실제 ROS·LiDAR 저속 이동 후속 | [연결과 이동 비교](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md) |
+| Map-CV 관측 적합도·횡이동 후보·별도 bag 회귀·희귀 악화와 출력 동일 계산 최적화 | [50절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014) |
+| 모듈별 예측 경로 소비·고주로/로터리 Top-K·지도와 차선 이력 원형 | [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014) |
+| 저신뢰도 갱신의 실제 EKF 코어·초기 검출 한계·위치/속도·부작용 보호 | [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013) |
+| 원거리 score 비교·GT 노출·지도/Top-1 검토 기점 | [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013) |
 | 저장 bag·E24 tracker guard A/B·planning 필터 검토 | [46절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013) |
 | E24 production 기본값·실행 계약·팀 Drive | [45절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e24-production-261013) |
 | 원본 Base3 val E25/E9/E24·구 분포 장애물·자차 회신점 대조 | [44절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013) |

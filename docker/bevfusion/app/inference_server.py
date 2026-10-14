@@ -76,6 +76,9 @@ class InferenceServer:
                 point_intensity_source=getattr(args, "point_intensity_source", "native"),
             )
             LOGGER.info("BEVFusion model is ready")
+            self.runtime_identity['box_center_origin'] = self.model.box_center_origin
+            self.runtime_identity['depth_raster_policy'] = getattr(
+                getattr(getattr(self.model, 'model', None), 'view_transform', None), 'depth_raster_policy', None)
             if self.fp32_reference:
                 import torch
                 torch.backends.cuda.matmul.allow_tf32 = False
@@ -194,6 +197,7 @@ class InferenceServer:
                 "sequence": metadata.get("sequence", 0),
                 "frame_id": self.calibration["lidar_frame"],
                 "detections": detections,
+                "box_center_origin": getattr(self.model, 'box_center_origin', None),
                 "query_memory_diagnostics": (
                     self.model.last_query_memory_diagnostics),
                 "preprocess_ms": preprocess_ms,
