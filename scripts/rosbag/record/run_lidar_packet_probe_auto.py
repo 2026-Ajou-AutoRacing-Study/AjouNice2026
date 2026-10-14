@@ -61,7 +61,7 @@ def prepare(folder):
     write_json(folder / "setup.json", {
         "campaigns": result, "network": str(NETWORK),
         "scope": "Raw input collection with GT pose/detection; not production full-stack evaluation.",
-        "driver_input": "unchanged VLP16 900 RPM, first packet stamp, 51 packets"})
+        "driver_input": "production VLP16 900 RPM, first packet stamp, 50 packets"})
     return result
 
 

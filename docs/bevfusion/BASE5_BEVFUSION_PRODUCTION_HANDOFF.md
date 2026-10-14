@@ -20,6 +20,7 @@ validator 분석 녹화/공유를 planning 브랜치용 코드에 함께 반영�
 | 입력 | 원본 JPEG, 원본 XYZI 0–255를 서버에서 정확히 한 번 ÷255 |
 | 추론 | AMP·camera 병렬화·nearest depth hint ON, compile OFF |
 | 센서 기본 | `Sensor_competition_lan.json`, 실행 인자로 local/다른 실제 센서 JSON 지정 가능 |
+| LiDAR 묶음 | 2026-10-14 전환: 50 packets, 900 RPM, 첫 패킷 stamp, cut_angle −0.01. 적용 브랜치는 아래 범위 참조 |
 | 출력과 후처리 | tagged bottom→gravity center 변환 한 번, canonical detection topic, class-aware rotated BEV NMS 0.50 |
 | 후단 | pedestrian Gaussian 순위 ON → UNKNOWN stationary policy → Map-CV. gate·수명·planning 정책 유지 |
 
@@ -86,6 +87,20 @@ bash scripts/runtime/install_base5_production.sh --check-only
 기존 `setup_bevfusion_inference.sh`는 E25 archive도 준비하는 호환 설치기이며 E24 설치 완료로 해석하지 않는다.
 
 ## 실행과 복귀
+
+### LiDAR 50 적용과 51 복귀
+
+2026-10-14 사용자 승인으로 `lidar.launch`와 `morai_udp_interface.launch`의 기본 묶음을 50으로
+변경했다. 이 변경은 우선 `dataset/base5`에 반영하며 planning 브랜치에는 후속 통합이 필요하다.
+코드 반영 뒤 `sensor_interface`를 증분 설치하고 기존 UDP/LiDAR 수신기를 종료·재시작해야 한다.
+실행 중 `rosparam set`만으로 이미 초기화된 드라이버의 묶음을 바꾸지 않는다.
+MORAI의 LiDAR 15Hz 설정·카메라·timestamp 정책·E24 가중치는 변경하지 않는다.
+기존 데이터 재구축이나 재학습은 필요하지 않다. LAN·팀 PC의 연속 검출/추적 지연은 후속 확인한다.
+
+새 기본값은 기존 UDP 실행 명령을 그대로 사용한다. 51로 복귀할 때만 게이트웨이 명령에
+`lidar_npackets:=51`을 추가한다. LiDAR 단독 launch는 `npackets:=51`이다.
+빈 CLI 인자 `lidar_npackets:=`는 Noetic에서 무시되어 새 기본값 50이 적용되므로 복귀 인자가 아니다.
+기존 모델 ZIP의 가중치와 runtime 계약은 그대로이며 이 launch 변경만으로 새 ZIP은 필요하지 않다.
 
 2026-10-14 현재 박스 원점이 수정됐다. 기존 detector·tracker·planner를 모두 정지하고
 새 stack으로 시작한다. 실행 중인 track/planner memory에 새 중심 기준을 hot-switch하지 않는다.

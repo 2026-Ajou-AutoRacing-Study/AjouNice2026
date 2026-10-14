@@ -3,7 +3,8 @@
 문서 상태: EVIDENCE. 검증일: 2026-10-14.
 운영 선택은 [CURRENT](CURRENT.md)와 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를 따른다.
 이 시험은 새 교통 장면의 방향 보호·재취득 복구 후보와 실제 50/51 패킷 입력을 구분하여 검증한다.
-E24 가중치·threshold·추론 compile OFF·LiDAR 기본 51·기존 5K는 유지한다.
+E24 가중치·threshold·추론 compile OFF·기존 5K는 유지한다.
+같은 날 후속 사용자 승인으로 LiDAR 기본값을 50에 전환했다. 아래 P/51 종료 기록은 전환 전 실측이다.
 
 ## 독립 입력과 안전한 녹화
 
@@ -194,16 +195,40 @@ ID 교체 후보 3→2의 이득으로 이 악화를 상쇄했다고 보지 않�
 초기 방향 가드는 신뢰할 과거 이력이 있는 튐을 보호하는 원형으로 유지한다.
 첫 확정 순간의 불확실한 속도를 억지로 전진 방향으로 만들지 않는다.
 재취득 P+R·교차 공분산 분리·위치 reset은 독립 예외 악화 때문에 운영 미적용이다.
-E24·기본 51·bounded coasting·Map-CV 경로 순위·planner 제동은 유지한다.
+E24·bounded coasting·Map-CV 경로 순위·planner 제동은 유지한다.
 
 50은 이번 로컬 실제 입력에서 source 혼합과 수신 age를 줄였고 E24 검출·연결도 확인했다.
-운영 승격은 이번 사용자 선택과 분리한다. LAN·실제 팀 PC에서 timestamp·카메라 정합·연속
-검출/추적·planner 영향을 확인하고, 기본 변경을 명시적으로 결정하기 전까지 51을 유지한다.
+초기 보고의 51 임시 유지는 에이전트의 보수적 판단이었으며 사용자의 요청이 아니었다.
+후속 사용자 승인으로 운영 기본값을 50에 전환했다. LAN·실제 팀 PC의 timestamp·카메라 정합·연속
+검출/추적·planner 영향 확인은 별도로 남는다.
 새 5K 생성기 거리·가시성·자산별 분포는 [생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)으로 이어간다.
 현재 센서가 희소한 원거리 사례와 가까운 큰/작은 박스의 중심 튐을 구분하여 보강하고,
 원거리 라벨 삭제나 tracker 정책을 바꿔 학습 부족을 숨기지 않는다. 본수집은 시작하지 않았다.
 
 ## 근거와 재현 도구
+
+### 같은 날 LiDAR 50 운영 전환
+
+사용자의 명시적 전환 승인으로 MORAI 전용 두 launch의 기본 packet count를 50으로 변경한다.
+일반 Velodyne 드라이버의 `ceil(754/15)` 계산은 수정하지 않는다. RPM 900·첫 패킷 stamp·
+cut_angle −0.01·기존 calibration과 decoder는 유지한다. 51 비교 실험에는 명시적으로 51을 전달하고,
+새 실험 종료 복귀는 P/50을 확인한다. 과거 scan·bag·GT·가중치는 수정하지 않는다.
+
+원시 입력 녹화기의 기본 감사 계약도 50으로 전환한다. 과거 51 재현은 driver에 명시적 51을
+전달하고 녹화기에 `--expected-packets 51`을 지정한다. 비교 도구가 다른 정책을 같은 이름으로
+실행하거나 과거 51 bag을 자동으로 50 계약에 합격시키지 않도록 구분한다.
+
+적용 범위는 `dataset/base5`와 이 PC 설치본이며 planning 브랜치 통합·팀 PC 설치는 별도다.
+재시작·복귀 방법은 [production handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+
+두 launch의 기본값·51 복귀·잘못된 인자 거부, 합성 bag의 50/51 계약과 독립 캠페인 준비 등
+회귀 검사 34개를 통과했다. `sensor_interface` 증분 빌드·설치도 완료했다.
+설치된 게이트웨이를 packet count override 없이 실행하고, 제어 송신 없이 실제 입력을 확인했다.
+30개 scan·30개 cloud 모두 50패킷·360°·단일 source footer이며 header는 첫 패킷 stamp와 같았다.
+cloud callback 수신 age는 평균 38.29ms·p95 43.72ms였다. 별도 Python 구독기의 수신 시각이므로
+과거 bag receipt나 E24 결과 지연과 직접 동일한 지표로 비교하지 않는다.
+원본 확인 결과는 `planner_logs/analysis/261014_lidar50_default_promotion/live_smoke.json`에 보존한다.
+시나리오 로드·운전·모델 추론은 하지 않았으며 시험 소유 수신기만 종료하고 사용자 master를 유지했다.
 
 상세 산출물의 공통 루트는 `planner_logs/analysis/261014_independent_vehicle_lidar_followup/`다.
 `inputs_v1`은 시나리오 경계가 없어 폐기했으며 `inputs_v2/inputs.json`·`gt_pack.json.gz`를 사용한다.

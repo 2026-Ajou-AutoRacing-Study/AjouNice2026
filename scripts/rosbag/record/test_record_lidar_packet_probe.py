@@ -22,7 +22,7 @@ SPEC.loader.exec_module(probe)
 class ProbeTests(unittest.TestCase):
     def contract(self):
         return dict(model="VLP16", rpm=900.0, timestamp_first_packet=True,
-                    cut_angle=-0.01, time_offset=0.0, gps_time=False, pcap_time=False)
+                    cut_angle=-0.01, time_offset=0.0, gps_time=False, pcap_time=False, npackets=50)
 
     def test_default_contract(self):
         probe.require_driver_contract(self.contract())
@@ -30,9 +30,17 @@ class ProbeTests(unittest.TestCase):
     def test_changed_contract_rejected(self):
         for key, value in [("rpm", 750), ("timestamp_first_packet", False),
                            ("cut_angle", 0), ("time_offset", 1),
-                           ("gps_time", True), ("pcap_time", True), ("npackets", 50)]:
+                           ("gps_time", True), ("pcap_time", True), ("npackets", 51)]:
             with self.subTest(key=key), self.assertRaises(RuntimeError):
                 probe.require_driver_contract(dict(self.contract(), **{key: value}))
+
+    def test_legacy51_must_be_requested_explicitly(self):
+        legacy = dict(self.contract(), npackets=51)
+        probe.require_driver_contract(legacy, expected_packets=51)
+        legacy.pop("npackets")
+        probe.require_driver_contract(legacy, expected_packets=51)
+        with self.assertRaises(RuntimeError):
+            probe.require_driver_contract(legacy)
 
     def test_missing_and_single_message_not_ready(self):
         counts = {topic: 2 for topic in probe.REQUIRED}
@@ -67,7 +75,7 @@ class ProbeTests(unittest.TestCase):
 
 @unittest.skipUnless(ROS_AVAILABLE, "source ROS runtime for synthetic bag tests")
 class SyntheticBagTests(unittest.TestCase):
-    def write_bag(self, path, packet_count=51, omit=None):
+    def write_bag(self, path, packet_count=50, omit=None):
         with rosbag.Bag(str(path), "w", compression="lz4") as bag:
             for index in range(2):
                 now = rospy.Time.from_sec(100 + index)
@@ -92,8 +100,9 @@ class SyntheticBagTests(unittest.TestCase):
     def test_wrong_count_bag(self):
         with tempfile.TemporaryDirectory() as folder:
             path = pathlib.Path(folder) / "test.bag"
-            self.write_bag(path, packet_count=50)
+            self.write_bag(path, packet_count=51)
             self.assertFalse(probe.audit_bag(path)["pass"])
+            self.assertTrue(probe.audit_bag(path, expected_packets=51)["pass"])
 
     def test_missing_camera_bag(self):
         with tempfile.TemporaryDirectory() as folder:

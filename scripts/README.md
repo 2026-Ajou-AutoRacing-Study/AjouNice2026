@@ -140,8 +140,9 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 현재 결과와 해석 한계는 [packet 검토](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#packet)에 있다.
 
 선택적 live LiDAR 비교 인자는 `lidar.launch`의 `npackets`/`cut_angle`과 상위
-`morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. default는 이전과
-같고 이 문서 추가만으로 후보 driver를 실행하지 않는다. cut 단위는 라디안이다.
+`morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. 2026-10-14 운영 default는
+50이며 51 재현에는 명시적 `lidar_npackets:=51`이 필요하다. cut 단위는 라디안이다.
+원시 녹화기의 기본 검사도 50이며 과거 51 재현에는 `--expected-packets 51`을 사용한다.
 
 새 정지·보행 후보 비교는 `run_perception_candidate_probe.py --run`으로 실행한다.
 유한 시나리오 사본·Ego 제동·실제 로드 UID·충돌·드리프트·원본 저장을 검사하며 본수집이 아니다.
@@ -151,12 +152,12 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 `run_live_box_origin_gate.py`와 `analyze_live_box_origin_gate.py`로 분리한다.
 자동 GT 주행은 `run_lidar_live_policy_campaign.py`이며 첫 안전/주행 실패에서 중단한다.
 현재 적용 결정·실패 원본·실행 범위는 [Live 후보 검토](../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
-기본 LiDAR 정책은 51로 유지하되 재시작 시 driver private namespace의 이전 override만 지운다.
+기본 LiDAR 정책은 50이며 재시작 시 driver private namespace의 이전 override만 지운다.
 
 새 독립 차량 3장면은 `build_independent_vehicle_probe_scenes.py`로 준비하고
 `run_independent_vehicle_lidar_campaign.py --scene-manifest <plan.json> --output <새 폴더> --run`으로
 GT 제어·실제 51/50 녹화를 수행한다. 준비 동안 실제 P·정지를 확인한 뒤 D 제어기로 전환한다.
-`--finalize-existing`는 모든 원본이 검사 통과한 경우에만 P/51 복귀를 재확인하며 주행은 반복하지 않는다.
+`--finalize-existing`는 모든 원본이 검사 통과한 경우에만 P/50 복귀를 재확인하며 주행은 반복하지 않는다.
 다른 validator·제어기·UDP 수신기와 동시에 실행하지 않는다.
 
 `prepare_independent_vehicle_inputs.py`는 움직이는 Ego와 ScenarioLoad 이전 구간을 구분한다.

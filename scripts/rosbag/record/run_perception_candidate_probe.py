@@ -24,7 +24,7 @@ INSTALL = Path.home()/'MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenari
 ARCHIVE = Path.home()/'morai_cap/base5_v2_261008/manual_ground_archive_v116/corrected/1.json'
 LOOKUP = Path.home()/'morai_cap/base5_v2_261008/endpoint_linear_release56_v117/height_lookup_live.json'
 PET_TEMPLATE = ARCHIVE.with_name('5.json')
-POLICIES = {'fixed51': [], 'fixed50': ['lidar_npackets:=50'], 'cut0': ['lidar_cut_angle:=0']}
+POLICIES = {'fixed51': ['lidar_npackets:=51'], 'fixed50': ['lidar_npackets:=50'], 'cut0': ['lidar_cut_angle:=0']}
 
 
 def sha(path):

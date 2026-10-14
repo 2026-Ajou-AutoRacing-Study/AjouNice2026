@@ -26,10 +26,10 @@ is map infrastructure rather than a perception actor.
 `scripts/rosbag/record/build_independent_vehicle_probe_scenes.py`로 준비하고,
 `run_independent_vehicle_lidar_campaign.py`로 별도 GT 제어·원본 녹화를 수행한다.
 이 후속은 로드·경로 준비 동안 실제 P·정지를 유지한 뒤 D 제어기로 전환한다.
-초기 이전 장면을 `SCENARIO_READY`로 구분하고, 종료 시 장면 재로드 없이 P·기본 51을 확인한다.
+초기 이전 장면을 `SCENARIO_READY`로 구분하고, 종료 시 장면 재로드 없이 P·기본 50을 확인한다.
 기존 자동 실행기의 과거 완료/실패와 구분하여 아래 네트워크를 그대로 사용한다.
 소량 시험·원본 경로·채택 여부는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
-현재 production LiDAR 기본값은 계속 51이다.
+2026-10-14 후속 사용자 승인으로 production LiDAR 기본값은 50이다. 아래 최초 51 녹화는 보존된 이력이다.
 
 ### 권장: 네트워크만 연결하고 자동 실행
 
@@ -102,7 +102,8 @@ ScenarioLoad UDP 9095까지 닫혀 추가 요청도 처리되지 않았다. 이�
 
 ### 대안: 사람이 로드·운전하는 수동 실행
 
-학습용 수집이 아니라 기존 51패킷 입력을 그대로 보존하는 짧은 녹화다. MORAI의
+학습용 수집이 아니라 현재 50패킷 입력을 보존하는 짧은 녹화다. 과거 51 재현은
+게이트웨이에 `lidar_npackets:=51`, 녹화기에 `--expected-packets 51`을 함께 지정한다. MORAI의
 시나리오 목록에 아래 이름으로 원본과 동일한 파일을 복사했다. 위치는
 `~/MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Scenario/R_KR_PR_K-city_2025/`다.
 로드만으로 Ego가 자동 주행하지 않으며 세 파일 모두 Keyboard·P·정지 상태로 시작한다.
@@ -128,8 +129,8 @@ ScenarioLoad UDP 9095까지 닫혀 추가 요청도 처리되지 않았다. 이�
    카메라 `9291/9293/9295/9297`, GPS `9301`, IMU `9303`, Ego `9110`,
    Competition `9099`, Object `7505`, Collision `9092`를 사용한다.
 5. LiDAR 15Hz 설정, 카메라 30Hz·1280×720·JPEG Q90을 유지한다. ROS 드라이버도
-   900 RPM·첫 패킷 stamp·cut_angle 비활성 상태를 유지한다. `npackets=50`으로
-   바꾸거나 deskew를 켜지 않는다. native SaveSensorData/annotation 저장과
+   900 RPM·첫 패킷 stamp·cut_angle 비활성 상태를 유지한다. 현재 기본 묶음은
+   `npackets=50`이며 deskew는 켜지 않는다. native SaveSensorData/annotation 저장과
    rosbridge는 이번 UDP 녹화의 필수 경로가 아니다.
 
 ### 실행할 최소 ROS 구성

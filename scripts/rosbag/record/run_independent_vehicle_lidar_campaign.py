@@ -95,7 +95,7 @@ def audit_case(bag, policy):
 
 
 def restore_final_park(output):
-    """Initialize ROS before subscribing and positively restore P/51, no reload."""
+    """Initialize ROS before subscribing and positively restore P/50, no reload."""
     import math
     import time
     import rospy
@@ -112,7 +112,7 @@ def restore_final_park(output):
     try:
         processes.start('udp', ['roslaunch', 'sensor_interface', 'morai_udp_interface.launch',
             'sensor_config:='+str(ROOT/'configs/sensors/Sensor_competition_local.json'),
-            'network_config:='+str(NETWORK), 'enable_control:=false', 'lidar_npackets:=51'])
+            'network_config:='+str(NETWORK), 'enable_control:=false', 'lidar_npackets:=50'])
         hold.start()
         processes.start('park', ['rosrun', 'sensor_interface', 'morai_ctrl_cmd_udp_sender',
             '_network_config:='+str(NETWORK), '_gear:=1', '_ctrl_mode:=2', '__name:=independent_final_park'])
@@ -124,7 +124,7 @@ def restore_final_park(output):
             scan = rospy.wait_for_message('/sensor/lidar1/packets', VelodyneScan, timeout=3.)
             speed = math.hypot(ego.velocity.x, ego.velocity.y)
             cut = rospy.get_param('/lidar/lidar_driver/cut_angle')
-            if gear.data == 1 and speed < .1 and len(scan.packets) == 51 and cut < 0:
+            if gear.data == 1 and speed < .1 and len(scan.packets) == 50 and cut < 0:
                 stable_since = stable_since or time.monotonic()
                 if time.monotonic()-stable_since >= .5:
                     write_json(folder/'result.json', dict(verified=True, park_verified=True, gear=gear.data,
@@ -133,12 +133,12 @@ def restore_final_park(output):
                     return
             else:
                 stable_since = None
-        raise RuntimeError('Actual Park/51 restore not confirmed; no scene reload')
+        raise RuntimeError('Actual Park/50 restore not confirmed; no scene reload')
     finally:
         processes.close()
         hold.stop()
         # This experiment owns the temporary npackets override. Removing it
-        # after all owned nodes exit restores normal automatic 51 calculation.
+        # after all owned nodes exit leaves the next launch to set production 50.
         if rospy.has_param('/lidar/lidar_driver/npackets'):
             rospy.delete_param('/lidar/lidar_driver/npackets')
 
@@ -200,7 +200,7 @@ def main():
     parser.add_argument('--mission', action='append', choices=('highway', 'roundabout'))
     parser.add_argument('--run', action='store_true')
     parser.add_argument('--finalize-existing', action='store_true',
-                        help='Restore Park/51 after every raw case passed, without repeating any drive')
+                        help='Restore Park/50 after every raw case passed, without repeating any drive')
     parser.add_argument('--child-config', type=Path)
     parser.add_argument('--child-policy', choices=('fixed51', 'fixed50'))
     args = parser.parse_args()
@@ -287,7 +287,7 @@ def main():
             run_cases(args.output, plan)
         except Exception as error:
             # The child preserves brake-through-cleanup. Positively restore
-            # Park/51 after failure as well, without retrying the failed drive.
+            # Park/50 after failure as well, without retrying the failed drive.
             write_json(args.output/'failure.json', dict(error_type=type(error).__name__, error=str(error)))
             try:
                 restore_final_park(args.output)

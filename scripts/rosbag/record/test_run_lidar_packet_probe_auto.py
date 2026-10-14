@@ -19,6 +19,8 @@ class AutoProbeTests(unittest.TestCase):
             output = pathlib.Path(temp) / "setup"
             configs = auto.prepare(output)
             self.assertEqual(set(configs), {"highway", "roundabout"})
+            setup = json.loads((output / "setup.json").read_text())
+            self.assertIn("50 packets", setup["driver_input"])
             topics = json.loads((output / "topics.json").read_text())
             self.assertTrue(set(auto.probe.REQUIRED) <= set(topics))
             for path in configs.values():
