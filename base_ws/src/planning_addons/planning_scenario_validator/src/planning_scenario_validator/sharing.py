@@ -9,7 +9,7 @@ import yaml
 from .runtime import atomic_json
 from .recording_options import sharing_warnings
 
-SECRET = re.compile(r'(password|passwd|secret|access_token|refresh_token|api_key|authorization|credential)', re.I)
+SECRET = re.compile(r'(password|passwd|secret|token|api_key|access_key|private_key|authorization|credential|cookie)', re.I)
 ALLOWED = {'.json', '.jsonl', '.yaml', '.yml', '.csv', '.log', '.py', '.png', '.jpg', '.bag', '.mp4'}
 
 
@@ -22,6 +22,10 @@ def redact(value):
         value = re.sub(r'(?i)(Bearer\s+)[^\s"\']+', r'\1[REDACTED]', value)
         value = re.sub(r'''(?i)((?:password|passwd|client_secret|access_token|refresh_token|api_key|authorization)["']?\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)''', r'\1[REDACTED]', value)
         value = re.sub(r'(https?://)[^/@\s]+:[^/@\s]+@', r'\1[REDACTED]@', value)
+        value = re.sub(r'''(?i)((?:token|access_key(?:_id)?|private_key|cookie)\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)''', r'\1[REDACTED]', value)
+        value = re.sub(r'(?i)(--(?:password|secret|token|api-key|access-token)\s+)\S+', r'\1[REDACTED]', value)
+        value = re.sub(r'-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----',
+                       '[REDACTED PRIVATE KEY]', value, flags=re.S)
     return value
 
 
@@ -130,11 +134,11 @@ def build_bundle(cfg, folder):
     return root, target, manifest
 
 
-def verify_listing(folder, listing):
+def verify_listing(folder, listing, *, files=None):
     """Require size AND a matching content hash for every selected shared file."""
     remote = {entry['Path']: entry for entry in listing if not entry.get('IsDir')}
     failures = []
-    for path in sorted(Path(folder).rglob('*')):
+    for path in sorted(Path(folder).rglob('*') if files is None else files):
         if not path.is_file():
             continue
         name = str(path.relative_to(folder))

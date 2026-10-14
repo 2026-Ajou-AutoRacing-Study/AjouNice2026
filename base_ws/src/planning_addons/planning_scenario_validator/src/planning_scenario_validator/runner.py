@@ -210,7 +210,7 @@ def _record_result(cfg, state, case, result, folder):
         "suspected_stage": result["failure_analysis"]["suspected_stage"],
         "result_path": str(folder / (result["basename"] + ".json")),
         "attempts": int(state["results"].get(case.name, {}).get("attempts", 0)) + 1,
-        "analysis_complete": (result.get('recording_audit') or {}).get('complete_for_analysis', False),
+        "analysis_complete": result.get('analysis_available', False),
         "recording_warning": (result.get('recording_audit') or {}).get('status') == 'WARN'}
     state["updated_at"] = now()
     _write_state(cfg, state)
@@ -292,6 +292,7 @@ def _upload(cfg, folder, state, case):
     state.setdefault("upload_errors", [])
     if not shutil.which("rclone"):
         state["upload_errors"].append({"scenario": case.name, "message": "rclone 미설치"})
+        atomic_json(folder / 'sharing_audit.json', {'status': 'ERROR', 'verified': False, 'error': 'rclone 미설치'})
         _write_state(cfg, state)
         return
     from .sharing import build_bundle, verify_listing, safe_copy
@@ -358,6 +359,17 @@ def _upload(cfg, folder, state, case):
                                      timeout=3600, check=True)
             if verify_listing(payload, json.loads(listing.stdout)):
                 raise RuntimeError('공유 검증 receipt 업로드 확인 실패')
+            base_target = '{}/{}'.format(str(upload['rclone_remote']).rstrip('/'), cfg['name'])
+            for name in ('summary.csv', 'campaign_state.json'):
+                safe_copy(cfg['output'] / name, payload_root / name)
+                subprocess.run(['rclone', 'copyto', str(payload_root / name), base_target + '/' + name]
+                               + _upload_drive_flags(cfg), capture_output=True, text=True,
+                               timeout=3600, check=True)
+            metadata_listing = subprocess.run(['rclone', 'lsjson', base_target, '--hash'] + _upload_drive_flags(cfg),
+                                              capture_output=True, text=True, timeout=3600, check=True)
+            if verify_listing(payload_root, json.loads(metadata_listing.stdout),
+                              files=[payload_root / name for name in ('summary.csv', 'campaign_config.yaml', 'campaign_state.json')]):
+                raise RuntimeError('공유 CSV/YAML/state 최종 내용 검증 실패')
         except Exception as error:
             report.update(status='ERROR', verified=False, error=str(error)[-500:])
             atomic_json(folder / 'sharing_audit.json', report)
@@ -612,6 +624,11 @@ def _run_case(cfg, processes, monitor, case, state):
             "reason": reason, "error": error, "route_uuid": route_id,
             "metrics": metrics, "failure_analysis": failure_analysis,
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
+            "analysis_available": bool((recording_audit or {}).get('complete_for_analysis'))
+                and (processes.log_dir / 'commands.json').is_file()
+                and (cfg['stack']['detector'] != 'bevfusion' or
+                     ((folder / 'actual_model_receipt.json').is_file() and
+                      json.loads((folder / 'actual_model_receipt.json').read_text()).get('status') == 'VERIFIED')),
             "recording": {'bag_enabled': cfg['recording'].get('bag_enabled', True),
                           'video_enabled': cfg['recording'].get('video', {}).get('enabled', False),
                           'requested_topics': cfg['recording']['topics'],
