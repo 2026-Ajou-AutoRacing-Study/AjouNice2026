@@ -11,26 +11,29 @@
 
 | 단계 | 담당과 현재 상태 | 다음 단계로 넘어가는 기준 |
 |---|---|---|
-| 1 E24 실제 풀스택 | 최신 완주·무충돌 bag 확인. raw/stage latency/YOLO 동시 부하는 미확인 | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)의 새 진단·실제 consumed UUID/path 기록 |
+| 1 새 bag의 E24 단계별 지연 | 최신 완주·무충돌 확인과 기존 bag 분석 완료. 당시 237ms의 단계 분해는 계측 부족 | 새 계측 bag 도착 시 우선 분석. 계산·큐·전달·tail·drop을 분리하고 실제 consumed UUID/path 대조 |
 | 2 저장 검출의 원거리 score 분석 | 로컬 CPU 비교 완료 | 동일 입력의 거리별 누락·미대응·위치 오차를 구분하고 후단 후보 선정 |
 | 3 낮은 score로 기존 차량 track 갱신 | 독립 실제 EKF 코어 원형과 12프로필 비교 완료. production OFF | 이동·클래스 안정·XY 갱신 후보의 실제 ROS 및 새 초기 접근 구간 검증 |
-| 4 지도 보조와 예측 경로 안정화 | 순위 후보는 보류. 출력 동일 geometry/cache/copy/DFS 소스·로컬 설치 완료. 사람의 중복 birth·association 경쟁 확인 | 팀 배포 후 live tail/age/drop 확인과 실제 근접 2인·복합체 회귀 |
+| 4 지도 보조와 예측 경로 안정화 | 순위 후보는 보류. 출력 동일 CPU 최적화·보행자 Gaussian 순위·E24 중심 보완 반영 | 새 bag의 live tail/age/drop·근접 2인·복합체와 실제 planner 소비를 확인 |
 | 5 다음 생성 분포 조정 | 후보 방향 정리. v150은 그대로 유지 | primary·asset·거리/방향·split 변경을 명시하고 CPU 감사와 소량 캡처 검증 |
 | 6 다른 PC의 병렬 수집 | 전달 실행기 미구현 | 독립 배치·resume·유한 보충·JPEG 전달본·업로드 검증의 한 묶음 시험 |
 | 7 짧은 학습 비교와 최종 학습 | 미실행 | 입력·GT·평가 split을 고정하고 후보 효과와 근접 회귀를 확인 |
 
-첫 완주 bag을 확인한 뒤에도 부족한 계측을 기다리는 동안 독립 후보 검증을 진행한다. 실패 원인을 확증하기 전에
+실제 작업 우선순위는 [활성 목록](../ACTIVE_PRIORITIES.md#perception-priorities)을 따른다.
+새 bag 분석에 필요한 입력은 [단계별 지연 확인 목록](../ACTIVE_PRIORITIES.md#perception-latency)에 둔다.
+LiDAR 50은 사용자 승인으로 운영 기본값·로컬 설치·실제 수신 검증을 완료했고 팀 planning 통합은 남아 있다.
+새 bag을 기다리는 동안 생성기 보완·소량 검증을 진행할 수 있다. 실패 원인을 확증하기 전에
 후단과 planner를 동시에 바꾸지 않는다. 본수집·학습·임대 인스턴스 조작·원본 삭제는
 별도 실행 요청과 해당 release 계약을 따른다.
 
 2026-10-14 [센서·추적·모델·CPU 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)에서
 완료 5K/native GT를 대조했다. Query peak3/5 사후 전환은 현재 E24의 장애물 recall 회귀로
-기각했다. 보행자 likelihood association은 구조 연구 후보이며 production은 미변경이다.
+기각했다. 후속 검증을 거친 보행자 Gaussian association 순위는 운영에 반영했다.
 20~30m 장애물은 camera 지원이 있는데 LiDAR 형상이 희소한 경우를 별도로 보강한다.
 전방 근접·얇은 barrier·희귀 passive OBJ support를 후보로 삼되 v150/기존 5K는 보존한다.
 같은 검토에서 output bottom-center→ROS geometric-center 계약 문제도 확인했다.
-versioned adapter의 기본은 legacy이며 실제 full-RPY TF·tracker reset·planner 기억 경계를
-시험한 뒤 승격한다. raw export·학습 GT 변경이나 재수집으로 해결할 문제가 아니다.
+후속 실제 ROS 검증 뒤 E24는 tagged bottom→gravity adapter를 사용한다. 기존 tracker·planner는
+fresh stack으로 시작한다. raw export·학습 GT 변경이나 재수집으로 해결할 문제가 아니다.
 nearest depth hint의 연속 A/A는 통과했지만 compile의 association·coasting 예외는 남아
 추론 compile OFF를 유지한다. 새 학습 전에 이 출력 계약과 평가 입력 조건을 먼저 고정한다.
 

@@ -96,7 +96,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 [오프라인 센서·중복·노드 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)다.
 팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
 
-1. 최신 팀장님 E24 완주·무충돌 bag을 확인했다. raw 센서·stage latency·실제 consumed path와 YOLO 동시 부하가 없어 이를 추가 검증한다.
+1. 최신 팀장님 E24 완주·무충돌 bag 분석은 완료했다. [활성 우선순위](../ACTIVE_PRIORITIES.md#perception-latency)에 따라 새 계측 bag 도착 시 단계별 지연·실제 consumed path·YOLO 동시 부하를 우선 분석한다. 생성기 보완은 기다리지 않는다.
 2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.
    [47절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-range-tracking-pivot-261013)의 baseline count는 기존 근거와 같으며 production 값은 유지한다.
 3. 낮은 score 갱신의 독립 실제 EKF 원형과 12프로필 비교를 완료했다. 이동·클래스 안정·XY 전용 후보만 시험용으로 남겼다.
