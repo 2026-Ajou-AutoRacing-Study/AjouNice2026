@@ -19,6 +19,7 @@
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
+  <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
   <arg name="tracker_vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
   <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
@@ -61,6 +62,8 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="pedestrian_gaussian_association_ranking"
+         value="$(arg tracker_pedestrian_gaussian_association_ranking)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="start_detector" value="false"/>

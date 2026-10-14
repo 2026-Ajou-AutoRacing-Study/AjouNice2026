@@ -5748,3 +5748,564 @@ Validator의 녹화 설정 변경은 해당 담당 작업으로 전달하며 이
 
 production profile·bridge 입력·tracker replay·bag audit·거리 평가·checkpoint 선택·context 관련
 CPU 단위 검사 **46개**가 통과했다. 문서 링크·원문 보존·Python 구문·whitespace 검사도 통과했다.
+
+<a id="base5-range-tracking-pivot-261013"></a>
+
+## 47. 원거리 차량과 다음 수집의 개선 기점 — 2026-10-13
+
+팀장님 논의는 새로운 가설이며 실제 실행 정책으로 간주하지 않는다. 사용자는 팀장님이 E24
+실제 풀스택 검증을 수행할 예정이라고 확인했고, 로컬에서는 문서화와 후속 문제 해결을 요청했다.
+[공통 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)에 담당·순서·상태·채택 기준을 기록했다.
+E24 production·MORAI·학습 source·v150 배치·기존 데이터와 원본 bag은 변경하지 않았다.
+
+### 실제 train GT 노출
+
+32절의 `base5_range_evidence_release_261012/objects.json`에서 split=train인 실제 파생 라벨을
+객체 중심 XY 방사 거리로 집계했다. 4,255프레임의 9,350 GT이며 고유 자산 수나 실제
+BEV 증강 뒤 gradient 노출량이 아니다. Animal은 현재 학습 class인 Pedestrian에 포함한다.
+
+| 거리 | Vehicle | Pedestrian | Obstacle |
+|---|---:|---:|---:|
+| 0~30m | 2,542 | 2,218 | 2,227 |
+| 30~50m | 1,046 | 311 | 324 |
+| 50~100m | 590 | 28 | 64 |
+| 합계 | 4,178 | 2,557 | 2,615 |
+
+40m 이상 P/O는 299개(전체 GT의 3.20%), 50m 이상 92개(0.98%), 60m 이상 51개(0.55%)다.
+50m 이상 Vehicle 590개 중 native LiDAR 20점 이상은 13개였다. 현재 crop의 카메라 정보량
+proxy는 실제 학습 성능이나 depth 정확도를 보증하지 않는다. 적은 원거리 비차량이 전체
+차량 학습을 크게 방해했다는 인과 근거는 없으며, 객체 수만으로 영향이 없다고 증명하지도 않는다.
+새 수집에서 먼 작은 비차량의 의도적 quota를 줄이는 후보와 기존 양성 라벨 삭제는 구분한다.
+
+현재 TransFusion target은 GT가 없는 heatmap을 0으로 만들고 unmatched query에도 classification
+loss를 준다. 실제 센서에 남은 객체의 GT만 제거하면 중립적인 ignore가 되지 않는다.
+종류별·거리별 무시 정책을 적용하려면 assignment·heatmap/query loss를 별도로 검증해야 한다.
+
+### 저장 검출의 Vehicle score 비교
+
+새 `analyze_base5_far_vehicle_scores.py`는 CPU에서 41절의 full-ROI 개발용 입력과
+동일 E24 저장 검출을 사용한다. 서버 floor 0.1/top100·class-aware NMS 0.5 뒤 Vehicle
+score만 0.40/0.35/0.30/0.20/0.10으로 바꿨다. P/O score는 0.10으로 고정했다.
+새 GPU 추론·ROS replay·지도 필터·tracker·planner 실행이나 production threshold 변경은 없다.
+
+입력 1,570장 중 기존 기준과 같은 1,413장만 정확도에 사용했다. 미확정 GT 157장은 제외한다.
+원래 LiDAR index와 case별 시각 공백을 보존하고, 제외된 frame을 넘어 누락 구간을 연결하지 않는다.
+ROI 전체에서 먼저 대응한 뒤 GT 거리로 recall, prediction 거리로 미대응을 집계한다.
+0.40의 각 case·거리·1/2/4m gate의 GT/TP/prediction/미대응 count는 기존 validated_v6와 정확히 같다.
+누락 시간은 이번 도구의 case별 적격 시각 median으로 추정하며 기존 시간 통계와의 완전 동일성을 주장하지 않는다.
+
+아래 recall은 2m 중심 gate이며 분모는 30~50m 306, 50~80m 276, 80~100m 91개의 GT 관측이다.
+미대응은 같은 gate에서 50~80m 위치에 발행될 Vehicle 박스의 관측 수다. 의미상 오검출 확정 수가 아니다.
+
+| Vehicle score | 30~50m recall | 50~80m recall | 80~100m recall | 50~80m 미대응 | 전체 ROI 미대응 |
+|---|---:|---:|---:|---:|---:|
+| 0.40 | 84.31% | 69.57% | 13.19% | 12 | 23 |
+| 0.35 | 85.95% | 71.01% | 14.29% | 14 | 25 |
+| 0.30 | 87.58% | 72.46% | 16.48% | 14 | 28 |
+| 0.20 | 90.20% | 74.28% | 18.68% | 20 | 43 |
+| 0.10 | 91.83% | 77.17% | 28.57% | 26 | 61 |
+
+0~30m Vehicle recall@2m는 모두 350/350이나 해당 prediction 거리의 미대응은 8→22로 증가했다.
+이는 four-bag 개발용 분모의 결과이며 전체 근거리 클래스·안전성이나 보편적 threshold 인증이 아니다.
+0.30은 50~80m에서 TP +8, 0.10은 +21로, threshold만으로 큰 누락이 해소되지 않았다.
+80~100m는 0.10에서도 recall 28.57%이므로 안정적인 전달 범위로 격상하지 않는다.
+
+전체 ROI의 미대응 위치 진단은 다음과 같다. 같은 클래스 GT와 1~2m인 박스도 이미 다른
+박스가 대응했거나 ROI 밖 알려진 actor 근처일 수 있어, 단독으로 ID 중복을 확정하지 않는다.
+
+| score | 다른 클래스 catalog actor 4m 이내 | 같은 클래스 1~2m | 같은 클래스 2~4m | catalog actor 4m 이내 없음 |
+|---|---:|---:|---:|---:|
+| 0.40 | 17 | 1 | 3 | 2 |
+| 0.30 | 19 | 2 | 4 | 3 |
+| 0.10 | 41 | 2 | 8 | 10 |
+
+0.10의 O02 미대응 중 21개는 다른 클래스 actor 근처다. 도로 polygon 필터만으로
+도로 위 장애물의 Vehicle 오분류까지 해결된다고 가정하지 않는다. catalog가 지도 배경을
+모두 포함하지 않으므로 마지막 열을 모두 존재하지 않는 물체라고 해석하지 않는다.
+각 cell의 최대 5개 예시는 시간순 진단 후보이며 대표 오검출 표본이 아니다.
+
+### 후단과 수집 정책의 판단
+
+Production 0.40을 유지한다. 다음 후보는 높은 score·반복 관측으로 새 차량을 확인하고
+낮은 score는 기존 확인 차량의 갱신에만 활용하는 opt-in association이다. 검출 recall뿐 아니라
+실제 tracker의 ID·오차·잔류와 planner 반응을 확인한다. 현행 기억 시간을 일괄 늘리지 않는다.
+
+현재 Map-CV는 매칭 실패 시 Cartesian CV로 fallback하며 검출 삭제 필터가 아니다.
+현재 Lane Change의 `use_all_predicted_paths=false`는 최고 confidence 동점을 모두 남긴다.
+`objects_filtering.hpp`와 `safety_core.cpp`에서 동일 정책을 확인했다. 현재 Obstacle Cruise는
+주요 경로와 outside-cruise 설정에서 한 경로를 사용한다. 실제 소비 module·동점·잘못된
+Top-1·관측 age/속도/BBox·안전거리 조건을 구분하기 전에 Ego geofence로 전역 Top-1을 강제하지 않는다.
+
+다음 배치의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 의도적 quota 축소와
+차량 50~80m 보강은 다음 후보다. 기존 v150 payload나 실행 정책은 그대로이며 완료 5K를
+폐기하지 않는다. JPEG 자동 전달과 업로드 검증 후 RGB PNG 정리는 향후 구현 항목이고,
+현재 원본 해시 기반 collector resume 중 파일을 삭제하지 않는다.
+
+### 산출물과 검증
+
+- 출력: `artifacts/evaluation/bevfusion/base5_range_tracking_improvement_261013/score_sweep_v1.json`.
+- 출력 SHA256: `9fc8ee46ccb91e50b56f37e746583ba414b28b169949be71ea36cefa501ef139`.
+- GT infos SHA256: `64ef1a1dacb95e3e00b1f3b4e0556bee4f18538dd712dcca7ba5c9a51665b866`.
+- 입력 prediction SHA256: `c2f89327a3105143b460032000a24de0707294989dc619870da88e345ff192fa`.
+- 기준 report SHA256: `ac0a70f32168f6942e43cba6d82668f8a50b6298144b98693e61c4c3b417ca84`.
+- 시작/끝 input SHA를 재확인해 원본 불변을 검사했다. GT geometry·label·token·적격 분모를 대조했다.
+- 거리 경계 정상 대응·원거리 무점 GT·다른 클래스·중복/미대응·frame 제외·JSON·기존 matching 관련 CPU 검사 23개가 통과했다.
+
+관련 참고는 [ByteTrackV2](https://arxiv.org/abs/2303.15334)의 계층적 low-score association과
+[Autoware map prediction](https://autowarefoundation.github.io/autoware_universe/main/perception/autoware_map_based_prediction/)의
+lanelet/차선 변경 이력이다. 현재 custom tracker/predictor에 이 기능을 구현했다거나 논문 성능을 재현한 것은 아니다.
+
+<a id="base5-low-score-core-probe-261013"></a>
+
+## 48. 저신뢰도 갱신의 실제 EKF 코어 비교와 한계 — 2026-10-13
+
+사용자는 초기 threshold 실패, 확인 후 누락, 위치/속도 변화, 유지한 장점과 새 부작용을
+다각도로 분석한 뒤 판단할 것을 요청했다. 새 GPU 추론·MORAI·원격 학습·ROS master를
+실행하지 않고 47절의 동일 E24 검출을 실제 C++ EKF 코어에 재생했다.
+설치된 tracker·submodule·production config·checkpoint와 원본 bag은 변경하지 않았다.
+
+### 독립 원형과 비교 조건
+
+`build_base5_low_score_probe.py`는 현재 헤더/CPP를 읽고 엄격한 anchor를 검사한 뒤
+artifact 안에 원형을 생성한다. 원본 source와 수정 복사본을 각각 별도 바이너리로 컴파일한다.
+비활성 원형과 원본 코어, 원본 독립 반복은 네 bag의 모든 state에서 정확히 같았다.
+기존 EKF prediction/update/lifecycle을 재사용하며 매 frame에 한 번만 lifecycle을 진행한다.
+현재 MatchPairs는 Mahalanobis cost 정렬 후 greedy 대응이고 Hungarian이 아니다.
+
+CTRV·association 5m·XY noise 0.40m·dimension alpha 0.3·yaw-rate filtering ON·
+OD velocity/center-motion fusion OFF와 원래 0.5/1초 coast를 사용했다. Recorded Ego와
+Sensor_4로 모든 관측을 동일 map 좌표로 옮겼다. 1,570장 전부를 이력에 넣고
+기존 GT 적격 1,413장만 집계했다. TF node·orientation canonicalizer·30Hz scheduler·
+Map-CV·planner·실시간 queue는 실행하지 않았다. Z는 이 core probe의 bottom 기준이다.
+
+12개 프로필은 baseline/반복, 약한 floor 0.30/0.20/0.10의 XY 갱신, 0.20 전체 갱신,
+약한 허용 창 1초, 클래스 평활 score 0.80/0.90, 이동 조건, 단순 0.20 새 birth 허용이다.
+변경 요인을 분리하며 개발 bag으로 후보를 정제했다. 이를 untouched test로 부르지 않는다.
+
+높은 관측을 먼저 대응하고 남은 confirmed CAR/TRUCK에만 약한 Vehicle을 연결한다.
+30m 이상·XY innovation 2m 이내·pi 대칭 yaw 60도 이내·길이/너비 ratio 2 이내를 요구한다.
+낮은 후보의 새 birth나 tentative confirmation은 금지한다. XY 전용은 약한 관측의 크기·Z·
+클래스 score를 반영하지 않고 yaw 측정을 비정보적으로 만든다. XY와 state covariance의
+연결 때문에 EKF 속도/yaw state가 전혀 변하지 않는다는 뜻은 아니다.
+
+### 원거리 누락과 threshold의 관계
+
+GT/ROI/원래 frame index/0.25초 공백마다 연속 구간을 분리했다. 다음은 50~80m GT 276개에
+대한 같은 floor 0.10/NMS 뒤의 진단이다. GT는 tracker 입력이나 association에 사용하지 않았다.
+
+| 관측 상태 | GT 관측 수 |
+|---|---:|
+| 0.40 이상 Vehicle, 중심 2m 이내 대응 | 192 |
+| 이전 높은 대응 이후 0.10~0.40 Vehicle 대응 | 21 |
+| Vehicle 후보가 있지만 중심 차이 2~4m | 4 |
+| 다른 클래스 후보가 GT 2m 이내 | 2 |
+| 2m 대응도 없고 Vehicle 4m 이내 후보도 없음 | 57 |
+
+0.40→0.10으로 살릴 수 있는 raw 대응은 21/276이다. 나머지를 단순 threshold 문제라고
+설명하지 않는다. 마지막 열에는 floor 미만 score·큰 위치 오차·다른 원인이 섞일 수 있어
+센서나 모델에 후보가 전혀 없었다고 단정하지 않는다.
+80~100m GT 91개는 높은 대응 12, 기존 높은 대응 뒤 약한 대응 14, 나머지 65개다.
+
+이 적격 구간에서 올바르게 대응한 약한 Vehicle은 모두 이전 높은 대응 이후였다.
+두 never-high 구간은 각각 3개 관측이고 거의 ROI 끝이라 초기 획득 실패의 대표로 쓰지 않는다.
+H03은 주요 차량이 약 26/29/65m에서 시작해 멀어진다. R01의 주요 후방 차량도 약
+30~52m에서 이미 보던 뒤 80~100m로 멀어진다. 대부분 first-high는 구간 시작부터 있어
+최초 탐지 거리가 left-censored다. 이 결과로 100m에서 접근하는 미확인 차량의 bootstrap을 인증하지 않는다.
+
+참고로 기존 native val의 독립 50~80m Vehicle 51개는 1m gate에서 score 0.40 대응 28개,
+0.10 대응 32개였다. 이 역시 threshold만으로 모든 원거리 미탐을 해결한다는 근거가 아니다.
+단일 장면이므로 이 숫자로 연속 track 생성 가능성을 판단하지 않는다.
+
+### 효과와 평균 및 tail 분포
+
+최종 시험 후보는 `weak010_moving_class090_xy`다. 약한 창 0.5초, 클래스 평활 score 0.90,
+현재 정지 판정 경계인 world speed 2m/s 초과를 추가한다. 클래스 score는 실제 확률이 아니다.
+정지·저속 차량은 삭제하지 않고 baseline 처리를 유지한다. 낮은 관측이 last measurement를
+갱신하므로 총 유지 시간은 늘 수 있으며, 약한 창과 삭제 타이머를 같은 것으로 설명하지 않는다.
+
+아래는 tracking의 중심 2m 이내 recall과 prediction 거리의 미대응 관측 수다.
+미대응은 의미상 오검출 확정 수가 아니다. 동작을 실제 ROS가 아니라 core probe에서 비교했다.
+
+| 거리 | baseline TP / GT | 시험 후보 TP / GT | baseline / 후보 미대응 |
+|---|---:|---:|---:|
+| 0~30m | 346 / 350 | 346 / 350 | 22 / 22 |
+| 30~50m | 269 / 306 | 271 / 306 | 3 / 3 |
+| 50~80m | 254 / 276 | 257 / 276 | 47 / 47 |
+| 80~100m | 28 / 91 | 38 / 91 | 6 / 6 |
+
+50~80m은 92.03→93.12%의 작은 증가다. 80~100m은 30.77→41.76%지만 이득이 일부
+이미 보던 차량에 집중되어, 원거리 전체 성능이 해결됐다고 보지 않는다.
+H03 14회/R01 28회의 실제 약한 갱신이 있었고 O02/P01은 0회다.
+
+평균·p50·p90·p95는 양쪽 모두 4m 이내로 대응한 같은 GT 관측만 사용한다.
+miss는 별도 recall로 보고하며 새 대응이 조건부 평균을 바꾸는 selection bias를 구분한다.
+
+| 동일 관측의 중심 오차 | 관측 수 | 평균 baseline→후보 | p50 | p90 | p95 |
+|---|---:|---:|---:|---:|---:|
+| H03 50~80m | 123 | 0.807→0.801m | 0.467→0.466 | 1.769→1.769 | 1.903→1.900 |
+| R01 50~80m | 135 | 0.667→0.657m | 0.533→0.533 | 1.238→1.196 | 1.437→1.418 |
+| H03 80~100m | 14 | 1.245→1.245m | 1.148→1.148 | 1.931→1.931 | 2.026→2.026 |
+| R01 80~100m | 16 | 1.326→0.570m | 1.259→0.461 | 1.890→0.906 | 1.985→1.103 |
+
+R01 80~100m 16개 동일 관측에서 속도 벡터 오차 평균/p50/p90/p95는
+2.574/2.492/3.829/3.886→0.689/0.755/0.999/1.042 m/s다.
+이는 교정된 BBox-center trajectory의 ±0.2초 local fit를 기준으로 한 오차이며,
+순간 UDP velocity GT나 실전 AVE 인증이 아니다. Future fit는 평가에만 사용한다.
+H03의 이득은 작고 R01 한 주요 후방 궤적의 이득이 크므로 평균만으로 보편적 향상을 주장하지 않는다.
+
+연속 같은 ID의 속도 벡터 변화와 CV 이동 residual의 평균·p50·p90·p95·최대도
+association/coasting으로 나눠 저장했다. 이것은 실제 조향 jerk나 exact CTRV innovation이 아니다.
+약한 갱신이 큰 새 spike를 만들었다는 근거는 이번 후보에서 없지만, 표본 구성과 조건부
+분포를 구분하고 기존 수 m/s의 초기/강한 관측 변동까지 해결했다고 주장하지 않는다.
+
+H03의 큰 속도 오차도 원인을 따로 확인했다. `H03_162301_00070/00071`은 새로운
+ID 3이 age 4에서 confirmed된 직후이며 reference 대비 약 7.36~7.37m/s 차이가 있었다.
+selected 후보에서도 동일하다. 이는 약한 보충이 새로 만든 spike가 아니라 기존의 재확인/
+초기 속도 추정 문제이며, GT reference의 근사도 함께 고려한다. 확인 여부와 속도 성숙도를
+같은 것으로 취급하지 않는다. ID 변화 지표 0도 GT 제외/누락 구간을 넘는 새 ID를 부정하지 않는다.
+
+### 발견한 부작용과 보호 조건
+
+단순 floor 0.20과 새 birth 허용은 전체 ROI Vehicle 미대응 78→111, R01 인접 GT-key↔
+track-ID 변화 0→1이었다. 근접 Vehicle 미대응도 22→37로 증가했다. 이를 채택하지 않는다.
+약한 관측의 크기/yaw/클래스까지 갱신한 0.20 후보는 50~80m Vehicle 미대응 47→52였고,
+약한 창을 0.5→1초로 늘린 0.20 후보는 차량 이득 없이 O02 갱신만 추가했다.
+
+XY만 쓰는 일반 0.10 후보에서도 CAR였던 track이 이후 UNKNOWN이 되며 O02의 11개
+UNKNOWN 관측에 최대 0.2746m 위치 차이가 전파됐다. 최대 차이는 약 61m에 있었다.
+CAR 클래스 평활 score 1.0과 크기 5.17×2.18m도 실제 차량임을 보증하지 않았다.
+클래스 margin 0.90만으로는 이 부작용이 사라지지 않았다.
+
+해당 false-vehicle track의 약한 갱신 때 속도는 약 0.44~0.73m/s였다. 현재 정지 경계
+2m/s를 약한 보충의 이동 조건으로 사용하자 O02 갱신은 0회가 됐고 그 bag의 모든
+track state가 baseline과 같아졌다. P01도 전부 같으며, H03/R01의 confirmed 비차량
+출력 state도 모두 같았다. R01 후방 이득은 유지됐다. 이 조건은 약한 보충만 제한하며,
+실제 정지 차량을 없애거나 저속 차량을 오검출로 단정하지 않는다. 가짜 world motion이나
+새 환경의 진짜 저속 차량에서 같은 효과가 난다는 인증도 아니다.
+
+### 검증과 다음 판단
+
+원형은 별도 artifact 바이너리일 뿐 production node의 기능을 추가한 상태가 아니다.
+보호 조건을 적용한 프로필만 실험 후보로 유지한다. 실제 ROS boundary와 새 incoming
+차량 구간에서 검증하기 전에는 기본 ON으로 바꾸지 않는다. 강한/모든 관측 age,
+약한 갱신 여부·측정/track confidence를 구분해 후단과 planner가 불확실성을 확인해야 한다.
+새 bag은 전방 및 후방 80~100→30m의 초기 접근, 가림/가감속, 정지 차량과 도로 배경을 포함한다.
+이전에 보던 차량이 멀어지는 이번 조건과 분리하며 threshold 아래 후보나 짧은 raw가 필요하다.
+
+- Root: `artifacts/evaluation/bevfusion/base5_low_score_tracking_261013`.
+- 최종 build: `build_v3/build.json`, `original`, `probe`. 최종 matrix: `replay_v6/report.json`, `frames.json.gz`.
+- Report SHA256: `69faf365c6dbf24cb9c262c9a4c86af6c15b516a7eed788d9634d1c1a71e4863`.
+- Frames SHA256: `8d757bf67ddc17ed9a1b357e01e8d3ce003000ef2b90334e7677785294791de7`.
+- Production CPP/Header SHA: `9b413ea8b7786df408650b706f516052f27d24e117c48a548729f38d95a9827b` /
+  `6f00ac4890215e9b415324edc0d08f9db7cf7df8a535b65374e61cb950b7944a`. 원본은 유지됐다.
+- `qualification_v2.json`은 frozen source·원본 반복·동일 이력/stamp·비차량/근접 회귀를 확인한다. `production_enabled=false`, 새 bag/full-stack 미검증이다.
+- `review_r01_gt4_v2`와 `review_h03_gt5_v2`의 SVG/PNG/trace JSON에 거리·score·중심/속도 오차를 남겼다. R01 하나의 이득만 보여주지 않고 H03의 작은 이득도 보존했다.
+- 초기 분석 v1의 score 필드 누락과 ROI 이후 ID indexing을 보완했다. ROI 경계를 넘는 track의 quality index는 ID로 다시 찾는다. 이전 단계는 보존하되 최종 수치에 섞지 않는다.
+- CPU/실제 compiled-core 관련 검사 40개가 통과했다. 저신뢰도 무생성·tentative 보호·high 우선·shape/innovation gate·pi 모호성·무한 유지 방지·XY 속성 보호·클래스/정지 보호·원본 반복을 포함한다.
+
+재현은 새 artifact 경로로 build → evaluate → qualify 순서로 수행한다. ROS master나 GPU는 필요 없다.
+
+```bash
+python3 perception/detection3d/bevfusion/tools/build_base5_low_score_probe.py --output /tmp/base5_low_score_build_new
+OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 python3 perception/detection3d/bevfusion/tools/evaluate_base5_low_score_probe.py \
+  --inputs artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1 \
+  --predictions artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1/predictions_0.json.gz \
+  --build /tmp/base5_low_score_build_new --sensor-config configs/sensors/Sensor_4.json \
+  --output /tmp/base5_low_score_replay_new
+python3 perception/detection3d/bevfusion/tools/qualify_base5_low_score_probe.py \
+  --replay /tmp/base5_low_score_replay_new --build /tmp/base5_low_score_build_new --output /tmp/base5_low_score_qualification_new.json
+```
+
+<a id="base5-map-path-consumers-261014"></a>
+
+## 49. 지도 보조·모듈별 경로 소비·차선 이력 진단 — 2026-10-14
+
+팀장님 새 bag을 기다리는 동안 기존 기록과 현재 소스로 Top-1 설명을 재검토했다.
+GPU·MORAI·ROS master·유료 인스턴스·planner를 실행하지 않았다. Production 코드·
+설정·하위 submodule·원본 bag·동결 추적 결과는 변경하지 않았다.
+
+### 발행·시각화·planner 소비를 구분한다
+
+Map-CV는 현재 위치/yaw와 차선 중심선 거리로 시작 후보를 고르고 연결된 successor를
+열거한다. 과거 lanelet 이력은 사용하지 않는다. 최대 6개의 구별되는 물리 경로를 발행하며,
+RViz가 그 경로를 표시하는 것과 특정 planner module이 모든 경로를 검사하는 것은 다르다.
+
+| 현재 소스의 소비자 | 현재 통합 설정과 동작 |
+|---|---|
+| Lane Change | `use_all_predicted_paths=false`. 최고 confidence의 **정확한 동점 전체**를 유지한다. near-tie는 동점이 아니다. |
+| Obstacle Cruise inside | confidence 정렬 뒤 1개를 재표본화하여 검사한다. |
+| Obstacle Cruise outside | 설정 개수의 경로를 선택한다. 통합 YAML의 `outside_obstacle/num_of_predicted_paths`는 1이다. |
+| Roundabout | confidence 0.05 이상 경로를 순회한다. 유효 길이·attention 대상·시간/형상 교차 조건을 검사하고 위험 충돌이면 조기 중단한다. |
+
+LC 근거는 `objects_filtering.hpp:157`, `safety_core.cpp:305`, LC `utils.cpp:748`이다.
+Cruise는 `obstacle_cruise_module.cpp:548/607`과 통합 `motion_velocity_modules.yaml`을
+대조했다. 기본 `bvp_experimental=true` 경로는 `experimental::RoundaboutModulePlugin`이며,
+해당 `experimental/scene_roundabout_collision.cpp:188`을 확인했다. Normal 구현도 같은
+confidence 순회 방식이다. 실제 실행의 module override와 parameter는 팀장님 bag/런타임으로
+별도 확인한다. 정확한 동점에서 Cruise의 C++ 정렬 순서는 보장되지 않는다.
+
+### 기존 실제 기록의 사용 가능 범위
+
+기존 inventory에서 E24 선택 receipt 7개, 고주로 E25 기록 1개, E25 전체 코스 1개,
+9월 전체 코스 1개를 read-only 조사했다. 10개 모두 prediction 토픽이 있었다.
+E24 7개와 해당 고주로 기록은 차량 class 관측이 0개라 원거리 차량 경로 검증으로 쓰지 않는다.
+빈 객체 메시지와 비차량만 있는 메시지는 구분하며 실패 원인으로 추정하지 않는다.
+
+E25 전체 코스의 차량 관측 1,810개 중 다중 경로는 1,265개, 9월 전체 코스의 6,864개 중
+다중 경로는 4,989개였다. 두 기록의 최고점 **정확한 동점은 0개**여서 현재 LC 정책을
+재적용하면 모두 한 경로만 남는다. 반면 0.05 이상 복수 경로는 각각 1,053/4,552개다.
+이 두 기록에는 이번 auditor가 확인한 LC/Cruise/Roundabout debug 토픽이 없었다.
+과거 발행 경로의 현재 정책 재해석이지 당시 planner가 선택한 경로의 직접 기록은 아니다.
+9월 기록의 detector 가중치와 실행 소스는 파일명으로 식별하지 않았다.
+
+동일 ID·frame·0.25초 이내 관측만 연결하고 동일한 미래 절대 시각에서 Top-1 경로의
+수정량을 계산했다. 3초 forecast revision의 평균/중앙값/p95는 E25 전체 코스
+0.381/0.003/1.627m, 9월 전체 코스 0.416/0.002/1.770m였다. 이는 GT 오차·차선 변경 횟수·
+조향 jerk가 아니라 예측 갱신 진단이며 실제 속도 변경과 지도 분기 변화도 섞여 있다.
+
+### 현재 지도와 E24 추적 상태의 재생
+
+46절의 실제 ROS tracker 출력 `promotion_ros_v2/messages.json.gz`의 `off/policy`를
+현재 v85 지도와 현재 Map-CV 코어에 넣었다. Detector 재추론·coasting 변경 없이
+고주로/로터리 및 비차량 구간의 차량으로 분류된 상태를 함께 조사했다.
+
+이 기존 tracker A/B fixture는 `/Ego_topic`의 MGeo 위치를 world 원점으로 쓰면서 header를
+`map`으로 명명한다. Lanelet 지도에 직접 넣으면 잘못된 위치가 된다. 새 도구는 명시적인
+physical coordinate 계약을 요구하고 `configs/tf/morai_lanelet_static_tf.yaml`의
+`morai_map -> map` 변환(+131.559130220, +545.911338186m)을 **한 번만** 적용했다.
+공식 START의 알려진 변환으로 단위 검사했다. 원점 정합이 없던 `map_v1`은 채택하지 않았다.
+이것은 독립 평가 fixture의 좌표 정합이며 production localization/TF 오류를 발견하거나
+수정했다는 뜻이 아니다. 이전 tracker A/B의 동일 world 좌표 기반 상대 오차는 보존된다.
+
+| E24 상태·현재 Map-CV | 고주로 H03 | 로터리 R01 |
+|---|---:|---:|
+| 차량 관측 | 796 | 693 |
+| 지도 경로 생성 | 796 | 665 |
+| 낮은 속도/지도 미매칭 fallback | 0/0 | 6/22 |
+| 지도 다중 경로 | 258 | 641 |
+| Top-2가 같은 시작 lanelet에서 다른 route로 분기 | 74 | 406 |
+| Top-2의 시작 lanelet 자체가 다름 | 184 | 235 |
+| 최고점 정확한 동점 | 0 | 0 |
+
+로터리 다중 후보에는 **시작 차선의 모호성**과 **같은 시작 차선 이후의 실제 지도 분기**가
+함께 있다. 둘을 구분하지 않고 Top-1으로 자르는 방식은 채택하지 않는다.
+지도 branch가 열려 있다는 사실만으로 NPC의 실제 출제 route를 확정한 것은 아니다.
+
+### 미래 GT 비교: 순위 개선 여지와 분기 보존
+
+기존 catalog/보간 GT를 동일 좌표로 변환했다. 현재 중심 2m 이내 1:1 대응이 있고 미래
+GT의 0.15초 이내 interpolation이 지원되는 관측만 집계했다. 매칭 누락·fallback은 위에서
+별도로 보고하고 이 조건부 평균에 0오차로 넣지 않는다. 평가 시각과 ROI 지원에 따라
+1/2/3초 분모가 달라진다. 미래 GT는 경로 생성이나 이력 선택에 쓰지 않는다.
+
+| 3초 FDE·동일 조건부 관측 | n | 현재 Map Top-1 평균/중앙값/p95 | 평가용 minFDE-K 평균/중앙값/p95 | 직선 CV 평균/중앙값/p95 |
+|---|---:|---:|---:|---:|
+| H03 | 142 | 2.335/0.998/8.583m | 2.303/0.983/8.583m | 4.089/3.082/10.178m |
+| R01 | 530 | 4.953/2.440/17.106m | 2.444/1.754/6.489m | 8.455/8.067/14.140m |
+
+1초 Top-1/minK 평균은 H03(n=204) 0.991/0.934m, R01(n=611) 1.050/0.799m다.
+2초는 H03(n=173) 1.524/1.503m, R01(n=574) 2.596/1.560m다.
+3초 minK가 Top-1보다 0.5m 이상 좋은 관측은 H03 2/142, R01 113/530이다.
+minK는 미래 정답을 보고 고른 **평가용 oracle**이지 실제 planner가 쓸 수 있는 정책이 아니다.
+관측들은 같은 몇 차량의 연속 표본이며 독립 테스트·대회 전체 확률로 해석하지 않는다.
+
+고주로는 현재 map Top-1이 CV보다 유리하고 순위 gap이 작다. 로터리는 map 자체의
+장점을 유지하면서 순위/차선 이력을 개선할 여지가 크다. 속도·pose·초기 추정 오차가
+섞인 FDE이므로 큰 tail을 모두 잘못된 분기 탓으로 돌리지 않는다.
+
+### 차선 이력 원형의 효과와 한계
+
+새 연구 실행기에서만 이전 시작 lanelet 또는 직접 successor를 보조했다. 현재 거리/yaw
+gate 안의 후보 중 최고 score가 이력 후보의 1.25배 이하일 때만 이력 후보를 우선한다.
+이력은 0.5초 이내·같은 ID에서만 쓰고 미매칭/저속 시 초기화한다. 명확한 새 후보는 전환한다.
+지도에서 사라진 후보를 복원하거나 미래 분기를 삭제하지 않는다.
+
+H03의 시작 lanelet 변화는 23→23회, 직접 successor가 아닌 변화는 2→2회다.
+R01은 51→27회, 직접 successor가 아닌 변화는 39→15회였다. 그러나 후자는 실제
+차선 변경·겹치는 지도 segment를 포함할 수 있어 전부 오매칭이라고 단정하지 않는다.
+첫 원형은 **진단용 시작 lanelet만 선택**하며 발행 route/confidence를 바꾸지 않았다.
+따라서 이 수치로 Top-1 FDE나 planner 안전성이 개선됐다고 주장하지 않는다.
+새로운 lane-change/분기 GT와 route-level 재생 후에만 실제 predictor 이식 여부를 판단한다.
+
+이 진단을 실제 예측 정확도 개선으로 오인하지 않도록 두 번째 후보도 비교했다.
+현재 predictor의 독립 메모리 복사본에서만 이력으로 선택한 시작 후보의 score를 1.25배로
+보조하고, 원래 lane 후보와 successor 분기는 삭제하지 않았다. 현재 clustering/6개 cap을
+그대로 재사용했다. H03 Top-1 route ID는 3개 관측, R01은 60개 관측에서 달라졌다.
+R01에서 route-ID 집합도 17개 관측에서 달라졌으나 동일 미래의 representative 변경이
+섞일 수 있어 실제 분기 소실로 단정하지 않는다. 0.05 이상 경로 개수는 같았다.
+
+| R01 동일 미래 GT 관측 | n | 기존 Top-1 평균/p95 | 이력 가중 Top-1 평균/p95 | 0.5m 이상 개선/악화 관측 |
+|---|---:|---:|---:|---:|
+| 1초 | 611 | 1.050/3.031m | 1.071/3.181m | 10/14 |
+| 2초 | 574 | 2.596/8.794m | 2.721/9.819m | 14/19 |
+| 3초 | 530 | 4.953/17.106m | 5.079/18.419m | 14/14 |
+
+H03의 조건부 FDE는 그대로였다. R01의 minFDE-K 평균은 1/3초 그대로이고 2초도
+1.5595815→1.5595331m의 미소 차이뿐이라 주로 후보의 순위 문제로 보인다.
+**시작 lanelet 진동 감소와 더 정확한 예측은 동일하지 않다.** 이전의 잘못된 후보를
+붙잡거나 실제 이동/지도 segment 변화를 늦게 따라가는 위험이 있어 이 가중 후보를 기각한다.
+관측 이력의 route residual과 실제 lateral motion을 사용하는 후속은 별도 후보이며
+이번에 구현·검증됐다는 뜻이 아니다. 이 시험 후보도 실제 publisher나 planner에 넣지 않았다.
+
+O02에는 차량으로 분류된 관측 35개 중 26개가 지도 경로를 얻었다. 실제 정적 장애물
+six-asset 장면이라는 기존 catalog와 함께 보면 **지도 위 차량처럼 보인다는 사실은
+진짜 차량의 증거가 아니다.** Road prior만으로 Vehicle을 확정·UNKNOWN을 강제 승격하지 않는다.
+미매칭을 바로 삭제하지 않고 off-lane/합류/역방향의 기존 Cartesian fallback을 유지한다.
+
+### 산출물·검증·다음 단계
+
+- Root: `artifacts/evaluation/bevfusion/base5_map_path_review_261014`.
+- `recorded_v2.json`: 10개 bag 기록과 현재 consumer source/YAML SHA. Runtime 검증은 false다.
+- `map_v6.json`: map/projector/alignment/predictor/센서/GT/추적 상태/도구 SHA, 후보 lanelet trace와 baseline/이력 가중 조건부 FDE.
+- 최종 SHA256은 recorded_v2 `8a0b129d58ab62096b3e2f9dc048d66abd8a289687466a76e1505de550932443`,
+  map_v6 `9670440aced4f4b9f567212191bb65aa19b91476bab1a6148aded7750639d459`다. 반복 수치와 baseline FDE 불변을 대조했다.
+- 도구: `audit_base5_predicted_path_selection.py`, `probe_base5_map_lane_history.py`.
+- 선택·동점·시간 정합·좌표 변환·fallback·이력·soft prior 비파괴 synthetic 검사 16개와 기존 map core 검사 5개를 통과했다.
+- 다음은 시작 차선 score의 시간적 안정화와 실제 분기 의도를 분리한 route-level A/B다.
+  팀장님 bag에서 module 실행값·최고점/동점/0.05 후보·관측 age·lanelet/route ID·선택된 충돌 대상과
+  Ego 후보 궤적을 확인한다. Prediction 시각화만으로 Top-2가 추월 실패 원인이라고 결론내리지 않는다.
+- Production 경로 개수·confidence·planner 안전 조건은 유지한다. 로터리 일괄 Top-1이나
+  관측 없이 지도만으로 차량을 새로 만드는 기능은 적용하지 않았다.
+
+<a id="base5-map-cv-candidates-261014"></a>
+
+## 50. 관측 적합도·횡이동 후보의 회귀와 출력 동일 계산 최적화 — 2026-10-14
+
+사용자는 기존 bag의 과적합에 주의하면서 Map-CV 개선을 이어 가도록 요청했다.
+GPU·MORAI·ROS master·학습·유료 인스턴스·planning/control을 실행하거나 변경하지 않았다.
+원본 bag·완료 데이터·GT catalog·검출 및 tracker 가중치/설정은 보존했다.
+예측 정책 후보는 연구 실행기에만 두고 출력 동일 계산 최적화만 Map-CV 소스에 반영했다.
+실행 중 node·팀장님 배포본을 재시작하거나 설치 경로를 교체하지 않았다.
+
+### 먼저 동결한 후보와 회귀 묶음
+
+H03/R01의 같은 E24 실제 ROS `off/policy` 상태로 baseline과 세 후보를 비교했다.
+입력·GT·좌표 변환과 1/2/3초 조건부 FDE는 49절과 같고 baseline 값은 정확히 재현됐다.
+새 sensor 추론이나 GT 재라벨링을 수행하지 않았다.
+
+| 후보 | 변경 요소와 제한 |
+|---|---|
+| `route_history` | 최근 0.5초 track-state의 시작 차선/한 단계 predecessor 적합도로 **현재** 시작 후보 score를 보조한다. 이전에 고른 lanelet을 우대하지 않는다. 미래 route/GT는 적합도 입력이 아니다. 같은 시작 lanelet의 sibling branch 비율은 보존한다. |
+| `convergence3` | 중심선 복귀 시간만 1.5→3초로 바꾼다. |
+| `lateral_hermite3` | 3초 중심선 복귀에서 Frenet 횡방향 속도와 Hermite 연결을 시험한다. 최근 이력 fit가 없으면 baseline으로 돌아간다. |
+
+이력 최소 4점·span 0.3초·gap 0.15초·fit RMS 0.4m를 먼저 고정했다.
+횡속도 cap 2m/s, history blend 0.5도 사전 고정값이며 대회 동작의 정답이나 최적값이 아니다.
+현재 입력은 tracker state이고 coasting을 포함할 수 있어 독립 sensor 관측 이력으로 부르지 않는다.
+
+후보는 case/horizon별 30개 이상 정답 지원, Top-1 및 minK 평균 +3%/p95 +5% 이내의
+개발 screening을 거쳤다. 통과 후보 중 case-balanced 2/3초 평균으로 하나만 선택했다.
+평균 screening은 배포 승인 조건이 아니며 큰 신규 오차·actor별 회귀는 별도로 확인했다.
+
+다음 네 bag을 후보 비교 전에 regression 용도로 지정했다. 이들은 이미 알려진 과거 기록이며,
+이번 후보 선택에 쓰지 않았다는 뜻이지 전 프로젝트에서 untouched test라는 뜻은 아니다.
+
+- `planning_rviz_0915_sensor_local_1.bag`, `_2.bag`, `_3.bag`.
+- `260917_134456_full_route_mr_sigma0p10.bag`.
+
+Recorded map/morai_map static TF를 확인하고 현재 v85 좌표로 한 번만 변환했다.
+기존 measured-size asset catalog로 BBox-center GT를 구성하고 ambiguous 자산은 추측하지 않았다.
+미해결 차량이 Ego 105m 이내에 있는 전체 scoring frame은 제외했다. 9/17은 stride3의
+4,802개 중 504개, full cadence의 14,404개 중 1,510개가 제외됐다.
+MR heading -1.347°는 catalog pivot 회전 계약으로 사용했으며 이 기록의 절대 heading
+정확도를 새로 인증한 것은 아니다. 과거 detector/실행 source도 파일명으로 확정하지 않았다.
+
+주 비교는 고정 message index stride3으로 했다. 선택한 후보를 동결한 뒤 9/17 원래
+약30Hz tracking 메시지 전부도 추가 확인했다. Regression 결과에 맞춘 재튜닝을 하지 않았다.
+실행기는 후보 source/spec 변경, 다른 preregistration·catalog·비등록 bag을 거부한다.
+
+### 개발 결과와 기각한 횡방향 후보
+
+`convergence3`는 H03 1초 minFDE-K 평균 0.934→0.980m, p95 3.040→3.241m로
+screening을 통과하지 못했다. 작은 오차를 늦게 중심선에 복귀시키는 것만으로 개선되지 않았다.
+`lateral_hermite3`는 H03 1초 Top-1 평균 0.991→1.124m, R01 1.050→1.150m로 악화했다.
+곡선 주행·tracker/localization 잡음이 횡이동 추정과 섞일 수 있다. 실제 차선 변경으로
+분리 검증하지 않은 이 벡터를 일반적인 lateral intent로 사용하지 않는다.
+
+`route_history`만 screening을 통과해 별도 네 bag으로 보냈다.
+
+| 3초 FDE·현재 대응/미래 GT 지원 관측 | n | 평균 baseline→후보 | p95 baseline→후보 |
+|---|---:|---:|---:|
+| H03 개발 | 142 | 2.335→2.335m | 8.583→8.583m |
+| R01 개발 | 530 | 4.953→4.848m | 17.106→17.697m |
+| 9/15 sensor1 | 1,184 | 3.212→3.119m | 16.546→16.546m |
+| 9/15 sensor2 | 490 | 2.703→2.704m | 10.656→10.656m |
+| 9/15 sensor3 | 551 | 3.075→3.020m | 11.447→11.140m |
+| 9/17 stride3 | 1,941 | 3.625→3.462m | 13.230→12.814m |
+| 9/17 full cadence | 5,810 | 3.603→3.462m | 13.185→12.869m |
+
+네 regression의 집계 screening도 통과했다. 그러나 반복 관측은 독립 객체가 아니며,
+9/15 세 주행은 같은 환경 반복이라는 제한이 있다. 원거리 recall·planner 안전·E24
+실제 대회 PC 성능 인증으로 사용하지 않는다. 관측별 평균뿐 아니라 actor/episode를 함께 본다.
+
+### 평균·p95에 가려진 신규 큰 순위 오차
+
+R01의 3초 관측 530개 중 실제 FDE가 달라진 것은 25개였다. 전체 delta의 중앙값/p90/p95는
+모두 0이지만, **변한 25개만** 보면 추가 오차 p90/p95는 20.735/21.742m였다.
+5m 초과로 좋아진 관측은 15개, 5m 초과로 나빠진 관측은 7개였다. 최대 신규 추가 오차는
+25.651m다. 최대 하나만으로 판단하지 않고 분포·횟수·actor별 평균을 함께 남겼다.
+
+9/15 sensor1·sensor3·9/17 stride3도 3초 추가 오차 >5m가 각각 5/1/11개 있었다.
+R01에서 10개 이상 관측이 있는 다섯 GT segment 중 평균 0.1m 이상 개선은 두 segment,
+악화는 한 segment였고 해당 악화 segment 평균은 +2.529m(n=25)이었다.
+9/17에서는 같은 actor 단위 기준 17개 중 개선 9개/악화 0개였지만 개별 큰 신규 오차는 남았다.
+GT segment는 재구성된 key이고 simulator의 authoritative actor ID로 보증하지 않는다.
+
+모든 `route_history` 관측의 minFDE-K는 baseline과 정확히 같았다. 즉 올바른 기하 후보가
+새로 사라진 것이 아니라 일부 프레임의 **순위**가 잘못 바뀌었다. 이는 model 내부 후보의
+보존이지 planner의 0.05 gate까지 동일하다는 뜻은 아니다. 실제 planner의 유효 경로
+선택·attention 영역·충돌 반응을 이번 offline 검사가 인증하지 않는다.
+
+`risk_v2/development_worse.png`와 `development_better.png`는 같은 GT segment의
+악화와 개선을 모두 보여 준다. 미래 GT는 그림/평가에만 썼다. 큰 새 분기 오차는
+연속 segment에서 대체로 소수 관측에 발생하므로 전체 평균·p95만으로 감추지 않는다.
+관측 없는 미래 의도는 과거 0.5초의 거리 적합도만으로 확정할 수 없다.
+**집계 screening 통과와 배포 가능은 다르다.** 이 순위 후보도 production에 적용하지 않는다.
+
+### 유지한 개선: 출력 동일 경로 계산 최적화
+
+기존 `predict`는 미래 pose마다 route length와 center/tangent를 구할 때 모든 segment를
+반복 순회했다. 경로별 `_RoutePolyline`에 길이와 누적 arc index를 한 번 만들고
+이진 검색으로 표본을 찾도록 바꿨다. 시간 모델·경로 생성·confidence·clustering·horizon은
+그대로다. 지속적인 motion cache나 새 프레임 보정은 없다.
+
+작은/중복 segment, 끝점, 경계점, 단일 점, 무작위 polyline에서 기존 scalar 함수와
+정확히 같은 결과를 확인했다. 실제 selected 입력은 네 개발 bag의 vehicle 상태와
+별도 네 bag stride3, 9/17 full cadence의 **14,546개 vehicle 관측**이다.
+미해결 GT frame도 계산 동등성 검사에서는 제외하지 않았다.
+비교한 **26,339개 경로·790,170개 미래 pose**의 위치·yaw·경로 순서·confidence가 정확히 같았다.
+
+아래는 순서를 번갈아 실행한 로컬 CPU의 **차량 한 관측당 지도 예측 계산** 비용이다.
+ROS callback/LAN/GPU/전체 pipeline latency가 아니고 초기 10관측은 비용 집계에서 제외했다.
+
+| 입력 | 평균 scalar→index | 중앙값 scalar→index | p95 scalar→index |
+|---|---:|---:|---:|
+| H03 | 1.658→0.653ms | 0.459→0.448ms | 5.925→1.714ms |
+| R01 | 4.054→1.244ms | 4.332→1.300ms | 6.738→1.920ms |
+| 9/17 full cadence | 3.135→1.031ms | 2.474→0.903ms | 6.522→1.973ms |
+
+입력에 단순한 직선 경로가 많으면 중앙값 개선은 작을 수 있다. 분기/곡선이 많은 경로에서
+반복 계산 감소가 컸다. 같은 출력의 계산 최적화만 소스에 반영하고 30Hz node의 실제
+callback 처리/입력 age 효과는 팀장님 환경에서 별도로 확인한다.
+
+### 산출물·검증·후속
+
+- Root: `artifacts/evaluation/bevfusion/base5_map_cv_candidates_261014`.
+- `development_v1/preregistered.json`, `development.json`: 고정 후보·선택·기준과 개발 matrix.
+- `reserved_pack_v1.json.gz`, `regression_v2.json`: 별도 네 bag의 source/GT/TF 근거와 후보 회귀.
+- `reserved_pack30_v1.json.gz`, `regression30_v1.json`: 9/17 원래 cadence의 추가 확인이며 네 bag 전체 gate를 대체하지 않는다.
+- `risk_v2/risk.json` 및 PNG/JSON: 전체/변경 관측 delta, actor·episode, 양방향 대표 사례.
+- `geometry_v1.json`: 원본 sampler SHA·수정 source/input SHA·전 관측 정확한 동일 출력·paired 비용.
+- 핵심 receipt SHA256: development `e6aa2d8fd68d851dccc9a8e0fb05b80201227e1d92f2de431a43df941a4b7f9d`,
+  regression_v2 `6c1b06b7488c40763a3ad3b67095cb578eda8d944acc1f0cda6cfb91ecc2cffa`,
+  geometry_v1 `fb35f6b504ee81c5ee9d9be8f05fcbfde3abadaa47d16d841ef25d58e4342abe`.
+- Map core/node·기존 prediction/motion policy/launch와 새 후보/risk/선택 검사 40개를 통과했다.
+  노드 메시지 검사에는 ROS1 호환 `builtin_interfaces`가 있는 planning overlay가 필요하다.
+  Base overlay만으로 발생한 import 실패는 overlay를 올바른 순서로 source한 뒤 해소됐다.
+  Python 구문·문서 링크·whitespace·반복 baseline/모든 FDE row의 불변도 확인했다.
+- 원본 Map-CV source SHA는 `f15dda428c1b2472903f20fe2d8aea59c0923620f149fbb7ce81ec78d8aae968`이다.
+  현재 기준은 scalar helper semantics를 유지하는 새 arc index 구현이다.
+- 새로운 제안은 별도 가설로 기록하고 이 regression 묶음에 수치를 계속 맞추지 않는다.
+  신규 cut-in/진출/재획득 bag 또는 팀장님 실제 planner 기록으로 영향과 불확실성을 확인한다.
+- 다음 생성 분포 검토로 넘어갈 수 있다. Map-CV의 새로운 순위 정책·planner 안전거리·
+  detector threshold·tracker lifecycle 변경은 이번 계산 최적화에 포함되지 않는다.

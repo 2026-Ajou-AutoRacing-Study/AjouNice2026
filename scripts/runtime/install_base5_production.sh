@@ -50,7 +50,7 @@ if [[ "$skip_build" != true ]]; then
   catkin_make_isolated --install \
     --source "$ROOT/base_ws/src" --build "$ROOT/base_ws/build_aw149" \
     --devel "$ROOT/base_ws/devel_aw149" --install-space "$ROOT/base_ws/install_aw149" \
-    --pkg perception_object_pipeline ekf_multi_object_tracking bevfusion_ros planning_scenario_validator \
+    --pkg sensor_interface perception_object_pipeline ekf_multi_object_tracking bevfusion_ros planning_scenario_validator \
     -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3 --make-args -j4 -l4
 fi
 echo "[READY] Base5 E24 준비 완료. 새로운 터미널에서 기존 풀스택 순서대로 실행하세요."

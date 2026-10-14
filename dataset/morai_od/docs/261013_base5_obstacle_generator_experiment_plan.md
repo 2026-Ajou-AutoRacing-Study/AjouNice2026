@@ -8,9 +8,21 @@ Sunny13 완료 5K는 보존한다. 다음 다섯 환경의 새 25K를 수집하�
 지금 확정하지 않는다. 앞서 제안한 근거리 1.5~2배와 약 96장 pilot도 시작 후보이지 합격 조건이 아니다.
 
 사용자가 MORAI 통제권을 맡겨 생성기 변경·소량 캡처·native 대조·복구 검증을 수행했다.
-새 25K는 offline 배치만 생성했고 본수집은 시작하지 않았다. Simulator 종료와 긴 정지 NPC의 방향 문제로
-추가 live 검증이 남아 있으며 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)의 gate를 따른다.
+새 25K는 offline 배치만 생성했고 본수집은 시작하지 않았다. 긴 정지 NPC의 선택적 보완과
+Sunny13 정적 64/64·이동 8/8 검증을 거쳐 v150 release를 준비했다. [현재 후보 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
 다른 agent의 planning_validator·주행·수집 세션과 동시에 시나리오를 로드하지 않는다.
+
+원거리 차량 전달과 다음 거리 분포의 후속 방향은 [공통 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)을 따른다.
+비차량의 근중거리 집중은 다음 후보이며 기존 원거리 GT 삭제나 v150의 무검증 변경을 뜻하지 않는다.
+
+2026-10-14 MORAI OFF 분석의 후속 근거는 [센서·모델·중복 검토](../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)에 있다.
+완료 5K의 native component→infos 누락은 없었다. 장애물 yaw는 이미 균등하고,
+0~10m의 후방 495/전방 285개 노출은 전방 보충의 근거다. 20~30m는 610 GT 중
+LiDAR 20점 이상 4.43%지만 camera mask-rich까지 합치면 75.25%로, 전부 비가시인
+것이 아니다. v150의 짝 표본에서 해당 구간 LiDAR-rich 증가가 확인되지 않아 개수
+증가와 sensor support 개선을 구분한다. 현 E24의 query peak만 바꾸는 실험은 중복을
+없앴지만 장애물 TP를 479→369로 줄여 기각했다. 학습 query 구성·depth hint 안정화도
+모델 측 별도 요인으로 검토하고, 생성기 비율이나 기존 GT를 이 결과만으로 바꾸지 않는다.
 
 ## 현재 근거와 해석
 

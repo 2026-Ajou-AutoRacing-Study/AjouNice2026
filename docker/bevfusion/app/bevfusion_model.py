@@ -16,6 +16,7 @@ from app.inference_optimization import (
 
 
 DEFAULT_CLASSES = ["vehicle", "pedestrian", "obstacle"]
+BOX_CENTER_ORIGIN = 'lidar_bottom_v1'
 
 
 def build_warmup_points(point_dim, temporal_num_sweeps, point_count=8192):
@@ -71,6 +72,10 @@ class BevFusionModel:
         self.requires_query_memory_context = (
             bbox_head_type == "MoraiQueryMemoryTransFusionHead")
         self.classes = list(config.get("metainfo", {}).get("classes", DEFAULT_CLASSES))
+        # Raw exports remain MMDetection3D LiDAR bottom-center coordinates.
+        # The optional ROS adapter performs the versioned conversion, not the
+        # model, historical payloads, decoder, labels or learned parameters.
+        self.box_center_origin = BOX_CENTER_ORIGIN
         if point_intensity_source != 'native' and not base5_runtime:
             raise ValueError('ROS255 normalization is Base5-only; E25 retains raw intensity')
         if not base5_runtime and (self.classes != DEFAULT_CLASSES or

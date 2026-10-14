@@ -35,6 +35,8 @@ class ProductionTests(unittest.TestCase):
         launch=ET.parse(ROOT/'base_ws/src/perception/bevfusion_ros/launch/base5_production.launch').getroot()
         args={r.attrib['name']:r.attrib.get('default') for r in launch.findall('arg')}
         self.assertEqual(args['output_objects'],'/perception/object_recognition/detection/objects')
+        self.assertEqual(args['box_center_output_origin'],'gravity_center_v1')
+        self.assertTrue(profile()['model_config'].endswith('nearest_depth_runtime.py'))
         inc={r.attrib['name']:r.attrib['value'] for r in launch.find('include').findall('arg')}
         self.assertEqual(inc['pedestrian_score_threshold'],'0.10')
 
@@ -76,6 +78,20 @@ class ProductionTests(unittest.TestCase):
                           ('config_sha256','stale'),('base5_runtime',False),('amp',False)]:
             bad=copy.deepcopy(m);bad['runtime_identity'][key]=value
             with self.assertRaises(ValueError):module.validate_production_identity(bad,a)
+
+    def test_explicit_corrected_runtime_rejects_legacy_missing_tags(self):
+        spec=importlib.util.spec_from_file_location('strict_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',require_box_origin_tag=True,expected_depth_raster_policy='nearest_positive')
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',base5_runtime=True,
+            amp=True,parallel_camera=True,compile_parts=[],box_center_origin='lidar_bottom_v1',depth_raster_policy='nearest_positive'),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',image_final_dim=[512,1056],
+            classes=['vehicle','pedestrian','obstacle'])
+        module.validate_production_identity(metadata,args)
+        for key in ('box_center_origin','depth_raster_policy'):
+            bad=copy.deepcopy(metadata);del bad['runtime_identity'][key]
+            with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
 
 
 if __name__=='__main__':unittest.main()

@@ -8,8 +8,11 @@
        argument-free and avoid opening a second RViz instance. -->
   <arg name="start_rviz" default="false"/>
   <arg name="publish_frame_timing" default="false"/>
-  <!-- Validated B3-BF0-F40 E25 production operating point. score_threshold is
-       only the fallback for an unknown detector class. -->
+  <!-- Explicit origin trial only; old E25/E24 output remains the default. -->
+  <arg name="box_center_output_origin" default="legacy_passthrough"/>
+  <!-- E25 compatibility defaults; the canonical E24 wrapper passes its own
+       pinned thresholds. This filename does not select the server checkpoint.
+       score_threshold is only the fallback for an unknown detector class. -->
   <arg name="score_threshold" default="0.10"/>
   <arg name="vehicle_score_threshold" default="0.40"/>
   <arg name="pedestrian_score_threshold" default="0.15"/>
@@ -54,6 +57,7 @@
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="operation" value="inference"/>
     <param name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
+    <param name="box_center_output_origin" value="$(arg box_center_output_origin)"/>
     <param name="score_threshold" value="$(arg score_threshold)"/>
     <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
     <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>

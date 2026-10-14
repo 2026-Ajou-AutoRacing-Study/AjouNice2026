@@ -16,6 +16,9 @@
   <arg name="lidar_frame" default="lidar1"/>
   <!-- LiDAR output: 900 RPM = 15 Hz. -->
   <arg name="lidar_rpm" default="900.0"/>
+  <!-- Opt-in packet grouping trials; default leaves driver packet count unset. -->
+  <arg name="lidar_npackets" default=""/>
+  <arg name="lidar_cut_angle" default="-0.01"/>
   <arg name="lidar_timestamp_first_packet" default="true"/>
   <arg name="lidar_calibration"
        default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
@@ -31,6 +34,8 @@
       <arg name="port" value="$(arg lidar_port)"/>
       <arg name="frame_id" value="$(arg lidar_frame)"/>
       <arg name="rpm" value="$(arg lidar_rpm)"/>
+      <arg name="npackets" value="$(arg lidar_npackets)"/>
+      <arg name="cut_angle" value="$(arg lidar_cut_angle)"/>
       <arg name="timestamp_first_packet" value="$(arg lidar_timestamp_first_packet)"/>
       <arg name="calibration" value="$(arg lidar_calibration)"/>
     </include>

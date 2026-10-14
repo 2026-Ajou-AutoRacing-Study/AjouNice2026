@@ -109,6 +109,18 @@ class ModelsAndAuditTests(unittest.TestCase):
         self.assertEqual(contract['checkpoint_path'], str(Path.home() / 'bevfusion_artifacts/checkpoints/base5_e24_inference.pth'))
         self.assertNotIn('artifacts/evaluation', contract['checkpoint_path'])
 
+    def test_e24_runtime_promotes_nearest_and_gravity_without_changing_e9(self):
+        e24=models.resolve_contract(self.document['stack'],self.sensor,ROOT)
+        self.assertTrue(e24['model_config'].endswith('nearest_depth_runtime.py'))
+        self.assertEqual(e24['depth_raster_policy'],'nearest_positive')
+        self.assertEqual(e24['box_center_output_origin'],'gravity_center_v1')
+        _,bridge=models.trial_commands(e24,ROOT,'isolated-test')
+        self.assertIn('box_center_output_origin:=gravity_center_v1',bridge)
+        e9=models.resolve_contract(dict(detector='bevfusion',bevfusion_model='base5_e9'),self.sensor,ROOT)
+        self.assertTrue(e9['model_config'].endswith('pedestrian_merged_runtime.py'))
+        self.assertEqual(e9['box_center_output_origin'],'legacy_passthrough')
+        self.assertIsNone(e9['depth_raster_policy'])
+
     def test_explicit_e25_selection_passes_model_argument_to_promoted_runner(self):
         with tempfile.TemporaryDirectory() as t:
             cfg = dict(network=dict(sensor_json=str(self.sensor), ego_network_json='network',

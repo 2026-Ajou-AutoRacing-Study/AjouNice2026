@@ -98,6 +98,11 @@ class BundleTests(unittest.TestCase):
         doc['source_files_sha256'][names[0]] = 'wrong'
         with self.assertRaises(ValueError): bundle.validate_descriptor(doc)
 
+    def test_pinned_release_descriptor_matches_actual_checkout(self):
+        # A fresh synthetic descriptor cannot catch a stale production ZIP
+        # after an otherwise compatible launcher/telemetry source update.
+        bundle.validate_descriptor(json.loads(bundle.DESCRIPTOR.read_text()))
+
 
 if __name__ == '__main__':
     unittest.main()
