@@ -59,6 +59,12 @@ E25의 원래 강도 계약과 혼용하지 않는다. Launch만 실행해서 GP
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)의
 topic·coasting·motion policy는 detector 선택과 별도다.
 
+평가 pose는 [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md)을 따른다.
+실제 운영은 기록된 localization/TF, 독립 검출 GT는 raw Ego에서 보정한 pose를 사용한다.
+이번 MR의 −1.347°는 각 raw 입력 경로에 한 번만 적용하며 이미 보정된 localization에 다시 적용하지 않는다.
+Validator의 공유 자료만으로 상세 분석을 마치는 경로는 아직 로그·진단 발행/녹화 연결이 부족하다.
+[분석 공유 검토와 담당자 요청](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md)은 구현 대기이며 production 변경이 아니다.
+
 <a id="optimization"></a>
 
 ## 추론 최적화의 현재 결론
