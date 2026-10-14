@@ -26,6 +26,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| 차량 초기 속도 반전·재취득 구 ID 잔류·측정과 출력 시계·실제 코어와 격리 ROS 비교 | [차량 방향과 재취득 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md) |
 | 원시 패킷 시간축·보행자 ID 분절·출력 동일 CPU 개선·C++ 전환 gate | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |
 | 새 MORAI 입력의 51/50/cut0·두 사람·복합체·depth hint·출력 원점 대조 | [Live 후보 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md) |
 | 보행자 순위 운영 적용·OFF 복귀·실제 ROS·LiDAR 저속 이동 후속 | [연결과 이동 비교](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md) |

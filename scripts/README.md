@@ -95,6 +95,14 @@ UDP driver·GPU·planner·제어·MORAI는 켜지 않는다. 시험 clock은 원
 원본 입력 hash·stamp·제외 공백을 보존하고 연구 후보의 eager A/A·compile을 분리한다.
 `audit_tracking_continuity_variants.py`와 `audit_tracking_continuity_variant_review.py`는
 그 출력을 원형 C++ 코어에 재생해 평균·분위수·최대와 association/잔류 창을 대조한다.
+차량 초기 방향과 재취득은 `audit_vehicle_reacquisition_core.py`·
+`qualify_vehicle_innovation_gate.py`·`build_vehicle_direction_probe.py`·
+`audit_vehicle_direction_probe.py`로 독립 코어와 후보를 비교한다. `audit_vehicle_map_prediction.py`는
+같은 GT·시각에서 실제 Map-CV의 1/2/3초 오차를 대조한다. `build_vehicle_ros_candidates.py`와
+`replay_vehicle_ros_candidates.py`는 별도 localhost master의 연구 wrapper·입력/처리 barrier를
+사용하며 production binary를 설치하지 않는다. 원본 입력 age와 출력 시계를 분리하고
+guard의 중심·ID 동등성 검사를 통과해야 효과를 계산한다.
+현재 결정과 재현 범위는 [차량 검증](../docs/bevfusion/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)을 따른다.
 `audit_base5_offline_box_center_origin.py`는 native annotation의 물리적 중심과 tagged
 출력 원점을 감사한다. 이 도구들 자체가 production 옵션이나 GT를 바꾸지는 않는다.
 

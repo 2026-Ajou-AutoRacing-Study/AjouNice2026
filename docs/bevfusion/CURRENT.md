@@ -114,7 +114,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    [Z 계약·정지/reset 경계](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 따라 fresh stack으로 시작한다.
    E9/E25 비교·복귀의 legacy 표현, Map-CV future-Z·실제 planner 확인은 별도다. 기존 GT·가중치는 보존한다.
    [연결·이동 후속](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)의 보행자 Gaussian 순위는 운영 pipeline에 ON이다. 허용 조건·수명·차량·장애물 정책은 유지하고 OFF 복귀를 제공한다.
-   복합체는 별도 관측한다. 50/cut0은 저속 이동 확인만 완료했으므로 고속/LAN 검증 전에는 기본 51을 유지한다. E24 head peak 변경은 native 검출 손실로 계속 기각한다.
+   복합체는 별도 관측한다. [차량 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)의 방향 가드는 원형, P+R 연결은 복구 오차 악화로 보류한다. 입력 경합·TF 실패의 pending 보존은 수정·로컬 설치했다. 50/cut0은 고속/LAN 전까지 기본 51을 유지하고 E24 head peak 변경은 계속 기각한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
 5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.

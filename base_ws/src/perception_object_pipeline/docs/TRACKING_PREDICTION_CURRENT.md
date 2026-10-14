@@ -102,7 +102,8 @@ prediction coverage를 함께 감시한다.
   물리 hypothesis로 묶는다.
 - confidence는 heuristic route score를 남은 hypothesis 사이에서 정규화한다. 실제
   calibrated probability로 해석하지 않는다.
-- 저속, off-lane, wrong-direction, non-vehicle은 Cartesian CV fallback을 사용한다.
+- 지도 경로를 못 쓰는 차량은 signed 속도를 보존하는 CTRV fallback을 사용한다.
+  비차량은 Cartesian CV다. 차량 yaw rate가 0일 때만 두 방식이 같은 직선이 된다.
 - 경로 arc index와 고정 지도 segment·bounded route geometry를 재사용하고 독립 메시지
   복사·동일 순서 DFS로 계산 비용을 줄인다. 6 bag의 10,433 tracking frame·11,021객체를
   두 번 비교해 직렬화 출력이 정확히 같다. 이 PC의 설치본까지 갱신했으며 예측 정책 변경은 아니다.
@@ -192,6 +193,14 @@ Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker
 1건만 개선해 기존 OFF를 유지한다. [bag·planning 검토 46절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)을 따른다.
 30Hz tracking의 새 출력 stamp를 최신 detector 관측으로 해석하지 않는다. 설치 binary의
 소스 반영 여부와 실제 관측 age를 별도로 확인한다.
+
+2026-10-14 [차량 초기 방향과 재취득 검증](../../../../docs/bevfusion/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)은
+실제 코어와 격리 ROS의 측정·출력 시계를 분리했다. 초기 방향 가드는 시험 원형이며
+운영에 설치하지 않았다. P+R 연결 후보는 ID 유지 이득에도 복구 속도·미래 위치 악화가
+남아 보류한다. 5~7m 전역 병합이나 차량 속도 강제 양수화는 적용하지 않는다.
+같은 검토에서 입력 generation별 완료 확인·완성 패킷 commit으로 정상 pending 입력의
+경합·TF 실패 손상을 수정했다. source와 이 PC 설치본에 반영했고 정상 1,825개 입력의
+네 모드×5,486개 ROS 출력은 수정 전과 wire-exact다. 팀 planning 후속 통합은 별도다.
 
 다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
 일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
