@@ -69,6 +69,32 @@ class LocalizationContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'pose_source'):
             normalize_gt_pose_launch_args({'pose_source': 'localization', 'gt_pose_args': {'use_heading_correction': True}})
 
+    def test_final_hardening_candidates_are_opt_in_and_bounded(self):
+        cfg = load_campaign(EXAMPLE, check_install=False)
+        defaults = effective_localization_args(cfg, ROOT)
+        self.assertEqual(defaults['gnss_motion_compensation_sec'], 0.0)
+        self.assertFalse(defaults['enable_relocation_guard'])
+        self.assertTrue(defaults['relocation_guard_monitor_only'])
+        explicit = {'gnss_motion_compensation_sec': 0.02,
+                    'relocation_guard_reset_ack_consecutive_samples': 2,
+                    'relocation_guard_reacquisition_grace_sec': 1.0}
+        self.assertEqual(normalize_localization_launch_args({
+            'pose_source': 'localization', 'localization_args': explicit}), explicit)
+        invalid = [('gnss_motion_compensation_sec', 0.10001),
+                   ('gnss_motion_compensation_sec', True),
+                   ('relocation_guard_stationary_hold_sec', 0),
+                   ('relocation_guard_max_motion_age_sec', 0),
+                   ('relocation_guard_max_input_age_sec', 0),
+                   ('relocation_guard_future_tolerance_sec', -0.01),
+                   ('relocation_guard_gnss_stationary_max_span_m', 0),
+                   ('relocation_guard_reset_ack_consecutive_samples', True),
+                   ('relocation_guard_reset_ack_consecutive_samples', 2.5),
+                   ('relocation_guard_reset_ack_yaw_tolerance_deg', 181)]
+        for key, value in invalid:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                normalize_localization_launch_args({
+                    'pose_source': 'localization', 'localization_args': {key: value}})
+
     def test_explicit_corrected_gt_and_legacy_gt_are_distinct(self):
         self.assertEqual(normalize_gt_pose_launch_args({'pose_source': 'maptf_morai'}), {})
         self.assertEqual(normalize_gt_pose_launch_args({'pose_source': 'maptf_morai', 'gt_pose_args': {

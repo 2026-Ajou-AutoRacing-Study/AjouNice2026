@@ -83,6 +83,37 @@ estimator 원인 분리용이다. 기록 Ego/trajectory의 재사용을 후보�
 부르지 않는다. 결과와 전체 경로는 누적EVIDENCE 및
 `planner_logs/analysis/261015_soft_smooth_closed_loop_validation/`에서 확인한다.
 
+## 최종 hardening 신규 실행 (2026-10-15)
+
+아래는 `planner_logs/validation/<execution>/success|error/<case>/planbag_*.bag`이다.
+모두 MR/Competition, heading−1.347°, receipt-time, od_gt/실제 planning·PP/PI,
+영상10fps/Planviz split ON, localization_analysis/safety ON이다.
+baseline/full zero는 원래 validator CLI, stop/SceneLoad/known-prior 개입은 별도 개발
+helper이며 직진·정속 제어기로 대체하지 않았다. execution의 snapshot/events/receipt가 기준이다.
+
+| execution | 등급·조건 | 판정·주의 |
+|---|---|---|
+| `loc_final_baseline_261015_055818` | REPLAY+CLOSED_LOOP, 짧은 무객체 기본값 | PASS; 실제 음영7.310초 |
+| `loc_final_checkpoint_off_261015_061706` | CHECKPOINT_EMULATION, CP13 guard OFF | PASS; 정차/P→약114m 순간이동→GNSS 복구→새 route/재개 |
+| `loc_final_checkpoint_on_261015_061917` | 같은 CP13 guard active | PASS; 실제 guard reset0회, 가속 회복 증명 아님; 마지막 absolute-age 강화 전 코드 |
+| `loc_final_gps020_261015_062131` | REPLAY+CLOSED_LOOP, 짧은 GNSS20ms 후보 | PASS; 실제 음영7.346초, 기본값 아님 |
+| `loc_final_shadow_hold_261015_062342` | CLOSED_LOOP_STOP_INTERVENTION, 기본값 | PASS; 실제 음영50.246초, Park hold30.068초 후 같은 PP/PI 재개 |
+| `loc_final_full_zero_261015_062655` | REPLAY+CLOSED_LOOP, 전체 코스 기본0ms | PASS; 전체 코스7.302초 음영 |
+| `loc_final_full_gps020_261015_063115` | PARTIAL_CLOSED_LOOP, 전체 코스20ms | ERROR/MANUAL_ABORT; 고주로 MPT/far-goal path 실패, 안전 종료. 완주로 세지 않음 |
+| `loc_final_checkpoint_shadow_261015_064054` | NEGATIVE_CONTROL, CP15·새 위치 정보 없음 | SAFETY_FAILURE; GPSzero로 약138.65m 위치 차이, 재출발 차단·P 확인 |
+| `loc_final_checkpoint_known_261015_064654` | KNOWN_POSITION_PRIOR_EMULATION, CP15 | PASS; 명시적 checkpoint prior1회. 공식 운영 이벤트 아님 |
+| `loc_final_checkpoint_known_261015_065447` | 위 조건 최신 helper 안전 검사 반복 | PASS; fresh heading/P를 발행 직전에 다시 검증 |
+
+known-prior는 runtime 위치 입력을 Ego에서 가져오지 않는다. 실험자가 요청한
+ScenarioLoad 목적지라는 명시적 prior를 사용하며, 독립 Ego는 안전/오차 확인용이다.
+`064654`까지 target metadata의 `position_runtime_source` 문자열은 GNSS-only로 남지만
+실제 `known_checkpoint_prior_receipt.json`과 bag의 추가initialpose가 우선 provenance다.
+새 helper는 metadata도 두 모드로 구분한다. 원본 snapshot을 고쳐 쓰지 않는다.
+
+동일 raw replay의 latest `044421` 대9/19 historical heldout과 synthetic pause는
+`planner_logs/analysis/261015_localization_final_hardening/`에 있다. 임의 합성 hold의
+누적 변위를 GT accuracy/새 폐루프라고 부르지 않는다. detailed 결과는 누적 EVIDENCE를 따른다.
+
 ## 보조 bag
 
 - `planning_rviz_0915_sensor_local_1.bag`, `_2.bag`

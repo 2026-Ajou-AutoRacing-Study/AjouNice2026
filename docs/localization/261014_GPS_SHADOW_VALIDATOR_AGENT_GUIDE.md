@@ -457,3 +457,25 @@ translation tau 0.25초 후보를 각각 1회 실행했다. 세 조건 모두 �
 이 확인은 **실험 수행 기반이 동작한다**는 의미다. tau 후보 개선, 장애물 회피 조건,
 실제 통신 단절·SIGKILL 안전성, 대회 LAN/다른 PC 재현은 인증하지 않았다.
 특히 이 MR의 GPS status는 음영에서도 1이므로 status만으로 유효 GNSS를 분류하지 않는다.
+
+## 후속 localization hardening 실험 (2026-10-15)
+
+현재 source/결과 계약은 [CURRENT](COMPETITION_LOCALIZATION_CURRENT_STATE.md)와
+[누적 EVIDENCE 마지막 절](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)을 따른다.
+기본 soft/Smooth는 유지하며 GNSS motion projection0초·relocation guard OFF다.
+`stack.localization_args.gnss_motion_compensation_sec`는0–0.1초 opt-in 후보지만,
+20ms는 최신/구형 입력에서 효과가 역전되어 공통 production 기본값으로 켜지 않는다.
+guard의 age/future rejection은 reset 발행 안전 조건이지 core 센서 시간 정책 변경이 아니다.
+`/localization/relocation/status`는 활성화할 때만 있는 optional 분석 토픽이다.
+
+개발 helper `scripts/evaluation/localization/run_validator_intervention.py`는 stock
+validator 주행 도중 관측된 정지/P·ScenarioLoad·명시적 known prior를 삽입한다.
+같은 실제 planning/PP·PI/UDP를 사용하며 `--execute` 없이는 check만 한다.
+한scene·safety/bagON·intervention시간을 포함한timeout·새execution이 필수다.
+원래 validator CLI에는 여전히 `--run`을 붙이지 않는다.
+
+CP15의0-GPS 순간이동은 새 위치 정보 없이 복구할 수 없었다. 실험에서 확정한 반환
+위치를 `--known-checkpoint-prior`로 한 번 제공한 대조는 통과했다. 이를 공식 이벤트나
+대회 허용 입력으로 간주하지 않는다. 공식 복귀 이벤트·번호·배치 정확도/허용 범위를
+운영측·판단팀과 확인하기 전에는 자동화하지 않는다. Ego는 안전/평가용이며 초기 임시
+위치 이후 지속 fusion하지 않는다. 원본bag·실패·known receipt와 helper SHA를 함께 보존한다.

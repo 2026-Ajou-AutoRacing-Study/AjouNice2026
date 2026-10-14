@@ -947,3 +947,173 @@ signed mean은 약−26~−27cm로 평균적으로 oracle보다 뒤에 있다.
 oracle lag 진단이다. GT는 평가용으로만 사용하고 임의 pose offset이나
 UDP receipt-time 변경을 production에 넣지 않는다. 장시간 음영 정차·재출발,
 LAN-to-LAN·슬립·checkpoint gate는 별도로 남아 있다.
+
+## 최종 hardening: 장기 정차·checkpoint·종방향 epoch (2026-10-15)
+
+판정: **기존 soft/Smooth production 유지.** 추가 ZUPT는 보류, heuristic checkpoint reset은
+OFF/monitor-only, GNSS motion projection은0초가 기본이다. 대회 LAN·공식 reset 이벤트·
+충돌/slip을 전부 해결했다는 뜻은 아니다. branch `dataset/base5`, 기반 runtime
+`d834e2ad` + 이번 source, 규정 문서 commit `d376ed1c` 이후 실행을 구분한다.
+case별 source/installed SHA·명령·parameter·snapshot·events가 날짜보다 우선한다.
+Q/R·heading·UDP receipt-time·Local EKF·detector/판단/제어 정책은 변경하지 않았다.
+
+### 장시간 GPS 음영의 실제 정차·재출발
+
+`260919_231906...`의 실제 음영27.75초·정차24.59초를 현재 estimator로 재생했다.
+같은 초기화/입력에서 Global 횡p95는 prior OFF16.52m 대 ON8.41cm였다.
+마지막 실제 정차 센서를 추가60초 유지한 **합성 모델 진단**의 누적 Global 변화는
+ON0.021cm 대 OFF144.62m였다. 합성 구간에 GT 위치를 만들어 넣지 않았다.
+최신 pair에 합성60초 정차를 삽입하고 원래 입력을 재개한 clean replay도
+Global/Smooth 정차 변위0.062/0.589cm,50Hz였다. 재획득1–5초 후 unpaused estimator와의
+XY 차이p95는0.81/0.70cm였으며 이 차이는 GT accuracy가 아니다.
+
+실제 `loc_final_shadow_hold_261015_062342`는 기존 PP/PI 주행 중 음영→controller 종료→
+stock brake/P·실제 정지 확인→30초 Park→같은 PP/PI 재개다. 별도 직진·정속 제어기가 아니다.
+
+| 실제 hold·재출발 지표 | 결과 |
+|---|---:|
+| 총 GPS invalid / Park hold | 50.246 / 30.068초 |
+| hold raw GPS / 유효 GNSS odometry | 815개 전부zero(status1) / 0개 |
+| Global/Smooth hold rate / 최대 header gap | 약50Hz / 25.57ms |
+| hold 횡 / XY 오차 p95 | 9.80 / 26.66cm |
+| hold 시작·끝1초 median 오차 변화 | XY0.00119cm, 횡0.00115cm |
+| hold 종편차 | 약−24.79cm: 기존 offset은 남지만 발산하지 않음 |
+| 재개 후 GPS invalid 유지 / Smooth 횡p95 | 8.640초 / 10.57cm |
+| 재획득 첫1초 / 이후1–5초 Smooth 횡p95 | 13.14 / 4.16cm |
+| 재개 후 TF closure p95 | 0.0218cm |
+| 목적지·충돌·안전 종료 | SUCCESS, 충돌0, 실제 P VERIFIED |
+
+nominal 정차에서는 fresh vx=0 측정과 Global soft vy prior가 충분히 제한한다.
+**새 ZUPT/Local prior는 구현하지 않았다.** 큰 Local vy covariance를 실제 mean 발산과
+동일시하거나 작은 값으로 clamp하지 않았다. 초기 private replay harness의 hot-edit로
+Bash file-offset 오류가 난 실행은 보존·제외하고 clean frozen-runner exit0와 구분했다.
+
+### 체크포인트: 유효 GNSS 복귀와 음영 복귀의 차이
+
+기존 좌표 config의 CP13으로 정차/P에서 약114m SceneLoad 순간이동을 에뮬레이션했다.
+원래 목적지로 fresh route를 확인하고 stock PP/PI를 재개했다.
+
+| CP13 개발 emulation | Guard OFF | Guard active ON |
+|---|---:|---:|
+| Global XY≤25cm를0.5초 유지 | 3.369초 | 3.262초 |
+| Smooth 동일 gate | 4.009초 | 3.942초 |
+| 실제 relocation reset / ACK | 0 / 0회 | 0 / 0회 |
+| 재개 후 Smooth 횡p95 | 8.39cm | 8.61cm |
+| 목적지/충돌/최종 P | PASS/0/VERIFIED | PASS/0/VERIFIED |
+
+GNSS update가 innovation114m를 먼저 줄여 정차 gate가 준비될 때≤1.362m였다.
+**ON이 더 빠르게 reset했다는 증거가 아니다.** Local XY step은약5.8cm 이하였지만
+SceneLoad의 absolute heading으로 Local yaw는약46° 변했다. Local 전체 pose의 연속성과
+TF closure/독립 GT 정확도를 혼용하지 않는다.
+
+가드는 opt-in 안전 계약만 강화했다: 정상 frame·finite/unit quaternion/covariance·
+co-time state/orientation, vx≤0.05m/s1초, GNSS span≤0.3m1초, gap/invalid/duplicate
+count 초기화·재획득1초 grace, 단일 pending reset과 새 Global2개 ACK다.
+ACK2초 timeout/발행 실패는 blocked latch이며 restart 전 재시도하지 않는다.
+미래 stamp로 cache가 고정되거나 잘못 reset되던 결함도 mock으로 재현·수정했다.
+age≤0.5초/미래≤0.05초 검사는 **guard만의 발행 안전 조건**이며 core 시간 정책은 그대로다.
+`061917`은 마지막 absolute-age 강화 전 snapshot이므로36unit/격리 transport와 구분한다.
+
+**CP15는 실제 GPS 음영이었다.** 공식 운영 이벤트가 아니라 개발 ScenarioLoad 대조다.
+
+| CP15 emulation | 새 위치 정보 없음 `064054` | 명시적 known prior `064654` |
+|---|---:|---:|
+| 순간이동 뒤 위치 차이 | 약138.65m 유지 | reset 후약1.94mm |
+| 음영 중 GNSS odometry | 0개 | 0개 |
+| 추가initialpose | 0회 | lab prior1회(총2회) |
+| 재출발 | GPS safety gate 차단 | stock PP/PI 재개·PASS |
+
+known prior는 요청한 SceneLoad checkpoint 좌표를 map TF로 변환하고 fresh canonical
+Competition heading을 복사해 기존 `/localization/initialpose`에 한 번 전달했다.
+Ego XY는 runtime prior가 아니라 안전·독립 오차 확인용이다. guard 자체 reset/ACK는0회,
+fake GNSS도0개였다. Global-only reset에서 Local XY는 이동하지 않았다.
+실제 reset receipt 후약18ms에25cm 안으로 회복, 약518ms에0.5초 유지 gate를 충족했다.
+GPS는 stock 제어 재개1.682초 뒤에야 돌아왔다. 당시 prior header/receipt 차이가302ms라
+후속 helper는 TF/subscriber 준비 뒤 fresh P·heading을 다시 확인하고 발행 직전에
+새 event stamp를 설정했다. 최신 `065447` 반복도 같은 stock 경로로PASS했다.
+
+**알려진 반환 위치가 있으면 음영에서도 재초기화 가능**하지만 GNSS·새 위치 정보가
+모두 없으면 삼각함수/ZUPT/Kalman 튜닝으로138m 이동을 알아낼 수 없다.
+실대회에는 운영측이 제공/허용하는 복귀 이벤트·번호·배치 정확도가 필요하다.
+임의 위치 추측/Ego GT 재활성화를 해결책으로 사용하지 않는다. z는 마지막 GNSS를
+유지하며 known XY prior가 높이 측정을 대체하지 않는다. 옛 metadata의 GNSS-only
+문자열보다 실제 known receipt/bag가 우선이고 새 helper는 metadata도 두 모드로 구분한다.
+
+### 종방향 원인과20ms 후보의 이득/악화
+
+raw GPS 직접 UTM 변환과 recorded GNSS odometry는 일치했다. signed 종오차는 속도에
+비례했고 robust 회귀/독립 Ego lag sweep에서 최신 full은약19–20ms,E24는24ms,
+pair는16ms,9/19는거의0ms의 apparent lag였다. 정지 때는약5cm cell bias뿐이고 vx 차이도
+작아−26cm 고정 lever-arm/vx scale/Smooth 단독 지연으로 설명하지 않는다.
+이는 상대 observation epoch 진단이지 실제 네트워크 지연20ms의 확정이 아니다.
+
+후보는 GPS map XY에 `dt * vx * [cos(corrected_map_yaw), sin(corrected_map_yaw)]`를 더한다.
+header/UDP 시간/z/cell/Q/R/heading은 유지한다. canonical twist·orientation의 같은 stamp,
+base_link header, 정상 quaternion·≤0.1초 source age에서만 적용한다. missing/stale/future/
+malformed pair는 원래 유효 GPS를 발행한다. map yaw를 또 회전하지 않고 Ego 위치나
+미제공 Competition vy를 사용하지 않는다. default0은 aux 구독도 없다.
+motion 상관/모델 불확실성의 별도 covariance 보상은 하지 않은 단일변수 후보다.
+
+| 동일입력 Smooth moving 종오차(cm), mean/p50/p95 | 0ms | 20ms |
+|---|---:|---:|
+| 최신 full `044421` | 27.21 / 25.97 / 57.92 | 2.99 / 2.24 / 7.64 |
+| historical9/19 heldout | 2.46 / 1.83 / 6.59 | 21.86 / 23.22 / 36.54 |
+
+최신 정상선회 종p95는31.18→7.72cm,고속20m/s+는72.80→7.20cm였다.
+반면 Global 정상선회 횡p95는4.11→4.74cm로 소폭 악화했다. moving fallback은 최신
+0.37%,과거6.71%다. fallback이 항상 성능상 무해하다고 보장하지 않는다.
+raw byte/header/count·static TF·초기화/SHA·약50Hz를 감사했다. 최신은 원본 post-load
+pose/covariance까지 일치했다. 과거 원본에initialpose가 없어 두조건 동일first-raw 초기화를
+썼으며 당시live 완전 재현으로 주장하지 않는다. Ego 없는 GPS 변위/Competition 적분은
+trapezoid에서최신30/과거8–10ms,left-hold12/0ms,right-hold40/20ms로 바뀌었다.
+상대 변화의 단서는 있지만 절대 보정값을 자동 선택하는 근거로 쓰지 않는다.
+
+실제 짧은020 주행`062131`은PASS했다. 같은scene Smooth 음영 종p95는 기본25.10cm
+대 후보6.52cm,횡p95는8.56 대4.64cm였다. 다른 실제 주행이며 인과 replay 표와 구분한다.
+기본 전체 코스`062655`는PASS했으나020 전체`063115`는고주로 MPT infeasible→비상제동→
+out-of-route→먼 목적지2점zero-speed fallback으로 중단했다. 첫warning에서 독립 GT 대비
+Global/Smooth XY는7.17/6.09cm,횡−2.15/−1.35cm,GPS invalid0개였다. GPS 발산/프로세스
+crash는 아니며 기존 baseline의 같은 장소/route 실패 이력도 있다. 다만 후보와의
+상호작용을 기각하지 않았으므로 **전체 코스 승격 gate는 실패**다. 정책을 바꿔 통과시키지 않았다.
+ERROR/MANUAL_ABORT·안전 P 확인을 보존하고 partial을 완주와 비교하지 않는다.
+
+### 재현·검증·BEVFusion 인계
+
+새10개 실행은 [bag catalog](260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md)의 정확한
+execution명을 따른다. 상세JSON/그림/생성script는 Git제외
+`planner_logs/analysis/261015_localization_final_hardening/`의
+`stationary/`, `checkpoint/`, `longitudinal/`, `collapse/`에 있다.
+localization_manager/bringup/validator만 증분 설치했다. 순수unit202개(측위124,validator70,
+helper8), 가드36unit 포함 및 격리ROS transport를 통과했다. ROS transport 파일을 일반
+unittest discovery로 실행한 초기 실패는 runner 오류였고 격리rostest와 구분했다.
+source/old install 혼재 시험은 gate에서 중단한 뒤 새 실행을 사용했다.
+
+helper는 **개발용 정차·SceneLoad 개입**이며 production launcher가 아니다.
+stock stack/PP·PI/UDP를 사용하고 `--execute` 없으면 check만 한다. 다른 주행기와 중복
+실행하지 않는다. 본래 `planning_validator.py`에는 여전히 `--run`을 붙이지 않는다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+# 공유 baseline YAML 전체를 개인workspace에 복사해 한scene·safety/bagON으로 실행.
+# intervention시간도포함하도록timeout설정(이번180초). 조건변경강제resume금지.
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode shadow_hold --hold-sec 30 --execute
+
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode checkpoint --checkpoint 13 --execute
+
+# lab에서확정한반환정보대조. 공식이벤트없는자동대회명령이아님.
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode checkpoint --checkpoint 15 --known-checkpoint-prior --execute
+
+# 환경을검증하는별도후보. 공통실대회기본변경아님.
+localization gnss_motion_compensation_sec:=0.02
+```
+
+BEVFusion 재개 시 기존 alias/토픽/Heading/UDP/soft/Smooth 계약은 그대로다.
+새 기능을 함께 켜야 하는 의존성도 없고 가중치/perception/controller 정책을 변경하지 않았다.
+**음영checkpoint의명시적복귀입력**과LAN gate는 판단팀/운영측과 닫아야 한다.
+20ms의환경검증·route interaction은 후속연구이며 기본0을 유지한다.
+복귀 실험은 무객체·짧은 원래목적지이며 공식 remaining-checkpoint 미션 복구가 아니다.
+실제 배우/BEVFusion이 있는 복귀에는 tracker/prediction history와 오래된 trajectory/command
+무효화·공식 route 진행 상태의 별도 통합 확인이 필요하다.

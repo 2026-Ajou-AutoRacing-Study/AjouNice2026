@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   robot_localization
   rospy
   sensor_msgs
+  std_msgs
   tf
   tf2_ros
   visualization_msgs
@@ -48,6 +49,7 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_gnss_imu_contract.py)
   catkin_add_nosetests(test/test_gnss_imu_initial_pose.py)
   catkin_add_nosetests(test/test_gnss_quantization_input.py)
+  catkin_add_nosetests(test/test_gnss_motion_compensation.py)
   catkin_add_nosetests(test/test_smooth_control_state.py)
   catkin_add_nosetests(test/test_smooth_vehicle_pivot_contract.py)
   catkin_add_nosetests(test/test_quantized_gnss_control_state.py)

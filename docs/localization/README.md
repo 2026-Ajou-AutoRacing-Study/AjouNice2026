@@ -32,6 +32,11 @@
 - GNSS horizontal sigma `0.10 m`, Global EKF Qxy `0.0005`.
 - Global-only soft body `vy≈0` prior 기본 ON, σ `0.20m/s`.
 - Smooth 횡 correction cap `0.3m/s`. 차량 움직임이 아니라 Global 위치 보정량만 제한한다.
+- 종방향 GPS epoch 보상 `gnss_motion_compensation_sec=0.0` 기본 OFF.
+  최신 MR의20ms 후보는 효과가 크지만 구형 입력에서 과보정하며 전체 코스 gate도 미완료다.
+- checkpoint guard는 OFF/monitor-only 유지. GNSS 음영 checkpoint15에서는 새 XY가
+  관측되지 않는다. 명시적 복귀 좌표를 전달한 개발 emulation은 복구했지만 공식 이벤트/
+  체크포인트 번호/실제 배치 정확도 계약 없이 자동 production으로 사용하지 않는다.
 - controller는 Smooth state `/localization/control_kinematic_state`를 사용한다.
   Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
@@ -69,7 +74,9 @@
     vehicle-pivot/종횡 분리 Smooth를 반영했다. 이전 후보 HOLD와 현재 승격을 구분한다.
     새 Smooth의 사용자 실제 MR 전체 코스2회·음영pair2회, 같은pair 입력soft ON/OFF
     인과 replay를 추가했다. 횡발산 억제와 평균/중앙값 개선, 남은 종오차·일부p95 악화를
-    함께 기록한다. LAN·장시간 음영 정차·실제 반대 방향 회피·슬립 검증은 남아 있다.
+    함께 기록한다. 후속30초 실제 음영 정차·재출발, checkpoint13/15, 종방향20ms 후보의
+    최신/구형 입력 역전과 전체 코스 경로 실패를 같은 문서에 누적했다. LAN·공식 checkpoint
+    운영 계약·실제 반대 방향 회피·슬립 검증은 남아 있다.
 - [`260924_LOCALIZATION_BASELINE_AUDIT.md`](260924_LOCALIZATION_BASELINE_AUDIT.md)
   - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
 - [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)

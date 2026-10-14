@@ -32,12 +32,27 @@ NONNEGATIVE_ARGS = {'control_translation_tau_sec', 'control_yaw_tau_sec',
                     'control_state_reset_translation_error_m',
                     'control_state_reset_yaw_error_deg', 'relocation_guard_cooldown_sec'}
 NONNEGATIVE_ARGS |= {'control_lateral_tau_sec', 'control_max_lateral_correction_rate_mps'}
-POSITIVE_ARGS = {'relocation_guard_threshold_m', 'lateral_velocity_stddev_mps'}
+NONNEGATIVE_ARGS |= {'gnss_motion_compensation_sec',
+                    'relocation_guard_stationary_speed_max_mps',
+                    'relocation_guard_future_tolerance_sec',
+                    'relocation_guard_reacquisition_grace_sec'}
+POSITIVE_ARGS = {'relocation_guard_threshold_m', 'lateral_velocity_stddev_mps',
+                'gnss_motion_max_age_sec', 'relocation_guard_max_sample_gap_sec',
+                'relocation_guard_stationary_hold_sec', 'relocation_guard_max_motion_age_sec',
+                'relocation_guard_gnss_stationary_hold_sec',
+                'relocation_guard_gnss_stationary_max_span_m',
+                'relocation_guard_max_input_age_sec',
+                'relocation_guard_reset_ack_timeout_sec',
+                'relocation_guard_reset_ack_position_tolerance_m',
+                'relocation_guard_reset_ack_yaw_tolerance_deg'}
+POSITIVE_INTEGER_ARGS = {'relocation_guard_consecutive_samples',
+                         'relocation_guard_reset_ack_consecutive_samples'}
 ENUM_ARGS = {'gnss_quantization_input_mode': {'off', 'cell_transition'},
              # The lower node also has a manual-pose mode; deliberately do not
              # expose it in unattended validator runs (it can disagree with Ego).
              'initial_position_source': {'ego', 'official_start'}}
 LOCALIZATION_DEFAULTS = {
+    'gnss_motion_compensation_sec': 0.0, 'gnss_motion_max_age_sec': 0.1,
     'use_lateral_velocity_constraint': True, 'lateral_velocity_stddev_mps': 0.20,
     'control_state_use_vehicle_pivot': True, 'control_lateral_tau_sec': 0.1,
     'control_max_lateral_correction_rate_mps': 0.3,
@@ -48,6 +63,19 @@ LOCALIZATION_DEFAULTS = {
     'gnss_quantization_input_mode': 'off', 'enable_relocation_guard': False,
     'relocation_guard_monitor_only': True, 'relocation_guard_threshold_m': 5.0,
     'relocation_guard_consecutive_samples': 3, 'relocation_guard_cooldown_sec': 5.0,
+    'relocation_guard_max_sample_gap_sec': 0.5,
+    'relocation_guard_stationary_speed_max_mps': 0.05,
+    'relocation_guard_stationary_hold_sec': 1.0,
+    'relocation_guard_gnss_stationary_hold_sec': 1.0,
+    'relocation_guard_gnss_stationary_max_span_m': 0.3,
+    'relocation_guard_max_motion_age_sec': 0.1,
+    'relocation_guard_max_input_age_sec': 0.5,
+    'relocation_guard_future_tolerance_sec': 0.05,
+    'relocation_guard_reacquisition_grace_sec': 1.0,
+    'relocation_guard_reset_ack_timeout_sec': 2.0,
+    'relocation_guard_reset_ack_position_tolerance_m': 0.2,
+    'relocation_guard_reset_ack_yaw_tolerance_deg': 5.0,
+    'relocation_guard_reset_ack_consecutive_samples': 2,
 }
 SAFETY_DEFAULTS = {
     'startup_timeout_sec': 20.0, 'stop_timeout_sec': 10.0,
@@ -97,7 +125,7 @@ def _config_path(value, resolve_path):
 def normalize_localization_launch_args(stack, resolve_path=None, *, check_paths=True):
     """Return explicit candidate overrides; omitted settings retain production."""
     value = _mapping(stack, 'localization_args', 'localization')
-    allowed = set(CONFIG_DEFAULTS) | BOOL_ARGS | NONNEGATIVE_ARGS | POSITIVE_ARGS | set(ENUM_ARGS) | {'relocation_guard_consecutive_samples'}
+    allowed = set(CONFIG_DEFAULTS) | BOOL_ARGS | NONNEGATIVE_ARGS | POSITIVE_ARGS | set(ENUM_ARGS) | POSITIVE_INTEGER_ARGS
     unknown = set(value) - allowed
     if unknown:
         raise ValueError('지원하지 않거나 MR에서 고정된 localization_args: {}'.format(', '.join(sorted(unknown))))
@@ -116,14 +144,17 @@ def normalize_localization_launch_args(stack, resolve_path=None, *, check_paths=
             if not isinstance(raw, str) or raw not in ENUM_ARGS[key]:
                 raise ValueError('{} 허용값: {}'.format(label, ', '.join(sorted(ENUM_ARGS[key]))))
             result[key] = raw
-        elif key == 'relocation_guard_consecutive_samples':
+        elif key in POSITIVE_INTEGER_ARGS:
             if type(raw) is not int or raw < 1:
                 raise ValueError('{}는 1 이상 정수여야 합니다'.format(label))
             result[key] = raw
         else:
             result[key] = _number(raw, label, positive=key in POSITIVE_ARGS)
-            if key == 'control_state_reset_yaw_error_deg' and result[key] > 180:
+            if key in ('control_state_reset_yaw_error_deg',
+                       'relocation_guard_reset_ack_yaw_tolerance_deg') and result[key] > 180:
                 raise ValueError('{}는 180도 이하여야 합니다'.format(label))
+            if key == 'gnss_motion_compensation_sec' and result[key] > 0.1:
+                raise ValueError('{}는 0.1초 이하여야 합니다'.format(label))
     return result
 
 

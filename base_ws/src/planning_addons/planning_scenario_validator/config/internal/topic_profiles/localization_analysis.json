@@ -20,6 +20,7 @@
   "/localization/control_kinematic_state",
   "/localization/acceleration",
   "/localization/initialpose",
+  "/localization/relocation/status",
   "/tf",
   "/tf_static",
   "/clock",
