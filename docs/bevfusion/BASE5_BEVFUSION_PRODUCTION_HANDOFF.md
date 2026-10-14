@@ -92,8 +92,9 @@ bash scripts/runtime/install_base5_production.sh --check-only
 
 2026-10-14 사용자 승인으로 `lidar.launch`와 `morai_udp_interface.launch`의 기본 묶음을 50으로
 변경했다. 이 변경은 우선 `dataset/base5`에 반영하며 planning 브랜치에는 후속 통합이 필요하다.
-2026-10-15 확인 범위는 현재 작업 브랜치와 이 PC 설치본이다. 최신 planning 원격 조회는
-SSH 인증 실패로 확인하지 못했으며, 팀 브랜치 머지·팀 PC 설치 완료를 의미하지 않는다.
+2026-10-15 원격 재조회 기준 planning은 `82321449`이며 50 전환 커밋 `ff24bdb9`를 포함하지 않는다.
+두 launch의 packet count 기본값도 아직 빈 값으로 이전 드라이버 계산을 사용한다.
+현재 작업 브랜치·이 PC 설치본의 50 반영과 팀 브랜치 머지·팀 PC 설치 완료는 별개다.
 팀 PC는 해당 변경 포함 여부와 설치된 launch의 실제 50 기본값을 확인한 뒤 사용한다.
 코드 반영 뒤 `sensor_interface`를 증분 설치하고 기존 UDP/LiDAR 수신기를 종료·재시작해야 한다.
 실행 중 `rosparam set`만으로 이미 초기화된 드라이버의 묶음을 바꾸지 않는다.
