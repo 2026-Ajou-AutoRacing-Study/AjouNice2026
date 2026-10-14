@@ -286,8 +286,19 @@ def _upload_drive_flags(cfg):
 def _upload(cfg, folder, state, case):
     upload = cfg["upload"]
     if not upload.get("enabled", False):
-        atomic_json(folder / 'sharing_audit.json', {'status': 'DISABLED', 'verified': False,
-            'warnings': sharing_warnings(cfg.get('recording', {}), upload)})
+        report = {'status': 'DISABLED', 'verified': False,
+                  'warnings': sharing_warnings(cfg.get('recording', {}), upload)}
+        if diagnostics_enabled(cfg.get('recording', {})):
+            # Manual sharing must receive the same logs/receipts/sanitization.
+            from .sharing import build_bundle
+            try:
+                _, payload, manifest = build_bundle(cfg, folder)
+                report.update(status='READY_FOR_MANUAL_SHARE', payload=str(payload),
+                              warnings=manifest['warnings'],
+                              analysis_available_in_share=manifest['analysis_available_in_share'])
+            except Exception as error:
+                report.update(status='ERROR', error=str(error))
+        atomic_json(folder / 'sharing_audit.json', report)
         return
     state.setdefault("upload_errors", [])
     if not shutil.which("rclone"):

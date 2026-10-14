@@ -50,6 +50,16 @@ class AnalysisSharingTests(unittest.TestCase):
         listing[0]['Hashes'] = {}
         self.assertTrue(sharing.verify_listing(folder, listing))
 
+    def test_manual_analysis_share_also_prepares_logs_and_manifest(self):
+        self.cfg['upload']['enabled'] = False
+        runner._upload(self.cfg, self.folder, {'results': {}, 'upload_errors': []}, SimpleNamespace(name='case'))
+        audit = json.loads((self.folder / 'sharing_audit.json').read_text())
+        self.assertEqual(audit['status'], 'READY_FOR_MANUAL_SHARE')
+        self.assertFalse(audit['verified'])
+        payload = Path(audit['payload'])
+        self.assertTrue((payload / 'stack_logs/commands.json').is_file())
+        self.assertTrue((payload / 'share_manifest.json').is_file())
+
     def test_analysis_warnings_and_nested_planner_timings(self):
         self.assertTrue(sharing.sharing_warnings(self.cfg['recording'], {'profile': 'video'}))
         self.assertFalse(sharing.sharing_warnings(self.cfg['recording'], {'profile': 'bag'}))
