@@ -55,9 +55,15 @@ def audit_bag(path, cfg, *, driving_started=False):
                       if any(re.fullmatch(pattern, topic) for pattern in PLANNER_TIME_PATTERNS)}
     planner_requested = diagnostics_enabled(cfg['recording'])
     planner_complete = any(planner_counts.values())
+    planner_stages = {stage: sum(count for topic, count in planner_counts.items()
+                                if '/' + stage + '/' in topic)
+                      for stage in ('behavior_path_planner', 'motion_velocity_planner')}
+    missing_planner_stages = [stage for stage, count in planner_stages.items() if not count]
     warnings = ['필수 녹화 토픽 누락: ' + ', '.join(missing)] if missing else []
     if planner_requested and not planner_complete:
         warnings.append('planner processing-time 메시지 0개 (미발행 또는 녹화 누락)')
+    elif planner_requested and missing_planner_stages:
+        warnings.append('핵심 planner 계산시간 누락: ' + ', '.join(missing_planner_stages))
     analysis_topics = list(DOWNSTREAM_TIMING) if diagnostics_enabled(cfg['recording']) else []
     if analysis_topics and cfg['stack']['detector'] == 'bevfusion':
         analysis_topics.append(contract['frame_timing'])
@@ -71,13 +77,14 @@ def audit_bag(path, cfg, *, driving_started=False):
             'missing_requested': [t for t in requested if not counts.get(t, 0)],
             'complete_for_drive': driving_started and not missing,
             'complete_for_latency': bool(model_required) and all(counts.get(t, 0) > 0 for t in model_required)
-                                    and not missing_analysis and (not planner_requested or planner_complete),
+                                    and not missing_analysis and (not planner_requested or not missing_planner_stages),
             'complete_for_analysis': diagnostics_enabled(cfg['recording']) and driving_started
-                                    and not missing and not missing_analysis and planner_complete,
+                                    and not missing and not missing_analysis and not missing_planner_stages,
             'missing_analysis_topics': missing_analysis,
             'model_telemetry_topics': model_required,
             'planner_processing_time': {'requested': planner_requested, 'topics': planner_counts,
                                         'message_count': sum(planner_counts.values()),
+                                        'core_stage_counts': planner_stages, 'missing_core_stages': missing_planner_stages,
                                         'recorded': planner_complete},
             're_inference_possible': all(counts.get(t, 0) > 0 for t in SENSORS),
             'clock_recorded': counts.get('/clock', 0) > 0,

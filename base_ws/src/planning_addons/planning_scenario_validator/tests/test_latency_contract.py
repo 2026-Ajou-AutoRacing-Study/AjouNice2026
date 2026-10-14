@@ -111,11 +111,16 @@ class LatencyContractTests(unittest.TestCase):
         topics = CORE + [contract['status'], contract['latency_ms']]
         missing = audit_bag(self.bag(topics), cfg, driving_started=True)
         self.assertEqual(missing['status'], 'WARN')
-        topics += ['/planning/scenario_planning/debug/processing_time_ms',
+        topics += ['/planning/behavior_path_planner/debug/total_time/processing_time_ms',
+                   '/planning/motion_velocity_planner/debug/processing_time_ms',
                    contract['frame_timing']] + options.DOWNSTREAM_TIMING
         actual = audit_bag(self.bag(topics), cfg, driving_started=True)
         self.assertTrue(actual['complete_for_latency'])
-        self.assertEqual(actual['planner_processing_time']['message_count'], 1)
+        self.assertEqual(actual['planner_processing_time']['message_count'], 2)
+        only_selector = audit_bag(self.bag(CORE + [contract['status'], contract['latency_ms'], contract['frame_timing']]
+                                  + options.DOWNSTREAM_TIMING + ['/planning/scenario_selector/debug/processing_time_ms']),
+                                  cfg, driving_started=True)
+        self.assertFalse(only_selector['complete_for_analysis'])
 
     def test_latency_recorder_regex_does_not_capture_raw_sensors_or_all_topics(self):
         options.apply_mode(self.doc, options.LATENCY)
