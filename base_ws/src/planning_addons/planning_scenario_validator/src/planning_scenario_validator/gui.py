@@ -292,6 +292,7 @@ def build_document(template, values):
         if "profile" in upload or enabled or profile != "basic":
             upload["profile"] = profile
     result["resume"] = True
+    bag_options.ensure_video_display(recording)
     return result
 
 
@@ -381,6 +382,9 @@ def operator_document(template, latest, values, include):
         # Older personal files may not have an upload destination yet. Fill the
         # displayed default only when enabling upload, keeping custom paths.
         result.setdefault('upload', {})['rclone_remote'] = DEFAULT_UPLOAD_REMOTE
+    # A video-OFF agent YAML may contain enabled only; the checkbox must also
+    # supply the hidden X11 address, without replacing explicit VSCode settings.
+    bag_options.ensure_video_display(result.get('recording', {}))
     validate_campaign_document(result)
     return result
 

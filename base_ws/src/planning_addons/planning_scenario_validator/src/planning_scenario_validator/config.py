@@ -324,8 +324,9 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError('인지 분석 모드는 include_sensors: true + video.enabled: true가 필요합니다')
     if "minimum_free_disk_gib" in recording:
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
-    from .recording_options import effective_topics, topic_patterns
+    from .recording_options import effective_topics, topic_patterns, ensure_video_display
     try:
+        ensure_video_display(recording)
         recording['topics'] = effective_topics(recording, resolve_path)
         recording['topic_regex'] = topic_patterns(recording)
     except ValueError as error:

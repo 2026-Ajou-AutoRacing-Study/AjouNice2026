@@ -34,6 +34,10 @@ def prepare_execution(source, *, check_install=True):
     if is_snapshot(cfg['path']):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
+    if cfg['recording'].get('video', {}).get('enabled', False):
+        # Freeze the effective host display even for CLI authoring YAMLs that
+        # omit it. Resuming under another DISPLAY must not select a new screen.
+        document['recording']['video']['display'] = cfg['recording']['video']['display']
     root = resolve_path(document.get('output_root', 'planner_logs/validation'))
     root.mkdir(parents=True, exist_ok=True)
     label = cfg['name']

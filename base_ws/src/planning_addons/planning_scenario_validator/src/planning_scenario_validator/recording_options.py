@@ -1,5 +1,6 @@
 """Bag choices independent of screen video and live validation subscriptions."""
 import json
+import os
 from pathlib import Path
 from .topic_contract import PLANNER_TIME_PATTERNS, DOWNSTREAM_TIMING, MODEL_NAMESPACES
 
@@ -17,6 +18,23 @@ SENSORS = ['/sensor/lidar1'] + [
     for camera in ('front', 'front_left', 'front_right', 'back')]
 RECORDING_PATHS = [('recording', key) for key in
                    ('bag_enabled', 'analysis_mode', 'topic_profile', 'include_sensors', 'selected_topics', 'profile_preset')]
+
+
+def ensure_video_display(recording, environ=None):
+    """Resolve a missing X11 address only for enabled screen recording.
+
+    Preserve explicit user addresses and minimal video-OFF documents. New GUI
+    saves/execution snapshots persist the resolved address for later resume.
+    """
+    video = recording.get('video', {})
+    if not isinstance(video, dict):
+        raise ValueError('recording.video는 YAML mapping이어야 합니다')
+    if not video.get('enabled', False):
+        return
+    display = video.get('display')
+    if display is None or (isinstance(display, str) and not display.strip()):
+        environment = os.environ if environ is None else environ
+        video['display'] = str(environment.get('DISPLAY') or '').strip() or ':0'
 
 
 def mode_label(recording):
@@ -54,6 +72,7 @@ def apply_mode(document, label):
     if label == ANALYSIS:
         # Preserve the existing raw-analysis contract. Other modes never change video.
         recording.setdefault('video', {})['enabled'] = True
+        ensure_video_display(recording)
 
 
 def checked_topics(topics):
