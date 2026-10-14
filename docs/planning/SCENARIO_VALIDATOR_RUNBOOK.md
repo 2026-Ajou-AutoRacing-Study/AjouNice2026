@@ -10,6 +10,8 @@ GUI의 **지연 분석 (센서 제외)**와 **인지 분석 (센서+영상)**은
 
 bag ON인 모든 모드에서 종료 후 `recording_audit.json`에 실제 indexed 메시지 수를 기록합니다. `status: WARN`/`missing_required`/`complete_for_latency`를 보며, 주행 PASS/FAIL과 녹화 경고는 분리합니다. GUI 완료 문구와 CSV의 `recording_warning`, `latency_complete`도 별도로 표시합니다. 고의로 제외한 경량/직접 선택 토픽은 기본 모드의 필수 목록을 일괄 강요하지 않습니다.
 
+분석 완료에는 behavior-path와 motion-velocity planner의 계산시간이 각각 필요합니다. selector 같은 보조 노드의 timing만 있는 것을 전체 planner 분석 완료로 보지 않습니다. `planner_processing_time.core_stage_counts`와 `missing_core_stages`로 구분합니다.
+
 이미 실행된 캠페인의 `topic_profile.json`은 당시 목록을 복사한 파일입니다. Git의 기본 프로파일을 업데이트해도 이 사본은 바뀌지 않습니다. 구 사본은 변경하지 않고 누락을 경고하며, 새 목록 적용은 **새 실험 시작**으로 합니다. 녹화되지 않은 과거 latency 메시지는 복원할 수 없습니다. 토픽 계약 메타데이터가 달라진 구 실행은 기존 모델/hash resume 보호를 완화하지 않습니다.
 
 과거 결과를 읽기 전용으로 검사하려면 ROS 환경을 source한 뒤:
