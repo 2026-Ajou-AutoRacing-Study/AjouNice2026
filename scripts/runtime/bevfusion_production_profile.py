@@ -10,10 +10,11 @@ ROOT = Path(__file__).resolve().parents[2]
 PROFILES = {
     'e24': dict(checkpoint='base5_e24_inference.pth',
         sha256='84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746',
-        model_config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py',
+        model_config='perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py',
         bridge_config='configs/perception/bevfusion_base5_production.yaml',
         launch='base5_production.launch', base5=True, parallel=True,
-        thresholds=[.4,.1,.1], sensor='configs/sensors/Sensor_competition_lan.json'),
+        thresholds=[.4,.1,.1], sensor='configs/sensors/Sensor_competition_lan.json',
+        depth_raster_policy='nearest_positive',box_center_output_origin='gravity_center_v1'),
     'e25': dict(checkpoint='base3_bf0_f40_e25_inference.pth',
         sha256='36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011',
         model_config='perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py',

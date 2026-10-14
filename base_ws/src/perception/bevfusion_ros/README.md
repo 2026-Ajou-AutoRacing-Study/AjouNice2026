@@ -47,8 +47,10 @@ raw/prepared queue·server·publish 범위는 [진단 계약](../../../../docs/b
 박스 원점 시험은 calibrated trial의 `box_center_output_origin:=gravity_center_v1`을 선택한다.
 기본은 `legacy_passthrough`이며 원점 metadata가 없는 구 서버는 시험 변환을 거부한다.
 새 서버 raw tensor는 바닥 기준 그대로 보존하고 ROS adapter에서 높이 절반을 한 번만 더한다.
-production 실행기는 자동 적용하지 않는다. 실제 3D TF와 tracker 정지/reset·planner 기억까지
-[출력 중심 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)을 검증한 뒤 사용한다.
+2026-10-14 E24 production은 tagged gravity 변환을 사용하며 generic trial/E9/E25 비교 기본은 legacy로 보존한다.
+[Live 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)의 실제 ROS·fresh tracker 확인을 따르되,
+[출력 중심 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)에 따라
+기존 tracker·planner를 켠 채 Z 기준을 hot-switch하지 않는다. future-Z와 실제 폐루프 검증은 별도다.
 
 기존 Base3 실행 설명과 내부 구현 시점 기록은
 [원문 스냅샷](../../../../docs/perception/legacy/context_261012/README.md)에 보존했다.

@@ -48,7 +48,12 @@ def required_sources(root=ROOT):
                   'base_ws/src/perception/bevfusion_ros/launch/base5_production.launch',
                   'base_ws/src/perception/bevfusion_ros/launch/base3_online.launch'))
     paths.update(('perception/detection3d/bevfusion/__init__.py',
-                  'perception/detection3d/bevfusion/view_geometry.py'))
+                  'perception/detection3d/bevfusion/view_geometry.py',
+                  'perception/detection3d/bevfusion/depth_raster.py',
+                  'base_ws/src/perception/bevfusion_ros/src/bevfusion_ros/box_center_origin.py',
+                  'base_ws/src/sensor_interface/launch/lidar.launch',
+                  'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/models.py',
+                  'base_ws/src/planning_addons/planning_scenario_validator/scripts/run_bevfusion_trial.py'))
     # Registry imports need the plugin modules, not unrelated legacy configs,
     # training experiments or benchmark/test scripts.
     for folder in ('perception/detection3d/bevfusion/plugin', 'docker/bevfusion/app'):
@@ -56,7 +61,7 @@ def required_sources(root=ROOT):
     return sorted(paths)
 
 
-def build(checkpoint, output):
+def build(checkpoint, output, remote_directory='model/bevfusion/production/base5_e24_261013'):
     p = profile('e24')
     if digest(checkpoint) != p['sha256']:
         raise ValueError('Not the selected E24 inference checkpoint')
@@ -67,7 +72,9 @@ def build(checkpoint, output):
                     checkpoint_sha256=p['sha256'], source_files_sha256=sources,
                     runtime=dict(image_dim=[512, 1056], voxel_xy_m=0.05, camera_bev_xy_m=0.20,
                                  depth_step_m=0.25, thresholds=p['thresholds'], amp=True,
-                                 parallel_camera=True, compile_parts=[], point_intensity_source='ros255'))
+                                 parallel_camera=True, compile_parts=[], point_intensity_source='ros255',
+                                 depth_raster_policy=p.get('depth_raster_policy'),
+                                 box_center_output_origin=p.get('box_center_output_origin','legacy_passthrough')))
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         archive.write(checkpoint, WEIGHTS)
@@ -85,7 +92,7 @@ def build(checkpoint, output):
         raise ValueError('Runtime changed while packing; do not publish this bundle')
     descriptor = dict(schema=SCHEMA, model='e24', archive=output.name,
                       archive_sha256=digest(output), archive_bytes=output.stat().st_size,
-                      remote_directory='model/bevfusion/production/base5_e24_261013',
+                      remote_directory=remote_directory,
                       checkpoint_sha256=p['sha256'], checkpoint_bytes=checkpoint.stat().st_size,
                       source_files_sha256=sources)
     print(json.dumps(descriptor, indent=2, sort_keys=True))
@@ -182,9 +189,10 @@ if __name__ == '__main__':
     pack = sub.add_parser('build')
     pack.add_argument('--checkpoint', type=Path, required=True)
     pack.add_argument('--output', type=Path, required=True)
+    pack.add_argument('--remote-directory',default='model/bevfusion/production/base5_e24_261013')
     deploy = sub.add_parser('install')
     deploy.add_argument('--archive', type=Path)
     deploy.add_argument('--remote', default='ajou_drive')
     deploy.add_argument('--check-only', action='store_true')
     args = parser.parse_args()
-    build(args.checkpoint, args.output) if args.action == 'build' else install(args)
+    build(args.checkpoint, args.output,args.remote_directory) if args.action == 'build' else install(args)

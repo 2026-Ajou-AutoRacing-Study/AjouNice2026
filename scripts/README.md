@@ -134,3 +134,13 @@ GPU 추론을, `analyze_lidar_packet_candidates.py`는 동일 operating policy�
 선택적 live LiDAR 비교 인자는 `lidar.launch`의 `npackets`/`cut_angle`과 상위
 `morai_udp_interface.launch`의 `lidar_npackets`/`lidar_cut_angle`이다. default는 이전과
 같고 이 문서 추가만으로 후보 driver를 실행하지 않는다. cut 단위는 라디안이다.
+
+새 정지·보행 후보 비교는 `run_perception_candidate_probe.py --run`으로 실행한다.
+유한 시나리오 사본·Ego 제동·실제 로드 UID·충돌·드리프트·원본 저장을 검사하며 본수집이 아니다.
+`experiment_live_perception_candidates.py`의 prepare/infer와
+`analyze_live_perception_candidates.py`가 같은 입력의 반복·depth hint·C++ association을 대조한다.
+실제 서버는 `check_live_candidate_server_parity.py`, tagged 원점→두 fresh tracker는
+`run_live_box_origin_gate.py`와 `analyze_live_box_origin_gate.py`로 분리한다.
+자동 GT 주행은 `run_lidar_live_policy_campaign.py`이며 첫 안전/주행 실패에서 중단한다.
+현재 적용 결정·실패 원본·실행 범위는 [Live 후보 검토](../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
+기본 LiDAR 정책은 51로 유지하되 재시작 시 driver private namespace의 이전 override만 지운다.

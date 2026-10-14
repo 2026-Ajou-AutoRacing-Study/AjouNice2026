@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -21,6 +22,13 @@ DRIVER = "/lidar/lidar_driver/"
 
 
 class LidarLaunchTrialTests(unittest.TestCase):
+    def test_driver_restart_clears_only_its_private_parameter_namespace(self):
+        document = ET.parse(PACKAGE/'launch/lidar.launch')
+        nodes = {node.attrib['name']: node for node in document.findall('.//node')}
+        self.assertEqual(nodes['lidar_driver'].attrib.get('clear_params'), 'true')
+        self.assertNotIn('clear_params', nodes['lidar_transform'].attrib)
+        self.assertNotIn('clear_params', nodes['lidar_nodelet_manager'].attrib)
+
     @classmethod
     def setUpClass(cls):
         if shutil.which("roslaunch") is None:

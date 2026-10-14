@@ -28,7 +28,8 @@ class ServerOriginTests(unittest.TestCase):
             preprocess_workers=4, warmup_iterations=0, temporal_feature_cache=False,
             temporal_maximum_age_sec=.5, base5_runtime=True, parallel_camera=True,
             point_intensity_source='ros255')
-        model = SimpleNamespace(box_center_origin='lidar_bottom_v1')
+        model = SimpleNamespace(box_center_origin='lidar_bottom_v1',
+            model=SimpleNamespace(view_transform=SimpleNamespace(depth_raster_policy='nearest_positive')))
         factory = Mock(return_value=model)
         with patch.dict(sys.modules, {'app.bevfusion_model': SimpleNamespace(BevFusionModel=factory)}), \
                 patch('app.inference_server.load_sensor4_calibration', return_value={}), \
@@ -36,6 +37,7 @@ class ServerOriginTests(unittest.TestCase):
             server = InferenceServer(args)
         self.assertIs(server.model, model)
         self.assertEqual(server.runtime_identity['box_center_origin'], model.box_center_origin)
+        self.assertEqual(server.runtime_identity['depth_raster_policy'],'nearest_positive')
         self.assertEqual(server.runtime_identity['checkpoint_sha256'], 'sha-weights')
         self.assertEqual(factory.call_args[1]['point_intensity_source'], 'ros255')
 

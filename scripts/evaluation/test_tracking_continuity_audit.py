@@ -136,6 +136,14 @@ class TrackingContinuityAuditTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 scenario_bindings(root/'sample.bag', {'obstacle:2': [([2., 0., 0.], '')]})
 
+    def test_compound_catalog_without_semantic_class_is_not_guessed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scene = dict(pedestrianList=[dict(UNIQUEID=301,DataID=50300018,pos=dict(x=0.,y=0.,z=0.))])
+            (root/'scenario.json').write_text(json.dumps(scene))
+            bindings,_ = scenario_bindings(root/'sample.bag',{'pedestrian:301':[([0.,0.,0.],'')]})
+            self.assertEqual(bindings,{})
+
     def test_nonped_state_check_ignores_only_counter(self):
         a = [dict(stamp=1., tracks=[dict(id=1, core_class=1, center=[0., 0.])])]
         b = [dict(stamp=1., tracks=[dict(id=8, core_class=1, center=[0., 0.])])]

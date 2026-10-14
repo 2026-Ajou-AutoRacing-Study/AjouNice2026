@@ -25,6 +25,7 @@
 | 주제 | 근거 |
 |---|---|
 | 원시 패킷 시간축·보행자 ID 분절·출력 동일 CPU 개선·C++ 전환 gate | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |
+| 새 MORAI 입력의 51/50/cut0·두 사람·복합체·depth hint·출력 원점 대조 | [Live 후보 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md) |
 | Map-CV 관측 적합도·횡이동 후보·별도 bag 회귀·희귀 악화와 출력 동일 계산 최적화 | [50절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014) |
 | 모듈별 예측 경로 소비·고주로/로터리 Top-K·지도와 차선 이력 원형 | [49절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014) |
 | 저신뢰도 갱신의 실제 EKF 코어·초기 검출 한계·위치/속도·부작용 보호 | [48절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013) |

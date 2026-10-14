@@ -16,7 +16,9 @@
     <node pkg="nodelet" type="nodelet" name="lidar_nodelet_manager"
           args="manager" output="screen"/>
 
-    <node pkg="nodelet" type="nodelet" name="lidar_driver"
+    <!-- A restarted driver must not inherit a previous explicit npackets.
+         Clear only this node's private namespace before loading launch params. -->
+    <node pkg="nodelet" type="nodelet" name="lidar_driver" clear_params="true"
           args="load velodyne_driver/DriverNodelet lidar_nodelet_manager">
       <param name="device_ip" value=""/>
       <param name="frame_id" value="$(arg frame_id)"/>

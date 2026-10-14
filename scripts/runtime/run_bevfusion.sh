@@ -35,6 +35,10 @@ fi
 CHECKPOINT="${profile[0]}"
 IMAGE="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
 EXPECTED_SHA256="${profile[1]}"
+health_policy_args=()
+if [[ "$MODEL" == e24 ]]; then
+  health_policy_args=(--require-box-origin-tag --expected-depth-raster-policy nearest_positive)
+fi
 DETECTION_TOPIC="/perception/object_recognition/detection/objects"
 
 export AJOUNICE_ROOT="$ROOT"
@@ -111,7 +115,8 @@ for _ in $(seq 1 60); do
       python3 "$ROOT/docker/bevfusion/scripts/healthcheck.py" --expected-checkpoint "$EXPECTED_SHA256" \
       --expected-base5 "${profile[5]}" \
       --expected-config "$(sha256sum "$ROOT/${profile[2]}" | awk '{print $1}')" \
-      --expected-sensor "$(sha256sum "$SENSOR_CONFIG" | awk '{print $1}')" >/dev/null 2>&1; then
+      --expected-sensor "$(sha256sum "$SENSOR_CONFIG" | awk '{print $1}')" \
+      "${health_policy_args[@]}" >/dev/null 2>&1; then
     ready=true
     break
   fi

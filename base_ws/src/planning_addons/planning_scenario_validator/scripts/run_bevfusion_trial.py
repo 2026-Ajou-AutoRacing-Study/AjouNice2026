@@ -39,6 +39,10 @@ def check_ready(contract):
     identity = metadata.get('runtime_identity', {})
     expected = {'checkpoint_sha256': contract['checkpoint_sha256'], 'config_sha256': contract['model_config_sha256'],
                 'amp': True, 'parallel_camera': True, 'compile_parts': [], 'base5_runtime': True}
+    if contract.get('depth_raster_policy') is not None:
+        expected['depth_raster_policy'] = contract['depth_raster_policy']
+    if contract.get('box_center_output_origin') == 'gravity_center_v1':
+        expected['box_center_origin'] = 'lidar_bottom_v1'
     if any(identity.get(k) != v for k, v in expected.items()):
         raise RuntimeError('Base5 서버 모델/config/runtime 불일치: {}'.format(identity))
     if (metadata.get('point_intensity_source') != 'ros255' or metadata.get('classes') != ['vehicle', 'pedestrian', 'obstacle']

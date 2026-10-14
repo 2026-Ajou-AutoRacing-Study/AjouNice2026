@@ -3,6 +3,11 @@
 상태: **CURRENT**
 마지막 문서·launch 대조: 2026-10-14. 아래 9월 bag 실측은 당시 이력이다.
 현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
+E24 현재 detection pose는 2026-10-14부터 geometric/gravity center다.
+원래 tensor의 bottom center와 혼합하지 않으며 detector·tracker·planner를 정지한 뒤
+새 stack으로 시작한다. [실제 ROS 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
+Map-CV 차량 future의 기존 road-Z 수렴은 별도 정책이며 새 중심의 높이 offset을 끝까지
+보존한다고 인증하지 않는다. Association·coasting·경로 순위는 이번 변경으로 바꾸지 않았다.
 
 ## Production 계약
 

@@ -180,7 +180,7 @@ def scenario_bindings(path, observed):
             identity = int(obj['UNIQUEID']); key = '{}:{}'.format(cls, identity)
             samples = observed.get(key, [])
             asset = assets.get(int(obj['DataID']))
-            if not samples or not asset or asset['semantic_class'].lower() != cls:
+            if not samples or not asset or (asset.get('semantic_class') or '').lower() != cls:
                 continue
             if any(name and name != asset['name'] for _, name in samples):
                 raise ValueError('Recorded asset name contradicts companion scenario: '+key)

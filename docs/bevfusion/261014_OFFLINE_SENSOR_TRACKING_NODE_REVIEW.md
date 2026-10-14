@@ -4,6 +4,9 @@
 MORAI를 끈 상태에서 저장된 입력으로 원인을 분리했다. 출력이 정확히 같은 후단 계산 최적화는
 소스에 반영하고, 검출·association·센서 시각 후보는 운영 기본값과 분리한다.
 E24 가중치, threshold, coasting, 지도 경로 선택, 기존 5K와 v150 release는 유지한다.
+이 문서의 미적용 상태는 오프라인 완료 시점 이력이다. 후속
+[Live 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)에서 nearest hint와 E24 현재 박스 중심은
+반영했고, 사람 ranking·50/cut0는 보류했다. 현재 실행은 [CURRENT](CURRENT.md)를 따른다.
 실제 배포 기준은 [모델 CURRENT](CURRENT.md)와
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)가 관리한다.
 

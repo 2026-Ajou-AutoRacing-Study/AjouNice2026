@@ -11,6 +11,8 @@ from .topic_contract import DETECTION, model_topics, validate_trial_remaps
 E25_SHA = '36816cf769c87d49483d002111abfad8e1afd043afd74a0b9fc54aac82133011'
 BASE5_CONFIG = 'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_pedestrian_merged_runtime.py'
 BASE5_CONFIG_GRAPH_SHA = '88ac69c228daae7b8c7a96a97e412c51d9694e2ef6207093bab9e880dea479e4'
+BASE5_E24_CONFIG = 'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py'
+BASE5_E24_CONFIG_GRAPH_SHA = '11740c454919dd3c369d014997673380ab65d4908990c1ae2c5f203da44f3d33'
 PRESETS = {
     'base5_e24': {'label': 'Base5 E24 production',
                   'sha256': '84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746',
@@ -92,14 +94,15 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
     else:
         checkpoint = (Path.home() / 'bevfusion_artifacts/checkpoints/base5_e24_inference.pth' if name == 'base5_e24'
                       else root / 'artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/checkpoints/E9.pth')
-        model_config = root / BASE5_CONFIG
+        model_config = root / (BASE5_E24_CONFIG if name == 'base5_e24' else BASE5_CONFIG)
         runtime_config = root / 'configs/perception/bevfusion_base5_trial.yaml'
         amp = True
     checkpoint = checkpoint.expanduser().resolve()
     if not model_config.is_absolute():
         model_config = root / model_config
     graph = config_graph(model_config, root)
-    if name != 'e25' and fingerprint(graph) != BASE5_CONFIG_GRAPH_SHA:
+    expected_graph = BASE5_E24_CONFIG_GRAPH_SHA if name == 'base5_e24' else BASE5_CONFIG_GRAPH_SHA
+    if name != 'e25' and fingerprint(graph) != expected_graph:
         raise ValueError('Base5 checkpoint/config 계약 불일치: 상속 config hash가 검증본과 다릅니다')
     actual_sha = sha256(checkpoint) if checkpoint.is_file() else None
     if (require_assets and actual_sha is None) or (actual_sha is not None and actual_sha != preset['sha256']):
@@ -146,6 +149,8 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         'thresholds': dict(zip(('vehicle', 'pedestrian', 'obstacle'), preset['thresholds'])),
         'nms': {'enabled': True, 'class_aware': True, 'rotated_bev_iou_threshold': 0.5},
         'amp': amp, 'parallel_camera': name != 'e25', 'compile_parts': [],
+        'depth_raster_policy': 'nearest_positive' if name == 'base5_e24' else None,
+        'box_center_output_origin': 'gravity_center_v1' if name == 'base5_e24' else 'legacy_passthrough',
         'temporal': False, 'detector_velocity': False,
         'point_intensity_source': 'ros255' if name != 'e25' else 'production_raw',
         'image_encoding': 'compressed_native_jpeg' if name != 'e25' else 'production_rgb8',
@@ -194,4 +199,5 @@ def trial_commands(contract, root, container_name):
               'sensor_config:=' + contract['sensor_config'], 'config:=' + contract['runtime_config'],
               'output_objects:=' + model_topics(contract['preset'])['detection']]
     bridge += ['{}_score_threshold:={}'.format(name, value) for name, value in contract['thresholds'].items()]
+    bridge += ['box_center_output_origin:=' + contract.get('box_center_output_origin','legacy_passthrough')]
     return command, bridge

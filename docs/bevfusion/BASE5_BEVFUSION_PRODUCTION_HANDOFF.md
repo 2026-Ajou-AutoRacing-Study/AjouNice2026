@@ -4,6 +4,8 @@
 이는 실제 대회용 4090 24GB의 ROS 입력·LAN·풀스택 안전 검증 완료를 뜻하지 않는다.
 팀 공유 브랜치는 `planning/autoware-universe-to-ros1`이다. 이번 전달은 최신 planning 변경을
 보존한 통합 코드와 E24 설치기를 함께 사용한다. 가중치만 바꾸고 E25 입력 설정을 유지하면 안 된다.
+2026-10-14 nearest·중심 보완은 `dataset/base5`에서 검증·반영했다. 공유 planning 브랜치에
+해당 변경을 통합하기 전에는 아래의 새 계약이 그 브랜치에도 배포됐다고 가정하지 않는다.
 
 ## 고정 실행 계약
 
@@ -15,13 +17,14 @@
 | 클래스와 threshold | Vehicle/Pedestrian/Obstacle, 0.40/0.10/0.10 |
 | 모델 | 512×1056, 5cm/20cm, depth 0.25m, single-frame 7D |
 | 입력 | 원본 JPEG, 원본 XYZI 0–255를 서버에서 정확히 한 번 ÷255 |
-| 추론 | AMP·camera 병렬화 ON, compile OFF |
+| 추론 | AMP·camera 병렬화·nearest depth hint ON, compile OFF |
 | 센서 기본 | `Sensor_competition_lan.json`, 실행 인자로 local/다른 실제 센서 JSON 지정 가능 |
-| 출력과 후처리 | canonical detection topic, class-aware rotated BEV NMS 0.50 |
+| 출력과 후처리 | tagged bottom→gravity center 변환 한 번, canonical detection topic, class-aware rotated BEV NMS 0.50 |
 | 후단 | 기존 tracking → UNKNOWN stationary policy → Map-CV. 이번 승격만으로 tracker/planner 제약을 완화하지 않음 |
 
 `bevfusion_production_profile.py`가 checkpoint·모델 config·bridge config·launch를 함께 선택한다.
-서버 health는 weights·모델 config·센서 SHA와 Base5·AMP·병렬화·compile·클래스·입력 계약을 검사한다.
+서버 health는 weights·모델 config·센서 SHA와 Base5·AMP·병렬화·compile·클래스·입력 계약,
+명시적인 바닥 원점 태그와 nearest policy를 검사한다.
 기존 서비스나 canonical detector publisher가 있으면 실행을 거부한다. launch만으로 GPU 서버가 준비되는 것은 아니다.
 인자 없는 역사적 Compose 명령은 E25 호환 기본값을 유지한다. E24는 `bevfusion` 실행기로
 weights·서버 옵션·센서·bridge를 함께 선택하며 Compose만 따로 켜서 두 계약을 섞지 않는다.
@@ -41,24 +44,27 @@ bash scripts/runtime/install_base5_production.sh
 
 `ajou_drive` remote와 팀 공유 폴더 접근 권한이 필요하다. 다른 remote 이름이면
 `--remote 이름`을 추가한다. 설치기는 다음 작업을 수행하며 MORAI·ROS 노드·주행을 시작하지 않는다.
+공용 OAuth 앱의 403 요청 제한이 있으면 본인이 구성한 전용 클라이언트 remote를 사용한다.
+이 PC의 예는 `--remote ajou_drive_private`이며 다른 사람의 token을 공유하는 방법이 아니다.
 
 1. 필요한 tracker와 MMDetection3D submodule을 현재 Git revision에 맞춘다. 개인 수정이 있으면 중단한다.
 2. Drive ZIP을 다운로드하고 크기·SHA256·압축 내부 파일·현재 runtime 소스를 검사한다.
 3. 가중치만 `~/bevfusion_artifacts/checkpoints/base5_e24_inference.pth`에 원자적으로 설치한다.
 4. 기존 Docker의 모듈 import와 작은 CUDA 연산을 확인한다.
-5. `autoware_launch`, `perception_object_pipeline`, `ekf_multi_object_tracking`, `bevfusion_ros`,
+5. `autoware_launch`, `sensor_interface`, `perception_object_pipeline`, `ekf_multi_object_tracking`, `bevfusion_ros`,
    `planning_scenario_validator`를 증분 빌드한다. 전체 clean이나 드라이버 재설치는 하지 않는다.
 
 기존 가중치의 SHA가 맞으면 다운로드하지 않는다. 다른 파일은 자동 덮어쓰지 않는다.
 정상 ZIP은 `~/bevfusion_artifacts/downloads`에 재사용하며 토큰은 각 PC의 rclone 설정에만 둔다.
 
-전달 ZIP은 `model/bevfusion/production/base5_e24_261013/ajounice_base5_e24_production_261013_runtime.zip`이며
-449,655,082 bytes, 약 429MiB다. SHA256은
-`446fb95d9cf5a518e3f28ea02555f79ece6f5ecd5c60a92e2be1f1f7c4dadac7`이다.
-[공유 Drive에서 ZIP 받기](https://drive.google.com/file/d/1_PSBmQlEHbk_c6c16mgwnL4-0V_382ho/view).
+현재 전달 ZIP은 `model/bevfusion/production/base5_e24_261014_runtime/ajounice_base5_e24_production_261014_runtime.zip`이며
+449,672,125 bytes, 약 429MiB다. SHA256은
+`8ea9ae4378f0e74f19b60db0d5265bc64f1768e32784907979507977dcb35e63`이다.
+[공유 Drive에서 ZIP 받기](https://drive.google.com/file/d/1CjhtS9tbXyLH1Z_FisDlUEWrpRKtFqhk/view).
+10월 13일 ZIP은 이전 코드 재현용으로 보존하며 새 checkout 설치에 혼용하지 않는다.
 가중치·검증 manifest·README·현재 runtime과 상속 config의 참고 사본만 포함한다.
 `reference/`는 비교용이며 checkout에 덮어쓰지 않는다. 데이터셋·optimizer·인증 정보·Docker 이미지는 없다.
-원본 `E24.pth`도 같은 Drive 폴더에 보존했다.
+가중치 자체는 변경하지 않았다. 구 폴더의 원본 `E24.pth`도 보존했다.
 
 ZIP을 브라우저로 받았다면 같은 설치기에 경로만 넘긴다.
 
@@ -78,6 +84,11 @@ bash scripts/runtime/install_base5_production.sh --check-only
 기존 `setup_bevfusion_inference.sh`는 E25 archive도 준비하는 호환 설치기이며 E24 설치 완료로 해석하지 않는다.
 
 ## 실행과 복귀
+
+2026-10-14 현재 박스 원점이 수정됐다. 기존 detector·tracker·planner를 모두 정지하고
+새 stack으로 시작한다. 실행 중인 track/planner memory에 새 중심 기준을 hot-switch하지 않는다.
+이 변경은 실제 MORAI 에셋 높이·수집 GT·가중치 변경이 아니다.
+[Live 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)에 반복성·실제 ROS·future-Z의 범위를 구분했다.
 
 기존 sensor/TF/localization 터미널을 준비하고 실행한다. 동일 canonical topic에 detector를 두 개 띄우지 않는다.
 
