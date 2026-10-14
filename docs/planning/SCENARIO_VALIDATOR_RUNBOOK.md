@@ -128,6 +128,8 @@ YAML 하나의 목적지·시간·스택은 모든 장면에 공통입니다. �
 
 공유되는 장면 폴더에는 `share_manifest.json`, `stack_logs/`(명령 포함), `execution/`(YAML·모델 설정·프로세스 receipt), `actual_model_receipt.json`, `configs/`(실제 센서·모델 config), 시나리오·결과·녹화 audit가 함께 들어갑니다. 체크포인트 자체는 복사하지 않으며 경로·SHA를 기록합니다. 알려진 자격증명 key/header는 제거하고 `.env`, rclone 인증 파일, credential 파일·symlink는 공유하지 않습니다. 원본 bag·영상은 그대로이며 임의로 인증정보를 ROS 토픽에 발행한 경우까지 내용 제거를 보장하는 기능은 아닙니다.
 
+자동 업로드를 끈 분석 실행도 `share_payload/<분류>/<장면>/`에 같은 공유용 묶음을 준비합니다. 수동 업로드·압축은 **이 폴더**로 하세요. `READY_FOR_MANUAL_SHARE`는 준비 완료일 뿐 업로드 완료가 아닙니다.
+
 **주행 PASS ≠ 녹화 완전 ≠ 분석 가능 ≠ 공유 완료**입니다. `recording_audit.json`의 실제 메시지 수·`complete_for_analysis`, `share_manifest.json`의 `analysis_available_in_share`, `sharing_audit.json`의 `verified`를 따로 보세요. rclone 복사 종료 코드만으로 완료하지 않고 실제 업로드 파일의 크기·MD5/SHA256을 대조합니다. 원격이 hash를 제공하지 않으면 검증 완료로 표시하지 않습니다. 공유용 staging은 `share_payload/`에 두며 bag은 가능하면 hard link로 중복 용량을 피합니다. 로그는 장면 종료 시점까지의 스냅샷입니다.
 
 ```text
