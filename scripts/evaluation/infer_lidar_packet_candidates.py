@@ -26,6 +26,14 @@ def nearest_received(rows, stamp, available, tolerance=.05):
 
 
 def drive_window(path, messages):
+    # Bounded raw QA uses its own controller, not validator mission events.
+    # Keep the real moving interval; do not substitute a failed full mission.
+    motion_path = path.parent / 'motion_trace.json'
+    if motion_path.exists():
+        moving = [r['time'] for r in json.loads(motion_path.read_text()) if r['speed'] > .3]
+        if len(moving) < 10:
+            raise ValueError('Insufficient moving interval')
+        return min(moving)+.2, max(moving)-.2
     events_path = path.parent / "events.jsonl"
     if events_path.exists():
         events = [json.loads(line) for line in events_path.read_text().splitlines() if line]
@@ -157,8 +165,8 @@ def infer(args):
 
     torch.set_num_threads(2)
     cv2.setNumThreads(1)
-    args.output.mkdir(parents=True, exist_ok=False)
     metadata = json.loads(args.inputs.read_text())
+    args.output.mkdir(parents=True, exist_ok=False)
     calibration = load_sensor4_calibration(args.sensor, ["camera_" + camera for camera in CAMERAS])
     model = BevFusionModel(str(args.config), str(args.checkpoint), calibration,
                            use_amp=True, preprocess_workers=4, warmup_iterations=2,

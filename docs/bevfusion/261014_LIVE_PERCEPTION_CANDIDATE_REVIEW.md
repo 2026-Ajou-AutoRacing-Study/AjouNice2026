@@ -1,6 +1,8 @@
 # 2026-10-14 인지 후보 live 검토
 
-상태: EVIDENCE — 검토·반영 완료, 2026-10-14. 현재 운영 계약은 [CURRENT](CURRENT.md)를 따른다.
+상태: EVIDENCE — 1차 검토·반영, 2026-10-14. 보행자 순위 적용과 저속 이동의 후속은
+[연결·이동 비교](261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)에 기록했다.
+현재 운영 계약은 [CURRENT](CURRENT.md)를 따른다.
 이 문서는 [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)의 미적용 후보를
 새 MORAI 입력으로 확인한 근거다. 단순히 옵션을 구현한 것을 승격으로 해석하지 않는다.
 
@@ -144,8 +146,9 @@ GT를 바꾸어 맡는 후보는 0이었다. 모든 사람이 하나로 합쳐�
 반려동물 동반 장면의 작은 높이 박스가 존재한 프레임은 238→224/374장으로 줄었다.
 작은 박스 중복은 28→10장, 큰 박스 중복은 138→0장으로 줄고 큰 박스 존재는 372장으로
 같다. native component GT가 없으므로 작은 박스 14장의 감소를 단순 중복 제거 또는
-정상 반려동물 누락으로 확정할 수 없다. 따라서 ranking은 연구 후보로 보존하고 기본
-적용하지 않는다. 수·중복 감소만 보고 자산을 합치거나 lifetime을 늘리지 않는다.
+정상 반려동물 누락으로 확정할 수 없다. 1차 판단은 보류였으나 후속에서 일반 사람의
+정상 대응·실제 ROS·OFF 복귀를 검증하고 순위만 운영 적용했다. 복합체는 별도 관측한다.
+수·중복 감소만 보고 자산을 합치거나 lifetime을 늘리지 않는다.
 
 ## 실제 ROS 원점과 운영 진입점
 
@@ -188,8 +191,8 @@ hot-switch하지 않고 detector·tracker·planner를 정지한 뒤 새 stack으
 | driver 파라미터 잔류 | 수정 반영 | 팀장님 checkout·installed launch 반영 |
 | nearest depth hint | E24 production 반영 | 팀장님 4090 새 실행·폐루프 확인 |
 | gravity-center ROS 출력 | E24 현재 박스에 반영 | fresh stack 필수, future-Z·실전 planner 검증 별도 |
-| pedestrian Gaussian ranking | 효과 확인, 기본 보류 | 반려동물 component 누락 여부·독립 주행 |
-| fixed50/cut0 | 입력 지연 개선 실측, 기본은 보류 | 실제 주행·검출·추적을 별도 대조 |
+| pedestrian Gaussian ranking | 후속 검증 뒤 운영 ON | 복합체 별도 관측·팀장님 fresh 전체 주행 |
+| fixed50/cut0 | 저속 이동 후속 확인, 기본은 보류 | 고속·LAN·실제 시간 정합을 별도 대조 |
 | E24 obstacle proposal peak 변경 | 기존 기각 유지 | 기존 native TP479→369/368 회귀를 뒤집을 근거 없음 |
 
 임계값·긴 coasting·컴파일·학습 grid·dataset quota를 이 시험에 묶어 바꾸지 않는다.

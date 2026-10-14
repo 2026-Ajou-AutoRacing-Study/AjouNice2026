@@ -37,6 +37,8 @@
   <arg name="confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
   <arg name="lifecycle_stationary_speed_threshold_mps" default="2.0"/>
   <arg name="suppress_duplicate_track_birth" default="true"/>
+  <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
+  <arg name="pedestrian_gaussian_association_ranking" default="true"/>
   <arg name="fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
@@ -197,6 +199,8 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="pedestrian_gaussian_association_ranking"
+         value="$(arg pedestrian_gaussian_association_ranking)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
     <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>

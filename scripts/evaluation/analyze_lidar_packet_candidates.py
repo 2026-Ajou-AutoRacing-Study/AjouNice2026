@@ -73,10 +73,14 @@ def catalog_series(bag, case):
     from tracking_prediction_evaluation.trajectory import read_morai_trajectories
     from tracking_prediction_evaluation.bbox_reference import transform_segments_to_asset_catalog_bbox_center
     names = {}
-    if case == 0:
-        # Explicit companion scenario evidence, never infer nonvehicle from size.
+    companion = bag.parent/'scenario.json'
+    if not companion.exists() and case == 0:
+        companion = bag.parents[2]/'static_loaded_scenario.json'
+    if companion.exists():
+        # Use explicit scene evidence, not the caller's numeric case index.
+        # Short moving probes can also be case 0; they are not static scenes.
         sidecar = ROOT/'configs/scenario/perception_benchmark/bench_static_obstacle_base3_assets_raw.audit.json'
-        scene = json.loads((bag.parents[2]/'static_loaded_scenario.json').read_text())
+        scene = json.loads(companion.read_text())
         by_data = {int(o['data_id']): o for o in json.loads(sidecar.read_text())['objects']}
         for obj in scene['objectList']:
             item = by_data.get(int(obj['DataID']))

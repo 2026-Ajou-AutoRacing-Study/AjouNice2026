@@ -137,7 +137,15 @@ def build_original(output, params, policy=None):
     header = TRACKER/'include/algorithm/ekf_multi_object_tracking.hpp'
     original = {str(p): sha(p) for p in (source, header)}
     policy = policy or {}
+    if 'gaussian_xy_ranking' in policy and policy['gaussian_xy_ranking'] not in ('pedestrian', 'all'):
+        raise ValueError('Unknown Gaussian ranking scope')
     header_text = header.read_text()
+    # Current core exposes the qualified candidate as a runtime option. Always
+    # pin this audit's baseline OFF, independently of deployed YAML defaults.
+    params = dict(params)
+    native_gaussian = 'bool pedestrian_gaussian_association_ranking{' in header_text
+    if native_gaussian:
+        params['pedestrian_gaussian_association_ranking'] = policy.get('gaussian_xy_ranking') in ('pedestrian', 'all')
     fields = set(re.findall(r'^\s+(?:bool|double|int)\s+(\w+)\s*(?:\{|=)', header_text, re.M))
     settings = []
     for key, value in params.items():
@@ -199,7 +207,12 @@ def build_original(output, params, policy=None):
                      '                all_tracks_[track_idx].getRepClass() == mc_mot::ObjectClass::PEDESTRIAN && maha_distance < 1000.)\n'
                      '                maha_distance += '+str(policy['confirmed_pedestrian_cost_bias'])+';\n')
             substitute('            cost_matrix(meas_idx, track_idx) = maha_distance;', extra+'            cost_matrix(meas_idx, track_idx) = maha_distance;')
-        if 'gaussian_xy_ranking' in policy:
+        if native_gaussian and policy.get('gaussian_xy_ranking') == 'all':
+            # Research-only all-class comparison; never a deployment option.
+            substitute('                if (measurements.meas[meas_idx].classification == mc_mot::ObjectClass::PEDESTRIAN &&\n'
+                       '                    all_tracks_[track_idx].is_init && maha_distance < config_.max_association_dist_m) {',
+                       '                if (all_tracks_[track_idx].is_init && maha_distance < config_.max_association_dist_m) {')
+        if 'gaussian_xy_ranking' in policy and not native_gaussian:
             mode = policy['gaussian_xy_ranking']
             if mode not in ('pedestrian', 'all'):
                 raise ValueError('Unknown Gaussian ranking scope')

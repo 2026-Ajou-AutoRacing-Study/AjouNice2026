@@ -160,7 +160,7 @@ def infer(args):
     transform = model.model.view_transform
     nearest = transform.forward
     legacy = MoraiSeparatedRectangularDepthLSSTransform.forward.__get__(transform,type(transform))
-    modes = ('legacy_A','legacy_B','nearest_A','nearest_B')
+    modes = tuple(args.modes)
     buffers = {mode:[] for mode in modes}
     try:
         for index,row in enumerate(inputs['rows']):
@@ -200,5 +200,7 @@ if __name__=='__main__':
     p=commands.add_parser('infer')
     for key in ('inputs','output','sensor','config','checkpoint'):
         p.add_argument('--'+key,type=Path,required=True)
+    p.add_argument('--modes',nargs='+',choices=('legacy_A','legacy_B','nearest_A','nearest_B'),
+                   default=('legacy_A','legacy_B','nearest_A','nearest_B'))
     args=parser.parse_args()
     {'prepare':prepare,'infer':infer}[args.command](args)

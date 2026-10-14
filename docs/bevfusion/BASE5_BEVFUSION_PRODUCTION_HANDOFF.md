@@ -20,7 +20,7 @@
 | 추론 | AMP·camera 병렬화·nearest depth hint ON, compile OFF |
 | 센서 기본 | `Sensor_competition_lan.json`, 실행 인자로 local/다른 실제 센서 JSON 지정 가능 |
 | 출력과 후처리 | tagged bottom→gravity center 변환 한 번, canonical detection topic, class-aware rotated BEV NMS 0.50 |
-| 후단 | 기존 tracking → UNKNOWN stationary policy → Map-CV. 이번 승격만으로 tracker/planner 제약을 완화하지 않음 |
+| 후단 | pedestrian Gaussian 순위 ON → UNKNOWN stationary policy → Map-CV. gate·수명·planning 정책 유지 |
 
 `bevfusion_production_profile.py`가 checkpoint·모델 config·bridge config·launch를 함께 선택한다.
 서버 health는 weights·모델 config·센서 SHA와 Base5·AMP·병렬화·compile·클래스·입력 계약,
@@ -105,6 +105,13 @@ bevfusion "$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json"
 
 sensor JSON은 서버와 bridge에 같은 파일로 전달된다. 기본값이 LAN이라도 시뮬레이터 UI의 IP를
 자동으로 바꾸지는 않는다. `tracking`·planning은 기존 순서로 실행하며 `start_detector:=false`를 유지한다.
+
+보행자 순위 후속은 tracker submodule `1cdf0a9`와 새 object pipeline launch를 함께 사용한다.
+기존 E24 ZIP·가중치를 다시 내려받을 필요는 없고 installer의 Git/submodule 증분 빌드가 필요하다.
+시작 로그의 `pedestrian_gaussian_rank=1`을 확인한다. 독립 비교·복귀는
+`tracking pedestrian_gaussian_association_ranking:=false`이며 기존 노드를 종료한 뒤 실행한다.
+Tracker 옵션은 detector 모델 선택과 독립적이므로 E25 가중치로 복귀하는 것만으로 이 순위가 OFF되지는 않는다.
+이 변경도 공유 planning 브랜치에 통합하기 전에는 팀장님 PC에 적용됐다고 가정하지 않는다.
 
 E25로 복귀하려면 현재 detector 터미널을 먼저 종료한 뒤 다음을 실행한다.
 

@@ -7,7 +7,8 @@ E24 현재 detection pose는 2026-10-14부터 geometric/gravity center다.
 원래 tensor의 bottom center와 혼합하지 않으며 detector·tracker·planner를 정지한 뒤
 새 stack으로 시작한다. [실제 ROS 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
 Map-CV 차량 future의 기존 road-Z 수렴은 별도 정책이며 새 중심의 높이 offset을 끝까지
-보존한다고 인증하지 않는다. Association·coasting·경로 순위는 이번 변경으로 바꾸지 않았다.
+보존한다고 인증하지 않는다. Coasting·경로 순위는 유지한다. 보행자 association 순위만
+아래 후속 검증을 거쳐 변경했으며 허용 범위와 생성·삭제는 유지한다.
 
 ## Production 계약
 
@@ -31,6 +32,15 @@ BEVFusion Base5 E24 DetectedObjects
 | World frame | `map` |
 
 ## Tracker
+
+- 운영 object pipeline은 `pedestrian_gaussian_association_ranking=true`다. 기존 gate를 통과한
+  pedestrian 후보만 Gaussian XY 순위로 정렬한다. 차량·UNKNOWN 비용과 pedestrian 2m 제한,
+  확인·birth·coasting은 그대로다. generic core/standalone launch 기본은 OFF다.
+  [후속 근거](../../../../docs/bevfusion/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)의
+  새 두 사람·실제 ROS·완주 bag에서 사람 대응을 유지하고 ID 교체를 줄였다. 반려동물 동반
+  객체는 별도 관측하며 작은 박스 감소를 정상 구성 객체 누락/중복 제거로 확정하지 않는다.
+  `tracking pedestrian_gaussian_association_ranking:=false` 또는 wrapper의
+  `tracker_pedestrian_gaussian_association_ranking:=false`로 복귀한다. fresh tracker로 비교한다.
 
 - Production ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
   적용한다. Barricade duplicate가 unmatched detection으로 남아 새 ID를 만드는 현상을
@@ -137,7 +147,8 @@ bag SHA256은 `15698fa7c6ec264775c3b0e004980ad46a70cdf057f15e344416a7fd06dfb4d8`
 - 같은 Man1에 낮은-IoU 중복 UUID가 붙은 50/4,870프레임과 5개 ID 분절을 확인했다.
   원본 코어에서 중복 검출 birth→관측 경쟁→기존 ID coasting 만료를 재현했다. 가까운 두
   사람을 합칠 반례 때문에 threshold/guard를 강화하지 않는다. association 후보는
-  [별도 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#tracking)이며 production은 미변경이다.
+  [당시 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#tracking) 후
+  위 연결 순위만 후속 적용했다. 해당 과거 bag의 기록 자체는 변경하지 않았다.
 - 고정한 lane-history 후보는 3초 조건부 위치 오차 평균 `4.625 -> 4.623 m`로 거의
   같고, 변경된 30표본 중 5m 초과 개선 12·악화 9였다. 새 bag으로 재튜닝하지 않았으며
   기존 운영 미적용 결론을 유지한다. 원거리 저점수 갱신 후보는 raw 센서/저점수 검출이
