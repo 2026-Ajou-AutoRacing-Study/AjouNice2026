@@ -165,6 +165,14 @@ class LatencyContractTests(unittest.TestCase):
                     record.return_value.stop.return_value = (path, None)
                     result = runner._run_case(cfg, processes, monitor, case, state)
                 self.assertEqual(result['status'], 'PASS')
+                launches = processes.start.call_args_list
+                self.assertEqual([call.args[0] for call in launches], ['udp_control', 'controller'])
+                control_command = launches[0].args[1]
+                for argument in ('enable_sensors:=false', 'enable_lidar:=false',
+                                 'enable_ego_network:=false', 'enable_control:=true'):
+                    self.assertIn(argument, control_command)
+                stops = [call.args[0] for call in processes.stop.call_args_list]
+                self.assertLess(stops.index('controller'), stops.index('udp_control'))
                 self.assertEqual(result['reason'], 'SUCCESS')
                 self.assertTrue(result['recording_audit']['driving_started'])
                 self.assertEqual(result['recording_audit']['status'], 'WARN' if missing else 'OK')
@@ -174,6 +182,42 @@ class LatencyContractTests(unittest.TestCase):
                 self.assertEqual(row['recording_warning'], str(missing))
                 label = gui.completion_label(0, state)
                 self.assertEqual('녹화 경고' in label, missing)
+
+    def test_persistent_receivers_never_enable_drive_sender(self):
+        cfg = self.cfg()
+        processes, monitor = Mock(), Mock()
+        monitor.wait.side_effect = runner.RuntimeFailure('stop after sensor startup')
+        with self.assertRaises(runner.RuntimeFailure):
+            runner._start_persistent(cfg, processes, monitor)
+        launches = processes.start.call_args_list
+        self.assertEqual([call.args[0] for call in launches], ['udp', 'sensing'])
+        self.assertIn('enable_control:=false', launches[0].args[1])
+
+    def test_route_failure_never_starts_control_transport_or_controller(self):
+        cfg = self.cfg()
+        cfg['recording']['bag_enabled'] = False
+        cfg['output'].mkdir(parents=True)
+        state = runner._load_state(cfg, False)
+        case = cfg['cases'][0]
+        processes, monitor = Mock(), Mock()
+        processes.log_dir = self.root / 'stack_logs'
+        processes.log_dir.mkdir()
+        processes.env = dict(os.environ)
+        processes.running = {'planning': Mock(), 'bevfusion': Mock()}
+        monitor.begin_case.side_effect = lambda path: Path(path).touch()
+        monitor.drive_evidence.return_value = {}
+        monitor.drive_started_at = None
+        monitor.collision_count, monitor.goal_min, monitor.max_speed = 0, float('inf'), 0
+        with patch.object(runner, 'prepare_scenario', return_value=(case.source, (0, 0))), \
+             patch.object(runner, 'BrakeHold'), patch.object(runner, '_load_scene'), \
+             patch.object(runner, '_start_case_stack'), patch.object(runner, 'publish_brake'), \
+             patch.object(runner, 'request_route', side_effect=runner.ScenarioFailure('NO_TRAJECTORY', 'fixture')), \
+             patch.object(runner.subprocess, 'run'), \
+             patch.object(runner.subprocess, 'check_output', return_value='test-sha'):
+            result = runner._run_case(cfg, processes, monitor, case, state)
+        self.assertEqual(result['reason'], 'NO_TRAJECTORY')
+        processes.start.assert_not_called()
+        monitor.start_driving.assert_not_called()
 
 
 if __name__ == '__main__':

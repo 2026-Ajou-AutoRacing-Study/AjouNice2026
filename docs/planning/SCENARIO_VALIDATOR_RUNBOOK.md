@@ -65,6 +65,8 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 
 수동으로 켜놓은 udp·측위·인지·planning·제어 터미널은 먼저 종료해 주세요. 검증기가 스택을 켜고 끕니다. MORAI 자체는 켜둡니다. GUI의 `연결 JSON 경로 복사`로 정확한 파일 경로를 확인할 수 있습니다.
 
+시작 순서는 센서 수신 → 인지·측위·planning 준비 → route와 첫 trajectory 확인 → UDP 제어 송신기 연결·브레이크 전달 → 제어기입니다. 센서 수신 단계에서는 `enable_control:=false`로 두어 준비용 브레이크가 MORAI 기어를 D로 바꾸지 않게 합니다. 경로 준비에 실패하면 제어 송신기·제어기를 시작하지 않습니다. 각 시나리오 종료 시 제어기를 끄고 브레이크를 전달한 뒤 제어 송신기도 종료합니다. 별도로 실행한 제어 송신기가 있으면 이 순서를 보장할 수 없으므로 반드시 종료하세요.
+
 ## 2. 내 YAML 준비하기
 
 **일상 옵션은 GUI에서 수정·저장하고, 회색 고정값만 VSCode에서 수정합니다.**
