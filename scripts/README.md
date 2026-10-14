@@ -114,10 +114,12 @@ Base5 trial의 `frame_timing`을 recorder가 모두 요청한다. 기존 latency
 
 ## 원시 LiDAR 패킷·카메라 녹화
 
-51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
+50/51패킷 scan 경계와 first-packet stamp를 재검토할 때는 가벼운 latency trace만으로는
 부족하다. `scripts/rosbag/record/record_lidar_packet_probe.py`는 raw VelodyneScan과
-PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 기존 900 RPM·51패킷
-입력은 변경하지 않는다. `--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
+PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 현재 운영 기본값은
+900 RPM·50패킷·첫 패킷 stamp다. 녹화기는 driver 설정을 바꾸지 않고 기본으로 50 계약을 검사한다.
+과거 51 입력 재현은 driver에 명시적 51과 recorder에 `--expected-packets 51`을 함께 지정한다.
+`--list`는 ROS 없이 목록만 표시하고, `--check`는 live 수신만
 확인한다. `--run`만 bag을 기록하며 ROS 노드 기동·파라미터 변경·차량 제어는 하지 않는다.
 
 네트워크 연결 이후 자동 로드·운전·녹화까지 맡기는 경우에는
@@ -128,7 +130,9 @@ PointCloud2·4카메라 JPEG·Ego/Object GT·IMU를 짧게 함께 기록한다. 
 
 시나리오 이름·로컬 UDP 설정·세 터미널 명령과 수동 운전 구간은
 [benchmark 준비 절차](../configs/scenario/perception_benchmark/README.md#2026-10-14-원시-lidar-패킷-실험-준비)를 따른다.
-완료한 bag을 같은 원본의 50/51/회전각 A/B에 쓰고, MORAI OFF 상태에서 후속 분석한다.
+과거 51 원본과 완료된 50/51 비교는 이력으로 보존한다. 현재 운영·과거 재현의 구분은
+[LiDAR 전환 안내](../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+새 비교를 할 때만 명시적 정책별 입력을 확보하고 MORAI OFF 상태에서 후속 분석한다.
 
 오프라인 분석 도구는 실행 역할을 구분한다. `lidar_packet_reassembly.py`는 bag을 읽어
 packet 경계/시각만 감사한다. `decode_lidar_packet_candidates.py`는 별도 ROS master와

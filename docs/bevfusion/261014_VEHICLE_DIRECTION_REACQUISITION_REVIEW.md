@@ -1,5 +1,11 @@
 # 차량 초기 운동 방향과 재취득 검증
 
+> 2026-10-15 읽기 안내: 아래의 ‘LiDAR 기본 51 유지’는 이 실험 종료 당시의 결정이다.
+> 후속 독립 고속/회전 검증과 2026-10-14 사용자 승인으로 현재 MORAI 기본값은 50이다.
+> 당시 입력·수치·기각/보류 결과는 보존한다. 현재 실행은 [CURRENT](CURRENT.md#next),
+> 전환 근거는 [독립 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md#같은-날-lidar-50-운영-전환),
+> 재시작·51 복귀는 [handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀)를 따른다.
+
 문서 상태: EVIDENCE. 검증일: 2026-10-14.
 현재 운영 선택은 [BEVFusion CURRENT](CURRENT.md)와
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를 따른다.
