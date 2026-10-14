@@ -101,7 +101,7 @@ def _start_persistent(cfg, processes, monitor):
     sensor = network["sensor_json"]
     processes.start("udp", _launch("sensor_interface", "morai_udp_interface.launch",
         sensor_config=sensor, network_config=network["ego_network_json"],
-        enable_lidar=network["has_lidar"]))
+        enable_lidar=network["has_lidar"], enable_control=False))
     processes.start("sensing", _launch("bringup", "sensing.launch", sensor_config=sensor,
         publish_lidar_tf=network["has_lidar"], publish_camera_tf=network["camera_count"] > 0))
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
@@ -394,6 +394,27 @@ def _run_case(cfg, processes, monitor, case, state):
         route_id = request_route(case, monitor,
             timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)), process=processes.running['planning'])
         monitor.arm(folder / "events.jsonl")
+        # The UDP sender puts the vehicle in D on every command, including brake.
+        # Never start it with the persistent sensor receivers. Route/trajectory
+        # readiness must precede any control packet reaching MORAI.
+        monitor.event("CONTROL_TRANSPORT_START")
+        processes.start("udp_control", _launch("sensor_interface", "morai_udp_interface.launch",
+            network_config=cfg["network"]["ego_network_json"],
+            enable_sensors=False, enable_lidar=False, enable_ego_network=False,
+            enable_control=True))
+        def control_connected():
+            if processes.running["udp_control"].poll() is not None:
+                raise RuntimeFailure("UDP 제어 송신기가 준비 중 종료됐습니다")
+            import rosgraph
+            subscribers = dict(rosgraph.Master('/planning_validator_control_guard').getSystemState()[1])
+            # The live monitor also subscribes to /ctrl_cmd: connection count
+            # alone would incorrectly consider the sender ready.
+            return '/morai_ctrl_cmd_udp_sender' in subscribers.get('/ctrl_cmd', [])
+
+        monitor.wait(control_connected, 15, "주행 직전 UDP 제어 송신기 연결")
+        # Brake remains applied during the controller launch; it is not released
+        # until the controller sends its own first command.
+        publish_brake(duration=0.2)
         monitor.event("CONTROLLER_START")
         brake_hold.stop()
         brake_hold = None
@@ -446,6 +467,7 @@ def _run_case(cfg, processes, monitor, case, state):
             publish_brake()
         except Exception:
             pass
+        processes.stop("udp_control")
         monitor.disarm()
         code = "P" if reason == "SUCCESS" else "E" if reason in ("SYSTEM_ERROR", "MANUAL_ABORT") else "F"
         final_base = basename.replace("_R_", "_{}_".format(code))
