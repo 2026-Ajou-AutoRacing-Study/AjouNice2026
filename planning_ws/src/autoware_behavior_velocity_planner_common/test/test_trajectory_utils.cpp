@@ -1,12 +1,14 @@
 #include <autoware/behavior_velocity_planner_common/utilization/trajectory_utils.hpp>
 #include <autoware/velocity_smoother/ros1_compat.hpp>
 #include <autoware/velocity_smoother/smoother/jerk_filtered_smoother.hpp>
+#include <autoware/velocity_smoother/smoother/analytical_jerk_constrained_smoother/analytical_jerk_constrained_smoother.hpp>
 #include <autoware_utils_debug/time_keeper.hpp>
 
 #include <gtest/gtest.h>
 #include <ros/master.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace
@@ -91,6 +93,160 @@ TEST(TrajectoryUtils, SmoothsInstalledJerkFilteredChainAndAppliesExternalLimit)
   // the oracle accepts the documented solver-scale tolerance, not a fake clamp.
   EXPECT_LE(std::abs(out.points.back().point.longitudinal_velocity_mps), 0.01F);
   EXPECT_LE(out.points.at(out.points.size() - 2).point.longitudinal_velocity_mps, 2.0001F);
+  // A moving vehicle cannot reach the new cap instantaneously. The old
+  // post-smoothing clamp incorrectly replaced this initial speed with 2 m/s.
+  EXPECT_NEAR(out.points.front().point.longitudinal_velocity_mps, 8.0F, 0.05F);
+}
+
+namespace
+{
+using TrajectoryPoints = autoware::velocity_smoother::TrajectoryPoints;
+class InspectingSmoother : public autoware::velocity_smoother::JerkFilteredSmoother
+{
+public:
+  using JerkFilteredSmoother::JerkFilteredSmoother;
+  TrajectoryPoints smoothing_input;
+  bool apply(
+    const double v0, const double a0, const TrajectoryPoints & input,
+    TrajectoryPoints & output, std::vector<TrajectoryPoints> & debug, const bool publish) override
+  {
+    smoothing_input = input;
+    return JerkFilteredSmoother::apply(v0, a0, input, output, debug, publish);
+  }
+};
+
+class ExternalLimitPrediction : public testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    setJerkFilteredSmootherParameters(node_handle);
+    adapter = std::make_unique<rclcpp::Node>(node_handle);
+    smoother = std::make_shared<InspectingSmoother>(
+      *adapter, std::make_shared<autoware_utils_debug::TimeKeeper>());
+    auto pose = std::make_shared<geometry_msgs::PoseStamped>();
+    pose->pose.orientation.w = 1.0;
+    data.current_odometry = pose;
+    auto velocity = std::make_shared<geometry_msgs::TwistStamped>();
+    velocity->twist.linear.x = 8.0;
+    data.current_velocity = velocity;
+    data.current_acceleration = std::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
+    data.velocity_smoother_ = smoother;
+  }
+
+  double firstStopDistance() const
+  {
+    for (const auto & p : smoother->smoothing_input) {
+      if (std::abs(p.longitudinal_velocity_mps) < 1e-3) return p.pose.position.x;
+    }
+    return std::numeric_limits<double>::infinity();
+  }
+  ros::NodeHandle node_handle{"/external_limit_prediction_oracle"};
+  std::unique_ptr<rclcpp::Node> adapter;
+  std::shared_ptr<InspectingSmoother> smoother;
+  PlannerData data;
+};
+}  // namespace
+
+TEST_F(ExternalLimitPrediction, ZeroLimitPreservesMovingPrefixAndStopsAhead)
+{
+  autoware_internal_planning_msgs::VelocityLimit limit;
+  limit.max_velocity = 0.0;
+  data.external_velocity_limit = limit;
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  ASSERT_TRUE(smoothPath(makePath(), out, data));
+  ASSERT_FALSE(smoother->smoothing_input.empty());
+  EXPECT_NEAR(smoother->smoothing_input.front().longitudinal_velocity_mps, 8.0, 1e-3);
+  EXPECT_GT(firstStopDistance(), 50.0);  // Weak default braking, not a stop at the ego pose.
+  EXPECT_LT(firstStopDistance(), 100.0);
+  EXPECT_NEAR(out.points.front().point.longitudinal_velocity_mps, 8.0, 0.05);
+  EXPECT_NEAR(out.points.back().point.longitudinal_velocity_mps, 0.0, 0.01);
+}
+
+TEST_F(ExternalLimitPrediction, RequestedConstraintsChangeStopInsertionDistance)
+{
+  autoware_internal_planning_msgs::VelocityLimit limit;
+  limit.max_velocity = 0.0;
+  data.external_velocity_limit = limit;
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  ASSERT_TRUE(smoothPath(makePath(), out, data));
+  const double default_distance = firstStopDistance();
+  limit.use_constraints = true;
+  limit.constraints.min_acceleration = -2.0;
+  limit.constraints.max_jerk = 2.0;
+  limit.constraints.min_jerk = -2.0;
+  data.external_velocity_limit = limit;
+  ASSERT_TRUE(smoothPath(makePath(), out, data));
+  EXPECT_LT(firstStopDistance(), default_distance);
+  EXPECT_GT(firstStopDistance(), 10.0);
+  EXPECT_NEAR(smoother->smoothing_input.front().longitudinal_velocity_mps, 8.0, 1e-3);
+}
+
+TEST_F(ExternalLimitPrediction, NoExternalLimitLeavesInputStopUnchanged)
+{
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  ASSERT_TRUE(smoothPath(makePath(), out, data));
+  EXPECT_NEAR(firstStopDistance(), 100.0, 0.2);
+}
+
+TEST_F(ExternalLimitPrediction, InvalidConstraintsDoNotPublishPartiallyLimitedOutput)
+{
+  autoware_internal_planning_msgs::VelocityLimit limit;
+  limit.max_velocity = 0.0;
+  limit.use_constraints = true;
+  limit.constraints.min_acceleration = -2.0;
+  limit.constraints.max_jerk = 0.0;
+  limit.constraints.min_jerk = -2.0;
+  data.external_velocity_limit = limit;
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  EXPECT_FALSE(smoothPath(makePath(), out, data));
+  EXPECT_TRUE(out.points.empty());
+  EXPECT_TRUE(smoother->smoothing_input.empty());
+}
+
+TEST_F(ExternalLimitPrediction, ShortHorizonPreservesPrefixWithoutDroppingLimit)
+{
+  auto path = makePath();
+  path.points.resize(11);
+  autoware_internal_planning_msgs::VelocityLimit limit;
+  limit.max_velocity = 0.0;
+  data.external_velocity_limit = limit;
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  ASSERT_TRUE(smoothPath(path, out, data));
+  EXPECT_NEAR(smoother->smoothing_input.front().longitudinal_velocity_mps, 8.0, 1e-3);
+  EXPECT_NEAR(firstStopDistance(), 10.0, 0.2);
+}
+
+TEST_F(ExternalLimitPrediction, AnalyticalPredictionPreservesMovingInitialSpeed)
+{
+  // Production algorithm and the matched acceleration/jerk configuration.
+  for (const auto & entry : std::vector<std::pair<std::string, double>>{
+         {"normal/max_acc", 3.7}, {"normal/min_acc", -6.0},
+         {"normal/max_jerk", 100.0}, {"normal/min_jerk", -10.0},
+         {"resample/ds_resample", 0.1}, {"resample/delta_yaw_threshold", 0.785},
+         {"latacc/constant_velocity_dist_threshold", 2.0},
+         {"forward/max_acc", 3.7}, {"forward/min_acc", -6.0},
+         {"forward/max_jerk", 100.0}, {"forward/min_jerk", -10.0}, {"forward/kp", 0.3},
+         {"backward/start_jerk", -0.1}, {"backward/min_jerk_mild_stop", -0.3},
+         {"backward/min_jerk", -10.0}, {"backward/min_acc_mild_stop", -1.0},
+         {"backward/min_acc", -6.0}, {"backward/span_jerk", -0.01}}) {
+    node_handle.setParam(entry.first, entry.second);
+  }
+  node_handle.setParam("resample/num_resample", 1);
+  node_handle.setParam("latacc/enable_constant_velocity_while_turning", false);
+  node_handle.setParam("lateral_acceleration_limits", std::vector<double>{6.0, 6.0, 6.0, 6.0});
+  node_handle.setParam("min_decel_for_lateral_acc_lim_filter", -6.0);
+  data.velocity_smoother_ =
+    std::make_shared<autoware::velocity_smoother::AnalyticalJerkConstrainedSmoother>(
+      *adapter, std::make_shared<autoware_utils_debug::TimeKeeper>());
+  autoware_internal_planning_msgs::VelocityLimit limit;
+  limit.max_velocity = 0.0;
+  data.external_velocity_limit = limit;
+  autoware_internal_planning_msgs::PathWithLaneId out;
+  ASSERT_TRUE(smoothPath(makePath(), out, data));
+  ASSERT_FALSE(out.points.empty());
+  EXPECT_NEAR(out.points.front().point.longitudinal_velocity_mps, 8.0, 0.05);
+  EXPECT_NEAR(out.points.back().point.longitudinal_velocity_mps, 0.0, 0.01);
 }
 
 int main(int argc, char ** argv)
