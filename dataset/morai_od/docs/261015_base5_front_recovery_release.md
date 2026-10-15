@@ -4,6 +4,10 @@
 이 문서는 [앞선 70장 진단](261015_base5_front_far_compound_experiments.md)의 후속 작업이다.
 완료 Sunny13 5K, v150 산출물, E24와 모델 설정은 보존하며 5K 본수집·학습은 실행하지 않는다.
 
+후속 갱신: 같은 날 [v152 거리·3D 가림 보완](261015_base5_primary_obstacle_range.md)에서
+작은 물리 primary의 거리 명세와 보충 후보 선택을 보완해 새 Sunny13 release를 동결했다.
+아래 v151의 부족 1장·`bulk_ready=false`·비용은 당시 결과이며 수정하지 않는다. 현재 기준은 위 후속 문서와 CURRENT를 따른다.
+
 ## 변경 목적과 범위
 
 v151은 추가 장애물 672개 중 자산별 약 절반인 338개를 전방으로 옮긴 배치 후보다.

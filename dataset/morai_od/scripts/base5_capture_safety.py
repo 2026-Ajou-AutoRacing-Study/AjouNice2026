@@ -217,6 +217,13 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
         contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
     if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_front_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_front_support.py']=sha256(scripts/'base5_obstacle_front_support.py')
+    range_policy=json.loads(Path(manifest).read_text()).get('config',{}).get('primary_obstacle_range_policy')
+    if range_policy:
+        contract['safety_code_sha256']['base5_primary_obstacle_range.py']=sha256(scripts/'base5_primary_obstacle_range.py')
+        range_reference=range_policy['reference']
+        if sha256(range_reference['path'])!=range_reference['sha256']:
+            raise ValueError('Primary obstacle range reference changed')
+        contract['primary_obstacle_range_reference']=range_reference
     if json.loads(Path(manifest).read_text()).get('config',{}).get('parked_npc_placement'):
         for name in ('base5_parked_npc_placement.py','base5_static_yaw.py'):
             contract['safety_code_sha256'][name]=sha256(scripts/name)

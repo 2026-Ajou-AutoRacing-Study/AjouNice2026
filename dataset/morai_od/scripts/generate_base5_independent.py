@@ -545,6 +545,11 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehic
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    if 'primary_obstacle_range' in row:
+        # Bounds are explicit in the new frozen spec. Never apply a hidden
+        # range cap here or reinterpret an old manifest's distance contract.
+        from base5_primary_obstacle_range import validate_plan
+        validate_plan(row,config)
     from base5_placement_geometry import configure as configure_static_geometry
     ctx=configure_static_geometry(ctx,config,row)
     from base5_map_surface import configure

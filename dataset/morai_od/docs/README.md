@@ -10,7 +10,8 @@
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
 | v151 전방 보강·원거리 차량·복합 성분별 소량 진단 | [10/15 실측·보존 계약·승격 전 남은 조건](261015_base5_front_far_compound_experiments.md) |
-| v151 실패분 새 배치·부분/완료 재개·현재 source 동결 | [유한 보충과 새 release 검증](261015_base5_front_recovery_release.md) |
+| v152 작은 물리 primary 거리·3D 완전 가림 보충·현재 source 동결 | [최종 53장 전수·재개·release 근거](261015_base5_primary_obstacle_range.md) |
+| v151 실패분 새 배치·부분/완료 재개·과거 차단 근거 | [당시 유한 보충과 release 검증](261015_base5_front_recovery_release.md) |
 | 다음 25K 장애물 보강·MR 배치 실험·정책 수정 | [장애물 생성기 실험 계획](261013_base5_obstacle_generator_experiment_plan.md) |
 | 장애물 보강 구현·native 대조·남은 live 검사 | [실험 근거](261013_base5_obstacle_support_experiments.md), [현재 후보 런북](261013_base5_obstacle_support_runbook.md) |
 | 긴 정지 NPC 보완·최종 소량 검증·Sunny13 준비 | [도로 지지 검증](261013_base5_parked_npc_support_evidence.md), [현재 수집 런북](261013_base5_obstacle_support_runbook.md) |

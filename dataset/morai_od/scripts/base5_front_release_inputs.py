@@ -23,6 +23,9 @@ ENTRYPOINTS = (
     'prepare_base5_obstacle_front_support.py',
     'prepare_base5_front_support_qualification.py',
     'validate_base5_front_recovery_live.py', 'finalize_base5_front_support_release.py',
+    'base5_primary_obstacle_range.py', 'prepare_base5_primary_obstacle_range.py',
+    'prepare_base5_primary_range_qualification.py', 'validate_base5_primary_range_recovery.py',
+    'finalize_base5_primary_range_release.py',
 )
 LOCAL_PREFIXES = ('base5_', 'run_base5_', 'generate_base5_', 'prepare_base5_',
                   'finalize_base5_', 'launch_base5_', 'validate_base5_',
