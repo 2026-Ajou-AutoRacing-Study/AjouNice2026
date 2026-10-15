@@ -88,6 +88,31 @@ class BundleTests(unittest.TestCase):
                     bundle.install(SimpleNamespace(archive=None, check_only=True))
                 network.assert_not_called()
 
+    def test_check_only_rejects_stale_sources_even_when_weights_exist(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            _, descriptor, doc = self.fixture(root)
+            destination = root / 'E24.pth'
+            destination.write_bytes(b'known inference weights')
+            names = bundle.required_sources()
+            doc['source_files_sha256'] = {
+                name: bundle.digest(bundle.ROOT / name) for name in names
+            }
+            changed = 'base_ws/src/sensor_interface/launch/lidar.launch'
+            doc['source_files_sha256'][changed] = 'stale source hash'
+            descriptor.write_text(json.dumps(doc))
+            p = dict(bundle.profile('e24'), checkpoint_path=str(destination),
+                     sha256=doc['checkpoint_sha256'])
+            with patch.object(bundle, 'DESCRIPTOR', descriptor), \
+                    patch.object(bundle, 'profile', return_value=p), \
+                    patch.object(bundle.subprocess, 'run') as network, \
+                    patch.object(bundle, 'prepare') as prepare:
+                with self.assertRaisesRegex(ValueError, changed):
+                    bundle.install(SimpleNamespace(archive=None, check_only=True))
+                network.assert_not_called()
+                prepare.assert_not_called()
+            self.assertEqual(destination.read_bytes(), b'known inference weights')
+
     def test_actual_model_config_closure_and_wrong_checkout_rejected(self):
         names = bundle.required_sources()
         self.assertFalse(any('/tools/' in name or '/scripts/benchmark' in name for name in names))
