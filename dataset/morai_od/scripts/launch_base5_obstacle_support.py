@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 
 from base5_capture_safety import atomic_json,sha256
+from base5_front_release_inputs import verify_hashes
 import run_base5_fresh_batch as fresh
 import run_base5_fresh_completion as completion
 
@@ -21,6 +22,8 @@ def preflight(path,environment):
     if environment not in doc.get('qualified_environments',[]):raise ValueError('Environment live qualification pending')
     for source,digest in doc['runtime_hashes'].items():
         if sha256(source)!=digest:raise ValueError('Frozen support runtime changed: '+source)
+    if 'input_hashes' in doc:
+        verify_hashes(doc['input_hashes'], 'Frozen support input')
     env=doc['environments'][environment]
     if sha256(env['manifest'])!=env['manifest_sha256']:raise ValueError('Frozen support manifest changed')
     deck=json.loads(Path(env['manifest']).read_text())

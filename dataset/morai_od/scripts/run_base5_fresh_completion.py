@@ -16,6 +16,7 @@ import sys
 import time
 
 import base5_spatial_diversity as spatial
+import base5_front_completion_adapter as front_completion
 import run_base5_flexible_completion as flex
 import run_base5_adaptive_completion as adaptive
 from run_base5_motion_contract_repair import motion_matches
@@ -49,7 +50,10 @@ def compatible(source,candidate,pools):
 def eligible_floor_donors(source,donors,counts,floor,pools):
     # A same-asset donor from train cannot satisfy a val slot. Filter context
     # before floor protection, otherwise it masks the valid source fallback.
-    eligible=[d for d in donors if compatible(source,d,pools)]
+    # Frozen front slots regenerate their own geometry, never borrow another
+    # asset's stratum. Unplanned slots must not gain one through a donor either.
+    if front_completion.has_plan(source):return [source]
+    eligible=[d for d in donors if not front_completion.has_plan(d) and compatible(source,d,pools)]
     return floor_donors(source,eligible,counts,floor)
 
 
@@ -106,9 +110,14 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
     if folder.exists():raise FileExistsError('Never replace an existing proposal')
     with spatial.installed():
         if original['runtime_actors']:
-            eligible=[d for d in donors if compatible(original,d,pools)]
-            scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
+            if front_completion.has_plan(original):
+                scene,meta=front_completion.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,adaptive.proposal_score,adaptive.fa.novelty)
+            else:
+                eligible=[d for d in donors if not front_completion.has_plan(d) and compatible(original,d,pools)]
+                scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
             if not compatible(original,meta,pools):raise ValueError('Proposed primary gait or mover minima changed')
+            front_completion.verify_preserved(original,meta)
         else:
             spec=copy.deepcopy(original['spec']);spec['seed']=spatial.seed_for(deck['config']['environment_tag'],entry['id'],ordinal)
             for retry in range(512):
@@ -153,6 +162,7 @@ def verify(a,deck,source,pools):
             if pa(actual)!=pa(expected):raise ValueError('Captured primary changed')
     if row['status']=='accepted_candidate':
         meta=read(Path(row['capture_root'])/'metadata.json')
+        front_completion.verify_preserved(source,meta)
         if source['runtime_actors']:
             if not compatible(source,meta,pools):
                 return dict(status='review',reasons=['fresh_completion_family_motion_contract_changed'],observed_selected=row)
@@ -186,10 +196,13 @@ def execute(a):
         deck=read(a.manifest)
         if not deck['config'].get('fresh_geometry_policy'):raise ValueError('Fresh environment manifest required')
         baseline,deficits,elapsed=verify_parent(a.manifest,a.baseline)
+        completion_names=[Path(__file__).name,'base5_spatial_diversity.py','run_base5_flexible_completion.py','run_base5_adaptive_completion.py','run_base5_capture_optimized.py','run_base5_capture_campaign_spatial.py']
+        if deck['config'].get('obstacle_front_support_policy'):
+            completion_names.extend(['base5_front_completion_adapter.py','base5_obstacle_front_support.py',
+                'base5_obstacle_rich_floor.py','base5_obstacle_support_policy.py'])
         contract=dict(policy=POLICY,source_sha256=sha256(a.manifest),baseline=str(a.baseline.resolve()),
             parent_hashes={n:sha256(a.baseline/n) for n in ('selected_ledger.jsonl','quota.json','batch_contract.json','fresh_runtime_contract.json')},
-            code_hashes={name:sha256(Path(__file__).with_name(name)) for name in
-                (Path(__file__).name,'base5_spatial_diversity.py','run_base5_flexible_completion.py','run_base5_adaptive_completion.py','run_base5_capture_optimized.py','run_base5_capture_campaign_spatial.py')},
+            code_hashes={name:sha256(Path(__file__).with_name(name)) for name in completion_names},
             capture_contract=adaptive.fa.batch.campaign.contract(a.manifest,list(range(len(deck['scenes']))),2),attempts=a.attempts)
         sp=a.output/'state.json'
         if sp.exists():
@@ -231,11 +244,15 @@ def execute(a):
                 if v.get('result') is None:raise ValueError('Terminal output has unresolved child')
                 if verify(v,deck,read(lookup[v['id']]['metadata']),pools)!=v['result']:raise ValueError('Completed raw evidence changed')
             return 0
+        originals={i:read(lookup[i]['metadata']) for i in deficits}
+        # Source/helper/assignment violations must halt even a CPU preflight;
+        # they are not ordinary failed-layout candidates or relaxed quotas.
+        for original in originals.values():front_completion.verify_preserved(original,original)
         missing=save(state['stage'])
         if not a.run:return 0
         ctx=adaptive.prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO),deck['config'])
         pools=pool_map(ctx)
-        originals={i:read(lookup[i]['metadata']) for i in deficits};donors=[read(Path(r['capture_root'])/'metadata.json') for r in baseline]
+        donors=[read(Path(r['capture_root'])/'metadata.json') for r in baseline]
         primary_counts=Counter(d['runtime_actors'][0]['data_id'] for d in donors if d['runtime_actors'])
         floor=deck['config'].get('coverage_policy',{}).get('minimum_accepted_visible_primary_per_asset',4)
         cal=adaptive.fa.normalized_sensor_calibration(adaptive.fa.SENSOR)
@@ -262,6 +279,9 @@ def execute(a):
                     options=eligible_floor_donors(originals[ident],donors,primary_counts,floor,pools)
                     try:v=prepare(lookup[ident],originals[ident],options,deck,ctx,cal,ordinal,a.output/'cells'/ident/f'attempt_{ordinal}'/'placement',known,pools)
                     except ValueError as exc:
+                        if (front_completion.has_plan(originals[ident])
+                                and not isinstance(exc,front_completion.FrontGeometryExhausted)):
+                            raise
                         state['unavailable'][ident]=str(exc);missing=save('running');continue
                     state['attempts'].append(v);known.add(v['entry']['scenario_sha256']);save('running')
                 code=run_child(v,a.output,heartbeat)

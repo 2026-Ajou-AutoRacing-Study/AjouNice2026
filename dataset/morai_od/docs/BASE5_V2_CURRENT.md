@@ -18,11 +18,11 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
 | 다음 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite`의 독립 25K offline 계획. v142/v149 보존 |
-| Sunny13 동결 release | 같은 실험 root의 `release_v150_sunny13/release.json`. 버스 4/4, 정적 보충 64/64, 이동 8/8, `bulk_ready=true` |
-| 본수집 상태 | 미실행. 전방·원거리·복합 진단 70장과 v151 5K CPU 계획만 확인. 다른 날씨와 새 release 승격은 별도 필요 |
+| Sunny13 새 source 동결 | `artifacts/evaluation/base5_generator_recovery_261015/release_v151_sunny13/release.json`. 정적 보충 63/64·이동 8/8·대체 probe 4/4; 부족 1장으로 `bulk_ready=false` |
+| 본수집 상태 | 미실행. [v151 보충·재개 검증과 차단 사유](261015_base5_front_recovery_release.md) 확인. 원거리의 낮은 차선분리봉 처리와 다른 환경 검증은 후속 필요 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
-v150의 `bulk_ready`는 10/13 당시 source의 보존된 검증 snapshot이다. v151·현재 source를 새로 동결한 승인으로 해석하지 않는다.
+구 `~/morai_cap/base5_obstacle_improvement_261013/release_v150_sunny13`의 `bulk_ready=true`는 10/13 snapshot이다. 현재 v151 차단을 우회하는 승인으로 재사용하지 않는다.
 다섯 환경의 새 geometry·CPU preflight·소량 live 검증은
 [수집기 근거](261010_base5_postcollection_collector_work.md)에서 확인한다.
 다른 환경의 상태가 바뀌면 실제 journal을 확인한 뒤 이 표를 갱신한다.
@@ -66,14 +66,14 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
 다음 25K는 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)과 [보강 근거](261013_base5_obstacle_support_experiments.md)를 따른다.
 [원거리 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 quota 축소는 후속 후보이며 v150에 적용하지 않았다.
 개수·거리 비율은 실측으로 수정하되 실제 보이는 원거리 GT를 삭제하거나 Vehicle로 바꾸지 않는다.
-10/15 v151은 추가 장애물 338개만 전방 지원으로 재배치한 별도 후보다. [70장 소량 근거·복합 진단·남은 승격 조건](261015_base5_front_far_compound_experiments.md)을 따른다.
+10/15 v151은 추가 장애물 338개만 전방 지원으로 재배치한 별도 후보다. [최초 70장 진단](261015_base5_front_far_compound_experiments.md) 뒤 [유한 보충·부분/완료 재개](261015_base5_front_recovery_release.md)를 검증했으며 부족 1장은 숨기지 않는다.
 `fresh_suite_final_v142`는 이전 baseline으로 보존한다. 새 Sunny13는 원래 30K에 자동 합산하지 않는다.
 
 <a id="capture"></a>
 
 ## 수집과 복구
 
-현재 보강 후보는 [보강 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
+현재 v151은 [보충 검증·실행 차단 상태](261015_base5_front_recovery_release.md)를 따른다. [v150 런북](261013_base5_obstacle_support_runbook.md)은 이전 명령·통신 설정의 보존 기록이다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
@@ -89,8 +89,8 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
   음영의 이동은 독립 terrain/reference 준비를 유지한다. 자동 지면 추종 기능이 아니다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
-v150의 64+8장 QA 포함 가중 예상은 5K 약 8.14시간/31.25GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v149와 표본이 달라 순수 속도 개선율로 해석하지 않는다. 10/15 여유 약 67GiB로 25K 전체 보관은 부족하다.
+v151의 64+8장 QA 포함 가중 예상은 5K 약 9.75시간/36.05GiB다. 운영 예산은 8~12시간/45GiB이며
+실제 본수집 rate로 갱신한다. v150의 8.14시간과 표본이 달라 순수 속도 변화로 해석하지 않는다. 10/15 여유 약 66GiB로 25K 전체 보관은 부족하다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>
