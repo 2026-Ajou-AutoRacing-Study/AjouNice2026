@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "scope": "Only listed sample/instance pairs; never an asset-wide exemption",
+  "evidence": "parsed_static/samples/b5rf02/*/front_left.jpg manually inspected: unobscured CargoBox, zero LiDAR GT points",
+  "reviewed_instances": [
+    {"sample_idx": "b5rf02_f000", "instance_id": 8501},
+    {"sample_idx": "b5rf02_f001", "instance_id": 8501},
+    {"sample_idx": "b5rf02_f002", "instance_id": 8501}
+  ]
+}

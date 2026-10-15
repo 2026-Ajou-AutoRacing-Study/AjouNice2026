@@ -23,10 +23,13 @@ VALID_OPERATORS = {"sw", "yj", "jh"}
 VALID_MODES = {"fresh", "finetune", "resume", "random"}
 ROOT_KEYS = {
     "version", "name", "mode", "epochs", "learning_rate", "checkpoint",
-    "base_config", "dataset", "gpu", "wandb", "output", "checkpointing",
+    "base_config", "dataset", "gpu", "schedule", "wandb", "output",
+    "checkpointing",
 }
 NESTED_KEYS = {
-    "dataset": {"capture_root", "info_root", "container_root"},
+    "dataset": {
+        "capture_root", "info_root", "container_root", "overfit_samples",
+    },
     "gpu": {
         "profile", "physical_batch_size", "gradient_accumulation", "workers",
         "shm_size",
@@ -34,6 +37,7 @@ NESTED_KEYS = {
     "wandb": {"enabled", "entity", "project", "group", "tags"},
     "output": {"root"},
     "checkpointing": {"interval", "max_keep_ckpts"},
+    "schedule": {"warmup_optimizer_updates", "validation_interval"},
 }
 
 
@@ -178,6 +182,16 @@ def main() -> None:
     if epochs <= 0 or lr <= 0:
         fail("epochs and learning_rate must be positive")
 
+    schedule_cfg = raw.get("schedule", {}) or {}
+    warmup_optimizer_updates = int(
+        schedule_cfg.get("warmup_optimizer_updates", 500)
+    )
+    validation_interval = int(schedule_cfg.get("validation_interval", 1))
+    if warmup_optimizer_updates < 0:
+        fail("schedule.warmup_optimizer_updates must be nonnegative")
+    if validation_interval <= 0:
+        fail("schedule.validation_interval must be positive")
+
     checkpointing_cfg = raw.get("checkpointing", {}) or {}
     checkpoint_interval = int(checkpointing_cfg.get("interval", 1))
     max_keep_ckpts = int(checkpointing_cfg.get("max_keep_ckpts", 3))
@@ -192,6 +206,9 @@ def main() -> None:
         fail("base_config must be an existing file inside the repository")
 
     dataset_cfg = raw.get("dataset", {}) or {}
+    overfit_samples = int(dataset_cfg.get("overfit_samples", 0))
+    if overfit_samples < 0:
+        fail("dataset.overfit_samples must be nonnegative")
     info_value = str(dataset_cfg.get("info_root") or os.environ.get("BASE3_INFO_ROOT", ""))
     capture_value = str(
         dataset_cfg.get("capture_root") or os.environ.get("BASE3_CAPTURE_ROOT", "")
@@ -269,7 +286,11 @@ def main() -> None:
     tags.extend([operator, profile["id"], mode])
     tags = list(dict.fromkeys(tags))
 
-    warmup_iterations = max(1, 500 * accumulation)
+    # MMEngine advances an iteration scheduler every dataloader iteration, even
+    # when gradient accumulation delays optimizer.step().  Keep the public
+    # recipe value in optimizer updates so the same experiment remains
+    # portable across physical batch/accumulation GPU profiles.
+    warmup_iterations = max(1, warmup_optimizer_updates * accumulation)
     persistent = "true" if workers > 0 else "false"
     cfg_options = [
         "train_dataloader.batch_size={}".format(batch),
@@ -283,6 +304,7 @@ def main() -> None:
         "optim_wrapper.optimizer.lr={}".format(lr),
         "param_scheduler.0.end={}".format(warmup_iterations),
         "train_cfg.max_epochs={}".format(epochs),
+        "train_cfg.val_interval={}".format(validation_interval),
         "param_scheduler.1.end={}".format(epochs),
         "param_scheduler.1.T_max={}".format(epochs),
         "default_hooks.checkpoint.interval={}".format(checkpoint_interval),
@@ -301,6 +323,16 @@ def main() -> None:
         cfg_options.append("load_from=/checkpoints/init.pth")
     elif mode == "random":
         cfg_options.append("load_from=None")
+    if overfit_samples:
+        # Deliberately evaluate the exact same examples used for training.  This
+        # is a learnability diagnostic, never a generalization metric.
+        cfg_options.extend([
+            "train_dataloader.dataset.indices={}".format(overfit_samples),
+            "val_dataloader.dataset.ann_file=/datasets/infos/morai_base3_infos_train.pkl",
+            "val_dataloader.dataset.indices={}".format(overfit_samples),
+            "test_dataloader.dataset.ann_file=/datasets/infos/morai_base3_infos_train.pkl",
+            "test_dataloader.dataset.indices={}".format(overfit_samples),
+        ])
     if args.smoke:
         cfg_options.extend([
             "train_cfg.max_epochs=1",
@@ -363,6 +395,10 @@ def main() -> None:
         "learning_rate": lr, "image": image, "gpu_name": gpu_name,
         "gpu_profile": profile["id"], "physical_batch_size": batch,
         "gradient_accumulation": accumulation, "effective_batch_size": effective_batch,
+        "warmup_optimizer_updates": warmup_optimizer_updates,
+        "warmup_iterations": warmup_iterations,
+        "validation_interval": validation_interval,
+        "overfit_samples": overfit_samples,
         "workers": workers, "shm_size": shm_size, "capture_root": str(capture_root),
         "dataset_container_root": container_root,
         "info_root": str(info_root), "checkpoint": str(checkpoint) if checkpoint else None,

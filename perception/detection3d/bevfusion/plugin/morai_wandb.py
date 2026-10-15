@@ -24,11 +24,12 @@ class MoraiWandbVisBackend(WandbVisBackend):
                 'val/center/mAP',
                 'val/center/vehicle_mean_AP',
                 'val/center/pedestrian_mean_AP',
-                'val/center/obstacle_mean_AP'):
+                'val/center/obstacle_mean_AP',
+                'val/center/animal_mean_AP'):
             self._wandb.define_metric(
                 name, step_metric='epoch', hidden=False,
                 summary='max', overwrite=True)
-        for class_name in ('vehicle', 'pedestrian', 'obstacle'):
+        for class_name in ('vehicle', 'pedestrian', 'obstacle', 'animal'):
             for threshold in ('0.5', '1', '2', '4'):
                 self._wandb.define_metric(
                     f'val/center/{class_name}_AP_{threshold}m',
@@ -124,15 +125,122 @@ class MoraiEpochLrHook(Hook):
             # These two spellings match the PointPainting epoch summary.
             'epoch/learning_rate_last': float(learning_rate),
         }
+        # Param-wise LR experiments keep the spatial backbone conservative
+        # while training newly initialized branches faster.  MMEngine's
+        # default scalar exposes only the first group, so publish the effective
+        # LR of the two Base4-specific groups explicitly when present.
+        optimizer = runner.optim_wrapper.optimizer
+        parameter_names = {
+            id(parameter): name
+            for name, parameter in runner.model.named_parameters()
+        }
+        named_groups = {
+            'train/lr_velocity_head_epoch':
+                'bbox_head.prediction_heads.0.vel',
+            'train/lr_temporal_input_epoch':
+                'pts_middle_encoder.conv_input.0',
+        }
+        for metric_name, name_fragment in named_groups.items():
+            matched_lrs = []
+            for group in optimizer.param_groups:
+                names = [
+                    parameter_names.get(id(parameter), '')
+                    for parameter in group['params']
+                ]
+                if any(name_fragment in name for name in names):
+                    matched_lrs.append(float(group['lr']))
+            if matched_lrs:
+                payload[metric_name] = max(matched_lrs)
         window_size = len(runner.train_dataloader)
         aliases = {
             'loss': 'epoch/train_loss_mean',
             'loss_heatmap': 'epoch/train_loss_heatmap_mean',
             'layer_-1_loss_cls': 'epoch/train_loss_cls_mean',
             'layer_-1_loss_bbox': 'epoch/train_loss_bbox_mean',
+            'query_memory_active_fraction':
+                'epoch/query_memory_active_fraction_mean',
+            'query_memory_age_sec': 'epoch/query_memory_age_sec_mean',
+            'query_memory_residual_gate':
+                'epoch/query_memory_residual_gate_mean',
+            'query_center_refinement_m':
+                'epoch/query_center_refinement_m_mean',
+            'query_memory_mutual_pair_fraction':
+                'epoch/query_memory_mutual_pair_fraction_mean',
+            'query_memory_consensus_fraction':
+                'epoch/query_memory_consensus_fraction_mean',
+            'query_memory_fallback_fraction':
+                'epoch/query_memory_fallback_fraction_mean',
+            'query_memory_association_distance_mean_m':
+                'epoch/query_memory_association_distance_mean_m',
+            'query_memory_association_distance_p95_m':
+                'epoch/query_memory_association_distance_p95_m_mean',
+            'query_memory_pair_dispersion_mean_mps':
+                'epoch/query_memory_pair_dispersion_mean_mps',
+            'query_memory_pair_dispersion_p95_mps':
+                'epoch/query_memory_pair_dispersion_p95_mps_mean',
+            'query_memory_switch_fraction':
+                'epoch/query_memory_switch_fraction_mean',
+            'query_memory_consensus_pair_count':
+                'epoch/query_memory_consensus_pair_count_mean',
+            'query_memory_single_pair_fraction':
+                'epoch/query_memory_single_pair_fraction_mean',
+            'query_memory_robust_blend_fraction':
+                'epoch/query_memory_robust_blend_fraction_mean',
+            'query_memory_robust_confidence':
+                'epoch/query_memory_robust_confidence_mean',
         }
         for source, target in aliases.items():
             value = self._history_mean(runner, source, window_size)
             if value is not None:
                 payload[target] = value
         runner.visualizer.add_scalars(payload, step=runner.iter)
+
+
+@HOOKS.register_module()
+class MoraiQueryMemoryStatsHook(Hook):
+    """Expose Q1 memory utilization without coupling it to detector losses."""
+
+    priority = 'BELOW_NORMAL'
+
+    def after_train_iter(self, runner, batch_idx, data_batch=None, outputs=None):
+        model = runner.model.module if hasattr(runner.model, 'module') else runner.model
+        head = getattr(model, 'bbox_head', None)
+        memory = getattr(head, 'query_memory', None)
+        if memory is None or memory.last_active_query_fraction is None:
+            return
+        values = {
+            'train/query_memory_active_fraction':
+                memory.last_active_query_fraction,
+            'train/query_memory_age_sec': memory.last_mean_attention_age_sec,
+            'train/query_memory_residual_gate':
+                memory.residual_logit.detach().sigmoid(),
+            'train/query_memory_mutual_pair_fraction':
+                memory.last_mutual_pair_fraction,
+            'train/query_memory_consensus_fraction':
+                memory.last_consensus_query_fraction,
+            'train/query_memory_fallback_fraction':
+                memory.last_fallback_query_fraction,
+            'train/query_memory_association_distance_mean_m':
+                memory.last_association_distance_mean_m,
+            'train/query_memory_association_distance_p95_m':
+                memory.last_association_distance_p95_m,
+            'train/query_memory_pair_dispersion_mean_mps':
+                memory.last_pair_velocity_dispersion_mean_mps,
+            'train/query_memory_pair_dispersion_p95_mps':
+                memory.last_pair_velocity_dispersion_p95_mps,
+            'train/query_memory_switch_fraction':
+                memory.last_query_switch_fraction,
+            'train/query_memory_consensus_pair_count':
+                memory.last_consensus_pair_count_mean,
+            'train/query_memory_single_pair_fraction':
+                memory.last_single_pair_query_fraction,
+            'train/query_memory_robust_blend_fraction':
+                memory.last_robust_blend_fraction,
+            'train/query_memory_robust_confidence':
+                memory.last_robust_confidence_mean,
+        }
+        refinement = getattr(head, 'last_query_center_refinement_m', None)
+        if refinement is not None:
+            values['train/query_center_refinement_m'] = refinement
+        for name, value in values.items():
+            runner.message_hub.update_scalar(name, float(value))

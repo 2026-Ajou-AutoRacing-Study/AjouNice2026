@@ -24,12 +24,138 @@
 #include <autoware_utils_geometry/geometry.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <cstdlib>
+#include <iostream>
+#include <tf2/LinearMath/Quaternion.h>
 #include <vector>
 
 namespace autoware::velocity_smoother
 {
 namespace resampling
 {
+TrajectoryPoints applyVelocityProfileToGeometry(
+  const TrajectoryPoints & geometry, const TrajectoryPoints & profile, size_t ego_index)
+{
+  ego_index = geometry.empty() ? 0 : std::min(ego_index, geometry.size() - 1);
+  const bool emergency_stop = std::all_of(geometry.begin() + ego_index, geometry.end(), [](const auto & p) {
+    return std::abs(p.longitudinal_velocity_mps) < 1e-4;
+  });
+  if (geometry.size() < 2 || profile.size() < 2 || emergency_stop) {
+    auto stopped = geometry;
+    for (auto & point : stopped) point.longitudinal_velocity_mps = 0.0;
+    return stopped;
+  }
+  std::vector<double> arc(geometry.size(), 0.0);
+  for (size_t i = 1; i < geometry.size(); ++i) {
+    arc[i] = arc[i - 1] + autoware_utils_geometry::calc_distance2d(geometry[i - 1], geometry[i]);
+  }
+  // Project the longitudinal solution monotonically onto its original path.
+  // Independent nearest-point lookups can jump backwards at close bends.
+  std::vector<double> profile_arc;
+  profile_arc.reserve(profile.size());
+  double previous_s = 0.0;
+  for (const auto & point : profile) {
+    double best_distance = std::numeric_limits<double>::infinity();
+    double best_s = previous_s;
+    for (size_t j = 1; j < geometry.size(); ++j) {
+      const double length = arc[j] - arc[j - 1];
+      if (length < 1e-8 || arc[j] < previous_s) continue;
+      const auto & a = geometry[j - 1].pose.position;
+      const auto & b = geometry[j].pose.position;
+      const double dx = b.x - a.x, dy = b.y - a.y;
+      const double lower = std::max(0.0, (previous_s - arc[j - 1]) / length);
+      const double ratio = std::clamp(
+        ((point.pose.position.x - a.x) * dx + (point.pose.position.y - a.y) * dy) /
+          (length * length), lower, 1.0);
+      const double distance = std::hypot(
+        point.pose.position.x - a.x - ratio * dx,
+        point.pose.position.y - a.y - ratio * dy);
+      if (distance < best_distance) {
+        best_distance = distance;
+        best_s = arc[j - 1] + ratio * length;
+      }
+    }
+    previous_s = best_s;
+    profile_arc.push_back(best_s);
+  }
+  const auto first_stop = [](const TrajectoryPoints & points, const std::vector<double> & s,
+                             const double start_s, bool moving) {
+    for (size_t i = 0; i < points.size(); ++i) {
+      if (s[i] < start_s - 1e-8) continue;
+      if (std::abs(points[i].longitudinal_velocity_mps) > 1e-4) moving = true;
+      else if (moving) return s[i];
+    }
+    return std::numeric_limits<double>::infinity();
+  };
+  // Behind-ego velocities are copied from the previous solution for continuity.
+  // A past stop followed by resumed motion is history, not a new stop constraint.
+  const double ego_s = arc[ego_index];
+  const double stop_s = std::min(
+    first_stop(geometry, arc, ego_s, true), first_stop(profile, profile_arc, ego_s, false));
+  if (std::getenv("AJOUNICE_VS_PROFILE_DIAG")) {
+    const double old_stop = std::min(
+      first_stop(geometry, arc, 0.0, false), first_stop(profile, profile_arc, 0.0, false));
+    if (old_stop + 1e-8 < stop_s) {
+      std::cerr << "[VS profile] Ignored history/initial zero: old_s=" << old_stop
+                << " ego_s=" << ego_s << " forward_stop_s=" << stop_s << std::endl;
+    }
+  }
+  // Keep all original vertices: coarsening them can cut across an obstacle.
+  // Explicitly retain the stop and horizon endpoints between those vertices.
+  std::vector<double> queries;
+  for (const double s : arc) {
+    if (s >= profile_arc.front() && s <= profile_arc.back()) queries.push_back(s);
+  }
+  queries.push_back(profile_arc.front());
+  queries.push_back(profile_arc.back());
+  if (stop_s >= profile_arc.front() && stop_s <= profile_arc.back()) queries.push_back(stop_s);
+  std::sort(queries.begin(), queries.end());
+  queries.erase(std::unique(queries.begin(), queries.end(), [](double a, double b) {
+    return std::abs(a - b) < 1e-8;
+  }), queries.end());
+  TrajectoryPoints result;
+  result.reserve(queries.size());
+  for (const double s : queries) {
+    const auto right = std::upper_bound(arc.begin(), arc.end(), s);
+    const size_t j = std::clamp<size_t>(right - arc.begin(), 1, geometry.size() - 1);
+    const double ratio = std::clamp(
+      (s - arc[j - 1]) / std::max(arc[j] - arc[j - 1], 1e-8), 0.0, 1.0);
+    auto point = ratio < 1e-8 ? geometry[j - 1] : geometry[j];
+    if (ratio > 1e-8 && ratio < 1.0 - 1e-8) {
+      const auto & a = geometry[j - 1].pose;
+      const auto & b = geometry[j].pose;
+      point.pose.position.x = a.position.x + ratio * (b.position.x - a.position.x);
+      point.pose.position.y = a.position.y + ratio * (b.position.y - a.position.y);
+      point.pose.position.z = a.position.z + ratio * (b.position.z - a.position.z);
+      const auto & qa = a.orientation;
+      const auto & qb = b.orientation;
+      const auto q = tf2::Quaternion(qa.x, qa.y, qa.z, qa.w).slerp(
+        tf2::Quaternion(qb.x, qb.y, qb.z, qb.w), ratio);
+      point.pose.orientation.x = q.x(); point.pose.orientation.y = q.y();
+      point.pose.orientation.z = q.z(); point.pose.orientation.w = q.w();
+    }
+    const auto pr = std::upper_bound(profile_arc.begin(), profile_arc.end(), s);
+    const size_t k = std::clamp<size_t>(pr - profile_arc.begin(), 1, profile.size() - 1);
+    const double t = std::clamp(
+      (s - profile_arc[k - 1]) / std::max(profile_arc[k] - profile_arc[k - 1], 1e-8), 0.0, 1.0);
+    const auto & a = profile[k - 1];
+    const auto & b = profile[k];
+    point.longitudinal_velocity_mps = s >= stop_s - 1e-8 ? 0.0 :
+      a.longitudinal_velocity_mps + t * (b.longitudinal_velocity_mps - a.longitudinal_velocity_mps);
+    point.acceleration_mps2 = a.acceleration_mps2 + t * (b.acceleration_mps2 - a.acceleration_mps2);
+    const double time_a = a.time_from_start.sec + 1e-9 * a.time_from_start.nanosec;
+    const double time_b = b.time_from_start.sec + 1e-9 * b.time_from_start.nanosec;
+    const double time = time_a + t * (time_b - time_a);
+    point.time_from_start.sec = static_cast<int32_t>(std::floor(time));
+    point.time_from_start.nanosec = static_cast<uint32_t>(
+      (time - point.time_from_start.sec) * 1e9);
+    result.push_back(point);
+  }
+  return result;
+}
+
 TrajectoryPoints resampleTrajectory(
   const TrajectoryPoints & input, const double v_current,
   const geometry_msgs::Pose & current_pose, const double nearest_dist_threshold,

@@ -7,6 +7,7 @@ import copy
 from autoware_perception_msgs.msg import ObjectClassification
 
 from .kinematic_prediction import dominant_label
+from .message_copy import copy_tracked_object
 
 
 def _zero_vector3(vector) -> None:
@@ -38,7 +39,7 @@ def apply_object_motion_policy(message, force_unknown_stationary=True):
         if dominant_label(source) != ObjectClassification.UNKNOWN:
             continue
 
-        tracked = copy.deepcopy(source)
+        tracked = copy_tracked_object(source)
         output.objects[index] = tracked
         kinematics = tracked.kinematics
         twist = kinematics.twist_with_covariance.twist

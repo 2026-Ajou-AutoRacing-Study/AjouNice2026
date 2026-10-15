@@ -1,0 +1,15 @@
+[
+  "/Ego_topic",
+  "/Competition_topic",
+  "/CollisionData",
+  "/localization/kinematic_state",
+  "/localization/control_kinematic_state",
+  "/planning/mission_planning/route",
+  "/planning/route_state",
+  "/planning/trajectory",
+  "/planning/validation_status",
+  "/control/command/control_cmd",
+  "/ctrl_cmd",
+  "/tf",
+  "/tf_static"
+]

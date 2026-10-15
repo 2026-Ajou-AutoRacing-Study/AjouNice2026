@@ -5,4 +5,6 @@ diag_error_count_threshold: 0
 display_on_terminal: true
 soft_stop_deceleration: -1.0
 soft_stop_jerk_lim: 0.3
+# Positive magnitude used to judge and generate static-obstacle emergency braking.
+static_scene_deceleration: 7.0
 th_traffic_light_timeout: 0.5

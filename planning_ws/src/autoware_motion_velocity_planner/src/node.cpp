@@ -350,7 +350,7 @@ autoware::motion_velocity_planner::TrajectoryPoints MotionVelocityPlannerNode::s
     smoother->applyLateralAccelerationFilter(trajectory_points);
 
   const auto traj_steering_rate_limited =
-    smoother->applySteeringRateLimit(traj_lateral_acc_filtered, false);
+    smoother->applySteeringRateLimit(traj_lateral_acc_filtered, false, smoother->getBaseParam().sample_ds);
 
   // Resample trajectory with ego-velocity based interval distances
   auto traj_resampled = traj_steering_rate_limited;

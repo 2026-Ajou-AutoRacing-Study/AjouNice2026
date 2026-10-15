@@ -138,7 +138,8 @@ size_t findEgoSegmentIndex(
 }
 
 std::vector<TrajectoryPoint> resampleTrajectoryPoints(
-  const std::vector<TrajectoryPoint> & traj_points, const double interval);
+  const std::vector<TrajectoryPoint> & traj_points, const double interval,
+  const std::optional<bool> driving_forward = std::nullopt);
 
 std::vector<TrajectoryPoint> resampleTrajectoryPointsWithoutStopPoint(
   const std::vector<TrajectoryPoint> & traj_points, const double interval);

@@ -68,7 +68,7 @@ private:
 
   TrajectoryPoints forwardJerkFilter(
     const double v0, const double a0, const double a_max, const double a_stop, const double j_max,
-    const TrajectoryPoints & input) const;
+    const TrajectoryPoints & input, const bool limit_propulsion = false) const;
   TrajectoryPoints backwardJerkFilter(
     const double v0, const double a0, const double a_min, const double a_stop, const double j_min,
     const TrajectoryPoints & input) const;

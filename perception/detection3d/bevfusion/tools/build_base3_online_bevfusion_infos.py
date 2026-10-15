@@ -8,6 +8,7 @@ import json
 import math
 import pickle
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -17,7 +18,9 @@ import rosbag
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS = REPO_ROOT / "dataset/morai_od/scripts"
+PIPELINE_SRC = REPO_ROOT / "base_ws/src/perception_object_pipeline/src"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(PIPELINE_SRC))
 
 from audit_base3_online_bag import build_capture_windows, message_stamp  # noqa: E402
 from audit_base3_online_gt_alignment import (  # noqa: E402
@@ -28,6 +31,7 @@ from audit_base3_online_gt_alignment import (  # noqa: E402
     MARKER_TOPIC,
     OBJECT_TOPIC,
     actors,
+    actor_yaw_rate_at,
     align_ego_state,
     align_object_state,
     cloud_xyz_i,
@@ -35,6 +39,12 @@ from audit_base3_online_gt_alignment import (  # noqa: E402
     nearest,
     points_in_box,
     selected_indices,
+)
+from analyze_morai_lidar_deskew import point_field_array  # noqa: E402
+from base5_sparse_gt_policy import reviewed_camera_support  # noqa: E402
+from perception_object_pipeline.rolling_lidar import (  # noqa: E402
+    deskew_points_to_reference_pose,
+    scan_time_contract,
 )
 
 
@@ -47,9 +57,42 @@ def arguments():
     parser.add_argument("bags", nargs="+", type=Path)
     parser.add_argument("--calibration", type=Path, required=True)
     parser.add_argument("--asset-offsets", type=Path, required=True)
+    parser.add_argument(
+        "--unknown-asset-policy", choices=('error', 'drop'), default='error',
+        help='Stop on missing geometric GT calibration; drop is explicit historical reproduction only',
+    )
     parser.add_argument("--output-root", type=Path, required=True)
-    parser.add_argument("--samples-per-scene", type=int, default=3)
+    parser.add_argument(
+        "--samples-per-scene", type=int, default=3,
+        help="uniform samples per scene; 0 keeps every LiDAR frame",
+    )
+    parser.add_argument(
+        "--window-start-event",
+        choices=("capture_start", "sequence_start"),
+        default="capture_start",
+        help="Base4 temporal clips start at sequence_start after speed/actor gates",
+    )
+    parser.add_argument(
+        "--with-velocity-targets", action="store_true",
+        help="append MORAI object GT vx/vy in the target Ego/LiDAR frame",
+    )
+    parser.add_argument(
+        "--max-yaw-rate-support-sec", type=float, default=0.10,
+        help="maximum ObjectStatus bracket used for BBox-centre velocity",
+    )
+    parser.add_argument(
+        "--max-abs-yaw-rate-radps", type=float, default=2.0,
+        help="reject larger inferred actor yaw rates and keep pivot velocity",
+    )
+    parser.add_argument(
+        "--causal-sweep-count", type=int, default=1,
+        help="total sweeps including current; 3 adds two causal past sweeps",
+    )
     parser.add_argument("--minimum-gt-points", type=int, default=5)
+    parser.add_argument(
+        "--sparse-camera-review", type=Path,
+        help="JSON reviewed_instances [{sample_idx, instance_id}]; nearfield only, model crop required",
+    )
     parser.add_argument("--max-state-age-sec", type=float, default=0.10)
     parser.add_argument(
         "--state-alignment", choices=("interpolate", "nearest"),
@@ -60,12 +103,50 @@ def arguments():
         "--max-extrapolation-sec", type=float, default=0.05,
         help="maximum velocity-based fallback when a timestamp is not bracketed",
     )
+    parser.add_argument(
+        "--ego-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "additive MORAI Ego heading correction used for map/Ego geometry "
+            "and sweep poses; pass -1.347 for competition MR, 0 for MRP"
+        ),
+    )
+    parser.add_argument(
+        "--state-invalid-policy", choices=("drop", "error"), default="error",
+        help="Base4 uses drop for isolated sequence-edge state gaps",
+    )
     parser.add_argument("--max-camera-age-sec", type=float, default=0.10)
+    parser.add_argument(
+        "--lidar-deskew", choices=("off", "ego-pose-2d"), default="off",
+        help="cache scan-reference Ego-motion-corrected XYZI files",
+    )
+    parser.add_argument(
+        "--lidar-deskew-reference", choices=("end", "median", "header"),
+        default="end",
+    )
+    parser.add_argument(
+        "--deskew-max-point-time-span-sec", type=float, default=0.15,
+    )
+    parser.add_argument(
+        "--deskew-invalid-policy", choices=("drop", "error"), default="drop",
+        help="never mix invalid raw scans into a deskewed dataset",
+    )
     parser.add_argument(
         "--require-positive-class", choices=CLASSES,
         help=(
             "drop a selected frame when no >= minimum-gt-points instance of "
             "this class remains; useful for class-positive specialization decks"
+        ),
+    )
+    parser.add_argument(
+        "--drop-scene-asset",
+        action="append",
+        default=[],
+        help=(
+            "drop a complete marker window when capture_start reports this "
+            "asset name; repeatable and safer than leaving an unsupported "
+            "visible asset as unlabeled background"
         ),
     )
     parser.add_argument(
@@ -122,8 +203,87 @@ def keep_box_for_distance(box, mode, threshold_m, point_cloud_range):
     raise ValueError("unknown distance filter {}".format(mode))
 
 
+def planar_pose_matrix(message, ego_heading_correction_deg=0.0):
+    yaw = math.radians(
+        float(message.heading) + float(ego_heading_correction_deg)
+    )
+    cosine, sine = math.cos(yaw), math.sin(yaw)
+    return np.asarray(
+        [
+            [cosine, -sine, 0.0, float(message.position.x)],
+            [sine, cosine, 0.0, float(message.position.y)],
+            [0.0, 0.0, 1.0, float(message.position.z)],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def actor_velocity_in_ego_mps(actor, ego):
+    """Convert MORAI ObjectStatus body km/h to target Ego-frame m/s."""
+
+    body_forward = float(actor.velocity.x) / 3.6
+    body_left = float(actor.velocity.y) / 3.6
+    actor_yaw = math.radians(float(actor.heading))
+    world_x = math.cos(actor_yaw) * body_forward - math.sin(actor_yaw) * body_left
+    world_y = math.sin(actor_yaw) * body_forward + math.cos(actor_yaw) * body_left
+    ego_yaw = math.radians(float(ego.heading))
+    return np.asarray(
+        [
+            math.cos(ego_yaw) * world_x + math.sin(ego_yaw) * world_y,
+            -math.sin(ego_yaw) * world_x + math.cos(ego_yaw) * world_y,
+        ],
+        dtype=np.float64,
+    )
+
+
+def actor_center_velocity_in_ego_mps(actor, ego, asset, yaw_rate_radps):
+    """Convert MORAI pivot velocity to geometric BBox-centre velocity."""
+    pivot_velocity = actor_velocity_in_ego_mps(actor, ego)
+    if yaw_rate_radps is None:
+        return pivot_velocity, np.zeros(2, dtype=np.float64)
+
+    offset = np.asarray(
+        asset["pivot_to_bbox_center_local_m"], dtype=np.float64
+    )
+    actor_yaw = math.radians(float(actor.heading))
+    cosine, sine = math.cos(actor_yaw), math.sin(actor_yaw)
+    offset_world = np.asarray(
+        [
+            cosine * offset[0] - sine * offset[1],
+            sine * offset[0] + cosine * offset[1],
+        ],
+        dtype=np.float64,
+    )
+    correction_world = float(yaw_rate_radps) * np.asarray(
+        [-offset_world[1], offset_world[0]], dtype=np.float64
+    )
+    ego_yaw = math.radians(float(ego.heading))
+    correction_ego = np.asarray(
+        [
+            math.cos(ego_yaw) * correction_world[0]
+            + math.sin(ego_yaw) * correction_world[1],
+            -math.sin(ego_yaw) * correction_world[0]
+            + math.cos(ego_yaw) * correction_world[1],
+        ],
+        dtype=np.float64,
+    )
+    return pivot_velocity + correction_ego, correction_ego
+
+
 def main():
     args = arguments()
+    if args.samples_per_scene < 0:
+        raise ValueError("samples-per-scene must be >= 0")
+    if args.causal_sweep_count < 1:
+        raise ValueError("causal-sweep-count must be >= 1")
+    if args.minimum_gt_points < 0:
+        raise ValueError("minimum-gt-points must be >= 0")
+    reviewed = set()
+    if args.sparse_camera_review:
+        review = json.loads(args.sparse_camera_review.read_text())
+        reviewed = {(row['sample_idx'], int(row['instance_id']))
+                    for row in review['reviewed_instances']}
     output = args.output_root.expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
     stored_root = args.serialized_root or output
@@ -131,35 +291,100 @@ def main():
     catalog = json.loads(args.asset_offsets.read_text(encoding="utf-8"))["assets"]
     label_index = {name: index for index, name in enumerate(CLASSES)}
     split_rows = {name: [] for name in ("train", "val", "test")}
+    # Keep every geometrically valid LiDAR frame as a possible causal sweep,
+    # even when it has no retained positive GT.  Filtering those frames before
+    # temporal indexing creates artificial time gaps in the history.
+    sweep_rows = {name: [] for name in ("train", "val", "test")}
     kept = Counter()
     rejected = Counter()
     rejected_distance = Counter()
     rejected_empty_positive = Counter()
+    dropped_scene_assets = Counter()
+    dropped_scenes = []
     scene_count = Counter()
     synchronization = []
     unknown_assets = set()
+    deskew_rejected = Counter()
+    deskew_displacement_p95 = []
+    deskew_runtime_ms = []
+    state_rejected = Counter()
+    center_velocity_sources = Counter()
+
+    # A composed dataset can interleave campaigns whose directory names do
+    # not sort chronologically.  Pass 2 is a streaming merge over globally
+    # sorted capture windows, so processing bags in CLI order can otherwise
+    # advance past an earlier campaign and create a false empty window.
+    bag_paths_with_start = []
+    for bag_path in args.bags:
+        with rosbag.Bag(str(bag_path), "r") as bag:
+            bag_paths_with_start.append((bag.get_start_time(), bag_path))
+    bag_paths = [
+        path for _start, path in sorted(
+            bag_paths_with_start, key=lambda item: (item[0], str(item[1]))
+        )
+    ]
 
     # Pass 1 keeps only tiny scene markers.  Sensor payloads are streamed one
     # capture window at a time in pass 2 so 20+ GiB split bags do not exhaust
     # host memory.
     markers = []
-    for bag_path in args.bags:
+    for bag_path in bag_paths:
         with rosbag.Bag(str(bag_path), "r") as bag:
             for _topic, message, bag_time in bag.read_messages(topics=[MARKER_TOPIC]):
                 markers.append((bag_time.to_sec(), json.loads(message.data)))
     windows, marker_errors = build_capture_windows(markers)
     if marker_errors:
         raise ValueError("invalid capture markers: {}".format(marker_errors))
-    starts = {
-        payload["scene_id"]: payload
-        for _stamp, payload in markers
-        if payload.get("event") == "capture_start"
-    }
+    # Snapshot bags can legitimately contain a complete ``scene_failed``
+    # marker window (or the tail of one) next to the accepted capture that
+    # triggered the snapshot.  Such windows are useful to the bag auditor but
+    # must never become training scenes.  Combining multiple campaigns makes
+    # these rejected windows visible even when each campaign was converted
+    # separately, so filter by the terminal contract rather than relying on
+    # bag ordering or the presence of sensor payloads.
+    ignored_noncompleted_windows = [
+        {
+            "scene_id": window["scene_id"],
+            "terminal_event": window["terminal_event"],
+            "terminal_status": window["terminal_status"],
+            "terminal_error": window["terminal_error"],
+        }
+        for window in windows
+        if window["terminal_event"] != "capture_end"
+    ]
+    windows = [
+        window for window in windows
+        if window["terminal_event"] == "capture_end"
+    ]
+    starts = {}
+    sequence_start_times = {}
+    for marker_stamp, payload in sorted(markers, key=lambda item: item[0]):
+        if payload.get("event") in ("capture_start", "sequence_start"):
+            # Prefer the later sequence_start: it contains the actor state at
+            # the first valid frame rather than the pre-warmup ScenarioLoad
+            # state.
+            starts[payload["scene_id"]] = payload
+        if payload.get("event") == "sequence_start":
+            sequence_start_times[payload["scene_id"]] = marker_stamp
 
     sensor_topics = (LIDAR_TOPIC, EGO_TOPIC, OBJECT_TOPIC, *CAMERAS.values())
 
     def convert_window(window, topics):
         marker = starts[window["scene_id"]]
+        present_assets = {
+            str(actor.get("name"))
+            for rows in marker.get("actual_objects", {}).get("identities", {}).values()
+            for actor in rows
+            if actor.get("name") is not None
+        }
+        blocked_assets = sorted(present_assets.intersection(args.drop_scene_asset))
+        if blocked_assets:
+            dropped_scenes.append({
+                "scene_id": window["scene_id"],
+                "assets": blocked_assets,
+            })
+            dropped_scene_assets.update(blocked_assets)
+            return
         split = str(marker.get("split") or "train")
         if split not in split_rows:
             raise ValueError("unknown split {} for {}".format(split, window["scene_id"]))
@@ -172,42 +397,164 @@ def main():
                 )
             )
         lidar_rows = topics[LIDAR_TOPIC]
+        if args.window_start_event == "sequence_start":
+            sequence_start = sequence_start_times.get(window["scene_id"])
+            if sequence_start is None:
+                raise ValueError(
+                    "capture window {} has no sequence_start marker".format(
+                        window["scene_id"]
+                    )
+                )
+            lidar_rows = [row for row in lidar_rows if row[1] >= sequence_start]
+            if not lidar_rows:
+                raise ValueError(
+                    "capture window {} has no LiDAR after sequence_start".format(
+                        window["scene_id"]
+                    )
+                )
         aligned = {
             topic: sorted(topics[topic], key=lambda row: row[0])
             for topic in (EGO_TOPIC, OBJECT_TOPIC, *CAMERAS.values())
         }
-        for ordinal, lidar_index in enumerate(
-            selected_indices(len(lidar_rows), args.samples_per_scene)
-        ):
+        ego_pose_samples = np.asarray(
+            [
+                (
+                    row[0],
+                    float(row[2].position.x),
+                    float(row[2].position.y),
+                    float(row[2].position.z),
+                    math.radians(
+                        float(row[2].heading)
+                        + float(args.ego_heading_correction_deg)
+                    ),
+                )
+                for row in aligned[EGO_TOPIC]
+            ],
+            dtype=np.float64,
+        )
+        ego_pose_samples[:, 4] = np.unwrap(ego_pose_samples[:, 4])
+        lidar_to_ego = np.asarray(
+            calibration["lidar"]["lidar_to_ego"], dtype=np.float64
+        )
+        lidar_position = tuple(lidar_to_ego[:3, 3])
+        lidar_yaw = math.atan2(lidar_to_ego[1, 0], lidar_to_ego[0, 0])
+        lidar_indices = (
+            list(range(len(lidar_rows)))
+            if args.samples_per_scene == 0
+            else selected_indices(len(lidar_rows), args.samples_per_scene)
+        )
+        for ordinal, lidar_index in enumerate(lidar_indices):
             lidar_stamp, _record_time, lidar_message = lidar_rows[lidar_index]
-            ego_row = nearest(lidar_stamp, aligned[EGO_TOPIC])
-            object_row = nearest(lidar_stamp, aligned[OBJECT_TOPIC])
-            ego_age = abs(ego_row[0] - lidar_stamp)
-            object_age = abs(object_row[0] - lidar_stamp)
+            points = cloud_xyz_i(lidar_message)
+            target_stamp = lidar_stamp
+            deskew = {
+                "mode": args.lidar_deskew,
+                "reference": "header",
+                "reference_offset_sec": 0.0,
+                "span_sec": 0.0,
+                "displacement_p95_m": 0.0,
+            }
+            if args.lidar_deskew == "ego-pose-2d":
+                try:
+                    offsets = point_field_array(lidar_message, "time")
+                except ValueError:
+                    offsets = np.empty(0, dtype=np.float64)
+                contract = scan_time_contract(
+                    offsets,
+                    args.deskew_max_point_time_span_sec,
+                    args.lidar_deskew_reference,
+                )
+                if contract is None:
+                    deskew_rejected["invalid_point_time"] += 1
+                    if args.deskew_invalid_policy == "error":
+                        raise ValueError(
+                            "invalid point time at {}".format(lidar_stamp)
+                        )
+                    continue
+                started = time.perf_counter()
+                corrected = deskew_points_to_reference_pose(
+                    points,
+                    offsets,
+                    lidar_stamp,
+                    contract["reference_offset_sec"],
+                    ego_pose_samples,
+                    lidar_position=lidar_position,
+                    lidar_yaw=lidar_yaw,
+                    maximum_extrapolation_sec=args.max_extrapolation_sec,
+                )
+                deskew_runtime_ms.append((time.perf_counter() - started) * 1000.0)
+                if corrected is None:
+                    deskew_rejected["pose_coverage"] += 1
+                    if args.deskew_invalid_policy == "error":
+                        raise ValueError(
+                            "deskew pose coverage failed at {}".format(lidar_stamp)
+                        )
+                    continue
+                points, displacement, _reference_pose = corrected
+                target_stamp = lidar_stamp + contract["reference_offset_sec"]
+                displacement_p95 = float(np.percentile(displacement, 95.0))
+                deskew_displacement_p95.append(displacement_p95)
+                deskew = {
+                    "mode": args.lidar_deskew,
+                    "reference": contract["reference"],
+                    "reference_offset_sec": contract["reference_offset_sec"],
+                    "span_sec": contract["span_sec"],
+                    "displacement_p95_m": displacement_p95,
+                }
+
+            ego_row = nearest(target_stamp, aligned[EGO_TOPIC])
+            object_row = nearest(target_stamp, aligned[OBJECT_TOPIC])
+            ego_age = abs(ego_row[0] - target_stamp)
+            object_age = abs(object_row[0] - target_stamp)
             if max(ego_age, object_age) > args.max_state_age_sec:
-                raise ValueError("state age limit exceeded at {}".format(lidar_stamp))
-            ego_state, ego_alignment = align_ego_state(
-                lidar_stamp, aligned[EGO_TOPIC], args.state_alignment,
-                args.max_extrapolation_sec,
-            )
-            object_state, object_alignment = align_object_state(
-                lidar_stamp, aligned[OBJECT_TOPIC], args.state_alignment,
-                args.max_extrapolation_sec,
-            )
+                state_rejected["age_limit"] += 1
+                if args.state_invalid_policy == "error":
+                    raise ValueError(
+                        "state age limit exceeded at {}".format(target_stamp)
+                    )
+                continue
+            try:
+                ego_state, ego_alignment = align_ego_state(
+                    target_stamp, aligned[EGO_TOPIC], args.state_alignment,
+                    args.max_extrapolation_sec,
+                )
+                object_state, object_alignment = align_object_state(
+                    target_stamp, aligned[OBJECT_TOPIC], args.state_alignment,
+                    args.max_extrapolation_sec,
+                )
+            except ValueError:
+                state_rejected["alignment"] += 1
+                if args.state_invalid_policy == "error":
+                    raise
+                continue
 
             sample_id = "{}_f{:03d}".format(window["scene_id"], ordinal)
             sample_dir = output / "samples" / window["scene_id"] / sample_id
             sample_dir.mkdir(parents=True, exist_ok=True)
-            points = cloud_xyz_i(lidar_message)
             lidar_path = sample_dir / "lidar.bin"
 
             instances = []
+            projection_cameras = {}
+            if reviewed:
+                for name in CAMERA_ORDER:
+                    camera = calibration['cameras'][CALIBRATION_CAMERA_NAMES[name]]
+                    projection_cameras[name] = dict(
+                        lidar2cam=np.asarray(camera['ego_to_sensor']) @ lidar_to_ego,
+                        cam2img=camera['intrinsic'],
+                        width=camera['resolution_px'][0], height=camera['resolution_px'][1])
             for class_name, actor in actors(object_state):
                 _naive, box = corrected_box(
-                    ego_state, class_name, actor, calibration, catalog
+                    ego_state, class_name, actor, calibration, catalog,
+                    ego_heading_correction_deg=args.ego_heading_correction_deg,
                 )
                 if box is None:
                     unknown_assets.add(str(actor.name))
+                    if args.unknown_asset_policy == 'error':
+                        raise ValueError(
+                            'Missing geometric GT reference for asset {!r} in {}; '
+                            'collect sensor-capture calibration before training. '
+                            'Do not leave a visible actor as unlabeled background.'.format(
+                                actor.name, sample_id))
                     continue
                 if not keep_box_for_distance(
                     box, args.distance_filter, args.distance_threshold_m,
@@ -216,20 +563,75 @@ def main():
                     rejected_distance[class_name] += 1
                     continue
                 count, _mask = points_in_box(points, box)
+                sparse_exception = False
                 if count < args.minimum_gt_points:
-                    rejected[class_name] += 1
-                    continue
+                    sparse_exception, _reason = reviewed_camera_support(
+                        sample_id, actor.unique_id, box, projection_cameras, reviewed)
+                    if not sparse_exception:
+                        rejected[class_name] += 1
+                        continue
                 kept[class_name] += 1
+                asset = catalog[str(actor.name)]
+                yaw_rate, yaw_rate_audit = actor_yaw_rate_at(
+                    target_stamp,
+                    aligned[OBJECT_TOPIC],
+                    actor,
+                    max_support_span_sec=args.max_yaw_rate_support_sec,
+                    max_abs_yaw_rate_radps=args.max_abs_yaw_rate_radps,
+                )
+                velocity_ego, velocity_correction = (
+                    actor_center_velocity_in_ego_mps(
+                        actor, ego_state, asset, yaw_rate
+                    )
+                )
+                velocity_source = (
+                    "morai_object_body_kph_plus_yaw_rate_cross_offset"
+                    if yaw_rate is not None
+                    else "morai_object_body_kph_pivot_fallback"
+                )
+                center_velocity_sources[velocity_source] += 1
+                training_box = (
+                    np.r_[box, velocity_ego]
+                    if args.with_velocity_targets
+                    else box
+                )
                 instances.append(
                     {
-                        "bbox_3d": box.tolist(),
+                        "bbox_3d": training_box.tolist(),
                         "bbox_label_3d": label_index[class_name],
                         "num_lidar_pts": count,
+                        "sparse_camera_reviewed_exception": sparse_exception,
                         "bbox_3d_isvalid": True,
                         "instance_id": int(actor.unique_id),
                         "asset_name": str(actor.name),
+                        "velocity_target_ego_mps": velocity_ego.tolist(),
+                        "velocity_pivot_ego_mps": actor_velocity_in_ego_mps(
+                            actor, ego_state
+                        ).tolist(),
+                        "velocity_center_correction_ego_mps": (
+                            velocity_correction.tolist()
+                        ),
+                        "velocity_source": velocity_source,
+                        "yaw_rate_audit": yaw_rate_audit,
                     }
                 )
+
+            points.astype(np.float32).tofile(str(lidar_path))
+            ego2global = planar_pose_matrix(
+                ego_state, args.ego_heading_correction_deg
+            )
+            lidar2global = ego2global @ lidar_to_ego
+            sweep_rows[split].append(
+                {
+                    "sample_idx": sample_id,
+                    "scene_id": window["scene_id"],
+                    "timestamp": target_stamp,
+                    "lidar_path": str(
+                        serialized_path(lidar_path, output, stored_root)
+                    ),
+                    "lidar2global": lidar2global.tolist(),
+                }
+            )
 
             if args.require_positive_class is not None:
                 required_label = label_index[args.require_positive_class]
@@ -238,27 +640,18 @@ def main():
                     for instance in instances
                 ):
                     rejected_empty_positive[split] += 1
-                    try:
-                        sample_dir.rmdir()
-                    except OSError:
-                        pass
                     continue
-
-            points.astype(np.float32).tofile(str(lidar_path))
 
             images = {}
             camera_ages = {}
-            lidar_to_ego = np.asarray(
-                calibration["lidar"]["lidar_to_ego"], dtype=np.float64
-            )
             for camera_name in CAMERA_ORDER:
                 topic = CAMERAS[camera_name]
-                camera_row = nearest(lidar_stamp, aligned[topic])
-                age = abs(camera_row[0] - lidar_stamp)
+                camera_row = nearest(target_stamp, aligned[topic])
+                age = abs(camera_row[0] - target_stamp)
                 if age > args.max_camera_age_sec:
                     raise ValueError(
                         "camera age limit exceeded at {} {}".format(
-                            lidar_stamp, camera_name
+                            target_stamp, camera_name
                         )
                     )
                 camera_ages[camera_name] = age
@@ -284,7 +677,9 @@ def main():
                     "sample_idx": sample_id,
                     "token": sample_id,
                     "scene_id": window["scene_id"],
-                    "timestamp": lidar_stamp,
+                    "timestamp": target_stamp,
+                    "source_lidar_header_timestamp": lidar_stamp,
+                    "lidar_deskew": deskew,
                     "lidar_points": {
                         "lidar_path": str(
                             serialized_path(lidar_path, output, stored_root)
@@ -292,6 +687,8 @@ def main():
                         "num_pts_feats": 4,
                         "lidar2ego": calibration["lidar"]["lidar_to_ego"],
                     },
+                    "ego2global": ego2global.tolist(),
+                    "lidar2global": lidar2global.tolist(),
                     "images": images,
                     "instances": instances,
                 }
@@ -306,6 +703,7 @@ def main():
                     "camera_age_ms": {
                         key: value * 1000.0 for key, value in camera_ages.items()
                     },
+                    "lidar_deskew": deskew,
                 }
             )
 
@@ -318,7 +716,7 @@ def main():
         topic_rows = {topic: [] for topic in sensor_topics}
         window_index += 1
 
-    for bag_path in args.bags:
+    for bag_path in bag_paths:
         with rosbag.Bag(str(bag_path), "r") as bag:
             for topic, message, bag_time in bag.read_messages(topics=sensor_topics):
                 if window_index >= len(windows):
@@ -339,33 +737,163 @@ def main():
     while window_index < len(windows):
         finish_current_window()
 
+    temporal_prefix_dropped = Counter()
+    if args.causal_sweep_count > 1:
+        for split, rows in split_rows.items():
+            candidates_by_scene = {}
+            for row in sweep_rows[split]:
+                candidates_by_scene.setdefault(row["scene_id"], []).append(row)
+            candidate_index = {}
+            for scene_id, candidates in candidates_by_scene.items():
+                candidates.sort(key=lambda row: float(row["timestamp"]))
+                candidate_index.update(
+                    (candidate["sample_idx"], (index, candidates))
+                    for index, candidate in enumerate(candidates)
+                )
+            temporal_rows = []
+            for target in rows:
+                index, candidates = candidate_index[target["sample_idx"]]
+                if index + 1 < args.causal_sweep_count:
+                    temporal_prefix_dropped[split] += 1
+                    continue
+                target_from_global = np.linalg.inv(
+                    np.asarray(target["lidar2global"], dtype=np.float64)
+                )
+                sweeps = []
+                for sweep in reversed(
+                    candidates[index - args.causal_sweep_count + 1:index]
+                ):
+                    sweep2lidar = target_from_global @ np.asarray(
+                        sweep["lidar2global"], dtype=np.float64
+                    )
+                    sweeps.append(
+                        {
+                            "sample_idx": sweep["sample_idx"],
+                            "timestamp": sweep["timestamp"],
+                            "time_lag_sec": float(target["timestamp"])
+                            - float(sweep["timestamp"]),
+                            "lidar_points": {
+                                "lidar_path": sweep["lidar_path"],
+                                "num_pts_feats": 4,
+                                "sweep2lidar": sweep2lidar.tolist(),
+                            },
+                        }
+                    )
+                target["lidar_sweeps"] = sweeps
+                target["sequence_frame_index"] = index
+                target["sequence_length"] = len(candidates)
+                temporal_rows.append(target)
+            split_rows[split] = temporal_rows
+
     if unknown_assets:
         raise ValueError("missing asset offsets: {}".format(sorted(unknown_assets)))
+    final_kept = Counter()
+    final_center_velocity_sources = Counter()
+    final_center_velocity_correction_mps = []
+    final_yaw_rate_fallback_reasons = Counter()
+    for rows in split_rows.values():
+        for row in rows:
+            for instance in row["instances"]:
+                final_kept[CLASSES[int(instance["bbox_label_3d"])]] += 1
+                final_center_velocity_sources[instance["velocity_source"]] += 1
+                final_center_velocity_correction_mps.append(
+                    float(np.linalg.norm(
+                        instance["velocity_center_correction_ego_mps"]
+                    ))
+                )
+                yaw_rate_audit = instance["yaw_rate_audit"]
+                if not yaw_rate_audit["valid"]:
+                    final_yaw_rate_fallback_reasons[
+                        yaw_rate_audit["reason"]
+                    ] += 1
     metainfo = {
         "dataset": "morai_base3_online",
         "classes": CLASSES,
+        "box_dim": 9 if args.with_velocity_targets else 7,
         "minimum_gt_points": args.minimum_gt_points,
+        "unknown_asset_policy": args.unknown_asset_policy,
+        "sparse_camera_review": str(args.sparse_camera_review) if args.sparse_camera_review else None,
         "coordinate_frame": "lidar",
         "state_alignment": args.state_alignment,
+        "max_state_age_sec": args.max_state_age_sec,
+        "max_camera_age_sec": args.max_camera_age_sec,
         "max_extrapolation_sec": args.max_extrapolation_sec,
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "distance_filter": args.distance_filter,
         "distance_threshold_m": args.distance_threshold_m,
         "point_cloud_range": list(args.point_cloud_range),
+        "drop_scene_assets": sorted(set(args.drop_scene_asset)),
+        "lidar_deskew": args.lidar_deskew,
+        "lidar_deskew_reference": args.lidar_deskew_reference,
+        "deskew_max_point_time_span_sec": args.deskew_max_point_time_span_sec,
+        "deskew_invalid_policy": args.deskew_invalid_policy,
+        "state_invalid_policy": args.state_invalid_policy,
+        "window_start_event": args.window_start_event,
+        "with_velocity_targets": args.with_velocity_targets,
+        "velocity_unit": "m/s",
+        "velocity_reference": "geometric_bbox_center",
+        "max_yaw_rate_support_sec": args.max_yaw_rate_support_sec,
+        "max_abs_yaw_rate_radps": args.max_abs_yaw_rate_radps,
+        "causal_sweep_count": args.causal_sweep_count,
     }
     for split, rows in split_rows.items():
         with (output / "morai_base3_infos_{}.pkl".format(split)).open("wb") as stream:
             pickle.dump({"metainfo": metainfo, "data_list": rows}, stream, protocol=4)
     report = {
         "schema_version": 2,
-        "bags": [str(path.resolve()) for path in args.bags],
+        "bags": [str(path.resolve()) for path in bag_paths],
+        "ignored_noncompleted_windows": ignored_noncompleted_windows,
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "scenes": dict(scene_count),
         "frames": {key: len(value) for key, value in split_rows.items()},
-        "kept_gt": dict(kept),
+        "kept_gt": dict(final_kept),
+        "sparse_camera_reviewed_instances": sum(
+            instance.get('sparse_camera_reviewed_exception', False)
+            for rows in split_rows.values() for row in rows for instance in row['instances']),
+        "pre_temporal_kept_gt": dict(kept),
         "rejected_sparse_gt": dict(rejected),
         "rejected_distance_gt": dict(rejected_distance),
         "rejected_empty_positive_frames": dict(rejected_empty_positive),
         "required_positive_class": args.require_positive_class,
+        "dropped_scene_assets": dict(dropped_scene_assets),
+        "dropped_scenes": dropped_scenes,
         "unknown_assets": sorted(unknown_assets),
+        "unknown_asset_policy": args.unknown_asset_policy,
+        "deskew_rejected": dict(deskew_rejected),
+        "state_rejected": dict(state_rejected),
+        "center_velocity_sources": dict(final_center_velocity_sources),
+        "center_velocity_yaw_rate_fallback_reasons": dict(
+            final_yaw_rate_fallback_reasons
+        ),
+        "pre_temporal_center_velocity_sources": dict(center_velocity_sources),
+        "center_velocity_correction_mps": {
+            "mean": (
+                float(np.mean(final_center_velocity_correction_mps))
+                if final_center_velocity_correction_mps else None
+            ),
+            "p95": (
+                float(np.percentile(
+                    final_center_velocity_correction_mps, 95.0
+                ))
+                if final_center_velocity_correction_mps else None
+            ),
+            "max": (
+                max(final_center_velocity_correction_mps)
+                if final_center_velocity_correction_mps else None
+            ),
+        },
+        "temporal_prefix_dropped": dict(temporal_prefix_dropped),
+        "deskew_displacement_p95_m": {
+            "mean": float(np.mean(deskew_displacement_p95))
+            if deskew_displacement_p95 else None,
+            "p95": float(np.percentile(deskew_displacement_p95, 95.0))
+            if deskew_displacement_p95 else None,
+        },
+        "deskew_runtime_ms": {
+            "mean": float(np.mean(deskew_runtime_ms)) if deskew_runtime_ms else None,
+            "p95": float(np.percentile(deskew_runtime_ms, 95.0))
+            if deskew_runtime_ms else None,
+        },
         "synchronization": synchronization,
         "host_output_root": str(output),
         "serialized_root": str(stored_root),
@@ -379,7 +907,7 @@ def main():
             "scenes", "frames", "kept_gt", "rejected_sparse_gt",
             "rejected_distance_gt",
             "rejected_empty_positive_frames", "required_positive_class",
-            "unknown_assets",
+            "dropped_scene_assets", "dropped_scenes", "unknown_assets",
         )
     }, indent=2))
 

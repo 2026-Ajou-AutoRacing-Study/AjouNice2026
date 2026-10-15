@@ -11,7 +11,7 @@
 
   <node pkg="autoware_scenario_selector" type="autoware_scenario_selector_node"
         name="scenario_selector" output="screen">
-    <rosparam command="load" file="$(find autoware_scenario_selector)/config/ros1/scenario_selector.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_scenario_selector/config/ros1/scenario_selector.yaml"/>
     <remap from="input/lane_driving/trajectory" to="$(arg input_lane_driving_trajectory)"/>
     <remap from="input/parking/trajectory" to="$(arg input_parking_trajectory)"/>
     <remap from="input/lanelet_map" to="$(arg input_lanelet_map)"/>

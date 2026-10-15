@@ -1,6 +1,6 @@
 <launch>
   <arg name="vehicle_param_path"/>
-  <arg name="param_path" default="$(find autoware_freespace_planner)/config/freespace_planner.ros1.yaml"/>
+  <arg name="param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_freespace_planner/config/freespace_planner.ros1.yaml"/>
   <arg name="input_route" default="/planning/mission_planning/route"/>
   <arg name="input_odometry" default="/localization/kinematic_state"/>
   <arg name="input_occupancy_grid" default="/planning/scenario_planning/parking/costmap_generator/occupancy_grid"/>

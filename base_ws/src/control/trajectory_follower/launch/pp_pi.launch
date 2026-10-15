@@ -1,10 +1,10 @@
 <launch>
   <arg name="common_config"
-       default="$(find trajectory_follower)/config/trajectory_follower.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/trajectory_follower.yaml"/>
   <arg name="pp_config"
-       default="$(find trajectory_follower)/config/purepursuit.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/purepursuit.yaml"/>
   <arg name="pi_config"
-       default="$(find trajectory_follower)/config/longi_pi.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/longi_pi.yaml"/>
 
   <node pkg="trajectory_follower"
         type="purepursuit"

@@ -15,6 +15,8 @@
 #ifndef AUTOWARE__BEHAVIOR_PATH_PLANNER__BEHAVIOR_PATH_PLANNER_NODE_HPP_
 #define AUTOWARE__BEHAVIOR_PATH_PLANNER__BEHAVIOR_PATH_PLANNER_NODE_HPP_
 
+#include <autoware_planning_msgs/StaticObstacleScene.h>
+
 #include "autoware/behavior_path_planner_common/data_manager.hpp"
 #include "autoware/behavior_path_planner_common/interface/scene_module_interface.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
@@ -120,6 +122,7 @@ private:
 
   // publisher
   bpp_full_native::Publisher<PathWithLaneId> path_publisher_;
+  bpp_full_native::Publisher<autoware_planning_msgs::StaticObstacleScene> obstacle_scene_publisher_;
   bpp_full_native::Publisher<TurnIndicatorsCommand> turn_signal_publisher_;
   bpp_full_native::Publisher<HazardLightsCommand> hazard_signal_publisher_;
   bpp_full_native::Publisher<MarkerArray> bound_publisher_;

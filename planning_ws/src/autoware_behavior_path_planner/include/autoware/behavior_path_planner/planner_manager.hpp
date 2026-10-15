@@ -527,6 +527,7 @@ public:
   }
 
 private:
+  bool use_intersection_areas_{false};
   /**
    * @brief find and set the closest lanelet within the route to current route lanelet
    * @param planner data.

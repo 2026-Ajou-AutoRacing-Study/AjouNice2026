@@ -7,6 +7,9 @@
   <!-- Only the inference node uses this Python. Lanelet map matching remains
        on ROS Noetic's /usr/bin/python3 in a sibling process. -->
   <arg name="inference_python" default="/usr/bin/python3" />
+  <!-- Default preserves existing system/user-site installations. The shared
+       virtual environment explicitly disables user-site package injection. -->
+  <arg name="isolate_python" default="false" />
   <arg name="device" default="0" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
@@ -28,10 +31,10 @@
   <arg name="group_id_table_path"
        default="$(find traffic_light_detection)/traffic_light_group_id_table.json" />
   <arg name="signal_profile_path"
-       default="$(find traffic_light_detection)/config/traffic_signal_profiles.yaml" />
+       default="$(env AJOUNICE_ROOT)/base_ws/src/perception/traffic_light_detection/config/traffic_signal_profiles.yaml" />
   <arg name="fallback_group_id" default="0" />
   <arg name="lanelet2_map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm" />
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm" />
   <arg name="lanelet2_projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
@@ -69,6 +72,8 @@
     <!-- Runtime uses a provisioned local checkpoint; never block startup on
          Ultralytics' Cloudflare/Google DNS connectivity probe. -->
     <env name="YOLO_OFFLINE" value="true" />
+    <env name="TRAFFIC_LIGHT_ISOLATE_PYTHON" value="$(arg isolate_python)" />
+    <env name="PYTHONNOUSERSITE" value="$(eval '1' if arg('isolate_python') else '')" />
     <env name="MPLCONFIGDIR" value="/tmp/matplotlib-traffic-light-gpu" />
     <env name="YOLO_CONFIG_DIR" value="/tmp" />
     <param name="image_topic" value="$(arg image_topic)" />

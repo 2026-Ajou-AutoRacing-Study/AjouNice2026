@@ -74,6 +74,16 @@ def arguments():
         default="interpolate",
     )
     parser.add_argument("--max-extrapolation-sec", type=float, default=0.05)
+    parser.add_argument(
+        "--ego-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "additive correction applied only when rotating MORAI map "
+            "coordinates into the Ego frame; competition MR is calibrated "
+            "at -1.347 deg, while MRP remains 0 deg"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -125,19 +135,21 @@ def interpolate_vector(target, first, second, alpha):
         )
 
 
-def extrapolate_pose_with_body_velocity(message, delta_sec):
+def extrapolate_pose_with_body_velocity(message, delta_sec, velocity_scale=1.0):
     """Move a MORAI pose using its body-frame velocity for a short interval."""
     result = copy.deepcopy(message)
     heading = math.radians(float(message.heading))
-    forward = float(message.velocity.x)
-    lateral = float(message.velocity.y)
+    forward = float(message.velocity.x) * float(velocity_scale)
+    lateral = float(message.velocity.y) * float(velocity_scale)
     result.position.x += delta_sec * (
         math.cos(heading) * forward - math.sin(heading) * lateral
     )
     result.position.y += delta_sec * (
         math.sin(heading) * forward + math.cos(heading) * lateral
     )
-    result.position.z += delta_sec * float(message.velocity.z)
+    result.position.z += delta_sec * float(message.velocity.z) * float(
+        velocity_scale
+    )
     return result
 
 
@@ -214,6 +226,75 @@ def actor_lists(message):
     )
 
 
+def actor_with_key(message, key):
+    """Return one actor from an ObjectStatusList by stable (id, name)."""
+    for field, _class_name in actor_lists(message):
+        for actor in getattr(message, field):
+            if actor_key(actor) == key:
+                return actor
+    return None
+
+
+def actor_yaw_rate_at(
+    stamp,
+    samples,
+    actor,
+    max_support_span_sec=0.10,
+    max_abs_yaw_rate_radps=2.0,
+):
+    """Estimate causal-neutral actor yaw rate from bracketing ObjectStatus rows.
+
+    A strict sample on each side of the LiDAR timestamp is required.  This
+    keeps spawn/despawn boundaries and long communication gaps from injecting
+    a synthetic rotational velocity into the BBox-centre target.
+    """
+    stamps = [row[0] for row in samples]
+    right = bisect.bisect_right(stamps, stamp)
+    left = bisect.bisect_left(stamps, stamp) - 1
+    if left < 0 or right >= len(samples):
+        return None, {"valid": False, "reason": "unbracketed"}
+
+    before = samples[left]
+    after = samples[right]
+    span = float(after[0] - before[0])
+    # Decimal ROS periods such as 0.1 s are not exactly representable as a
+    # binary float, so keep a tiny numerical tolerance at the validity gate.
+    if span <= 0.0 or span > float(max_support_span_sec) + 1e-9:
+        return None, {
+            "valid": False,
+            "reason": "support_span",
+            "support_span_sec": span,
+        }
+
+    key = actor_key(actor)
+    before_actor = actor_with_key(before[2], key)
+    after_actor = actor_with_key(after[2], key)
+    if before_actor is None or after_actor is None:
+        return None, {
+            "valid": False,
+            "reason": "actor_not_bracketed",
+            "support_span_sec": span,
+        }
+
+    delta_deg = (
+        float(after_actor.heading) - float(before_actor.heading) + 180.0
+    ) % 360.0 - 180.0
+    yaw_rate = math.radians(delta_deg) / span
+    if abs(yaw_rate) > float(max_abs_yaw_rate_radps):
+        return None, {
+            "valid": False,
+            "reason": "yaw_rate_limit",
+            "support_span_sec": span,
+            "yaw_rate_radps": yaw_rate,
+        }
+    return yaw_rate, {
+        "valid": True,
+        "reason": "bracketed_heading",
+        "support_span_sec": span,
+        "yaw_rate_radps": yaw_rate,
+    }
+
+
 def align_object_state(
     stamp, samples, mode="interpolate", max_extrapolation_sec=0.05
 ):
@@ -241,7 +322,11 @@ def align_object_state(
         for field, _class_name in actor_lists(result):
             values = []
             for actor in getattr(result, field):
-                aligned = extrapolate_pose_with_body_velocity(actor, delta)
+                # MORAI ObjectStatus velocity is km/h, whereas EgoVehicleStatus
+                # velocity is m/s. Keep extrapolation in physical SI units.
+                aligned = extrapolate_pose_with_body_velocity(
+                    actor, delta, velocity_scale=1.0 / 3.6
+                )
                 motions.append(math.hypot(
                     float(aligned.position.x) - float(actor.position.x),
                     float(aligned.position.y) - float(actor.position.y),
@@ -314,8 +399,10 @@ def cloud_xyz_i(message):
     return np.asarray(rows, dtype=np.float32).reshape(-1, 4)
 
 
-def ego_relative_position(ego, actor):
-    heading = math.radians(float(ego.heading))
+def ego_relative_position(ego, actor, ego_heading_correction_deg=0.0):
+    heading = math.radians(
+        float(ego.heading) + float(ego_heading_correction_deg)
+    )
     cosine, sine = math.cos(heading), math.sin(heading)
     dx = float(actor.position.x) - float(ego.position.x)
     dy = float(actor.position.y) - float(ego.position.y)
@@ -340,8 +427,13 @@ def actors(message):
             yield class_name, actor
 
 
-def corrected_box(ego, class_name, actor, calibration, catalog):
-    pivot_ego = ego_relative_position(ego, actor)
+def corrected_box(
+    ego, class_name, actor, calibration, catalog,
+    ego_heading_correction_deg=0.0,
+):
+    pivot_ego = ego_relative_position(
+        ego, actor, ego_heading_correction_deg=ego_heading_correction_deg
+    )
     ego_to_lidar = np.asarray(calibration["lidar"]["ego_to_lidar"], dtype=np.float64)
     pivot_lidar = (ego_to_lidar @ pivot_ego)[:3]
     yaw = wrapped_radians(math.radians(float(actor.heading) - float(ego.heading)))
@@ -499,7 +591,8 @@ def render_window(window, messages, args, calibration, catalog, unknown_assets):
         }
         for class_name, actor in actors(object_state):
             naive, corrected = corrected_box(
-                ego_state, class_name, actor, calibration, catalog
+                ego_state, class_name, actor, calibration, catalog,
+                ego_heading_correction_deg=args.ego_heading_correction_deg,
             )
             if corrected is None:
                 unknown_assets.add(str(actor.name))
@@ -509,7 +602,8 @@ def render_window(window, messages, args, calibration, catalog, unknown_assets):
             nearest_corrected_count = None
             if nearest_actor is not None:
                 _nearest_naive, nearest_corrected = corrected_box(
-                    ego_row[2], class_name, nearest_actor, calibration, catalog
+                    ego_row[2], class_name, nearest_actor, calibration, catalog,
+                    ego_heading_correction_deg=args.ego_heading_correction_deg,
                 )
                 if nearest_corrected is not None:
                     nearest_corrected_count, _ = points_in_box(
@@ -649,6 +743,7 @@ def main():
         "asset_offsets": str(args.asset_offsets.resolve()),
         "state_alignment": args.state_alignment,
         "max_extrapolation_sec": args.max_extrapolation_sec,
+        "ego_heading_correction_deg": args.ego_heading_correction_deg,
         "summary": {
             "scenes": len(windows),
             "sampled_frames": len(report_rows),

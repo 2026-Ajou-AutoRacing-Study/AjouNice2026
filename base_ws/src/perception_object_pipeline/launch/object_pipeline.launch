@@ -19,6 +19,7 @@
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
+  <arg name="publish_processing_diagnostics" default="false"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
@@ -30,9 +31,40 @@
   <!-- Production: update on detector input and publish predicted EKF state at 30 Hz. -->
   <arg name="tracking_internal_publish_rate_hz" default="30.0"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
-  <!-- Optional detector velocity fusion: 0 off, 1 init only, 2 every update. -->
+  <!-- Confirmed-track miss tolerance and conservative duplicate-birth guard. -->
+  <arg name="time_aware_track_lifecycle" default="true"/>
+  <arg name="confirmed_track_max_coast_time_sec" default="0.50"/>
+  <arg name="confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
+  <arg name="lifecycle_stationary_speed_threshold_mps" default="2.0"/>
+  <arg name="suppress_duplicate_track_birth" default="true"/>
+  <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
+  <arg name="pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="fast_confirmed_vehicle_promotion" default="false"/>
+  <arg name="vehicle_promotion_min_confidence" default="0.60"/>
+  <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
+  <arg name="duplicate_birth_minimum_max_dimension_m" default="1.0"/>
+  <arg name="duplicate_birth_maximum_dimension_ratio" default="2.0"/>
+  <!-- Velocity: 0 off, 1 init, 2 always, 3 early EKF, 4 early longitudinal output. -->
   <arg name="detection_velocity_fusion_mode" default="0"/>
   <arg name="detection_velocity_noise_std_mps" default="1.0"/>
+  <arg name="detection_velocity_update_max_track_age_sec" default="1.0"/>
+  <arg name="detection_velocity_maximum_output_age_sec" default="0.25"/>
+  <arg name="detection_velocity_max_longitudinal_innovation_mps" default="5.0"/>
+  <arg name="detection_velocity_longitudinal_blend" default="1.0"/>
+  <!-- Experimental Base4 center-history velocity; production default off. -->
+  <arg name="center_motion_velocity_fusion" default="false"/>
+  <arg name="publish_center_motion_diagnostics" default="false"/>
+  <arg name="center_motion_fuse_ekf_state" default="true"/>
+  <arg name="center_motion_override_output_velocity" default="false"/>
+  <arg name="center_motion_maximum_output_age_sec" default="0.40"/>
+  <arg name="center_motion_min_baseline_sec" default="0.30"/>
+  <arg name="center_motion_medium_baseline_sec" default="0.65"/>
+  <arg name="center_motion_long_baseline_sec" default="0.90"/>
+  <arg name="center_motion_max_gap_sec" default="0.25"/>
+  <arg name="center_motion_min_update_interval_sec" default="0.20"/>
+  <arg name="center_motion_max_fit_residual_m" default="0.10"/>
+  <arg name="center_motion_early_noise_std_mps" default="1.50"/>
+  <arg name="center_motion_mature_noise_std_mps" default="0.60"/>
   <!-- EKF tuning knobs exposed for reproducible offline A/B. -->
   <arg name="tracker_prediction_model" default="1"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
@@ -49,7 +81,7 @@
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="fastbev_checkpoint"
@@ -167,6 +199,8 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="pedestrian_gaussian_association_ranking"
+         value="$(arg pedestrian_gaussian_association_ranking)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
     <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
@@ -187,10 +221,64 @@
          value="$(eval arg('tracking_internal_publish_rate_hz') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else '0.0')"/>
     <arg name="maximum_fixed_output_prediction_age_sec"
          value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+    <arg name="time_aware_track_lifecycle"
+         value="$(arg time_aware_track_lifecycle)"/>
+    <arg name="confirmed_track_max_coast_time_sec"
+         value="$(arg confirmed_track_max_coast_time_sec)"/>
+    <arg name="confirmed_stationary_track_max_coast_time_sec"
+         value="$(arg confirmed_stationary_track_max_coast_time_sec)"/>
+    <arg name="lifecycle_stationary_speed_threshold_mps"
+         value="$(arg lifecycle_stationary_speed_threshold_mps)"/>
+    <arg name="suppress_duplicate_track_birth"
+         value="$(arg suppress_duplicate_track_birth)"/>
+    <arg name="fast_confirmed_vehicle_promotion"
+         value="$(arg fast_confirmed_vehicle_promotion)"/>
+    <arg name="vehicle_promotion_min_confidence"
+         value="$(arg vehicle_promotion_min_confidence)"/>
+    <arg name="duplicate_birth_suppression_distance_m"
+         value="$(arg duplicate_birth_suppression_distance_m)"/>
+    <arg name="duplicate_birth_minimum_max_dimension_m"
+         value="$(arg duplicate_birth_minimum_max_dimension_m)"/>
+    <arg name="duplicate_birth_maximum_dimension_ratio"
+         value="$(arg duplicate_birth_maximum_dimension_ratio)"/>
     <arg name="detection_velocity_fusion_mode"
          value="$(arg detection_velocity_fusion_mode)"/>
     <arg name="detection_velocity_noise_std_mps"
          value="$(arg detection_velocity_noise_std_mps)"/>
+    <arg name="detection_velocity_update_max_track_age_sec"
+         value="$(arg detection_velocity_update_max_track_age_sec)"/>
+    <arg name="detection_velocity_maximum_output_age_sec"
+         value="$(arg detection_velocity_maximum_output_age_sec)"/>
+    <arg name="detection_velocity_max_longitudinal_innovation_mps"
+         value="$(arg detection_velocity_max_longitudinal_innovation_mps)"/>
+    <arg name="detection_velocity_longitudinal_blend"
+         value="$(arg detection_velocity_longitudinal_blend)"/>
+    <arg name="center_motion_velocity_fusion"
+         value="$(arg center_motion_velocity_fusion)"/>
+    <arg name="publish_center_motion_diagnostics"
+         value="$(arg publish_center_motion_diagnostics)"/>
+    <arg name="center_motion_fuse_ekf_state"
+         value="$(arg center_motion_fuse_ekf_state)"/>
+    <arg name="center_motion_override_output_velocity"
+         value="$(arg center_motion_override_output_velocity)"/>
+    <arg name="center_motion_maximum_output_age_sec"
+         value="$(arg center_motion_maximum_output_age_sec)"/>
+    <arg name="center_motion_min_baseline_sec"
+         value="$(arg center_motion_min_baseline_sec)"/>
+    <arg name="center_motion_medium_baseline_sec"
+         value="$(arg center_motion_medium_baseline_sec)"/>
+    <arg name="center_motion_long_baseline_sec"
+         value="$(arg center_motion_long_baseline_sec)"/>
+    <arg name="center_motion_max_gap_sec"
+         value="$(arg center_motion_max_gap_sec)"/>
+    <arg name="center_motion_min_update_interval_sec"
+         value="$(arg center_motion_min_update_interval_sec)"/>
+    <arg name="center_motion_max_fit_residual_m"
+         value="$(arg center_motion_max_fit_residual_m)"/>
+    <arg name="center_motion_early_noise_std_mps"
+         value="$(arg center_motion_early_noise_std_mps)"/>
+    <arg name="center_motion_mature_noise_std_mps"
+         value="$(arg center_motion_mature_noise_std_mps)"/>
     <arg name="prediction_model" value="$(arg tracker_prediction_model)"/>
     <arg name="system_noise_std_vx_vy_ms"
          value="$(arg tracker_system_noise_std_vx_vy_ms)"/>
@@ -212,6 +300,8 @@
            to="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('motion_policy_objects'))"/>
     <param name="force_unknown_stationary"
            value="$(arg force_unknown_stationary)"/>
+    <param name="publish_processing_diagnostics"
+           value="$(arg publish_processing_diagnostics)"/>
   </node>
 
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
@@ -234,6 +324,7 @@
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
+    <arg name="publish_processing_diagnostics" value="$(arg publish_processing_diagnostics)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>

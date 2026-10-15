@@ -28,10 +28,56 @@ localization
 localization_mrp
 ```
 
-Both aliases enable the `-1.347 deg` heading correction and disable duplicate
-sensor static TF publication. `/Ego_topic` direct GT localization is not a
-competition fallback. See `docs/localization/README.md` for the canonical
-document index.
+`localization` applies the MR/competition `-1.347 deg` heading correction.
+`localization_mrp` applies no correction because the audited MRP convention is
+already aligned. This distinction follows the launcher convention, not ROS
+versus UDP transport. Both aliases disable duplicate sensor static TF
+publication. `/Ego_topic` direct GT localization is not a competition fallback.
+See `docs/localization/README.md` for the canonical document index.
+
+### Production smooth controller state
+
+The production planning and TF contract remains
+`/localization/kinematic_state`. The competition bringup also publishes a
+controller-facing map-frame state that combines Local EKF motion with a
+smoothed Global/Local alignment:
+
+```bash
+roslaunch localization_manager gnss_imu_gt_ctra.launch \
+  publish_control_state:=true \
+  control_translation_tau_sec:=0.5 \
+  control_yaw_tau_sec:=0.5
+```
+
+The same arguments are passed through by
+`bringup/localization_gnss_imu_gt_ctra.launch`, which should be used for full
+provider replay and closed-loop tests.
+
+The output is `/localization/control_kinematic_state` (`map -> base_link`
+Odometry). The node publishes no TF and does not alter the global Planning
+state. Full-route closed-loop A/B, including the GPS-shadow region, passed on
+2026-09-25. The official `localization`/`localization_mrp`, `traj_fol_a`, and
+integrated planning entrypoints therefore use this state with translation/yaw
+time constants of `0.5 s`. Override the controller topic with
+`/localization/kinematic_state` to reproduce the previous baseline.
+
+### Experimental checkpoint-relocation guard
+
+`localization_relocation_guard.py` compares co-timed GNSS and fused map poses.
+It requires a 5 m innovation for three consecutive GNSS samples and applies a
+five-second cooldown. The launch gate is disabled by default, and enabling it
+still runs monitor-only unless explicitly overridden:
+
+```bash
+roslaunch bringup localization_gnss_imu_gt_ctra.launch \
+  enable_relocation_guard:=true \
+  relocation_guard_monitor_only:=true
+```
+
+Only an active experiment (`relocation_guard_monitor_only:=false`) publishes a
+corrected-orientation pose to the Global EKF reset topic. The Local EKF is not
+reset. Do not enable automatic reset in production until a real checkpoint
+relocation bag and closed-loop recovery pass the documented gates.
 
 ## Legacy/research FAST-LIO provider
 
@@ -149,9 +195,16 @@ global EKF: map -> odom
 ```
 
 The global EKF output `/localization/odom` is copied, including pose and twist
-covariance, to `/localization/kinematic_state`. The copying node emits no TF.
-This lets Planning keep the same input contract while the localization backend
-changes.
+covariance, to `/localization/kinematic_state`. The final-state publisher also
+owns `map -> odom`, while the Local EKF independently owns
+`odom -> base_link`. This lets Planning keep the same state and TF contract
+while the localization backend changes.
+
+The competition GT-assisted provider's final-state publisher additionally owns
+`map -> odom`. It subscribes to Local EKF odometry and extrapolates that pose to
+the Global EKF message timestamp before composing the transform. Do not replace
+this with a latest (`Time(0)`) TF lookup: asynchronous 50 Hz EKF phases produced
+up to tens of centimeters of TF closure error at speed.
 
 GNSS+IMU uses the same `ego | manual` starting-pose policy as FAST-LIO+GNSS.
 During development, the first valid `/Ego_topic` pose is transformed from
@@ -328,6 +381,26 @@ The current production contract and validation scope are documented in
 `docs/localization/260918_competition_localization_critical_issue_status.md`.
 The initial implementation record is preserved under
 `docs/localization/legacy/260801_robot_localization_gnss_imu_gt_ctra_fusion.md`.
+
+An experimental controller-only output can be enabled with
+`publish_control_state:=true`.  The default strategy low-pass filters the
+Global/Local alignment.  Adding `use_quantized_gnss_control_state:=true`
+instead treats each GNSS value as a quantized cell, applies only the minimum
+lateral correction needed to remain in that cell, and preserves the Global
+EKF longitudinal pose and yaw.  Both strategies are default-off and own no TF;
+see `docs/localization/260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md` before
+using either one in a controller A/B.
+The quantized strategy falls back to the Global state when GNSS is stale,
+waits one second after reacquisition, and ignores cell corrections whose
+GNSS-to-Global innovation exceeds 0.5 m.
+Its cell is rotated `-1.347 deg` in the map frame: three raw bags independently
+showed the MORAI `1/600000 deg` WGS84 lattice projects to a UTM 52N east axis
+at approximately `-1.348 deg` in K-City.
+
+The separate checkpoint-relocation guard is disabled and monitor-only by
+default. Its persistent-sample counter resets after a GNSS gap longer than
+0.5 s or a non-monotonic timestamp, so samples on opposite sides of an outage
+cannot satisfy one relocation sequence.
 
 ## TF ownership and exclusivity
 

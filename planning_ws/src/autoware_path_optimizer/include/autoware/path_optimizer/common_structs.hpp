@@ -18,6 +18,7 @@
 #include "autoware/path_optimizer/type_alias.hpp"
 #include "autoware/path_optimizer/ros1_compat.hpp"
 
+#include <autoware_planning_msgs/StaticObstacleScene.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,6 +36,11 @@ struct PlannerData
   std::vector<TrajectoryPoint> traj_points;  // converted from the input path
   std::vector<geometry_msgs::Point> left_bound;
   std::vector<geometry_msgs::Point> right_bound;
+
+  std::vector<autoware_planning_msgs::StaticObstacle> obstacles;
+  std::vector<bool> pass_left;
+  // Required coverage measured forward from ego, independent of backward history points.
+  double optimization_forward_length{0.0};
 
   // ego
   geometry_msgs::Pose ego_pose;

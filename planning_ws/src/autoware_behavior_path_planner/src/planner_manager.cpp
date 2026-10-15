@@ -44,6 +44,7 @@ FullSourcePlannerManager::FullSourcePlannerManager(bpp_full_native::Node & node)
   clock_(*node.get_clock()),
   last_valid_reference_path_(std::nullopt)
 {
+  node.param("drivable_area_use_intersection_areas", use_intersection_areas_, false);
   current_route_lanelet_ = std::make_shared<std::optional<lanelet::ConstLanelet>>(std::nullopt);
   processing_time_.emplace("total_time", 0.0);
   debug_publisher_ptr_ = std::make_unique<DebugPublisher>(node.debug_context_, "debug");
@@ -257,7 +258,8 @@ void FullSourcePlannerManager::generateCombinedDrivableArea(
     // for other modules where multiple modules may be launched
     utils::generateDrivableArea(
       output.path, expanded_lanes, di.enable_expanding_hatched_road_markings,
-      di.enable_expanding_intersection_areas, di.enable_expanding_freespace_areas, data,
+      di.enable_expanding_intersection_areas || use_intersection_areas_,
+      di.enable_expanding_freespace_areas, data,
       is_driving_forward);
   }
 

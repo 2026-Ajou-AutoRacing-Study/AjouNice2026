@@ -1,0 +1,1823 @@
+{
+  "schema_version": 1,
+  "map_name": "R_KR_PR_K-city_2025",
+  "source_files": {
+    "start_pose": "hid_start_pos.json",
+    "manual_static_reference": "hid1.json",
+    "official_shade_and_actor_templates": "configs/scenario/2026_molit_comp_sample_scene.json",
+    "mgeo_links": "kcity_map/mgeo_map/link_set.json"
+  },
+  "source_sha256": {
+    "start_pose": "f55cc6f282db266039b9023d5582d92e78f017b7ae191105efa983f54b0ea556",
+    "manual_static_reference": "dc82ae477427af7832e2943c2cf2007b88db60431f3eb06a586319153e33a6c8",
+    "official_sample": "e7d01898dc28e1a548f26ca4b2812409b0ae159dd2218029fa2d6b1ac7013467",
+    "mgeo_links": "5ce0fd57da07b83221c0a4d117b0606b2d9c094c8de476a7d1176c78a4dc5b0f"
+  },
+  "route_links": [
+    "A2256W000446",
+    "A2256W000448",
+    "A2256W000126"
+  ],
+  "ego_centerline_projection_error_m": 0.13251565221399453,
+  "scenario_counts": {
+    "static_2": 14,
+    "static_3": 14,
+    "dynamic_1": 14,
+    "total": 42
+  },
+  "speed_note": "speed and moveSpeed are preserved as MORAI scenario configuration values; verify the simulator version's displayed unit after import",
+  "scenarios": [
+    {
+      "file": "static_2/s2_01_sedan_suv_gap08.json",
+      "scenario_id": "s2_01_sedan_suv_gap08",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 44.0,
+      "longitudinal_gaps_m": [
+        8.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 44.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 19.68704855163329,
+            "y": -494.76155330460665,
+            "z": 28.31280889784124
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 52.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": 11.886276513348712,
+            "y": -497.1945256219793,
+            "z": 28.33274900109792
+          },
+          "yaw_deg": -151.68727521488606
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_02_truck_sedan_gap10.json",
+      "scenario_id": "s2_02_truck_sedan_gap10",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 52.0,
+      "longitudinal_gaps_m": [
+        10.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30400004,
+          "asset_name": "2013_Hyundai_Xcient(P540)",
+          "station_m": 52.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": 11.886276513348712,
+            "y": -497.1945256219793,
+            "z": 28.33274900109792
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 62.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 3.8314001049243345,
+            "y": -503.3338194842878,
+            "z": 28.361153775354147
+          },
+          "yaw_deg": -151.91123258280433
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_03_bus_scooter_gap18.json",
+      "scenario_id": "s2_03_bus_scooter_gap18",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 61.0,
+      "longitudinal_gaps_m": [
+        18.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30300003,
+          "asset_name": "DEFAULT_BUS",
+          "station_m": 61.0,
+          "lateral_offset_m": 0.6,
+          "position": {
+            "x": 4.619442726218646,
+            "y": -502.6865413975538,
+            "z": 28.356692222077946
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 79.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": -11.963936662273799,
+            "y": -509.8523539588221,
+            "z": 28.442876544568158
+          },
+          "yaw_deg": -151.63909343426474
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_04_adult_child_gap08.json",
+      "scenario_id": "s2_04_adult_child_gap08",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 47.0,
+      "longitudinal_gaps_m": [
+        8.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 47.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": 16.18552009450837,
+            "y": -494.64742359394654,
+            "z": 28.322171579811567
+          },
+          "yaw_deg": -151.2881229792881
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50200001,
+          "asset_name": "Boy1",
+          "station_m": 55.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 10.004020182046016,
+            "y": -500.0259689866498,
+            "z": 28.339039941792333
+          },
+          "yaw_deg": -151.68727521488606
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_05_worker_bicycle_gap12.json",
+      "scenario_id": "s2_05_worker_bicycle_gap12",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 56.0,
+      "longitudinal_gaps_m": [
+        12.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "pedestrianList",
+          "data_id": 50100077,
+          "asset_name": "worker_m_1",
+          "station_m": 56.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 9.122742251499064,
+            "y": -500.50008499729194,
+            "z": 28.34113847991708
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 68.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": -2.2000928670683884,
+            "y": -504.79205745225903,
+            "z": 28.394109115925794
+          },
+          "yaw_deg": -151.33935277757195
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_06_bicycle_scooter_gap08.json",
+      "scenario_id": "s2_06_bicycle_scooter_gap08",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 65.0,
+      "longitudinal_gaps_m": [
+        8.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40100060,
+          "asset_name": "Bicycle_mountain",
+          "station_m": 65.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": 0.339774339837695,
+            "y": -503.1771927544728,
+            "z": 28.378281165325195
+          },
+          "yaw_deg": -151.52491159049026
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 73.0,
+          "lateral_offset_m": 1.0,
+          "position": {
+            "x": -5.7369349996102,
+            "y": -508.7572099670259,
+            "z": 28.419404091029314
+          },
+          "yaw_deg": -151.64667824542352
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_07_two_scooters_gap14.json",
+      "scenario_id": "s2_07_two_scooters_gap14",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 42.0,
+      "longitudinal_gaps_m": [
+        14.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 42.0,
+          "lateral_offset_m": 0.7,
+          "position": {
+            "x": 21.371281787879614,
+            "y": -493.6783525013718,
+            "z": 28.306941547950405
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 56.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": 8.317807987934756,
+            "y": -499.0027270469874,
+            "z": 28.34113847991708
+          },
+          "yaw_deg": -151.7388721166558
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_08_cargo_barrier_gap10.json",
+      "scenario_id": "s2_08_cargo_barrier_gap10",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 59.0,
+      "longitudinal_gaps_m": [
+        10.0
+      ],
+      "lateral_pattern": [
+        "center",
+        "center"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40100001,
+          "asset_name": "CargoBox",
+          "station_m": 59.0,
+          "lateral_offset_m": 0.0,
+          "position": {
+            "x": 6.101360181783377,
+            "y": -501.21554138631586,
+            "z": 28.347769115525544
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40200162,
+          "asset_name": "concrete-barrier",
+          "station_m": 69.0,
+          "lateral_offset_m": 0.0,
+          "position": {
+            "x": -2.694104371072654,
+            "y": -505.9732041862724,
+            "z": 28.39925440655642
+          },
+          "yaw_deg": -151.54724892240324
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_09_sedan_adult_gap12.json",
+      "scenario_id": "s2_09_sedan_adult_gap12",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 49.0,
+      "longitudinal_gaps_m": [
+        12.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 49.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 15.287376005443848,
+            "y": -497.1853286482674,
+            "z": 28.327602927827705
+          },
+          "yaw_deg": -151.78728080319277
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 61.0,
+          "lateral_offset_m": -0.6,
+          "position": {
+            "x": 4.054436004075289,
+            "y": -501.62787837093356,
+            "z": 28.356692222077946
+          },
+          "yaw_deg": -151.91123258280433
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_10_suv_bicycle_gap15.json",
+      "scenario_id": "s2_10_suv_bicycle_gap15",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 62.0,
+      "longitudinal_gaps_m": [
+        15.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 62.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": 3.078057808733192,
+            "y": -501.9222687821274,
+            "z": 28.361153775354147
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 77.0,
+          "lateral_offset_m": 0.7,
+          "position": {
+            "x": -9.396047290857103,
+            "y": -510.3960982550166,
+            "z": 28.436739239257175
+          },
+          "yaw_deg": -151.52510297488345
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_11_suv_scooter_tight06.json",
+      "scenario_id": "s2_11_suv_scooter_tight06",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 54.0,
+      "longitudinal_gaps_m": [
+        6.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 54.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": 10.931818662437644,
+            "y": -499.6397234915862,
+            "z": 28.33694296156086
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 60.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": 4.795394731857654,
+            "y": -500.8923783653146,
+            "z": 28.352230668801745
+          },
+          "yaw_deg": -151.91123258280433
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_12_woman_scooter_wide18.json",
+      "scenario_id": "s2_12_woman_scooter_wide18",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 68.0,
+      "longitudinal_gaps_m": [
+        18.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "center"
+      ],
+      "actors": [
+        {
+          "container": "pedestrianList",
+          "data_id": 50100016,
+          "asset_name": "Woman8",
+          "station_m": 68.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": -2.2960170528807633,
+            "y": -504.6165622939889,
+            "z": 28.394109115925794
+          },
+          "yaw_deg": -151.33935277757195
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 86.0,
+          "lateral_offset_m": 0.0,
+          "position": {
+            "x": -17.640246613662008,
+            "y": -514.0731011904244,
+            "z": 28.448225376157396
+          },
+          "yaw_deg": -151.54945535158097
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_13_sedan_barrier_stagger12.json",
+      "scenario_id": "s2_13_sedan_barrier_stagger12",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 45.0,
+      "longitudinal_gaps_m": [
+        12.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 45.0,
+          "lateral_offset_m": 0.7,
+          "position": {
+            "x": 18.75629336432098,
+            "y": -495.17759709049875,
+            "z": 28.3157794932513
+          },
+          "yaw_deg": -151.2881229792881
+        },
+        {
+          "container": "objectList",
+          "data_id": 40200162,
+          "asset_name": "concrete-barrier",
+          "station_m": 57.0,
+          "lateral_offset_m": -0.7,
+          "position": {
+            "x": 7.531709283368075,
+            "y": -499.65237650565655,
+            "z": 28.343237891621502
+          },
+          "yaw_deg": -151.7388721166558
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_2/s2_14_truck_child_wide20.json",
+      "scenario_id": "s2_14_truck_child_wide20",
+      "family": "static_2",
+      "actor_count": 2,
+      "first_obstacle_station_m": 66.0,
+      "longitudinal_gaps_m": [
+        20.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30400004,
+          "asset_name": "2013_Hyundai_Xcient(P540)",
+          "station_m": 66.0,
+          "lateral_offset_m": -0.6,
+          "position": {
+            "x": -0.34924077056262615,
+            "y": -504.0083236913265,
+            "z": 28.383721198203865
+          },
+          "yaw_deg": -151.33935277757197
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50200001,
+          "asset_name": "Boy1",
+          "station_m": 86.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": -17.2591265945022,
+            "y": -514.7764841096055,
+            "z": 28.448225376157396
+          },
+          "yaw_deg": -151.54945535158097
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_01_three_vehicles_gap10.json",
+      "scenario_id": "s3_01_three_vehicles_gap10",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 42.0,
+      "longitudinal_gaps_m": [
+        8.0,
+        12.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 42.0,
+          "lateral_offset_m": 1.0,
+          "position": {
+            "x": 21.52075705817857,
+            "y": -493.93846236963725,
+            "z": 28.306941547950405
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 50.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": 13.602509873515402,
+            "y": -496.16003686584156,
+            "z": 28.32929950396693
+          },
+          "yaw_deg": -151.78728080319277
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30400004,
+          "asset_name": "2013_Hyundai_Xcient(P540)",
+          "station_m": 62.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": 3.972651785460174,
+            "y": -503.59848524094286,
+            "z": 28.361153775354147
+          },
+          "yaw_deg": -151.91123258280433
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_02_vehicle_ped_bicycle_gap10.json",
+      "scenario_id": "s3_02_vehicle_ped_bicycle_gap10",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 47.0,
+      "longitudinal_gaps_m": [
+        13.0,
+        7.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 47.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": 16.18552009450837,
+            "y": -494.64742359394654,
+            "z": 28.322171579811567
+          },
+          "yaw_deg": -151.2881229792881
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 60.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": 5.642904815072691,
+            "y": -502.48037290524496,
+            "z": 28.352230668801745
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 67.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": -1.4665151904402571,
+            "y": -504.04920025525263,
+            "z": 28.38891515706483
+          },
+          "yaw_deg": -151.33935277757197
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_03_three_pedestrians_gap08.json",
+      "scenario_id": "s3_03_three_pedestrians_gap08",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 52.0,
+      "longitudinal_gaps_m": [
+        6.0,
+        10.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 52.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 12.645130500609504,
+            "y": -498.60312088890964,
+            "z": 28.33274900109792
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50200001,
+          "asset_name": "Boy1",
+          "station_m": 58.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": 6.46151613283752,
+            "y": -499.77354668774757,
+            "z": 28.345337303325923
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100077,
+          "asset_name": "worker_m_1",
+          "station_m": 68.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": -1.3847372876632003,
+            "y": -506.2837662975545,
+            "z": 28.394109115925794
+          },
+          "yaw_deg": -151.33935277757195
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_04_bicycle_two_scooters_gap08.json",
+      "scenario_id": "s3_04_bicycle_two_scooters_gap08",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 58.0,
+      "longitudinal_gaps_m": [
+        11.0,
+        5.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40100060,
+          "asset_name": "Bicycle_mountain",
+          "station_m": 58.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": 6.46151613283752,
+            "y": -499.77354668774757,
+            "z": 28.345337303325923
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 69.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": -2.312957265303375,
+            "y": -506.6765724282081,
+            "z": 28.39925440655642
+          },
+          "yaw_deg": -151.54724892240324
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 74.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": -7.566772220287896,
+            "y": -507.4720386304873,
+            "z": 28.424916038240475
+          },
+          "yaw_deg": -151.64667824542352
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_05_sedan_scooter_barrier_gap12.json",
+      "scenario_id": "s3_05_sedan_scooter_barrier_gap12",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 44.0,
+      "longitudinal_gaps_m": [
+        9.0,
+        15.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 44.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": 19.73687364173294,
+            "y": -494.84825659402844,
+            "z": 28.31280889784124
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 53.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": 10.911049658753283,
+            "y": -497.49273391285976,
+            "z": 28.33484598132939
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "objectList",
+          "data_id": 40200162,
+          "asset_name": "concrete-barrier",
+          "station_m": 68.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": -1.288813101850825,
+            "y": -506.45926145582456,
+            "z": 28.394109115925794
+          },
+          "yaw_deg": -151.33935277757195
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_06_bus_woman_bicycle_gap15.json",
+      "scenario_id": "s3_06_bus_woman_bicycle_gap15",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 42.0,
+      "longitudinal_gaps_m": [
+        12.0,
+        18.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30300003,
+          "asset_name": "DEFAULT_BUS",
+          "station_m": 42.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": 20.623905436384835,
+            "y": -492.3778031600447,
+            "z": 28.306941547950405
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100016,
+          "asset_name": "Woman8",
+          "station_m": 54.0,
+          "lateral_offset_m": 1.0,
+          "position": {
+            "x": 10.979247036641445,
+            "y": -499.72776069576935,
+            "z": 28.33694296156086
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 72.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": -5.854218164975796,
+            "y": -506.43423465989076,
+            "z": 28.413892143818153
+          },
+          "yaw_deg": -151.64667824542352
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_07_three_barriers_dense06.json",
+      "scenario_id": "s3_07_three_barriers_dense06",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 61.0,
+      "longitudinal_gaps_m": [
+        5.5,
+        7.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40200162,
+          "asset_name": "concrete-barrier",
+          "station_m": 61.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": 4.854862193778379,
+            "y": -503.12765099197895,
+            "z": 28.356692222077946
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100001,
+          "asset_name": "CargoBox",
+          "station_m": 66.5,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": -0.8838969340483478,
+            "y": -504.0726357628571,
+            "z": 28.386318177634347
+          },
+          "yaw_deg": -151.33935277757197
+        },
+        {
+          "container": "objectList",
+          "data_id": 40200162,
+          "asset_name": "concrete-barrier",
+          "station_m": 73.5,
+          "lateral_offset_m": 1.0,
+          "position": {
+            "x": -6.176946198718976,
+            "y": -508.9946600655063,
+            "z": 28.422160064634895
+          },
+          "yaw_deg": -151.64667824542352
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_08_truck_bicycle_child_gap18.json",
+      "scenario_id": "s3_08_truck_bicycle_child_gap18",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 44.0,
+      "longitudinal_gaps_m": [
+        14.0,
+        20.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30400004,
+          "asset_name": "2013_Hyundai_Xcient(P540)",
+          "station_m": 44.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": 18.840022019939205,
+            "y": -493.28759738443597,
+            "z": 28.31280889784124
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 58.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": 7.50319576803839,
+            "y": -501.7113040352005,
+            "z": 28.345337303325923
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50200001,
+          "asset_name": "Boy1",
+          "station_m": 78.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": -10.988962656036255,
+            "y": -509.55332660971874,
+            "z": 28.43999008492583
+          },
+          "yaw_deg": -151.63909343426474
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_09_sedan_suv_cargo_gap08.json",
+      "scenario_id": "s3_09_sedan_suv_cargo_gap08",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 64.0,
+      "longitudinal_gaps_m": [
+        10.0,
+        6.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 64.0,
+          "lateral_offset_m": 1.0,
+          "position": {
+            "x": 2.172336872615765,
+            "y": -504.4584733647897,
+            "z": 28.372402297762545
+          },
+          "yaw_deg": -151.52491159049026
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 74.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": -7.5192814791648885,
+            "y": -507.56004220716227,
+            "z": 28.424916038240475
+          },
+          "yaw_deg": -151.64667824542352
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100001,
+          "asset_name": "CargoBox",
+          "station_m": 80.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": -11.988862856231732,
+            "y": -511.9113270895855,
+            "z": 28.445763004210484
+          },
+          "yaw_deg": -151.63909343426474
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_10_alternating_lateral_gap10.json",
+      "scenario_id": "s3_10_alternating_lateral_gap10",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 46.0,
+      "longitudinal_gaps_m": [
+        7.0,
+        13.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 46.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": 17.01452168160269,
+            "y": -494.0793160742793,
+            "z": 28.318975536531433
+          },
+          "yaw_deg": -151.2881229792881
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 53.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 11.764760394421675,
+            "y": -499.07740358815636,
+            "z": 28.33484598132939
+          },
+          "yaw_deg": -151.68727521488606
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 66.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": -0.541089142187376,
+            "y": -503.65733337478633,
+            "z": 28.383721198203865
+          },
+          "yaw_deg": -151.33935277757197
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_11_ped_bicycle_scooter_gap12.json",
+      "scenario_id": "s3_11_ped_bicycle_scooter_gap12",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 57.0,
+      "longitudinal_gaps_m": [
+        16.0,
+        8.0
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "pedestrianList",
+          "data_id": 50100077,
+          "asset_name": "worker_m_1",
+          "station_m": 57.0,
+          "lateral_offset_m": 0.8,
+          "position": {
+            "x": 8.241945398277759,
+            "y": -500.9735746971017,
+            "z": 28.343237891621502
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100060,
+          "asset_name": "Bicycle_mountain",
+          "station_m": 73.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": -6.686749822070342,
+            "y": -506.9971384335265,
+            "z": 28.419404091029314
+          },
+          "yaw_deg": -151.64667824542352
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 81.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": -12.721359074553035,
+            "y": -512.648414000787,
+            "z": 28.44828388779093
+          },
+          "yaw_deg": -151.36386051274263
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_12_two_cars_ped_gap20.json",
+      "scenario_id": "s3_12_two_cars_ped_gap20",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 43.0,
+      "longitudinal_gaps_m": [
+        14.0,
+        22.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30100014,
+          "asset_name": "2020_Kia_K5",
+          "station_m": 43.0,
+          "lateral_offset_m": -1.0,
+          "position": {
+            "x": 19.65722609301254,
+            "y": -492.70264533810763,
+            "z": 28.309875222895823
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "vehicleList",
+          "data_id": 30200014,
+          "asset_name": "2023_Hyundai_Ioniq5",
+          "station_m": 57.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": 8.28929447260507,
+            "y": -501.0616545765314,
+            "z": 28.343237891621502
+          },
+          "yaw_deg": -151.7388721166558
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100058,
+          "asset_name": "police_m_2",
+          "station_m": 79.0,
+          "lateral_offset_m": -1.1,
+          "position": {
+            "x": -12.011439052887779,
+            "y": -509.76435666973913,
+            "z": 28.442876544568158
+          },
+          "yaw_deg": -151.63909343426474
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_13_small_objects_dense05p5.json",
+      "scenario_id": "s3_13_small_objects_dense05p5",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 67.0,
+      "longitudinal_gaps_m": [
+        4.5,
+        6.5
+      ],
+      "lateral_pattern": [
+        "left",
+        "right",
+        "left"
+      ],
+      "actors": [
+        {
+          "container": "objectList",
+          "data_id": 40100059,
+          "asset_name": "Bicycle_city",
+          "station_m": 67.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": -0.41134914650413223,
+            "y": -505.97964699622327,
+            "z": 28.38891515706483
+          },
+          "yaw_deg": -151.33935277757197
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100062,
+          "asset_name": "Scooter_01",
+          "station_m": 71.5,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": -5.273251401382499,
+            "y": -506.46090665207043,
+            "z": 28.41137467465621
+          },
+          "yaw_deg": -151.54724892240327
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100001,
+          "asset_name": "CargoBox",
+          "station_m": 78.0,
+          "lateral_offset_m": 0.9,
+          "position": {
+            "x": -10.181422015598589,
+            "y": -511.0492805241297,
+            "z": 28.43999008492583
+          },
+          "yaw_deg": -151.63909343426474
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "static_3/s3_14_mixed_wide22.json",
+      "scenario_id": "s3_14_mixed_wide22",
+      "family": "static_3",
+      "actor_count": 3,
+      "first_obstacle_station_m": 42.0,
+      "longitudinal_gaps_m": [
+        18.0,
+        23.0
+      ],
+      "lateral_pattern": [
+        "right",
+        "left",
+        "right"
+      ],
+      "actors": [
+        {
+          "container": "vehicleList",
+          "data_id": 30400004,
+          "asset_name": "2013_Hyundai_Xcient(P540)",
+          "station_m": 42.0,
+          "lateral_offset_m": -0.8,
+          "position": {
+            "x": 20.623905436384835,
+            "y": -492.3778031600447,
+            "z": 28.306941547950405
+          },
+          "yaw_deg": -150.11565214735
+        },
+        {
+          "container": "pedestrianList",
+          "data_id": 50100001,
+          "asset_name": "Man1",
+          "station_m": 60.0,
+          "lateral_offset_m": 1.1,
+          "position": {
+            "x": 5.737072602096584,
+            "y": -502.65681674301504,
+            "z": 28.352230668801745
+          },
+          "yaw_deg": -151.91123258280433
+        },
+        {
+          "container": "objectList",
+          "data_id": 40100063,
+          "asset_name": "Scooter_02",
+          "station_m": 83.0,
+          "lateral_offset_m": -0.9,
+          "position": {
+            "x": -15.435211836596267,
+            "y": -511.85154333820856,
+            "z": 28.44886101208798
+          },
+          "yaw_deg": -151.36386051274837
+        }
+      ],
+      "intent": "force alternating left-right avoidance through the obstacle sequence"
+    },
+    {
+      "file": "dynamic_1/d1_01_adult_ltr_nominal.json",
+      "scenario_id": "d1_01_adult_ltr_nominal",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100001,
+        "asset_name": "Man1",
+        "station_m": 45.0,
+        "direction": "ltr",
+        "speed_config_value": 4.0,
+        "active_distance_m": 30.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 21.302441525798375,
+          "y": -499.8259440590248,
+          "z": 28.3157794932513
+        },
+        "end": {
+          "x": 15.53757776396277,
+          "y": -489.3013848850036,
+          "z": 28.3157794932513
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_02_adult_rtl_nominal.json",
+      "scenario_id": "d1_02_adult_rtl_nominal",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100001,
+        "asset_name": "Man1",
+        "station_m": 45.0,
+        "direction": "rtl",
+        "speed_config_value": 4.0,
+        "active_distance_m": 30.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 15.53757776396277,
+          "y": -489.3013848850036,
+          "z": 28.3157794932513
+        },
+        "end": {
+          "x": 21.302441525798375,
+          "y": -499.8259440590248,
+          "z": 28.3157794932513
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_03_child_ltr_slow.json",
+      "scenario_id": "d1_03_child_ltr_slow",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50200001,
+        "asset_name": "Boy1",
+        "station_m": 55.0,
+        "direction": "ltr",
+        "speed_config_value": 3.0,
+        "active_distance_m": 24.0,
+        "path_length_m": 10.0,
+        "start": {
+          "x": 11.996011898605595,
+          "y": -503.72353156234175,
+          "z": 28.339039941792333
+        },
+        "end": {
+          "x": 7.253174478225645,
+          "y": -494.9198111440275,
+          "z": 28.339039941792333
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_04_woman_rtl_fast.json",
+      "scenario_id": "d1_04_woman_rtl_fast",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100016,
+        "asset_name": "Woman8",
+        "station_m": 55.0,
+        "direction": "rtl",
+        "speed_config_value": 6.0,
+        "active_distance_m": 30.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 6.77889073618765,
+          "y": -494.03943910219607,
+          "z": 28.339039941792333
+        },
+        "end": {
+          "x": 12.47029564064359,
+          "y": -504.6039036041732,
+          "z": 28.339039941792333
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_05_worker_ltr_late.json",
+      "scenario_id": "d1_05_worker_ltr_late",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100077,
+        "asset_name": "worker_m_1",
+        "station_m": 68.0,
+        "direction": "ltr",
+        "speed_config_value": 5.0,
+        "active_distance_m": 18.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 1.0613294505523638,
+          "y": -510.758892833441,
+          "z": 28.394109115925794
+        },
+        "end": {
+          "x": -4.6941216981901395,
+          "y": -500.2291833372375,
+          "z": 28.394109115925794
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_06_police_rtl_early.json",
+      "scenario_id": "d1_06_police_rtl_early",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100058,
+        "asset_name": "police_m_2",
+        "station_m": 68.0,
+        "direction": "rtl",
+        "speed_config_value": 5.0,
+        "active_distance_m": 40.0,
+        "path_length_m": 14.0,
+        "start": {
+          "x": -5.173742627252015,
+          "y": -499.35170754588717,
+          "z": 28.394109115925794
+        },
+        "end": {
+          "x": 1.540950379614239,
+          "y": -511.6363686247913,
+          "z": 28.394109115925794
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_07_cyclist_ltr.json",
+      "scenario_id": "d1_07_cyclist_ltr",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100084,
+        "asset_name": "Bicycle_Female1",
+        "station_m": 80.0,
+        "direction": "ltr",
+        "speed_config_value": 9.0,
+        "active_distance_m": 35.0,
+        "path_length_m": 14.0,
+        "start": {
+          "x": -9.043714638164943,
+          "y": -517.3671590127313,
+          "z": 28.445763004210484
+        },
+        "end": {
+          "x": -15.694049324122208,
+          "y": -505.0475385411116,
+          "z": 28.445763004210484
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_08_cyclist_rtl.json",
+      "scenario_id": "d1_08_cyclist_rtl",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "pedestrianList",
+        "data_id": 50100084,
+        "asset_name": "Bicycle_Female1",
+        "station_m": 80.0,
+        "direction": "rtl",
+        "speed_config_value": 7.0,
+        "active_distance_m": 28.0,
+        "path_length_m": 14.0,
+        "start": {
+          "x": -15.694049324122208,
+          "y": -505.0475385411116,
+          "z": 28.445763004210484
+        },
+        "end": {
+          "x": -9.043714638164943,
+          "y": -517.3671590127313,
+          "z": 28.445763004210484
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_09_sportbike_ltr.json",
+      "scenario_id": "d1_09_sportbike_ltr",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200017,
+        "asset_name": "SportBike",
+        "station_m": 50.0,
+        "direction": "ltr",
+        "speed_config_value": 10.0,
+        "active_distance_m": 35.0,
+        "path_length_m": 16.0,
+        "start": {
+          "x": 17.809952792739626,
+          "y": -504.00270376438255,
+          "z": 28.32929950396693
+        },
+        "end": {
+          "x": 10.246010466044392,
+          "y": -489.9035273175673,
+          "z": 28.32929950396693
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_10_e_scooter1_rtl.json",
+      "scenario_id": "d1_10_e_scooter1_rtl",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200018,
+        "asset_name": "ElectricScooter1",
+        "station_m": 58.0,
+        "direction": "rtl",
+        "speed_config_value": 5.0,
+        "active_distance_m": 25.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 4.141411490799221,
+          "y": -495.4576325956933,
+          "z": 28.345337303325923
+        },
+        "end": {
+          "x": 9.823300410076689,
+          "y": -506.02721812725474,
+          "z": 28.345337303325923
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_11_e_scooter2_ltr.json",
+      "scenario_id": "d1_11_e_scooter2_ltr",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200019,
+        "asset_name": "ElectricScooter2",
+        "station_m": 66.0,
+        "direction": "ltr",
+        "speed_config_value": 7.0,
+        "active_distance_m": 30.0,
+        "path_length_m": 12.0,
+        "start": {
+          "x": 2.8162573612457478,
+          "y": -509.7996639142384,
+          "z": 28.383721198203865
+        },
+        "end": {
+          "x": -2.9391937874967504,
+          "y": -499.2699544180349,
+          "z": 28.383721198203865
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_12_scooter1_rtl_fast.json",
+      "scenario_id": "d1_12_scooter1_rtl_fast",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200020,
+        "asset_name": "Scooter1",
+        "station_m": 74.0,
+        "direction": "rtl",
+        "speed_config_value": 10.0,
+        "active_distance_m": 35.0,
+        "path_length_m": 16.0,
+        "start": {
+          "x": -10.891124098898391,
+          "y": -501.3117882632393,
+          "z": 28.424916038240475
+        },
+        "end": {
+          "x": -3.292605519217257,
+          "y": -515.3923605312347,
+          "z": 28.424916038240475
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_13_scooter2_ltr_late.json",
+      "scenario_id": "d1_13_scooter2_ltr_late",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200021,
+        "asset_name": "Scooter2",
+        "station_m": 82.0,
+        "direction": "ltr",
+        "speed_config_value": 8.0,
+        "active_distance_m": 18.0,
+        "path_length_m": 14.0,
+        "start": {
+          "x": -10.771491139092992,
+          "y": -518.3059766342006,
+          "z": 28.448572449939455
+        },
+        "end": {
+          "x": -17.480928882679045,
+          "y": -506.0184445319052,
+          "z": 28.448572449939455
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    },
+    {
+      "file": "dynamic_1/d1_14_stroller_rtl_slow.json",
+      "scenario_id": "d1_14_stroller_rtl_slow",
+      "family": "dynamic_1",
+      "actor_count": 1,
+      "actor": {
+        "container": "objectList",
+        "data_id": 40200011,
+        "asset_name": "BabyStroller1",
+        "station_m": 88.0,
+        "direction": "rtl",
+        "speed_config_value": 3.0,
+        "active_distance_m": 28.0,
+        "path_length_m": 10.0,
+        "start": {
+          "x": -21.76938130255731,
+          "y": -510.61781483780055,
+          "z": 28.44906702490855
+        },
+        "end": {
+          "x": -17.032900713812953,
+          "y": -519.4249569186602,
+          "z": 28.44906702490855
+        }
+      },
+      "intent": "cross the ego road laterally and test stop-or-avoid behavior"
+    }
+  ]
+}

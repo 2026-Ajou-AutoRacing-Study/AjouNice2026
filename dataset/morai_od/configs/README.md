@@ -1,5 +1,30 @@
 # Generation configs
 
+## 현재 Base5 기본 환경
+
+v113의 `placement_ground`는 최종 actor XY의 실제 도로 선분·연결 차선 경계 높이 추정이다.
+전역 triangulation/가상 차선 변경 link는 사용하지 않으며 mesh 접지 인증은 아니다.
+`capture.static_quality_budget`는 child당 witness 최대8(같은 UID+payload 1회),
+실측 높이 재촬영1/배치 대체1이다. 한도 초과는 성공이 아니라 deficit로 기록한다.
+구 config에 이 옵션이 없으면 legacy 계산/QA loop를 유지한다. frozen 구 output에 새코드 resume 금지.
+
+v112의 `mission_dynamic_observation.vehicle_primary_scenes=12`는 동적 미션250셀의4.8%다.
+길이6m 이하12차종,도로 link 기반 정지 외관 캡처이며 차량 양보 관측만8–20m다.
+일반 사람12슬롯만 교체하고 희귀 복합/동물 quota를 유지한다. 구manifest/resume에 새코드를 섞지 않는다.
+
+v111의 `stationary_mission_assets`가 정적 회피 슬롯의 자산 범위를 정한다.
+기존600 obstacle 미션 슬롯에9개 pool을 할당하고, other_vehicle50 슬롯은 정적 차량으로 유지한다.
+모든122종이 정적 미션에 들어가며 속도0/이동경로없음이다. family를 GT 클래스로 해석하지 않는다.
+
+2026-10-07: Sunny13시가 현재 기본값이다.
+`base5_independent_5k_sunny13.json`을 명시적 config로 사용한다.
+`base5_independent_5k_sunny11.json`은 기존 generator/resume 경로 호환을 위해 이름만
+남긴 동일 내용의 alias이며 hour도13이다. 실제 환경은 MR에서 확인하고,
+기존 수집의 frozen manifest를 in-place로 바꾸지 않는다.
+[정정 근거·기존 산출물 처리](../docs/261007_base5_sunny13_environment_correction.md).
+
+## 기존 설정 이력
+
 대량 생성기의 anchor 선택, 객체 수·거리, 날씨·시간 조합, seed와 split 정책을
 YAML 설정으로 관리할 디렉터리다. 현재 프로토타입은 명령행 인자를 사용한다.
 

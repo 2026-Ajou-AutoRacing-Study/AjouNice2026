@@ -7,12 +7,14 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <autoware/motion_utils/trajectory/acceleration_limits.hpp>
 
 namespace autoware::behavior_path_planner::utils::lane_change
 {
 inline std::vector<double> make_speed_profile(
   const std::vector<double> & s, const std::vector<double> & limits,
-  const double initial_speed, const double acceleration, const double deceleration)
+  const double initial_speed, const double acceleration, const double deceleration,
+  const autoware::motion_utils::AccelerationLimits & acceleration_limits = {})
 {
   if (s.size() != limits.size() || s.empty() || !std::isfinite(initial_speed) ||
       initial_speed < 0 || !std::isfinite(acceleration) || !std::isfinite(deceleration) ||
@@ -33,7 +35,8 @@ inline std::vector<double> make_speed_profile(
   }
   v.front() = std::min(initial_speed, v.front());
   for (size_t i = 1; i < v.size(); ++i) {
-    v[i] = std::min(v[i], std::sqrt(v[i - 1] * v[i - 1] + 2 * acceleration * (s[i] - s[i - 1])));
+    v[i] = std::min(v[i], acceleration_limits.reachableVelocity(
+      v[i - 1], s[i] - s[i - 1], acceleration));
   }
   return v;
 }

@@ -1,0 +1,45 @@
+<launch>
+  <!-- Private-master replay composition. Inputs (including map and route) come from the bag. -->
+  <arg name="config_root"/>
+  <arg name="vehicle_param_path"/>
+  <arg name="behavior_path_launch_modules"/>
+  <arg name="behavior_velocity_launch_modules"/>
+  <arg name="motion_velocity_launch_modules"/>
+  <group ns="/planning/scenario_planning/lane_driving/behavior_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/behavior_planning.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="use_ground_pointcloud" value="false"/>
+      <arg name="use_occupancy_grid" value="false"/>
+      <arg name="behavior_path_launch_modules" value="$(arg behavior_path_launch_modules)"/>
+      <arg name="behavior_velocity_launch_modules" value="$(arg behavior_velocity_launch_modules)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_path.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning/lane_driving/motion_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/motion_velocity.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+      <arg name="launch_modules" value="$(arg motion_velocity_launch_modules)"/>
+    </include>
+  </group>
+  <group ns="/planning/scenario_planning">
+    <include file="$(find tier4_planning_launch)/launch/scenario_planning/scenario_common.launch">
+      <arg name="config_root" value="$(arg config_root)"/>
+      <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    </include>
+  </group>
+  <include file="$(find tier4_planning_launch)/launch/planning_validation.launch">
+    <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
+    <arg name="use_obstacle_pointcloud" value="false"/>
+    <arg name="launch_modules" value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
+  </include>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/forward_path_length" value="400.0"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/avoidance/target_filtering/unstable_classification_time" value="0.0"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection/common/attention_area_length" value="100.0"/>
+</launch>

@@ -8,8 +8,9 @@
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="use_sim_time" default="false"/>
+  <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <!-- Enable this to replace PointPainting detection only with MORAI GT. -->
@@ -17,12 +18,40 @@
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
+  <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
+  <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="tracker_vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
   <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
   <arg name="tracker_meas_noise_std_yaw_deg" default="10.0"/>
   <arg name="tracker_use_kinematic_model" default="false"/>
+  <arg name="tracker_time_aware_track_lifecycle" default="true"/>
+  <arg name="tracker_confirmed_track_max_coast_time_sec" default="0.50"/>
+  <arg name="tracker_confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
+  <arg name="tracker_lifecycle_stationary_speed_threshold_mps" default="2.0"/>
+  <arg name="tracker_suppress_duplicate_track_birth" default="true"/>
+  <arg name="tracker_duplicate_birth_suppression_distance_m" default="0.75"/>
+  <arg name="tracker_duplicate_birth_minimum_max_dimension_m" default="1.0"/>
+  <arg name="tracker_duplicate_birth_maximum_dimension_ratio" default="2.0"/>
   <arg name="tracker_detection_velocity_fusion_mode" default="0"/>
   <arg name="tracker_detection_velocity_noise_std_mps" default="1.0"/>
+  <arg name="tracker_detection_velocity_update_max_track_age_sec" default="1.0"/>
+  <arg name="tracker_detection_velocity_maximum_output_age_sec" default="0.25"/>
+  <arg name="tracker_detection_velocity_max_longitudinal_innovation_mps" default="5.0"/>
+  <arg name="tracker_detection_velocity_longitudinal_blend" default="1.0"/>
+  <arg name="tracker_center_motion_velocity_fusion" default="false"/>
+  <arg name="tracker_publish_center_motion_diagnostics" default="false"/>
+  <arg name="tracker_center_motion_fuse_ekf_state" default="true"/>
+  <arg name="tracker_center_motion_override_output_velocity" default="false"/>
+  <arg name="tracker_center_motion_maximum_output_age_sec" default="0.40"/>
+  <arg name="tracker_center_motion_min_baseline_sec" default="0.30"/>
+  <arg name="tracker_center_motion_medium_baseline_sec" default="0.65"/>
+  <arg name="tracker_center_motion_long_baseline_sec" default="0.90"/>
+  <arg name="tracker_center_motion_max_gap_sec" default="0.25"/>
+  <arg name="tracker_center_motion_min_update_interval_sec" default="0.20"/>
+  <arg name="tracker_center_motion_max_fit_residual_m" default="0.10"/>
+  <arg name="tracker_center_motion_early_noise_std_mps" default="1.50"/>
+  <arg name="tracker_center_motion_mature_noise_std_mps" default="0.60"/>
 
   <group if="$(arg use_morai_gt_detection)">
     <include file="$(find perception_object_pipeline)/launch/morai_gt_detection.launch">
@@ -33,6 +62,8 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="pedestrian_gaussian_association_ranking"
+         value="$(arg tracker_pedestrian_gaussian_association_ranking)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="start_detector" value="false"/>
@@ -53,11 +84,66 @@
     <arg name="compensate_tracking_output_to_current_time" value="false"/>
     <arg name="maximum_tracking_output_compensation_sec" value="0.25"/>
     <arg name="tracking_internal_publish_rate_hz" value="30.0"/>
-    <arg name="maximum_tracking_internal_prediction_age_sec" value="0.25"/>
+    <arg name="maximum_tracking_internal_prediction_age_sec"
+         value="$(arg maximum_tracking_internal_prediction_age_sec)"/>
+    <arg name="time_aware_track_lifecycle"
+         value="$(arg tracker_time_aware_track_lifecycle)"/>
+    <arg name="confirmed_track_max_coast_time_sec"
+         value="$(arg tracker_confirmed_track_max_coast_time_sec)"/>
+    <arg name="confirmed_stationary_track_max_coast_time_sec"
+         value="$(arg tracker_confirmed_stationary_track_max_coast_time_sec)"/>
+    <arg name="lifecycle_stationary_speed_threshold_mps"
+         value="$(arg tracker_lifecycle_stationary_speed_threshold_mps)"/>
+    <arg name="suppress_duplicate_track_birth"
+         value="$(arg tracker_suppress_duplicate_track_birth)"/>
+    <arg name="fast_confirmed_vehicle_promotion"
+         value="$(arg tracker_fast_confirmed_vehicle_promotion)"/>
+    <arg name="vehicle_promotion_min_confidence"
+         value="$(arg tracker_vehicle_promotion_min_confidence)"/>
+    <arg name="duplicate_birth_suppression_distance_m"
+         value="$(arg tracker_duplicate_birth_suppression_distance_m)"/>
+    <arg name="duplicate_birth_minimum_max_dimension_m"
+         value="$(arg tracker_duplicate_birth_minimum_max_dimension_m)"/>
+    <arg name="duplicate_birth_maximum_dimension_ratio"
+         value="$(arg tracker_duplicate_birth_maximum_dimension_ratio)"/>
     <arg name="detection_velocity_fusion_mode"
          value="$(arg tracker_detection_velocity_fusion_mode)"/>
     <arg name="detection_velocity_noise_std_mps"
          value="$(arg tracker_detection_velocity_noise_std_mps)"/>
+    <arg name="detection_velocity_update_max_track_age_sec"
+         value="$(arg tracker_detection_velocity_update_max_track_age_sec)"/>
+    <arg name="detection_velocity_maximum_output_age_sec"
+         value="$(arg tracker_detection_velocity_maximum_output_age_sec)"/>
+    <arg name="detection_velocity_max_longitudinal_innovation_mps"
+         value="$(arg tracker_detection_velocity_max_longitudinal_innovation_mps)"/>
+    <arg name="detection_velocity_longitudinal_blend"
+         value="$(arg tracker_detection_velocity_longitudinal_blend)"/>
+    <arg name="center_motion_velocity_fusion"
+         value="$(arg tracker_center_motion_velocity_fusion)"/>
+    <arg name="publish_center_motion_diagnostics"
+         value="$(arg tracker_publish_center_motion_diagnostics)"/>
+    <arg name="center_motion_fuse_ekf_state"
+         value="$(arg tracker_center_motion_fuse_ekf_state)"/>
+    <arg name="center_motion_override_output_velocity"
+         value="$(arg tracker_center_motion_override_output_velocity)"/>
+    <arg name="center_motion_maximum_output_age_sec"
+         value="$(arg tracker_center_motion_maximum_output_age_sec)"/>
+    <arg name="center_motion_min_baseline_sec"
+         value="$(arg tracker_center_motion_min_baseline_sec)"/>
+    <arg name="center_motion_medium_baseline_sec"
+         value="$(arg tracker_center_motion_medium_baseline_sec)"/>
+    <arg name="center_motion_long_baseline_sec"
+         value="$(arg tracker_center_motion_long_baseline_sec)"/>
+    <arg name="center_motion_max_gap_sec"
+         value="$(arg tracker_center_motion_max_gap_sec)"/>
+    <arg name="center_motion_min_update_interval_sec"
+         value="$(arg tracker_center_motion_min_update_interval_sec)"/>
+    <arg name="center_motion_max_fit_residual_m"
+         value="$(arg tracker_center_motion_max_fit_residual_m)"/>
+    <arg name="center_motion_early_noise_std_mps"
+         value="$(arg tracker_center_motion_early_noise_std_mps)"/>
+    <arg name="center_motion_mature_noise_std_mps"
+         value="$(arg tracker_center_motion_mature_noise_std_mps)"/>
     <arg name="tracker_prediction_model" value="$(arg tracker_prediction_model)"/>
     <arg name="tracker_system_noise_std_vx_vy_ms"
          value="$(arg tracker_system_noise_std_vx_vy_ms)"/>

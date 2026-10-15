@@ -1,13 +1,17 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="common_config"
-       default="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/trajectory_follower_autoware.yaml"/>
   <arg name="pp_config"
-       default="$(find trajectory_follower)/config/purepursuit_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/purepursuit_autoware.yaml"/>
   <arg name="pi_config"
-       default="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
+  <!-- Keep the production default on the global state.  Localization A/B may
+       point only the controller at /localization/control_kinematic_state. -->
+  <arg name="kinematic_state_topic"
+       default="/localization/kinematic_state"/>
 
   <!-- This launch owns /control/command/steering and /ctrl_cmd. Do not run pp_pi.launch too. -->
   <node pkg="trajectory_follower"
@@ -18,6 +22,7 @@
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pp_config)"/>
     <rosparam command="load" file="$(arg vehicle_config)"/>
+    <param name="topics/kinematic_state" value="$(arg kinematic_state_topic)"/>
   </node>
 
   <node pkg="trajectory_follower"
@@ -28,5 +33,6 @@
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pi_config)"/>
     <rosparam command="load" file="$(arg vehicle_config)"/>
+    <param name="topics/kinematic_state" value="$(arg kinematic_state_topic)"/>
   </node>
 </launch>

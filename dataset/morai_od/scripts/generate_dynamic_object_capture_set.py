@@ -34,14 +34,14 @@ DEFAULT_ROUTE = (
 DEFAULT_MGEO = PROJECT_ROOT / "kcity_map/mgeo_map_scenario_runner_2025"
 DEFAULT_OUTPUT = PROJECT_ROOT / "dataset/morai_od"
 DEFAULT_ASSET_CATALOG = (
-    PROJECT_ROOT / "dataset/morai_od/configs/morai_asset_catalog_personal_260807.json"
+    PROJECT_ROOT / "dataset/morai_od/configs/morai_asset_catalog_260807.json"
 )
 DEFAULT_ASSET_COMPATIBILITY = (
     PROJECT_ROOT
-    / "dataset/morai_od/configs/morai_asset_launcher_compatibility_260807.json"
+    / "dataset/morai_od/configs/morai_asset_mr_collection_261004.json"
 )
 DEFAULT_RUNTIME_ASSET_DIR = Path.home() / (
-    "MoraiLauncher_Lin_per/MoraiLauncher_Lin_Data/SaveFile/"
+    "MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/"
     "Scenario/R_KR_PR_K-city_2025"
 )
 
@@ -113,6 +113,18 @@ HIGHWAY_LANE_LINK_PATHS = {
         "A2256W000435",
         "A2256W000423",
     ),
+}
+
+
+# All three legal mainline lanes meet at A1256W000638.  The production v84
+# route prefers the left bottleneck chain, represented in the MORAI MGeo by
+# A432 -> A427 -> A444.  The original cruise paths stopped exactly at the
+# convergence node, so they could never create temporal clips inside the
+# narrow corridor.
+HIGHWAY_BOTTLENECK_LANE_LINK_PATHS = {
+    lane_id: tuple(link_ids)
+    + ("A2256W000432", "A2256W000427", "A2256W000444")
+    for lane_id, link_ids in HIGHWAY_LANE_LINK_PATHS.items()
 }
 
 
@@ -1221,6 +1233,84 @@ def set_spawn_target_speed(spawn, target, match_spawn_velocity=False):
         spawn["MaxSpawnVelocity_Custom"] = target
 
 
+def configure_direct_dynamic_vehicle(
+    actor, pose, target_speed_kph, unique_id, route_link_ids, links_by_id
+):
+    """Place one deterministic moving NPC without SpawnPoint activation delay."""
+
+    target_speed_kph = float(target_speed_kph)
+    actor["UNIQUEID"] = int(unique_id)
+    initial = actor["initPosition"]
+    initial["initPositionMode"] = "Absolute"
+    initial["pos"] = formatted_vector(
+        pose["x"], pose["y"], pose["z"] + 0.36
+    )
+    initial["rot"] = formatted_rotation(float(pose["yaw"]))
+    initial["initLink"] = str(pose["link_idx"])
+    link_points = links_by_id[str(pose["link_idx"])]["points"]
+    initial["initLinkRatio"] = float(pose["point_idx"]) / max(
+        1, len(link_points) - 1
+    )
+    initial["gear"] = 4
+    save_data = initial.get("vehicleSaveData", {})
+    save_data["velocity"] = target_speed_kph
+    target_speed_mps = target_speed_kph / 3.6
+    original_velocity = save_data.get("lastVelocity", {})
+    original_norm = math.sqrt(
+        sum(
+            float(original_velocity.get(axis, 0.0)) ** 2
+            for axis in ("x", "y", "z")
+        )
+    )
+    if original_norm > 1e-6:
+        restored_velocity = {
+            axis: float(original_velocity.get(axis, 0.0))
+            / original_norm
+            * target_speed_mps
+            for axis in ("x", "y", "z")
+        }
+    else:
+        restored_velocity = {
+            "x": 0.0,
+            "y": 0.0,
+            "z": target_speed_mps,
+        }
+    save_data["lastVelocity"] = dict(restored_velocity)
+    if isinstance(save_data.get("vehicle"), dict):
+        save_data["vehicle"]["lastVelocity"] = dict(restored_velocity)
+    for key in (
+        "linkVelocity",
+        "constantVelocity",
+        "desiredVelocity",
+        "currentVelocity",
+        "viewCurrentVelocity",
+    ):
+        if key in actor:
+            actor[key] = target_speed_kph
+    actor["velocityType"] = 2
+    actor["isCloseLoop"] = False
+    actor["isLaneChange"] = False
+    actor["isEgo"] = False
+    actor["spawnPointUniqueID"] = -1
+    actor["destinationUniqueID"] = -1
+    actor["startPointLinkInfo"] = {
+        "linkIdx": str(pose["link_idx"]),
+        "pointIdx": int(pose["point_idx"]),
+    }
+    actor["currentLinkInfo"] = dict(actor["startPointLinkInfo"])
+    actor["loopStartLinkInfo"] = dict(actor["startPointLinkInfo"])
+    final_link = links_by_id[route_link_ids[-1]]
+    actor["endPointLinkInfo"] = {
+        "linkIdx": str(route_link_ids[-1]),
+        "pointIdx": len(final_link["points"]) - 1,
+    }
+    actor["isWaypointMode"] = False
+    actor["wayPointInfos"] = []
+    actor["destinationMode"] = 1
+    actor["activeDistance"] = 3.4028234663852886e38
+    return actor
+
+
 def weighted_lane_schedule(family):
     """Return an interleaved, exact-count Ego lane schedule for one family."""
 
@@ -1838,7 +1928,15 @@ def build_route_anchored_vehicle_scene(
         raise ValueError("capture zone is outside the competition route")
     capture_index = rng.randint(lower, upper)
     capture_anchor = route_pose_at_index(route, capture_index)
-    preroll = float(uniform_or_choice(rng, family["capture_preroll_distance_m"]))
+    preroll = float(
+        uniform_or_choice(
+            rng,
+            zone.get(
+                "capture_preroll_distance_m",
+                family["capture_preroll_distance_m"],
+            ),
+        )
+    )
     start_arc = max(0.0, route_arc[capture_index] - preroll)
     start_index = route_index_at_arc(route_arc, start_arc)
     route_pose = route_pose_at_index(route, start_index)
@@ -1873,11 +1971,19 @@ def build_route_anchored_vehicle_scene(
             for item in family.get("interaction_roles", [])
         }
         role = roles[role_name]
-        if role_name == "side_merge_traffic":
+        speed_schedule = family.get("npc_target_speed_schedule_kph")
+        if speed_schedule:
+            npc_target_speed = float(
+                speed_schedule[variant_index % len(speed_schedule)]
+            )
+        elif family.get("preserve_template_npc_target_speed", False):
+            npc_target_speed = float(runtime[0]["target_speed_kph"])
+        elif role_name == "side_merge_traffic":
             npc_speed_factor = rng.uniform(0.90, 1.05)
+            npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
         else:
             npc_speed_factor = rng.uniform(0.75, 0.95)
-        npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
+            npc_target_speed = max(10.0, ego_speed * npc_speed_factor)
         spawn = scenario["spawnPointList"][0]
         set_spawn_target_speed(
             spawn, npc_target_speed, match_spawn_velocity=True
@@ -1891,6 +1997,17 @@ def build_route_anchored_vehicle_scene(
         selected_offset = rng.uniform(
             float(offset_range[0]), float(offset_range[1])
         )
+        offset_corrections = family.get(
+            "npc_spawn_offset_correction_by_speed_kph", {}
+        )
+        selected_offset += float(
+            offset_corrections.get(str(int(round(npc_target_speed))), 0.0)
+        )
+        spawn_delays = family.get("npc_spawn_delay_by_speed_kph", {})
+        spawn_delay_sec = float(
+            spawn_delays.get(str(int(round(npc_target_speed))), 0.0)
+        )
+        spawn["waitSpawnTime"] = spawn_delay_sec
         npc_pose = reposition_spawn_on_link_path(
             spawn,
             links_by_id,
@@ -1913,6 +2030,7 @@ def build_route_anchored_vehicle_scene(
                 "interaction_role": role_name,
                 "planned_spawn_distance_m": float(npc_distance),
                 "planned_spawn_offset_m": float(selected_offset),
+                "spawn_delay_sec": spawn_delay_sec,
             }
         )
         gate_range = role["gate_longitudinal_m"]
@@ -2060,10 +2178,35 @@ def build_route_anchored_vehicle_scene(
         ),
         "lookahead_m": float(family.get("lookahead_m", 4.0)),
     })
-    if "minimum_curve_speed_kph" in family:
-        capture_overrides["minimum_curve_speed_kph"] = float(
-            family["minimum_curve_speed_kph"]
+    temporal_capture_count = int(
+        family.get("captures_per_scene", 0)
+    )
+    desired_duration_sec = float(
+        family.get("desired_clip_duration_sec", 0.0)
+    )
+    if temporal_capture_count > 1 and desired_duration_sec > 0.0:
+        capture_overrides.update(
+            {
+                "captures_per_scene": temporal_capture_count,
+                "capture_spacing_m": max(
+                    0.5,
+                    ego_speed
+                    / 3.6
+                    * desired_duration_sec
+                    / (temporal_capture_count - 1),
+                ),
+                "desired_clip_duration_sec": desired_duration_sec,
+            }
         )
+    for policy_key in (
+        "minimum_curve_speed_kph",
+        "route_deviation_limit_m",
+        "heading_error_limit_deg",
+        "maximum_steering_rad",
+        "load_settle_sec",
+    ):
+        if policy_key in family:
+            capture_overrides[policy_key] = float(family[policy_key])
     return ego_sample, runtime, capture_overrides, capture_anchor
 
 
@@ -2131,6 +2274,36 @@ def route_arc_coordinates(route):
     return arc
 
 
+def laterally_shift_route(route, offset_m):
+    """Apply one scene-constant lateral offset to a waypoint route.
+
+    The offset is deliberately constant for a whole clip.  Per-frame jitter
+    would teach synthetic lateral motion, while moving only the initial Ego
+    pose would create an artificial controller re-centering transient.
+    """
+
+    offset_m = float(offset_m)
+    if abs(offset_m) < 1e-9:
+        return [dict(point) for point in route]
+    shifted = []
+    for index, point in enumerate(route):
+        before = route[max(0, index - 1)]
+        after = route[min(len(route) - 1, index + 1)]
+        dx = float(after["x"]) - float(before["x"])
+        dy = float(after["y"]) - float(before["y"])
+        norm = math.hypot(dx, dy)
+        if norm < 1e-9:
+            raise ValueError("cannot offset a route with a zero-length tangent")
+        shifted.append(
+            {
+                **point,
+                "x": float(point["x"]) - dy / norm * offset_m,
+                "y": float(point["y"]) + dx / norm * offset_m,
+            }
+        )
+    return shifted
+
+
 def route_pose_at(route, arc, distance_m, link_id, links_by_id):
     index = min(
         range(len(arc)), key=lambda item: abs(arc[item] - float(distance_m))
@@ -2140,7 +2313,11 @@ def route_pose_at(route, arc, distance_m, link_id, links_by_id):
     yaw = math.degrees(
         math.atan2(after["y"] - before["y"], after["x"] - before["x"])
     )
-    first_link = links_by_id[link_id]
+    # Long mission routes can start hundreds of metres after their first
+    # link.  Preserve the sampled point's real link identity instead of
+    # labelling every pose as belonging to the first link in the chain.
+    sampled_link_id = str(route[index].get("link_idx", link_id))
+    first_link = links_by_id[sampled_link_id]
     point_index = min(
         range(len(first_link["points"])),
         key=lambda item: math.hypot(
@@ -2152,7 +2329,7 @@ def route_pose_at(route, arc, distance_m, link_id, links_by_id):
         **route[index],
         "yaw": yaw,
         "route_index": index,
-        "link_idx": link_id,
+        "link_idx": sampled_link_id,
         "point_idx": point_index,
         "point_ratio": point_index / max(1, len(first_link["points"]) - 1),
         "max_speed": float(first_link.get("max_speed", 120.0)),
@@ -2298,15 +2475,105 @@ def build_highway_cruise_scene(
     scenario, template, family, rng, variant_index, links_by_id
 ):
     source_ids = list(family["source_spawn_ids"])
-    ego_lane_id = weighted_lane_schedule(family)[variant_index]
+    explicit_lane_schedule = family.get("ego_lane_schedule")
+    if explicit_lane_schedule:
+        if len(explicit_lane_schedule) != int(family.get("count", 1)):
+            raise ValueError("ego_lane_schedule length must match family count")
+        ego_lane_id = int(explicit_lane_schedule[variant_index])
+        if ego_lane_id not in source_ids:
+            raise ValueError("ego_lane_schedule contains an illegal lane")
+    else:
+        ego_lane_id = weighted_lane_schedule(family)[variant_index]
+    route_profile = str(family.get("highway_route_profile", "cruise"))
+    if route_profile == "cruise":
+        route_paths = HIGHWAY_LANE_LINK_PATHS
+    elif route_profile == "bottleneck_preferred":
+        route_paths = HIGHWAY_BOTTLENECK_LANE_LINK_PATHS
+    else:
+        raise ValueError("unsupported highway_route_profile: {}".format(route_profile))
+
+    arc_zone = None
+    arc_zones = list(family.get("ego_capture_arc_zones", []))
+    if arc_zones:
+        zone_name = weighted_zone_schedule(
+            family, key="ego_capture_arc_zones"
+        )[variant_index]
+        arc_zone = next(
+            row for row in arc_zones if str(row["name"]) == zone_name
+        )
     roles = {
         str(item["name"]): item
         for item in family.get("interaction_roles", [])
     }
-    role_name = weighted_zone_schedule(
+    role_schedule = weighted_zone_schedule(
         family, key="interaction_roles"
-    )[variant_index]
+    )
+    if arc_zone and arc_zone.get("interaction_role_schedule"):
+        allowed_roles = [
+            str(name) for name in arc_zone["interaction_role_schedule"]
+        ]
+        role_name = allowed_roles[
+            (variant_index // max(1, len(arc_zones))) % len(allowed_roles)
+        ]
+    else:
+        role_name = role_schedule[
+            (
+                variant_index
+                + int(family.get("interaction_role_schedule_offset", 0))
+            )
+            % len(role_schedule)
+        ]
     role = roles[role_name]
+    adjacent_role = role_name in {"side_parallel", "side_passby"} or (
+        role_name in {"rear_approach", "rear_receding"}
+        and role.get("adjacent_lane", False)
+    )
+    adjacent_side = None
+    adjacent_side_schedule = family.get("adjacent_lane_side_schedule")
+    if adjacent_role and adjacent_side_schedule:
+        adjacent_side = str(
+            adjacent_side_schedule[variant_index % len(adjacent_side_schedule)]
+        ).lower()
+        if adjacent_side not in {"left", "right"}:
+            raise ValueError(
+                "adjacent lane side must be left or right: {}".format(
+                    adjacent_side
+                )
+            )
+        if family.get("force_middle_lane_for_adjacent_side", False):
+            middle_lanes = [
+                lane
+                for lane in sorted(source_ids)
+                if any(other < lane for other in source_ids)
+                and any(other > lane for other in source_ids)
+            ]
+            if not middle_lanes:
+                raise ValueError("no legal middle lane for adjacent-side schedule")
+            ego_lane_id = middle_lanes[variant_index % len(middle_lanes)]
+        else:
+            desired_adjacent = [
+                lane
+                for lane in source_ids
+                if abs(lane - ego_lane_id) == 2
+                and (
+                    (adjacent_side == "left" and lane > ego_lane_id)
+                    or (adjacent_side == "right" and lane < ego_lane_id)
+                )
+            ]
+            if not desired_adjacent:
+                middle_lanes = [
+                    lane
+                    for lane in sorted(source_ids)
+                    if any(other < lane for other in source_ids)
+                    and any(other > lane for other in source_ids)
+                ]
+                if not middle_lanes:
+                    raise ValueError(
+                        "no legal lane supports requested adjacent side"
+                    )
+                ego_lane_id = middle_lanes[
+                    variant_index % len(middle_lanes)
+                ]
     if role_name == "front_overtake" and ego_lane_id == min(source_ids):
         # The rightmost Ego lane has no slower lane on its right.  Keeping the
         # NPC in the same lane while Ego is deliberately faster turns the
@@ -2314,8 +2581,18 @@ def build_highway_cruise_scene(
         # these overtaking clips to the middle lane instead.
         overtaking_lanes = sorted(source_ids)[1:]
         ego_lane_id = overtaking_lanes[variant_index % len(overtaking_lanes)]
-    if role_name == "side_parallel":
+    if adjacent_role:
         adjacent = [lane for lane in source_ids if abs(lane - ego_lane_id) == 2]
+        if adjacent_side == "left":
+            adjacent = [lane for lane in adjacent if lane > ego_lane_id]
+        elif adjacent_side == "right":
+            adjacent = [lane for lane in adjacent if lane < ego_lane_id]
+        if not adjacent:
+            raise ValueError(
+                "no {} adjacent lane for Ego lane {}".format(
+                    adjacent_side or "legal", ego_lane_id
+                )
+            )
         npc_spawn_id = adjacent[variant_index % len(adjacent)]
     elif role_name == "front_overtake":
         right_lanes = [lane for lane in source_ids if lane < ego_lane_id]
@@ -2330,15 +2607,30 @@ def build_highway_cruise_scene(
         )
     )
     base_target = float(spawn["MinDesiredVelocity_Custom"])
-    scale = rng.uniform(*family["npc_target_speed_scale"])
+    speed_schedule = family.get("npc_target_speed_schedule_kph")
+    if speed_schedule:
+        requested_target = float(
+            speed_schedule[variant_index % len(speed_schedule)]
+        )
+    else:
+        scale = rng.uniform(*family["npc_target_speed_scale"])
+        requested_target = base_target * scale
     target, period = configure_spawn(
         spawn,
         rng,
-        {**family, "target_speed_kph": base_target * scale},
+        {**family, "target_speed_kph": requested_target},
         base_target,
     )
-    route_link_ids = HIGHWAY_LANE_LINK_PATHS[ego_lane_id]
+    route_link_ids = route_paths[ego_lane_id]
     ego_route, ego_route_arc = route_from_link_path(links_by_id, route_link_ids)
+    lateral_offsets = family.get("ego_lateral_offset_schedule_m")
+    if lateral_offsets:
+        lateral_offset_m = float(
+            lateral_offsets[variant_index % len(lateral_offsets)]
+        )
+        ego_route = laterally_shift_route(ego_route, lateral_offset_m)
+    else:
+        lateral_offset_m = 0.0
     start_arc = rng.uniform(*family["ego_start_arc_m"])
     ego_sample = route_pose_at(
         ego_route, ego_route_arc, start_arc, route_link_ids[0], links_by_id
@@ -2371,18 +2663,23 @@ def build_highway_cruise_scene(
         else:
             ego_speed = max(10.0, target - 7.0)
         relative_lane_intent = "rear_approach"
-    elif role_name == "side_parallel":
+    elif role_name in {"side_parallel", "side_passby"}:
         if lane_speed_range is not None:
             ego_speed = rng.uniform(*lane_speed_range)
         else:
             ego_speed = target
-        target = max(
-            10.0,
-            ego_speed
-            + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
-        )
+        if speed_schedule:
+            target = requested_target
+        elif family.get("preserve_template_npc_target_speed", False):
+            target = base_target
+        else:
+            target = max(
+                10.0,
+                ego_speed
+                + rng.uniform(*role.get("npc_speed_delta_kph", [-5.0, 5.0])),
+            )
         set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
-        relative_lane_intent = "side_parallel"
+        relative_lane_intent = role_name
     elif same_lane:
         if lane_speed_range is not None:
             target = max(
@@ -2416,6 +2713,29 @@ def build_highway_cruise_scene(
         else:
             ego_speed = min(float(family["ego_speed_limit_kph"]), target)
         relative_lane_intent = "right_side_parallel_or_following"
+    speed_schedule = family.get("ego_speed_schedule_kph")
+    if speed_schedule:
+        ego_speed = float(speed_schedule[variant_index % len(speed_schedule)])
+    if arc_zone and arc_zone.get("ego_speed_kph"):
+        ego_speed = float(uniform_or_choice(rng, arc_zone["ego_speed_kph"]))
+    # Zone-conditioned Ego speeds are selected after the generic interaction
+    # role above. Reconcile the final pair here so the role written to
+    # metadata remains physically true instead of turning a "following"
+    # case into an accidental high-closing-speed rear-end approach.
+    if role_name == "front_following":
+        target = max(
+            25.0,
+            min(
+                80.0,
+                ego_speed
+                + rng.uniform(*role.get("ego_speed_delta_kph", [-3.0, 3.0])),
+            ),
+        )
+        ego_speed = max(10.0, target + rng.uniform(-2.0, 2.0))
+        set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
+    elif role_name in {"front_overtake", "rear_receding"}:
+        target = max(25.0, min(target, ego_speed - rng.uniform(5.0, 12.0)))
+        set_spawn_target_speed(spawn, target, match_spawn_velocity=True)
     if family.get("start_ego_at_target_speed", False):
         initial_speed = ego_speed
     else:
@@ -2433,22 +2753,193 @@ def build_highway_cruise_scene(
         spawn["maximumSpawnVehicle"] = 2
         spawn["minSpawnPeriod"] = 4.0
         spawn["maxSpawnPeriod"] = 5.0
-    set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
     capture_arm_m = float(family.get("capture_motion_arm_m", 3.0))
+    # NPC motion begins at ScenarioLoad, while Ego deliberately starts from
+    # rest so external control can take over safely. Back-project the NPC by
+    # its expected pre-gate travel; otherwise it is already 100+ m too far
+    # ahead when a zero-speed Ego finally reaches the capture gate.
+    compensate_npc_motion = bool(
+        family.get("compensate_npc_motion_until_capture_gate", False)
+    )
+    if compensate_npc_motion:
+        expected_accel = max(
+            0.5, float(family.get("expected_ego_acceleration_mps2", 1.8))
+        )
+        initial_speed_mps = max(0.0, initial_speed / 3.6)
+        minimum_capture_speed_mps = (
+            ego_speed * float(family["minimum_ego_speed_ratio"]) / 3.6
+        )
+        acceleration_time_sec = max(
+            0.0,
+            (minimum_capture_speed_mps - initial_speed_mps) / expected_accel,
+        )
+        acceleration_distance_m = (
+            initial_speed_mps * acceleration_time_sec
+            + 0.5
+            * expected_accel
+            * acceleration_time_sec
+            * acceleration_time_sec
+        )
+        stable_gate_sec = (
+            float(family.get("stable_ego_window_sec", 0.5))
+            if family.get("stable_ego_gate", False)
+            else 0.0
+        )
+        if initial_speed_mps > 0.0:
+            distance_gate_time_sec = capture_arm_m / initial_speed_mps
+        else:
+            distance_gate_time_sec = math.sqrt(
+                2.0 * capture_arm_m / expected_accel
+            )
+        expected_gate_time_sec = max(
+            distance_gate_time_sec,
+            acceleration_time_sec + stable_gate_sec,
+        )
+        gate_accel_time_sec = min(
+            expected_gate_time_sec, acceleration_time_sec
+        )
+        speed_after_acceleration_mps = (
+            initial_speed_mps + expected_accel * gate_accel_time_sec
+        )
+        distance_at_gate_m = (
+            initial_speed_mps * gate_accel_time_sec
+            + 0.5
+            * expected_accel
+            * gate_accel_time_sec
+            * gate_accel_time_sec
+            + speed_after_acceleration_mps
+            * (expected_gate_time_sec - gate_accel_time_sec)
+        )
+        expected_gate_distance_m = max(
+            capture_arm_m, distance_at_gate_m, acceleration_distance_m
+        )
+    else:
+        expected_gate_distance_m = capture_arm_m
+        expected_gate_time_sec = 0.0
+
+    if arc_zone is not None:
+        convergence_link = str(
+            family.get("bottleneck_convergence_link", "A2256W000432")
+        )
+        convergence_indices = [
+            index
+            for index, point in enumerate(ego_route)
+            if str(point.get("link_idx")) == convergence_link
+        ]
+        if not convergence_indices:
+            raise ValueError(
+                "bottleneck convergence link is absent from Ego route"
+            )
+        convergence_arc_m = ego_route_arc[convergence_indices[0]]
+        lower, upper = [
+            float(value)
+            for value in arc_zone["capture_offset_from_convergence_m"]
+        ]
+        planned_capture_arc_m = convergence_arc_m + rng.uniform(lower, upper)
+        start_arc = planned_capture_arc_m - expected_gate_distance_m
+        start_arc = max(2.0, min(ego_route_arc[-1] - 20.0, start_arc))
+        ego_sample = route_pose_at(
+            ego_route,
+            ego_route_arc,
+            start_arc,
+            route_link_ids[0],
+            links_by_id,
+        )
+    else:
+        planned_capture_arc_m = start_arc + expected_gate_distance_m
+        convergence_arc_m = None
+
+    set_ego_pose(scenario["egoVehicle"], ego_sample, initial_speed)
     capture_anchor = sample_route_at_arc(
-        ego_route, ego_route_arc, start_arc + capture_arm_m
+        ego_route, ego_route_arc, planned_capture_arc_m
     )
     offset_range = role.get("npc_longitudinal_offset_m", [15.0, 30.0])
     offset_m = rng.uniform(float(offset_range[0]), float(offset_range[1]))
+    clip_centering_shift_m = 0.0
+    if family.get("center_actor_during_clip", False):
+        effective_clip_duration_sec = float(
+            family.get(
+                "effective_clip_duration_sec",
+                family.get("desired_clip_duration_sec", 0.0),
+            )
+        )
+        relative_speed_mps = (ego_speed - target) / 3.6
+        clip_centering_shift_m = (
+            relative_speed_mps * effective_clip_duration_sec * 0.5
+        )
+        offset_m += clip_centering_shift_m
+        gate_limits = family.get("actor_gate_longitudinal_m", [-65.0, 65.0])
+        offset_m = max(
+            float(gate_limits[0]) + 1.0,
+            min(float(gate_limits[1]) - 1.0, offset_m),
+        )
+    # A family may use MORAI's native SpawnPoint on open road while selecting
+    # one restored moving actor only inside a constrained spatial zone.  The
+    # bottleneck campaign needs this hybrid: SpawnPoint preserves natural
+    # approach traffic, whereas its proximity activation is unreliable after
+    # all lanes have already converged into the narrow corridor.
+    direct_vehicle_actor = bool(
+        arc_zone.get(
+            "use_direct_vehicle_actor",
+            family.get("use_direct_vehicle_actor", False),
+        )
+        if arc_zone is not None
+        else family.get("use_direct_vehicle_actor", False)
+    )
+    npc_motion_time_sec = expected_gate_time_sec
+    if direct_vehicle_actor:
+        npc_motion_time_sec += float(
+            family.get("expected_scene_load_latency_sec", 1.5)
+        )
+    zone_motion_speed_ratio = (
+        arc_zone.get(
+            "npc_motion_compensation_speed_ratio",
+            family.get("npc_motion_compensation_speed_ratio", 1.0),
+        )
+        if arc_zone is not None
+        else family.get("npc_motion_compensation_speed_ratio", 1.0)
+    )
+    npc_motion_speed_ratio = float(
+        role.get(
+            "direct_npc_motion_compensation_speed_ratio",
+            zone_motion_speed_ratio,
+        )
+        if direct_vehicle_actor
+        else zone_motion_speed_ratio
+    )
+    npc_pre_gate_motion_m = (
+        target / 3.6 * npc_motion_time_sec * npc_motion_speed_ratio
+    )
+    load_time_offset_m = offset_m - npc_pre_gate_motion_m
     npc_pose = reposition_spawn_on_link_path(
         spawn,
         links_by_id,
-        HIGHWAY_LANE_LINK_PATHS[npc_spawn_id],
+        route_paths[npc_spawn_id],
         capture_anchor,
-        offset_m,
+        load_time_offset_m,
     )
-    scenario["spawnPointList"] = [spawn]
-    gate_range = role.get("gate_longitudinal_m", [-40.0, 40.0])
+    if direct_vehicle_actor:
+        direct_vehicle_unique_id = 1001 + int(variant_index)
+        actor = copy.deepcopy(
+            template["vehicleList"][variant_index % len(template["vehicleList"])]
+        )
+        configure_direct_dynamic_vehicle(
+            actor,
+            npc_pose,
+            target,
+            direct_vehicle_unique_id,
+            route_paths[npc_spawn_id],
+            links_by_id,
+        )
+        scenario["vehicleList"] = [actor]
+        scenario["spawnPointList"] = []
+    else:
+        direct_vehicle_unique_id = None
+        scenario["spawnPointList"] = [spawn]
+    gate_range = family.get(
+        "actor_gate_longitudinal_m",
+        role.get("gate_longitudinal_m", [-65.0, 65.0]),
+    )
     actor_gate = {
         "class": "vehicle",
         # The exact planned relative role remains metadata.  MORAI can advance
@@ -2457,14 +2948,26 @@ def build_highway_cruise_scene(
         # exact sign/range that may no longer exist.
         "role": "any_moving_vehicle",
         "planned_role": role_name,
-        "minimum_longitudinal_m": -65.0,
-        "maximum_longitudinal_m": 65.0,
+        "minimum_longitudinal_m": float(gate_range[0]),
+        "maximum_longitudinal_m": float(gate_range[1]),
         "maximum_abs_lateral_m": float(
-            max(8.0, role.get("maximum_abs_lateral_m", 6.5))
+            family.get(
+                "actor_gate_maximum_abs_lateral_m",
+                max(8.0, role.get("maximum_abs_lateral_m", 6.5)),
+            )
         ),
-        "maximum_distance_m": 65.0,
+        "minimum_distance_m": float(
+            family.get("actor_gate_minimum_distance_m", 0.0)
+        ),
+        "maximum_distance_m": float(
+            family.get("actor_gate_maximum_distance_m", 65.0)
+        ),
         "minimum_actor_speed_mps": 0.5,
     }
+    if "actor_gate_minimum_in_gate_frames" in family:
+        actor_gate["minimum_in_gate_frames"] = int(
+            family["actor_gate_minimum_in_gate_frames"]
+        )
     runtime = [
         {
             "spawn_unique_id": npc_spawn_id,
@@ -2480,7 +2983,27 @@ def build_highway_cruise_scene(
             "same_lane": same_lane,
             "relative_lane_intent": relative_lane_intent,
             "interaction_role": role_name,
+            "adjacent_lane_side": adjacent_side,
             "planned_longitudinal_offset_m": offset_m,
+            "clip_centering_shift_m": clip_centering_shift_m,
+            "load_time_longitudinal_offset_m": load_time_offset_m,
+            "expected_capture_gate_distance_m": expected_gate_distance_m,
+            "expected_capture_gate_time_sec": expected_gate_time_sec,
+            "npc_pre_gate_motion_compensation_m": npc_pre_gate_motion_m,
+            "npc_motion_compensation_speed_ratio": npc_motion_speed_ratio,
+            "npc_motion_compensation_enabled": compensate_npc_motion,
+            "motion": "dynamic",
+            "actor_source": (
+                "direct_vehicle" if direct_vehicle_actor else "spawn_point"
+            ),
+            "unique_id": direct_vehicle_unique_id,
+            "highway_route_profile": route_profile,
+            "bottleneck_spatial_phase": (
+                str(arc_zone["name"]) if arc_zone is not None else None
+            ),
+            "planned_capture_arc_m": planned_capture_arc_m,
+            "convergence_arc_m": convergence_arc_m,
+            "ego_lateral_offset_m": lateral_offset_m,
             "spawn_position": {
                 axis: float(npc_pose[axis]) for axis in ("x", "y", "z")
             },
@@ -2491,8 +3014,10 @@ def build_highway_cruise_scene(
         "minimum_ego_speed_kph": (
             ego_speed * float(family["minimum_ego_speed_ratio"])
         ),
-        "maximum_motion_m": 130.0,
-        "motion_stall_timeout_sec": 12.0,
+        "maximum_motion_m": float(family.get("maximum_motion_m", 130.0)),
+        "motion_stall_timeout_sec": float(
+            family.get("motion_stall_timeout_sec", 12.0)
+        ),
         "lookahead_m": 6.0,
         "adaptive_curve_control": False,
         "capture_motion_arm_m": capture_arm_m,
@@ -2501,7 +3026,44 @@ def build_highway_cruise_scene(
             family.get("start_ego_at_target_speed", False)
         ),
         "capture_actor_gate": actor_gate,
+        "spatial_phase": (
+            str(arc_zone["name"]) if arc_zone is not None else None
+        ),
+        "ego_lateral_offset_m": lateral_offset_m,
+        "planned_capture_anchor": {
+            axis: float(capture_anchor[axis]) for axis in ("x", "y", "z")
+        },
     }
+    if "maximum_precontrol_drift_m" in family:
+        capture_overrides["maximum_precontrol_drift_m"] = float(
+            family["maximum_precontrol_drift_m"]
+        )
+    temporal_capture_count = int(
+        family.get("captures_per_scene", 0)
+    )
+    desired_duration_sec = float(
+        family.get("desired_clip_duration_sec", 0.0)
+    )
+    if temporal_capture_count > 1 and desired_duration_sec > 0.0:
+        capture_overrides.update(
+            {
+                "captures_per_scene": temporal_capture_count,
+                "capture_spacing_m": max(
+                    0.5,
+                    ego_speed
+                    / 3.6
+                    * desired_duration_sec
+                    / (temporal_capture_count - 1),
+                ),
+                "desired_clip_duration_sec": desired_duration_sec,
+            }
+        )
+    if ego_speed > 80.0:
+        capture_overrides["allow_high_speed_capture"] = True
+    if "load_settle_sec" in family:
+        capture_overrides["load_settle_sec"] = float(
+            family["load_settle_sec"]
+        )
     return ego_route, ego_sample, runtime, capture_overrides
 
 
@@ -3358,17 +3920,28 @@ def shade_local_to_world(shade, longitudinal, lateral):
     }
 
 
+def runtime_catalog_source(compatibility):
+    """MR is the active profile; explicit historical MRP configs still replay."""
+    return ('competition' if compatibility['policy']['capture_runtime'] == 'competition_launcher'
+            else 'personal')
+
+
+def runtime_actor_templates(source):
+    # MR catalogs include aiPedstrianList as well as pedestrianList.
+    return {int(actor['DataID']): actor for value in source.values()
+            if isinstance(value, list) for actor in value
+            if isinstance(actor, dict) and 'DataID' in actor}
+
+
 def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["obstacle"][
+    source_name = compatibility[runtime_catalog_source(compatibility)]["generated_from"]["obstacle"][
         "file_name"
     ]
     source_path = runtime_dir.expanduser().resolve() / source_name
     source = load_json(source_path)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("objectList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["obstacle"])
     rows = []
     for row in catalog["obstacles_and_related"]:
@@ -3387,13 +3960,12 @@ def load_runtime_obstacle_pool(catalog_path, compatibility_path, runtime_dir):
 def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["pedestrian"][
+    runtime_source = runtime_catalog_source(compatibility)
+    source_name = compatibility[runtime_source]["generated_from"]["pedestrian"][
         "file_name"
     ]
     source = load_json(runtime_dir.expanduser().resolve() / source_name)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("pedestrianList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["pedestrian"])
     rows = []
     for row in catalog["pedestrians_and_related"]:
@@ -3406,7 +3978,7 @@ def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
         # MRP builds accept their DataID in a scenario and then omit the actor
         # from ObjectStatus.  Route-wide standing/mixed scenes need a stable
         # human actor, so keep the runtime pool to real person assets.
-        if row.get("subtype") != "person":
+        if runtime_source == 'personal' and row.get("subtype") != "person":
             continue
         if row.get("generation_policy") not in {"enabled", "limited_weight"}:
             continue
@@ -3418,17 +3990,15 @@ def load_runtime_pedestrian_pool(catalog_path, compatibility_path, runtime_dir):
 
 
 def load_runtime_vehicle_pool(catalog_path, compatibility_path, runtime_dir):
-    """Load the personal-launcher vehicle assets proven safe for automation."""
+    """Load vehicle templates from the explicitly selected runtime catalog."""
 
     catalog = load_json(catalog_path)
     compatibility = load_json(compatibility_path)
-    source_name = compatibility["personal"]["generated_from"]["vehicle"][
+    source_name = compatibility[runtime_catalog_source(compatibility)]["generated_from"]["vehicle"][
         "file_name"
     ]
     source = load_json(runtime_dir.expanduser().resolve() / source_name)
-    actors = {
-        int(actor["DataID"]): actor for actor in source.get("vehicleList", [])
-    }
+    actors = runtime_actor_templates(source)
     eligible = set(compatibility["automatic_eligible"]["vehicle"])
     rows = []
     for row in catalog["vehicles"]:
@@ -5157,7 +5727,28 @@ def validate_scene(scenario, family, links_by_id, route, expected_runtime):
     return {"ego_route_distance_m": route_distance, "unique_id_count": len(identifiers)}
 
 
-def split_for_variant(index, family_count):
+def split_for_variant(index, family_count, split_ratios=None):
+    if split_ratios is not None:
+        ratios = {
+            name: float(split_ratios.get(name, 0.0))
+            for name in ("train", "val", "test")
+        }
+        if any(value < 0.0 for value in ratios.values()):
+            raise ValueError("split ratios must be non-negative")
+        total = sum(ratios.values())
+        if total <= 0.0:
+            raise ValueError("at least one split ratio must be positive")
+        normalized = {name: value / total for name, value in ratios.items()}
+        val_count = int(round(family_count * normalized["val"]))
+        test_count = int(round(family_count * normalized["test"]))
+        train_count = family_count - val_count - test_count
+        if train_count < 0:
+            raise ValueError("rounded split counts exceed family count")
+        if index < train_count:
+            return "train"
+        if index < train_count + val_count:
+            return "val"
+        return "test"
     if family_count < 3:
         return "train"
     validation_count = max(1, int(round(family_count * 0.15)))
@@ -5385,8 +5976,10 @@ def main():
                     variant_index,
                     links_by_id,
                 )
-                spawn = scenario["spawnPointList"][0]
-                target = dict(spawn["pos"])
+                if scenario["spawnPointList"]:
+                    target = dict(scenario["spawnPointList"][0]["pos"])
+                else:
+                    target = dict(runtime[0]["spawn_position"])
             elif name == "highway_lane_change_overtake":
                 (
                     route_override,
@@ -5874,7 +6467,9 @@ def main():
                 "clip_motion_phase", family.get("motion_phase")
             )
             scene_split = split_for_variant(
-                variant_index, int(family["count"])
+                variant_index,
+                int(family["count"]),
+                config.get("split_ratios"),
             )
             if name == "crosswalk_pedestrian":
                 scene_split = runtime[0].get("crosswalk_split") or scene_split
@@ -5901,6 +6496,9 @@ def main():
             is_singleframe_static = str(config["dataset_id"]).startswith(
                 "morai_static_classcentric_base3_10k"
             )
+            exact_point_time_available = str(
+                config["capture"].get("format", "")
+            ).startswith("morai_online_rosbag")
             metadata = {
                 "schema_version": 1,
                 "dataset_id": config["dataset_id"],
@@ -6044,7 +6642,7 @@ def main():
                             "temporal_training": False,
                             "pointpainting_sweep_count": 1,
                             "pointpainting_target_lags_sec": [0.0],
-                            "exact_point_time_available": False,
+                            "exact_point_time_available": exact_point_time_available,
                         }
                         if is_singleframe_static
                         else {
@@ -6059,7 +6657,7 @@ def main():
                                 * float(config["capture"]["capture_period_sec"])
                                 for index in range(3)
                             ],
-                            "exact_point_time_available": False,
+                            "exact_point_time_available": exact_point_time_available,
                         }
                     ),
                     "split": metadata["split"],
@@ -6107,8 +6705,9 @@ def main():
                     ),
                     "ego_readiness_policy": (
                         "route_aligned"
-                        if capture_overrides.get("minimum_ego_speed_kph", 0.0)
-                        > 0.0
+                        if capture_overrides.get(
+                            "preserve_ego_initial_speed_on_load", False
+                        )
                         else "fixed_pose"
                     ),
                     "expected": {

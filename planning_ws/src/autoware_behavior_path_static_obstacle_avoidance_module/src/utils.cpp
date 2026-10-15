@@ -32,6 +32,7 @@
 
 #include <boost/geometry/algorithms/buffer.hpp>
 #include <boost/geometry/algorithms/convex_hull.hpp>
+#include <boost/geometry/geometries/multi_point.hpp>
 #include <boost/geometry/algorithms/correct.hpp>
 #include <boost/geometry/algorithms/union.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
@@ -1064,10 +1065,21 @@ bool isSatisfiedWithNonVehicleCondition(
     return false;
   }
 
-  // Object is on center line -> ignore.
   object.to_centerline = autoware::experimental::lanelet2_utils::get_arc_coordinates(
                            data.current_lanelets, object.getPose())
                            .distance;
+
+  // In optimization mode, a stopped pedestrian/bicycle obstructing the path is a
+  // geometric obstacle even near the lane center or inside an intersection.
+  // Moving objects were rejected by the common filter and crosswalk users above.
+  // PO owns corridor feasibility; the legacy roadside/parking tests below must
+  // not suppress its obstacle constraint.
+  if (parameters->path_generation_method == "optimization_base") {
+    object.is_on_ego_lane = isOnEgoLane(object, planner_data->route_handler);
+    return true;
+  }
+
+  // The shift-line policy only avoids roadside non-vehicle objects.
   if (std::abs(object.to_centerline) < parameters->threshold_distance_object_is_on_center) {
     object.info = ObjectInfo::TOO_NEAR_TO_CENTERLINE;
     return false;
@@ -1722,6 +1734,23 @@ Polygon2d createEnvelopePolygon(
   return createEnvelopePolygon(object_polygon, closest_pose, envelope_buffer);
 }
 
+Polygon2d selectStaticEnvelope(const Polygon2d & previous, const Polygon2d & observed)
+{
+  namespace bg = boost::geometry;
+
+  if (previous.outer().empty()) {
+    return observed;
+  }
+  if (observed.outer().empty()) {
+    return previous;
+  }
+
+  // A present observation replaces geometry. History is only a fallback for
+  // missing/invalid observations, never a union of positions or maximum sizes.
+  if (!bg::is_valid(observed)) return previous;
+  return observed;
+}
+
 std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
   const ObjectDataArray & objects, const std::shared_ptr<AvoidanceParameters> & parameters,
   const double vehicle_width)
@@ -1733,6 +1762,22 @@ std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
   }
 
   for (const auto & object : objects) {
+    if (parameters->path_generation_method == "optimization_base") {
+      if (object.envelope_poly.outer().size() < 4) continue;
+      const auto label = autoware::object_recognition_utils::getHighestProbLabel(
+        object.object.classification);
+      const auto & param = parameters->object_parameters.at(label);
+      DrivableAreaInfo::Obstacle obstacle;
+      obstacle.pose = object.getPose();
+      obstacle.poly = object.envelope_poly;  // already contains envelope uncertainty buffer
+      obstacle.direct_constraint = true;
+      obstacle.id = object.object.object_id;
+      obstacle.hard_margin = object.is_parked
+        ? param.lateral_hard_margin_for_parked_vehicle : param.lateral_hard_margin;
+      obstacle.soft_margin = param.lateral_soft_margin;
+      obstacles_for_drivable_area.push_back(obstacle);
+      continue;
+    }
     // check if avoid marin is calculated
     if (!object.avoid_margin.has_value()) {
       continue;
@@ -1751,6 +1796,27 @@ std::vector<DrivableAreaInfo::Obstacle> generateObstaclePolygonsForDrivableArea(
       object.avoid_margin.value() - object_parameter.envelope_buffer_margin - vehicle_width / 2.0;
     const auto obj_poly = autoware_utils::expand_polygon(object.envelope_poly, diff_poly_buffer);
     obstacles_for_drivable_area.push_back({object.getPose(), obj_poly, !isOnRight(object)});
+  }
+  if (parameters->path_generation_method == "optimization_base") {
+    // Drop only geometrically redundant constraints in this publication. Keep
+    // latch state so a dropout or a later smaller observation restores them.
+    const auto all = obstacles_for_drivable_area;
+    obstacles_for_drivable_area.clear();
+    for (size_t i = 0; i < all.size(); ++i) {
+      bool redundant = false;
+      for (size_t j = 0; j < all.size(); ++j) {
+        if (i == j || all[j].hard_margin < all[i].hard_margin ||
+            all[j].soft_margin < all[i].soft_margin ||
+            !boost::geometry::is_valid(all[i].poly) ||
+            !boost::geometry::is_valid(all[j].poly)) continue;
+        if (!boost::geometry::covered_by(all[i].poly, all[j].poly)) continue;
+        // Equal geometry/margins must retain one deterministic representative.
+        const bool equivalent = boost::geometry::covered_by(all[j].poly, all[i].poly) &&
+          all[j].hard_margin == all[i].hard_margin && all[j].soft_margin == all[i].soft_margin;
+        if (!equivalent || j < i) { redundant = true; break; }
+      }
+      if (!redundant) obstacles_for_drivable_area.push_back(all[i]);
+    }
   }
   return obstacles_for_drivable_area;
 }
@@ -1855,6 +1921,16 @@ void fillObjectEnvelopePolygon(
 
   const auto & envelope_buffer_margin =
     object_parameter.envelope_buffer_margin * object_data.distance_factor;
+
+  if (parameters->path_generation_method == "optimization_base") {
+    // The optimization latch owns dropout persistence. Feeding it the legacy
+    // map-coordinate multi-step union turns tracking jitter into object size.
+    object_data.envelope_poly =
+      createEnvelopePolygon(object_data, closest_pose, envelope_buffer_margin);
+    object_data.error_eclipse_max =
+      calcErrorEclipseLongRadius(object_data.object.kinematics.initial_pose_with_covariance);
+    return;
+  }
 
   const auto id = object_data.object.object_id;
   const auto same_id_obj = std::find_if(

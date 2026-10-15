@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import time
 
 import rospy
@@ -14,6 +15,7 @@ from autoware_perception_msgs.msg import (
     TrackedObjects,
 )
 from geometry_msgs.msg import Pose
+from std_msgs.msg import String
 
 from perception_object_pipeline.kinematic_prediction import (
     VEHICLE_LABELS,
@@ -27,22 +29,28 @@ from perception_object_pipeline.map_based_prediction import (
     LaneletNetwork,
     MapPredictionConfig,
 )
+from perception_object_pipeline.message_copy import (
+    copy_accel_covariance, copy_classification, copy_pose,
+    copy_pose_covariance, copy_shape, copy_twist_covariance,
+)
 from perception_object_pipeline.time_conversion import builtin_duration_from_seconds
+from perception_object_pipeline.node_processing_timing import NodeProcessingTiming
 
 
 def _copy_common_fields(tracked) -> PredictedObject:
     predicted = PredictedObject()
-    predicted.object_id = tracked.object_id
+    predicted.object_id = copy.copy(tracked.object_id)
+    predicted.object_id.uuid = copy.copy(tracked.object_id.uuid)
     predicted.existence_probability = tracked.existence_probability
-    predicted.classification = copy.deepcopy(tracked.classification)
-    predicted.shape = copy.deepcopy(tracked.shape)
-    predicted.kinematics.initial_pose_with_covariance = copy.deepcopy(
+    predicted.classification = copy_classification(tracked.classification)
+    predicted.shape = copy_shape(tracked.shape)
+    predicted.kinematics.initial_pose_with_covariance = copy_pose_covariance(
         tracked.kinematics.pose_with_covariance
     )
-    predicted.kinematics.initial_twist_with_covariance = copy.deepcopy(
+    predicted.kinematics.initial_twist_with_covariance = copy_twist_covariance(
         tracked.kinematics.twist_with_covariance
     )
-    predicted.kinematics.initial_acceleration_with_covariance = copy.deepcopy(
+    predicted.kinematics.initial_acceleration_with_covariance = copy_accel_covariance(
         tracked.kinematics.acceleration_with_covariance
     )
     return predicted
@@ -51,7 +59,7 @@ def _copy_common_fields(tracked) -> PredictedObject:
 def _kinematic_path(tracked, horizons) -> PredictedPath:
     path = PredictedPath()
     path.path = [
-        copy.deepcopy(tracked.kinematics.pose_with_covariance.pose)
+        copy_pose(tracked.kinematics.pose_with_covariance.pose)
     ] + [predict_pose(tracked, horizon) for horizon in horizons]
     path.time_step = builtin_duration_from_seconds(horizons[0])
     path.confidence = 1.0
@@ -61,6 +69,7 @@ def _kinematic_path(tracked, horizons) -> PredictedPath:
 def make_map_based_predicted_objects(message, horizons, network):
     output = PredictedObjects()
     output.header = copy.copy(message.header)
+    output.header.stamp = copy.copy(message.header.stamp)
     mapped_count = 0
     fallback_count = 0
     path_count = 0
@@ -85,7 +94,7 @@ def make_map_based_predicted_objects(message, horizons, network):
             mapped_count += 1
             for trajectory in trajectories:
                 path = PredictedPath()
-                path.path = [copy.deepcopy(current)]
+                path.path = [copy_pose(current)]
                 for x, y, z, yaw in trajectory.poses:
                     pose = Pose()
                     pose.position.x = x
@@ -160,6 +169,12 @@ class MapBasedPredictionNode:
         self.publisher = rospy.Publisher(
             "~output/objects", PredictedObjects, queue_size=1
         )
+        self.processing_diagnostics_publisher = None
+        if bool(rospy.get_param("~publish_processing_diagnostics", False)):
+            self.processing_diagnostics_publisher = rospy.Publisher(
+                "~diagnostics/processing_time_ms", String, queue_size=1
+            )
+            self.processing_timing = NodeProcessingTiming()
         self.subscriber = rospy.Subscriber(
             "~input/objects", TrackedObjects, self.callback, queue_size=1
         )
@@ -183,10 +198,15 @@ class MapBasedPredictionNode:
             )
             return
         started = time.perf_counter()
+        diagnostics = self.processing_diagnostics_publisher
+        token = self.processing_timing.start(message, rospy.Time.now().to_nsec()) if diagnostics else None
+        make_start = time.perf_counter() if diagnostics else None
         output, mapped, fallback, paths = make_map_based_predicted_objects(
             message, self.horizons, self.network
         )
+        make_end = time.perf_counter() if diagnostics else None
         self.publisher.publish(output)
+        publish_end = time.perf_counter() if diagnostics else None
         rospy.loginfo_throttle(
             5.0,
             "[map_based_prediction] objects=%d mapped=%d fallback=%d paths=%d "
@@ -197,6 +217,10 @@ class MapBasedPredictionNode:
             paths,
             (time.perf_counter() - started) * 1000.0,
         )
+        if diagnostics:
+            sample = self.processing_timing.finish(token, make_start, make_end, publish_end,
+                                                  mapped=mapped, fallback=fallback, paths=paths)
+            diagnostics.publish(String(data=json.dumps(sample, allow_nan=False, separators=(",", ":"))))
 
 
 def main():

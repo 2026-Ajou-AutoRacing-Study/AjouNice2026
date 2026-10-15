@@ -2,6 +2,7 @@
 """Serve Sensor_4 projection checks and BEVFusion inference over localhost TCP."""
 
 import argparse
+import hashlib
 import logging
 import socket
 import time
@@ -25,14 +26,32 @@ from app.sensor4_calibration import load_sensor4_calibration, serializable_calib
 LOGGER = logging.getLogger("bevfusion_server")
 
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 class InferenceServer:
     def __init__(self, args):
         self.args = args
+        self.fp32_reference = bool(getattr(args, 'fp32_reference', False))
+        if self.fp32_reference and args.amp:
+            raise ValueError('FP32 reference does not enable AMP')
         self.calibration = load_sensor4_calibration(
             args.sensor_config, args.camera_order, args.intrinsic_source
         )
         self.model = None
+        self.runtime_identity = None
         if not args.projection_only:
+            self.runtime_identity = {
+                'checkpoint_sha256': file_sha256(args.checkpoint), 'config_sha256': file_sha256(args.config),
+                'amp': args.amp, 'parallel_camera': bool(getattr(args, 'parallel_camera', False)),
+                'compile_parts': list(getattr(args, 'compile_parts', ())),
+                'base5_runtime': bool(getattr(args, 'base5_runtime', False)),
+            }
             from app.bevfusion_model import BevFusionModel
 
             LOGGER.info("Loading BEVFusion model from %s", args.checkpoint)
@@ -44,8 +63,27 @@ class InferenceServer:
                 use_amp=args.amp,
                 preprocess_workers=args.preprocess_workers,
                 warmup_iterations=args.warmup_iterations,
+                temporal_feature_cache=args.temporal_feature_cache,
+                temporal_maximum_age_sec=args.temporal_maximum_age_sec,
+                base5_runtime=getattr(args, "base5_runtime", False),
+                compile_parts=getattr(args, "compile_parts", ()),
+                fuse_dense_bn=getattr(args, "fuse_dense_bn", False),
+                camera_cuda_graph=getattr(args, "camera_cuda_graph", False),
+                eager_camera_numerics=getattr(args, "eager_camera_numerics", False),
+                rgb_after_crop=getattr(args, "rgb_after_crop", False),
+                compile_reference_layout=getattr(args, "compile_reference_layout", False),
+                parallel_camera=getattr(args, "parallel_camera", False),
+                point_intensity_source=getattr(args, "point_intensity_source", "native"),
             )
             LOGGER.info("BEVFusion model is ready")
+            self.runtime_identity['box_center_origin'] = self.model.box_center_origin
+            self.runtime_identity['depth_raster_policy'] = getattr(
+                getattr(getattr(self.model, 'model', None), 'view_transform', None), 'depth_raster_policy', None)
+            if self.fp32_reference:
+                import torch
+                torch.backends.cuda.matmul.allow_tf32 = False
+                torch.backends.cudnn.allow_tf32 = False
+                torch.backends.cudnn.benchmark = False
 
     def serve_forever(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -77,7 +115,12 @@ class InferenceServer:
                         TYPE_PONG,
                         {
                             "ready": True,
+                            "runtime_identity": self.runtime_identity,
                             "model_loaded": self.model is not None,
+                            "classes": list(getattr(self.model, "classes", ())),
+                            "point_intensity_source": getattr(getattr(self.model, "preprocessor", None), "point_intensity_source", None),
+                            "image_final_dim": list(getattr(getattr(self.model, "preprocessor", None), "final_dim", ())),
+                            "fp32_reference": self.fp32_reference,
                             "calibration": serializable_calibration(self.calibration),
                         },
                     )
@@ -120,11 +163,21 @@ class InferenceServer:
             raise ValueError("unsupported operation {!r}".format(operation))
         if self.model is None:
             raise RuntimeError("server was started in projection-only mode")
+        declared_source = metadata.get('point_intensity_source')
+        if declared_source is not None and declared_source != self.model.preprocessor.point_intensity_source:
+            raise ValueError('ROS/server intensity source contract differs')
+        declared_size = metadata.get('model_image_final_dim')
+        if declared_size is not None and tuple(declared_size) != self.model.preprocessor.final_dim:
+            raise ValueError('ROS/server model image size contract differs')
         image_encoding = metadata.get("image_encoding", "compressed")
         if image_encoding not in ("compressed", "rgb8"):
             raise ValueError(
                 "unsupported image_encoding {!r}".format(image_encoding)
             )
+        if image_encoding == 'rgb8' and (
+                int(metadata.get('image_height', -1)),
+                int(metadata.get('image_width', -1))) != self.model.preprocessor.final_dim:
+            raise ValueError('ROS RGB crop size differs from the model input contract')
         detections, preprocess_ms, inference_ms = self.model.infer(
             points,
             blobs,
@@ -132,6 +185,8 @@ class InferenceServer:
             metadata.get("score_threshold", 0.2),
             metadata.get("max_detections", 100),
             images_preprocessed=(image_encoding == "rgb8"),
+            timestamp_sec=metadata.get("stamp"),
+            lidar_pose_world=metadata.get("lidar_pose_world"),
         )
         send_message(
             connection,
@@ -142,8 +197,12 @@ class InferenceServer:
                 "sequence": metadata.get("sequence", 0),
                 "frame_id": self.calibration["lidar_frame"],
                 "detections": detections,
+                "box_center_origin": getattr(self.model, 'box_center_origin', None),
+                "query_memory_diagnostics": (
+                    self.model.last_query_memory_diagnostics),
                 "preprocess_ms": preprocess_ms,
                 "inference_ms": inference_ms,
+                "postprocess_ms": getattr(self.model, "last_runtime_timings", {}).get("postprocess_ms", 0.0),
                 "server_ms": (time.monotonic() - request_start) * 1000.0,
             },
         )
@@ -203,8 +262,31 @@ def parse_args():
     parser.add_argument("--projection-only", action="store_true")
     parser.add_argument("--projection-stride", type=int, default=4)
     parser.add_argument("--amp", action="store_true")
+    parser.add_argument("--fp32-reference", action="store_true",
+                        help="Disable AMP/TF32/autotuning for the offline/ROS reference gate; not a latency preset")
     parser.add_argument("--preprocess-workers", type=int, default=4)
     parser.add_argument("--warmup-iterations", type=int, default=2)
+    parser.add_argument("--temporal-feature-cache", action="store_true")
+    parser.add_argument("--temporal-maximum-age-sec", type=float, default=0.30)
+    parser.add_argument("--base5-runtime", action="store_true",
+                        help="Explicit single-frame Base5 contract; not E25 deployment")
+    parser.add_argument("--point-intensity-source", choices=('native', 'ros255'), default='native',
+                        help="Base5 only: ros255 applies fixed /255; native preserves checkpoint-native intensity")
+    parser.add_argument("--compile-parts", nargs="+", choices=("camera", "neck", "bev"), default=())
+    parser.add_argument("--parallel-camera", action="store_true",
+                        help="Experimental Base5-only camera side stream; sparse encoder stays on default stream")
+    parser.add_argument("--fuse-dense-bn", action="store_true",
+                        help="Experimental eval-only dense Conv/BN folding")
+    parser.add_argument("--camera-cuda-graph", action="store_true",
+                        help="Opt-in serial fixed-shape camera eager-kernel replay")
+    parser.add_argument("--eager-camera-numerics", action="store_true",
+                        help="Keep camera LayerNorm/GELU eager within camera compilation")
+    parser.add_argument("--rgb-after-crop", action="store_true",
+                        help="Base5-only pixel-equivalent late BGR-to-RGB conversion")
+    parser.add_argument("--compile-reference-layout", action="store_true",
+                        help="Disable compiler layout optimization and shape padding")
+    parser.add_argument("--cpu-threads", type=int, default=None)
+    parser.add_argument("--opencv-threads", type=int, default=None)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -214,11 +296,10 @@ def parse_points(metadata, blobs):
     if blob_name not in blobs:
         raise ValueError("request is missing point cloud blob")
     point_dim = int(metadata.get("point_dim", 4))
-    if point_dim != 4:
+    if point_dim not in (4, 5):
         raise ValueError(
-            "Base3 runtime expects four float32 point fields, got {}".format(
-                point_dim
-            )
+            "BEVFusion runtime expects 4 or 5 float32 point fields, got {}".format(
+                point_dim)
         )
     values = np.frombuffer(blobs[blob_name], dtype="<f4")
     if values.size % point_dim:
@@ -236,6 +317,13 @@ def parse_points(metadata, blobs):
 
 def main():
     args = parse_args()
+    if args.cpu_threads is not None:
+        if args.cpu_threads < 1: raise ValueError("cpu-threads must be positive")
+        import torch
+        torch.set_num_threads(args.cpu_threads)
+    if args.opencv_threads is not None:
+        if args.opencv_threads < 1: raise ValueError("opencv-threads must be positive")
+        cv2.setNumThreads(args.opencv_threads)
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

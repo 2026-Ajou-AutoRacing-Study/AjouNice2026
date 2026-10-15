@@ -17,6 +17,7 @@ TOPICS=(
   /clock
   /Ego_topic
   /Competition_topic
+  /competition/raw_twist
   /sensor/gps
   /sensor/imu
 
@@ -28,6 +29,7 @@ TOPICS=(
   /localization/odometry/local
   /localization/odom
   /localization/kinematic_state
+  /localization/control_kinematic_state
   /localization/acceleration
 
   # Object and traffic-light context that can change the planned trajectory.
@@ -46,6 +48,8 @@ TOPICS=(
   /planning/route_state
   /planning/scenario_planning/lane_driving/behavior_planning/path
   /planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id
+  /planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene
+  /planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/debug/avoidance_debug_message_array
   /planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory
   /planning/trajectory
   /planning/validation_status
@@ -76,6 +80,21 @@ TOPICS=(
 
 mkdir -p "$(dirname "$BAG")"
 
+METADATA="${BAG%.bag}.metadata.txt"
+{
+  echo "recorded_at: $(date --iso-8601=seconds)"
+  echo "git_commit: $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+  echo "git_branch: $(git -C "$ROOT" branch --show-current 2>/dev/null || echo unknown)"
+  echo "use_sim_time: $(rosparam get /use_sim_time 2>/dev/null || echo unavailable)"
+  echo "controller_kinematic_state_topic: $(rosparam get /purepursuit_autoware/topics/kinematic_state 2>/dev/null || echo unavailable)"
+  echo "localization_provider_params:"
+  rosparam get /localization_manager 2>/dev/null || echo "  unavailable"
+  echo "smooth_control_state_params:"
+  rosparam get /smooth_control_state_publisher 2>/dev/null || echo "  disabled_or_unavailable"
+  echo "active_nodes:"
+  rosnode list 2>/dev/null || echo "  unavailable"
+} >"$METADATA"
+
 finish() {
   local status=$?
 
@@ -100,6 +119,7 @@ trap 'exit 130' INT TERM
 
 echo "MR localization stability evaluation recording"
 echo "output: $BAG"
+echo "metadata: $METADATA"
 echo "run tag: $RUN_TAG"
 echo "topics:"
 printf '  %s\n' "${TOPICS[@]}"

@@ -7,14 +7,47 @@
   <!-- Production uses the shared planviz terminal; keep detector-only launch
        argument-free and avoid opening a second RViz instance. -->
   <arg name="start_rviz" default="false"/>
-  <!-- Validated B3-BF0-F40 E25 production operating point. score_threshold is
-       only the fallback for an unknown detector class. -->
+  <arg name="publish_frame_timing" default="false"/>
+  <!-- Explicit origin trial only; old E25/E24 output remains the default. -->
+  <arg name="box_center_output_origin" default="legacy_passthrough"/>
+  <!-- E25 compatibility defaults; the canonical E24 wrapper passes its own
+       pinned thresholds. This filename does not select the server checkpoint.
+       score_threshold is only the fallback for an unknown detector class. -->
   <arg name="score_threshold" default="0.10"/>
   <arg name="vehicle_score_threshold" default="0.40"/>
   <arg name="pedestrian_score_threshold" default="0.15"/>
   <arg name="obstacle_score_threshold" default="0.10"/>
+  <!-- Production duplicate suppression remains enabled for Base3 and Base4. -->
+  <arg name="rotated_bev_nms_enabled" default="true"/>
+  <arg name="rotated_bev_nms_iou_threshold" default="0.50"/>
   <arg name="output_objects"
        default="/perception/object_recognition/detection/objects"/>
+  <!-- Keep the E25 production input unchanged unless an A/B explicitly
+       enables the verified rolling-scan correction. Competition uses fused
+       odometry; rosbag/MORAI GT experiments can select ego_status. -->
+  <arg name="lidar_deskew_mode" default="off"/>
+  <arg name="lidar_deskew_reference" default="end"/>
+  <arg name="lidar_deskew_pose_topic"
+       default="/localization/kinematic_state"/>
+  <arg name="lidar_deskew_pose_type" default="odometry"/>
+  <arg name="lidar_deskew_max_point_time_span_sec" default="0.15"/>
+  <arg name="lidar_deskew_maximum_extrapolation_sec" default="0.05"/>
+  <!-- Base4 T1 uses two causal past sweeps. Zero preserves the production
+       Base3/V1 single-frame contract. -->
+  <arg name="temporal_sweeps" default="0"/>
+  <arg name="temporal_maximum_age_sec" default="0.30"/>
+  <!-- Research-only recurrent feature cache. It sends only the current sweep
+       plus its LiDAR world pose; the Docker model reuses prior encoded BEV. -->
+  <arg name="temporal_feature_cache" default="false"/>
+  <!-- Q1 sparse query-memory needs timestamp and current LiDAR world pose,
+       but does not require multi-sweep points or the dense feature cache. -->
+  <arg name="query_memory_context" default="false"/>
+  <arg name="query_memory_diagnostics_path" default=""/>
+  <!-- Base3 E25 is 7D, so velocity remains opt-in. Base4 9D experiments
+       explicitly enable this contract. -->
+  <arg name="publish_detector_velocity" default="false"/>
+  <arg name="detector_velocity_noise_std_mps" default="1.0"/>
+  <arg name="detector_maximum_velocity_mps" default="60.0"/>
 
   <node pkg="bevfusion_ros"
         type="bevfusion_ros_bridge.py"
@@ -23,11 +56,39 @@
     <rosparam command="load" file="$(arg config)"/>
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="operation" value="inference"/>
+    <param name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
+    <param name="box_center_output_origin" value="$(arg box_center_output_origin)"/>
     <param name="score_threshold" value="$(arg score_threshold)"/>
     <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>
     <param name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
     <param name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
+    <param name="rotated_bev_nms_enabled" value="$(arg rotated_bev_nms_enabled)"/>
+    <param name="rotated_bev_nms_iou_threshold"
+           value="$(arg rotated_bev_nms_iou_threshold)"/>
     <param name="output_objects" value="$(arg output_objects)"/>
+    <param name="lidar_deskew_mode" value="$(arg lidar_deskew_mode)"/>
+    <param name="lidar_deskew_reference" value="$(arg lidar_deskew_reference)"/>
+    <param name="lidar_deskew_pose_topic" value="$(arg lidar_deskew_pose_topic)"/>
+    <param name="lidar_deskew_pose_type" value="$(arg lidar_deskew_pose_type)"/>
+    <param name="lidar_deskew_max_point_time_span_sec"
+           value="$(arg lidar_deskew_max_point_time_span_sec)"/>
+    <param name="lidar_deskew_maximum_extrapolation_sec"
+           value="$(arg lidar_deskew_maximum_extrapolation_sec)"/>
+    <param name="temporal_sweeps" value="$(arg temporal_sweeps)"/>
+    <param name="temporal_maximum_age_sec"
+           value="$(arg temporal_maximum_age_sec)"/>
+    <param name="temporal_feature_cache"
+           value="$(arg temporal_feature_cache)"/>
+    <param name="query_memory_context"
+           value="$(arg query_memory_context)"/>
+    <param name="query_memory_diagnostics_path"
+           value="$(arg query_memory_diagnostics_path)"/>
+    <param name="publish_detector_velocity"
+           value="$(arg publish_detector_velocity)"/>
+    <param name="detector_velocity_noise_std_mps"
+           value="$(arg detector_velocity_noise_std_mps)"/>
+    <param name="detector_maximum_velocity_mps"
+           value="$(arg detector_maximum_velocity_mps)"/>
   </node>
 
   <node if="$(arg start_rviz)"

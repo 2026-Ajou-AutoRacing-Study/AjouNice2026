@@ -3,6 +3,12 @@
   <arg name="port" default="2368"/>
   <arg name="frame_id" default="lidar1"/>
   <arg name="rpm" default="900.0"/>
+  <!-- MORAI source batch: 50 packets = 360 degrees. Explicit 51 restores legacy grouping. -->
+  <arg name="npackets" default="50" doc="MORAI default 50; explicit 51 restores legacy grouping. XML empty uses driver-derived count."/>
+  <arg name="cut_angle" default="-0.01" doc="-0.01 disables azimuth cutting; otherwise finite radians in [0, 2*pi)."/>
+  <!-- Constant args validate at launch evaluation, before any driver starts. -->
+  <arg name="validated_npackets" value="$(eval '' if str(arg('npackets')) == '' else (str(int(arg('npackets'))) if str(int(arg('npackets'))) == str(arg('npackets')) and 0 &lt; int(arg('npackets')) &lt;= 2147483647 else int('npackets_must_be_positive_integer_or_empty')))"/>
+  <arg name="validated_cut_angle" value="$(eval str(float(arg('cut_angle'))) if str(arg('cut_angle')) not in ('True', 'False') and isfinite(float(arg('cut_angle'))) and (float(arg('cut_angle')) == -0.01 or 0.0 &lt;= float(arg('cut_angle')) &lt; 2.0*pi) else float('cut_angle_must_be_minus0.01_or_finite_radians_in_0_to_2pi'))"/>
   <arg name="timestamp_first_packet" default="true"/>
   <arg name="calibration" default="$(find velodyne_pointcloud)/params/VLP16db.yaml"/>
 
@@ -10,7 +16,9 @@
     <node pkg="nodelet" type="nodelet" name="lidar_nodelet_manager"
           args="manager" output="screen"/>
 
-    <node pkg="nodelet" type="nodelet" name="lidar_driver"
+    <!-- A restarted driver must not inherit a previous explicit npackets.
+         Clear only this node's private namespace before loading launch params. -->
+    <node pkg="nodelet" type="nodelet" name="lidar_driver" clear_params="true"
           args="load velodyne_driver/DriverNodelet lidar_nodelet_manager">
       <param name="device_ip" value=""/>
       <param name="frame_id" value="$(arg frame_id)"/>
@@ -25,7 +33,8 @@
       <param name="pcap_time" value="false"/>
       <!-- Live packets use host time; never add a MORAI/PC clock offset. -->
       <param name="time_offset" value="0.0"/>
-      <param name="cut_angle" value="-0.01"/>
+      <param if="$(eval str(arg('validated_npackets')) != '')" name="npackets" type="int" value="$(arg validated_npackets)"/>
+      <param name="cut_angle" type="double" value="$(arg validated_cut_angle)"/>
       <param name="timestamp_first_packet" value="$(arg timestamp_first_packet)"/>
       <remap from="velodyne_packets" to="/sensor/lidar1/packets"/>
     </node>

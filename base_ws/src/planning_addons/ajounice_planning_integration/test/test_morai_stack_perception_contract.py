@@ -24,6 +24,77 @@ def test_integrated_stack_owns_downstream_pipeline_but_not_detector_by_default()
     assert args["detector"]["default"] == "fastbev"
     assert args["start_traffic_light"]["default"] == "true"
     assert args["enable_traffic_light_planner"]["default"] == "true"
+    assert args["controller_kinematic_state_topic"]["default"] == (
+        "/localization/control_kinematic_state"
+    )
+
+
+def test_controller_state_override_does_not_remap_planning_state():
+    controller_include = next(
+        item
+        for item in _launch().findall(".//include")
+        if item.attrib["file"].endswith(
+            "trajectory_follower)/launch/pp_pi_autoware.launch"
+        )
+    )
+    values = {
+        item.attrib["name"]: item.attrib["value"]
+        for item in controller_include.findall("arg")
+    }
+    assert values["kinematic_state_topic"] == (
+        "$(arg controller_kinematic_state_topic)"
+    )
+
+    planning_include = next(
+        item
+        for item in _launch().findall("include")
+        if item.attrib["file"].endswith(
+            "ajounice_planning_integration)/launch/planning.launch"
+        )
+    )
+    planning_values = {
+        item.attrib["name"]: item.attrib["value"]
+        for item in planning_include.findall("arg")
+    }
+    assert "kinematic_state_topic" not in planning_values
+
+    follower_launch = ET.parse(
+        REPO_ROOT
+        / "base_ws/src/control/trajectory_follower/launch/pp_pi_autoware.launch"
+    ).getroot()
+    follower_args = {
+        item.attrib["name"]: item.attrib for item in follower_launch.findall("arg")
+    }
+    assert follower_args["kinematic_state_topic"]["default"] == (
+        "/localization/kinematic_state"
+    )
+    controller_nodes = follower_launch.findall("node")
+    assert len(controller_nodes) == 2
+    for node in controller_nodes:
+        topic_override = next(
+            item
+            for item in node.findall("param")
+            if item.attrib["name"] == "topics/kinematic_state"
+        )
+        assert topic_override.attrib["value"] == "$(arg kinematic_state_topic)"
+
+
+def test_production_localization_publishes_smooth_controller_state():
+    localization_launch = ET.parse(
+        REPO_ROOT
+        / "base_ws/src/bringup/launch/localization_gnss_imu_gt_ctra.launch"
+    ).getroot()
+    args = {
+        item.attrib["name"]: item.attrib
+        for item in localization_launch.findall("arg")
+    }
+    assert args["publish_control_state"]["default"] == "true"
+    assert args["use_quantized_gnss_control_state"]["default"] == "false"
+    assert args["control_state_topic"]["default"] == (
+        "/localization/control_kinematic_state"
+    )
+    assert args["control_translation_tau_sec"]["default"] == "0.5"
+    assert args["control_yaw_tau_sec"]["default"] == "0.5"
 
 
 def test_local_load_test_can_disable_only_the_traffic_light_planner_plugin():
@@ -91,16 +162,16 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
-    assert values["map_file"].endswith("/lanelet2_map_v84.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v85.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
 def test_v83_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v84.osm"
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v85.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v84_competition_route.yaml"
+        / "kcity_v85_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
@@ -115,7 +186,7 @@ def test_v83_map_sha_is_identical_across_runtime_contracts():
 
 
 def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
-    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v84.yaml"
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v85.yaml"
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
         "201436": [201436, 201435, 200099, 201438],
@@ -139,7 +210,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
         item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
     }
     assert integration_args["mission_planner_param_path"]["default"].endswith(
-        "/config/mission_planner_kcity_v84.yaml"
+        "/config/mission_planner_kcity_v85.yaml"
     )
     tier4_include = next(
         item

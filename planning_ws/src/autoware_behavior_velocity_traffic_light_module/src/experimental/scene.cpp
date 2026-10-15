@@ -57,6 +57,13 @@ TrafficLightModule::TrafficLightModule(
   prev_looking_tl_state_.traffic_light_group_id = 0;
 }
 
+void TrafficLightModule::updateDecisionLane(
+  const lanelet::ConstLanelet & lane, const bool is_turn_lane)
+{
+  lane_ = lane;
+  is_turn_lane_ = is_turn_lane;
+}
+
 bool TrafficLightModule::modifyPathVelocity(
   Trajectory & path, const std::vector<geometry_msgs::Point> & left_bound,
   const std::vector<geometry_msgs::Point> & right_bound, const PlannerData & planner_data)

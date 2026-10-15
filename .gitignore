@@ -65,7 +65,19 @@ base_ws/.catkin_workspace
 *.bag
 *.bag.active
 /rosbags/datasets/base3_online/
+/rosbags/datasets/base4_temporal/
+/rosbags/datasets/base5/
+/rosbags/eval/perception/
 /planner_logs/
+
+# Rosbag analysis reports belong under planner_logs/analysis/, never source docs.
+# Guard against accidentally recreating legacy per-run reports in docs/planning.
+/docs/planning/latest_bag_*.md
+/docs/planning/recent*_bags_*.md
+/docs/planning/right_candidate_*.md
+/docs/planning/*_20??????*.md
+/docs/planning/static_obstacle_scene_regression.md
+/docs/planning/reports/
 /.catkin_workspace
 
 # Reproducible map comparison renders stay local; scripts and text reports are tracked.
@@ -324,6 +336,11 @@ __marimo__/
 /data/morai_4class_v1/
 /outputs/
 /wandb/
+
+# Local research-report drafts and generated figures.
+# Keep these files in the workspace, but do not publish ongoing report edits.
+/docs/*research_report*.md
+/docs/assets/research_report/
 
 # Vendored source lib/ directories are source, not generated Python lib output.
 !/planning_ws/src/autoware_lanelet2_extension/lib/

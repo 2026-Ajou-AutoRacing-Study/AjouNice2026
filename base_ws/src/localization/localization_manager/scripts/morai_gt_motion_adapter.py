@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import copy
 import math
 
 import rospy
@@ -125,6 +126,40 @@ class MoraiGtMotionAdapter:
             self.twist_covariance[index] = 1.0e6
         self.twist_covariance[0] = longitudinal_velocity_stddev**2
 
+        lateral_model_ns = noise_ns + "/lateral_model"
+        self.lateral_model_enabled = rospy.get_param(
+            lateral_model_ns + "/enabled", False
+        )
+        if type(self.lateral_model_enabled) is not bool:
+            raise rospy.ROSInitException(
+                "{} must be a bool".format(lateral_model_ns + "/enabled")
+            )
+        self.lateral_velocity_publisher = None
+        if self.lateral_model_enabled:
+            self.lateral_velocity_stddev = positive_finite_param(
+                lateral_model_ns + "/stddev_mps", 0.20
+            )
+            self.lateral_velocity_topic = rospy.get_param(
+                lateral_model_ns + "/topic",
+                "/localization/constraints/lateral_velocity",
+            )
+            if (
+                not isinstance(self.lateral_velocity_topic, str)
+                or not self.lateral_velocity_topic.strip()
+                or self.lateral_velocity_topic == self.twist_topic
+            ):
+                raise rospy.ROSInitException(
+                    "{} must be a non-empty topic distinct from GT twist".format(
+                        lateral_model_ns + "/topic"
+                    )
+                )
+            self.lateral_velocity_covariance = [0.0] * 36
+            for index in (0, 7, 14, 21, 28, 35):
+                self.lateral_velocity_covariance[index] = 1.0e6
+            self.lateral_velocity_covariance[7] = (
+                self.lateral_velocity_stddev**2
+            )
+
         self.last_stamp = None
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -134,6 +169,18 @@ class MoraiGtMotionAdapter:
         self.twist_publisher = rospy.Publisher(
             self.twist_topic, TwistWithCovarianceStamped, queue_size=100
         )
+        if self.lateral_model_enabled:
+            self.lateral_velocity_publisher = rospy.Publisher(
+                self.lateral_velocity_topic,
+                TwistWithCovarianceStamped,
+                queue_size=100,
+            )
+            rospy.loginfo(
+                "Soft lateral model prior: %s, body vy=0, sigma=%.3fm/s; "
+                "model prior, not a GT measurement or Competition velocity.y",
+                self.lateral_velocity_topic,
+                self.lateral_velocity_stddev,
+            )
         self.subscriber = rospy.Subscriber(
             self.input_topic,
             EgoVehicleStatus,
@@ -239,6 +286,15 @@ class MoraiGtMotionAdapter:
 
         self.orientation_publisher.publish(orientation)
         self.twist_publisher.publish(twist)
+        if self.lateral_velocity_publisher is not None:
+            lateral_velocity = TwistWithCovarianceStamped()
+            lateral_velocity.header = copy.deepcopy(message.header)
+            lateral_velocity.header.frame_id = self.base_frame
+            lateral_velocity.twist.twist.linear.y = 0.0
+            lateral_velocity.twist.covariance = (
+                self.lateral_velocity_covariance
+            )
+            self.lateral_velocity_publisher.publish(lateral_velocity)
         self.last_stamp = stamp
 
 

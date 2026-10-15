@@ -72,6 +72,27 @@ bool isOutsideDrivableAreaFromRectangleFootprint(
   const std::vector<geometry_msgs::Point> & right_bound,
   const autoware::vehicle_info_utils::VehicleInfo & vehicle_info,
   const bool use_footprint_polygon_for_outside_drivable_area_check);
+
+// Immutable per-scene road geometry, shared by every pose/candidate check.
+class CircleFootprintRoadChecker
+{
+public:
+  CircleFootprintRoadChecker(
+    const std::vector<geometry_msgs::Point> & left_bound,
+    const std::vector<geometry_msgs::Point> & right_bound);
+  bool isOutside(
+    const geometry_msgs::Pose & pose, const std::vector<double> & circle_radii,
+    const std::vector<double> & circle_longitudinal_offsets) const;
+private:
+  struct Geometry;
+  std::shared_ptr<const Geometry> geometry_;
+};
+
+bool isOutsideDrivableAreaFromCircleFootprint(
+  const geometry_msgs::Pose & pose, const std::vector<geometry_msgs::Point> & left_bound,
+  const std::vector<geometry_msgs::Point> & right_bound,
+  const std::vector<double> & circle_radii,
+  const std::vector<double> & circle_longitudinal_offsets);
 }  // namespace geometry_utils
 }  // namespace autoware::path_optimizer
 #endif  // AUTOWARE__PATH_OPTIMIZER__UTILS__GEOMETRY_UTILS_HPP_

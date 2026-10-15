@@ -2,6 +2,11 @@
 
 대상 브랜치: `planning/autoware-universe-to-ros1`. `develop`과 다른 브랜치는 건드리지 않는다. 상세 topic·frame·기능 gate는 [BASE-WS-INTEGRATION-GUIDE.md](BASE-WS-INTEGRATION-GUIDE.md)를 함께 따른다.
 
+2026-09-30 현재 PC의 정적 장애물 회피 SIGSEGV와 clean 빌드·재검증 조건은
+[BUILD_ABI_CONSISTENCY.md](BUILD_ABI_CONSISTENCY.md)에 기록했다. 이전 clean-build
+증거는 당시 설치본에 대한 것이며, 이번 ABI 불일치가 확인된 설치본의 폐루프
+안전을 보증하지 않는다.
+
 현재 perception production은 BEVFusion E25다. Detector 실행·환경 분리·canonical
 topic 계약은
 [`../bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md`](../bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)를

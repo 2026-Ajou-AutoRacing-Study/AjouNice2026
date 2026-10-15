@@ -1,0 +1,29 @@
+<launch>
+  <node pkg="localization_manager"
+        type="localization_relocation_guard.py"
+        name="localization_relocation_guard_test_node"
+        output="screen">
+    <param name="monitor_only" value="false"/>
+    <param name="innovation_threshold_m" value="5.0"/>
+    <param name="consecutive_samples" value="3"/>
+    <param name="cooldown_sec" value="5.0"/>
+    <param name="max_sample_gap_sec" value="0.5"/>
+    <param name="gnss_topic" value="/test/gnss"/>
+    <param name="state_topic" value="/test/state"/>
+    <param name="orientation_topic" value="/test/orientation"/>
+    <param name="motion_topic" value="/test/motion"/>
+    <param name="reset_topic" value="/test/reset"/>
+    <param name="status_topic" value="/test/relocation_status"/>
+    <param name="max_state_age_sec" value="0.1"/>
+    <param name="max_orientation_age_sec" value="0.1"/>
+    <param name="stationary_hold_sec" value="0.10"/>
+    <param name="gnss_stationary_hold_sec" value="0.10"/>
+    <param name="reacquisition_grace_sec" value="1.0"/>
+    <param name="reset_ack_timeout_sec" value="2.0"/>
+  </node>
+
+  <test test-name="localization_relocation_guard_transport"
+        pkg="localization_manager"
+        type="test_localization_relocation_guard_transport.py"
+        time-limit="30"/>
+</launch>

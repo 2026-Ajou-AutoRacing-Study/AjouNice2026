@@ -45,6 +45,9 @@ static constexpr const char * logger_namespace =
  */
 bool isOnRight(const ObjectData & obj);
 
+// Use the current valid observation; preserve history only when it is unavailable.
+Polygon2d selectStaticEnvelope(const Polygon2d & previous, const Polygon2d & observed);
+
 /**
  * @brief calculate shift length from centerline of current lane.
  * @param object offset direction.

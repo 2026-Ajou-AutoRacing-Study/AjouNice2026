@@ -116,7 +116,7 @@ if(CATKIN_ENABLE_TESTING)
       AW149_BVP_DETECTION_AREA_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_detection_area_module/config/ros1/detection_area.yaml"
       AW149_BVP_TRAFFIC_LIGHT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_traffic_light_module/config/ros1/traffic_light.yaml"
       AW149_BVP_BLIND_SPOT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_blind_spot_module/config/ros1/blind_spot.yaml"
-      AW149_BVP_ROUNDABOUT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_roundabout_module/config/ros1/roundabout.yaml"
+      AW149_BVP_ROUNDABOUT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml"
       AW149_BVP_WALKWAY_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_walkway_module/config/ros1/walkway.yaml"
       AW149_BVP_OCCLUSION_SPOT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_behavior_velocity_occlusion_spot_module/config/ros1/occlusion_spot.yaml")
     target_link_libraries(test_behavior_velocity_planner_experimental_manager

@@ -1,10 +1,16 @@
 # 대회 Localization 중대 이슈 현황과 해결 기준
 
-마지막 갱신: 2026-09-20
+상태: **EVIDENCE**
+
+마지막 갱신: 2026-09-24
 
 이 문서는 대회용 GNSS+IMU+GT motion localization에서 관측한 위치 흔들림과
 제어 채터링의 최신 사실, 반증된 가설, 남은 위험 및 다음 실험 계약을 한곳에
 고정한다. 과거 채팅이나 단일 실험 결과보다 이 문서를 우선한다.
+
+현재 production 계약과 다음 우선순위는
+[`COMPETITION_LOCALIZATION_CURRENT_STATE.md`](COMPETITION_LOCALIZATION_CURRENT_STATE.md)를
+우선한다. 이 문서는 문제 원인과 판단 근거를 보존하는 누적 evidence다.
 
 ## 1. 현재 심각도와 목표
 
@@ -35,7 +41,7 @@ GNSS update가 만드는 고주파 pose correction이 조향 명령으로 전달
 
 - 대회 alias: `localization`, `gt_source=competition`.
 - MRP alias: `localization_mrp`, `gt_source=ego`.
-- heading correction: `-1.347 deg`.
+- heading correction: MR/competition `-1.347 deg`; audited MRP `0 deg`.
 - local/global EKF: `two_d_mode=true`.
 - `publish_sensor_tf=false`.
 - 대회 UDP: `/use_sim_time=false`, ROS host receipt-time policy 유지.
@@ -49,6 +55,37 @@ GNSS update가 만드는 고주파 pose correction이 조향 명령으로 전달
 
 대회 운영진에게 GNSS와 IMU 모두 인위적인 랜덤 노이즈를 넣지 않는다는 답변을
 확인했다. 그러나 GNSS의 좌표 양자화와 GPS 음영은 랜덤 노이즈와 별개로 남는다.
+
+### 2.1 P0 이전 분기 agent가 반드시 반영할 handoff delta
+
+P0 이전 revision에서 localization 작업을 분기한 agent는 다음을 새 baseline으로 삼는다.
+
+1. P0 시간축 test bed와 정상 구간 Q/R 탐색은 완료됐다. Production은 GNSS sigma
+   `0.10 m`, Global Qxy `0.0005`, `predict_to_current_time=true`다. 과거 `0.05 m` 또는
+   Qxy `0.05`를 기본값으로 되돌리지 않는다.
+2. heading offset은 transport 속성이 아니다. ROS/UDP, MR/MRP 파일명, bag 저장 PC가
+   아니라 estimator가 사용한 launcher/topic 계약으로 정한다.
+3. MR 및 실대회 `localization`은 `/Competition_topic` heading에 `-1.347 deg`를 한 번
+   적용한다. MRP `localization_mrp`는 `/Ego_topic`에 `0 deg`를 적용한다.
+4. 이미 correction을 받은 `/localization/kinematic_state`에 다시 `-1.347 deg`를
+   적용하지 않는다. Raw `/Ego_topic`을 yaw oracle로 비교할 때만 해당 run의 estimator와
+   같은 offset을 oracle 쪽에 적용한다. 따라서
+   `analyze_localization_stability_bag.py`의 기본 `--heading-offset-deg -1.347`은 MR용이며,
+   MRP run은 반드시 `--heading-offset-deg 0`으로 실행한다.
+5. bag provenance가 불명확하면 파일명으로 offset을 추측하지 않는다. 사용 alias,
+   `gt_source`, heading correction parameter와 launcher 종류를 run metadata에서 먼저
+   복구하고, 복구할 수 없는 bag은 yaw 절대오차 채택 근거에서 제외한다. 위치 jump와
+   rate처럼 heading offset에 무관한 지표는 별도로 사용할 수 있다.
+6. P8/P9 perception 변경은 localization 계약 변경이 아니다. Detector velocity의
+   LiDAR→map 회전과 tracker output-only fusion은 tracking 내부 변경이며
+   `/Competition_topic.velocity.x`, GNSS/IMU fusion 또는 localization heading을 보정하는
+   근거로 사용하지 않는다. Localization A/B에서는 계속 경량 `od_gt` 입력으로 GPU와
+   detector 변수를 제거한다.
+7. LiDAR Instance annotation과 `/Object_topic` BBox 기준 차이도 localization pose GT
+   문제와 별개다. Object BBox center 보정을 Ego pose 또는 GNSS 위치 보정으로 섞지 않는다.
+
+한 줄로 정리하면 localization agent는 새 perception 결과를 가져오는 것이 아니라,
+P0 이후 확정된 estimator·시간축·heading provenance를 가져와야 한다.
 
 ## 3. 확정된 정상 GNSS 구간 문제
 
@@ -296,7 +333,11 @@ P0~P2 정상 구간을 해결한 뒤 음영 복귀를 분리한다. 큰 innovati
 
 위 조치 후에도 correction이 제어기를 흔들면 planning에는 global map pose를 유지하고
 빠른 제어 feedback에는 smooth local state를 사용하는 구조를 검토한다. 이는 frame과
-trajectory 변환 계약 변경이 크므로 마지막 구조 변경이다.
+trajectory 변환 계약 변경이 크므로 마지막 구조 변경이다. Competition Vehicle Status의
+확장된 motion 정보가 이 방향을 강화하지만, 현재도 heading과 `velocity.x`는 이미 사용
+중이므로 production을 즉시 바꾸지는 않는다. 구체적인 frame 계약과 A/B는
+[`260920_competition_status_and_local_control_frame_plan.md`](260920_competition_status_and_local_control_frame_plan.md)를
+따른다.
 
 ### P5. Controller tuning
 
@@ -356,6 +397,14 @@ gain을 조정한다. localization jump를 controller gain으로 덮지 않는�
   `docs/localization/morai_udp_receipt_time.md`
 - 현장 bag과 분석:
   `rosbags/eval/localization/260915_field_inspection/`
+  - `planning_rviz_0915_sensor_local_1.bag`: UDP timestamp 보정 전 최초 run이므로
+    향후 정량 회귀 평가에서 제외한다.
+  - `planning_rviz_0915_gt_local.bag`, `sensor_local_2.bag`, `sensor_local_3.bag`:
+    timestamp 보정 후 현장 회귀 평가군으로 유지한다. `_3`은 기존 localization
+    채터링 기준 run이다.
+  - 이 분류는 bag 지표의 사후 threshold가 아니라 현장 실행 순서와 설정 provenance에
+    따른다. 네 bag 모두 raw GPS/IMU와 `/Competition_topic`이 없어 timestamp 설정을
+    bag만으로 완전히 재구성할 수 없다.
 - 로컬 baseline 및 `0.10 m` bag:
   `rosbags/eval/localization/local_mr_stability/`
 - covariance replay:

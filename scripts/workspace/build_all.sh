@@ -14,7 +14,11 @@ if (( $# != 0 )); then
   exit 2
 fi
 
+# ROS-generated hooks read unset ROS_DISTRO/ROS_MASTER_URI in a fresh shell.
+# Keep error checking, but suspend nounset while sourcing ROS setup scripts.
+set +u
 source /opt/ros/noetic/setup.bash
+set -u
 
 PLANNING_INSTALL="$REPO_ROOT/planning_ws/install_isolated"
 PLANNING_COMPLETE_MARKER="$PLANNING_INSTALL/.aw149_planning_build_complete"
@@ -27,7 +31,9 @@ if [[ ! -f "$PLANNING_INSTALL/setup.bash" || ! -f "$PLANNING_COMPLETE_MARKER" ]]
   touch "$PLANNING_COMPLETE_MARKER"
 fi
 
+set +u
 source "$PLANNING_INSTALL/setup.bash"
+set -u
 
 if [[ "$clean_base" == "true" ]]; then
   for generated_dir in \
@@ -179,7 +185,10 @@ while IFS= read -r package_xml; do
         missing_assets=$((missing_assets + 1))
       fi
       legacy_flat_file="$FAST_LIO_INSTALL/share/$package_name/$(basename "$source_file")"
-      if [[ "$legacy_flat_file" != "$installed_file" && -e "$legacy_flat_file" ]]; then
+      # A package-level README (or another package-root source file) may be
+      # installed here intentionally, independently of nested config assets.
+      if [[ "$legacy_flat_file" != "$installed_file" && -e "$legacy_flat_file" \
+            && ! -f "$package_dir/$(basename "$source_file")" ]]; then
         echo "ERROR: ambiguous legacy flat install asset: $legacy_flat_file" >&2
         missing_assets=$((missing_assets + 1))
       fi

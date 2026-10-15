@@ -20,7 +20,16 @@
 
 #include <angles/angles.h>
 
+#include <autoware/motion_utils/trajectory/static_obstacle_collision.hpp>
+
 #include <memory>
+#include <boost/crc.hpp>
+#include <ros/serialization.h>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace autoware::planning_validator::full_source
@@ -35,10 +44,27 @@ PlanningValidatorNode::PlanningValidatorNode(const ros::NodeHandle & options)
     "input/trajectory", 1,
     &PlanningValidatorNode::onTrajectory, this);
 
+  ros::NodeHandle scene_node(*this);
+  scene_node.setCallbackQueue(&static_scene_queue_);
+  sub_static_scene_ = scene_node.subscribe<autoware_planning_msgs::StaticObstacleScene>(
+    "/planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene", 10,
+    &PlanningValidatorNode::onStaticScene, this);
+  static_scene_timer_ = createWallTimer(ros::WallDuration(0.01),
+    [this](const ros::WallTimerEvent &) {
+      const auto previous_scene = static_scene_;
+      static_scene_queue_.callAvailable();
+      if (static_scene_ == previous_scene) return;
+      if (last_published_trajectory_) {
+        auto checked = *last_published_trajectory_;
+        if (guardStaticScene(checked)) publishSceneCheckedTrajectory(std::move(checked));
+      }
+    });
+
   // publishers
   pub_traj_ = create_publisher<Trajectory>("output/trajectory", 1);
   pub_status_ = create_publisher<PlanningValidatorStatus>("output/validation_status", 1);
   pub_markers_ = create_publisher<visualization_msgs::MarkerArray>("output/markers", 1);
+  pub_scene_check_ = create_publisher<diagnostic_msgs::DiagnosticArray>("debug/static_scene_check", 10);
   pub_processing_time_ms_ = create_publisher<Float64Stamped>("debug/processing_time_ms", 1);
 
   context_ = std::make_shared<PlanningValidatorContext>(this);
@@ -76,6 +102,10 @@ void PlanningValidatorNode::setupParameters()
 
   p.soft_stop_deceleration = declare_parameter<double>("soft_stop_deceleration");
   p.soft_stop_jerk_lim = declare_parameter<double>("soft_stop_jerk_lim");
+  static_scene_deceleration_ = declare_parameter<double>("static_scene_deceleration");
+  if (!std::isfinite(static_scene_deceleration_) || static_scene_deceleration_ <= 0.0) {
+    throw std::invalid_argument("static_scene_deceleration must be finite and positive");
+  }
   p.th_traffic_light_timeout = declare_parameter<double>("th_traffic_light_timeout");
   p.require_obstacle_pointcloud = declare_parameter<bool>("require_obstacle_pointcloud");
   context_->data->require_obstacle_pointcloud = p.require_obstacle_pointcloud;
@@ -171,7 +201,7 @@ void PlanningValidatorNode::publishTrajectory()
   const auto & data = context_->data;
   // Validation check is all green. Publish the trajectory.
   if (isAllValid(status)) {
-    pub_traj_->publish(*data->current_trajectory);
+    publishSceneCheckedTrajectory(*data->current_trajectory);
     published_time_publisher_->publish_if_subscribed(
       pub_traj_.identity(), data->current_trajectory->header.stamp);
     data->last_valid_trajectory = data->current_trajectory;
@@ -181,12 +211,30 @@ void PlanningValidatorNode::publishTrajectory()
 
   const auto & params = context_->params;
 
+  // An upstream emergency stop must never be replaced by a positive-speed
+  // historical trajectory merely because its geometry failed a continuity check.
+  const bool stop_requested = !data->current_trajectory->points.empty() &&
+    std::all_of(data->current_trajectory->points.begin(), data->current_trajectory->points.end(),
+      [](const auto & p) { return std::abs(p.longitudinal_velocity_mps) < 1e-4; });
+  if (stop_requested) {
+    auto stopped = status.is_valid_finite_value && status.is_valid_size
+      ? *data->current_trajectory
+      : (data->last_valid_trajectory ? *data->last_valid_trajectory : *data->current_trajectory);
+    if ((!status.is_valid_finite_value || !status.is_valid_size) && !data->last_valid_trajectory) return;
+    for (auto & point : stopped.points) point.longitudinal_velocity_mps = 0.0;
+    stopped.header = data->current_trajectory->header;
+    publishSceneCheckedTrajectory(stopped);
+    published_time_publisher_->publish_if_subscribed(pub_traj_.identity(), stopped.header.stamp);
+    soft_stop_trajectory_ = nullptr;
+    return;
+  }
+
   //  ----- invalid factor is found. Publish previous trajectory. -----
 
   const auto handling_type = context_->get_handling();
 
   if (handling_type == InvalidTrajectoryHandlingType::PUBLISH_AS_IT_IS) {
-    pub_traj_->publish(*data->current_trajectory);
+    publishSceneCheckedTrajectory(*data->current_trajectory);
     published_time_publisher_->publish_if_subscribed(
       pub_traj_.identity(), data->current_trajectory->header.stamp);
     RCLCPP_ERROR_THROTTLE(
@@ -205,7 +253,7 @@ void PlanningValidatorNode::publishTrajectory()
 
   if (handling_type == InvalidTrajectoryHandlingType::USE_PREVIOUS_RESULT) {
     const auto & pub_trajectory = *data->last_valid_trajectory;
-    pub_traj_->publish(pub_trajectory);
+    publishSceneCheckedTrajectory(pub_trajectory);
     published_time_publisher_->publish_if_subscribed(pub_traj_.identity(), pub_trajectory.header.stamp);
     RCLCPP_ERROR(get_logger(), "Invalid Trajectory detected. Use previous trajectory.");
     return;
@@ -221,10 +269,130 @@ void PlanningValidatorNode::publishTrajectory()
         params.soft_stop_jerk_lim));
     }
     const auto & pub_trajectory = *soft_stop_trajectory_;
-    pub_traj_->publish(pub_trajectory);
+    publishSceneCheckedTrajectory(pub_trajectory);
     published_time_publisher_->publish_if_subscribed(pub_traj_.identity(), pub_trajectory.header.stamp);
     RCLCPP_ERROR(get_logger(), "Invalid Trajectory detected. Use soft stop trajectory.");
   }
+}
+
+void PlanningValidatorNode::onStaticScene(
+  const autoware_planning_msgs::StaticObstacleScene::ConstPtr & scene)
+{
+  if (static_scene_ && scene->header.stamp < static_scene_->header.stamp) {
+    last_published_trajectory_.reset();
+    soft_stop_trajectory_.reset();
+    context_->data->last_valid_trajectory.reset();
+  }
+  static_scene_ = scene;
+  // The dedicated queue is drained by the wall timer and before publishing.
+  // Only update state here to avoid recursive publication while draining it.
+}
+
+bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
+{
+  scene_check_odometry_ = sub_kinematics_.take_data();
+  if (!static_scene_ || static_scene_->obstacles.empty() || trajectory.points.empty()) return false;
+  const auto odometry = scene_check_odometry_;
+  if (!odometry) return false;
+  auto & points = trajectory.points;
+  const size_t ego = autoware::motion_utils::findFirstNearestIndexWithSoftConstraints(
+    points, odometry->pose.pose);
+  const bool frame_mismatch = trajectory.header.frame_id != static_scene_->header.frame_id;
+  TrajectoryPoint measured;
+  measured.pose = odometry->pose.pose;
+  const auto & vehicle = context_->vehicle_info;
+  const bool measured_overlap = autoware::motion_utils::firstObstacleCollision(
+    {measured}, 0, static_scene_->obstacles, vehicle).has_value();
+  const auto collision = autoware::motion_utils::firstObstacleCollision(
+    points, ego, static_scene_->obstacles, vehicle);
+  if (!frame_mismatch && !measured_overlap && !collision) return false;
+  const size_t unsafe = collision.value_or(ego);
+  if (!frame_mismatch && !measured_overlap) {
+    for (size_t i = ego; i <= unsafe; ++i) {
+      if (std::abs(points[i].longitudinal_velocity_mps) < 1e-4) return false;
+    }
+  }
+  double clear = 0.0;
+  for (size_t i = ego + 1; i <= unsafe; ++i) {
+    clear += std::hypot(points[i].pose.position.x - points[i - 1].pose.position.x,
+                        points[i].pose.position.y - points[i - 1].pose.position.y);
+  }
+  const double deceleration = static_scene_deceleration_;
+  const double stop_distance = std::max(0.0, clear - 1.0);
+  const double speed = odometry->twist.twist.linear.x;
+  const bool emergency = frame_mismatch || measured_overlap ||
+    speed * speed > 2.0 * deceleration * stop_distance;
+  bool changed = false;
+  double distance = 0.0;
+  for (size_t i = 0; i < points.size(); ++i) {
+    if (i > ego) {
+      distance += std::hypot(points[i].pose.position.x - points[i - 1].pose.position.x,
+                             points[i].pose.position.y - points[i - 1].pose.position.y);
+    }
+    if (!emergency && i < ego) continue;
+    const double limit = emergency ? 0.0 :
+      std::sqrt(2.0 * deceleration * std::max(0.0, stop_distance - distance));
+    const auto previous = points[i].longitudinal_velocity_mps;
+    points[i].longitudinal_velocity_mps = emergency ? 0.0 : std::min<double>(previous, limit);
+    if (points[i].longitudinal_velocity_mps < previous - 1e-4) {
+      points[i].acceleration_mps2 = limit > 0.0 ?
+        std::min<double>(points[i].acceleration_mps2, -deceleration) : 0.0;
+    }
+    changed = changed || points[i].longitudinal_velocity_mps < previous - 1e-4;
+  }
+  if (changed) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+      "[Static scene] Newest obstacle invalidates output; braking on same geometry "
+      "(clear=%.2f emergency=%d)", clear, static_cast<int>(emergency));
+  }
+  return changed;
+}
+
+void PlanningValidatorNode::publishSceneCheckedTrajectory(Trajectory trajectory)
+{
+  // A scene can arrive during the footprint check itself. Consume it and repeat
+  // before committing the command. All callbacks run on the single ROS spinner.
+  autoware_planning_msgs::StaticObstacleScene::ConstPtr checked_scene;
+  do {
+    static_scene_queue_.callAvailable();
+    checked_scene = static_scene_;
+    guardStaticScene(trajectory);
+    static_scene_queue_.callAvailable();
+  } while (checked_scene != static_scene_);
+
+  // Record the exact scene and ego used for this command. An independent recorder
+  // can receive two topics in a different order and cannot infer this snapshot.
+  trajectory.header.seq = 0;  // Normalize the ROS transport sequence for the checksum.
+  const auto serialized = ros::serialization::serializeMessage(trajectory);
+  boost::crc_32_type checksum;
+  checksum.process_bytes(serialized.message_start, serialized.num_bytes - 4);
+  diagnostic_msgs::DiagnosticArray evidence;
+  evidence.header.stamp = now();
+  diagnostic_msgs::DiagnosticStatus status;
+  status.name = "static_scene_check";
+  const auto add = [&](const std::string & key, const auto & value) {
+    diagnostic_msgs::KeyValue entry;
+    entry.key = key;
+    std::ostringstream text;
+    text << std::setprecision(17) << value;
+    entry.value = text.str();
+    status.values.push_back(std::move(entry));
+  };
+  add("publication_index", published_trajectory_sequence_++);
+  add("trajectory_crc32", checksum.checksum());
+  add("scene_stamp_ns", checked_scene ? checked_scene->header.stamp.toNSec() : 0);
+  add("validated_wall_ns", std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count());
+  if (scene_check_odometry_) {
+    add("ego_x", scene_check_odometry_->pose.pose.position.x);
+    add("ego_y", scene_check_odometry_->pose.pose.position.y);
+    add("ego_yaw", tf2::getYaw(scene_check_odometry_->pose.pose.orientation));
+    add("ego_v", scene_check_odometry_->twist.twist.linear.x);
+  }
+  evidence.status.push_back(std::move(status));
+  pub_traj_->publish(trajectory);
+  pub_scene_check_->publish(evidence);
+  last_published_trajectory_ = boost::make_shared<Trajectory>(std::move(trajectory));
 }
 
 void PlanningValidatorNode::publishProcessingTime(const double processing_time_ms)

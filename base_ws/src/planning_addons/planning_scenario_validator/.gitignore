@@ -1,0 +1,7 @@
+# 팀원별 실제 캠페인 설정은 예제만 Git으로 공유한다.
+config/users/**/*.yaml
+config/generated/
+config/users/**/*.yml
+!config/users/**/.gitkeep
+__pycache__/
+*.pyc
