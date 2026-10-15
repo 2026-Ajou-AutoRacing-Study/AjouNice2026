@@ -1,4 +1,6 @@
 # Native ROS1 rendering of ../drivable_area_expansion.param.yaml
+# Map exterior is independent of the lifetime of an avoidance module.
+drivable_area_use_intersection_areas: true
 drivable_area_right_bound_offset: 0.0
 drivable_area_left_bound_offset: 0.0
 drivable_area_types_to_skip:

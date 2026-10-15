@@ -1,6 +1,6 @@
 # Base4-Temporal 고주로 Velocity Pilot 계획
 
-> **문서 상태: PLAN.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
+> **문서 상태: CONTROL-SAFETY REVALIDATED / LIMITED CAMPAIGN READY.** 전체 Base4 데이터셋을 확정하는 문서가 아니라, 고주로에서
 > BEVFusion velocity observation의 실효성을 가장 작게 검증하기 위한 통제 실험이다.
 
 ## 한 줄 결론
@@ -8,6 +8,41 @@
 Production E25의 공간 인식 능력을 초기값으로 사용하고, 새 고주로 연속 sequence에서
 Vehicle `vx, vy`를 학습한다. 기존 고주로 두 rosbag은 반복 사용된 **development
 evaluation**으로만 쓰고, 최종 성능 주장은 새 held-out 고주로 rosbag으로 확인한다.
+
+## P0 선행 gate: MORAI LiDAR scan 생성 방식 판별
+
+Base4 temporal 입력을 최종 확정하기 전에 scan 내부 motion distortion의 존재 여부를
+반드시 실험으로 판별한다. 이 항목은 선택적인 성능 개선이 아니라 잘못된 deskew로 전체
+데이터를 훼손하지 않기 위한 **최우선 선행 gate**다.
+
+고속 직진과 회전 중 정적 기둥·벽을 같은 구간에서 다음 세 입력으로 비교한다.
+
+1. raw cloud.
+2. point `time` 기반 Ego-motion deskew cloud.
+3. 모든 point time을 `0`으로 가정한 cloud.
+
+정적 구조물의 두께, 직선성, 이중상·끌림, frame 간 center/edge 분산을 정량화한다. raw가
+가장 곧고 deskew 후 휘면 MORAI snapshot/synthetic-time 가능성이 높으므로 scan deskew를
+계속 끈다. deskew 후 구조물이 유의하게 선명하고 안정되면 point-time 계약과 Ego
+velocity/yaw-rate frame을 재검증한 뒤에만 켠다. 판정 전 기본값은 다음과 같다.
+
+- 과거 **sweep 간** Ego-motion compensation: `on`.
+- 한 scan **내부** per-point deskew: `off`.
+- 학습용 raw point와 point `time`: 손실 없이 보존.
+
+이 gate는 2026-09-20에 완료됐다. 40 bag / 1,911 cloud에서 point-time deskew가 정적
+alignment p50을 `0.22819 -> 0.20640 m`로 약 `9.5%` 개선했다. 반대 방향 보정은
+`0.25280 m`로 악화됐다. 따라서 point time은 유효하다고 판단한다. 단, 42개 scan에서
+span이 `0.15 s`를 넘고 최대 `1.392 s`였으므로 production 기본값은 계속 off다. raw와
+point time을 보존하고 outlier rejection을 포함한 converter/online 동일 A/B 후 켠다.
+상세 근거는
+[`260920_base4_deskew_and_control_safety_evidence.md`](../../dataset/morai_od/docs/260920_base4_deskew_and_control_safety_evidence.md)에 있다.
+
+이후 공통 벡터화 deskew를 offline converter와 online BEVFusion bridge에 옵션으로
+구현했다. 연산비는 약 `2 ms/scan`으로 충분히 작았지만, E25 무재학습 3-clip A/B에서
+merge는 개선되고 cruise는 악화됐다. 따라서 production 기본값은 `off`를 유지하며,
+Base4 raw/ego-deskew 학습 A/B에서만 최종 채택한다. Offline에서만 가능한 GT object
+motion 보정은 online 계약과 달라지므로 사용하지 않는다.
 
 ## 왜 지금 이 실험인가
 
@@ -42,6 +77,40 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
 - 합류·차선 변경으로 횡속도가 생기는 차량.
 - 주 평가 거리 `10--30 m`; 가까운 차량과 30 m 경계 표본도 유지.
 
+### 첫 고주로 campaign의 구간·속도 배분
+
+조기 ramp 가속 상태는 어렵지만 planning이 아직 즉시 반응할 필요가 작다. 따라서 첫
+pilot은 합류 이후의 실제 추월·상대속도 분포에 집중한다.
+
+| 구간 | 목표 비율 | Ego 속도 | NPC 상태 |
+|---|---:|---|---|
+| ramp 초기 접근 | 0% | - | live pilot에서 제어권 전환 전 actor 이탈로 제외 |
+| 실제 merge/conflict | 25% | 50/54/58 km/h | pilot은 40/50/60 anchor, production은 더 넓은 연속 범위 |
+| post-merge 순항·추월 | 75% | 70/85/100 km/h | pilot은 40/50/60 anchor, production은 더 넓은 연속 범위 |
+
+합치면 실제 합류 25%, 합류 이후 75%다. `115/120 km/h`는 제어 안전성 기준선에서
+제외하고, 100 km/h campaign이 안정된 뒤 별도 stress addon에서만 재검토한다.
+고속 Ego는 capture 시작 전에 충분히 상류에서 출발해 목표속도에 도달시킨다. 같은 차선의
+큰 상대속도는 충돌 위험 때문에 짧은 window로 제한하고, 큰 closing/opening speed는 주로
+인접 차선에서 만든다. 첫 pilot에는 실제 lane-change controller를 넣지 않으며, 이후
+lateral-motion addon으로 분리한다. 큰 상대속도는 인접 차선에만 배정하고
+restricted solid-separated lane은 계속 제외한다.
+
+2026-09-21 MORAI 공식 답변에서 본선 고주로·로터리 NPC 속도가 샘플과 동일하지 않다고
+확인됐다. 따라서 위 `40/50/60 km/h`는 현재 temporal pipeline A/B를 통제하기 위한
+anchor일 뿐 최종 본선 prior가 아니다. 다음 production manifest는 안전하게 관측 가능한
+범위 안에서 NPC 속도를 연속 구간으로 jitter하고, closing/opening/parallel 상대속도 bin이
+고르게 채워지도록 구성한다. 또한 본선 고주로 RandomMode 사용 시 `MiddleSize`만 쓸
+예정이므로 main vehicle quota는 MiddleSize 중심으로 바꾸고 다른 차종은 robustness
+coverage로만 제한한다. 로터리는 고정 차종이지만 비공개이므로 K5 단일 overfit은 하지
+않는다.
+
+초기 live pilot 자체는 merge conflict `2/2`, post-merge `9/9`를 완료했지만 이후 본
+campaign에서 제어권 인수 전 차선 이탈이 발견되어 그 결과만을 production gate로 쓰지
+않는다. zero-speed load와 drift/speed/stability gate를 적용한 `r9`에서 merge/cruise
+각 16/16 frame을 통과했고, 추가 100 km/h smoke까지 합쳐 `48/48 frame`, 실패 0,
+조향 abs max `0.284°`를 재확인했다.
+
 ### sequence 단위
 
 - 독립 snapshot이 아니라 실제 LiDAR cadence의 연속 frame을 저장한다.
@@ -51,6 +120,19 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
 - `/dataset/scenario_marker` 밖의 load/teleport 구간은 제거한다.
 - scene/sequence를 split 단위로 사용하고 인접 frame을 train/val에 나누지 않는다.
 
+### Gated raw 기록과 저장 용량
+
+- 센서는 끊지 않고 계속 수신하되 ROS snapshot ring buffer를 사용한다.
+- 정상 `capture_end`에서만 scene bag을 저장하며 scene-load/reconnect 대기는 버린다.
+- 2026-09-20 MR 실측에서 32 MiB는 start marker가 잘려 기각했고, 48 MiB는
+  `2.71--2.76 s` window를 완전히 보존했다.
+- 현재 48 MiB 설정의 실제 파일은 scene당 약 `50.5 MB`다.
+- 1,200 scene 약 `61 GB`, 1,500 scene 약 `76 GB`를 예상한다.
+- 첫 20--30 scene에서 marker, sensor rate, camera age와 scene-to-bag sidecar를 audit한
+  뒤 unattended campaign으로 넘어간다.
+- continuous recorder는 진단 fallback이며, raw bag을 녹화 중 삭제하면서 converter를
+  병렬 실행하는 방식은 crash 시 source/metadata가 어긋나므로 기본 경로로 쓰지 않는다.
+
 ### timestamp와 좌표
 
 - LiDAR header timestamp를 sample 기준시각으로 사용한다.
@@ -58,6 +140,10 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
 - Ego/Object pose는 LiDAR 시각 앞뒤 상태로 보간한다.
 - 학습 label은 LiDAR/Ego 축의 절대 planar vector
   `velocity_target_ego_mps=[vx, vy]` 하나만 노출한다.
+- 이 velocity는 catalog 보정 후 geometric BBox center 기준이다. `/Object_topic`의 asset
+  pivot velocity에 전후 heading으로 계산한 yaw rate와 pivot-to-center offset의
+  `omega x r` 항을 더한다. 짧고 정상적인 bracket가 없으면 pivot velocity로 fallback하고
+  instance metadata에 그 이유를 남긴다.
 - 위치 미분값은 필요할 때 `diagnostics` namespace에서 GT sanity check에만 사용하며,
   학습 target 이름으로 노출하지 않는다.
 - runtime `DetectedObject`에서는 detector/LiDAR `vx, vy`를 box yaw로 회전해 object-body
@@ -71,6 +157,71 @@ Oracle 수치는 production 예상치가 아니라 **velocity 정보가 충분�
 - 단순 point concatenation의 object trail이 geometry를 해칠 수 있으므로 single-frame
   velocity head를 먼저 검증한 뒤 temporal feature fusion으로 넘어간다.
 - Object pose/velocity는 input 보정이 아니라 label 생성과 감사에 사용한다.
+
+### 센서 시간 정합과 deskew 계약
+
+Raw baseline의 canonical timestamp는 LiDAR header 시각 `t0`다. Deskew A/B의
+canonical timestamp는 `t_ref = t0 + max(point time)`, 즉 scan end다. 해당 조건에서는
+LiDAR point, camera 선택, Ego/Object GT와 detector output stamp를 모두 `t_ref`에 맞춘다.
+서로 다른 세 가지 보정을 혼동하지 않는다.
+
+| 구분 | 의미 | Base4 첫 계약 |
+|---|---|---|
+| scan 내부 deskew | 한 PointCloud2 안에서 point별 취득시각 차이 보정 | 기본 `off`; A/B는 scan end |
+| camera--LiDAR 정합 | nearest camera 시각과 canonical time 사이의 정합 | raw=`t0`, deskew=`t_ref`; fixed extrinsic |
+| sweep 간 정합 | 과거 LiDAR frame을 현재 canonical Ego frame으로 이동 | `on` |
+
+현재 production bridge는 LiDAR callback마다 camera buffer에서 가장 가까운 frame을 고르고
+고정 extrinsic을 사용한다. 허용차 기본값은 `0.10 s`이며 Ego pose를 이용한 camera 시각
+보정은 아직 없다. Base4 raw/index에는 실제 camera timestamp와 `camera_age`, LiDAR
+timestamp, Ego pose history를 보존해 나중에 정합 방식을 바꿔도 재취득하지 않도록 한다.
+
+MORAI cloud에는 `ring`과 point `time` field가 있지만, 이것만으로 simulator가 실제로
+ray를 시간 순서대로 렌더링했다고 결론 내릴 수 없다. 특히 `12 Hz` message rate의 역수
+`83 ms`를 곧바로 physical scan duration으로 간주하거나, `100 km/h`에서 `2.3 m`의 scan
+왜곡이 있다고 단정하지 않는다. 순간 snapshot에 Velodyne 형식의 synthetic point time이
+붙는 경우라면 deskew가 오히려 가짜 왜곡을 만든다. 과거 production에서 deskew를 끈
+이유도 distortion이 없다고 증명했기 때문이 아니라, moving high-speed static-structure
+A/B와 velocity/timestamp frame 계약이 충분히 검증되지 않았기 때문이다.
+
+따라서 deskew는 고속 직진·회전 중 정적 벽/기둥을 대상으로 다음을 비교한 뒤에만
+채택한다.
+
+1. raw cloud.
+2. point `time`을 사용한 Ego-motion deskew.
+3. 모든 point가 동시 취득됐다고 가정한 cloud.
+
+deskew 전후 정적 구조물의 두께·직선성·frame 간 안정성을 비교하며, 단순 RViz 인상만으로
+결정하지 않는다. 이 A/B가 끝나기 전 B4H-V1/T1의 기본 입력은 raw cloud다.
+
+기존 Base2/Base3 SaveSensorData XYZI에는 exact point time이 없었다. 당시 azimuth, 고정
+scan period와 Ego velocity로 시간을 근사했던 것은 현재 rosbag의 실제 PointCloud2
+`time` 기반 방식과 다른 계약이다. 현재 shared Base3 package도 자동으로 deskew되지
+않으며, 향후 팀 전달은 raw와 `ego_deskew_scan_end` package를 명시적으로 분리한다.
+
+Camera 시간 보정도 독립된 실험 축이다. nearest frame에서 Ego가 이동한 거리는 그대로
+3D center 오차와 같지 않고, 실제 효과는 camera age, 회전, 물체 거리·방향, localization
+jitter에 달려 있다. 네 camera가 서로 다른 timestamp를 가질 수 있으므로 LiDAR를 각
+camera 시각으로 각각 옮기지 않는다. 필요할 경우 camera별 pose 차이를 반영한 동적
+`camera2lidar`를 만들어 모두 현재 LiDAR `t0` frame으로 올린다.
+
+### Object motion을 보정하지 않는 이유
+
+센서 입력에서는 Ego motion만 보정한다. Object pose는 GT box를 LiDAR `t0`에 맞추는
+label interpolation에는 사용하지만, 과거 object point를 현재 위치로 이동시키는 데에는
+사용하지 않는다.
+
+- online inference에는 GT instance association과 object velocity가 없다.
+- 학습 때만 GT object compensation을 쓰면 train--runtime mismatch와 label leakage가
+  생긴다.
+- 현재 위치에 과거 object point를 완전히 중첩하면 velocity를 학습할 displacement 단서가
+  사라진다.
+- Ego 정합 후 남는 moving-object trail은 point `dt`와 함께 temporal cue로 사용한다.
+
+T1에서 trail이 box geometry를 훼손하면 raw point를 GT로 보정하는 대신 T2의 fused-BEV
+memory 또는 이후 Q1의 object query memory로 이동한다. Q1에서는 detector가 예측한
+velocity로 query reference point를 propagate할 수 있지만, 이것은 GT object motion
+compensation과 다른 online-reproducible 연산이다.
 
 ## 학습·평가 split
 
@@ -120,6 +271,68 @@ StreamPETR query memory가 아니라 원본 BEVFusion의 causal multi-sweep 입�
 | 2 | B4H-T1 | Ego 정합 3-sweep + point `dt` | 가장 작은 temporal baseline |
 | 3 | B4H-T2 | 직전 fused-BEV ego warp + gated fusion | raw point ghosting을 피하는 feature temporal |
 | 4 | B4H-Q1 | StreamPETR-inspired sparse query memory | 긴 객체 이력과 object-centric motion |
+
+### 관련 연구에서 직접 가져올 원칙과 가져오지 않을 주장
+
+다음 연구들은 temporal 정보가 velocity와 detection에 유효하다는 근거지만 센서 modality와
+head가 서로 다르므로 논문 수치를 MORAI 성능 예상치로 사용하지 않는다.
+
+| 연구 | 실제 핵심 | Base4에 적용하는 범위 |
+|---|---|---|
+| nuScenes multi-sweep | 과거 cloud를 keyframe Ego 좌표로 이동하고 point에 time lag 추가 | T1의 Ego 정합+`dt`; scan 내부 deskew 근거로는 사용하지 않음 |
+| BEVFusion/CenterPoint | multi-sweep 입력과 velocity regression | V1/T1의 가장 가까운 baseline |
+| BEVDet4D | 이전 camera BEV를 현재 frame과 결합해 motion cue 사용 | T2의 저비용 recurrent fusion 참고 |
+| BEVFormer | recurrent history BEV와 temporal deformable attention | T2-D의 원리 참고; camera-only 전체 구조는 이식하지 않음 |
+| BEVFusion4D | multimodal BEV의 temporal deformable alignment | T2 이후 geometry 퇴행 시 참고 |
+| StreamPETR | object-query memory와 motion-aware propagation | Q1에서 Vehicle Top-K memory만 단계적으로 참고 |
+| SOLOFusion | short/long-term camera temporal stereo | 현재 LiDAR-camera velocity pilot에는 직접 적용하지 않음 |
+
+nuScenes의 sweep accumulation은 **서로 다른 sweep 전체를 keyframe으로 옮기는 것**이며,
+MORAI 한 scan 내부의 per-point ray acquisition을 증명하지 않는다. BEVFormer,
+BEVDet4D와 StreamPETR는 주로 camera-only 결과이므로 temporal modeling의 유효성 근거로는
+쓰되 LiDAR-camera BEVFusion의 구현 정답으로 취급하지 않는다. 현재 문제와 가장 가까운
+multimodal 확장은 BEVFusion4D지만, deformable alignment부터 시작하면 label, dataset,
+velocity head 문제와 architecture 효과를 분리할 수 없으므로 V1/T1/T2 뒤에 둔다.
+
+- nuScenes: <https://openaccess.thecvf.com/content_CVPR_2020/papers/Caesar_nuScenes_A_Multimodal_Dataset_for_Autonomous_Driving_CVPR_2020_paper.pdf>
+- BEVFusion converter: <https://github.com/mit-han-lab/bevfusion/blob/main/tools/data_converter/nuscenes_converter.py>
+- CenterPoint: <https://arxiv.org/abs/2006.11275>
+- BEVDet4D: <https://arxiv.org/abs/2203.17054>
+- BEVFormer: <https://arxiv.org/abs/2203.17270>
+- BEVFusion4D: <https://arxiv.org/abs/2303.17099>
+- StreamPETR: <https://arxiv.org/abs/2303.11926>
+
+### 과거 PointPainting 3-sweep 결과의 해석
+
+과거 PointPainting temporal 모델의 velocity가 충분히 좋지 않았다는 사실은 temporal
+입력이 production 개선을 보장하지 않는다는 중요한 경고다. 하지만 다음 요인들이 함께
+바뀌었기 때문에 `3-sweep이 무효`라는 결론으로 사용하지 않는다.
+
+- Base2에는 고속 Ego, 큰 상대속도, 합류·인접차선 추월 motion family가 부족했다.
+- `derived_velocity_mps`와 확정 target의 역할이 전달 과정에서 혼동됐다.
+- PointPainting의 raw point concatenation에서는 moving-object trail이 painted geometry를
+  흐릴 수 있다.
+- velocity head/supervision 효과와 temporal input 효과를 독립적으로 측정하지 않았다.
+- SaveSensorData 학습 domain과 실제 asynchronous ROS/UDP rosbag domain 차이가 있었다.
+
+이번에는 V1로 label/head만 먼저 검증하고 T1로 multi-sweep의 추가 이득을 측정한다. T1의
+speed MAE/2D AVE가 좋아져도 center/AP와 downstream Map-CV FDE가 나빠지면 채택하지
+않으며, 그런 경우에만 T2로 point trail을 feature memory로 대체한다.
+
+### 독립 실험 축
+
+한 run에서 deskew, camera time alignment와 temporal architecture를 동시에 바꾸지 않는다.
+
+| 축 | 기준선 | 후보 |
+|---|---|---|
+| scan | raw/deskew-off | verified per-point Ego deskew |
+| camera sync | nearest + fixed extrinsic | nearest + camera별 Ego-time dynamic transform |
+| temporal | V1 single-frame 9D | T1 multi-sweep, 이후 T2 BEV memory |
+
+분석 slice는 Ego speed만으로 제한하지 않는다. Ego speed, object speed, 종·횡 상대속도,
+same/adjacent lane, merge 여부, object distance, camera age와 track age를 함께 본다. 최종
+판정은 OD center AP/mATE, speed MAE와 실제 2D AVE, tracking AVE, Map-CV FDE@1/2/3s,
+latency·VRAM·frame drop을 같은 checkpoint에서 묶어 수행한다.
 
 앞 단계가 채택 gate를 넘지 못했다고 무조건 다음 단계를 구현하지 않는다. 특히 V1만으로
 tracker AVE와 Map-CV FDE가 충분히 개선되면 temporal 구조의 production 복잡도를 추가할
@@ -210,6 +423,51 @@ history의 fine-grained stereo를 결합한다. 긴 history와 2-stage training/
 - T1과 T2 모두 V1보다 유의미하지 않으면 temporal architecture보다 velocity label,
   motion-family coverage와 loss/covariance 계약을 먼저 재감사한다.
 
+### 팀원 독립 3-sweep 구현 통합 판정 (2026-09-21)
+
+`perception/base4-temporal-3sweep`의 `46d4e175`는 현재 브랜치와 독립적으로
+offline 3-sweep builder, dataset/config, validator와 quality audit를 구현했다. 다만
+공통 조상 이후 현재 Base4 브랜치가 65개 커밋 앞서 있고, 독립 구현은 다음 현재 계약과
+호환되지 않는다.
+
+- 과거 point time을 음수 lag로 저장하지만 현재 runtime은 양수 age를 사용한다.
+- 세 sweep을 Nx5 파일로 미리 합치지만 현재 pipeline은 raw XYZI와 causal reference를
+  보존하여 loader/runtime가 동일 변환을 재현한다.
+- `ObjectStatus.velocity`를 km/h에서 m/s로 바꾸지 않는 경로가 있어 velocity target이
+  3.6배가 될 수 있다.
+- geometric-BBox-center 회전 속도 보정, scan 내부 deskew 옵션, online sweep buffer,
+  ROS velocity 발행과 rosbag downstream 평가는 없다.
+
+따라서 두 dataset/config/runtime를 병렬 유지하거나 전체 commit을 merge하지 않는다.
+팀원은 현재 Base4 브랜치를 기준으로 합류한다. 독립 구현에서 가치가 확인된 scene-level
+split leakage, sweep SE(3), timestamp gap, 동기 age, BBox-center trajectory/velocity
+일관성 검사는 현재 schema용
+`tools/audit_base4_temporal_quality.py`로 선별 이식한다. 원격 팀원 브랜치는 구현 근거로
+보존한다.
+
+Quality audit의 현재 고정 계약은 다음과 같다.
+
+- separate raw XYZI sweep reference
+- past `time_lag_sec > 0`
+- velocity unit `m/s`
+- velocity reference `geometric_bbox_center`
+- scene 단위 split isolation
+
+```bash
+python3 perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py \
+  --info-dir artifacts/datasets/morai_base4_temporal_highway_hwy3h1_mrhc_v2
+```
+
+MR heading calibration 발견 전 `hwy3h1_raw`로 학습한 V1/T1 E4는 architecture와
+runtime pipeline EVIDENCE로만 유지한다. 다음 동일조건 A/B는 MR `-1.347 deg`가 적용된
+13,749-frame `hwy3h1_mrhc_v2`와 다음 tracked recipe를 사용한다.
+
+- `base4_hwy3h1_mrhc_v2_v1_e4.yaml`
+- `base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml`
+
+보정 전후 공통 13,232 frame의 GT center shift는 p50 `0.283 m`, p95 `0.634 m`이므로
+예전 checkpoint와 새 dataset 성능을 동일 GT 실험으로 취급하지 않는다.
+
 ## Tracker A/B
 
 각 velocity 모델을 동일 detection threshold에서 두 번 평가한다.
@@ -254,18 +512,80 @@ production fusion을 켜지 않는다.
 - 전역 production 후보가 되려면 새 held-out 고주로와 기존 Vehicle/Pedestrian/
   Obstacle regression suite를 추가 통과.
 
+## 2026-09-22 구현·판정 상태
+
+실행 순서 1--6의 파이프라인 gate를 24-scene 제한 파일럿에서 통과했고, MR heading
+보정 V2를 사용한 V1/T1 E4 학습과 고주로 rosbag 평가까지 완료했다.
+
+- 24 attempted, 23 completed, raw scene bag 23개.
+- scene split train 19 / val 4 / test 없음.
+- raw 485 frame, Ego-deskew A/B 467 frame.
+- LiDAR 시각 Ego/Object interpolation과 9D `[... yaw,vx,vy]` GT 구현.
+- current + past 2 Ego-aligned sweep과 positive `dt` loader 구현.
+- V1 single-frame velocity head와 T1 3-sweep velocity head가 각각 1-epoch Docker
+  smoke 및 validation을 완료.
+- matched Vehicle mAVE와 speed MAE를 기존 center metric에 추가하되 공식 NDS로
+  오인하지 않도록 분리.
+
+이 PASS는 정확도 결론이 아니다. 구현 결과와 실행법은
+[`260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md`](260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md)에
+고정한다. E4 결과에서는 V1이 단순 3-sweep T1보다 detection recall, tracker와 Map-CV,
+latency에서 나았지만 둘 다 rosbag detector velocity AVE가 약 `3.8--4.0 m/s`였다.
+상세 결과는
+[`260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md`](260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md)에
+고정한다.
+
+Label과 BBox-center 미분 속도의 차이는 p50 `0.075 m/s`, p95 `0.379 m/s`여서 단위나
+좌표계가 주원인이라는 증거는 없다. 반면 학습 속도 분포가 사실상 40/50 km/h 중심으로
+좁았고 두 모델 모두 rosbag에서 12--13 m/s 부근 출력으로 수렴했다. 따라서 다음 단계는
+더 복잡한 temporal 구조가 아니라 10--70 km/h 속도를 명시적으로 순환하는 28-scene
+진단 수집이다. 이 pilot은 속도 bin 분리 가능성만 보고 production 분포로 합치지 않는다.
+
+- dataset runbook:
+  [`../../dataset/morai_od/docs/260922_base4_velocity_diagnostic_pilot_runbook.md`](../../dataset/morai_od/docs/260922_base4_velocity_diagnostic_pilot_runbook.md)
+- 사용자는 Ego를 직접 운전하지 않는다. Runner가 시작 pose, lane waypoint, 목표속도,
+  capture/종료 gate를 자동 적용한다.
+- 성공 scene의 실제 NPC 속도와 16-frame 연속성을 audit한 뒤에만 작은 V1 재학습 여부를
+  결정한다.
+- production 판단 전 새 80--120 km/h held-out controller bag은 여전히 필요하다.
+
+### 2026-09-22 velocity-diagnostic 후속 결과
+
+최초 28-scene run의 순항 21 scene은 유지하고, 속도별 spawn offset/delay를 live MR에서
+재보정한 합류 7 scene으로 교체했다. 10/20/30/40/50/60/70 km/h 합류 bin이 모두
+16-frame gate를 완주했으며 최종 합류 GT는 전부 30 m 안에 있다.
+
+최종 raw 3-sweep derived dataset은 train 299 / val 66 frame, 28 scene이며 구조 validator와
+temporal quality audit를 통과했다. BBox-center 궤적 대비 velocity target 차이는 p50
+`0.040 m/s`, p95 `0.231 m/s`여서 label 좌표계와 단위 계약은 다시 확인됐다. T1 1-epoch
+smoke도 Docker/W&B/checkpoint까지 완료했다. 이 결과는 velocity head 정확도 결론이 아니라
+다음 규모 수집 전에 end-to-end 학습 경로가 살아 있음을 확인한 것이다. 세부 수치와 raw
+경로는 dataset runbook의 `합류 재보정과 최종 진단 dataset` 절을 기준으로 한다.
+
 ## 실행 순서
 
-1. 현재 Base3-Online raw bag/index가 true consecutive temporal sample을 보존하는지
+Q1 sparse query-memory의 P0 이후 최신 진행과 판정은
+[`260923_BASE4_Q1_EXECUTION_ROADMAP.md`](260923_BASE4_Q1_EXECUTION_ROADMAP.md)를 단일
+CURRENT ledger로 사용한다.
+
+1. P0 LiDAR raw/deskew/zero-time 고속 정적 구조물 A/B로 scan 내부 deskew 계약을
+   확정한다. 단, 결과와 무관하게 원본 point/time은 보존한다.
+2. 현재 Base3-Online raw bag/index가 true consecutive temporal sample을 보존하는지
    감사하고, single-frame velocity-head smoke에 재사용 가능한 범위를 확정한다.
-2. 새 B4T-HWY-P0 연속 수집기의 marker/timestamp/velocity schema를 2-scene pilot로
+3. 새 B4T-HWY-P0 연속 수집기의 marker/timestamp/velocity schema를 2-scene pilot로
    검증한다.
-3. 20--30 sequence pilot을 수집해 track continuity, velocity target, camera age,
+4. 20--30 sequence pilot을 수집해 track continuity, velocity target, camera age,
    point count를 검사한다.
-4. B4H-V1 single-frame 9D smoke와 짧은 학습을 먼저 수행한다.
-5. B4H-T1 causal 3-sweep을 같은 split과 loss 계약으로 학습한다.
-6. 기존 고주로 두 dev bag에서 OD -> tracker off/on -> Map-CV를 순서대로 평가한다.
-7. 명확한 후보만 새 held-out bag에서 한 번 평가한다.
+5. B4H-V1 single-frame 9D smoke와 짧은 학습을 먼저 수행한다.
+6. B4H-T1 causal 3-sweep을 같은 split과 loss 계약으로 학습한다.
+7. 기존 고주로 두 dev bag에서 OD -> tracker off/on -> Map-CV를 순서대로 평가한다.
+8. 명확한 후보만 새 held-out bag에서 한 번 평가한다.
+
+2026-09-22 짧은 V1/T1 직전 입력은 기존 28-scene 진단셋 대신
+`morai_base4_velocity_hardcase_v2_raw16`을 사용한다. 이 보강판은 병목 협로와 일반 고속
+횡 offset을 추가한 `51 scene / 651 frame`이며 구조·temporal audit를 통과했다. 상세
+구성과 recipe는
+[`../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md`](../../dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md)에 고정한다.
 
 ## 명시적 비목표
 

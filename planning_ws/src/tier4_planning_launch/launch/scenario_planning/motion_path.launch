@@ -17,6 +17,7 @@
       <rosparam command="load" file="$(arg vehicle_param_path)"/>
       <rosparam command="load" file="$(arg config_root)/scenario_planning/common/nearest_search.param.yaml"/>
       <rosparam command="load" file="$(arg config_root)/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml"/>
+      <param name="require_obstacle_scene" value="true"/>
       <remap from="~input/path" to="path_smoother/path"/>
       <remap from="~input/odometry" to="$(arg input_odometry)"/>
       <remap from="~output/path" to="$(arg output_trajectory)"/>

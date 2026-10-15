@@ -605,10 +605,12 @@ std::vector<Point> updateBoundary(
       0 < front_offset ? start_poly.bound_seg_idx + 1 : start_poly.bound_seg_idx;
     const size_t removed_end_idx = end_poly.bound_seg_idx;
 
-    // Validate indices before erasing
+    // Both polygon endpoints may lie on the same boundary segment. Then there
+    // are no old vertices to remove: [start, end + 1) is a valid empty range,
+    // and the polygon vertices must still be inserted between the endpoints.
     if (
-      removed_start_idx >= updated_bound.size() || removed_end_idx >= updated_bound.size() ||
-      removed_start_idx > removed_end_idx) {
+      removed_start_idx > updated_bound.size() || removed_end_idx >= updated_bound.size() ||
+      removed_start_idx > removed_end_idx + 1) {
       ROS_WARN_STREAM(
         "Invalid erase indices: start_idx=" << removed_start_idx << ", end_idx=" << removed_end_idx
                                               << ", vector_size=" << updated_bound.size()
@@ -1294,7 +1296,7 @@ void extractObstaclesFromDrivableArea(
   std::vector<std::vector<PolygonPoint>> right_polygons;
   std::vector<std::vector<PolygonPoint>> left_polygons;
   for (const auto & obstacle : obstacles) {
-    if (obstacle.poly.outer().empty()) {
+    if (obstacle.direct_constraint || obstacle.poly.outer().empty()) {
       continue;
     }
 

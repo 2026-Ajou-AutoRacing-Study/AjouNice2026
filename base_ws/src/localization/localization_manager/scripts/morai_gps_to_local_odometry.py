@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
+import copy
 import json
 import math
 import os
+import threading
 
 import rospy
 import tf.transformations as tft
 import tf2_ros
+from geometry_msgs.msg import TwistWithCovarianceStamped
 from morai_msgs.msg import GPSMessage
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu
 
 
 DEFAULT_NOISE_NS = "/localization_manager/providers/gnss_imu/noise"
@@ -24,6 +28,62 @@ def normalized_frame(frame):
 def is_zero_geodetic_position(latitude, longitude, epsilon):
     """Return whether MORAI is using its all-zero GNSS outage sentinel."""
     return abs(latitude) <= epsilon and abs(longitude) <= epsilon
+
+
+def quantized_cell(latitude, longitude, step_deg):
+    """Return the MORAI latitude/longitude lattice cell indices."""
+    return (int(round(latitude / step_deg)), int(round(longitude / step_deg)))
+
+
+def should_publish_quantized_fix(mode, cell, last_published_cell):
+    return mode == "off" or cell != last_published_cell
+
+
+def motion_compensation_delta(
+    compensation_sec, gps_stamp_sec, motion, orientation, max_age_sec, base_frame
+):
+    """Return an optional map-plane delta, never a replacement timestamp.
+
+    Only the canonical GT motion adapter pair is accepted: body-frame vx and
+    an IMU message whose header names its base_link sensor frame, but whose
+    normalized quaternion already describes base_link orientation in map.
+    Applying another heading offset or map-from-morai rotation is incorrect.
+    No oracle, raw Ego position, or unprovided Competition vy is used here.
+    """
+    if compensation_sec == 0.0:
+        return (0.0, 0.0), "disabled"
+    if motion is None or orientation is None:
+        return (0.0, 0.0), "missing_motion"
+    try:
+        if (
+            normalized_frame(motion.header.frame_id) != base_frame
+            or normalized_frame(orientation.header.frame_id) != base_frame
+        ):
+            return (0.0, 0.0), "wrong_motion_frame"
+        if motion.header.stamp != orientation.header.stamp:
+            return (0.0, 0.0), "unpaired_motion_stamps"
+        source_stamp_sec = float(motion.header.stamp.to_sec())
+        age_sec = float(gps_stamp_sec) - source_stamp_sec
+        if not math.isfinite(source_stamp_sec) or source_stamp_sec <= 0.0:
+            return (0.0, 0.0), "invalid_motion_stamp"
+        if not math.isfinite(age_sec) or age_sec < 0.0 or age_sec > max_age_sec:
+            return (0.0, 0.0), "stale_or_future_motion"
+        vx = float(motion.twist.twist.linear.x)
+        q = orientation.orientation
+        quaternion = tuple(float(v) for v in (q.x, q.y, q.z, q.w))
+        if not math.isfinite(vx) or not all(math.isfinite(v) for v in quaternion):
+            return (0.0, 0.0), "nonfinite_motion"
+        if orientation.orientation_covariance[0] < 0.0:
+            return (0.0, 0.0), "unavailable_orientation"
+        norm = math.hypot(*quaternion)
+        if not math.isfinite(norm) or abs(norm - 1.0) > 1.0e-3:
+            return (0.0, 0.0), "unnormalized_orientation"
+        x, y, z, w = (v / norm for v in quaternion)
+        yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y*y + z*z))
+        distance = compensation_sec * vx
+        return (distance * math.cos(yaw), distance * math.sin(yaw)), "applied"
+    except (AttributeError, IndexError, TypeError, ValueError, OverflowError):
+        return (0.0, 0.0), "malformed_motion"
 
 
 def wgs84_to_utm(latitude_deg, longitude_deg, zone, northern_hemisphere):
@@ -157,10 +217,53 @@ class MoraiGpsToLocalOdometry:
         self.reject_duplicate_stamps = bool(
             rospy.get_param("~reject_duplicate_stamps", True)
         )
+        self.quantization_input_mode = rospy.get_param(
+            "~quantization_input_mode", "off"
+        )
+        if self.quantization_input_mode not in ("off", "cell_transition"):
+            raise rospy.ROSInitException(
+                "~quantization_input_mode must be off or cell_transition"
+            )
+        self.quantization_step_deg = float(
+            rospy.get_param("~quantization_step_deg", 1.0 / 600000.0)
+        )
+        if not math.isfinite(self.quantization_step_deg) or self.quantization_step_deg <= 0:
+            raise rospy.ROSInitException(
+                "~quantization_step_deg must be positive and finite"
+            )
         self.tf_timeout = float(rospy.get_param("~tf_timeout_sec", 0.1))
         self.noise_ns = rospy.get_param(
             "~noise_namespace", DEFAULT_NOISE_NS
         )
+        self.motion_compensation_sec = float(
+            rospy.get_param("~motion_compensation_sec", 0.0)
+        )
+        if (
+            not math.isfinite(self.motion_compensation_sec)
+            or not 0.0 <= self.motion_compensation_sec <= 0.1
+        ):
+            raise rospy.ROSInitException(
+                "~motion_compensation_sec must be finite and in [0, 0.1] seconds"
+            )
+        self.max_motion_age_sec = float(
+            rospy.get_param("~max_motion_age_sec", 0.1)
+        )
+        if not math.isfinite(self.max_motion_age_sec) or self.max_motion_age_sec <= 0.0:
+            raise rospy.ROSInitException("~max_motion_age_sec must be positive and finite")
+        self.motion_topic = rospy.get_param(
+            "~motion_topic", "/localization/gt/twist"
+        )
+        self.orientation_topic = rospy.get_param(
+            "~orientation_topic", "/localization/gt/orientation"
+        )
+        if not all(
+            isinstance(v, str) and v.strip()
+            for v in (self.motion_topic, self.orientation_topic)
+        ):
+            raise rospy.ROSInitException("Motion/orientation topics must be non-empty strings")
+        self.motion_lock = threading.Lock()
+        self.latest_motion = None
+        self.latest_orientation = None
 
         horizontal_stddev = self.positive_noise_param(
             "gnss/horizontal_stddev_m"
@@ -172,6 +275,7 @@ class MoraiGpsToLocalOdometry:
         self.vertical_variance = vertical_stddev**2
         self.gps_z_in_base = self.read_gps_height()
         self.last_stamp = None
+        self.last_published_cell = None
         self.outage_start_stamp = None
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
@@ -179,13 +283,27 @@ class MoraiGpsToLocalOdometry:
         self.publisher = rospy.Publisher(
             self.output_topic, Odometry, queue_size=100
         )
+        # Default zero remains the original converter: no auxiliary subscriptions
+        # or additional input requirements. Opt-in failure retains the raw fix.
+        self.motion_subscriber = None
+        self.orientation_subscriber = None
+        if self.motion_compensation_sec > 0.0:
+            self.motion_subscriber = rospy.Subscriber(
+                self.motion_topic, TwistWithCovarianceStamped,
+                self.motion_callback, queue_size=100,
+            )
+            self.orientation_subscriber = rospy.Subscriber(
+                self.orientation_topic, Imu,
+                self.orientation_callback, queue_size=100,
+            )
         self.subscriber = rospy.Subscriber(
             self.input_topic, GPSMessage, self.gps_callback, queue_size=100
         )
 
         rospy.loginfo(
             "morai_gps_to_local_odometry: %s -> %s; UTM %d%s, "
-            "fallback offset=(%.3f, %.3f), sigma_xy=%.3fm",
+            "fallback offset=(%.3f, %.3f), sigma_xy=%.3fm, quantization=%s, "
+            "motion_compensation=%.3fs",
             self.input_topic,
             self.output_topic,
             self.utm_zone,
@@ -193,7 +311,33 @@ class MoraiGpsToLocalOdometry:
             self.fallback_east_offset,
             self.fallback_north_offset,
             horizontal_stddev,
+            self.quantization_input_mode,
+            self.motion_compensation_sec,
         )
+
+    def motion_callback(self, message):
+        with self.motion_lock:
+            self.latest_motion = message
+
+    def orientation_callback(self, message):
+        with self.motion_lock:
+            self.latest_orientation = message
+
+    def compensate_map_point(self, point, stamp):
+        if self.motion_compensation_sec == 0.0:
+            return point
+        with self.motion_lock:
+            motion, orientation = self.latest_motion, self.latest_orientation
+        delta, reason = motion_compensation_delta(
+            self.motion_compensation_sec, stamp.to_sec(), motion, orientation,
+            self.max_motion_age_sec, self.base_frame,
+        )
+        if reason != "applied":
+            rospy.logwarn_throttle(
+                2.0, "GNSS motion compensation fallback (%s): raw fix retained", reason
+            )
+            return point
+        return point[0] + delta[0], point[1] + delta[1], point[2]
 
     def positive_noise_param(self, relative_name):
         value = float(rospy.get_param(self.noise_ns + "/" + relative_name))
@@ -268,6 +412,7 @@ class MoraiGpsToLocalOdometry:
         ):
             if self.outage_start_stamp is None:
                 self.outage_start_stamp = message.header.stamp
+                self.last_published_cell = None
                 rospy.logwarn(
                     "GNSS outage started: rejecting zero latitude/longitude "
                     "from /sensor/gps"
@@ -287,6 +432,18 @@ class MoraiGpsToLocalOdometry:
                 max(0.0, outage_duration),
             )
             self.outage_start_stamp = None
+
+        cell = quantized_cell(
+            message.latitude, message.longitude, self.quantization_step_deg
+        )
+        if not should_publish_quantized_fix(
+            self.quantization_input_mode, cell, self.last_published_cell
+        ):
+            # Repeated lattice output is not a new independent position fix.
+            # Keep the observed timestamp monotonic, but preserve the prior
+            # published position until the cell changes. This is experimental.
+            self.last_stamp = message.header.stamp
+            return
 
         easting, northing = wgs84_to_utm(
             message.latitude,
@@ -326,8 +483,9 @@ class MoraiGpsToLocalOdometry:
             return
 
         map_point = apply_transform(morai_point, map_from_morai)
+        map_point = self.compensate_map_point(map_point, message.header.stamp)
         output = Odometry()
-        output.header = message.header
+        output.header = copy.deepcopy(message.header)
         output.header.frame_id = self.map_frame
         output.child_frame_id = self.base_frame
         output.pose.pose.position.x = map_point[0]
@@ -345,6 +503,7 @@ class MoraiGpsToLocalOdometry:
         output.twist.covariance = [0.0] * 36
 
         self.last_stamp = message.header.stamp
+        self.last_published_cell = cell
         self.publisher.publish(output)
 
 

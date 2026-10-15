@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "source_capture_root": "/home/luv/morai_cap/261004_base5_mr_gt_restored",
+  "calibration_sources": [
+    "/home/luv/AjouNice2026/configs/sensors/Sensor_competition_local.json"
+  ],
+  "ego_heading_correction_deg": -1.347,
+  "contract": {
+    "object_status_position": "asset pivot in morai_map",
+    "offset_axes": "asset local: x forward, y left, z up",
+    "application": "bbox_center_lidar = pivot_lidar + R_z(object_yaw_lidar) @ pivot_to_bbox_center_local_m"
+  },
+  "summary": {
+    "metadata_files": 1,
+    "metadata_sources": 1,
+    "assets": 5,
+    "observations": 40,
+    "center_residual_m": {
+      "p50": 0.004781327499763442,
+      "p95": 0.011990922557622068,
+      "max": 0.04625532393606895
+    },
+    "skipped": {}
+  },
+  "assets": {
+    "CargoBox": {
+      "class": "obstacle",
+      "pivot_to_bbox_center_local_m": [
+        -0.00043187574971104094,
+        -0.0012165166739927804,
+        0.23451396252441392
+      ],
+      "bbox_size_m": [
+        0.7486297,
+        0.7486296,
+        0.4344158
+      ],
+      "observations": 8,
+      "offset_mad_m": [
+        0.0015889881414971763,
+        0.00014308464259563526,
+        0.0035074696655272852
+      ],
+      "center_residual_m": {
+        "p50": 0.003889150337241462,
+        "p95": 0.004708974830561653,
+        "max": 0.004760790820171846
+      }
+    },
+    "Scooter_01": {
+      "class": "obstacle",
+      "pivot_to_bbox_center_local_m": [
+        0.7463818551482981,
+        0.0008241897556758319,
+        0.7635899294311522
+      ],
+      "bbox_size_m": [
+        2.267982,
+        0.8121157,
+        1.504067
+      ],
+      "observations": 8,
+      "offset_mad_m": [
+        0.0002666227984488567,
+        0.0007926499790987925,
+        0.003519684216308605
+      ],
+      "center_residual_m": {
+        "p50": 0.0037310859752639016,
+        "p95": 0.005812036385932846,
+        "max": 0.005830114105080192
+      }
+    },
+    "WoodBox": {
+      "class": "obstacle",
+      "pivot_to_bbox_center_local_m": [
+        -0.0006187061130635316,
+        -0.001541726952356438,
+        0.6180414578247069
+      ],
+      "bbox_size_m": [
+        1.2,
+        1.2,
+        1.2
+      ],
+      "observations": 8,
+      "offset_mad_m": [
+        0.001837133111614629,
+        0.0008783518782322002,
+        0.003604332275390587
+      ],
+      "center_residual_m": {
+        "p50": 0.004210317067239294,
+        "p95": 0.004755120827967752,
+        "max": 0.004801864179355037
+      }
+    },
+    "Boy2": {
+      "class": "pedestrian",
+      "pivot_to_bbox_center_local_m": [
+        0.020760712755070496,
+        -0.03917651423809426,
+        0.6423678414306639
+      ],
+      "bbox_size_m": [
+        0.26119455,
+        0.43607209999999996,
+        1.2743625
+      ],
+      "observations": 8,
+      "offset_mad_m": [
+        0.0004914156544145558,
+        0.006920488726358438,
+        0.0037580910644531285
+      ],
+      "center_residual_m": {
+        "p50": 0.008873339125565868,
+        "p95": 0.011609385106017998,
+        "max": 0.0116324720296292
+      }
+    },
+    "police_f_1": {
+      "class": "pedestrian",
+      "pivot_to_bbox_center_local_m": [
+        0.028774496054492494,
+        -0.046801178392135635,
+        0.8568794329956053
+      ],
+      "bbox_size_m": [
+        0.3740291,
+        0.5564896,
+        1.6852365
+      ],
+      "observations": 8,
+      "offset_mad_m": [
+        0.0032883533580837163,
+        0.002538630621619138,
+        0.002812550500488231
+      ],
+      "center_residual_m": {
+        "p50": 0.007753910941981811,
+        "p95": 0.036646479464765236,
+        "max": 0.04625532393606895
+      }
+    }
+  },
+  "validation": {
+    "runtime": "competition_launcher",
+    "scale": 1,
+    "stationary": true,
+    "distance_m": [
+      8,
+      12
+    ],
+    "relative_yaw_deg": [
+      0,
+      90
+    ],
+    "observations_per_asset": 8,
+    "purpose": "MR measured reference; not an automatic production catalog replacement",
+    "cargo_control": "Current MR CargoBox size differs from historical catalog; keep both versions separate",
+    "residual_scope": "Same calibration observations, not held-out generalization or mesh/LiDAR alignment"
+  }
+}

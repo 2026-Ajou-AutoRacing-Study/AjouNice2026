@@ -1,7 +1,7 @@
 <launch>
   <!-- ROS1 process equivalent of the original MissionPlanner/RouteSelector container. -->
   <arg name="vehicle_param_path" doc="Required ROS1 vehicle parameter YAML"/>
-  <arg name="mission_planner_param_path" default="$(find autoware_mission_planner_universe)/config/mission_planner.ros1.yaml"/>
+  <arg name="mission_planner_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_mission_planner_universe/config/mission_planner.ros1.yaml"/>
   <arg name="modified_goal_topic_name" default="/planning/scenario_planning/modified_goal"/>
   <arg name="map_topic_name" default="/map/vector_map"/>
   <arg name="odometry_topic_name" default="/localization/kinematic_state"/>

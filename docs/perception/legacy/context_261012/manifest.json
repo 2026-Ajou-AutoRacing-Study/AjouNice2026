@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-12",
+  "source_commit": "cc2ef479",
+  "purpose": "Original context snapshots; not current execution instructions. Relative links in snapshots are relative to original_path.",
+  "files": [
+    {
+      "original_path": "perception/AGENTS.md",
+      "archive_path": "docs/perception/legacy/context_261012/perception__AGENTS.md",
+      "sha256": "9e720c2443da5ed156655bdd48a9e1f8e8caca0bf720ab9de61c5f4485cf8032"
+    },
+    {
+      "original_path": "docs/bevfusion/AGENTS.md",
+      "archive_path": "docs/perception/legacy/context_261012/docs__bevfusion__AGENTS.md",
+      "sha256": "6c0b2bb420d720fe7254b1eb0d3ea58f8c3a58bd48c841f67caccf7c70b29ec8"
+    },
+    {
+      "original_path": "dataset/morai_od/AGENTS.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__AGENTS.md",
+      "sha256": "32d62b2309c25275fd28a9152c2cfc1822dfde87fcc1802915cdef6b558c9677"
+    },
+    {
+      "original_path": "docs/bevfusion/README.md",
+      "archive_path": "docs/perception/legacy/context_261012/docs__bevfusion__README.md",
+      "sha256": "b93b059bef9cf9c88eba05687458360962648ee4d0de2413f057e3c1968fe1bf"
+    },
+    {
+      "original_path": "dataset/morai_od/docs/README.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__docs__README.md",
+      "sha256": "d9fc225af5c1356cccde24706faad8159f40f91d619ba527a05b5a81c5697747"
+    },
+    {
+      "original_path": "dataset/morai_od/docs/BASE5_V2_CURRENT.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__docs__BASE5_V2_CURRENT.md",
+      "sha256": "ed451a99ac63c4ddfbc35584381ed5913a08562a8681652f9dce460786dfbe16"
+    },
+    {
+      "original_path": "docs/bevfusion/261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md",
+      "archive_path": "docs/perception/legacy/context_261012/docs__bevfusion__261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md",
+      "sha256": "bf8fcf57018fe0a398bbc245fcde4c145aa670eea14de2b511dc1df991e97c0c"
+    },
+    {
+      "original_path": "dataset/morai_od/docs/MR_ASSET_COLLECTION_CURRENT.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__docs__MR_ASSET_COLLECTION_CURRENT.md",
+      "sha256": "a794e3216bf10402c4d0b9acbb24b551269fa1b36232d943d9b65382de9dae6f"
+    },
+    {
+      "original_path": "dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__docs__261007_base5_direct_5k_current_plan.md",
+      "sha256": "4af647b39e92be3be36464fd454bffe33e19fdd064c77426318e657cfe0a1367"
+    },
+    {
+      "original_path": "perception/detection3d/bevfusion/README.md",
+      "archive_path": "docs/perception/legacy/context_261012/perception__detection3d__bevfusion__README.md",
+      "sha256": "583eebc858ab3b28216e278dd75d591bb60290198c42d3f78149e412350ba734"
+    },
+    {
+      "original_path": "base_ws/src/perception/bevfusion_ros/README.md",
+      "archive_path": "docs/perception/legacy/context_261012/base_ws__src__perception__bevfusion_ros__README.md",
+      "sha256": "94b8fdff9d0957b966f537f3d3c851d611a9e3a46830d8c70c0777bbe5595fb1"
+    },
+    {
+      "original_path": "docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md",
+      "archive_path": "docs/perception/legacy/context_261012/docs__bevfusion__261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md",
+      "sha256": "756ccb087907c988b372c2aa455d0db9b68168b98cecbf5caaca7cf2001b0293"
+    },
+    {
+      "original_path": "dataset/morai_od/docs/261007_base5_5k_capture_runbook.md",
+      "archive_path": "docs/perception/legacy/context_261012/dataset__morai_od__docs__261007_base5_5k_capture_runbook.md",
+      "sha256": "4e84c770e64d497626d7815ed13e9d516dab453089d8cd639e135b954b4bd105"
+    }
+  ]
+}

@@ -5,10 +5,9 @@
 > 않는다.
 
 이 디렉터리의 코드, config와 release 기록은 과거 실험 재현 및 rollback을 위해
-보존한다. 활성 perception 문서는 [`../../docs/bevfusion/README.md`](../../docs/bevfusion/README.md),
-다음 velocity/temporal 계획은
-[`../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를
-따른다.
+보존한다. 현재 작업은 [인지 작업 안내](../../docs/perception/README.md)에서 선택한다.
+명시적인 Base4 재현 작업에서만 [당시 velocity/temporal 계획](../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)을 읽는다.
+그 계획을 현재 Base5의 다음 작업으로 자동 선택하지 않는다.
 
 - 과거 연구 문서: [`docs/legacy/README.md`](docs/legacy/README.md)
 - release 기록: [`releases/`](releases/)

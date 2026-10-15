@@ -51,6 +51,11 @@
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
+  <!-- Planning always consumes the global state.  This argument changes only
+       the controller input. Override with /localization/kinematic_state to
+       reproduce the pre-260925 baseline. -->
+  <arg name="controller_kinematic_state_topic"
+       default="/localization/control_kinematic_state"/>
   <!-- Competition operation policy: the stack is always reported as engaged autonomous. -->
   <arg name="publish_fixed_autonomous_mode" default="true"/>
   <!-- AjouNice does not deploy ground removal or an occupancy-grid producer. -->
@@ -114,7 +119,7 @@
       <arg name="prediction_time_step" value="0.1"/>
       <arg name="prediction_horizon" value="3.0"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v84.osm"/>
+           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>
@@ -146,6 +151,8 @@
     <include file="$(find trajectory_follower)/launch/pp_pi_autoware.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="vehicle_config" value="$(arg vehicle_config)"/>
+      <arg name="kinematic_state_topic"
+           value="$(arg controller_kinematic_state_topic)"/>
     </include>
   </group>
 </launch>

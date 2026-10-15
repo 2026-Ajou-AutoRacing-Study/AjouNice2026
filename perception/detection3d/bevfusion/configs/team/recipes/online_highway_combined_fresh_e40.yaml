@@ -1,0 +1,32 @@
+version: 1
+name: online-highway-combined-fresh-e40
+mode: fresh
+epochs: 40
+learning_rate: 1.0e-4
+base_config: perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py
+
+dataset:
+  capture_root: ${BASE3_DATASETS_ROOT}
+  info_root: ${BASE3_ONLINE_HIGHWAY_COMBINED_INFO_ROOT}
+  container_root: /datasets/combined
+
+gpu:
+  profile: auto
+  physical_batch_size: auto
+  gradient_accumulation: auto
+  workers: auto
+  shm_size: auto
+
+wandb:
+  enabled: true
+  entity: AjouNice2026
+  project: morai-3d-object-detection
+  group: bevfusion-base3-online-highway-combined
+  tags: [base3-online, highway, rosbag-only, combined-3890, fresh, four-camera, lidar]
+
+output:
+  root: ""
+
+checkpointing:
+  interval: 1
+  max_keep_ckpts: 40

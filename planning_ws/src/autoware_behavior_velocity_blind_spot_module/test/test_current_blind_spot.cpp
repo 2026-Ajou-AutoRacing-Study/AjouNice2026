@@ -12,7 +12,7 @@ template<class Interface> void plugins(const std::string & base, const std::stri
   ros::NodeHandle node("/full_blind_spot_test");
   ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_planner)/config/ros1/behavior_velocity_planner.yaml\" /full_blind_spot_test"), 0);
   ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_intersection_module)/config/ros1/intersection.yaml\" /full_blind_spot_test"), 0);
-  ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_roundabout_module)/config/ros1/roundabout.yaml\" /full_blind_spot_test"), 0);
+  ASSERT_EQ(std::system("rosparam load \"" AW149_BVP_MODULE_CONFIG "\" /full_blind_spot_test"), 0);
   ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_blind_spot_module)/config/ros1/blind_spot.yaml\" /full_blind_spot_test"), 0);
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   auto intersection = loader.createUniqueInstance(prefix + "IntersectionModulePlugin");

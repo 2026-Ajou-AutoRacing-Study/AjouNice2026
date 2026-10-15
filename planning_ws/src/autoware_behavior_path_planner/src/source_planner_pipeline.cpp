@@ -201,7 +201,8 @@ void SourcePlannerPipeline::generateCombinedDrivableArea(
     // for other modules where multiple modules may be launched
     utils::generateDrivableArea(
       output.path, expanded_lanes, di.enable_expanding_hatched_road_markings,
-      di.enable_expanding_intersection_areas, di.enable_expanding_freespace_areas, data,
+      di.enable_expanding_intersection_areas || use_intersection_areas_,
+      di.enable_expanding_freespace_areas, data,
       is_driving_forward);
   }
 

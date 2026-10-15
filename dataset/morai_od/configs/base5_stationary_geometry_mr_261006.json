@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "contract": "MR Ego heading -1.347 once; raw LiDAR annotation unchanged; actor scenario yaw",
+  "assets": {
+    "concrete-barrier": {
+      "bbox_size_m": [
+        0.6172385215759277,
+        3.2049269676208496,
+        0.7914022207260132
+      ],
+      "pivot_to_bbox_center_local_m": [
+        0.0022334377194306552,
+        -0.00363889097376782,
+        0.38215069818496517
+      ],
+      "observations": 2,
+      "evidence": [
+        {
+          "size": [
+            0.6172385215759277,
+            3.2049269676208496,
+            0.7914022207260132
+          ],
+          "offset": [
+            0.002228695131500762,
+            -0.0035793836041812157,
+            0.38861345100402644
+          ],
+          "source": "/home/luv/morai_cap/base5_v2_261006/avoidance_gap03_capture_v15/captures/b5v2_00020gap_probe",
+          "annotation_sha256": "3dd2decd29134525270d37c038342eeef4f372217d32e80b8f85afe89c5e534f",
+          "yaw_delta_deg": 0.006540517915482269
+        },
+        {
+          "size": [
+            0.6172385215759277,
+            3.2049269676208496,
+            0.7914022207260132
+          ],
+          "offset": [
+            0.0022381803073605482,
+            -0.003698398343354424,
+            0.3756879453659039
+          ],
+          "source": "/home/luv/morai_cap/base5_v2_261006/avoidance_gap_probe_capture_v15/captures/b5v2_00020gap_probe",
+          "annotation_sha256": "fb758e23f0557e9bca72936fa2a0cb85d3b120aab7df954562ebcbcd8225a492",
+          "yaw_delta_deg": 0.01632140170454477
+        }
+      ],
+      "limitations": "Placement estimate only; current MR scale1 static actor, no collider shape claim"
+    },
+    "OBJ_Hyundai_HD65": {
+      "bbox_size_m": [
+        6.557468891143799,
+        2.516585111618042,
+        2.45676589012146
+      ],
+      "pivot_to_bbox_center_local_m": [
+        1.3809326862041846,
+        0.0181168509389259,
+        0.7822526280879956
+      ],
+      "observations": 2,
+      "evidence": [
+        {
+          "size": [
+            6.557468891143799,
+            2.516585111618042,
+            2.45676589012146
+          ],
+          "offset": [
+            1.3801880231309522,
+            0.0035468094089084468,
+            0.8390720372199993
+          ],
+          "source": "/home/luv/morai_cap/base5_v2_261006/avoidance_gap03_capture_v15/captures/b5v2_00057gap_probe",
+          "annotation_sha256": "0d1282864231da52a483d913d61f81b265631341e90fa71727c25717eef0cbad",
+          "yaw_delta_deg": -0.026493642117458194
+        },
+        {
+          "size": [
+            6.557468891143799,
+            2.516585111618042,
+            2.45676589012146
+          ],
+          "offset": [
+            1.3816773492774168,
+            0.03268689246894335,
+            0.7254332189559918
+          ],
+          "source": "/home/luv/morai_cap/base5_v2_261006/avoidance_gap_probe_capture_v15/captures/b5v2_00057gap_probe",
+          "annotation_sha256": "d84b684a51ac905b9d1c0083fbd533cde95abd4c1c271c0ee9eafaf888f0674e",
+          "yaw_delta_deg": 0.043086436007541806
+        }
+      ],
+      "limitations": "Placement estimate only; current MR scale1 static actor, no collider shape claim"
+    }
+  }
+}

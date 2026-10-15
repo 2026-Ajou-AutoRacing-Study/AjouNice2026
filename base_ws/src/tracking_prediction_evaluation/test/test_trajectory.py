@@ -5,6 +5,7 @@ from tracking_prediction_evaluation.trajectory import (
     TrajectoryPoint,
     TrajectorySegment,
     interpolate_point,
+    morai_heading_radians,
     reconstruct_trajectory_segments,
     transform_segments_planar,
 )
@@ -28,6 +29,16 @@ def point(timestamp, x, yaw=0.0):
 
 
 class TrajectoryTest(unittest.TestCase):
+    def test_morai_heading_correction_is_explicit_and_wrapped(self):
+        self.assertAlmostEqual(
+            morai_heading_radians(1.347, -1.347),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            morai_heading_radians(180.0, 0.0),
+            -math.pi,
+        )
+
     def test_planar_transform_updates_position_and_yaw(self):
         source_point = point(0.0, 1.0)
         source_point = TrajectoryPoint(

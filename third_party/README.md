@@ -20,6 +20,31 @@
 - `BEVFusion`: Perception
 - `SimpleTrack`: Tracking
 - `autoware_universe`: Autoware 전체 -> 여기서 prediction이나 planning 뽑아와서 우리 ws로 가져오기 -> 얘는 ros2 기반이기에 최종 실행 대상 코드는 아님.
+- `lidar_ai_solution/CUDA-BEVFusion`: NVIDIA CUDA·TensorRT 배포 참조. 로컬 ignored clone이며 submodule이나 runtime dependency가 아니다.
+
+## CUDA-BEVFusion 로컬 참조
+
+2026-10-09에 공식 [NVIDIA Lidar_AI_Solution](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution)을
+`third_party/lidar_ai_solution`에 shallow·partial clone했다. revision은
+`7c1623f234d5a9794fd862c9456f68f87ae7b900`이며 sparse checkout으로
+`CUDA-BEVFusion`과 `libraries/3DSparseConvolution`을 펼쳤다. 빌드·모델 다운로드·실행은 하지 않는다.
+이 clone 자체는 Git ignore 상태로 유지하고, 이식 판단은
+[CUDA-BEVFusion 검토](../docs/bevfusion/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md)를 따른다.
+
+새 checkout에서 참조 코드를 가져오는 명령은 아래와 같다. 기존 폴더가 있으면 재실행하지 않는다.
+
+```bash
+git clone --depth 1 --filter=blob:none --no-checkout \
+  https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution.git \
+  "$HOME/AjouNice2026/third_party/lidar_ai_solution"
+git -C "$HOME/AjouNice2026/third_party/lidar_ai_solution" sparse-checkout init --cone
+git -C "$HOME/AjouNice2026/third_party/lidar_ai_solution" sparse-checkout set \
+  CUDA-BEVFusion libraries/3DSparseConvolution
+git -C "$HOME/AjouNice2026/third_party/lidar_ai_solution" checkout master
+```
+
+위 명령은 실행 시점의 upstream을 받으므로 재현 시 `git rev-parse HEAD`를 기록한다.
+과거 조사 revision과 달라졌다면 코드 차이를 확인한다.
 
 ## Quick Clone
 ```bash

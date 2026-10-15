@@ -1,8 +1,8 @@
 <?xml version="1.0" ?>
 <launch>
   <arg name="vehicle_param_path"/>
-  <arg name="mission_planner_param_path" default="$(find autoware_mission_planner_universe)/config/mission_planner.ros1.yaml"/>
-  <arg name="config_root" default="$(find autoware_launch)/config/ros1/planning"/>
+  <arg name="mission_planner_param_path" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_mission_planner_universe/config/mission_planner.ros1.yaml"/>
+  <arg name="config_root" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning"/>
   <arg name="is_simulation" default="false"/>
   <arg name="bvp_experimental" default="true"/>
   <arg name="use_ground_pointcloud" default="true"/>

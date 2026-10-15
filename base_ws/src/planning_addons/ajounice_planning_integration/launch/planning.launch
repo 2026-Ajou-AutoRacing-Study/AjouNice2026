@@ -1,10 +1,12 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
+            file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(find ajounice_planning_integration)/config/mission_planner_kcity_v84.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v85.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
@@ -36,9 +38,9 @@
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
-    <!-- LC-only candidate rejection logs; no planning behavior change. -->
+    <!-- LC runtime log level; detailed candidate traces are opt-in. -->
     <env name="ROSCONSOLE_CONFIG_FILE"
-         value="$(find ajounice_planning_integration)/config/lane_change_diagnostics.rosconsole"/>
+         value="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>

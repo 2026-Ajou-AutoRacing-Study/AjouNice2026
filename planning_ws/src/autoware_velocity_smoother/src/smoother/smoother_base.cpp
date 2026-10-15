@@ -17,6 +17,7 @@
 #include "autoware/motion_utils/resample/resample.hpp"
 #include "autoware/motion_utils/trajectory/conversion.hpp"
 #include "autoware/motion_utils/trajectory/trajectory.hpp"
+#include "autoware/motion_utils/trajectory/acceleration_limits_ros.hpp"
 #include "autoware/velocity_smoother/resample.hpp"
 #include "autoware/velocity_smoother/trajectory_utils.hpp"
 
@@ -68,7 +69,8 @@ TrajectoryPoints applyPreProcess(
 
 SmootherBase::SmootherBase(
   rclcpp::Node & node, const std::shared_ptr<autoware_utils_debug::TimeKeeper> time_keeper)
-: time_keeper_(time_keeper)
+: acceleration_limits_(autoware::motion_utils::loadPlanningAccelerationLimits()),
+  time_keeper_(time_keeper)
 {
   auto & p = base_param_;
   p.max_accel = node.declare_parameter<double>("normal.max_acc");
@@ -303,6 +305,11 @@ TrajectoryPoints SmootherBase::applyLateralAccelerationFilter(
   // Calculate curvature assuming the trajectory points interval is constant
   const auto curvature_v = trajectory_utils::calcTrajectoryCurvatureFrom3Points(output, idx_dist);
 
+  // A long curvature baseline smooths away the short bends of an avoidance
+  // maneuver. Keep its look-ahead benefit, but also respect the local geometry.
+  const size_t local_idx = std::min(idx_dist, std::max(size_t{1}, static_cast<size_t>(1.0 / points_interval)));
+  const auto local_curvature = trajectory_utils::calcTrajectoryCurvatureFrom3Points(output, local_idx);
+
   //  Decrease speed according to lateral G
   const size_t before_decel_index =
     static_cast<size_t>(std::round(base_param_.decel_distance_before_curve / points_interval));
@@ -325,6 +332,7 @@ TrajectoryPoints SmootherBase::applyLateralAccelerationFilter(
     for (size_t j = start; j < end; ++j) {
       if (j >= curvature_v.size()) return output;
       curvature = std::max(curvature, std::fabs(curvature_v.at(j)));
+      curvature = std::max(curvature, std::fabs(local_curvature.at(j)));
     }
     double v_curvature_max = computeVelocityLimitFromLateralAcc(
       curvature, lateral_acceleration_velocity_square_ratio_limits);
@@ -363,6 +371,8 @@ TrajectoryPoints SmootherBase::applySteeringRateLimit(
 
   // Step1. Calculate curvature assuming the trajectory points interval is constant.
   const auto curvature_v = trajectory_utils::calcTrajectoryCurvatureFrom3Points(output, idx_dist);
+  const size_t local_idx = std::min(idx_dist, std::max(size_t{1}, static_cast<size_t>(1.0 / points_interval)));
+  const auto local_curvature = trajectory_utils::calcTrajectoryCurvatureFrom3Points(output, local_idx);
 
   // Step2. Calculate steer rate for each trajectory point.
   std::vector<double> steer_rate_velocity_ratio_arr(output.size());
@@ -375,7 +385,9 @@ TrajectoryPoints SmootherBase::applySteeringRateLimit(
     steer_front = static_cast<float>(std::atan(base_param_.wheel_base * curvature_v.at(i + 1)));
     steer_back = static_cast<float>(std::atan(base_param_.wheel_base * curvature_v.at(i)));
 
-    const auto steering_diff = std::fabs(steer_front - steer_back);
+    const auto local_diff = std::abs(std::atan(base_param_.wheel_base * local_curvature[i + 1]) -
+                                    std::atan(base_param_.wheel_base * local_curvature[i]));
+    const auto steering_diff = std::max<double>(std::fabs(steer_front - steer_back), local_diff);
 
     steer_rate_velocity_ratio_arr.at(i) =
       steering_diff / (points_interval + std::numeric_limits<double>::epsilon());
@@ -383,35 +395,31 @@ TrajectoryPoints SmootherBase::applySteeringRateLimit(
 
   steer_rate_velocity_ratio_arr.back() = steer_rate_velocity_ratio_arr.at((output.size() - 2));
 
-  // Step3. Remove noise by mean filter.
+  // Smoothing may spread a limit to adjacent points, but must not erase a peak
+  // which exceeds the physical steering-rate bound.
+  const auto raw_ratio = steer_rate_velocity_ratio_arr;
   for (size_t i = 1; i < steer_rate_velocity_ratio_arr.size() - 1; i++) {
     steer_rate_velocity_ratio_arr.at(i) =
-      (steer_rate_velocity_ratio_arr.at(i - 1) + steer_rate_velocity_ratio_arr.at(i) +
-       steer_rate_velocity_ratio_arr.at(i + 1)) /
-      3.0;
+      std::max(raw_ratio[i], (raw_ratio[i - 1] + raw_ratio[i] + raw_ratio[i + 1]) / 3.0);
   }
 
   // Step4. Limit velocity by steer rate.
   for (size_t i = 0; i < output.size() - 1; i++) {
-    if (fabs(curvature_v.at(i)) < base_param_.curvature_threshold) {
+    if (std::max(std::abs(curvature_v.at(i)), std::abs(local_curvature.at(i))) < base_param_.curvature_threshold) {
       continue;
     }
-
-    const auto mean_vel =
-      (output.at(i).longitudinal_velocity_mps + output.at(i + 1).longitudinal_velocity_mps) / 2.0;
 
     const auto local_velocity_limit = computeVelocityLimitFromSteerRate(
       steer_rate_velocity_ratio_arr.at(i), steer_rate_velocity_ratio_limits);
 
-    if (mean_vel < local_velocity_limit) {
-      continue;
-    }
-
     for (size_t k = 0; k < 2; k++) {
       auto & velocity = output.at(i + k).longitudinal_velocity_mps;
-      const float target_velocity = static_cast<float>(std::max(
-        base_param_.min_curve_velocity,
-        std::min(local_velocity_limit, velocity * (local_velocity_limit / mean_vel))));
+      // min_curve_velocity is a cruising preference, not permission to exceed
+      // steering-rate feasibility. A tight avoidance bend may require < 15 km/h.
+      // Bound both endpoints directly. Repeatedly scaling an already-limited
+      // endpoint by a neighbouring mean compounds the reduction below the
+      // required limit and can turn a traversable bend into a near stop.
+      const float target_velocity = static_cast<float>(std::max(0.0, local_velocity_limit));
       velocity = std::min(velocity, target_velocity);
     }
   }

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from tracking_prediction_evaluation.bbox_reference import (
+    transform_segments_to_asset_catalog_bbox_center,
     transform_segments_to_calibrated_bbox_center,
 )
 from tracking_prediction_evaluation.pipeline_evaluator import (
@@ -33,6 +34,15 @@ def parse_args():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--object-topic", default="/Object_topic")
     parser.add_argument("--ego-topic", default="/Ego_topic")
+    parser.add_argument("--class-name", choices=("vehicle", "pedestrian", "obstacle"), default="vehicle")
+    parser.add_argument("--pedestrian-velocity-reference", choices=("position", "message-preferred"), default="position",
+                        help="Opt-in audited ROS message GT with moving-zero fallback; legacy position remains reproducible")
+    parser.add_argument("--pedestrian-message-unit", choices=("mps", "kmh"))
+    parser.add_argument("--pedestrian-message-frame", choices=("body", "morai-map"))
+    parser.add_argument("--asset-name-map", type=Path,
+                        help="Explicit class:original-ID -> asset name JSON from verified scenario")
+    parser.add_argument("--exclude-frames-with-unresolved-gt", action="store_true",
+                        help="Drop whole output frames with nearby unresolved GT; secondary metric")
     parser.add_argument(
         "--detection-topic",
         default="/perception/object_recognition/detection/objects",
@@ -53,14 +63,34 @@ def parse_args():
     )
     parser.add_argument("--sensor-to-ego-x-m", type=float, default=0.855)
     parser.add_argument("--sensor-to-ego-y-m", type=float, default=0.0)
+    parser.add_argument(
+        "--morai-heading-correction-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "heading correction for both Ego and Object status. Use -1.347 "
+            "for audited MR bags and 0 for audited MRP captures"
+        ),
+    )
     parser.add_argument("--maximum-interpolation-bracket-sec", type=float, default=0.15)
     parser.add_argument(
         "--gt-reference",
-        choices=("bbox-center-calibrated-v1", "object-status"),
+        choices=(
+            "asset-catalog-bbox-center-v1",
+            "bbox-center-calibrated-v1",
+            "object-status",
+        ),
         default="bbox-center-calibrated-v1",
         help=(
             "primary GT reference; bbox-center-calibrated-v1 supports "
             "passenger vehicles and explicitly calibrated larger assets"
+        ),
+    )
+    parser.add_argument(
+        "--asset-bbox-catalog",
+        type=Path,
+        default=Path(
+            "dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json"
         ),
     )
     parser.add_argument(
@@ -83,7 +113,7 @@ def parse_args():
     parser.add_argument(
         "--map-file",
         type=Path,
-        default=Path("kcity_map/lanelet_map/lanelet2_map_v84.osm"),
+        default=Path("kcity_map/lanelet_map/lanelet2_map_v85.osm"),
     )
     parser.add_argument(
         "--projector-file",
@@ -104,10 +134,23 @@ def main():
     object_status_segments = read_morai_trajectories(
         args.raw_bag,
         topic=args.object_topic,
-        include_classes=("vehicle",),
+        include_classes=(args.class_name,),
+        heading_correction_deg=args.morai_heading_correction_deg,
+        asset_name_map=(json.loads(args.asset_name_map.read_text())["asset_names"]
+                        if args.asset_name_map else None),
     )
     reference_calibration = None
-    if args.gt_reference == "bbox-center-calibrated-v1":
+    if args.gt_reference == "asset-catalog-bbox-center-v1":
+        primary_segments, reference_calibration = (
+            transform_segments_to_asset_catalog_bbox_center(
+                object_status_segments, args.asset_bbox_catalog
+            )
+        )
+        if not primary_segments:
+            raise RuntimeError(
+                "asset-catalog-bbox-center-v1 found no supported vehicle segments"
+            )
+    elif args.gt_reference == "bbox-center-calibrated-v1":
         primary_segments, reference_calibration = (
             transform_segments_to_calibrated_bbox_center(object_status_segments)
         )
@@ -128,13 +171,24 @@ def main():
         args.ego_topic,
         translation_xyz,
         transform_yaw,
+        args.morai_heading_correction_deg,
     )
     tracking_frames, prediction_frames = read_output_frames(
         args.output_bag,
         args.tracking_topic,
         args.prediction_topic,
+        class_name=args.class_name,
     )
-    detection_frames = read_detection_frames(args.output_bag, args.detection_topic)
+    detection_frames = read_detection_frames(args.output_bag, args.detection_topic, args.class_name)
+    resolved_frames = None
+    if args.exclude_frames_with_unresolved_gt:
+        from tracking_prediction_evaluation.unresolved_frame_policy import resolved_frame_mask
+        mask, resolved_frames = resolved_frame_mask(object_status_map_segments, segments,
+            ego_points, set(tracking_frames) | set(prediction_frames) | set(detection_frames),
+            args.maximum_range_m, args.maximum_interpolation_bracket_sec)
+        tracking_frames = {t: v for t, v in tracking_frames.items() if mask[t]}
+        prediction_frames = {t: v for t, v in prediction_frames.items() if mask[t]}
+        detection_frames = {t: v for t, v in detection_frames.items() if mask[t]}
     summary = evaluate_pipeline(
         segments,
         ego_points,
@@ -149,8 +203,13 @@ def main():
             args.maximum_longitudinal_acceleration_mps2
         ),
         gt_reference=args.gt_reference,
+        pedestrian_velocity_reference=args.pedestrian_velocity_reference,
+        pedestrian_message_unit=args.pedestrian_message_unit,
+        pedestrian_message_frame=args.pedestrian_message_frame,
+        pedestrian_message_frame_yaw=transform_yaw,
     )
     if reference_calibration is not None:
+        summary["evaluation"]["resolved_frame_policy"] = resolved_frames
         summary["evaluation"]["gt_reference_calibration"] = reference_calibration
         summary["evaluation"]["primary_metric_paths"] = {
             "tracking": "tracking.bbox_center_absolute_distance_m",
@@ -228,6 +287,8 @@ def main():
         "fallback_origin_count": oracle_predictor.fallback_origin_count,
     }
     summary["source"] = {
+        "evaluation_class": args.class_name,
+        "asset_name_map": str(args.asset_name_map.resolve()) if args.asset_name_map else None,
         "raw_bag": str(args.raw_bag.resolve()),
         "output_bag": str(args.output_bag.resolve()),
         "trajectory_segment_count": len(segments),
@@ -239,6 +300,12 @@ def main():
         "morai_static_tf": str(args.morai_static_tf.resolve()),
         "map_file": str(args.map_file.resolve()),
         "projector_file": str(args.projector_file.resolve()),
+        "morai_heading_correction_deg": args.morai_heading_correction_deg,
+        "asset_bbox_catalog": (
+            str(args.asset_bbox_catalog.resolve())
+            if args.gt_reference == "asset-catalog-bbox-center-v1"
+            else None
+        ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -252,7 +319,10 @@ def main():
                     "bbox_center_absolute_distance_m"
                 ].get("p50"),
                 "unsupported_segment_count": (
-                    reference_calibration["unsupported_segment_count"]
+                    reference_calibration.get(
+                        "unsupported_segment_count",
+                        reference_calibration.get("unresolved_segment_count", 0),
+                    )
                     if reference_calibration is not None
                     else 0
                 ),

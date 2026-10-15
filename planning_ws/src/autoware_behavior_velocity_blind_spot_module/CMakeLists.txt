@@ -28,7 +28,11 @@ if(CATKIN_ENABLE_TESTING)
   # Original test_util.cpp is also disabled upstream: it references removed
   # APIs/parameters. Retained in reference_ros2_tests, never counted as pass.
   catkin_add_gtest(test_current_blind_spot test/test_current_blind_spot.cpp)
-  target_link_libraries(test_current_blind_spot ${PROJECT_NAME})
+  if(TARGET test_current_blind_spot)
+    target_compile_definitions(test_current_blind_spot PRIVATE
+      AW149_BVP_MODULE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/../autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml")
+    target_link_libraries(test_current_blind_spot ${PROJECT_NAME})
+  endif()
   option(AW149_FULL_HOST_TESTS "Build real-host tests after host installation" OFF)
   if(AW149_FULL_HOST_TESTS)
     find_package(autoware_behavior_velocity_planner REQUIRED)

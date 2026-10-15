@@ -32,3 +32,17 @@ twist0_queue_size: 100
 twist0_nodelay: true
 twist0_differential: false
 twist0_relative: false
+
+# Soft body-frame vy=0 prior. Local EKF remains unchanged.
+# Launch pins this contract after custom overlays. Opt-out:
+# use_lateral_velocity_constraint:=false (all twist1 mask entries disabled).
+twist1: /localization/constraints/lateral_velocity
+twist1_config: [false, false, false,
+                false, false, false,
+                false, true, false,
+                false, false, false,
+                false, false, false]
+twist1_queue_size: 100
+twist1_nodelay: true
+twist1_differential: false
+twist1_relative: false

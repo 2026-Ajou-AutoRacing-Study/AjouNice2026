@@ -1,0 +1,175 @@
+{
+  "schema_version": 3,
+  "policy": {
+    "target_domain": "competition_launcher",
+    "capture_runtime": "competition_launcher",
+    "automatic_asset_rule": "MR catalog only; no MRP intersection or MRP-only quarantine",
+    "dataset_scope_excluded_name_prefixes": [
+      "tree"
+    ],
+    "runtime_observed_excluded_data_ids": {
+      "vehicle": [],
+      "pedestrian": [],
+      "obstacle": [
+        40100032
+      ]
+    },
+    "geometry_fields_from_catalog_scenarios": false,
+    "woodbox": "Included; geometry audit remains a validation requirement, not an asset blacklist",
+    "source_catalog": "dataset/morai_od/configs/morai_asset_catalog_260807.json",
+    "updated_at": "2026-10-04"
+  },
+  "competition": {
+    "catalog": "dataset/morai_od/configs/morai_asset_catalog_260807.json",
+    "generated_from": {
+      "vehicle": {
+        "file_name": "vehicle_list.json",
+        "sha256": "d2b9dd1a75166d3991f92c665714594970db3a8dfd8c89adff33306185546fdf"
+      },
+      "pedestrian": {
+        "file_name": "pedestrian_list.json",
+        "sha256": "6fc568f48491af5e7ce7e7a47301baac07838934bba4eee7c41ddb612e7897be"
+      },
+      "obstacle": {
+        "file_name": "obstacle_list_without_vehicle_and_ped_like_objects.json",
+        "sha256": "2a11e27bbbcdf36c4a04c977a43bb6b605d717da51293483856468f0a591d683"
+      }
+    },
+    "counts": {
+      "vehicles": 43,
+      "pedestrian_container_assets": 33,
+      "obstacles": 33,
+      "total_unique_entries": 109
+    }
+  },
+  "automatic_eligible": {
+    "vehicle": [
+      30100001,
+      30100003,
+      30100004,
+      30100005,
+      30100007,
+      30100008,
+      30100009,
+      30100010,
+      30100011,
+      30100012,
+      30100013,
+      30100014,
+      30100015,
+      30200001,
+      30200002,
+      30200003,
+      30200005,
+      30200006,
+      30200007,
+      30200010,
+      30200011,
+      30200012,
+      30200013,
+      30200014,
+      30300001,
+      30300002,
+      30300003,
+      30400001,
+      30400002,
+      30400003,
+      30400004,
+      30400005,
+      30400007,
+      30500001,
+      30500002,
+      30700003,
+      30700004,
+      30700005,
+      30700006,
+      30800001,
+      30800002,
+      30800003,
+      30800004
+    ],
+    "pedestrian": [
+      50100001,
+      50100002,
+      50100003,
+      50100004,
+      50100005,
+      50100006,
+      50100007,
+      50100008,
+      50100009,
+      50100010,
+      50100011,
+      50100012,
+      50100013,
+      50100014,
+      50100015,
+      50100016,
+      50100017,
+      50100018,
+      50100019,
+      50100055,
+      50100058,
+      50100074,
+      50100077,
+      50100084,
+      50200001,
+      50200002,
+      50200003,
+      50200004,
+      50200005,
+      50300001,
+      50300002,
+      50300003,
+      50300018
+    ],
+    "obstacle": [
+      40100001,
+      40100002,
+      40100003,
+      40100004,
+      40100005,
+      40100026,
+      40100027,
+      40100028,
+      40100029,
+      40100031,
+      40100033,
+      40100047,
+      40100052,
+      40100058,
+      40100059,
+      40100060,
+      40100062,
+      40100063,
+      40100067,
+      40200102,
+      40200103,
+      40200104,
+      40200105,
+      40200106,
+      40200107,
+      40200108,
+      40200109,
+      40200110,
+      40200162,
+      40200163,
+      40200164
+    ]
+  },
+  "restored_assets": [
+    "2017_Hyundai_Grandeur",
+    "police_f_1",
+    "Boy2",
+    "Scooter_01"
+  ],
+  "bbox_calibration_measured_restored": [
+    "WoodBox",
+    "police_f_1",
+    "Boy2",
+    "Scooter_01"
+  ],
+  "restored_bbox_reference": "dataset/morai_od/configs/morai_asset_bbox_offsets_mr_restored_261004.json",
+  "bbox_reference_coverage": "Restored four only; other missing references remain gated. Historical 75-asset production catalog unchanged.",
+  "historical_mrp_compatibility": "dataset/morai_od/configs/morai_asset_launcher_compatibility_260807.json"
+}

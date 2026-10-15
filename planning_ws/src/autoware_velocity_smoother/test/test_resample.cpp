@@ -145,6 +145,114 @@ TrajectoryPoints createTrajectoryWithStop(
 
 }  // namespace
 
+TEST(VelocityProfileGeometry, PreservesBendVerticesAndOrientations)
+{
+  const TrajectoryPoints geometry{
+    createPoint(0, 0, 0, 0.0, 5), createPoint(1, 1, 0, 0.9, 5),
+    createPoint(2, 1, 0, 0.2, 5), createPoint(3, 0, 0, -0.8, 0)};
+  // A coarse time grid has already rounded the bend and recomputed its yaw.
+  const TrajectoryPoints profile{
+    createPoint(0, 0, 0, 0.4, 3), createPoint(2, 0.8, 0, -0.4, 2),
+    createPoint(3, 0, 0, -0.4, 0)};
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile);
+  ASSERT_EQ(result.size(), geometry.size());
+  for (size_t i = 0; i < geometry.size(); ++i) {
+    EXPECT_DOUBLE_EQ(result[i].pose.position.x, geometry[i].pose.position.x);
+    EXPECT_DOUBLE_EQ(result[i].pose.position.y, geometry[i].pose.position.y);
+    EXPECT_DOUBLE_EQ(result[i].pose.orientation.z, geometry[i].pose.orientation.z);
+    EXPECT_DOUBLE_EQ(result[i].pose.orientation.w, geometry[i].pose.orientation.w);
+  }
+  EXPECT_GT(result[1].longitudinal_velocity_mps, 2.0);
+  EXPECT_LT(result[1].longitudinal_velocity_mps, 3.0);
+}
+
+TEST(VelocityProfileGeometry, PreservesStopBetweenVerticesAndInputStop)
+{
+  auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  const TrajectoryPoints profile{
+    createPoint(0, 0, 0, 0, 3), createPoint(2.5, 0, 0, 0, 0),
+    createPoint(10, 0, 0, 0, 0)};
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile);
+  bool stop_found = false;
+  for (const auto & p : result) {
+    if (std::abs(p.pose.position.x - 2.5) < 1e-8) stop_found = true;
+    if (p.pose.position.x >= 2.5) EXPECT_DOUBLE_EQ(p.longitudinal_velocity_mps, 0.0);
+  }
+  EXPECT_TRUE(stop_found);
+  geometry[2].longitudinal_velocity_mps = 0.0;
+  const auto earlier = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile);
+  for (const auto & p : earlier) {
+    if (p.pose.position.x >= 2) EXPECT_DOUBLE_EQ(p.longitudinal_velocity_mps, 0.0);
+  }
+}
+
+TEST(VelocityProfileGeometry, EmergencyStopCannotBeAcceleratedByHistory)
+{
+  const auto geometry = createStraightTrajectory(0.0, 10.0, 1.0);
+  const auto profile = createStraightTrajectory(3.0, 10.0, 1.0);
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile);
+  for (const auto & point : result) EXPECT_DOUBLE_EQ(point.longitudinal_velocity_mps, 0.0);
+}
+
+TEST(VelocityProfileGeometry, PastStopDoesNotStopResumedMotion)
+{
+  auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  auto profile = geometry;
+  profile[1].longitudinal_velocity_mps = 0.0;
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile, 3);
+  ASSERT_EQ(result.size(), geometry.size());
+  EXPECT_GT(result[3].longitudinal_velocity_mps, 4.0);
+  EXPECT_GT(result[8].longitudinal_velocity_mps, 4.0);
+}
+
+TEST(VelocityProfileGeometry, FutureStopSurvivesPastStopHistory)
+{
+  auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  auto profile = geometry;
+  profile[1].longitudinal_velocity_mps = 0.0;
+  for (size_t i = 6; i < profile.size(); ++i) profile[i].longitudinal_velocity_mps = 0.0;
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile, 3);
+  EXPECT_GT(result[3].longitudinal_velocity_mps, 4.0);
+  for (size_t i = 6; i < result.size(); ++i) EXPECT_EQ(result[i].longitudinal_velocity_mps, 0.0);
+}
+
+TEST(VelocityProfileGeometry, ForwardEmergencyStopOverridesMovingHistory)
+{
+  auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  const auto profile = geometry;
+  for (size_t i = 3; i < geometry.size(); ++i) geometry[i].longitudinal_velocity_mps = 0.0;
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile, 3);
+  for (const auto & p : result) EXPECT_EQ(p.longitudinal_velocity_mps, 0.0);
+}
+
+TEST(VelocityProfileGeometry, ProfileCanAccelerateFromZeroAtEgo)
+{
+  const auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  auto profile = geometry;
+  profile[3].longitudinal_velocity_mps = 0.0;
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile, 3);
+  EXPECT_EQ(result[3].longitudinal_velocity_mps, 0.0);
+  EXPECT_GT(result[4].longitudinal_velocity_mps, 4.0);
+}
+
+TEST(VelocityProfileGeometry, UpstreamStopAtEgoCannotBeRevived)
+{
+  auto geometry = createStraightTrajectory(5.0, 10.0, 1.0);
+  const auto profile = geometry;
+  geometry[3].longitudinal_velocity_mps = 0.0;
+  const auto result = autoware::velocity_smoother::resampling::applyVelocityProfileToGeometry(
+    geometry, profile, 3);
+  for (size_t i = 3; i < result.size(); ++i) EXPECT_EQ(result[i].longitudinal_velocity_mps, 0.0);
+}
+
 class TrajectoryResampleTest : public ::testing::Test
 {
 protected:

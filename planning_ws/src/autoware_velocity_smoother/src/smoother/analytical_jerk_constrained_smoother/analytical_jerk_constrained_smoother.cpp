@@ -780,7 +780,8 @@ bool AnalyticalJerkConstrainedSmoother::applyForwardJerkFilter(
     const double error_vel = base_trajectory.at(i).longitudinal_velocity_mps - curr_vel;
     const double fb_acc = params.forward.kp * error_vel;
     const double limited_acc =
-      std::max(params.forward.min_acc, std::min(params.forward.max_acc, fb_acc));
+      std::max(params.forward.min_acc,
+        std::min(acceleration_limits_.limit(curr_vel, params.forward.max_acc), fb_acc));
     const double fb_jerk = (limited_acc - prev_acc) / dt;
     const double limited_jerk =
       std::max(params.forward.min_jerk, std::min(params.forward.max_jerk, fb_jerk));
@@ -834,7 +835,8 @@ bool AnalyticalJerkConstrainedSmoother::applyForwardJerkFilter(
 
     const double fb_acc = params.forward.kp * error_vel;
     const double limited_acc =
-      std::max(params.forward.min_acc, std::min(params.forward.max_acc, fb_acc));
+      std::max(params.forward.min_acc,
+        std::min(acceleration_limits_.limit(curr_vel_predicted, params.forward.max_acc), fb_acc));
     const double fb_jerk = (limited_acc - prev_acc) / dt;
     const double limited_jerk =
       std::max(params.forward.min_jerk, std::min(params.forward.max_jerk, fb_jerk));

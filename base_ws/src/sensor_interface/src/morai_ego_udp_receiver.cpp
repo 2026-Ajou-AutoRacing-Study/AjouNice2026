@@ -11,6 +11,7 @@
 #include <morai_msgs/EgoVehicleStatus.h>
 #include <morai_msgs/ObjectStatus.h>
 #include <morai_msgs/ObjectStatusList.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <ros/ros.h>
 #include <std_msgs/Int8.h>
 
@@ -193,6 +194,9 @@ class MoraiEgoUdpReceiver {
     private_nh_.param<std::string>("gear_topic", gear_topic_, "/vehicle/status/gear");
     private_nh_.param<std::string>("control_mode_topic", control_mode_topic_,
                                    "/vehicle/status/control_mode");
+    private_nh_.param<std::string>("competition_twist_topic", competition_twist_topic_,
+                                   "/competition/raw_twist");
+    private_nh_.param<std::string>("base_frame", base_frame_, "base_link");
     if (network_config_.empty()) throw std::runtime_error("~network_config is required");
 
     const auto root = morai_udp::readJson(network_config_);
@@ -233,6 +237,8 @@ class MoraiEgoUdpReceiver {
     }
     gear_publisher_ = nh_.advertise<std_msgs::Int8>(gear_topic_, 20);
     control_mode_publisher_ = nh_.advertise<std_msgs::Int8>(control_mode_topic_, 20);
+    competition_twist_publisher_ =
+        nh_.advertise<geometry_msgs::TwistStamped>(competition_twist_topic_, 20);
   }
 
   ~MoraiEgoUdpReceiver() {
@@ -305,6 +311,23 @@ class MoraiEgoUdpReceiver {
     std::memcpy(&packet, bytes, sizeof(packet));
     if (packet.tail[0] != '\r' || packet.tail[1] != '\n') return;
     competition_publisher_.publish(egoMessage(packet, frame_id_, received_at));
+
+    // EgoVehicleStatus is kept byte-compatible with existing bags and has no
+    // angular-velocity field. Preserve the full Competition packet motion on
+    // a separate standard ROS topic instead of silently discarding it. MORAI
+    // encodes linear velocity in km/h. The angular fields are intentionally
+    // preserved in native clockwise degrees/s on this *raw* topic; consumers
+    // must explicitly convert them before using a ROS rad/s convention.
+    geometry_msgs::TwistStamped raw_twist;
+    raw_twist.header.stamp = received_at;
+    raw_twist.header.frame_id = base_frame_;
+    raw_twist.twist.linear.x = packet.vel_x * kKilometersPerHourToMetersPerSecond;
+    raw_twist.twist.linear.y = packet.vel_y * kKilometersPerHourToMetersPerSecond;
+    raw_twist.twist.linear.z = packet.vel_z * kKilometersPerHourToMetersPerSecond;
+    raw_twist.twist.angular.x = packet.ang_vel_x;
+    raw_twist.twist.angular.y = packet.ang_vel_y;
+    raw_twist.twist.angular.z = packet.ang_vel_z;
+    competition_twist_publisher_.publish(raw_twist);
     publishDriveState(packet.ctrl_mode, packet.gear);
   }
 
@@ -383,10 +406,13 @@ class MoraiEgoUdpReceiver {
   std::string frame_id_;
   std::string gear_topic_;
   std::string control_mode_topic_;
+  std::string competition_twist_topic_;
+  std::string base_frame_;
   bool enable_ego_vehicle_status_ = true;
   std::vector<NetworkChannel> channels_;
   ros::Publisher ego_publisher_;
   ros::Publisher competition_publisher_;
+  ros::Publisher competition_twist_publisher_;
   ros::Publisher object_publisher_;
   ros::Publisher collision_publisher_;
   ros::Publisher gear_publisher_;

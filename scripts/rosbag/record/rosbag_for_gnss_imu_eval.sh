@@ -13,6 +13,7 @@ TOPICS=(
   /clock
   /Ego_topic
   /Competition_topic
+  /competition/raw_twist
   /sensor/gps
   /sensor/imu
   /localization/imu
@@ -22,6 +23,7 @@ TOPICS=(
   /localization/odometry/local
   /localization/odom
   /localization/kinematic_state
+  /localization/control_kinematic_state
   /localization/acceleration
   /tf
   /tf_static

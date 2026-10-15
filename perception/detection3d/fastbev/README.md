@@ -8,7 +8,7 @@
 
 현재 production과 학습 진입점:
 
-- [`../../../docs/bevfusion/README.md`](../../../docs/bevfusion/README.md)
+- [현재 모델 기준](../../../docs/bevfusion/CURRENT.md)
 - [`../bevfusion/README.md`](../bevfusion/README.md)
 
 새 실험에서 Fast-BEV config나 checkpoint를 기본값으로 선택하지 않는다.

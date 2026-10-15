@@ -18,6 +18,7 @@
 #include "autoware/motion_utils/trajectory/trajectory.hpp"
 #include "autoware/path_optimizer/common_structs.hpp"
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
+#include "autoware/path_optimizer/obstacle_clustering.hpp"
 #include "autoware/path_optimizer/replan_checker.hpp"
 #include "autoware/path_optimizer/type_alias.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
@@ -32,6 +33,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -78,7 +80,11 @@ protected:  // for the static_centerline_generator package
   bool enable_skip_optimization_;
   bool enable_reset_prev_optimization_;
   bool is_optimization_failed_{false};
+  std::optional<rclcpp::Time> last_successful_optimization_time_;
+  std::optional<std::vector<TrajectoryPoint>> last_validated_output_;
+  bool using_final_geometry_{false};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
+  std::string outside_drivable_area_check_footprint_;
 
   // core algorithms
   std::shared_ptr<ReplanChecker> replan_checker_ptr_{nullptr};
@@ -90,10 +96,28 @@ protected:  // for the static_centerline_generator package
 
   // interface publisher
   rclcpp::Publisher<Trajectory>::SharedPtr traj_pub_;
+  rclcpp::Publisher<StringStamped>::SharedPtr publication_evidence_pub_;
+  uint64_t publication_sequence_{0};
+  void publishTrajectory(Trajectory trajectory);
   rclcpp::Publisher<MarkerArray>::SharedPtr virtual_wall_pub_;
 
   // interface subscriber
   rclcpp::Subscription<Path>::SharedPtr path_sub_;
+  ros::Subscriber obstacle_scene_sub_;
+  ros::WallTimer scene_timeout_timer_;
+  bool require_obstacle_scene_{false};
+  double obstacle_search_time_budget_ms_{100.0};
+  double obstacle_fallback_deceleration_{7.0};
+  double obstacle_max_forward_length_{60.0};
+  double obstacle_return_length_{15.0};
+  ObstacleClusteringParameters obstacle_clustering_param_;
+  size_t obstacle_search_cursor_{0};
+  std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
+  PathConstPtr pending_path_;
+  ros::WallTime pending_path_since_;
+  rclcpp::Publisher<Odometry>::SharedPtr planning_odometry_pub_;
+  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(const PlannerData & data);
+  bool stopBeforeObstacle(const PlannerData & data, std::vector<TrajectoryPoint> & points) const;
   autoware_utils_rclcpp::InterProcessPollingSubscriber<Odometry> ego_odom_sub_{
     private_node_handle_ptr(), "input/odometry"};
 

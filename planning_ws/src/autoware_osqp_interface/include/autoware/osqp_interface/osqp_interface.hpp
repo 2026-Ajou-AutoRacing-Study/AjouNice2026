@@ -36,10 +36,10 @@ struct OSQPResult
 {
   std::vector<double> primal_solution;
   std::vector<double> lagrange_multipliers;
-  int polish_status;
-  int solution_status;
-  int iteration_status;
-  int exit_flag;
+  int polish_status = 0;
+  int solution_status = -1;
+  int iteration_status = 0;
+  int exit_flag = -1;
 };
 
 /**
@@ -53,7 +53,7 @@ private:
   std::unique_ptr<OSQPSettings> m_settings;
   std::unique_ptr<OSQPData> m_data;
   // store last work info since work is cleaned up at every execution to prevent memory leak.
-  OSQPInfo m_latest_work_info;
+  OSQPInfo m_latest_work_info{};
   // Number of parameters to optimize
   int64_t m_param_n;
   // Flag to check if the current work exists

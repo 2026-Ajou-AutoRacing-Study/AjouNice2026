@@ -104,14 +104,21 @@ geometry_msgs::Point getNearestPosition(
 }
 
 std::vector<TrajectoryPoint> resampleTrajectoryPoints(
-  const std::vector<TrajectoryPoint> & traj_points, const double interval)
+  const std::vector<TrajectoryPoint> & traj_points, const double interval,
+  const std::optional<bool> driving_forward)
 {
   constexpr bool enable_resampling_stop_point = true;
 
   const auto traj = autoware::motion_utils::convertToTrajectory(traj_points);
   const auto resampled_traj = autoware::motion_utils::resampleTrajectory(
     traj, interval, false, true, true, enable_resampling_stop_point);
-  return autoware::motion_utils::convertToTrajectoryPointArray(resampled_traj);
+  auto points = autoware::motion_utils::convertToTrajectoryPointArray(resampled_traj);
+  if (driving_forward && points.size() >= 2) {
+    // A deformed behind-ego first segment must not decide the direction of the
+    // entire optimized path. The caller can supply its established driving mode.
+    autoware::motion_utils::insertOrientation(points, *driving_forward);
+  }
+  return points;
 }
 
 // NOTE: stop point will not be resampled

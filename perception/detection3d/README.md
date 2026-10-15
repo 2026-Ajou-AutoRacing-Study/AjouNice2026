@@ -13,5 +13,6 @@ detection3d/
 └── tests/        # 공통 3DOD 단위 테스트
 ```
 
-현재 문서 진입점은 [`../../docs/bevfusion/README.md`](../../docs/bevfusion/README.md)다.
+현재 작업은 [인지 작업 안내](../../docs/perception/README.md)에서 선택하며,
+모델 상태는 [BEVFusion CURRENT](../../docs/bevfusion/CURRENT.md)를 따른다.
 Fast-BEV와 PointPainting의 과거 결과를 production 기본값으로 사용하지 않는다.

@@ -605,7 +605,7 @@ LaneChangePath construct_candidate_path(
       distances, limits, lane_change_info.velocity.lane_changing,
       std::min({bpp.max_acc, params.max_longitudinal_acc,
                 lane_change_info.longitudinal_acceleration.lane_changing}),
-      -std::max(bpp.min_acc, params.min_longitudinal_acc));
+      -std::max(bpp.min_acc, params.min_longitudinal_acc), common_data_ptr->acceleration_limits);
     if (*std::min_element(velocities.begin(), velocities.end()) < params.min_lane_changing_velocity) {
       throw std::logic_error("Spatial speed profile falls below minimum LC velocity");
     }
@@ -727,6 +727,20 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
 
     trajectory_groups.reserve(trajectory_groups.size() + frenet_trajectories.size());
     for (const auto & traj : frenet_trajectories) {
+      // A Frenet polynomial can overshoot its sampled terminal acceleration.
+      // Do not pass an unreachable prediction to the collision checker.
+      bool exceeds_propulsion = false;
+      if (common_data_ptr->acceleration_limits.enabled()) {
+        if (traj.longitudinal_accelerations.size() != traj.longitudinal_velocities.size()) continue;
+        for (size_t i = 1; i < traj.longitudinal_accelerations.size(); ++i) {
+          if (traj.longitudinal_accelerations[i] >
+              common_data_ptr->acceleration_limits.at(traj.longitudinal_velocities[i]) + 1e-3) {
+            exceeds_propulsion = true;
+            break;
+          }
+        }
+      }
+      if (exceeds_propulsion) { ++rejected_sampling; continue; }
       if (!trajectory_groups.empty()) {
         const auto diff = std::abs(
           traj.frenet_points.back().s -

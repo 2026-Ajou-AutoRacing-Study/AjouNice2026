@@ -20,6 +20,7 @@
 
 #include <autoware/behavior_path_planner_common/parameters.hpp>
 #include <autoware/interpolation/linear_interpolation.hpp>
+#include <autoware/motion_utils/trajectory/acceleration_limits.hpp>
 #include <autoware/route_handler/route_handler.hpp>
 #include <autoware_utils/math/unit_conversion.hpp>
 #include <autoware_utils_geometry/boost_geometry.hpp>
@@ -267,6 +268,7 @@ using LanesPolygonPtr = std::shared_ptr<LanesPolygon>;
 
 struct CommonData
 {
+  autoware::motion_utils::AccelerationLimits acceleration_limits;
   RouteHandlerPtr route_handler_ptr;
   nav_msgs::OdometryConstPtr self_odometry_ptr;
   geometry_msgs::AccelWithCovarianceStampedConstPtr current_acceleration;

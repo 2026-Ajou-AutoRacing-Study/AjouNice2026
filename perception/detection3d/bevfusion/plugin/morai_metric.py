@@ -34,7 +34,7 @@ class MoraiCenterMetric(BaseMetric):
             ann = sample["eval_ann_info"]
             self.results.append({
                 "info": {
-                    "gt_boxes": ann["gt_bboxes_3d"].tensor.cpu().numpy()[:, :7],
+                    "gt_boxes": ann["gt_bboxes_3d"].tensor.cpu().numpy(),
                     "gt_names": np.asarray([
                         self.dataset_meta["classes"][int(label)]
                         for label in ann["gt_labels_3d"]
@@ -62,3 +62,21 @@ class MoraiCenterMetric(BaseMetric):
             use_valid_flag=True,
             point_cloud_range=self.point_cloud_range,
         )
+
+
+@METRICS.register_module()
+class MoraiBase5MergedCenterMetric(MoraiCenterMetric):
+    """Keep standard 3-class AP plus original human/animal/asset recall."""
+
+    def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
+        for sample in data_samples:
+            super().process(data_batch, [sample])
+            ann = sample['eval_ann_info']
+            self.results[-1].update(original_semantic_class=ann['original_semantic_class'],
+                                    assets=ann['original_asset'])
+
+    def compute_metrics(self, results: list) -> Dict[str, float]:
+        from perception.detection3d.common.evaluation.base5_subgroup import subgroup_recall
+        metrics = super().compute_metrics(results)
+        metrics.update(subgroup_recall(results))
+        return metrics

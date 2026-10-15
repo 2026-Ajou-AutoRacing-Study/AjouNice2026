@@ -1,5 +1,10 @@
 # Base3-Online rosbag dataset — CURRENT STATE
 
+문서 역할: **Base3-Online 재현 기준**이다. 이 문서의 Motion V2/combined V3는
+현재 Base5의 기본 학습 데이터가 아니다. 새 생성·수집·변환은 [Base5 CURRENT](BASE5_V2_CURRENT.md)에서 시작한다.
+
+향후 MR 수집의 asset 기준은 [MR_ASSET_COLLECTION_CURRENT.md](MR_ASSET_COLLECTION_CURRENT.md)이다. 아래 Base3-Online 학습 전달본은 그대로 보존하며, 새 catalog의 객체가 과거 dataset에 자동 추가되지는 않는다.
+
 - 상태: **CURRENT**
 - 마지막 검증: 2026-09-20
 - 기준 branch: `perception/base3-online-rosbag-dataset`
@@ -7,13 +12,37 @@
 
 ## 한 줄 결론
 
+2026-10-05 Base5 E25-init E2 pilot과 [E1 보행자·장애물9-bag rosbag A/B](../../../docs/bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md)는 완료됐다. 소폭 개선이지만 근접·원거리 공백 미해결로 아래 Base3-Online 전달본과 production E25를 대체하지 않는다. [거리 공백·후속 보강](../../../docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md)을 참고한다.
+
+Base5 후속 보강 smoke는 [24+2 scene 결과 및 런북](261004_base5_reinforcement_smoke_runbook.md)을 따른다.
+canonical 선택 데이터는 84 frame이며 기존 Base3 학습 전달본을 대체하지 않는다.
+
+2026-10-04 Base5 소량 live 진단은 [별도 증거 문서](../../../docs/bevfusion/261004_BASE5_LIVE_ACQUISITION_PROBE.md)에 있다.
+7개 정지 scene의 rosbag→21-frame 변환을 검증했으며, 본 학습 dataset이나 production 대체본은 아니다.
+동기 캡처는 저장되지만 현재 capture mode에서 Instance annotation이 없어 paired GT 비교는 미완료이다.
+
+2026-10-04 평가 GT 보충: 이름이 없는 UDP 차량은
+[`morai_asset_bbox_offsets_status_size_v2.json`](../configs/morai_asset_bbox_offsets_status_size_v2.json)의
+관측된 ObjectStatus 기본 제원을 먼저 매칭하고 geometric size/center offset으로 변환한다.
+기본 제원 자체를 geometric BBox 크기와 직접 매칭하지 않는다.
+같은 기본 제원이라도 geometry가 다른 후보는 추측하지 않는다.
+자세한 검증은 [차량 GT 복구 기록](../../../docs/bevfusion/261004_VEHICLE_STATUS_SIZE_GT_RECOVERY.md)을 참고한다.
+이는 평가 보충이며 기존 dataset의 자동 재변환·재학습을 수행했다는 뜻이 아니다.
+
 MORAI scenario 생성기의 다양성은 유지하되 production과 같은 UDP 카메라/LiDAR ROS
 stream을 rosbag으로 기록하고, LiDAR timestamp에 Ego/Object pose를 보간해 만든 고주로
-Vehicle 전용 983-frame BEVFusion dataset이 현재 최종본이다.
+Vehicle 전용 dataset을 사용한다. 검증 기준 dataset은 983-frame Motion V2이며,
+2026-09-20에는 같은 계약의 Static V2 2,907장을 추가해 총 3,890장 결합 학습 deck까지
+검증했다.
 
 학습에는 `morai_base3_online_highway_motion_v2`만 사용한다.
 `morai_base3_online_highway_v1`은 nearest-state A/B 근거이며 production 학습 전달본이
 아니다.
+
+고주로 Vehicle specialization을 새로 학습할 때는 기존 V2와 Static V2를 결합한
+`morai_base3_online_highway_combined_v3` 및 tracked
+`online_highway_combined_fresh_e40.yaml`을 사용한다. 이는 전역 3-class production을
+자동 교체하는 dataset이 아니다.
 
 ## 무엇을 왜 바꿨나
 
@@ -37,6 +66,11 @@ val은 매우 높았지만 실제 rosbag에서는 특히 Obstacle과 일부 도�
 
 Ego/Object는 모델 입력이 아니라 GT 좌표 계산용 oracle이므로 rosbridge 사용이 sensor
 input domain을 offline으로 되돌리는 것은 아니다.
+
+MR과 MRP의 launcher별 Network file, workspace source, sensor-only UDP 및 자동
+ScenarioLoad 실행 순서는
+[`morai_mr_mrp_hybrid_scenario_capture_runbook.md`](morai_mr_mrp_hybrid_scenario_capture_runbook.md)를
+단일 기준으로 사용한다.
 
 ## 수집 진행과 정리 결과
 
@@ -132,20 +166,22 @@ V1의 1,000 frame/Vehicle GT 2,049개는 distance filter 전 nearest-state 비�
 
 ## 전달 압축
 
-로컬 업로드 준비 폴더:
+전달 archive를 만들었던 로컬 준비 폴더:
 
 ```text
 /home/luv/AjouNice2026/artifacts/handoff/base3_online_highway_260919/
 ```
 
-| 파일 | 용도 | 크기 |
-|---|---|---:|
-| `base3_online_highway_motion_v2_dataset_260919.tar.zst` | 팀 학습 필수 | 409,013,730 B |
-| `base3_online_highway_raw_rosbag_260919.tar.zst` | 재파싱·감사 선택 | 24,775,718,506 B |
-| `README_FIRST.md` | 압축 해제 위치 | - |
-| `SHA256SUMS` | 무결성 검증 | - |
+| 파일 | 용도 | 크기 | 현재 로컬 상태 |
+|---|---|---:|---|
+| `base3_online_highway_motion_v2_dataset_260919.tar.zst` | 팀 학습 필수 | 409,013,730 B | 유지 |
+| `base3_online_highway_raw_rosbag_260919.tar.zst` | 재파싱·감사 선택 | 24,775,718,506 B | Drive 업로드 확인 후 2026-09-20 삭제 |
+| `README_FIRST.md` | 압축 해제 위치 | - | 유지 |
+| `SHA256SUMS` | 전달 당시 무결성 기록 | - | 유지 |
 
-두 archive 모두 생성 후 `sha256sum -c SHA256SUMS`를 통과했다. Base3-Static 10K,
+두 archive 모두 전달 전에 `sha256sum -c SHA256SUMS`를 통과했다. 아래 raw SHA는 Drive
+전달본 확인용 이력이며 현재 로컬 handoff 폴더에는 raw archive가 없다. 재생성이 필요하면
+canonical `rosbags/datasets/base3_online/highway_1k/`에서 다시 묶는다. Base3-Static 10K,
 nuScenes 호환 초기 weight, E25 weight, 팀 Docker image는 기존 공유본을 재사용하며 위
 묶음에 중복 포함하지 않는다.
 

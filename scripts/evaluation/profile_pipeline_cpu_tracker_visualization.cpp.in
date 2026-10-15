@@ -1,0 +1,238 @@
+// Standalone harness. Methods below are extracted unchanged from source.
+// No ROS node/NodeHandle/master, publisher, simulator or GPU is created.
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <Eigen/Eigenvalues>
+#include <ros/serialization.h>
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <autoware_perception_msgs/TrackedObjects.h>
+#include <jsk_recognition_msgs/BoundingBoxArray.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <tf/transform_datatypes.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include "algorithm/ekf_multi_object_tracking.hpp"
+#include "vehicle_orientation_canonicalizer.hpp"
+
+namespace {
+@EXTRACTED_HELPERS@
+}
+
+class VisualizationHarness {
+public:
+    MultiClassObjectTrackingConfig config_{};
+    bool publish_center_motion_diagnostics_{false};
+    vehicle_orientation::Canonicalizer vehicle_orientation_canonicalizer_;
+    std::vector<double> cfg_vec_d_ego_to_lidar_xyz_m_{0.,0.,1.388};
+    std::string str_detection_frame_id_{"lidar1"};
+    jsk_recognition_msgs::BoundingBoxArray o_jsk_tracked_objects_;
+    visualization_msgs::MarkerArray o_vis_track_info_;
+    visualization_msgs::Marker o_vis_ego_stl_;
+    autoware_perception_msgs::TrackedObjects o_tracked_objects_;
+    autoware_perception_msgs::TrackedObjects o_center_motion_active_objects_;
+    autoware_perception_msgs::TrackedObjects o_center_motion_inactive_objects_;
+    void VisualizeTrackObjects(const mc_mot::TrackStructs&, std::string);
+    void BuildTrackedObjects(const mc_mot::TrackStructs&,const std::string&);
+    bool IsVisualizeTrack(const mc_mot::TrackStruct&);
+};
+
+@EXTRACTED_METHODS@
+
+template<class Message> std::vector<uint8_t> wire(const Message& message) {
+    std::vector<uint8_t> output(ros::serialization::serializationLength(message));
+    ros::serialization::OStream stream(output.data(),output.size());
+    ros::serialization::serialize(stream,message);
+    return output;
+}
+
+template<class Primitive> void append(std::string& output,const Primitive& value) {
+    output.append(reinterpret_cast<const char*>(&value),sizeof(value));
+}
+
+std::string state_snapshot(const mc_mot::TrackStructs& frame) {
+    std::string output; append(output,frame.time_stamp);
+    for (const auto& track:frame.track) {
+        append(output,track.track_id);append(output,track.update_time);
+        append(output,track.initialization_time);append(output,track.detection_confidence);
+        append(output,track.is_init);append(output,track.is_confirmed);append(output,track.direction_score);
+        append(output,track.dimension.length);append(output,track.dimension.width);append(output,track.dimension.height);
+        append(output,track.object_z);
+        for(int i=0;i<8;++i)append(output,track.state_vec(i));
+        for(int i=0;i<8;++i)for(int j=0;j<8;++j)append(output,track.state_cov(i,j));
+        for(double score:track.class_score_arr)append(output,score);
+        for(const auto& center:track.center_history) {
+            append(output,center.time_stamp);append(output,center.x);append(output,center.y);
+        }
+    }
+    return output;
+}
+
+int internal_class(uint8_t label) {
+    using C=autoware_perception_msgs::ObjectClassification;
+    if(label==C::CAR)return mc_mot::CAR;
+    if(label==C::TRUCK)return mc_mot::TRUCK;
+    if(label==C::PEDESTRIAN)return mc_mot::PEDESTRIAN;
+    if(label==C::BICYCLE)return mc_mot::BICYCLE;
+    return mc_mot::UNKNOWN;
+}
+
+mc_mot::TrackStructs from_message(const autoware_perception_msgs::TrackedObjects& message) {
+    mc_mot::TrackStructs frame;frame.time_stamp=message.header.stamp.toSec();
+    for(const auto& source:message.objects) {
+        mc_mot::TrackStruct track;
+        uint32_t id=0;for(int i=12;i<16;++i)id=(id<<8)|source.object_id.uuid[i];
+        track.track_id=static_cast<int>(id);
+        track.is_init=true;track.is_confirmed=true;track.age=100;
+        track.update_time=frame.time_stamp;track.initialization_time=frame.time_stamp-10.;
+        track.detection_confidence=source.existence_probability;
+        for(const auto& classification:source.classification)
+            track.class_score_arr[internal_class(classification.label)]+=classification.probability;
+        track.classification=static_cast<mc_mot::ObjectClass>(track.getRepClass());
+        const auto& kin=source.kinematics;const auto& pose=kin.pose_with_covariance.pose;
+        const auto& twist=kin.twist_with_covariance.twist;
+        const double yaw=tf::getYaw(pose.orientation),c=std::cos(yaw),s=std::sin(yaw);
+        track.state_vec<<pose.position.x,pose.position.y,yaw,
+            c*twist.linear.x-s*twist.linear.y,s*twist.linear.x+c*twist.linear.y,
+            twist.angular.z,
+            c*kin.acceleration_with_covariance.accel.linear.x-s*kin.acceleration_with_covariance.accel.linear.y,
+            s*kin.acceleration_with_covariance.accel.linear.x+c*kin.acceleration_with_covariance.accel.linear.y;
+        track.state_cov.setZero();
+        track.state_cov(S_X,S_X)=kin.pose_with_covariance.covariance[0];
+        track.state_cov(S_X,S_Y)=kin.pose_with_covariance.covariance[1];
+        track.state_cov(S_Y,S_X)=kin.pose_with_covariance.covariance[6];
+        track.state_cov(S_Y,S_Y)=kin.pose_with_covariance.covariance[7];
+        track.state_cov(S_YAW,S_YAW)=kin.pose_with_covariance.covariance[35];
+        Eigen::Matrix2d body;body<<kin.twist_with_covariance.covariance[0],kin.twist_with_covariance.covariance[1],
+            kin.twist_with_covariance.covariance[6],kin.twist_with_covariance.covariance[7];
+        Eigen::Matrix2d rotation;rotation<<c,-s,s,c;
+        track.state_cov.block<2,2>(S_VX,S_VX)=rotation*body*rotation.transpose();
+        track.state_cov(S_YAW_RATE,S_YAW_RATE)=kin.twist_with_covariance.covariance[35];
+        track.state_cov(S_AX,S_AX)=kin.acceleration_with_covariance.covariance[0];
+        track.state_cov(S_AY,S_AY)=kin.acceleration_with_covariance.covariance[7];
+        track.object_z=pose.position.z;
+        track.dimension.length=source.shape.dimensions.x;
+        track.dimension.width=source.shape.dimensions.y;
+        track.dimension.height=source.shape.dimensions.z;
+        frame.track.push_back(track);
+    }
+    return frame;
+}
+
+double ms(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+}
+
+void stats_json(std::ostream& out,std::vector<double> values) {
+    if(values.empty()){out<<"{\"count\":0}";return;}
+    std::sort(values.begin(),values.end());
+    auto percentile=[&](double p){const double index=p*(values.size()-1);const size_t low=std::floor(index),high=std::ceil(index);
+        return values[low]+(values[high]-values[low])*(index-low);};
+    out<<"{\"count\":"<<values.size()<<",\"mean\":"<<std::accumulate(values.begin(),values.end(),0.)/values.size()
+       <<",\"median\":"<<percentile(.5)<<",\"p90\":"<<percentile(.9)<<",\"p95\":"<<percentile(.95)
+       <<",\"p99\":"<<percentile(.99)<<",\"max\":"<<values.back()<<"}";
+}
+
+struct Costs {std::vector<double> viz,build,total,wire,bytes;};
+volatile size_t sink=0;
+
+void run_case(std::ostream& out,const std::string& name,const std::vector<mc_mot::TrackStructs>& frames,bool mesh,int repeat,bool pad_slots=false,bool all_retired=false) {
+    VisualizationHarness baseline,guarded;
+    baseline.config_.output_confirmed_track=guarded.config_.output_confirmed_track=true;
+    baseline.config_.visualize_mesh=guarded.config_.visualize_mesh=mesh;
+    Costs always,never;
+    size_t pairs=0,objects=0;
+    for(int pass=0;pass<repeat;++pass)for(size_t i=0;i<frames.size();++i) {
+        auto frame=frames[i];
+        if(pad_slots) {
+            std::vector<mc_mot::TrackStruct> slots(MAX_TRACKS);
+            if(all_retired)for(int id=0;id<MAX_TRACKS;++id)slots[id].track_id=id;
+            // Preserve published IDs/slot order and pad truly unseen slots.
+            // Tentative/retired hidden slots are not observable in this bag.
+            for(const auto& track:frame.track) {
+                if(track.track_id<0 || track.track_id>=MAX_TRACKS)throw std::runtime_error("UUID cannot identify native tracker slot");
+                slots[track.track_id]=track;
+            }
+            frame.track=std::move(slots);
+        }
+        const auto before=state_snapshot(frame);
+        auto one=[&](VisualizationHarness& harness,Costs& costs,bool visualize){
+            const auto start=std::chrono::steady_clock::now();
+            if(visualize)harness.VisualizeTrackObjects(frame,"map");
+            const double viz=ms(start);
+            const auto build_start=std::chrono::steady_clock::now();
+            harness.BuildTrackedObjects(frame,"map");
+            const double build=ms(build_start);
+            if(i>=30) {costs.viz.push_back(viz);costs.build.push_back(build);costs.total.push_back(viz+build);}
+            sink+=harness.o_tracked_objects_.objects.size();
+        };
+        if((i+pass)%2){one(baseline,always,true);one(guarded,never,false);}
+        else {one(guarded,never,false);one(baseline,always,true);}
+        if(wire(baseline.o_tracked_objects_)!=wire(guarded.o_tracked_objects_))throw std::runtime_error("main track wire differs");
+        if(before!=state_snapshot(frame))throw std::runtime_error("visualization mutated input state");
+        if(pass==0){++pairs;objects+=frames[i].track.size();}
+        const auto serial_start=std::chrono::steady_clock::now();
+        auto box_wire=wire(baseline.o_jsk_tracked_objects_);
+        auto marker_wire=wire(baseline.o_vis_track_info_);
+        auto ego_wire=wire(baseline.o_vis_ego_stl_);
+        if(i>=30){always.wire.push_back(ms(serial_start));always.bytes.push_back(box_wire.size()+marker_wire.size()+ego_wire.size());}
+        sink+=box_wire.size()+marker_wire.size()+ego_wire.size();
+        // Reconnection: build fresh visualization after skipped frames.
+        if(i%17==0) {
+            guarded.VisualizeTrackObjects(frame,"map");
+            if(box_wire!=wire(guarded.o_jsk_tracked_objects_) || marker_wire!=wire(guarded.o_vis_track_info_) || ego_wire!=wire(guarded.o_vis_ego_stl_))
+                throw std::runtime_error("visualization reconnect wire differs");
+        }
+    }
+    out<<"{\"name\":\""<<name<<"\",\"mesh\":"<<(mesh?"true":"false")<<",\"frames\":"<<pairs<<",\"objects\":"<<objects
+       <<",\"repeats\":"<<repeat<<",\"pad_to_500_slots\":"<<(pad_slots?"true":"false")
+       <<",\"all_hidden_slots_retired_stress\":"<<(all_retired?"true":"false")
+       <<",\"exact_main_track_wire\":true,\"input_state_unchanged\":true,\"reconnected_visualization_wire_equal\":true,";
+    auto field=[&](const char* label,const std::vector<double>& values){out<<"\""<<label<<"\":";stats_json(out,values);};
+    field("always_visualize_ms",always.viz);out<<",";field("always_build_tracks_ms",always.build);out<<",";
+    field("always_total_ms",always.total);out<<",";field("guard_no_subscriber_total_ms",never.total);out<<",";
+    field("visualization_serialization_ms_if_subscribed",always.wire);out<<",";field("visualization_wire_bytes",always.bytes);out<<"}";
+}
+
+int main(int argc,char** argv) {
+    if(argc<3){std::cerr<<"Usage: harness OUTPUT BAG...\n";return 2;}
+    ros::Time::init();
+    std::ofstream out(argv[1]);out<<std::setprecision(12)<<"{\"cases\":[";
+    bool first=true;
+    auto run=[&](const std::string& name,const std::vector<mc_mot::TrackStructs>& frames,bool mesh,int repeat,bool pad=false,bool retired=false){
+        if(!first)out<<",";first=false;run_case(out,name,frames,mesh,repeat,pad,retired);out.flush();};
+    for(int arg=2;arg<argc;++arg) {
+        rosbag::Bag bag(argv[arg],rosbag::bagmode::Read);
+        rosbag::View view(bag,rosbag::TopicQuery(std::vector<std::string>{"/perception/object_recognition/tracking/objects"}));
+        std::vector<mc_mot::TrackStructs> frames;
+        for(const auto& entry:view) {
+            auto message=entry.instantiate<autoware_perception_msgs::TrackedObjects>();
+            if(message)frames.push_back(from_message(*message));
+        }
+        if(frames.empty())throw std::runtime_error("tracking input missing");
+        run("bag_"+std::to_string(arg-2),frames,false,3);
+        run("bag_"+std::to_string(arg-2),frames,true,3);
+        run("bag_"+std::to_string(arg-2)+"_slots500",frames,false,3,true);
+        run("bag_"+std::to_string(arg-2)+"_slots500",frames,true,3,true);
+    }
+    for(int count:{0,1,5,10,20,50}) {
+        mc_mot::TrackStructs frame;frame.time_stamp=100.;
+        for(int i=0;i<count;++i) {
+            mc_mot::TrackStruct track;track.track_id=i;track.is_init=true;track.is_confirmed=true;
+            track.update_time=100.;track.detection_confidence=.7;track.class_score_arr[i%CLASS_NUM]=.9;
+            track.state_vec(S_X)=i*5.;track.state_vec(S_VX)=i%3*5.;track.state_vec(S_YAW)=.3;
+            track.dimension={4.6,1.9,1.5};
+            frame.track.push_back(track);
+        }
+        for(bool mesh:{false,true})run("synthetic_"+std::to_string(count),std::vector<mc_mot::TrackStructs>(300,frame),mesh,5);
+    }
+    for(bool mesh:{false,true})run("synthetic_all_retired500",std::vector<mc_mot::TrackStructs>(80),mesh,3,true,true);
+    out<<"],\"sink\":"<<sink<<"}\n";
+}

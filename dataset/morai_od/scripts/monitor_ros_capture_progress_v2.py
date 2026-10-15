@@ -62,6 +62,14 @@ def parse_args():
     parser.add_argument("--stall-warning-sec", type=float, default=60.0)
     parser.add_argument("--disk-warning-gb", type=float, default=100.0)
     parser.add_argument("--failure-rate-warning", type=float, default=0.10)
+    parser.add_argument(
+        "--milestone-scenes",
+        type=int,
+        help=(
+            "Optional attempted-scene checkpoint to show separately from the "
+            "full manifest target (for example 500 for an interim audit)."
+        ),
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--no-clear", action="store_true")
     parser.add_argument("--no-color", action="store_true")
@@ -196,6 +204,7 @@ def load_manifest(path, requested):
     return {
         "path": str(path.expanduser().resolve()),
         "dataset_id": document.get("dataset_id"),
+        "capture_policy": document.get("capture_policy", {}),
         "scenes": scenes,
         "by_id": {scene["id"]: scene for scene in scenes},
         "by_file": {scene["file_name"]: scene for scene in scenes},
@@ -228,6 +237,8 @@ def classify_failure(error):
         return "sensor_artifact"
     if any(token in text for token in ("route deviation", "route error", "heading error", "route alignment")):
         return "route_safety"
+    if "left capture gate" in text:
+        return "actor_gate_exit"
     if any(token in text for token in ("did not arm", "motion stall", "actor ready", "did not move")):
         return "motion_readiness"
     if "object counts" in text or "expected objects" in text:
@@ -354,13 +365,21 @@ def build_snapshot(run_dir, summary, scene_rows, failure_rows, console_lines, ma
     eta = None
     if elapsed is not None and attempted > 0 and requested > attempted:
         eta = elapsed / attempted * (requested - attempted)
+    milestone_target = getattr(args, "milestone_scenes", None)
+    milestone_remaining = None
+    milestone_eta = None
+    if milestone_target is not None:
+        milestone_remaining = max(0, milestone_target - attempted)
+        if elapsed is not None and attempted > 0:
+            milestone_eta = elapsed / attempted * milestone_remaining
 
     by_id = manifest["by_id"] if manifest else {}
     selected_scenes = manifest["scenes"] if manifest else []
     target_frames = None
     if selected_scenes and (not requested or requested == len(selected_scenes)):
         target_frames = sum(
-            int(scene.get("sequence_contract", {}).get("clip_length", 1))
+            int(scene.get("sequence_contract", {}).get("clip_length",
+                scene.get("captures_per_scene", manifest.get("capture_policy", {}).get("captures_per_scene", 1))))
             for scene in selected_scenes
         )
 
@@ -482,6 +501,9 @@ def build_snapshot(run_dir, summary, scene_rows, failure_rows, console_lines, ma
             "target_frames": target_frames,
             "elapsed_sec": elapsed,
             "eta_sec": eta,
+            "milestone_scenes": milestone_target,
+            "milestone_remaining_scenes": milestone_remaining,
+            "milestone_eta_sec": milestone_eta,
         },
         "latest_scene": latest,
         "current": console_state,
@@ -683,6 +705,18 @@ def render(snapshot, use_color=True):
             format_duration(progress.get("eta_sec")),
         )
     )
+    milestone = progress.get("milestone_scenes")
+    if milestone is not None:
+        remaining = progress.get("milestone_remaining_scenes", 0)
+        state = "REACHED" if remaining == 0 else "{} scenes left".format(remaining)
+        print(
+            "  Audit checkpoint: attempted {}/{} | {} | ETA={}".format(
+                attempted,
+                milestone,
+                state,
+                format_duration(progress.get("milestone_eta_sec")),
+            )
+        )
 
     rate = performance["sequence_rate_p50_hz"]
     rate_text = "{:.2f}Hz".format(rate) if rate is not None else "-"
@@ -716,6 +750,8 @@ def main():
         raise ValueError("--interval-sec must be >= 1.0 to limit monitoring I/O")
     if args.stall_warning_sec <= 0.0:
         raise ValueError("--stall-warning-sec must be positive")
+    if args.milestone_scenes is not None and args.milestone_scenes <= 0:
+        raise ValueError("--milestone-scenes must be positive")
     run_dir = (
         args.run_dir.expanduser().resolve()
         if args.run_dir

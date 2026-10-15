@@ -51,11 +51,9 @@ StateEquationGenerator::Matrix StateEquationGenerator::calcMatrix(
     // get discrete kinematics matrix A, B, W
     const auto & p = ref_points.at(i - 1);
 
-    // TODO(murooka) use curvature by stabling optimization
-    // Currently, when using curvature, the optimization result is weird with sample_map.
-    // vehicle_model_ptr_->calculateStateEquationMatrix(Ad, Bd, Wd, p.curvature,
-    // p.delta_arc_length);
-    vehicle_model_ptr_->calculateStateEquationMatrix(Ad, Bd, Wd, 0.0, p.delta_arc_length);
+    // With the reference curvature included, the control variable is the absolute tire angle.
+    // This is required for the steering constraint to represent the vehicle's physical limit.
+    vehicle_model_ptr_->calculateStateEquationMatrix(Ad, Bd, Wd, p.curvature, p.delta_arc_length);
 
     A.block(i * D_x, (i - 1) * D_x, D_x, D_x) = Ad;
     B.block(i * D_x, (i - 1) * D_u, D_x, D_u) = Bd;

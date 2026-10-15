@@ -1647,7 +1647,8 @@ std::optional<PathWithLaneId> NormalLaneChange::compute_terminal_lane_change_pat
     return std::clamp(
       (min_lc_velocity - current_velocity) / duration_to_lc_start,
       lane_change_parameters_->trajectory.min_longitudinal_acc,
-      lane_change_parameters_->trajectory.max_longitudinal_acc);
+      common_data_ptr_->acceleration_limits.limit(std::max(current_velocity, min_lc_velocity),
+        lane_change_parameters_->trajectory.max_longitudinal_acc));
   });
   const auto vel_on_prep = current_velocity + lon_accel * duration_to_lc_start;
   const LaneChangePhaseMetrics prep_metric(

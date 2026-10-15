@@ -1,0 +1,51 @@
+# 한 장면 빠른 시연: RViz 왼쪽 + MORAI 오른쪽 + GUI 하단 상태 바.
+# MORAI와 RViz가 모두 같은 X11 화면(:0.0)에 떠 있어야 자동 배치됩니다.
+# 창 자동 배치가 실패해도 전체 화면 녹화와 주행은 계속됩니다. 그때는 직접 반반 배치하세요.
+schema_version: 2
+campaign_name: soa_pair_mission_gt_split_example
+scenarios:
+  directory: planner_logs/validation_inputs/static_corridor
+  glob: "soa_pair_05*.json"
+default_case:
+  goal: {x: 71.704, y: 459.605, z: 28.379, yaw_deg: 90.131}
+  waypoints: []
+  timeout_sec: 50
+  arrival_mode: stop
+stack:
+  pose_source: localization
+  detector: od_gt
+  traffic_light: false
+recording:
+  topic_profile: base_ws/src/planning_addons/planning_scenario_validator/config/internal/topic_profiles/basic.json
+  include_sensors: false
+  video:
+    enabled: true
+    display: ":0.0"
+    fps: 10
+    window_layout: split       # RViz 왼쪽 / MORAI 오른쪽, 녹화는 전체 화면
+    bottom_bar_px: auto        # 작업 영역 높이의 약 17%. 필요하면 180 또는 "18%"로 지정
+    focus_planviz: false       # split에서 RViz 최대화 금지
+network:
+  sensor_json: configs/sensors/Sensor_competition_local.json
+  ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
+morai:
+  map_name: R_KR_PR_K-city_2025
+  scenario_install_dir: auto
+  scenario_load_host: 127.0.0.1
+  scenario_load_port: 9095
+output_root: planner_logs/validation
+resume: true
+continue_on_system_error: false
+readiness_timeout_sec: 60
+scenario_ready_timeout_sec: 35
+route_ready_timeout_sec: 75
+validation:
+  goal_tolerance_m: 2.0
+  goal_hold_sec: 1.0
+  goal_speed_max_mps: 0.5
+  topic_loss_timeout_sec: 4.0
+  stuck_timeout_sec: 0.0
+upload:
+  enabled: false            # true면 장면 종료마다 Drive로 자동 업로드
+  profile: basic            # basic=CSV/JSON, bag=기본+bag, video=기본+MP4, full=모두
+  rclone_remote: "ajou_drive:planning_validator"  # 공유 AjouNice2026 폴더 안. 기본 업로드는 꺼짐

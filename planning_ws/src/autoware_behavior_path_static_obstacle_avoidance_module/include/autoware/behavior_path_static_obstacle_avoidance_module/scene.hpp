@@ -557,6 +557,8 @@ private:
   UUID candidate_uuid_;
 
   ObjectDataArray clip_objects_;
+  std::set<std::string> released_clip_object_ids_;
+  double optimization_clip_release_margin_{10.0};
 
   // TODO(Satoshi OTA) create detected object manager.
   ObjectDataArray stored_objects_;

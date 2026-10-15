@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>planning_scenario_validator</name>
+  <version>0.1.0</version>
+  <description>Repeatable closed-loop MORAI planning scenario campaigns.</description>
+  <maintainer email="ajounice@example.com">AjouNice2026</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>morai_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>autoware_internal_planning_msgs</exec_depend>
+  <exec_depend>sensor_interface</exec_depend>
+  <exec_depend>bringup</exec_depend>
+  <exec_depend>perception_object_pipeline</exec_depend>
+  <exec_depend>ajounice_planning_integration</exec_depend>
+  <exec_depend>trajectory_follower</exec_depend>
+  <exec_depend>trajectory_batch_runner</exec_depend>
+</package>

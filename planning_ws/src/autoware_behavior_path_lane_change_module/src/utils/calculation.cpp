@@ -406,7 +406,9 @@ std::pair<double, double> calc_min_max_acceleration(
   const auto min_accel_threshold =
     std::max(bpp_params.min_acc, lc_params.trajectory.min_longitudinal_acc);
   const auto max_accel_threshold =
-    std::min(bpp_params.max_acc, lc_params.trajectory.max_longitudinal_acc);
+    common_data_ptr->acceleration_limits.limit(
+      std::max(current_ego_velocity, max_path_velocity),
+      std::min(bpp_params.max_acc, lc_params.trajectory.max_longitudinal_acc));
 
   // calculate minimum and maximum acceleration
   const auto min_acc = calc_minimum_acceleration(
@@ -507,7 +509,8 @@ double calc_lane_changing_acceleration(
     const auto & bpp = *common_data_ptr->bpp_param_ptr;
     const double lower = std::max({bpp.min_acc, params.min_longitudinal_acc,
       (params.min_lane_changing_velocity - initial_lane_changing_velocity) / lane_changing_time});
-    const double upper = std::min({bpp.max_acc, params.max_longitudinal_acc,
+    const double upper = std::min({common_data_ptr->acceleration_limits.limit(
+      std::max(initial_lane_changing_velocity, max_path_velocity), bpp.max_acc), params.max_longitudinal_acc,
       (std::min(max_path_velocity, bpp.max_vel) - initial_lane_changing_velocity) / lane_changing_time});
     if (lower > upper) return std::numeric_limits<double>::quiet_NaN();
     return std::clamp(prepare_longitudinal_acc, lower, upper);
@@ -523,7 +526,8 @@ double calc_lane_changing_acceleration(
 
   return std::clamp(
     (max_path_velocity - initial_lane_changing_velocity) / lane_changing_time, 0.0,
-    prepare_longitudinal_acc);
+    common_data_ptr->acceleration_limits.limit(
+      std::max(initial_lane_changing_velocity, max_path_velocity), prepare_longitudinal_acc));
 }
 
 double calc_actual_prepare_duration(
@@ -539,7 +543,8 @@ double calc_actual_prepare_duration(
       return params.min_prepare_duration;
     }
     const auto max_acc =
-      std::min(common_data_ptr->bpp_param_ptr->max_acc, params.max_longitudinal_acc);
+      common_data_ptr->acceleration_limits.limit(min_lc_velocity,
+        std::min(common_data_ptr->bpp_param_ptr->max_acc, params.max_longitudinal_acc));
     if (max_acc < eps) {
       if (params.min_prepare_duration <= eps) {
         return std::numeric_limits<double>::infinity();

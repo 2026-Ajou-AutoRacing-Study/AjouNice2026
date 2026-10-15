@@ -14,6 +14,20 @@ score_threshold="${BEVFUSION_EVAL_SCORE_THRESHOLD:-0.10}"
 vehicle_score_threshold="${BEVFUSION_EVAL_VEHICLE_THRESHOLD:-0.40}"
 pedestrian_score_threshold="${BEVFUSION_EVAL_PEDESTRIAN_THRESHOLD:-0.15}"
 obstacle_score_threshold="${BEVFUSION_EVAL_OBSTACLE_THRESHOLD:-0.10}"
+lidar_deskew_mode="${BEVFUSION_EVAL_LIDAR_DESKEW_MODE:-off}"
+lidar_deskew_reference="${BEVFUSION_EVAL_LIDAR_DESKEW_REFERENCE:-end}"
+lidar_deskew_pose_topic="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TOPIC:-/Ego_topic}"
+lidar_deskew_pose_type="${BEVFUSION_EVAL_LIDAR_DESKEW_POSE_TYPE:-ego_status}"
+temporal_sweeps="${BEVFUSION_EVAL_TEMPORAL_SWEEPS:-0}"
+temporal_maximum_age_sec="${BEVFUSION_EVAL_TEMPORAL_MAXIMUM_AGE_SEC:-0.30}"
+temporal_feature_cache="${BEVFUSION_EVAL_TEMPORAL_FEATURE_CACHE:-false}"
+query_memory_context="${BEVFUSION_EVAL_QUERY_MEMORY_CONTEXT:-false}"
+query_memory_diagnostics_path="${BEVFUSION_EVAL_QUERY_MEMORY_DIAGNOSTICS_PATH:-$output_dir/query_memory_diagnostics.jsonl}"
+publish_detector_velocity="${BEVFUSION_EVAL_PUBLISH_DETECTOR_VELOCITY:-false}"
+detector_velocity_noise_std_mps="${BEVFUSION_EVAL_DETECTOR_VELOCITY_NOISE_STD_MPS:-1.0}"
+gt_reference="${BEVFUSION_EVAL_GT_REFERENCE:-bbox-center-calibrated-v1}"
+asset_bbox_catalog="${BEVFUSION_EVAL_ASSET_BBOX_CATALOG:-dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json}"
+morai_heading_correction_deg="${BEVFUSION_EVAL_MORAI_HEADING_CORRECTION_DEG:-0.0}"
 repo_root="${AJOUNICE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 ros_port="${BEVFUSION_EVAL_ROS_PORT:-$((14000 + ($$ % 18000)))}"
 export ROS_MASTER_URI="http://127.0.0.1:${ros_port}"
@@ -39,6 +53,11 @@ trap cleanup EXIT INT TERM
 cd "$repo_root"
 source /opt/ros/noetic/setup.bash
 source base_ws/devel/setup.bash
+export PYTHONPATH="$repo_root/base_ws/src/tracking_prediction_evaluation/src:${PYTHONPATH:-}"
+evaluation_extra_args=()
+if [[ -n "${BEVFUSION_EVAL_ASSET_NAME_MAP:-}" ]]; then
+  evaluation_extra_args+=(--asset-name-map "$BEVFUSION_EVAL_ASSET_NAME_MAP")
+fi
 
 roscore -p "$ros_port" >"$output_dir/roscore.log" 2>&1 &
 roscore_pid=$!
@@ -54,6 +73,17 @@ roslaunch bevfusion_ros base3_online.launch \
   vehicle_score_threshold:="$vehicle_score_threshold" \
   pedestrian_score_threshold:="$pedestrian_score_threshold" \
   obstacle_score_threshold:="$obstacle_score_threshold" \
+  lidar_deskew_mode:="$lidar_deskew_mode" \
+  lidar_deskew_reference:="$lidar_deskew_reference" \
+  lidar_deskew_pose_topic:="$lidar_deskew_pose_topic" \
+  lidar_deskew_pose_type:="$lidar_deskew_pose_type" \
+  temporal_sweeps:="$temporal_sweeps" \
+  temporal_maximum_age_sec:="$temporal_maximum_age_sec" \
+  temporal_feature_cache:="$temporal_feature_cache" \
+  query_memory_context:="$query_memory_context" \
+  query_memory_diagnostics_path:="$query_memory_diagnostics_path" \
+  publish_detector_velocity:="$publish_detector_velocity" \
+  detector_velocity_noise_std_mps:="$detector_velocity_noise_std_mps" \
   >"$output_dir/bevfusion_bridge.log" 2>&1 &
 bridge_pid=$!
 
@@ -100,11 +130,20 @@ bridge_pid=""
 /usr/bin/python3 \
   base_ws/src/tracking_prediction_evaluation/scripts/evaluate_rosbag_detection.py \
   "$raw_bag" "$output_dir/detections.bag" \
-  --output "$output_dir/summary.json"
+  --output "$output_dir/summary.json" \
+  --gt-reference "$gt_reference" \
+  --asset-bbox-catalog "$asset_bbox_catalog" \
+  --morai-heading-correction-deg "$morai_heading_correction_deg" \
+  "${evaluation_extra_args[@]}"
 
 /usr/bin/python3 - "$output_dir/summary.json" \
   "$score_threshold" "$vehicle_score_threshold" \
-  "$pedestrian_score_threshold" "$obstacle_score_threshold" <<'PY'
+  "$pedestrian_score_threshold" "$obstacle_score_threshold" \
+  "$lidar_deskew_mode" "$lidar_deskew_reference" \
+  "$lidar_deskew_pose_topic" "$lidar_deskew_pose_type" \
+  "$temporal_sweeps" "$temporal_maximum_age_sec" \
+  "$temporal_feature_cache" "$publish_detector_velocity" \
+  "$detector_velocity_noise_std_mps" "$query_memory_context" <<'PY'
 import json
 import sys
 
@@ -117,9 +156,33 @@ report["runtime_class_score_thresholds"] = {
     "pedestrian": float(sys.argv[4]),
     "obstacle": float(sys.argv[5]),
 }
+report["lidar_deskew"] = {
+    "mode": sys.argv[6],
+    "reference": sys.argv[7],
+    "pose_topic": sys.argv[8],
+    "pose_type": sys.argv[9],
+}
+report["temporal_input"] = {
+    "past_sweeps": int(sys.argv[10]),
+    "maximum_age_sec": float(sys.argv[11]),
+    "feature_cache": sys.argv[12].strip().lower() == "true",
+}
+report["detector_velocity_output"] = {
+    "enabled": sys.argv[13].strip().lower() == "true",
+    "noise_std_mps": float(sys.argv[14]),
+}
+report["query_memory_context"] = sys.argv[15].strip().lower() == "true"
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(report, handle, indent=2, sort_keys=True)
     handle.write("\n")
 PY
+
+if [[ -s "$query_memory_diagnostics_path" ]]; then
+  /usr/bin/python3 \
+    perception/detection3d/bevfusion/tools/summarize_query_memory_diagnostics.py \
+    "$query_memory_diagnostics_path" \
+    --output "$output_dir/query_memory_diagnostics_summary.json" \
+    >/dev/null
+fi
 
 echo "[evaluation] $label -> $output_dir/summary.json"

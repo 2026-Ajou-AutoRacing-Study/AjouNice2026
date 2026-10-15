@@ -415,6 +415,17 @@ BehaviorModuleOutput DynamicObstacleAvoidanceModule::plan()
   // create obstacles to avoid (= extract from the drivable area)
   std::vector<DrivableAreaInfo::Obstacle> obstacles_for_drivable_area;
   for (const auto & object : target_objects_) {
+    // A retained static envelope already owns this object's spatial exclusion.
+    // Applying a second predicted-path cutout to the same UUID changes the road
+    // exterior as noisy predicted motion changes, defeating the independent
+    // polygon contract used by static avoidance and the path optimizer.
+    const auto & previous_obstacles = getPreviousModuleOutput().drivable_area_info.obstacles;
+    const bool owned_by_static_scene = std::any_of(
+      previous_obstacles.begin(), previous_obstacles.end(), [&](const auto & obstacle) {
+        return obstacle.direct_constraint &&
+          autoware_utils::to_hex_string(obstacle.id) == object.uuid;
+      });
+    if (owned_by_static_scene) continue;
     const auto obstacle_poly = [&]() {
       if (getObjectType(object.label) == ObjectType::UNREGULATED) {
         return calcPredictedPathBasedDynamicObstaclePolygon(object, ego_path_reserve_poly);

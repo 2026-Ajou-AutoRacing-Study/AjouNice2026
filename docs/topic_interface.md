@@ -19,6 +19,7 @@ MORAI와 이 저장소 사이의 외부 통신은 UDP만 사용한다. `sensor_i
 | 9313 | `/CollisionData` | `morai_msgs/CollisionData` |
 | 9317 | `/Object_topic` | `morai_msgs/ObjectStatusList` |
 | 9319 | `/Competition_topic` | `morai_msgs/EgoVehicleStatus` |
+| derived | `/competition/raw_twist` | `geometry_msgs/TwistStamped` |
 | 9301 | `/sensor/gps` | `morai_msgs/GPSMessage` |
 | 9303 | `/sensor/imu` | `sensor_msgs/Imu` |
 | 9291 | `/sensor/camera/front/compressed` | `sensor_msgs/CompressedImage` |

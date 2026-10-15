@@ -11,11 +11,11 @@
        complete ROS1 parameter surface must be loaded in this node namespace. -->
   <node pkg="autoware_motion_velocity_planner" type="motion_velocity_planner_legacy_node"
         name="motion_velocity_planner" output="screen">
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_common.yaml"/>
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/default_velocity_smoother.yaml"/>
-    <rosparam command="load" file="$(find autoware_velocity_smoother)/config/ros1/Analytical.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_common.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/default_velocity_smoother.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_velocity_smoother/config/ros1/Analytical.yaml"/>
     <rosparam command="load" file="$(arg vehicle_info_param_path)"/>
-    <rosparam command="load" file="$(find autoware_motion_velocity_planner)/config/dynamic_obstacle_stop_ros1.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_motion_velocity_planner/config/dynamic_obstacle_stop_ros1.yaml"/>
     <rosparam param="launch_modules">[autoware::motion_velocity_planner::DynamicObstacleStopModule]</rosparam>
     <remap from="~input/trajectory" to="$(arg input_trajectory)"/>
     <remap from="~input/predicted_objects" to="$(arg input_predicted_objects)"/>
