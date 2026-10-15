@@ -3,6 +3,14 @@
 상태: **EVIDENCE / HOLD**
 검증일: 2026-09-25
 
+**이하 수치·재현 명령은 당시 계약의 역사적 근거다.** 2026-10-15 현재 guard는
+정차 vx/GNSS 위치 안정성·재획득 grace·절대 stamp freshness·단일 reset/ACK gate가
+추가돼 아래 움직이는 합성 이동의 발행 결과를 최신 코드에 그대로 기대하면 안 된다.
+현재 default는 여전히 OFF/monitor-only이며,
+[CURRENT](COMPETITION_LOCALIZATION_CURRENT_STATE.md)와
+[누적 checkpoint·장기 정차·종방향 실험](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)의
+마지막 절을 따른다. GNSS가 없는 순간이동은 별도 명시적 복귀 prior 없이는 복구할 수 없다.
+
 ## 결론
 
 사고 복구로 차량이 수 m 이상 재배치됐을 때 low-Q Global EKF가 과거 위치를 오래
