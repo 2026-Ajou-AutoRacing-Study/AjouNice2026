@@ -248,6 +248,12 @@ def main():
                 if any(not pub.get_num_connections() for pub in (control,loader,capture)):
                     raise RuntimeError('Batch live subscriber missing; no further load')
             meta=json.loads(Path(entry['metadata']).read_text()); scene=json.loads(Path(entry['scenario']).read_text())
+            if 'secondary_far_vehicle' in meta.get('spec',{}):
+                from base5_secondary_far_vehicle import validate_plan,verify_preserved,verify_payload
+                plan=validate_plan(meta['spec'],manifest['config'])
+                verify_preserved(meta,meta)
+                frozen_scene=json.loads(Path(plan['source']['scenario']['path']).read_text())
+                verify_payload(scene,frozen_scene,plan,meta)
             from base5_motion_ground import validate_motion_ground
             validate_motion_ground(meta,scene)
             meta['lidar_to_ego']=calibration['lidar']['lidar_to_ego']

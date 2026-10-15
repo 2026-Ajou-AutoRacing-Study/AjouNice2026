@@ -1,6 +1,6 @@
 # Base5 원거리 차량과 근거리 객체 개선 계획
 
-문서 상태: PLAN. 기준일: 2026-10-14. 2026-10-13 계획을 최신 로컬 근거로 갱신했다.
+문서 상태: PLAN. 기준일: 2026-10-16. 아래 과거 비교의 수치는 유지하고 현재 생성기 상태를 갱신했다.
 현재 실행값은 [모델 CURRENT](CURRENT.md), 배치 release는
 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md), 후단 실행값은
 [Tracking CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)가 관리한다.
@@ -15,13 +15,14 @@
 | 2 저장 검출의 원거리 score 분석 | 로컬 CPU 비교 완료 | 동일 입력의 거리별 누락·미대응·위치 오차를 구분하고 후단 후보 선정 |
 | 3 낮은 score로 기존 차량 track 갱신 | 독립 실제 EKF 코어 원형과 12프로필 비교 완료. production OFF | 이동·클래스 안정·XY 갱신 후보의 실제 ROS 및 새 초기 접근 구간 검증 |
 | 4 지도 보조와 예측 경로 안정화 | 순위 후보는 보류. 출력 동일 CPU 최적화·보행자 Gaussian 순위·E24 중심 보완 반영 | 새 bag의 live tail/age/drop·근접 2인·복합체와 실제 planner 소비를 확인 |
-| 5 다음 생성 분포 조정 | 후보 방향 정리. v150은 그대로 유지 | primary·asset·거리/방향·split 변경을 명시하고 CPU 감사와 소량 캡처 검증 |
+| 5 다음 생성 분포 조정 | v152 장애물 거리 검증 뒤 v153 원거리 보조 차량 검증 중. 80~100m도 적극 개선 목표 | 기존 primary·근접·미션·asset·split 보존, 새 원거리 센서 지원·복구·재개·release 동결 |
 | 6 다른 PC의 병렬 수집 | 전달 실행기 미구현 | 독립 배치·resume·유한 보충·JPEG 전달본·업로드 검증의 한 묶음 시험 |
 | 7 짧은 학습 비교와 최종 학습 | 미실행 | 입력·GT·평가 split을 고정하고 후보 효과와 근접 회귀를 확인 |
 
 실제 작업 우선순위는 [활성 목록](../ACTIVE_PRIORITIES.md#perception-priorities)을 따른다.
 새 bag 분석에 필요한 입력은 [단계별 지연 확인 목록](../ACTIVE_PRIORITIES.md#perception-latency)에 둔다.
-LiDAR 50은 사용자 승인으로 운영 기본값·로컬 설치·실제 수신 검증을 완료했고 팀 planning 통합은 남아 있다.
+LiDAR 50은 운영 기본값·로컬 설치·실제 수신과 planning·develop·main 전체 코드 통합을 마쳤다. 팀 PC 설치·LAN 확인은 남아 있다.
+새 [원거리 근거](../../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md)는 native 지원, 저장 E24의 낮은 score와 query 누락, 부족한 val·접근 bootstrap 평가를 구분한다. 데이터 증가나 threshold 조정만으로 성능 향상을 보장하지 않는다.
 새 bag을 기다리는 동안 생성기 보완·소량 검증을 진행할 수 있다. 실패 원인을 확증하기 전에
 후단과 planner를 동시에 바꾸지 않는다. 본수집·학습·임대 인스턴스 조작·원본 삭제는
 별도 실행 요청과 해당 release 계약을 따른다.

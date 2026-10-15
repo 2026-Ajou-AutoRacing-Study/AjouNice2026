@@ -203,28 +203,36 @@ def load_ledger(path):
 def prepare_session(output,manifest,network,sensor,runner_options=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scripts=Path(__file__).parent
+    deck=json.loads(Path(manifest).read_text())
+    from base5_far_vehicle_native import validate_manifest as validate_far_manifest
+    far_source_pins=validate_far_manifest(deck)
     from generate_dynamic_object_capture_set import DEFAULT_MGEO
     map_sources={name:sha256(DEFAULT_MGEO/name) if (DEFAULT_MGEO/name).exists() else None
         for name in ('link_set.json','lane_boundary_set.json')}
     contract=dict(schema_version=7,manifest_sha256=sha256(manifest),
         ego_support_map_sha256=map_sources,
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_far_vehicle_native.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1; final-ego-road-footprint-v114; post-park-stationary-v114')
-    reference=json.loads(Path(manifest).read_text()).get('config',{}).get('static_placement_geometry')
-    if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_support_policy'):
+    reference=deck.get('config',{}).get('static_placement_geometry')
+    if deck.get('config',{}).get('obstacle_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_support_policy.py']=sha256(scripts/'base5_obstacle_support_policy.py')
         contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
-    if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_front_support_policy'):
+    if deck.get('config',{}).get('obstacle_front_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_front_support.py']=sha256(scripts/'base5_obstacle_front_support.py')
-    range_policy=json.loads(Path(manifest).read_text()).get('config',{}).get('primary_obstacle_range_policy')
+    if deck.get('config',{}).get('secondary_far_vehicle_policy'):
+        for name in ('base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
+                     'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'):
+            contract['safety_code_sha256'][name]=sha256(scripts/name)
+        contract['secondary_far_vehicle_source_files']=far_source_pins
+    range_policy=deck.get('config',{}).get('primary_obstacle_range_policy')
     if range_policy:
         contract['safety_code_sha256']['base5_primary_obstacle_range.py']=sha256(scripts/'base5_primary_obstacle_range.py')
         range_reference=range_policy['reference']
         if sha256(range_reference['path'])!=range_reference['sha256']:
             raise ValueError('Primary obstacle range reference changed')
         contract['primary_obstacle_range_reference']=range_reference
-    if json.loads(Path(manifest).read_text()).get('config',{}).get('parked_npc_placement'):
+    if deck.get('config',{}).get('parked_npc_placement'):
         for name in ('base5_parked_npc_placement.py','base5_static_yaw.py'):
             contract['safety_code_sha256'][name]=sha256(scripts/name)
     if reference:
@@ -248,6 +256,9 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
             raise ValueError('Completed ledger has incomplete provenance: '+ident)
         if sha256(capture/'scenario.json')!=row['scenario_sha256']:
             raise ValueError('Completed capture checksum mismatch: '+ident)
+        from base5_far_vehicle_native import verify_capture as verify_far_capture
+        source_entry=next((e for e in deck.get('scenes',[]) if e['id']==ident),None)
+        verify_far_capture(source_entry,capture)
         cameras=list(capture.glob('CAMERA_*/*_Intensity.png'))
         lidar=list(capture.glob('LIDAR_*/*_Intensity.bin'))
         labels=list(capture.glob('LIDAR_*/*_Instance.txt'))

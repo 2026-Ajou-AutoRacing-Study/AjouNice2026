@@ -545,6 +545,11 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehic
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    if 'secondary_far_vehicle' in row:
+        # Explicit opt-in overlay: preserve the frozen Ego and every other
+        # actor, including the primary. Only the declared secondary may move.
+        from base5_secondary_far_vehicle import build as build_far_secondary
+        return build_far_secondary(row,config,ctx,attempt)
     if 'primary_obstacle_range' in row:
         # Bounds are explicit in the new frozen spec. Never apply a hidden
         # range cap here or reinterpret an old manifest's distance contract.

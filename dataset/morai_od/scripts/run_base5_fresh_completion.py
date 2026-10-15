@@ -19,6 +19,7 @@ import base5_spatial_diversity as spatial
 import base5_front_completion_adapter as front_completion
 import base5_primary_obstacle_range as primary_range
 import base5_primary_visibility_proposal as primary_visibility
+import base5_secondary_far_vehicle as secondary_far
 import run_base5_flexible_completion as flex
 import run_base5_adaptive_completion as adaptive
 from run_base5_motion_contract_repair import motion_matches
@@ -54,9 +55,11 @@ def eligible_floor_donors(source,donors,counts,floor,pools):
     # before floor protection, otherwise it masks the valid source fallback.
     # Frozen front slots regenerate their own geometry, never borrow another
     # asset's stratum. Unplanned slots must not gain one through a donor either.
-    if front_completion.has_plan(source) or primary_range.has_plan(source):return [source]
+    if (front_completion.has_plan(source) or primary_range.has_plan(source)
+            or secondary_far.has_plan(source)):return [source]
     eligible=[d for d in donors if not front_completion.has_plan(d)
-              and not primary_range.has_plan(d) and compatible(source,d,pools)]
+              and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
+              and compatible(source,d,pools)]
     return floor_donors(source,eligible,counts,floor)
 
 
@@ -76,6 +79,33 @@ def verify_parent(manifest,parent):
     misses=set(proof['deficits'])
     if misses!={r['id'] for r in read(parent/'quota.json')['cells']}:raise ValueError('Parent deficit evidence differs')
     return selected,sorted(misses,key=order.get),status['elapsed_sec']
+
+
+def far_parent_payloads(deck,parent):
+    """Collect all attempted far payloads after native parent reconstruction.
+
+    Walk only registered chunk/cell paths, not arbitrary orphan directories.
+    Accepted and rejected captures both count. No new file or ROS action occurs.
+    """
+    if not deck['config'].get('secondary_far_vehicle_policy'):return set()
+    if (parent/'imported_prefix.json').exists():
+        raise ValueError('Far nonrepeat proof requires a native non-imported fresh parent')
+    contract=read(parent/'batch_contract.json');indices=contract['indices'];size=contract['chunk_size']
+    known=set();loop=adaptive.fa.batch.campaign.loop
+    for ordinal,start in enumerate(range(0,len(indices),size)):
+        folder=parent/f'chunk_{ordinal:04d}'
+        if (folder/'capture'/'ledger.jsonl').exists():
+            known.update(loop.captured_payloads([dict(capture_root=str(folder/'capture'))]))
+        for index in indices[start:start+size]:
+            entry=deck['scenes'][index]
+            for number in range(2):
+                path=folder/'recovery'/entry['id']/entry['id']/f'round_{number}'/'report.json'
+                if not path.exists():break
+                report=read(path)
+                if report.get('stage')!='complete':raise ValueError('Far parent recovery report incomplete')
+                known.update(loop.captured_payloads(report['attempts']))
+                if report['selected']:break
+    return known
 
 
 def merged(state):
@@ -122,9 +152,14 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
     if folder.exists():raise FileExistsError('Never replace an existing proposal')
     if primary_range.has_plan(original):
         primary_range.validate_plan(original['spec'],deck['config'])
+    if secondary_far.has_plan(original):
+        secondary_far.validate_plan(original['spec'],deck['config'])
     with spatial.installed():
         if original['runtime_actors']:
-            if front_completion.has_plan(original):
+            if secondary_far.has_plan(original):
+                scene,meta=secondary_far.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            elif front_completion.has_plan(original):
                 scene,meta=front_completion.choose(original,deck['config'],ctx,cal,ordinal,
                     entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
             elif primary_range.has_plan(original):
@@ -132,11 +167,13 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
                     entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
             else:
                 eligible=[d for d in donors if not front_completion.has_plan(d)
-                          and not primary_range.has_plan(d) and compatible(original,d,pools)]
+                          and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
+                          and compatible(original,d,pools)]
                 scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
             if not compatible(original,meta,pools):raise ValueError('Proposed primary gait or mover minima changed')
             front_completion.verify_preserved(original,meta)
             primary_range.verify_preserved(original,meta)
+            secondary_far.verify_preserved(original,meta)
         else:
             spec=copy.deepcopy(original['spec']);spec['seed']=spatial.seed_for(deck['config']['environment_tag'],entry['id'],ordinal)
             for retry in range(512):
@@ -183,6 +220,7 @@ def verify(a,deck,source,pools):
         meta=read(Path(row['capture_root'])/'metadata.json')
         front_completion.verify_preserved(source,meta)
         primary_range.verify_preserved(source,meta)
+        secondary_far.verify_preserved(source,meta)
         if source['runtime_actors']:
             if not compatible(source,meta,pools):
                 return dict(status='review',reasons=['fresh_completion_family_motion_contract_changed'],observed_selected=row)
@@ -222,6 +260,9 @@ def execute(a):
                 'base5_obstacle_rich_floor.py','base5_obstacle_support_policy.py'])
         if deck['config'].get('primary_obstacle_range_policy'):
             completion_names.extend(['base5_primary_obstacle_range.py','base5_primary_visibility_proposal.py'])
+        if deck['config'].get('secondary_far_vehicle_policy'):
+            completion_names.extend(['base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
+                'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'])
         contract=dict(policy=POLICY,source_sha256=sha256(a.manifest),baseline=str(a.baseline.resolve()),
             parent_hashes={n:sha256(a.baseline/n) for n in ('selected_ledger.jsonl','quota.json','batch_contract.json','fresh_runtime_contract.json')},
             code_hashes={name:sha256(Path(__file__).with_name(name)) for name in completion_names},
@@ -272,6 +313,7 @@ def execute(a):
         for original in originals.values():
             front_completion.verify_preserved(original,original)
             primary_range.verify_preserved(original,original)
+            secondary_far.verify_preserved(original,original)
         missing=save(state['stage'])
         if not a.run:return 0
         ctx=adaptive.prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO),deck['config'])
@@ -280,9 +322,12 @@ def execute(a):
         primary_counts=Counter(d['runtime_actors'][0]['data_id'] for d in donors if d['runtime_actors'])
         floor=deck['config'].get('coverage_policy',{}).get('minimum_accepted_visible_primary_per_asset',4)
         cal=adaptive.fa.normalized_sensor_calibration(adaptive.fa.SENSOR)
-        known={e['scenario_sha256'] for e in deck['scenes']}|{r['scenario_sha256'] for r in baseline}|{v['entry']['scenario_sha256'] for v in state['attempts']}
+        known=({e['scenario_sha256'] for e in deck['scenes']}|{r['scenario_sha256'] for r in baseline}
+            |{v['entry']['scenario_sha256'] for v in state['attempts']}|far_parent_payloads(deck,a.baseline))
         for v in state['attempts']:
             if v.get('result') is not None and verify(v,deck,originals[v['id']],pools)!=v['result']:raise ValueError('Past completion evidence changed')
+            if v.get('result') is not None and secondary_far.has_plan(originals[v['id']]):
+                known.update(adaptive.fa.batch.campaign.loop.captured_payloads([dict(capture_root=v['capture'])]))
             if (v.get('result') or {}).get('status')=='accepted_candidate':
                 m=read(Path(v['result']['capture_root'])/'metadata.json')
                 if m['runtime_actors']:primary_counts[m['runtime_actors'][0]['data_id']]+=1
@@ -303,6 +348,9 @@ def execute(a):
                     options=eligible_floor_donors(originals[ident],donors,primary_counts,floor,pools)
                     try:v=prepare(lookup[ident],originals[ident],options,deck,ctx,cal,ordinal,a.output/'cells'/ident/f'attempt_{ordinal}'/'placement',known,pools)
                     except ValueError as exc:
+                        if (secondary_far.has_plan(originals[ident])
+                                and not isinstance(exc,secondary_far.FarGeometryExhausted)):
+                            raise
                         if (primary_range.has_plan(originals[ident])
                                 and not isinstance(exc,(primary_range.RangeGeometryExhausted,
                                                         front_completion.FrontGeometryExhausted))):

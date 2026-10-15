@@ -54,20 +54,65 @@ class PlacementProposalExhausted(ValueError):
     """No new MORAI load: bounded offline geometry search could not fill a cell."""
 
 
-def replacement(manifest,output,require_ground_observable=False):
+def captured_payloads(attempts):
+    """Read retained native session ledgers; never infer a failed pose from names.
+
+    Callers first validate the session/Park contract. Recheck raw payload hashes
+    here as well, including reviewed captures, so recovery cannot recycle them.
+    """
+    known=set()
+    for attempt in attempts:
+        if not attempt.get('capture_root') or attempt.get('kind')=='static_rigid_raw_reaudit':continue
+        root=Path(attempt['capture_root']);ledger=root/'ledger.jsonl'
+        if not ledger.exists():raise ValueError('Native attempt ledger missing for nonrepeat proof')
+        raw_ledger=ledger.read_bytes()
+        if raw_ledger and not raw_ledger.endswith(b'\n'):
+            raise ValueError('Native attempt ledger is unterminated; nonrepeat proof cannot repair it')
+        for row in (json.loads(line) for line in raw_ledger.splitlines()):
+            digest=row['scenario_sha256'];raw=row.get('capture_root')
+            if raw and sha256(Path(raw)/'scenario.json')!=digest:
+                raise ValueError('Native attempted payload changed')
+            known.add(digest)
+    return known
+
+
+def replacement(manifest,output,require_ground_observable=False,
+                far_known_payloads=None,far_retry_block=0):
     m=gen.geo.load_json(manifest);old=m['scenes'][0];meta=gen.geo.load_json(Path(old['metadata']))
+    far_plan='secondary_far_vehicle' in meta.get('spec',{})
+    if type(far_retry_block) is not int or not 0<=far_retry_block<=15:
+        raise ValueError('Far retry block must be an integer in 0..15')
+    if not far_plan and (far_retry_block or far_known_payloads):
+        raise ValueError('Far-only nonrepeat options require an explicit far plan')
+    known=set(far_known_payloads or ())|{old['scenario_sha256']}
     ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
     if m['config'].get('obstacle_support_policy'):
         # Cache pure road/region indices on the shared context BEFORE the
         # builder's shallow static-geometry copy. No pose or QA gate changes.
         from run_base5_failure_aware_replenishment_fast import prewarm
         ctx=prewarm(ctx,m['config'])
-    for retry in range(meta['retry']+1,meta['retry']+513):
+    start=meta['retry']+1+4096*far_retry_block
+    for retry in range(start,start+512):
         try:scene,new=gen.build(meta['spec'],m['config'],ctx,retry)
-        except ValueError:continue
+        except ValueError as exc:
+            if 'secondary_far_vehicle' in meta.get('spec',{}):
+                from base5_secondary_far_vehicle import FarGeometryExhausted
+                if not isinstance(exc,FarGeometryExhausted):raise
+            continue
         if new['split']!=meta['split']:continue
         primary=lambda m:m['runtime_actors'][0]['data_id'] if m['runtime_actors'] else None
         if primary(new)!=primary(meta):raise ValueError('Replacement changed primary asset')
+        if 'secondary_far_vehicle' in meta.get('spec',{}):
+            from base5_secondary_far_vehicle import verify_preserved
+            import hashlib
+            verify_preserved(meta,new)
+            payload=hashlib.sha256((json.dumps(scene,ensure_ascii=False,indent=2)+'\n').encode()).hexdigest()
+            target=meta['spec']['secondary_far_vehicle']['target_ordinal']
+            before=meta['runtime_actors'][target]['geometric_center_estimate']
+            after=new['runtime_actors'][target]['geometric_center_estimate']
+            import math
+            if payload in known or math.dist(before,after)<.25:
+                continue  # Never reload the same failed far-secondary pose.
         if require_ground_observable:
             from prepare_base5_empty_ground_probe import target_probe_pose
             # Animated preparation observes every target through empty probes
@@ -84,23 +129,30 @@ def replacement(manifest,output,require_ground_observable=False):
         break
     else:raise PlacementProposalExhausted('Same-cell/split replacement unavailable after 512 offline proposals')
     output.mkdir();sid=old['id']+'_replace';sp=output/(sid+'.json');mp=output/(sid+'_metadata.json')
-    new['replacement']=dict(source_cell_id=old.get('source_cell_id',old['id']),source_scenario_sha256=old['scenario_sha256'],
+    provenance=dict(source_cell_id=old.get('source_cell_id',old['id']),source_scenario_sha256=old['scenario_sha256'],
         policy='same primary asset, family, mission, motion request, role, distance cell and split; no GT rewriting',
         ground_observation_preflight=require_ground_observable,
         ground_observation_limitation='Mapped-road witness pose availability only; actual terrain and visibility still required')
+    if far_plan:
+        # Preserve all inherited v150/v152 provenance. This replacement changes
+        # only the declared secondary, not the old obstacle pair's Ego/primary.
+        new['secondary_far_vehicle_replacement']=provenance
+        provenance.update(retry_block=far_retry_block,
+            avoided_payload_sha256=sorted(known),offline_proposals=retry-start+1)
+    else:new['replacement']=provenance
     # Geometry may change, but environment variants must never acquire a new
     # split/group identity, even through nested quality-loop replacements.
     for key in ('scene_group_id','environment_split_contract'):
         if key in meta:new[key]=copy.deepcopy(meta[key])
     for key in ('logical_quota_slot_id','fresh_environment_provenance','obstacle_support_pair'):
         if key in meta:new[key]=copy.deepcopy(meta[key])
-    if 'obstacle_support_pair' in new:
+    if 'obstacle_support_pair' in new and not far_plan:
         new['obstacle_support_pair'].update(actual_retry=retry,ego_xy_delta_m=None,
             recovery_geometry_changed=True,pair_precision='same identity; replacement geometry, not exact pose pair')
     atomic_json(sp,scene);atomic_json(mp,new)
     old.update(id=sid,scenario=str(sp.resolve()),metadata=str(mp.resolve()),scenario_sha256=sha256(sp),
         motion=new['runtime_actors'][0]['motion'] if new['runtime_actors'] else old.get('motion',meta['spec'].get('motion','static')))
-    old['source_cell_id']=new['replacement']['source_cell_id']
+    old['source_cell_id']=provenance['source_cell_id']
     atomic_json(output/'manifest.json',m);return output/'manifest.json'
 
 
@@ -169,7 +221,8 @@ def near_motion_probe_requests(metadata):
     return requests
 
 
-def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None):
+def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed_capture=None,
+            far_known_payloads=None):
     started=time.monotonic()
     if output.exists() and not resume:raise FileExistsError('New quality-loop output required; use campaign resume')
     if not 1<=len(indices)<=4 or len(set(indices))!=len(indices):raise ValueError('Pilot limited to 1–4 cells')
@@ -189,6 +242,13 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 gen.geo.load_json(Path(item['metadata']))
             return path
         return make()
+    def replace_far_aware(manifest,folder,require_ground_observable=False):
+        deck=gen.geo.load_json(manifest)
+        meta=gen.geo.load_json(Path(deck['scenes'][0]['metadata']))
+        options=dict(require_ground_observable=require_ground_observable)
+        if 'secondary_far_vehicle' in meta.get('spec',{}):
+            options['far_known_payloads']=set(far_known_payloads or ())|captured_payloads(attempts)
+        return replacement(manifest,folder,**options)
     def save(stage,error=None):
         # Preserve usable selections even when a later child fails. Unsafe
         # children never enter this list or the conversion handoff.
@@ -376,8 +436,13 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                     # the outer campaign may make one same-quota replacement.
                     if any(r.startswith('static_ground_') for r in reasons):break
                     if not budget.spend('replacement'):break
-                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',
-                        lambda:replacement(manifest,base/f'replacement_deck_{ordinal}'))
+                    try:
+                        next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',
+                            lambda:replace_far_aware(manifest,base/f'replacement_deck_{ordinal}'))
+                    except PlacementProposalExhausted:
+                        if 'secondary_far_vehicle' not in current_meta.get('spec',{}):raise
+                        budget.reason='far_secondary_offline_proposals_exhausted'
+                        break  # No new load; keep the native rejected scene as deficit.
                     manifest=next_manifest
                     result=capture(manifest,base/f'retry_{ordinal}',cell,'same_cell_replacement')
                     continue
@@ -437,11 +502,11 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                         attempts.append(dict(cell=cell,kind='ground_preparation_unavailable',error=str(exc)))
                         if not budget.spend('replacement'):break
                         fallback_deck=base/f'fallback_deck_{ordinal}'
-                        next_manifest=prepared(fallback_deck/'manifest.json',lambda:replacement(manifest,fallback_deck,require_ground_observable=True))
+                        next_manifest=prepared(fallback_deck/'manifest.json',lambda:replace_far_aware(manifest,fallback_deck,require_ground_observable=True))
                         kind='same_cell_replacement'
                 else:
                     if not budget.spend('replacement'):break
-                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replacement(manifest,base/f'replacement_deck_{ordinal}',
+                    next_manifest=prepared(base/f'replacement_deck_{ordinal}'/'manifest.json',lambda:replace_far_aware(manifest,base/f'replacement_deck_{ordinal}',
                         require_ground_observable='actor_ground_plane_unverified' in reasons))
                     kind='same_cell_replacement'
                 if not gen.geo.load_json(next_manifest)['scenes']:break

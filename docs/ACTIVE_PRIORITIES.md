@@ -1,6 +1,6 @@
 # AjouNice2026 활성 최우선 계획
 
-문서 상태: PRIORITIES. 인지 항목 갱신: 2026-10-15, Asia/Seoul.
+문서 상태: PRIORITIES. 인지 항목 갱신: 2026-10-16, Asia/Seoul.
 이 문서는 다음에 수행할 미완료 작업과 착수 조건만 관리한다. 실행값·실측·명령은
 각 CURRENT, EVIDENCE, RUNBOOK을 따른다. 완료된 실험을 날짜별로 다시 쌓지 않는다.
 Localization P0는 이번 인지 문서 정리에서 변경하지 않았다.
@@ -49,12 +49,12 @@ Localization P0는 이번 인지 문서 정리에서 변경하지 않았다.
 |---|---|---|
 | A 새 팀장님 bag의 단계별 지연 분석 | 필요한 계측을 포함한 새 bag이 도착하면 인지 분석에서 먼저 수행한다 | 센서→검출→후단의 계산·큐·전달 비용, p50/p95/p99·누락을 분리하고 병목 개선 전후 회귀를 비교 |
 | B LiDAR 50 팀 배포 마무리 | 로컬 기본값·설치·실제 수신 검증 완료. planning·develop·main 전체 병합 및 최신 ZIP 재동결 반영. 팀 PC 설치·LAN 확인 필요 | 최신 코드·설치본·실제 packet count 일치, LAN 입력·카메라 정합·연속 출력 확인 |
-| C 다음 생성기 분포 보완 | 새 bag을 기다리지 않고 소량 실험을 진행할 수 있다 | 근접 장애물·얇은 barrier·희귀 자산과 원거리 차량의 실제 GT·센서 지원·거리/방향 편중을 비교하고 새 release 확정 |
+| C 다음 생성기 분포 보완 | [v153d_fast](../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md)의 160장 파생·5K CPU 감사·고정 32/32 native·부분/완료 resume 확인. 80~100m·camera-only 목표 유지 | 기존 근접·미션 보존과 실제 거리 coverage를 기준으로 새 runtime release 동결. 다른 환경은 새 source에서 별도 검증 |
 | D 병렬 수집 전달본 준비 | 생성기 분포 확정 뒤 수행한다 | 독립 환경/seed/shard, resume·유한 보충·JPEG 변환·metadata·checksum·업로드를 소량 end-to-end 검증 |
 | E 짧은 학습 비교와 최종 학습 | compile OFF·nearest 공통 설정·준비 전용 CPU 경로 완료. 데이터·GT·split 동결 및 GPU 자격 검증·별도 실행 승인 후 학습한다 | 근접 장애물 회귀와 원거리 차량·보행자·복합체를 동일 평가 입력으로 비교하고 checkpoint 백업 확인 |
 
 A는 새 자료 도착 시 우선하는 작업이지 C를 막는 선행 조건이 아니다.
-현재 바로 진행할 순서는 B의 팀 PC 설치·LAN 확인과 C의 생성기 소량 검증이다.
+현재 바로 진행할 순서는 B의 팀 PC 설치·LAN 확인과 C의 검증 결과 반영·새 release 동결이다.
 각 후보의 상세 실험은 [개선 계획](bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)을 따른다.
 본수집·학습·임대 인스턴스 조작·원본 삭제는 이 목록만으로 자동 실행하지 않는다.
 

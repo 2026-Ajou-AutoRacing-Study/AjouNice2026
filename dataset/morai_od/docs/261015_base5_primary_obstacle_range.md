@@ -4,6 +4,10 @@
 전체 5K CPU 감사와 아래 소량 native 검증을 마쳤다. 새 Sunny13 release는 `bulk_ready=true`이나 본수집은 실행하지 않았다.
 완료 Sunny13 5K, 기존 v151 원본·실패 증거·release, E24 가중치는 변경하지 않는다.
 
+후속 안내(2026-10-16): [v153 원거리 보조 차량](261016_base5_far_vehicle_reinforcement.md)을 별도 후보로 검증 중이다.
+아래 `bulk_ready=true`는 v152 당시 코드 해시에 한정되며, 현재 수정된 runtime으로 승인 없이 재사용하지 않는다.
+당시 결과와 실패·성공 원본은 그대로 보존한다. 현재 상태는 [데이터 CURRENT](BASE5_V2_CURRENT.md)를 따른다.
+
 ## 변경 이유와 범위
 
 v151에서 남은 원거리 주 객체의 실패는 Z 오류나 충돌이 아니라 센서 근거 부족이었다.

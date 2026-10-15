@@ -9,6 +9,7 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
+| 80~100m 차량·camera-only 근거·보조 차량 160개와 소량 검증 | [v153 원거리 보강](261016_base5_far_vehicle_reinforcement.md) |
 | v151 전방 보강·원거리 차량·복합 성분별 소량 진단 | [10/15 실측·보존 계약·승격 전 남은 조건](261015_base5_front_far_compound_experiments.md) |
 | v152 작은 물리 primary 거리·3D 완전 가림 보충·현재 source 동결 | [최종 53장 전수·재개·release 근거](261015_base5_primary_obstacle_range.md) |
 | v151 실패분 새 배치·부분/완료 재개·과거 차단 근거 | [당시 유한 보충과 release 검증](261015_base5_front_recovery_release.md) |

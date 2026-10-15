@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-15.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-16.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -95,6 +95,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
 후속의 기준은 [원거리 차량과 근거리 객체 개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)과
 [오프라인 센서·중복·노드 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md)다.
 팀장님 검증과 로컬 분석을 분리하며 원거리 라벨 삭제·Vehicle 강제 변환·긴 기억은 적용하지 않는다.
+2026-10-16 [80~100m 검토와 v153 후보](../../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md)에서 실제 native 지원과 최신 저장 E24 출력을 분리했다. 0점 camera-only도 개선 목표이며 threshold만 낮추지 않는다. 새 배치 검증은 재학습 성능 개선의 인증이 아니고 현재 모델·운영값은 유지한다.
 
 1. 최신 팀장님 E24 완주·무충돌 bag 분석은 완료했다. [활성 우선순위](../ACTIVE_PRIORITIES.md#perception-latency)에 따라 새 계측 bag 도착 시 단계별 지연·실제 consumed path·YOLO 동시 부하를 우선 분석한다. 생성기 보완은 기다리지 않는다.
 2. 동일 저장 검출의 Vehicle score 0.40/0.35/0.30/0.20/0.10 CPU 비교를 완료했다.

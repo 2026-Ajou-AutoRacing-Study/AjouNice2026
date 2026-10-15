@@ -10,6 +10,7 @@
 |---|---|
 | 현재 모델·checkpoint·옵션 선택 | [CURRENT](CURRENT.md) |
 | 원거리 차량·후단·다음 수집과 최종 학습의 진행 순서 | [개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md) |
+| 80~100m의 실제 센서·E24 누락 원인과 보조 차량 보강 | [v153 데이터·검증 근거](../../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md) |
 | Production E24 배포와 E25 복귀 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Base5 ROS 시험 | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md) |
 | 운영 localization과 독립 평가 GT의 heading·pose 기준 | [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md) |

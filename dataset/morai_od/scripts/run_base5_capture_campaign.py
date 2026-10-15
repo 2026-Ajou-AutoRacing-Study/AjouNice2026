@@ -20,11 +20,13 @@ def subset_deck(original, scenes):
 
 def contract(source, indices, rounds):
     data=loop.gen.geo.load_json(source)
+    from base5_far_vehicle_native import validate_manifest as validate_far_manifest
+    far_source_pins=validate_far_manifest(data,[data['scenes'][i] for i in indices])
     scripts=Path(__file__).parent
     names=['run_base5_capture_campaign.py','run_base5_quality_loop.py',
            'generate_base5_independent.py','prepare_base5_ground_retry.py',
            'prepare_base5_empty_ground_probe.py','prepare_base5_probed_retry.py',
-           'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py',
+           'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py','base5_far_vehicle_native.py',
            'base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','base5_capture_timing.py','base5_event_cmd.py']
     names.extend(['prepare_base5_setup_budget_pilot.py','base5_motion_ground.py','base5_static_height.py',
         'base5_static_ground_reference.py','prepare_base5_static_height_reference.py','base5_population_budget.py',
@@ -36,6 +38,9 @@ def contract(source, indices, rounds):
         names.extend(['base5_obstacle_support_policy.py','base5_obstacle_rich_floor.py'])
     if data['config'].get('obstacle_front_support_policy'):
         names.append('base5_obstacle_front_support.py')
+    if data['config'].get('secondary_far_vehicle_policy'):
+        names.extend(['base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
+            'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'])
     if data['config'].get('primary_obstacle_range_policy'):
         names.append('base5_primary_obstacle_range.py')
         range_reference=data['config']['primary_obstacle_range_policy']['reference']
@@ -52,10 +57,13 @@ def contract(source, indices, rounds):
             raise ValueError('Source scenario checksum mismatch')
         sources.append([row['id'],row['scenario_sha256'],sha256(Path(row['metadata']))])
     repo=scripts.parents[2]
-    return dict(schema=1,manifest=sha256(source),indices=indices,rounds=rounds,
+    result=dict(schema=1,manifest=sha256(source),indices=indices,rounds=rounds,
                 network=sha256(repo/'configs/network/ego_network_mr_base5_savesensordata_collision_local.json'),
                 sensor=sha256(repo/'configs/sensors/Sensor_competition_local.json'),
                 source_files=sources,code={n:sha256(scripts/n) for n in names})
+    if data['config'].get('secondary_far_vehicle_policy'):
+        result['secondary_far_vehicle_source_files']=far_source_pins
+    return result
 
 
 def validate_selected(report):
@@ -155,7 +163,8 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
             deck=subset_deck(original,[row])
             manifest=cell/'manifest.json'
             if not manifest.exists():atomic_json(manifest,deck)
-            outcome=None
+            outcome=None;far_known=set()
+            far_plan='secondary_far_vehicle' in loop.gen.geo.load_json(Path(row['metadata'])).get('spec',{}) if row.get('metadata') else False
             for ordinal in range(rounds):
                 target=cell/f'round_{ordinal}';report=target/'report.json'
                 if ordinal:
@@ -166,8 +175,10 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                             or 'actor_ground_plane_unverified' in r.get('reasons',[]))
                             for r in (outcome or {}).get('unresolved',[]))
                         try:
-                            if needs_ground:loop.replacement(manifest,replacement.parent,require_ground_observable=True)
-                            else:loop.replacement(manifest,replacement.parent)
+                            options={}
+                            if needs_ground:options['require_ground_observable']=True
+                            if far_plan:options.update(far_known_payloads=far_known,far_retry_block=ordinal)
+                            loop.replacement(manifest,replacement.parent,**options)
                         except loop.PlacementProposalExhausted as exc:
                             # The previous round ended with verified Park and
                             # native rejection. No new scene was loaded. Keep
@@ -194,10 +205,12 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                     # STOP is also watched within the running bounded loop.
                     options=dict(resume=target.exists(),stop_path=output/'STOP',progress=progress)
                     if ordinal==0 and seed_capture is not None:options['seed_capture']=seed_capture
+                    if far_plan:options['far_known_payloads']=far_known
                     code=loop.execute(manifest,[0],target,**options)
                     outcome=loop.gen.geo.load_json(report)
                     if code:raise RuntimeError('Quality child halted; no next cell: '+str(target))
                     validate_selected(outcome)
+                if far_plan:far_known.update(loop.captured_payloads(outcome['attempts']))
                 if outcome['selected']:
                     accepted=copy.deepcopy(outcome['selected'][0]);accepted['source_cell_id']=row['id']
                     selected.append(accepted);break
