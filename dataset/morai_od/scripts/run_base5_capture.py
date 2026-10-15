@@ -649,6 +649,11 @@ def main():
                 timing.mark('failed_phase')
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
+                from base5_capture_safety import ScenePoseUnverifiedError,write_scene_pose_failure
+                if isinstance(exc,ScenePoseUnverifiedError):
+                    with lock:ego_history=[r for r in traces if r['t']>=load_time]
+                    result.update(write_scene_pose_failure(args.output,entry['id'],entry['scenario_sha256'],
+                        exc.evidence,ego_history))
                 if drift_evidence is not None:
                     # A scene quality failure cannot mask an outage or missing
                     # collision history. Such failures still stop the campaign.

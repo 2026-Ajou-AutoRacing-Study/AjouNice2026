@@ -48,6 +48,10 @@ def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=
         raise ValueError('Only the remaining five environments; Sunny13 stays preserved')
     if output.exists():raise FileExistsError('Fresh environment directory required')
     original=json.loads(source.read_text());source_hash=sha256(source);config=copy.deepcopy(original['config'])
+    if config.get('obstacle_front_support_policy'):
+        raise ValueError('Generate each fresh environment from the v150 source first, then run '
+            'prepare_base5_obstacle_front_support.py on that complete environment deck. '
+            'Do not reseed a frozen v151 allocation or silently remove its plan.')
     generator_hash=sha256(__file__);adapter_hash=sha256(spatial.__file__)
     config['dataset_id']='base5_fresh_v141_'+environment;config['environment_tag']=environment
     config['collection_environment']=dict(weather=environment[:-2],hour=int(environment[-2:]),

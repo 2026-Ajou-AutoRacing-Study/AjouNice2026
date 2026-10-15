@@ -2,12 +2,62 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from base5_capture_safety import collision_window,load_ledger,prepare_session,archive_incomplete,runtime_presence_review,confirm_park,park_request_fields
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_repeated_pose_failures_preserve_both_original_evidence_hashes(self):
+        from base5_capture_safety import write_scene_pose_failure,sha256
+        with tempfile.TemporaryDirectory() as temp:
+            a=write_scene_pose_failure(temp,'same_scene','scenario',{'no_capture_requested':True},[{'t':1}])
+            original=Path(a['failure_evidence']).read_bytes()
+            b=write_scene_pose_failure(temp,'same_scene','scenario',{'no_capture_requested':True},[{'t':2}])
+            self.assertNotEqual(a['failure_evidence'],b['failure_evidence'])
+            self.assertEqual(Path(a['failure_evidence']).read_bytes(),original)
+            for result in (a,b):
+                self.assertEqual(sha256(result['failure_evidence']),result['failure_evidence_sha256'])
+                self.assertEqual(result['failure_kind'],'collision_scene_pose_unverified')
+
+    def test_front_support_helper_is_pinned_only_for_explicit_candidate(self):
+        import base5_capture_safety as safety
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);manifest=root/'manifest.json';network=root/'network';sensor=root/'sensor'
+            manifest.write_text(json.dumps(dict(config=dict(obstacle_front_support_policy='v151'))))
+            network.write_text('{}');sensor.write_text('{}')
+            safety.prepare_session(root/'out',manifest,network,sensor)
+            contract=json.loads((root/'out'/'session_contract.json').read_text())
+            self.assertIn('base5_obstacle_front_support.py',contract['safety_code_sha256'])
+            real_hash=safety.sha256
+            def changed(path):
+                return 'changed' if Path(path).name=='base5_obstacle_front_support.py' else real_hash(path)
+            with patch.object(safety,'sha256',side_effect=changed):
+                with self.assertRaisesRegex(ValueError,'contract mismatch'):
+                    safety.prepare_session(root/'out',manifest,network,sensor)
+            manifest.write_text('{}')
+            safety.prepare_session(root/'legacy',manifest,network,sensor)
+            legacy=json.loads((root/'legacy'/'session_contract.json').read_text())
+            self.assertNotIn('base5_obstacle_front_support.py',legacy['safety_code_sha256'])
+
+    def test_scene_pose_mismatch_preserves_evidence_and_still_halts(self):
+        from base5_capture_safety import scene_collision_epoch,ScenePoseUnverifiedError
+        peer=dict(unique_id=8500)
+        ego=dict(unique_id=0,position=dict(x=2.,y=3.,z=28.),heading=195.)
+        rows=[dict(t=2.,message=dict(collision_object=[peer],collision_objecta=[ego]))]
+        with self.assertRaises(ScenePoseUnverifiedError) as caught:
+            scene_collision_epoch(rows,1.,dict(x=2.,y=3.,yaw=15.))
+        evidence=caught.exception.evidence
+        self.assertIsInstance(caught.exception,RuntimeError)
+        self.assertTrue(evidence['no_capture_requested'])
+        self.assertEqual(evidence['collision_samples'],rows)
+        self.assertEqual(evidence['ego_observations'][0]['position_error_m'],0.)
+        self.assertEqual(evidence['ego_observations'][0]['raw_heading_minus_requested_deg'],-180.)
+        self.assertEqual(evidence['heading_correction_deg'],-1.347)
+        with self.assertRaises(ScenePoseUnverifiedError):
+            scene_collision_epoch([],1.,dict(x=2.,y=3.,yaw=15.))
+
     def test_batch_mode_is_part_of_resume_contract(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);files=[]

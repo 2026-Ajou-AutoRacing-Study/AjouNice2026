@@ -1,6 +1,6 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-13.
+문서 상태: CURRENT. 근거 확인: 2026-10-15.
 Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K는 생성·준비만 완료했다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
@@ -19,9 +19,10 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
 | 다음 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite`의 독립 25K offline 계획. v142/v149 보존 |
 | Sunny13 동결 release | 같은 실험 root의 `release_v150_sunny13/release.json`. 버스 4/4, 정적 보충 64/64, 이동 8/8, `bulk_ready=true` |
-| 본수집 상태 | 미실행. 새 Sunny13는 CPU prepare-only 0장. 다른 날씨는 실제 UI 확인과 소량 검증 필요 |
+| 본수집 상태 | 미실행. 전방·원거리·복합 진단 70장과 v151 5K CPU 계획만 확인. 다른 날씨와 새 release 승격은 별도 필요 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
+v150의 `bulk_ready`는 10/13 당시 source의 보존된 검증 snapshot이다. v151·현재 source를 새로 동결한 승인으로 해석하지 않는다.
 다섯 환경의 새 geometry·CPU preflight·소량 live 검증은
 [수집기 근거](261010_base5_postcollection_collector_work.md)에서 확인한다.
 다른 환경의 상태가 바뀌면 실제 journal을 확인한 뒤 이 표를 갱신한다.
@@ -65,7 +66,7 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
 다음 25K는 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)과 [보강 근거](261013_base5_obstacle_support_experiments.md)를 따른다.
 [원거리 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 quota 축소는 후속 후보이며 v150에 적용하지 않았다.
 개수·거리 비율은 실측으로 수정하되 실제 보이는 원거리 GT를 삭제하거나 Vehicle로 바꾸지 않는다.
-MR 통제권을 별도로 받은 뒤 live 실험한다. 새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다.
+10/15 v151은 추가 장애물 338개만 전방 지원으로 재배치한 별도 후보다. [70장 소량 근거·복합 진단·남은 승격 조건](261015_base5_front_far_compound_experiments.md)을 따른다.
 `fresh_suite_final_v142`는 이전 baseline으로 보존한다. 새 Sunny13는 원래 30K에 자동 합산하지 않는다.
 
 <a id="capture"></a>
@@ -89,7 +90,7 @@ MR 통제권을 별도로 받은 뒤 live 실험한다. 새 후보는 기존 rel
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
 v150의 64+8장 QA 포함 가중 예상은 5K 약 8.14시간/31.25GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v149와 표본이 달라 순수 속도 개선율로 해석하지 않는다. 현재 여유 약 110GiB로 25K 전체 보관은 부족하다.
+실제 본수집 rate로 갱신한다. v149와 표본이 달라 순수 속도 개선율로 해석하지 않는다. 10/15 여유 약 67GiB로 25K 전체 보관은 부족하다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>

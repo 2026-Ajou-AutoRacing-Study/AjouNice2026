@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import time
 import math
+import uuid
 
 
 def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limit_m=.10,height_limit_m=.05,ground_support_verified=False):
@@ -61,6 +62,21 @@ def sha256(path):
 
 class SceneCollisionError(RuntimeError):
     """Confirmed per-scene contact, not a transport or exit-safety failure."""
+
+
+class ScenePoseUnverifiedError(RuntimeError):
+    """Keep raw mismatch evidence without weakening the collision epoch gate."""
+    def __init__(self, evidence):
+        super().__init__('Collision stream new-scene Ego pose unverified; no capture')
+        self.evidence = evidence
+
+
+def write_scene_pose_failure(output, ident, scenario_hash, evidence, ego_history):
+    """Append immutable evidence even if the same failed cell is attempted again."""
+    path=Path(output)/'failures'/(ident+'_collision_pose_'+uuid.uuid4().hex+'.json')
+    atomic_json(path,dict(evidence,scenario_sha256=scenario_hash,ego_load_samples=ego_history))
+    return dict(failure_kind='collision_scene_pose_unverified',
+        failure_evidence=str(path.resolve()),failure_evidence_sha256=sha256(path))
 
 
 def is_stationary_failure(row):
@@ -199,6 +215,8 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_support_policy.py']=sha256(scripts/'base5_obstacle_support_policy.py')
         contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
+    if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_front_support_policy'):
+        contract['safety_code_sha256']['base5_obstacle_front_support.py']=sha256(scripts/'base5_obstacle_front_support.py')
     if json.loads(Path(manifest).read_text()).get('config',{}).get('parked_npc_placement'):
         for name in ('base5_parked_npc_placement.py','base5_static_yaw.py'):
             contract['safety_code_sha256'][name]=sha256(scripts/name)
@@ -266,4 +284,19 @@ def scene_collision_epoch(samples,load_time,expected,max_pose_error=.35):
             if abs(yaw)<=1.:
                 return rows[i:],dict(matched=True,start_monotonic=row['t'],excluded_transition_messages=i,
                     contract='Trim only pre-new-pose prefix; never discard later collision-induced drift')
-    raise RuntimeError('Collision stream new-scene Ego pose unverified; no capture')
+    observations=[]
+    for row in rows:
+        for key in ('collision_object','collision_objecta'):
+            for ego in row['message'].get(key,[]):
+                if int(ego['unique_id'])!=0:continue
+                raw_delta=(float(ego['heading'])-expected['yaw']+180)%360-180
+                observations.append(dict(t=row['t'],array=key,position=ego['position'],
+                    heading_raw_deg=ego['heading'],
+                    position_error_m=math.hypot(ego['position']['x']-expected['x'],ego['position']['y']-expected['y']),
+                    raw_heading_minus_requested_deg=raw_delta,
+                    corrected_heading_error_deg=(raw_delta-1.347+180)%360-180))
+    raise ScenePoseUnverifiedError(dict(reason='collision_scene_pose_unverified',expected=expected,
+        load_time_monotonic=load_time,max_xy_error_m=max_pose_error,max_yaw_error_deg=1.,
+        heading_correction_deg=-1.347,ego_observations=observations,collision_samples=rows,
+        no_capture_requested=True,acceptance_unchanged=True,
+        limitation='Diagnostic evidence only. Do not infer a new heading correction or erase contacts from a mismatch.'))

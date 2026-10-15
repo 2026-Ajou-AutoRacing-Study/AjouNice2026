@@ -875,6 +875,9 @@ def build(row,config,ctx,attempt=0):
         lon=math.cos(ea)*(center[0]-ego['x'])+math.sin(ea)*(center[1]-ego['y'])
         lat=-math.sin(ea)*(center[0]-ego['x'])+math.cos(ea)*(center[1]-ego['y'])
         actual_role=('front' if lon>=0 else 'rear') if abs(lon)>=abs(lat) else ('left' if lat>=0 else 'right')
+        if row.get('secondary_obstacle_front_support') is not None:
+            from base5_obstacle_front_support import verify_actual as verify_front_support
+            verify_front_support(row,i,actual,actual_role)
         if not i and not avoidance_ref and row['family'] in ('obstacle','pedestrian_related') and actual_role!=row['role']:
             raise ValueError('Actual Ego-relative direction differs from quota')
         if not i and row['family']=='highway' and not row.get('vehicle_close_phase') and ((lon<0)!=(row['role']=='rear')):
