@@ -6309,3 +6309,40 @@ callback 처리/입력 age 효과는 팀장님 환경에서 별도로 확인한�
   신규 cut-in/진출/재획득 bag 또는 팀장님 실제 planner 기록으로 영향과 불확실성을 확인한다.
 - 다음 생성 분포 검토로 넘어갈 수 있다. Map-CV의 새로운 순위 정책·planner 안전거리·
   detector threshold·tracker lifecycle 변경은 이번 계산 최적화에 포함되지 않는다.
+
+<a id="base5-next-training-cpu-261015"></a>
+
+## 51. 다음 학습 compile OFF·nearest 공통 CPU 준비 — 2026-10-15
+
+사용자가 새 학습의 사전 준비만 승인했다. 완료 E24의 compiled 학습 config·동결 Vast 실행기와
+resume 계약·가중치·원본 데이터·production 소스는 변경하지 않았다. 새 `bevfusion_base5_fine_512_depth25_next_training.py` 설정과
+`prepare_base5_next_training.sh`를 분리했다. train/val은 같은 nearest_positive/sorted view-transform을
+사용하고 compile OFF·현재 3클래스·upright 7D·JPEG·의미 ROI·공간 격자·depth 간격을 유지한다.
+이 선택은 compile OFF의 정확도 우위를 입증한 결과가 아니라 다음 실험의 명시적인 기준이다.
+
+검증 환경은 기존 팀 Docker `ajounice/bevfusion:team-cu128-v1`, Torch 2.7.1+cu128,
+MMEngine 0.10.7이다. GPU 장치를 전달하지 않고 CUDA_VISIBLE_DEVICES를 비웠으며 network none,
+CPU 4개·RAM 8GiB 제한과 저장소/데이터 read-only mount를 사용했다. 결과만 별도 경로에 저장했다.
+
+- 신규 config 8개·준비 실행기 15개, 기존 depth raster 16개·direct runner 5개,
+  동결 oneclick 19개·배포 bundle 8개 등 서로 다른 71개 검사가 통과했다.
+- 처음 기존 모델 등록 회귀는 호스트의 미빌드 submodule이 Docker 설치본을 가려 extension import가
+  실패했다. PYTHONPATH에서 해당 경로를 제거해 기존 빌드본을 사용하자 16+5개가 통과했다.
+  CUDA 설치·재컴파일·GPU forward는 수행하지 않았다.
+- 입력은 `artifacts/handoff/base5_sunny13_jpeg90_pedestrian_merged_v1_261011`이다.
+  train 4,255장/9,350 GT, val 745장/1,702 GT, test 0장을 대조했다. 모든 payload 해시를 확인하고
+  전체 11,052 GT의 7D·유한값·양수 크기·원래 클래스/animal 매핑·장면/group split 계약을 검사했다.
+- 강도 검사는 train/val에서 고르게 16개씩 뽑은 32개 cloud 표본이다. 유효 return 강도 min/max는
+  0.0/1.0이었다. 학습 입력에 ROS용 ÷255를 적용하지 않았으며 invalid-return 판정도 정확한 XYZ-zero
+  및 nonfinite 필터와 맞췄다. 모든 cloud의 강도 분포를 전수 인증한 결과는 아니다.
+- 기존 호환 초기화 `base5_nuscenes_full_xy_metric_v1_261011.pth`의 SHA256은
+  `a786b70ec7e639587da9c075fa7db9d3e96bf522b56590162c3134be7197b977`로 기록했다.
+  CPU 단계에서는 checkpoint shape/성능을 새로 인증하지 않는다.
+
+산출물은 `artifacts/evaluation/bevfusion/base5_next_training_cpu_261015/plan_v3/`의
+`checked_model_config.py`, `next_training_preflight.json`이다. 최종 plan SHA256은
+`988377cc55a746ec7fd8cf17ef5ec7fda123154760fb785d1307f64893b1aabc`다.
+실제 direct runner의 run_manifest나 GPU 자격 검증을 대체하지 않으며
+직접 학습을 시작하지 않는다. 기록한 후속 prepare 명령은 원거리 AP/W&B 진단 확장을 유지하고
+`--run`은 포함하지 않는다. 재사용·실행 경계는 [새 학습 준비 런북](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu)을 따른다.
+GPU 초기화 strict load·forward/backward 비용·재개·W&B/Drive 백업과 최종 학습 예산 확정은 별도다.

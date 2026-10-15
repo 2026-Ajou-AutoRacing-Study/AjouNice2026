@@ -15,6 +15,7 @@
 | 운영 localization과 독립 평가 GT의 heading·pose 기준 | [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md) |
 | Validator 녹화 프리셋·로그·공유 묶음의 누락과 담당자 전달 | [분석 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md) |
 | 원격 학습·재개·백업 | [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| 다음 학습 compile OFF·nearest·GT/입력 CPU 준비 | [새 학습 사전검사](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu) |
 | 생성·수집·GT 변환 | [Base5 데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md) |
 | Tracker·motion policy·prediction | [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md) |
 
@@ -26,6 +27,7 @@
 
 | 주제 | 근거 |
 |---|---|
+| 다음 학습 compile OFF·nearest 공통·실제 5K CPU 입력/GT 검사 | [51절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-next-training-cpu-261015) |
 | 새 차량 장면의 방향·재취득 복구와 실제 고속/회전 50/51·준비 Park·로드 경계 | [독립 장면과 패킷 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md) |
 | 차량 초기 속도 반전·재취득 구 ID 잔류·측정과 출력 시계·실제 코어와 격리 ROS 비교 | [차량 방향과 재취득 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md) |
 | 원시 패킷 시간축·보행자 ID 분절·출력 동일 CPU 개선·C++ 전환 gate | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |

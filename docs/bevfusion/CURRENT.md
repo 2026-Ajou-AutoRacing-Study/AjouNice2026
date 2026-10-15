@@ -19,7 +19,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
-| 완료 학습 계약 | 48GB 4090·batch 4·누적 1·camera backbone 학습 compile ON. 새 학습의 자동 기본값 승격은 아님 |
+| 학습 실행 계약 | 완료 E24는 48GB 4090·batch 4·누적 1·학습 compile ON으로 보존. 다음 학습은 compile OFF·nearest 공통 [CPU 준비 경로](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu)를 사용하며 GPU 자격 검증은 별도 |
 | 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
 
 데이터 원본·학습용 파생 infos·다른 환경 준비 상태는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다.
@@ -65,8 +65,8 @@ Validator 분석은 [현재 런북](../planning/SCENARIO_VALIDATOR_RUNBOOK.md#5-
 
 ## 추론 최적화의 현재 결론
 
-학습 compile ON과 추론 compile은 다른 선택이다. 병렬화는 검증된 시험 경로에서 우선 사용하지만
-일반 추론 compile은 출력·연속 tracker 예외 때문에 기본 ON으로 승격하지 않는다.
+완료 E24의 학습 compile ON은 보존하되 다음 학습은 compile OFF로 분리했다. 이는 OFF의 정확도 우위를 인증한 결과가 아니다.
+병렬화는 검증된 추론 경로에서 사용하며, 추론 compile은 출력·연속 tracker 예외 때문에 기본 OFF를 유지한다.
 [학습된 4090 비용/메모리](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012)와
 [실제 ROS tracker 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-compile-actual-ros-tracker-261012)를 구분한다.
 48GB 카드의 20GiB 제한 시험은 실제 대회 24GB 카드의 ROS/LAN·풀스택 인증이 아니다.
@@ -117,7 +117,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    실제 50은 단일 source batch·수신 age 감소를 재현했고 2026-10-14 사용자 승인으로 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유지하며 51은 명시적 복귀 값이다. LAN 실전 인증은 별도이고 E24 head peak 변경은 계속 기각한다.
 4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
    다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
-5. 짧은 학습 후보 비교 뒤 최종 학습한다. Base3 val·개발 bag을 train에 재사용하지 않는다.
+5. 다음 학습의 compile OFF·nearest 설정과 CPU 사전검사는 준비했다. GPU 자격 검증·짧은 학습 비교 뒤 최종 학습하며 Base3 val·개발 bag을 train에 재사용하지 않는다.
    고정 이미지 registry·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 
 원격 명령·재개·백업은 [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md)를 따른다.
