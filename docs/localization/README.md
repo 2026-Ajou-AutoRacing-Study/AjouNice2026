@@ -34,9 +34,13 @@
 - Smooth 횡 correction cap `0.3m/s`. 차량 움직임이 아니라 Global 위치 보정량만 제한한다.
 - 종방향 GPS epoch 보상 `gnss_motion_compensation_sec=0.0` 기본 OFF.
   최신 MR의20ms 후보는 효과가 크지만 구형 입력에서 과보정하며 전체 코스 gate도 미완료다.
-- checkpoint guard는 OFF/monitor-only 유지. GNSS 음영 checkpoint15에서는 새 XY가
-  관측되지 않는다. 명시적 복귀 좌표를 전달한 개발 emulation은 복구했지만 공식 이벤트/
-  체크포인트 번호/실제 배치 정확도 계약 없이 자동 production으로 사용하지 않는다.
+- checkpoint guard는 OFF/monitor-only 유지. 실제 제공 Spawn 툴14(수정안CP14, 구CP15)의
+  로컬 raw NMEA zero는 변경 전 관측이다. 2026-10-15 운영측은 **CP14 좌표·spawn 위치 유지,
+  음영구역 범위 조정**을 예고했다. 새 환경 배포·GPS 수신·정합·재출발 재검증은 대기 상태다.
+  수정안 START+1–14와 프로그램0–14는 일치한다.
+  [현재 좌표·구번호 대응](../competition/261015_공식_체크포인트_안내_보관.md)을 따른다.
+  로컬 CP15 개발 장면의 GPSzero·명시적 좌표 prior 실험은 별도 예외 조건이며 공식
+  체크포인트의 음영 여부를 입증하지 않는다. 정상 GNSS에서 재정합·경로·제어 재개를 우선 검증한다.
 - controller는 Smooth state `/localization/control_kinematic_state`를 사용한다.
   Planning과 TF는 Global `/localization/kinematic_state`를 유지한다.
 - `predict_to_current_time=true`, `two_d_mode=true`, `publish_sensor_tf=false`.
@@ -75,8 +79,13 @@
     새 Smooth의 사용자 실제 MR 전체 코스2회·음영pair2회, 같은pair 입력soft ON/OFF
     인과 replay를 추가했다. 횡발산 억제와 평균/중앙값 개선, 남은 종오차·일부p95 악화를
     함께 기록한다. 후속30초 실제 음영 정차·재출발, checkpoint13/15, 종방향20ms 후보의
-    최신/구형 입력 역전과 전체 코스 경로 실패를 같은 문서에 누적했다. LAN·공식 checkpoint
-    운영 계약·실제 반대 방향 회피·슬립 검증은 남아 있다.
+    최신/구형 입력 역전과 전체 코스 경로 실패를 같은 문서에 누적했다. 이때 checkpoint13/15는
+    구번호이며 현재12/14다. LAN·공식 checkpoint 운영 계약·실제 반대 방향 회피·슬립 검증은 남아 있다.
+    이후 제공 Spawn 툴0–14의실측과0→14→0 원시UDP검사도 같은문서에 누적했다.
+    툴14/수정안CP14의zeroGPS·기어D transient를 확인했고,
+    유효GNSS 툴12/수정안CP12(구CP13)에서 정합·새route·기존PP/PI 재출발은PASS했다.
+    수정안 재배포를 확인해 프로그램 불일치 판단은 철회했으며, runtime rule monitor의
+    구15점 설정은 별도 동기화 대기다. 원본 실험의 구번호·snapshot은 유지한다.
 - [`260924_LOCALIZATION_BASELINE_AUDIT.md`](260924_LOCALIZATION_BASELINE_AUDIT.md)
   - 현재 코드·bag·평가기의 1차 감사와 다음 개선 우선순위.
 - [`260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md`](260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md)

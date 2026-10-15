@@ -14,6 +14,28 @@ bag을 다음 네 등급으로 나눈다.
 
 파일명으로 MR/MRP와 heading offset을 추측하지 않는다. 아래 provenance를 우선한다.
 
+## 제공 Spawn 툴 실측 입력 (2026-10-15)
+
+이동은 사용자 제공 실행 파일의gRPC SetTransform이며 SceneLoad emulation과 구분한다.
+MR/Competition·heading−1.347°·경량GPS/IMU·무객체·soft/Smooth production·시간보상0초·
+guardOFF·신호등OFF·영상/RViz ON이다. 각 teleport의 실제Ego 변화에서 보간을 분할한다.
+재배포 수정안 START+CP1–14는 툴0–14와 모두 일치한다. 아래 원본 파일·JSON·실행명에
+남은 CP13/15는 구번호(현행12/14)이며 원본은 고치지 않는다.
+아래 입력은 모두 운영측 CP14 음영 범위 조정 **이전 로컬 환경**의 관측이다.
+2026-10-15 운영측은 좌표·spawn을 유지하고 음영 범위를 조정하겠다고 답변했다.
+새 환경은 별도 실행으로 검증하고 환경 버전/시나리오 hash를 기록하며 기존 결과에 덮어쓰지 않는다.
+
+| 실행/산출물 | 등급·용도 | 결과·제한 |
+|---|---|---|
+| `planner_logs/validation/loc_official_spawn_probe_261015_131944/error/loc_fullcourse_no_actors_20261015_131945_01/` | REPLAY + 정차 teleport 대조 | 0–13 자연복구,14(수정안CP14, 구CP15)GPSzero·136.77m 미복구로 안전중단/P확인. 완주PASS 아님 |
+| `planner_logs/analysis/261015_official_spawn_probe/packet_probe_20261015_132719_550832/` | DIAGNOSTIC_ONLY,raw recv trace+bag | 원시GPSzero·native시계연속·기어D를관측. 정차0→14→0,loc/planning/주행controller없음. ptrace부하로latencybenchmark금지 |
+| `planner_logs/validation/loc_official_spawn_remaining_route_261015_132923/success/` | REPLAY+CLOSED_LOOP,수정안CP12(구CP13)재출발 | 툴12 약211m이동→XY/yaw회복→freshroute→stockPP/PI→목적지PASS/P. 배우·공식remaining-checkpoint상태복구검증아님 |
+
+같은prefix의`131535`는CP1통과점을목적지로썼다가footprint검사에거절돼스폰전종료,
+`131659`는첫0번의D/3D접지transient를즉시정지검사가잡은negative실행이다.
+원본을보존하고성공집단에포함하지않는다. 상세표·분석도구는
+`planner_logs/analysis/261015_official_spawn_probe/`와누적EVIDENCE를따른다.
+
 ## 핵심 평가 세트
 
 | 등급 | bag | heading oracle | 용도 |
@@ -29,6 +51,14 @@ bag을 다음 네 등급으로 나눈다.
 
 `FIELD-GT`에 MR 평가기의 기본 `-1.347 deg`를 사용하면 정확히 `1.347 deg`의 가짜 yaw
 오차가 생긴다. `--heading-offset-deg 0`에서 yaw 오차는 수치 정밀도 수준으로 돌아온다.
+
+2026-10-15 현장1/2/3+직접GT의33토픽을 전수 확인하고 최종state↔Ego 상대epoch를 역산했다.
+fusion header기준최적lag는모두4ms, nuisance회귀는5.66/5.79/5.40ms,직접GT는0ms였다.
+rawGPS가있는5bag calibration과구형Q/R대조로방법을검증했으나물리GPS지연의직접측정은아니다.
+20ms급지속지연은자료와맞지않고추가runtime보상0초유지가합리적이다. 현장2의
+state header→receipt p95약28ms는별도의하류지연이며GPSraw지연으로세지않는다.
+누적EVIDENCE마지막절과`planner_logs/analysis/261015_field_gps_epoch_inverse/`를따른다.
+새역산결과로FIELD_RESULT_ONLY를REPLAY등급이나현재productionLAN검증완료로승격하지않는다.
 
 ## 전체 코스 회귀 입력 (2026-10-15 추가)
 
@@ -91,6 +121,13 @@ estimator 원인 분리용이다. 기록 Ego/trajectory의 재사용을 후보�
 baseline/full zero는 원래 validator CLI, stop/SceneLoad/known-prior 개입은 별도 개발
 helper이며 직진·정속 제어기로 대체하지 않았다. execution의 snapshot/events/receipt가 기준이다.
 
+2026-10-15 ‘공식 체크포인트는 음영 밖’은 후속 확인상 사용자 지도 그림 판단이며
+복귀 시 유효 GNSS 보장은 아니다. 실제 제공 Spawn 툴14/수정안CP14(구CP15)에서도 로컬 raw GPS
+zero를 재현했다. 아래 SceneLoad 실험과 새 gRPC Spawn 실측을 구분한다.
+[공식 좌표 안내 백업](../competition/261015_공식_체크포인트_안내_보관.md)을 따른다.
+아래 CP13/15는 구번호(현행12/14)이며, GPSzero는 로컬 개발 장면의 관측이지 실대회 음영 판정이 아니다.
+해당 로컬 zero 원인은 미확인이고, 원본 bag·수치는 보존한다.
+
 | execution | 등급·조건 | 판정·주의 |
 |---|---|---|
 | `loc_final_baseline_261015_055818` | REPLAY+CLOSED_LOOP, 짧은 무객체 기본값 | PASS; 실제 음영7.310초 |
@@ -100,8 +137,8 @@ helper이며 직진·정속 제어기로 대체하지 않았다. execution의 sn
 | `loc_final_shadow_hold_261015_062342` | CLOSED_LOOP_STOP_INTERVENTION, 기본값 | PASS; 실제 음영50.246초, Park hold30.068초 후 같은 PP/PI 재개 |
 | `loc_final_full_zero_261015_062655` | REPLAY+CLOSED_LOOP, 전체 코스 기본0ms | PASS; 전체 코스7.302초 음영 |
 | `loc_final_full_gps020_261015_063115` | PARTIAL_CLOSED_LOOP, 전체 코스20ms | ERROR/MANUAL_ABORT; 고주로 MPT/far-goal path 실패, 안전 종료. 완주로 세지 않음 |
-| `loc_final_checkpoint_shadow_261015_064054` | NEGATIVE_CONTROL, CP15·새 위치 정보 없음 | SAFETY_FAILURE; GPSzero로 약138.65m 위치 차이, 재출발 차단·P 확인 |
-| `loc_final_checkpoint_known_261015_064654` | KNOWN_POSITION_PRIOR_EMULATION, CP15 | PASS; 명시적 checkpoint prior1회. 공식 운영 이벤트 아님 |
+| `loc_final_checkpoint_shadow_261015_064054` | NEGATIVE_CONTROL, 로컬 CP15 장면·새 위치 정보 없음 | SAFETY_FAILURE; GPSzero로 약138.65m 위치 차이, 재출발 차단·P 확인. 공식 체크포인트 음영 판정 아님 |
+| `loc_final_checkpoint_known_261015_064654` | KNOWN_POSITION_PRIOR_EMULATION, 로컬 CP15 장면 | PASS; 명시적 checkpoint prior1회. 공식 운영 이벤트 아님 |
 | `loc_final_checkpoint_known_261015_065447` | 위 조건 최신 helper 안전 검사 반복 | PASS; fresh heading/P를 발행 직전에 다시 검증 |
 
 known-prior는 runtime 위치 입력을 Ego에서 가져오지 않는다. 실험자가 요청한
@@ -113,6 +150,22 @@ ScenarioLoad 목적지라는 명시적 prior를 사용하며, 독립 Ego는 안�
 동일 raw replay의 latest `044421` 대9/19 historical heldout과 synthetic pause는
 `planner_logs/analysis/261015_localization_final_hardening/`에 있다. 임의 합성 hold의
 누적 변위를 GT accuracy/새 폐루프라고 부르지 않는다. detailed 결과는 누적 EVIDENCE를 따른다.
+
+## 실제 무카메라·무LiDAR 전체 코스 추가 (2026-10-15)
+
+- 실행: `loc_fullcourse_true_lightweight_261015_112304`.
+- bag: `planner_logs/validation/loc_fullcourse_true_lightweight_261015_112304/success/loc_fullcourse_no_actors_20261015_112306_01/planbag_loc_fullcourse_no_actors_P_20261015_112306.bag`.
+- **REPLAY + CLOSED_LOOP**, MR/Competition, estimator/oracle 각각−1.347°, receipt-time,
+  softσ0.20·vehicle-pivot Smooth0.5/0.1/0.5·cap0.3, motion projection0초.
+- 사용자가 MR에 과거9/19와 동일한 `Sensor_localization_gt_lightweight.json`을 실제 Load했다.
+  camera/LiDAR0개, GPS·IMU는 기존 full JSON과 동일. 새 센서 snapshot·actual launch 명령·
+  live graph에서 센서 발행 부재/단일 제어를 확인했다. `include_sensors=false`만의 주장이 아니다.
+- 같은 무객체 전체 코스·od_gt·실제 planning/PP·PI·RViz/영상10fps split ON,
+  PASS153.71초·충돌0·실제 정지/P VERIFIED. GPS 음영7.276초 포함, replay/assessment 녹화 audit 모두 true.
+- 원시 GPS lag0ms와 작은 종오차가9/19 경량 특성을 재현했다. 최신 normal GNSS 이동 비교와
+  새 전체 이동/음영 지표는 누적 EVIDENCE 마지막 절 및
+  `planner_logs/analysis/261015_true_lightweight_comparison/run112304/`를 따른다.
+  기존 recorded 출력과 modern same-input 후보 replay의 모집단을 혼용하지 않는다.
 
 ## 보조 bag
 
