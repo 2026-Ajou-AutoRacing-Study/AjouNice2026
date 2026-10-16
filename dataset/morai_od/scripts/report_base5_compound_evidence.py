@@ -7,6 +7,7 @@ must not be interpreted as the synthetic LiDAR component ordinal.
 """
 import argparse
 import ast
+import copy
 from collections import Counter, defaultdict
 from itertools import combinations
 import json
@@ -20,6 +21,7 @@ from analyze_base5_crop_candidates import geometry
 from audit_morai_lidar_gt_visibility import parse_instances
 from base5_capture_audit import rotation_matrix
 from base5_capture_safety import atomic_json, sha256
+from base5_native_box_corners import load_matching_corners, derive_geometry
 from report_base5_camera_crop import CAMERAS
 
 
@@ -139,7 +141,18 @@ def sensor_state(points, camera_support):
     }[camera_support]
 
 
-def _validate_native_geometry(root, components):
+def _validate_native_geometry(root, components, *, original_capture_root=None):
+    """Validate raw geometry, optionally with an explicit byte-exact relocation.
+
+    The old absolute source paths remain immutable evidence. A caller moving a
+    portable capture must supply its recorded original root; only the root
+    prefix may differ, never relative sensor paths, hashes, bytes or geometry.
+    """
+    root = Path(root).resolve()
+    from base5_scale_capture_contract import registered_variants
+    metadata_path = root/'metadata.json'
+    metadata = json.loads(metadata_path.read_text()) if metadata_path.is_file() else {}
+    variants = registered_variants(root,metadata)
     annotations = sorted(root.glob('LIDAR_*/*_Instance.txt'))
     if len(annotations) != 1:
         raise ValueError('Expected one native LiDAR annotation: ' + str(root))
@@ -152,15 +165,55 @@ def _validate_native_geometry(root, components):
         ident = f'{key[0]}:{key[1]}:{ordinals[key]}'
         ordinals[key] += 1
         lookup[ident] = box
+    corner_records = None
     for c in components:
         native = lookup.get(c['component_id'])
         if native is None or native['unique_id'] != c['parent_uid'] or native['raw_class'] != c['raw_class']:
             raise ValueError('Audit/native component identity mismatch')
+        has_corners = 'native_corner_geometry' in c
+        if int(c['parent_uid']) in variants and not has_corners:
+            raise ValueError('Captured nonunit actor lacks measured native eight-corner audit geometry')
+        if has_corners != ('native_summary_size_m' in c):
+            raise ValueError('Incomplete native corner/summary provenance markers')
+        if has_corners:
+            if corner_records is None:
+                corner_records = load_matching_corners(annotations[0])
+            ordinal = int(c['component_id'].rsplit(':', 1)[1])
+            record = corner_records.get((int(c['parent_uid']), c['raw_class'], ordinal))
+            if record is None:
+                raise ValueError('Missing exact native eight-corner component source')
+            derived = derive_geometry(native, record, allow_dimension_change=True)
+            saved = c['native_corner_geometry']
+            if original_capture_root is not None:
+                original = Path(original_capture_root)
+                if not original.is_absolute():raise ValueError('Explicit absolute original capture root required')
+                saved = copy.deepcopy(saved)
+                for label,pin in saved['source_files'].items():
+                    old = Path(pin['path'])
+                    if not old.is_absolute():raise ValueError('Absolute original native evidence source required')
+                    relative = old.relative_to(original)
+                    if '..' in relative.parts:raise ValueError('Unsafe native source relocation')
+                    new = root/relative
+                    if str(new)!=derived['evidence']['source_files'][label]['path']:
+                        raise ValueError('Native source relocation changed relative sensor path')
+                    pin['path']=str(new)
+            if saved != derived['evidence']:
+                raise ValueError('Native eight-corner source/geometry evidence differs')
+            if (root/'scenario.json').is_file() and derived['evidence']['dimensions_changed'] and int(c['parent_uid']) not in variants:
+                raise ValueError('Changed native corner geometry lacks bound nonunit scenario actor')
+            if not np.allclose(c['native_summary_size_m'], native['size'], rtol=0., atol=1e-6):
+                raise ValueError('Preserved native summary dimensions differ')
+            native = dict(native, center=derived['center'], size=derived['size'],
+                          rotation_rpy=derived['rotation_rpy'])
         for key, source_key in [('center_lidar_m', 'center'), ('size_m', 'size'), ('rotation_rpy', 'rotation_rpy')]:
             if not np.allclose(c[key], native[source_key], rtol=0., atol=1e-6):
                 raise ValueError('Audit/native geometry mismatch: ' + c['component_id'])
     if len(lookup) != len(components):
         raise ValueError('Audit/native component count mismatch')
+    for uid in variants:
+        matching=[c for c in components if int(c['parent_uid'])==uid]
+        if len(matching)!=1 or matching[0]['raw_class']!='Obstacle':
+            raise ValueError('Captured nonunit actor requires exactly one measured native Obstacle component')
     return annotations[0]
 
 

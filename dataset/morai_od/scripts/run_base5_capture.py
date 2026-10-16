@@ -103,6 +103,11 @@ def main():
     if args.stop_after_new_captures is not None and args.stop_after_new_captures<1:p.error('Stop count must be positive')
     if args.test_interrupt_after_raw_move and args.limit>64:p.error('Interruption injection is pilot-only')
     manifest=json.loads(args.manifest.read_text())
+    if manifest.get('config',{}).get('asset_scale_policy'):
+        # Validate and freeze once, not once per actor. The immutable policy
+        # keeps the exact evidence/digest while the capture plan remains JSON.
+        from base5_asset_scale import bind_config
+        manifest['config']=bind_config(manifest['config'])
     from dynamic_capture_metadata import normalized_sensor_calibration
     sensor_source=ROOT/'configs/sensors/Sensor_competition_local.json'
     calibration=normalized_sensor_calibration(sensor_source)
@@ -115,6 +120,8 @@ def main():
     required={'id','scenario','metadata','scenario_sha256','family','role','distance_bounds','subfamily','motion'}
     for row in rows:
         if required-set(row):raise ValueError('Incomplete scene entry '+str(row.get('id'))+': '+str(sorted(required-set(row))))
+        from base5_scale_capture_contract import validate_entry as validate_scale_entry
+        validate_scale_entry(row,manifest)
     args.output.mkdir(parents=True,exist_ok=True)
     process_lock=(args.output/'.runner.lock').open('a')
     try:fcntl.flock(process_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -138,6 +145,9 @@ def main():
         # Completed-session resume is read-only with respect to MR, even offline.
         saved=json.loads((args.output/'status.json').read_text()) if (args.output/'status.json').exists() else {}
         finished=[completed[r['id']] for r in rows]
+        if manifest['config'].get('asset_scale_policy'):
+            from base5_asset_scale import verify_frozen_policy
+            verify_frozen_policy(manifest['config']['asset_scale_policy'])
         exit_record=args.output/'shutdown_safety.json'
         unsafe_exit=exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']
         saved.update(stage='halted_exit_safety' if unsafe_exit else 'complete',current=None,
@@ -584,6 +594,9 @@ def main():
                 meta['capture_runtime_ego']=e1
                 meta['capture_runtime_objects']=[objects_before,objects_after]
                 audit=audit_capture(dest,meta)
+                from base5_scale_capture_contract import native_size_review
+                audit['asset_scale_review']=native_size_review(meta,audit)
+                audit['review_reasons'].extend(audit['asset_scale_review']['review_reasons'])
                 timing.mark('provenance_collision_and_sensor_audit')
                 motion_evidence=motion_capture_review(meta['runtime_actors'][0] if meta['runtime_actors'] else None,
                     objects_before,objects_after,actor_samples,capture_requested_at)
@@ -706,7 +719,11 @@ def main():
             if args.stop_after_new_captures and new_captures>=args.stop_after_new_captures:
                 status('stopped_for_resume_test',entry['id']);break
             if failures>=3: raise RuntimeError('Capture halted after connection failure or three consecutive scene failures')
-        else: status('complete')
+        else:
+            if manifest['config'].get('asset_scale_policy'):
+                from base5_asset_scale import verify_frozen_policy
+                verify_frozen_policy(manifest['config']['asset_scale_policy'])
+            status('complete')
     except BaseException as exc:
         timing.mark('interrupted_phase')
         status('interrupted' if isinstance(exc,KeyboardInterrupt) else 'halted',error=str(exc));raise

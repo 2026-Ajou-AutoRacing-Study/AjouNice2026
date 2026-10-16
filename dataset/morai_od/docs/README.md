@@ -10,6 +10,7 @@
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
 | 다음 작업: 정적 미션 범위·자산 scale 소량 외형 검증·생성기 통합 | [미션 범위와 크기 다양화 계획](261016_base5_mission_extent_and_asset_scale_plan.md) |
+| 정적 구역 확장·native 8모서리 크기·소량 캡처 결과 | [구역과 크기 변형 검증](261016_base5_native_scale_and_extent_evidence.md) |
 | 새 Sunny13 5K의 최종 검증·실행·재개·학습 입력 점검 | [v154 본수집 전 검토](261016_base5_precollection_final_review.md) |
 | 기존 음영 이동 지면의 명시적 재사용·source pin·한계 | [지면 재사용 계약](261016_base5_shadow_ground_reuse.md) |
 | 80~100m 차량·camera-only 근거·보조 차량 160개와 소량 검증 | [v153 원거리 보강](261016_base5_far_vehicle_reinforcement.md) |

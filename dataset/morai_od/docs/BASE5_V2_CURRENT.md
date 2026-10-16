@@ -20,7 +20,8 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 다음 25K 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite` 보존. 최신 정책의 독립 재생성·환경별 smoke가 필요 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
-| 본수집 상태 | 미실행·운영상 보류. [정적 구역과 자산 scale 계획](261016_base5_mission_extent_and_asset_scale_plan.md)의 소량 외형/GT 검증→생성기 통합→새 5K 동결이 다음 작업. 과거 release JSON은 수정하지 않음 |
+| 최신 Sunny13 동결 | v155m: 정적 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. 현재 센서의 native 17/17·CPU 1,545개·변환·재개 통과. [최종 실측·실행](261016_base5_native_scale_and_extent_evidence.md) |
+| 본수집 상태 | 미실행. `release_v155m/release.json`은 Sunny13 `bulk_ready=true`. 새 확대 부족분의 자동 보충은 별도 미승인이므로 `--complete` 불가. 과거 release는 보존 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -47,7 +48,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 범용 혼합의 배치 수·크기 budget과 실제 보이는 객체/유효 component GT 수는 다르다.
 122종 primary coverage는 해당 release와 adopted manifest의 실제 할당으로 확인한다.
 
-현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다.
+현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다. v155m은 정적 구역을 삼거리 뒤까지 확장하고 외형·native 검증한 7종의 이산 scale만 기존 slot에 통합한다. RedBarrel 확대는 실측 예외로 보류하고 원형은 유지한다.
 범용 regular/dense의 일부에 19종 물리 장애물을 최대 하나 더하고 기존 0~20/20~30m 보조를 보호한다.
 장애물 보강은 30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
 같은 승인 ID 43장 대조에서 근거리 GT 64→98, LiDAR 20점 이상 39→55이고 Vehicle 36/Pedestrian 69는 유지됐다.
@@ -75,13 +76,13 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 본수집은 [정적 구역·크기 변형 계획](261016_base5_mission_extent_and_asset_scale_plan.md)의 검증·새 동결 전까지 보류한다. v154와 이전 release는 당시 source/runtime 검증 이력이며 새 요구사항 승인으로 대체 사용하지 않는다.
+새 Sunny13 본수집은 [v155m 실측·실행](261016_base5_native_scale_and_extent_evidence.md)의 동결 release를 사용한다. 현재는 실행하지 않았다. v154와 이전 release는 당시 source/runtime 이력이며 새 요구사항 승인으로 대체 사용하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
 - SaveSensorData 수집과 UDP/ROS 실주행 streaming을 구분한다. 기존 master/guarded bridge를 중복 실행하지 않는다.
 - MR UI의 날씨와 시간을 확인한다. manifest 생성만으로 UI 환경이 변경되지는 않는다.
-- release·코드·manifest·동결 QA 해시를 확인한다. `--complete`는 본수집 뒤 유한 보충까지 연결한다.
+- release·코드·manifest·동결 QA 해시를 확인한다. `--complete`는 live 보충 승인 release만 허용하며 v155m에는 사용하지 않는다.
 - 성공분·실패 raw·부모 journal을 보존하고 새 후보의 변경 내용을 mapping에 기록한다.
 - 동일 실패 payload 반복·보충 상한 초기화·부모 ledger 중복 연결을 금지한다.
 - ordinary 장면 부족분과 통신/Park/CollisionData 무수신의 안전 중단을 구분한다.
@@ -102,7 +103,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
 다른 PC용 완료 묶음의 JPEG 전달·원격 검증 후 RGB PNG 정리는 후속 설계다. 현재 원본 해시 기반 resume 중 자동 삭제하지 않는다.
-학습 GT는 native full RPY의 8모서리를 포함하는 upright 7D enclosure를 사용하며 중심·yaw·구성요소를 임의 합치지 않는다.
+학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 등록된 확대 Obstacle만 실제 원본 8Points로 size를 검증·도출하며 stale 요약 size나 scenario scale 재곱을 쓰지 않는다. 중심·yaw·구성요소는 보존한다.
 
 현재 native JPEG/upright 전달본은
 `artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
@@ -120,6 +121,5 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 
 ## 이력과 갱신
 
-현재 상태는 이 문서의 기존 항목만 갱신한다. v105~v140 진행 이력은
-[무손실 원문 스냅샷](../../../docs/perception/legacy/context_261012/README.md)에 보존했다.
+현재 상태는 이 문서의 기존 항목만 갱신한다. v105~v140 이력은 [무손실 스냅샷](../../../docs/perception/legacy/context_261012/README.md)에 보존했다.
 과거 계획·ETA·중간 부족분을 현재 값으로 복구하지 않는다.

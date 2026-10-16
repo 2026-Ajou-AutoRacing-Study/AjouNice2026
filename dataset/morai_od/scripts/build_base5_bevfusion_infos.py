@@ -44,6 +44,14 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
         if meta.get('sensor_source_sha256') not in (None,calibration['source_sha256']):
             raise ValueError('Capture/conversion sensor calibration checksum mismatch '+scene_id)
         audit=json.loads(Path(entry.get('audit_path',root/'audit.json')).read_text())
+        from base5_scale_capture_contract import registered_variants
+        variants=registered_variants(root,meta)
+        if variants or any('native_corner_geometry' in c or 'native_summary_size_m' in c for c in audit.get('components',[])):
+            from base5_capture_safety import sha256
+            from report_base5_compound_evidence import _validate_native_geometry
+            if sha256(root/'scenario.json')!=entry.get('scenario_sha256'):
+                raise ValueError('Scaled conversion scenario checksum differs '+scene_id)
+            _validate_native_geometry(root,audit['components'])
         if audit.get('review_reasons'):
             review.append(scene_id);continue
         if meta['runtime_actors']:

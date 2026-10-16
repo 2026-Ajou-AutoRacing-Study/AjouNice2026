@@ -101,6 +101,12 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     points=points[(points[:,:3]!=0).any(axis=1)]
     actors = {int(a['unique_id']):a for a in metadata['runtime_actors']}
     boxes = parse_instances(annotation_files[0])
+    from base5_scale_capture_contract import registered_variants
+    variants=registered_variants(root,metadata)
+    native_corners=None
+    if variants:
+        from base5_native_box_corners import load_matching_corners,derive_geometry
+        native_corners=load_matching_corners(annotation_files[0])
     # parse_instances is permissive historically; here malformed records are fatal.
     if len(boxes) != len([s for s in annotation_files[0].read_text().splitlines() if s.strip()]):
         raise ValueError('Malformed GT record')
@@ -113,6 +119,18 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             raise ValueError('Unmapped captured UID '+str(uid))
         actor = actors[uid]
         center, size = box['center'], box['size']
+        native_summary_size=size.copy()
+        native_corner_proof=None
+        if uid in variants:
+            # Summary size can be stale at scale 1. The companion native eight
+            # corners already carry the actual box; never multiply GT by scale.
+            key=(uid,box['raw_class'],ordinals.get((uid,box['raw_class']),0))
+            derived=derive_geometry(box,native_corners[key],allow_dimension_change=True)
+            size=np.asarray(derived['size'])
+            native_corner_proof=derived['evidence']
+            # All downstream geometry consumers (plane exclusion, contact-gap
+            # proxy and actor clearance) must use the same native-corner box.
+            box['size']=size
         if not np.isfinite(np.r_[center,size,box['rotation_rpy']]).all() or (size<=0).any():
             raise ValueError('Invalid GT geometry')
         rot = rotation_matrix(box['rotation_rpy'])
@@ -136,6 +154,9 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             positive_lidar5=count>=5,positive_lidar1=count>=1,
             positive_lidar1_camera0=count>=1 or visible,
             ignore_reason=None if count>=1 or visible else 'no_visible_sensor_evidence'))
+        if native_corner_proof is not None:
+            results[-1]['native_summary_size_m']=native_summary_size.tolist()
+            results[-1]['native_corner_geometry']=native_corner_proof
         if metadata.get('lidar_to_ego') is not None:
             center_ego=np.asarray(metadata['lidar_to_ego'])@np.r_[center,1.]
             results[-1]['center_ego_m']=center_ego[:3].tolist()

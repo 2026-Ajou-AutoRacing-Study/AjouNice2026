@@ -20,6 +20,7 @@ import base5_front_completion_adapter as front_completion
 import base5_primary_obstacle_range as primary_range
 import base5_primary_visibility_proposal as primary_visibility
 import base5_secondary_far_vehicle as secondary_far
+import base5_scale_completion_adapter as scale_completion
 import run_base5_flexible_completion as flex
 import run_base5_adaptive_completion as adaptive
 from run_base5_motion_contract_repair import motion_matches
@@ -47,7 +48,23 @@ def floor_donors(original,donors,counts,floor):
 
 
 def compatible(source,candidate,pools):
-    return flex.compatible(source,candidate,pools) and motion_matches(source,candidate)
+    frozen_scale=scale_completion.has_plan(source) or scale_completion.has_plan(candidate)
+    if frozen_scale and (not scale_completion.has_plan(source) or not scale_completion.has_plan(candidate)
+            or source['spec']!=candidate['spec']):return False
+    return flex.compatible(source,candidate,pools,allow_frozen_scale=frozen_scale) and motion_matches(source,candidate)
+
+
+def recoverable_geometry_error(source,error):
+    """The selected adapter owns exhaustion, including coexisting overlays."""
+    if not isinstance(error,ValueError):return False
+    if scale_completion.has_plan(source):
+        return isinstance(error,scale_completion.ScaleGeometryExhausted)
+    return all((
+        not secondary_far.has_plan(source) or isinstance(error,secondary_far.FarGeometryExhausted),
+        not primary_range.has_plan(source) or isinstance(error,(primary_range.RangeGeometryExhausted,
+                                                               front_completion.FrontGeometryExhausted)),
+        not front_completion.has_plan(source) or isinstance(error,(front_completion.FrontGeometryExhausted,
+                                                                  primary_range.RangeGeometryExhausted))))
 
 
 def eligible_floor_donors(source,donors,counts,floor,pools):
@@ -55,9 +72,9 @@ def eligible_floor_donors(source,donors,counts,floor,pools):
     # before floor protection, otherwise it masks the valid source fallback.
     # Frozen front slots regenerate their own geometry, never borrow another
     # asset's stratum. Unplanned slots must not gain one through a donor either.
-    if (front_completion.has_plan(source) or primary_range.has_plan(source)
+    if (scale_completion.has_plan(source) or front_completion.has_plan(source) or primary_range.has_plan(source)
             or secondary_far.has_plan(source)):return [source]
-    eligible=[d for d in donors if not front_completion.has_plan(d)
+    eligible=[d for d in donors if not scale_completion.has_plan(d) and not front_completion.has_plan(d)
               and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
               and compatible(source,d,pools)]
     return floor_donors(source,eligible,counts,floor)
@@ -156,7 +173,10 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
         secondary_far.validate_plan(original['spec'],deck['config'])
     with spatial.installed():
         if original['runtime_actors']:
-            if secondary_far.has_plan(original):
+            if scale_completion.has_plan(original):
+                scene,meta=scale_completion.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            elif secondary_far.has_plan(original):
                 scene,meta=secondary_far.choose(original,deck['config'],ctx,cal,ordinal,
                     entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
             elif front_completion.has_plan(original):
@@ -166,7 +186,7 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
                 scene,meta=primary_range.choose(original,deck['config'],ctx,cal,ordinal,
                     entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
             else:
-                eligible=[d for d in donors if not front_completion.has_plan(d)
+                eligible=[d for d in donors if not scale_completion.has_plan(d) and not front_completion.has_plan(d)
                           and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
                           and compatible(original,d,pools)]
                 scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
@@ -174,6 +194,7 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
             front_completion.verify_preserved(original,meta)
             primary_range.verify_preserved(original,meta)
             secondary_far.verify_preserved(original,meta)
+            scale_completion.verify_preserved(original,meta,deck['config'])
         else:
             spec=copy.deepcopy(original['spec']);spec['seed']=spatial.seed_for(deck['config']['environment_tag'],entry['id'],ordinal)
             for retry in range(512):
@@ -221,6 +242,7 @@ def verify(a,deck,source,pools):
         front_completion.verify_preserved(source,meta)
         primary_range.verify_preserved(source,meta)
         secondary_far.verify_preserved(source,meta)
+        scale_completion.verify_preserved(source,meta,deck['config'])
         if source['runtime_actors']:
             if not compatible(source,meta,pools):
                 return dict(status='review',reasons=['fresh_completion_family_motion_contract_changed'],observed_selected=row)
@@ -263,6 +285,8 @@ def execute(a):
         if deck['config'].get('secondary_far_vehicle_policy'):
             completion_names.extend(['base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
                 'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'])
+        if deck['config'].get('asset_scale_policy'):
+            completion_names.extend(['base5_scale_completion_adapter.py','base5_asset_scale.py'])
         contract=dict(policy=POLICY,source_sha256=sha256(a.manifest),baseline=str(a.baseline.resolve()),
             parent_hashes={n:sha256(a.baseline/n) for n in ('selected_ledger.jsonl','quota.json','batch_contract.json','fresh_runtime_contract.json')},
             code_hashes={name:sha256(Path(__file__).with_name(name)) for name in completion_names},
@@ -314,6 +338,7 @@ def execute(a):
             front_completion.verify_preserved(original,original)
             primary_range.verify_preserved(original,original)
             secondary_far.verify_preserved(original,original)
+            scale_completion.verify_preserved(original,original,deck['config'])
         missing=save(state['stage'])
         if not a.run:return 0
         ctx=adaptive.prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO),deck['config'])
@@ -348,17 +373,7 @@ def execute(a):
                     options=eligible_floor_donors(originals[ident],donors,primary_counts,floor,pools)
                     try:v=prepare(lookup[ident],originals[ident],options,deck,ctx,cal,ordinal,a.output/'cells'/ident/f'attempt_{ordinal}'/'placement',known,pools)
                     except ValueError as exc:
-                        if (secondary_far.has_plan(originals[ident])
-                                and not isinstance(exc,secondary_far.FarGeometryExhausted)):
-                            raise
-                        if (primary_range.has_plan(originals[ident])
-                                and not isinstance(exc,(primary_range.RangeGeometryExhausted,
-                                                        front_completion.FrontGeometryExhausted))):
-                            raise
-                        if (front_completion.has_plan(originals[ident])
-                                and not isinstance(exc,(front_completion.FrontGeometryExhausted,
-                                                        primary_range.RangeGeometryExhausted))):
-                            raise
+                        if not recoverable_geometry_error(originals[ident],exc):raise
                         state['unavailable'][ident]=str(exc);missing=save('running');continue
                     state['attempts'].append(v);known.add(v['entry']['scenario_sha256']);save('running')
                 code=run_child(v,a.output,heartbeat)
