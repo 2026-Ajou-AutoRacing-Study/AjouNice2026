@@ -19,8 +19,8 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
 | 다음 25K 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite` 보존. 최신 정책의 독립 재생성·환경별 smoke가 필요 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
-| 최신 Sunny13 동결 | [v154 최종 검토](261016_base5_precollection_final_review.md). `artifacts/evaluation/base5_precollection_261016/release_v154_sunny13_final/release.json`, `bulk_ready=true` |
-| 본수집 상태 | 미실행. 새 native 40/40·입력 변환·재개·CPU 1,279개 통과. 실행 명령은 v154 근거를 따르며 과거 output에 강제 resume하지 않는다 |
+| 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
+| 본수집 상태 | 미실행·운영상 보류. [정적 구역과 자산 scale 계획](261016_base5_mission_extent_and_asset_scale_plan.md)의 소량 외형/GT 검증→생성기 통합→새 5K 동결이 다음 작업. 과거 release JSON은 수정하지 않음 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -75,7 +75,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-현재 실행 source는 [v154 최종 검토](261016_base5_precollection_final_review.md)를 따른다. v152·v153d_fast는 당시 source/runtime의 검증 이력이며 현재 실행 계약으로 대체 사용하지 않는다.
+새 본수집은 [정적 구역·크기 변형 계획](261016_base5_mission_extent_and_asset_scale_plan.md)의 검증·새 동결 전까지 보류한다. v154와 이전 release는 당시 source/runtime 검증 이력이며 새 요구사항 승인으로 대체 사용하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
