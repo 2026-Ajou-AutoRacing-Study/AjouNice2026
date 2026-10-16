@@ -1,7 +1,7 @@
 # Base5 장애물 보강 후보 확인과 수집 준비
 
-문서 상태: READY SUN13. 기준일: 2026-10-13.
-현재 상태 주석(10/15): 아래는 v150 당시 검증·명령의 보존 기록이다. 현재 v151은 [새 보충 검증](261015_base5_front_recovery_release.md)의 부족 1장으로 실행 차단 상태이며, 아래 명령으로 우회하지 않는다.
+문서 상태: EVIDENCE — v150 당시 READY SUN13. 기준일: 2026-10-13.
+현재 상태 주석(10/16): 아래는 v150 당시 검증·명령의 보존 기록이다. v151의 부족 1장은 [당시 차단 근거](261015_base5_front_recovery_release.md)로 남긴다. 이후 v152·v153·v154의 검증은 별도이며, 현재 실행은 [Base5 CURRENT](BASE5_V2_CURRENT.md)와 [v154 검토](261016_base5_precollection_final_review.md)를 따른다. 아래 과거 release로 우회하지 않는다.
 기존 Sunny13 5K는 보존했다. 새 5K와 다음 25K는 배치 파일만 생성했으며 본수집을 시작하지 않았다.
 장애물 보강은 [초기 실험 근거](261013_base5_obstacle_support_experiments.md), 최종 NPC 보완과 수집 준비는
 [정지 NPC 검증](261013_base5_parked_npc_support_evidence.md)을 따른다.

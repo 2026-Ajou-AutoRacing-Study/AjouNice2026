@@ -1,6 +1,6 @@
 # MORAI 데이터셋 작업별 문서 인덱스
 
-문서 상태: ROUTER. 정리 기준: 2026-10-12.
+문서 상태: ROUTER. 정리 기준: 2026-10-16.
 현재 Base5 작업은 [Base5 CURRENT](BASE5_V2_CURRENT.md)에서 시작한다.
 아래 모든 문서를 차례로 읽지 않고 현재 요청에 필요한 행만 선택한다.
 
@@ -9,6 +9,8 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
+| 새 Sunny13 5K의 최종 검증·실행·재개·학습 입력 점검 | [v154 본수집 전 검토](261016_base5_precollection_final_review.md) |
+| 기존 음영 이동 지면의 명시적 재사용·source pin·한계 | [지면 재사용 계약](261016_base5_shadow_ground_reuse.md) |
 | 80~100m 차량·camera-only 근거·보조 차량 160개와 소량 검증 | [v153 원거리 보강](261016_base5_far_vehicle_reinforcement.md) |
 | v151 전방 보강·원거리 차량·복합 성분별 소량 진단 | [10/15 실측·보존 계약·승격 전 남은 조건](261015_base5_front_far_compound_experiments.md) |
 | v152 작은 물리 primary 거리·3D 완전 가림 보충·현재 source 동결 | [최종 53장 전수·재개·release 근거](261015_base5_primary_obstacle_range.md) |

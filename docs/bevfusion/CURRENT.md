@@ -15,14 +15,14 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 학습 완료 | Sunny13 5K로 24 epoch 완료. native val 기준 best E9, 마지막 E24 |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
-| 이미지 | 원본 Q90 JPEG, 모델 입력 512×1056, resize 0.825. 카메라별 native 크기와 homography 유지 |
+| 이미지 | Q90 JPEG, 모델 입력 512×1056, resize 0.825. [512/576 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) 후 현재 크기 유지. native 크기·homography 보존 |
 | 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
 | 학습 실행 계약 | 완료 E24는 48GB 4090·batch 4·누적 1·학습 compile ON으로 보존. 다음 학습은 compile OFF·nearest 공통 [CPU 준비 경로](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu)를 사용하며 GPU 자격 검증은 별도 |
 | 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
 
-데이터 원본·학습용 파생 infos·다른 환경 준비 상태는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다.
+데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
 새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.
 
@@ -116,8 +116,7 @@ production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 �
    복합체는 별도 관측한다. [차량 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)의 입력 경합·TF 실패 pending 보존은 수정·로컬 설치했다.
    [독립 차량·패킷 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)의 새 고주로/회전 6회는 도착·무접촉이다. 방향 가드는 원형이고 재취득 공분산 후보도 복구 예외 악화로 운영 미적용이다.
    실제 50은 단일 source batch·수신 age 감소를 재현했고 2026-10-14 사용자 승인으로 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유지하며 51은 명시적 복귀 값이다. LAN 실전 인증은 별도이고 E24 head peak 변경은 계속 기각한다.
-4. [장애물 생성기 실험 계획](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md)의 근접 보강을 유지하고,
-   다음 거리 분포와 병렬 수집 전달본을 별도 검증·동결한다. 기존 5K와 v150 실행 정책은 이번 논의로 바꾸지 않았다.
+4. [v154 본수집 전 검토](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)에서 기존 근접 보강·새 원거리 거리 분산·음영 지면 exact 재사용·native 및 입력 변환을 확인했다. 기존 5K·E24·GT 정책은 보존하며 다른 다섯 환경은 별도 최신 배치·검증이 필요하다.
 5. 다음 학습의 compile OFF·nearest 설정과 CPU 사전검사는 준비했다. GPU 자격 검증·짧은 학습 비교 뒤 최종 학습하며 Base3 val·개발 bag을 train에 재사용하지 않는다.
    고정 이미지 registry·새 호스트 pull과 독립 rosbag-to-val/test는 별도 후속이다.
 

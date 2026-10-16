@@ -3,6 +3,8 @@
 문서 상태: EVIDENCE / CANDIDATE. 기준일은 2026-10-16, Asia/Seoul이다.
 80~100m도 개선 목표로 유지한다. 기존 Sunny13 5K·native GT·E24 가중치는 변경하지 않는다.
 새 배치와 소량 센서 검증은 재학습 후 검출 성능 개선의 증명이 아니다.
+후속 상태 주석: v153 당시 결과는 아래에 보존한다. 초기 거리 분산을 보완한 새 source와 현재 실행 여부는
+[v154 최종 검토](261016_base5_precollection_final_review.md)·[CURRENT](BASE5_V2_CURRENT.md)를 따른다.
 
 ## 기존 데이터에서 확인한 것
 

@@ -206,6 +206,8 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     deck=json.loads(Path(manifest).read_text())
     from base5_far_vehicle_native import validate_manifest as validate_far_manifest
     far_source_pins=validate_far_manifest(deck)
+    from base5_shadow_ground_reuse import validate_manifest as validate_shadow_reuse
+    shadow_source_pins=validate_shadow_reuse(deck,sensor)
     from generate_dynamic_object_capture_set import DEFAULT_MGEO
     map_sources={name:sha256(DEFAULT_MGEO/name) if (DEFAULT_MGEO/name).exists() else None
         for name in ('link_set.json','lane_boundary_set.json')}
@@ -225,6 +227,9 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
                      'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'):
             contract['safety_code_sha256'][name]=sha256(scripts/name)
         contract['secondary_far_vehicle_source_files']=far_source_pins
+    if shadow_source_pins:
+        contract['safety_code_sha256']['base5_shadow_ground_reuse.py']=sha256(scripts/'base5_shadow_ground_reuse.py')
+        contract['shadow_ground_reuse_source_files']=shadow_source_pins
     range_policy=deck.get('config',{}).get('primary_obstacle_range_policy')
     if range_policy:
         contract['safety_code_sha256']['base5_primary_obstacle_range.py']=sha256(scripts/'base5_primary_obstacle_range.py')
@@ -259,6 +264,8 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
         from base5_far_vehicle_native import verify_capture as verify_far_capture
         source_entry=next((e for e in deck.get('scenes',[]) if e['id']==ident),None)
         verify_far_capture(source_entry,capture)
+        from base5_shadow_ground_reuse import verify_capture as verify_shadow_capture
+        verify_shadow_capture(source_entry,capture,deck)
         cameras=list(capture.glob('CAMERA_*/*_Intensity.png'))
         lidar=list(capture.glob('LIDAR_*/*_Intensity.bin'))
         labels=list(capture.glob('LIDAR_*/*_Instance.txt'))

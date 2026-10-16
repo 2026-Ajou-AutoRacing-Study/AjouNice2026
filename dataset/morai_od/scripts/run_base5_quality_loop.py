@@ -19,6 +19,7 @@ from prepare_base5_static_height_reference import prepare as static_height_refer
 from base5_static_ground_reference import prepare as static_reference_retry,reaudit_original,COMPOSITE_ANCHORS
 from base5_static_ground_policy import lightweight_static
 from base5_intersection_placement import ready as editor_prepared
+import base5_shadow_ground_reuse as shadow_ground_reuse
 
 
 def scene_rejection(row):
@@ -231,6 +232,9 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
     prior_elapsed=(gen.geo.load_json(output/'report.json').get('elapsed_sec',0.)
         if resume and (output/'report.json').exists() else 0.)
     source_data=gen.geo.load_json(source);attempts=[];selected=[];unresolved=[]
+    # Opt-in registrations are immutable provenance, not recoverable scene
+    # deficits. Validate even before local completed children can be resumed.
+    shadow_ground_reuse.validate_manifest(source_data)
     runner=Path(__file__).with_name('run_base5_capture.py')
     def stopped():return (output/'STOP').exists() or (stop_path is not None and stop_path.exists())
     def prepared(path,make):
@@ -339,9 +343,15 @@ def execute(source,indices,output,resume=False,stop_path=None,progress=None,seed
                 save('running')
             else:
                 metadata=gen.geo.load_json(Path(original['metadata'])) if original.get('metadata') else {}
+                reused_ground=shadow_ground_reuse.adopt(manifest,base/'motion_reuse_deck')
+                if reused_ground is not None:
+                    manifest=reused_ground
+                    adopted=gen.geo.load_json(manifest)['scenes'][0]
+                    metadata=gen.geo.load_json(Path(adopted['metadata']))
+                    motion_ground.validate_motion_ground(metadata,gen.geo.load_json(Path(adopted['scenario'])))
                 if editor_prepared(metadata):
                     motion_ground.validate_motion_ground(metadata,gen.geo.load_json(Path(original['scenario'])))
-                if motion_ground.moving_actors(metadata) and not editor_prepared(metadata):
+                if motion_ground.moving_actors(metadata) and not editor_prepared(metadata) and reused_ground is None:
                     for actor in motion_ground.moving_actors(metadata):
                         path=actor.get('motion_path',{})
                         if path.get('policy')!='natural-target-v1' or 'target_position' not in path:

@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-16.
-Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K는 생성·준비만 완료했다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 이전 정책의 offline 준비본이며 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,10 +17,10 @@ Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite`의 독립 25K offline 계획. v142/v149 보존 |
-| 마지막 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4. `bulk_ready=true`는 당시 source/runtime에만 해당 |
-| 현재 보강 후보 | [v153d_fast 원거리 보조 차량](261016_base5_far_vehicle_reinforcement.md). 160장 파생·5K CPU 감사·고정 32/32 native·부분/완료 resume 통과. 새 본수집 release는 아직 미동결 |
-| 본수집 상태 | 미실행. v152 release에 수정된 코드로 강제 resume하지 않는다. Sunny13 소량 검증과 다른 다섯 환경의 검증은 별도다 |
+| 다음 25K 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite` 보존. 최신 정책의 독립 재생성·환경별 smoke가 필요 |
+| 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
+| 최신 Sunny13 동결 | [v154 최종 검토](261016_base5_precollection_final_review.md). `artifacts/evaluation/base5_precollection_261016/release_v154_sunny13_final/release.json`, `bulk_ready=true` |
+| 본수집 상태 | 미실행. 새 native 40/40·입력 변환·재개·CPU 1,279개 통과. 실행 명령은 v154 근거를 따르며 과거 output에 강제 resume하지 않는다 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -64,18 +64,18 @@ v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 
 같은 slot의 환경 A/B라고 부르지 않으며 물리 link·final support·100m 시야 중복을 따로 감사한다.
 보강 배치·새 정책은 현재 성공분을 폐기하는 이유가 아니다.
 
-다음 25K는 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)과 [보강 근거](261013_base5_obstacle_support_experiments.md)를 따른다.
+다음 25K는 최신 정책으로 다시 생성한다. [v150 런북](261013_base5_obstacle_support_runbook.md)은 통신·실행 이력이고 최신 배치 승인이 아니다.
 [원거리 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)의 전체 비차량 quota 변경은 후속 후보다. v152는 범용 물리 primary 일부에만 native 크기별 20/30/40m 상한을 적용했다.
 개수·거리 비율은 실측으로 수정하되 실제 보이는 원거리 GT를 삭제하거나 Vehicle로 바꾸지 않는다.
 v151의 추가 장애물 전방 할당 338개는 유지한다. [당시 부족 1장](261015_base5_front_recovery_release.md) 뒤 v152에서 거리 명세 53개·실제 배치 33개만 변경하고, 보충기의 명백한 3D 완전 가림 후보 선택을 보완했다.
-Vehicle primary 2,214장과 기존 5K는 보존했다. v153도 모든 primary·근접 차량·미션을 유지하고 고주로 범용 30~50m 보조 일부만 60~99m로 옮긴다. [v152 최종 근거](261015_base5_primary_obstacle_range.md)의 당시 검사·재개·가시성 한계도 보존한다.
+Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 보조 160개를 v154에서 허용 창 안에 더 분산했다. primary·근접 차량·미션·spec은 유지하고 142개 payload만 변경했다. [이전 근거](261015_base5_primary_obstacle_range.md)와 현재 실측을 구분한다.
 `fresh_suite_final_v142`는 이전 baseline으로 보존한다. 새 Sunny13는 원래 30K에 자동 합산하지 않는다.
 
 <a id="capture"></a>
 
 ## 수집과 복구
 
-v152는 [당시 동결·실행 기준](261015_base5_primary_obstacle_range.md)으로 보존한다. v153d_fast는 고정 32조건을 통과했으나 새 release 동결 전에는 본수집을 시작하지 않는다. [v150 런북](261013_base5_obstacle_support_runbook.md)은 이전 명령·통신 설정 기록이다.
+현재 실행 source는 [v154 최종 검토](261016_base5_precollection_final_review.md)를 따른다. v152·v153d_fast는 당시 source/runtime의 검증 이력이며 현재 실행 계약으로 대체 사용하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
@@ -88,7 +88,7 @@ v152는 [당시 동결·실행 기준](261015_base5_primary_obstacle_range.md)�
   실제 접촉은 증거와 안전한 종료가 검증된 장면만 실패·부족분으로 넘긴다. 불확실한 접촉을 우회하지 않는다.
 - 정적은 원래 캡처의 QA를 유지하며 높이 확인만을 위한 추가 재취득을 남발하지 않는다.
 - 사거리 실제 이동은 수동 높이 lookup의 출발→도착 두 waypoint·선형 이동을 따른다.
-  음영의 이동은 독립 terrain/reference 준비를 유지한다. 자동 지면 추종 기능이 아니다.
+  음영은 독립 terrain/reference 준비가 기본이며 exact 두 장면만 [기존 준비 재사용](261016_base5_shadow_ground_reuse.md)을 등록했다. 자동 지면 추종이 아니다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
 v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영 예산은 8~12시간/45GiB이며
@@ -116,7 +116,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 현재 single-frame 7D OD 학습에 velocity supervision을 넣지 않는다. bag별 단위·기준점 정책은 별도로 확인한다.
 
 [JPEG/GT 변환 근거](../../../docs/bevfusion/README.md#evaluation)와 [MR 자산 계약](MR_ASSET_COLLECTION_CURRENT.md)을 참고한다.
-원본 5K와 새 pilot을 섞지 않으며 이미 끝난 학습 source를 문서 개편 때문에 재변환하지 않는다.
+원본 5K와 새 pilot을 섞지 않는다. [입력 검사](261016_base5_precollection_final_review.md)에서 기존 179장·새 40장의 Q90/upright 및 실제 CPU 전처리를 별도로 확인했다. 복합체의 모호한 camera 성분을 임의 연결하지 않는다.
 
 ## 이력과 갱신
 

@@ -22,6 +22,8 @@ def contract(source, indices, rounds):
     data=loop.gen.geo.load_json(source)
     from base5_far_vehicle_native import validate_manifest as validate_far_manifest
     far_source_pins=validate_far_manifest(data,[data['scenes'][i] for i in indices])
+    from base5_shadow_ground_reuse import validate_manifest as validate_shadow_reuse
+    shadow_source_pins=validate_shadow_reuse(data)
     scripts=Path(__file__).parent
     names=['run_base5_capture_campaign.py','run_base5_quality_loop.py',
            'generate_base5_independent.py','prepare_base5_ground_retry.py',
@@ -48,6 +50,8 @@ def contract(source, indices, rounds):
             raise ValueError('Primary obstacle range reference changed')
     if data['config'].get('parked_npc_placement'):
         names.append('base5_parked_npc_placement.py')
+    if shadow_source_pins:
+        names.append('base5_shadow_ground_reuse.py')
     if reference and sha256(reference['path'])!=reference['sha256']:
         raise ValueError('Placement geometry reference changed')
     sources=[]
@@ -63,6 +67,8 @@ def contract(source, indices, rounds):
                 source_files=sources,code={n:sha256(scripts/n) for n in names})
     if data['config'].get('secondary_far_vehicle_policy'):
         result['secondary_far_vehicle_source_files']=far_source_pins
+    if shadow_source_pins:
+        result['shadow_ground_reuse_source_files']=shadow_source_pins
     return result
 
 
