@@ -516,3 +516,99 @@ UnauthorizedAccessException은 `LocalServer.CheckLocalServer_StandaloneMode`가
 이동·기존 대상 보존·별도 승인·symlink·로그 보존·두 쓰기 범위·권한 helper 범위를 포함한
 회귀 134개와 shell 구문 검사를 통과했다. 실제 GUI 재실행·통신·native 촬영은 사용자 확인 대기다.
 이동 receipt는 원격 `checks/relocate-morai-*.json`과 로컬 `remote_stage1_261017/`에 보존했다.
+
+<a id="portable-live"></a>
+
+## 빌린 PC GUI·통신·3장 native 검증과 수동 본수집 실행기
+
+2026-10-17 20:36 KST 마감 기준이다. 앞 절의 실행 대기 상태 이후에 사용자가 로그인·Install·Start를
+직접 수행했다. 이어 승인한 두 폴더 안의 ROS 실행 준비·최대 3장 시험·수동 본수집 쉘 준비를
+명시적으로 승인했다. **이 절에서 실제 본수집을 시작한 것은 아니다.** 사용자가 보호를 요청한
+기존 `MORAI_START.txt`는 읽거나 덮어쓰지 않았고, 별도 `BASE5_COLLECTION_COMMANDS.txt`를 추가했다.
+
+### 초기 이식 오류와 수정
+
+- Install은 새 버전의 중복 설치가 아니었다. 같은 `v.S4.251001.MolitComp03` 폴더에 재해제됐고,
+  기존 core 226파일과 Bundle 365파일은 SHA가 모두 동일했다. 추가된 것은 debug 3파일,
+  41,582,472 bytes였다. launcher는 최상위 파일 수 >2·폴더 수 >1 및 `Simulator_Data`
+  직계 폴더 수 >2를 검사하므로, clean 패키지에서 debug/DoNotShip를 모두 뺀 것이 판정을 깨뜨렸다.
+  새 `build.py`는 실제 native 파일 세 개만 정확히 보존하고 설치 인식 구조를 사전에 검사한다.
+- UI 설정은 상위 `SaveFile/Sensor`, `Network`만으로 목록에 나타나지 않았다. 실제
+  `25.S4.MolitComp03/` 하위에 두 프리셋을 **기존 파일을 덮어쓰지 않고 추가**하고 원본 SHA를 확인했다.
+  새 패키징도 flat 참조와 버전별 UI 위치를 함께 보존한다. 기존 동결 압축·bundle manifest는 변경하지 않았다.
+
+### 실행 범위와 종료 처리
+
+새 `checks/live_v2.py`는 immutable bundle의 `can_run=false`를 바꾸지 않는 별도 호스트 실행기다.
+원래 세 논리 경로와 package는 RO, 승인 workspace·실제 MORAI 두 폴더만 RW로 mount한다.
+로그·HOME·캐시·TMP는 `work/ros-session-v2`, `ros-home-v2` 아래에 한정하며 시스템 설치·
+shell profile·Git/Drive 로그인·개인키 전달은 없다. 기존 Noetic과 동봉 Python/ROS overlay를 사용한다.
+11311/9090이 이미 사용 중이면 외부 ROS를 임의 재사용하거나 종료하지 않고 거부한다.
+새 명령도 활성 서비스의 lock·supervisor PID·시작 시각·UID·실행 명령·코드 SHA를 대조한다.
+
+초기 격리 실행기에서 `killpg(bwrap_pid, SIGINT)`가 내부 앱의 종료 handler를 거치지 않고
+namespace를 종료할 수 있음을 CPU 실험으로 발견했다. **촬영 전에** v1 서비스를 종료하고
+기록을 보존한 채 v2로 분리했다. v2는 정확한 자손 앱에만 pidfd로 신호를 보내며 PID 재사용·
+소유권 변경·모호한 대상을 거부한다. 실제 빌린 PC의 동일 namespace 시험에서도 내부 SIGINT
+handler 실행 및 정상 종료 0을 확인했다. 본수집 신호는 native 부모를 끊지 않고 `PAUSE`만
+요청해 현재 최대 16장 묶음·회복·종료 Park를 기다린다. 즉시 비상정지나 단절 보장은 아니다.
+
+### 실제 시험 결과
+
+재연결 후 5초 동안 Ego/Object/CollisionData 각각 250개, 마지막 수신 age 약 12ms를 관측했다.
+정지 상태를 확인한 뒤 원본 full manifest에서 아래 세 장만 직접 선택했다. campaign의 자동
+회복이나 지면 재촬영은 쓰지 않아 SaveSensorData는 총 **3회**였다.
+
+| 원본 ID 끝자리 | 실제 시험 | 결과 | 장면 소요 |
+|---|---|---|---:|
+| 02554 | PE_Firewall_White, 3~10m 후방 정적 | 승인 | 5.77초 |
+| 01744 | G80, 60~80m 전방 차량 | 승인 | 5.08초 |
+| 00486 | Woman2, 두 waypoint 실제 이동 | 승인 | 8.15초 |
+
+각 장면의 4-camera RGB·Instance, LiDAR XYZI·Instance·8Points, 실제 접촉 없음·stationary
+support·경계/종료 P 증거를 확인했다. native session 재구성과 audit 재계산도 **3/3 PASS**다.
+원본 보존 후 Q90 JPEG/upright·Animal→Pedestrian 3클래스 변환을 통과했고 train 2/val 1,
+유효 GT는 Obstacle/Pedestrian/Vehicle 각 1개였다. 이는 CPU 입력 생성 검증이지 실제 MMDet
+tensor loader·학습·추론 AP 또는 5K 전체 분포의 검증이 아니다. 대표 RGB도 별도로 육안 확인했다.
+
+원격 근거는 `collections/smoke_v1`, `work/smoke_training_v1`,
+`work/ros-session-v2/{host_contract,qualification,smoke_attempt}.json`이다.
+별도 qualification은 source release/manifest·실행 코드와 실제 smoke 파일의 SHA를 결합한다.
+로컬 사본은 `artifacts/handoff/base5_capture_portable_261017/remote_live_261017/`에 보관한다.
+로그인 정보가 들어갈 수 있는 MORAI 설정·전체 로그는 가져오지 않는다.
+
+### 수동 본수집
+
+같은 원본 release로 `--run` 없는 CPU 준비를 원격 `collections/sunny13_5k`에 수행했다.
+5,000개 요청·실제 취득 **0개**이며 3장 시험 raw를 본수집에 합산하지 않는다.
+사용자는 MORAI를 유지하고 다음 세 터미널을 직접 실행한다. 브리지 준비 뒤 GUI Network를
+연결해야 하며 다른 풀스택·제어기·UDP 수집기를 함께 올리지 않는다.
+
+```bash
+# 터미널 1: 계속 열어 둔다.
+bash ~/ajounice_base5_capture/start_base5_ros.sh --run
+# 터미널 2: 계속 열어 둔다. 준비 뒤 MORAI Network Disconnect → Connect.
+bash ~/ajounice_base5_capture/start_base5_bridge.sh --run
+# 터미널 3: 실제 Sunny13을 확인한 사용자의 명시적 시작이다.
+bash ~/ajounice_base5_capture/start_base5_collection.sh --run --confirmed-environment sunny13
+```
+
+`--run` 없는 실행은 계획만 출력한다. 상태는 `status_base5_collection.sh --watch`, 정상
+중지는 `pause_base5_collection.sh --run`이다. paused·모든 native Park와 lock 해제 확인 후
+`pause_base5_collection.sh --resume-paused --run`으로 PAUSE를 감사 파일로 보존하고 같은
+본수집 명령을 다시 실행한다. STOP/halted·불확실한 P를 자동 해제하거나 강제 resume하지 않는다.
+
+완료 후 수동 `finish_base5_collection.sh --run`도 준비했다. 실제 5K 승인·부족 0·수집 종료를
+요구하고 실제 selected payload의 adopted manifest로 Q90/upright/3클래스·split·단일 tar.zst를
+검증한다. 원본 PNG/native는 보존하고 100GiB 사용/10GiB 여유를 검사한다. 이 후처리는 CPU
+회귀와 원격 read-only 계획만 검증했으며 실제 5K 완료 후 전 과정을 실행한 것은 아니다.
+자동 실행·자동 수신은 연결하지 않았다. 기존 `finish.py pull`을 이용한 로컬 수신은 후속
+수집 완료 때 명시적으로 연결한다. 별도 `--complete`도 계속 금지한다.
+
+마감 시 portable CPU 회귀 **190개**·쉘 문법·diff 검사를 통과했다. 원격 실제 쉘의 중복
+ROS/bridge 실행도 정상 거부했다. 로컬로 받은 native 근거 **111파일**은 qualification의
+SHA와 모두 일치한다. `live_v2.py`의 SHA는 `7850aed3…e481fd00`이며 실제 배치본과 동일하다.
+최종 읽기 전용 관측에서도 Ego 속도는 거의 0·brake=1이었다. 이어 **우리 시험용 bridge와
+ROS만 정상 종료 0**으로 정리했고 9090/11311이 비어 있음·관련 실행기 잔류 0을 확인했다.
+MORAI는 켜 둔 상태이며 본수집 취득 0·별도 smoke 3을 다시 확인했다. 여유는 약 228.93GiB다.
+따라서 다음 시작은 위 세 터미널과 GUI 재연결을 사용자가 직접 수행한다.

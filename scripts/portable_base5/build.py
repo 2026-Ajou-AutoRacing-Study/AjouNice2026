@@ -16,6 +16,21 @@ REPO = Path(__file__).resolve().parents[2]
 SCHEMA = 'base5_portable_native_bundle_v1'
 VERSION = 'v.S4.251001.MolitComp03'
 DATA = 'MoraiLauncher_Lin_Data'
+SIMULATOR_ROOT = Path(DATA) / 'Project/Simulator' / ('Simulator_' + VERSION + '_Linux')
+# This launcher's IsExistSimulator check counts native top-level files and
+# directories. Removing these genuine shipped files makes an installed core
+# look absent, despite Simulator.x86_64 and UnityPlayer.so being intact.
+# Keep their real bytes/paths rather than inventing installation marker files.
+SIMULATOR_INSTALL_FILES = (
+    'LinuxPlayer_s.debug', 'UnityPlayer_s.debug',
+    'Simulator_BurstDebugInformation_DoNotShip/Data/Plugins/lib_burst_generated.txt',
+)
+SIMULATOR_INSTALL_SUFFIXES = tuple((SIMULATOR_ROOT / name).parts
+                                  for name in SIMULATOR_INSTALL_FILES)
+# Simulator save/load UI uses this version namespace, not the full build tag.
+# Flat copies are retained for capture tooling; the versioned copies make the
+# same presets selectable from the native Sensor/Network Load dialogs.
+SAVEFILE_VERSION = '25.S4.MolitComp03'
 FORBIDDEN = {'.git', '.ssh', '.aws', '.codex', '__pycache__', 'unity.lock',
              'V2AccountInfo.byte', 'optionList.byte', 'networkInfo.txt'}
 CORE_DIRS = ('Resources', 'Managed', 'MonoBleedingEdge', 'Plugins',
@@ -43,13 +58,19 @@ def dump(path, value):
         stream.write('\n')
 
 
+def simulator_install_file(path):
+    parts = Path(path).parts
+    return any(parts[-len(suffix):] == suffix for suffix in SIMULATOR_INSTALL_SUFFIXES)
+
+
 def safe_file(path):
     if path.is_symlink() or not path.is_file():
         raise ValueError('Expected a regular nonsymlink file: ' + str(path))
     if any(part in FORBIDDEN for part in path.parts):
         raise ValueError('Forbidden source file: ' + str(path))
     low = path.name.lower()
-    if (low.endswith(('.pyc', '.pyo', '.pem', '.key', '.debug'))
+    if (low.endswith(('.pyc', '.pyo', '.pem', '.key'))
+            or low.endswith('.debug') and not simulator_install_file(path)
             or low.startswith(('client_secret', 'id_rsa', 'id_ed25519', '.env'))
             or low in ('rclone.conf', '.netrc', 'credentials.json', 'token.json')):
         raise ValueError('Excluded private/cache/debug file: ' + str(path))
@@ -71,6 +92,7 @@ def morai_files(root):
     """Allowlisted runtime, not the launcher's account/cache/SaveFile tree."""
     root = Path(root).resolve(strict=True)
     selected = [root / name for name in CORE_FILES]
+    selected.extend(root / SIMULATOR_ROOT / name for name in SIMULATOR_INSTALL_FILES)
     for relative in CORE_DIRS:
         directory = root / DATA / relative
         if not directory.is_dir() or directory.is_symlink():
@@ -79,15 +101,37 @@ def morai_files(root):
             if file.is_dir():
                 continue
             rel = file.relative_to(root)
-            if any(part in FORBIDDEN or part.endswith('_DoNotShip') for part in rel.parts):
+            if any(part in FORBIDDEN for part in rel.parts):
                 continue
-            if file.suffix.lower() in ('.debug', '.log', '.pyc', '.pyo'):
+            if (any(part.endswith('_DoNotShip') for part in rel.parts)
+                    and not simulator_install_file(file)):
+                continue
+            if file.suffix.lower() in ('.log', '.pyc', '.pyo'):
+                continue
+            if file.suffix.lower() == '.debug' and not simulator_install_file(file):
                 continue
             safe_file(file)
             selected.append(file)
     for file in selected:
         safe_file(file)
+    # Count directories represented by actual selected descendants: archive
+    # assembly preserves files, not empty directories, so source dir counts
+    # alone would incorrectly approve an unrecognizable extracted install.
+    simulator = root / SIMULATOR_ROOT
+    relative = [file.relative_to(simulator) for file in selected if simulator in file.parents]
+    top_files = {path.name for path in relative if len(path.parts) == 1}
+    top_dirs = {path.parts[0] for path in relative if len(path.parts) > 1}
+    data_dirs = {path.parts[1] for path in relative
+                 if len(path.parts) > 2 and path.parts[0] == 'Simulator_Data'}
+    if not (len(top_files) > 2 and len(top_dirs) > 1 and len(data_dirs) > 2):
+        raise ValueError('Filtered MORAI runtime does not satisfy launcher install recognition')
     return sorted(set(selected))
+
+
+def copy_capture_presets(repository, save):
+    for source, kind in ((SENSOR, 'Sensor'), (NETWORK, 'Network')):
+        for namespace in (Path(kind), Path(kind) / SAVEFILE_VERSION):
+            copy_file(Path(repository) / source, Path(save) / namespace / Path(source).name)
 
 
 def inventory(root):
@@ -173,8 +217,7 @@ def prepare(release, morai, output, wheels=None, run=False):
     for source in core:
         copy_file(source, mr / source.relative_to(morai))
     save = mr / DATA / 'SaveFile'
-    copy_file(REPO / SENSOR, save / 'Sensor' / Path(SENSOR).name)
-    copy_file(REPO / NETWORK, save / 'Network' / Path(NETWORK).name)
+    copy_capture_presets(REPO, save)
     from dependencies import assemble_overlay
     overlay = assemble_overlay(output / 'overlay', REPO / 'base_ws/install_aw149', Path('/opt/ros/noetic'), REPO / 'base_ws/src/morai/morai_msgs')
     dump(output / 'overlay_receipt.json', overlay)
@@ -202,7 +245,7 @@ def prepare(release, morai, output, wheels=None, run=False):
                              'user namespace availability', 'MORAI login/license/UI check',
                              'fresh independent small capture and conversion', 'capture authorization'],
                     excluded=['Git metadata and credentials', 'MORAI stored account',
-                              'old SaveFile content', 'locks/logs/debug symbols',
+                              'old SaveFile content', 'locks/logs/unrelated debug symbols',
                               'CUDA/PyTorch/model weights'],
                     remote_touched=False)
     dump(output / 'portable_bundle.json', manifest)

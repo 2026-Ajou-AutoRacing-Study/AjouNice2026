@@ -11,6 +11,25 @@ import runtime
 
 
 class BuildTests(unittest.TestCase):
+    def morai_fixture(self, root):
+        for name in build.CORE_FILES:
+            file = root / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(b'fixture')
+        for name in build.CORE_DIRS:
+            directory = root / build.DATA / name
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / 'core.bin').write_bytes(b'core')
+            (directory / 'unity.lock').write_bytes(b'lock')
+            (directory / 'debug.debug').write_bytes(b'excluded debug')
+            (directory / 'runtime.log').write_bytes(b'excluded log')
+        for name in (*build.SIMULATOR_INSTALL_FILES, 'Simulator.x86_64', 'UnityPlayer.so',
+                     'Simulator_Data/Managed/core.dll', 'Simulator_Data/Resources/core.bin',
+                     'Simulator_Data/Plugins/core.so'):
+            file = root / build.SIMULATOR_ROOT / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(('real native fixture: ' + name).encode())
+
     def test_credential_names_rejected(self):
         with tempfile.TemporaryDirectory() as root:
             for name in ('.env', '.env.production', 'rclone.conf', '.netrc',
@@ -31,28 +50,87 @@ class BuildTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build.copy_file(source, target)
 
-    def test_clean_morai_excludes_account_savefile_lock_and_debug(self):
+    def test_clean_morai_preserves_native_install_files_but_excludes_private_and_junk(self):
         with tempfile.TemporaryDirectory() as root:
             mr = Path(root)
-            for name in build.CORE_FILES:
-                file = mr / name
-                file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_bytes(b'fixture')
-            for name in build.CORE_DIRS:
-                directory = mr / build.DATA / name
-                directory.mkdir(parents=True, exist_ok=True)
-                (directory / 'core.bin').write_bytes(b'core')
-                (directory / 'unity.lock').write_bytes(b'lock')
-                (directory / 'debug.debug').write_bytes(b'debug')
+            self.morai_fixture(mr)
             account = mr / build.DATA / 'Version/V2AccountInfo.byte'
             account.write_bytes(b'not copied')
+            options = account.with_name('optionList.byte')
+            options.write_bytes(b'not copied')
             capture = mr / build.DATA / 'SaveFile/SensorData/old.png'
             capture.parent.mkdir(parents=True)
             capture.write_bytes(b'old')
+            other_debug = mr / build.SIMULATOR_ROOT / 'Other_DoNotShip/private.txt'
+            other_debug.parent.mkdir()
+            other_debug.write_bytes(b'not a required native install file')
             names = [file.relative_to(mr).as_posix() for file in build.morai_files(mr)]
             self.assertNotIn(str(account.relative_to(mr)), names)
+            self.assertNotIn(str(options.relative_to(mr)), names)
             self.assertNotIn(str(capture.relative_to(mr)), names)
-            self.assertFalse(any(name.endswith(('.debug', 'unity.lock')) for name in names))
+            self.assertNotIn(str(other_debug.relative_to(mr)), names)
+            self.assertFalse(any(name.endswith(('debug.debug', 'unity.lock', '.log')) for name in names))
+            for native in build.SIMULATOR_INSTALL_FILES:
+                self.assertIn((build.SIMULATOR_ROOT / native).as_posix(), names)
+
+    def test_install_files_survive_copy_and_inventory_without_fake_markers(self):
+        with tempfile.TemporaryDirectory() as root:
+            mr, target = Path(root) / 'source', Path(root) / 'new_bundle/morai/MoraiLauncher_Lin'
+            mr.mkdir()
+            self.morai_fixture(mr)
+            for source in build.morai_files(mr):
+                build.copy_file(source, target / source.relative_to(mr))
+            inventory = build.inventory(target)
+            simulator = target / build.SIMULATOR_ROOT
+            self.assertGreater(len(list(simulator.glob('*.*'))), 2)
+            self.assertGreater(sum(path.is_dir() for path in simulator.iterdir()), 1)
+            self.assertGreater(sum(path.is_dir() for path in (simulator / 'Simulator_Data').iterdir()), 2)
+            for native in build.SIMULATOR_INSTALL_FILES:
+                relative = build.SIMULATOR_ROOT / native
+                self.assertEqual(build.sha256(mr / relative), inventory[relative.as_posix()]['sha256'])
+
+    def test_missing_real_install_file_is_not_replaced_with_placeholder(self):
+        with tempfile.TemporaryDirectory() as root:
+            mr = Path(root)
+            self.morai_fixture(mr)
+            (mr / build.SIMULATOR_ROOT / build.SIMULATOR_INSTALL_FILES[0]).unlink()
+            with self.assertRaisesRegex(ValueError, 'regular nonsymlink file'):
+                build.morai_files(mr)
+
+    def test_empty_directories_cannot_pass_file_only_archive_install_check(self):
+        with tempfile.TemporaryDirectory() as root:
+            mr = Path(root)
+            self.morai_fixture(mr)
+            (mr / build.SIMULATOR_ROOT / 'Simulator_Data/Plugins/core.so').unlink()
+            with self.assertRaisesRegex(ValueError, 'install recognition'):
+                build.morai_files(mr)
+
+    def test_debug_exception_is_restricted_to_exact_native_paths(self):
+        with tempfile.TemporaryDirectory() as root:
+            for name in ('LinuxPlayer_s.debug', 'UnityPlayer_s.debug',
+                         str(build.SIMULATOR_ROOT / 'unrelated.debug')):
+                path = Path(root) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'not allowlisted')
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    build.safe_file(path)
+
+    def test_capture_presets_are_identical_in_flat_and_native_version_namespaces(self):
+        with tempfile.TemporaryDirectory() as root:
+            repository, save = Path(root) / 'repo', Path(root) / 'SaveFile'
+            for name in (build.SENSOR, build.NETWORK):
+                source = repository / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_bytes(('fixture preset: ' + name).encode())
+            build.copy_capture_presets(repository, save)
+            for name, kind in ((build.SENSOR, 'Sensor'), (build.NETWORK, 'Network')):
+                expected = (repository / name).read_bytes()
+                self.assertEqual((save / kind / Path(name).name).read_bytes(), expected)
+                self.assertEqual((save / kind / '25.S4.MolitComp03' / Path(name).name).read_bytes(), expected)
+            self.assertEqual(len(build.inventory(save)), 4)
+            # Never silently replace any existing user preset on a retry.
+            with self.assertRaisesRegex(ValueError, 'existing destination'):
+                build.copy_capture_presets(repository, save)
 
     def test_wheel_library_extraction_and_no_script_generation(self):
         with tempfile.TemporaryDirectory() as root:
