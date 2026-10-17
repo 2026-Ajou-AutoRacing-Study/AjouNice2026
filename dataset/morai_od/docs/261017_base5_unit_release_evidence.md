@@ -330,3 +330,84 @@ python3 -u dataset/morai_od/scripts/launch_base5_obstacle_support.py \
 실제 촬영 시작·정상 중단 뒤 재개에는 앞 절의 **`--run --confirmed-environment sunny13`**
 명령을 사용한다. 취득분이 생긴 output에 위 CPU 준비 명령을 다시 실행하지 않는다.
 별도 `--complete` 미승인·음영 이동 22장의 촬영 전 개별 준비 조건은 그대로다.
+
+<a id="portable"></a>
+
+## 빌린 Ubuntu 22.04 PC용 로컬 전달 준비본
+
+2026-10-17 18:50 KST 기준이다. 이 절은 **로컬 패키징 완료** 기록이며 원격 설치·이식 승인이나
+새 PC의 본수집 자격을 뜻하지 않는다. 이 작업에서 빌린 PC에 접속·전송·설치하거나 파일을
+만들지 않았다. 기존 PC의 MORAI·캡처 원본과 위 v158a release/runtime도 수정하지 않았다.
+
+| 항목 | 실제 결과 |
+|---|---|
+| 로컬 artifact root | `artifacts/handoff/base5_capture_portable_261017` |
+| 최종 폴더 | 위 root의 `capture_bundle` |
+| 전달 압축 | `base5_capture_native_v1_261017.tar.zst` 및 같은 이름의 `.sha256` |
+| 압축 크기 | 4,355,938,670 bytes, 약 4.06GiB |
+| 폴더 파일 합계 | manifest 포함 7,282,719,132 bytes, 약 6.78GiB; filesystem 할당량과는 다름 |
+| 압축 SHA256 | `e56cb9493a18579c636c06b34171e0c34ab30c5a6424fc35703adbb6fc2282d1` |
+| 패키지 manifest SHA256 | `f0f30909639e0f3123e6fc89ac64b01bb60a8b6445be4331b9e7efee2f1cb1f0` |
+| 내용 검사 | 압축 내 31,182개 regular file의 크기·내용 SHA 확인, 실행 파일 권한 보존 |
+| 안전 회귀 | `scripts/portable_base5` 90개 통과 |
+| CPU 의존성 | 로컬 Python 3.10.22·Noetic·동봉 wheel 환경에서 import 및 MORAI 8종 MD5 대조 통과 |
+| 실제 수집 | 0장. ROS 노드·MORAI·GPU 모델을 시작하지 않음 |
+
+`portable_bundle.json`은 구성 파일을 상대경로로 기록한다. `payload`에는 기존 release의
+runtime/input 및 CPU 변환에 필요한 명시적 추가 파일을 원문 그대로 보존했다. 원문 JSON 안의
+절대경로를 치환하거나 SHA 검사를 완화하지 않았다. 따라서 과거 QA에 필요한 bag·기준 자료도
+pin에 포함된 것은 유지한다. Git 디렉터리 전체를 가져온 패키지는 아니다.
+
+로컬 read-only namespace 시험에서는 26,302개 파일을 원래 논리 경로로 읽어 SHA를 대조했다.
+`bin/bwrap`는 이 경로 호환성 시험용이며 Docker 설치를 요구하지 않는다. 격리의 실제 범위는
+인자에 달려 있고 일반적인 보안 격리 보증으로 확대하지 않는다.
+[Bubblewrap 설명](https://github.com/containers/bubblewrap)을 참고한다.
+빌린 PC의 user namespace·라이브러리 호환성은 아직 확인하지 않았다.
+
+MORAI는 현재 버전의 핵심 실행 파일·맵/에셋을 **복사본에서 선별**했다. 저장 계정
+`V2AccountInfo.byte`, 과거 SaveFile 내용, 잠금·로그·debug 파일, sudo를 사용하는 기존 설치/실행
+스크립트는 제외했다. 수집용 `Sensor_competition_local.json`과
+`ego_network_mr_base5_savesensordata_collision_local.json`만 새 Sensor/Network에 넣었다.
+이 두 파일은 실주행 LAN 설정이 아니다. UI의 Capture Mode·Sunny13·annotation ON 확인과
+대상 PC의 정상적인 MORAI 로그인·라이선스/드라이버 확인은 여전히 필요하다.
+
+기존 Noetic core에 더할 `morai_msgs`·rosbridge Python overlay와 Python 3.10용 wheel을
+동봉했다. GitHub 로그인·SSH 개인키·Drive/rclone 인증 파일·학습 가중치는 넣지 않았다.
+라이브러리는 별도 `python` 경로에서 읽으며 시스템 Python이나 `/opt/ros`를 설치/변경하지
+않는다. Python 3.10 검사는 **로컬 Bookworm 기반 CPU 컨테이너**에서 수행한 것으로,
+실제 Ubuntu 22.04 PC의 동작 인증은 아니다. `morai_msgs`의 TODO 라이선스 선언과 로컬에서
+찾지 못한 `rosauth` copyright는 `overlay_receipt.json`에 경고로 남겼다.
+
+도구는 `scripts/portable_base5/`에 있으며 전달본에는 `tools/`로 복사했다.
+
+- `build.py`·`portable_paths.py`: 새 로컬 폴더 조립, 원문 pin과 파일 목록 검증.
+- `runtime.py`·`namespace.py`: 파일·의존성 검사, 승인된 링크 준비와 read-only 경로 시험.
+  `can_run=false`이며 bridge/본수집 실행 연결은 잠겨 있다. 수동 boolean 변경이나 가짜 smoke
+  receipt로 수집을 켤 수 없다. 실제 live namespace·새 output·대표 smoke 연결은 후속 작업이다.
+- `finish.py finish`: 완료된 새 fresh batch의 권위 ledger·부족 0 확인 → 공통 split 최종화 →
+  Q90/upright 3클래스 전달본 → 단일 tar.zst 내부 전수 SHA 검사. 작은 fixture로 검증했고
+  실제 새 5K 전체 변환은 아직 수행하지 않았다. 임의 completion 결과 합치기는 지원하지 않는다.
+- `finish.py pull`: 우리 PC에서 rsync 재개·수신 SHA 검증. 기본은 계획만 표시하고 `--run`이
+  필요하다. 원격 삭제·PNG 자동 정리·Drive 자동 업로드는 없다.
+- `pack.py`: 준비 묶음의 단일 압축과 실행 권한·내용 검증. 기존 출력은 덮어쓰지 않는다.
+
+PNG/native/실패 근거는 촬영 원본에 보존하며 Q90 학습 압축에 원본 RGB PNG를 중복해서
+넣지 않는다. hardlink 기반 CPU 변환으로 중복 공간을 줄인다. `finish`의 기본 관리 상한은
+100GiB·최소 여유 10GiB다. 배포 후에는 `--usage-root`에 **승인된 전체 작업 폴더**를 넣어
+패키지·MORAI·raw·변환본을 함께 계산해야 한다. 부족분이 있으면 완료 압축으로 가장하지 않는다.
+
+다음 승인 요청 범위는 `/home/ddeungbuntu/ajounice_base5_capture/`라는 **새 폴더 안에서만**
+전송·압축 해제·환경/경로 검사·로그 생성·소량 검증을 하는 것이다. 아직 이 경로도 만들지 않았다.
+시스템 패키지·`/opt/ros`·기존 MORAI·shell 설정은 변경하지 않는다. 대상 PC 확인 후 live 실행기와
+완료 후 변환/로컬 수신 체인을 연결하고, 대표 소량 촬영을 확인한 다음 별도 본수집 승인을 받는다.
+우리 PC가 꺼져 있으면 결과를 원격에 보존하고 나중에 pull하는 것이며 즉시 자동 수신을 보장하지 않는다.
+
+로컬 검사 명령·stdout·소요시간은 artifact root의 `verify_local.py`·`local_verification.json`에
+보존했다. 최종 검사 네 묶음이 모두 PASS이며 network-none Python 검사에서 변환기·승인 런처의
+CPU `--help` import도 통과했다. 이번에 만든 실패/중간 조립 폴더만 정리했고 최종 폴더·압축·
+검사 근거와 원래 source는 유지한다. 위 portable helper는 신규 코드이며 동결 capture runtime을
+고친 것이 아니다. 실제 원격 검증 후 이 절의 상태를 갱신한다.
+
+최종 조립 폴더와 압축을 함께 보관한 뒤 로컬 여유는 약 50GiB다. 다음 로컬 5K의 시작 기준
+55GiB에는 부족하다. 원격 전달·검증 뒤 재생성 가능한 로컬 조립 복사본 약 6.78GiB를 정리하거나
+별도 공간을 확보하고 다시 검사한다. 촬영 raw·완료 원본을 자동 삭제해 공간을 맞추지 않는다.
