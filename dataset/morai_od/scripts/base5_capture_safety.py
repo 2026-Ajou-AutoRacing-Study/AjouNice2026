@@ -60,6 +60,15 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def verified_shutdown(path):
+    """Missing, malformed or merely truthy Park evidence is not a safe exit."""
+    try:
+        record=json.loads(Path(path).read_text())
+        return isinstance(record,dict) and record.get('park_verified') is True
+    except (OSError,ValueError,TypeError):
+        return False
+
+
 class SceneCollisionError(RuntimeError):
     """Confirmed per-scene contact, not a transport or exit-safety failure."""
 
@@ -204,6 +213,8 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scripts=Path(__file__).parent
     deck=json.loads(Path(manifest).read_text())
+    from base5_layout_split import validate_manifest_overlay,overlay_for_metadata,resolve as resolve_split
+    validate_manifest_overlay(deck,allow_subset=True)
     scale_policy=None
     if deck.get('config',{}).get('asset_scale_policy'):
         from base5_asset_scale import bind_config
@@ -222,7 +233,7 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
         safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_far_vehicle_native.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1; final-ego-road-footprint-v114; post-park-stationary-v114')
     reference=deck.get('config',{}).get('static_placement_geometry')
-    for name in ('base5_scale_capture_contract.py','base5_asset_scale.py','base5_native_box_corners.py'):
+    for name in ('base5_scale_capture_contract.py','base5_asset_scale.py','base5_native_box_corners.py','base5_export_readiness.py','base5_layout_split.py','base5_unit_geometry_contract.py','base5_unit_capture_provenance.py'):
         contract['safety_code_sha256'][name]=sha256(scripts/name)
     if deck.get('config',{}).get('static_mission_extent'):
         contract['safety_code_sha256']['base5_static_mission_extent.py']=sha256(scripts/'base5_static_mission_extent.py')
@@ -254,6 +265,12 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
             raise ValueError('Placement geometry reference changed')
         contract['static_placement_geometry']=reference
     if runner_options is not None:contract['runner_options']=runner_options
+    if deck.get('split_overlay') is not None:contract['training_split_overlay']=deck['split_overlay']
+    if deck.get('config',{}).get('native_unit_geometry_reference') is not None:
+        from base5_unit_geometry_contract import load as load_unit_geometry
+        unit_reference=deck['config']['native_unit_geometry_reference']
+        load_unit_geometry(unit_reference)
+        contract['native_unit_geometry_reference']=unit_reference
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')
@@ -270,13 +287,25 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
             raise ValueError('Completed ledger has incomplete provenance: '+ident)
         if sha256(capture/'scenario.json')!=row['scenario_sha256']:
             raise ValueError('Completed capture checksum mismatch: '+ident)
-        from base5_far_vehicle_native import verify_capture as verify_far_capture
         source_entry=next((e for e in deck.get('scenes',[]) if e['id']==ident),None)
+        captured_metadata=json.loads((capture/'metadata.json').read_text())
+        if source_entry is not None:
+            planned_metadata=json.loads(Path(source_entry['metadata']).read_text())
+            if captured_metadata.get('training_split_overlay')!=planned_metadata.get('training_split_overlay'):
+                raise ValueError('Completed capture changed or removed training split overlay: '+ident)
+            if captured_metadata.get('native_unit_geometry_reference')!=planned_metadata.get('native_unit_geometry_reference'):
+                raise ValueError('Completed capture changed or removed native unit geometry reference: '+ident)
+        overlay=overlay_for_metadata(captured_metadata)
+        if overlay is not None:
+            resolve_split(overlay,ident,row,captured_metadata)
+        from base5_far_vehicle_native import verify_capture as verify_far_capture
         verify_far_capture(source_entry,capture)
         from base5_shadow_ground_reuse import verify_capture as verify_shadow_capture
         verify_shadow_capture(source_entry,capture,deck)
         from base5_scale_capture_contract import verify_capture as verify_scale_capture
         verify_scale_capture(source_entry,capture,deck)
+        from base5_unit_capture_provenance import verify_capture as verify_unit_capture
+        verify_unit_capture(source_entry,capture,deck,row)
         cameras=list(capture.glob('CAMERA_*/*_Intensity.png'))
         lidar=list(capture.glob('LIDAR_*/*_Intensity.bin'))
         labels=list(capture.glob('LIDAR_*/*_Instance.txt'))

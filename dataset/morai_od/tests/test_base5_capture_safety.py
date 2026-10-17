@@ -9,6 +9,18 @@ from base5_capture_safety import collision_window,load_ledger,prepare_session,ar
 
 
 class CaptureSafetyTest(unittest.TestCase):
+    def test_shutdown_requires_explicit_valid_park_receipt(self):
+        from base5_capture_safety import verified_shutdown
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'shutdown_safety.json'
+            self.assertFalse(verified_shutdown(path))
+            for value in ('broken','null','[]','{}','{"park_verified":1}',
+                          '{"park_verified":"true"}','{"park_verified":false}'):
+                path.write_text(value)
+                self.assertFalse(verified_shutdown(path),value)
+            path.write_text('{"park_verified":true}')
+            self.assertTrue(verified_shutdown(path))
+
     def test_repeated_pose_failures_preserve_both_original_evidence_hashes(self):
         from base5_capture_safety import write_scene_pose_failure,sha256
         with tempfile.TemporaryDirectory() as temp:

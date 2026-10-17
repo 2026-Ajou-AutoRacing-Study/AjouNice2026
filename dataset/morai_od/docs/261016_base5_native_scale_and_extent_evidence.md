@@ -4,6 +4,10 @@
 새 본수집과 학습은 실행하지 않았다. 기존 Sunny13 5K·E24·v154 release와 실패 원본은 보존한다.
 현재 운영 판정은 [Base5 CURRENT](BASE5_V2_CURRENT.md), 설계 의도는 [확장 계획](261016_base5_mission_extent_and_asset_scale_plan.md)을 따른다.
 
+후속 주석(2026-10-17): 재시작 후 독립 혼합 시험에서도 native 치수 변동이 재현되어 확대 수집을
+중단했다. 이 문서의 당시 승인·release JSON은 과거 snapshot으로 보존하며 현재 source의 승인이
+아니다. 정적 구역 확장은 유지하고, 다음 원형 구성과 검증은 [10/17 최종 판정](261017_base5_scale_split_qualification.md#확대-수집-중단과-다음-원형-경로)을 따른다.
+
 ## 정적 미션의 공간 분포
 
 새 `candidate_v155b`는 주요 객체 중심을 전체 MGeo 경로에 투영해 전·안·후를 구분한다.

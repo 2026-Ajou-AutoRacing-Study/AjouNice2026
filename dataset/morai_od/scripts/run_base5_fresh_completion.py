@@ -156,6 +156,28 @@ def adopted_entry(row,lookup):
     return entry
 
 
+def finalize_selected_layout(source, adopted, selected, output):
+    """Immutable, selection-addressed consolidation; cached resume is read-only."""
+    from base5_layout_split import validate_manifest_overlay
+    from finalize_base5_layout_split import finalize
+    key=sha256(selected)
+    folder=output/'layout_split_final'/key
+    result_path=folder/'result.json'
+    if result_path.exists():
+        result=read(result_path)
+        if (sha256(result['manifest'])!=result['manifest_sha256']
+                or sha256(result['split_overlay'])!=result['split_overlay_sha256']
+                or sha256(result['derived_selected_ledger'])!=result['derived_selected_ledger_sha256']):
+            raise ValueError('Finalized selected split output changed')
+        validate_manifest_overlay(read(result['manifest']))
+        return result
+    frozen_input=output/'layout_split_final_inputs'/key/'adopted_manifest.json'
+    if frozen_input.exists():
+        if read(frozen_input)!=adopted:raise ValueError('Finalization adopted input changed')
+    else:atomic_json(frozen_input,adopted)
+    return finalize(source,frozen_input,selected,folder)
+
+
 def frozen_proposal_score(meta,calibration,kind):
     """Skip strongly predicted full blockage only in declared range recovery.
 
@@ -163,6 +185,18 @@ def frozen_proposal_score(meta,calibration,kind):
     estimated-geometry ranking, decides whether a scene is accepted.
     """
     return primary_visibility.score(meta,calibration,kind,adaptive.proposal_score)
+
+
+def preserve_native_unit_reference(original,meta,config):
+    from base5_unit_geometry_contract import KEY,load,UnitGeometryContractError
+    expected=config.get(KEY)
+    if original.get(KEY)!=expected:
+        raise UnitGeometryContractError('Recovery source/config unit reference differs')
+    if expected is not None:
+        load(expected)
+        meta[KEY]=copy.deepcopy(original[KEY])
+    elif KEY in meta:
+        raise UnitGeometryContractError('Untagged recovery cannot silently gain a unit reference')
 
 
 def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
@@ -203,6 +237,7 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
                 digest=hashlib.sha256((json.dumps(scene,ensure_ascii=False,indent=2)+'\n').encode()).hexdigest()
                 if not meta['runtime_actors'] and meta['split']==original['split'] and digest not in known:break
             else:raise ValueError('No distinct background within bounded search')
+    preserve_native_unit_reference(original,meta,deck['config'])
     # Before raw capture, retain the SOURCE fresh geometry group, not the donor
     # group and not an old Sunny13 group invented from a logical slot number.
     group=original['scene_group_id'];meta['scene_group_id']=group
@@ -216,7 +251,17 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
     candidate=copy.deepcopy(entry);candidate.update(id=sid,source_cell_id=sid,scenario=str(sp.resolve()),
         metadata=str(mp.resolve()),scenario_sha256=sha256(sp),scene_group_id=group,
         role=meta['spec']['role'],distance_bounds=meta['spec']['distance_bounds'])
-    manifest=folder/'manifest.json';atomic_json(manifest,adaptive.fa.batch.campaign.subset_deck(deck,[candidate]))
+    child_deck=adaptive.fa.batch.campaign.subset_deck(deck,[candidate])
+    if original.get('training_split_overlay'):
+        # A new recovery geometry cannot reuse the parent's payload binding.
+        # Register its explicit mapping and preserve the effective split/group
+        # before any capture. Never alter the frozen parent overlay or RAW.
+        from base5_layout_split import register_recovery_overlay
+        reference=register_recovery_overlay(entry,original,candidate,meta,folder/'layout_split_rebind')
+        meta['training_split_overlay']=reference
+        atomic_json(mp,meta)
+        child_deck['split_overlay']=dict(reference,policy='known-map-layout-group-v156')
+    manifest=folder/'manifest.json';atomic_json(manifest,child_deck)
     delta=flex.candidate_delta(original,meta) if original['runtime_actors'] else dict(background_only=True)
     return dict(id=entry['id'],ordinal=ordinal,group=group,entry=candidate,delta=delta,
         manifest=str(manifest),manifest_sha256=sha256(manifest),moving=bool(flex.movers(meta)),
@@ -277,6 +322,10 @@ def execute(a):
         if not deck['config'].get('fresh_geometry_policy'):raise ValueError('Fresh environment manifest required')
         baseline,deficits,elapsed=verify_parent(a.manifest,a.baseline)
         completion_names=[Path(__file__).name,'base5_spatial_diversity.py','run_base5_flexible_completion.py','run_base5_adaptive_completion.py','run_base5_capture_optimized.py','run_base5_capture_campaign_spatial.py']
+        if deck.get('split_overlay'):
+            completion_names.extend(['base5_layout_split.py','finalize_base5_layout_split.py'])
+        if deck['config'].get('native_unit_geometry_reference'):
+            completion_names.append('base5_unit_geometry_contract.py')
         if deck['config'].get('obstacle_front_support_policy'):
             completion_names.extend(['base5_front_completion_adapter.py','base5_obstacle_front_support.py',
                 'base5_obstacle_rich_floor.py','base5_obstacle_support_policy.py'])
@@ -317,7 +366,16 @@ def execute(a):
                 current=state['current'],attempt_cap=a.attempts,attempts=len(state['attempts']),
                 accepted_bins=dict(Counter(json.dumps([r.get('family'),r.get('distance_bounds'),r.get('role')]) for r in rows))))
             adopted=[adopted_entry(row,lookup) for row in rows]
-            atomic_json(a.output/'adopted_manifest.json',adaptive.fa.batch.campaign.subset_deck(deck,adopted))
+            adopted_deck=adaptive.fa.batch.campaign.subset_deck(deck,adopted)
+            if deck.get('split_overlay'):
+                if not missing:
+                    finalized=finalize_selected_layout(a.manifest,adopted_deck,ledger,a.output)
+                    adopted_deck=read(finalized['manifest'])
+                    state['layout_split_finalization']=finalized
+                    atomic_json(sp,state)
+                else:
+                    adopted_deck.update(layout_split_finalization_pending=True,bulk_ready=False)
+            atomic_json(a.output/'adopted_manifest.json',adopted_deck)
             atomic_json(a.output/'replacement_mapping.json',dict(policy=POLICY,raw_preserved=True,exact_original_quota_preserved=False,
                 replacements=[dict(id=v['id'],ordinal=v['ordinal'],delta=v['delta'],status=(v.get('result') or {}).get('status')) for v in state['attempts']]))
             return missing
@@ -325,6 +383,12 @@ def execute(a):
         if state['stage'] in TERMINAL:
             rows,_=merged(state)
             if rows!=load_ledger(a.output/'selected_ledger.jsonl'):raise ValueError('Final completion selection changed')
+            if deck.get('split_overlay') and not merged(state)[1]:
+                finalized=state.get('layout_split_finalization')
+                if not finalized or sha256(finalized['manifest'])!=finalized['manifest_sha256']:
+                    raise ValueError('Completed layout finalization missing/changed')
+                from base5_layout_split import validate_manifest_overlay
+                validate_manifest_overlay(read(finalized['manifest']))
             ctx=spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO)
             pools=pool_map(ctx)
             for v in state['attempts']:

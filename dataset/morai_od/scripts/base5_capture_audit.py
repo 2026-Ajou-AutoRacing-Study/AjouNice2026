@@ -265,6 +265,11 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
         from base5_far_vehicle_native import review as far_vehicle_review
         far_reasons,far_evidence=far_vehicle_review(metadata,results)
         reasons.extend(far_reasons)
+    unit_review=None
+    if metadata.get('native_unit_geometry_reference') is not None:
+        from base5_unit_geometry_contract import review as review_unit_geometry
+        unit_review=review_unit_geometry(metadata,dict(components=results))
+        reasons.extend(unit_review['review_reasons'])
     result=dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
         ground_warnings=(ground or {}).get('static_policy_decision',{}).get('warnings',[]),
         population_visibility=population_visibility,
@@ -279,6 +284,7 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     # overlay. Keep the original observed safety proof available to selectors
     # and dashboard summaries; never synthesize a successful collision check.
     if live is not None:result['capture_safety']=copy.deepcopy(live)
+    if unit_review is not None:result['native_unit_geometry_review']=unit_review
     if roundabout_visibility is not None:result['roundabout_visibility']=roundabout_visibility
     if shadow_visibility is not None:result['shadow_observation_visibility']=shadow_visibility
     if static_vehicle_evidence is not None:result['stationary_vehicle_runtime']=static_vehicle_evidence

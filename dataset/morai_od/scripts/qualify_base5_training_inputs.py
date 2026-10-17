@@ -313,7 +313,7 @@ def input_support_diagnostics(objects):
         interpretation='Shared points mean geometric full-RPY bbox overlap, not confirmed semantic instance support; no GT policy changes.')
 
 
-def object_rows(rows, measurement, converted, model_points=None, support_details=None):
+def object_rows(rows, measurement, converted, model_points=None, support_details=None, split_overlay=None):
     measured = {frame['id']: frame for frame in measurement['captures']}
     require(len(measured) == len(rows), 'Measurement frame identity differs')
     by_token = {}
@@ -329,9 +329,19 @@ def object_rows(rows, measurement, converted, model_points=None, support_details
         meta = read(root / 'metadata.json')
         audit = read(row.get('audit_path', root / 'audit.json'))
         split, frame = by_token[row['id']]
-        require(split == meta['split'], 'Derived split changed')
-        require(frame['scene_group_id'] == meta.get('scene_group_id',
-                row.get('source_cell_id', row['id'])), 'Derived group changed')
+        from base5_layout_split import overlay_for_metadata
+        frame_overlay = overlay_for_metadata(meta, split_overlay)
+        if frame_overlay is None:
+            require(split == meta['split'], 'Derived split changed')
+            require(frame['scene_group_id'] == meta.get('scene_group_id',
+                    row.get('source_cell_id', row['id'])), 'Derived group changed')
+        else:
+            from base5_layout_split import resolve
+            assignment = resolve(frame_overlay, row['id'], row, meta)
+            require(split == assignment['split'], 'Derived overlay split changed')
+            require(frame['scene_group_id'] == assignment['group_id'], 'Derived overlay group changed')
+            require(frame.get('source_split') == meta['split'], 'Original split lineage lost')
+            require(frame.get('split_overlay_sha256') == frame_overlay['overlay_sha256'], 'Derived overlay checksum differs')
         instances = {i['component_id']: i for i in frame['instances']}
         require(len(instances) == len(frame['instances']), 'Duplicate converted component')
         support = {c['component_id']: c for c in measured[row['id']]['components']}
@@ -422,10 +432,14 @@ def verify_rgb(png, jpeg, records):
                 scope='Actual native Q90 encoding and runtime resize/crop geometry; no tensor loader/model/GPU qualification')
 
 
-def qualify_cohort(name, source_ledger, output, sensor):
+def qualify_cohort(name, source_ledger, output, sensor, split_overlay=None):
     source_ledger = Path(source_ledger).resolve(strict=True)
     require(not output.exists(), 'Fresh cohort output required')
     rows = ledger(source_ledger)
+    first_meta = read(Path(rows[0]['capture_root'])/'metadata.json')
+    first_overlay_ref = rows[0].get('training_split_overlay') or first_meta.get('training_split_overlay')
+    if split_overlay is None and first_overlay_ref:
+        split_overlay = Path(first_overlay_ref['path'])
     before = snapshot(source_ledger, rows)
     model_points, support_details = {}, {}
     for row in rows:
@@ -442,11 +456,15 @@ def qualify_cohort(name, source_ledger, output, sensor):
     require(not measurement['errors'], 'Current mask measurement has unresolved input errors')
     atomic_json(output / 'mask_measurement.json', measurement)
     derived = output / 'derived'
-    conversion = derive_infos(source_ledger, output / 'mask_measurement.json', derived, sensor)
+    conversion = derive_infos(source_ledger, output / 'mask_measurement.json', derived, sensor, split_overlay=split_overlay)
     require(sum(conversion['splits'].values()) == len(rows), 'Approved cohort lost a primary/frame in infos')
     converted = {split: pickle.loads((derived / 'infos' /
         f'morai_base5_infos_{split}.pkl').read_bytes()) for split in ('train', 'val', 'test')}
-    objects, targets = object_rows(rows, measurement, converted, model_points, support_details)
+    overlay = None
+    if split_overlay is not None:
+        from base5_layout_split import read_overlay
+        overlay = read_overlay(split_overlay)
+    objects, targets = object_rows(rows, measurement, converted, model_points, support_details, overlay)
     png, cache, jpeg = output / 'png_portable', output / 'jpeg_cache', output / 'jpeg_portable'
     portable.build(derived / 'derived_selected_ledger.jsonl', {PROFILE: derived / 'infos'},
                    png, expected_scenes=len(rows), copy_mode='hardlink')
@@ -487,9 +505,14 @@ def qualify_cohort(name, source_ledger, output, sensor):
     atomic_json(output / 'far_targets.json', targets)
     atomic_json(output / 'source_snapshot.json', before)
     metadata = [read(Path(row['capture_root']) / 'metadata.json') for row in rows]
+    source_split_frames = dict(Counter(m['split'] for m in metadata))
+    if overlay is not None:
+        from base5_layout_split import resolve
+        metadata = [dict(meta, split=resolve(overlay, row['id'], row, meta)['split']) for row, meta in zip(rows, metadata)]
     report = dict(schema=SCHEMA, cohort=name, source_ledger=str(source_ledger),
         source_ledger_sha256=sha256(source_ledger), frames=len(rows),
         split_frames=dict(Counter(m['split'] for m in metadata)),
+        source_split_frames=source_split_frames,
         planned_parent_observations=sum(len(m['runtime_actors']) for m in metadata),
         planned_parent_summary=planned_summary(metadata),
         native_component_observations=len(objects), retained_gt=sum(o['retained'] for o in objects),
@@ -587,7 +610,7 @@ def baseline_report(data, support):
         inputs_sha256={str(p): sha256(p) for p in paths + [support]})
 
 
-def run(cohorts, output, sensor, baseline=None, support=None, plan=None):
+def run(cohorts, output, sensor, baseline=None, support=None, plan=None, split_overlay=None):
     output = Path(output).absolute()
     require(not output.exists(), 'Never overwrite previous qualification output')
     require(cohorts and all(re.fullmatch(r'[A-Za-z0-9_-]+', name) for name in cohorts),
@@ -604,7 +627,7 @@ def run(cohorts, output, sensor, baseline=None, support=None, plan=None):
         seen_payloads.update(r['scenario_sha256'] for r in rows)
         seen_cells.update(r.get('source_cell_id', r['id']) for r in rows)
         print(json.dumps(dict(event='qualifying_cohort', cohort=name, frames=len(rows))), flush=True)
-        reports[name] = qualify_cohort(name, source, output / name, Path(sensor))
+        reports[name] = qualify_cohort(name, source, output / name, Path(sensor), split_overlay)
     result = dict(schema=SCHEMA, created_kst=datetime.now(timezone(timedelta(hours=9))).isoformat(),
         report_script_sha256=sha256(__file__), sensor_sha256=sha256(sensor), cohorts=reports,
         unique_raw_observations=len(seen_roots), unique_payloads=len(seen_payloads),
@@ -616,6 +639,8 @@ def run(cohorts, output, sensor, baseline=None, support=None, plan=None):
             'Cohorts stay separate; repeated logical source cells are not independent training examples.',
             'Baseline retained GT and new native/planned-parent denominators must not be equated.',
             'No MMDet tensor loader, training loss, model inference, GPU or weather generalization qualification.'])
+    if split_overlay is not None:
+        result['split_overlay'] = dict(path=str(Path(split_overlay).resolve()), sha256=sha256(split_overlay))
     if plan:
         document = read(plan)
         metadata, pins = [], {}
@@ -647,10 +672,11 @@ if __name__ == '__main__':
     parser.add_argument('--baseline', type=Path)
     parser.add_argument('--baseline-support', type=Path)
     parser.add_argument('--plan', type=Path, help='Frozen new full5K manifest; report planned parents separately')
+    parser.add_argument('--split-overlay', type=Path, help='Qualified layout overlay matching selected native payloads')
     args = parser.parse_args()
     values = dict(item.split('=', 1) for item in args.cohort)
     require(len(values) == len(args.cohort), 'Duplicate cohort name')
     require(bool(args.baseline) == bool(args.baseline_support), 'Both baseline inputs required')
-    result = run(values, args.output, args.sensor, args.baseline, args.baseline_support, args.plan)
+    result = run(values, args.output, args.sensor, args.baseline, args.baseline_support, args.plan, args.split_overlay)
     print(json.dumps({k: v for k, v in result.items() if k not in
                      ('cohorts', 'baseline', 'helper_sha256', 'latest_plan')}, indent=2))

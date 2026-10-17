@@ -242,6 +242,50 @@ class QualificationTest(unittest.TestCase):
         self.assertTrue(all(camera['img_path'].endswith('.jpg')
             for camera in info['data_list'][0]['images'].values()))
 
+    def test_native_cpu_derivation_uses_tagged_layout_overlay_not_raw_split(self):
+        import base5_layout_split as layout
+        ledger, capture = self.native_fixture()
+        records = []
+        for index in range(30):
+            meta = q.read(capture/'metadata.json')
+            meta['scene_group_id'] = 'clip-'+str(index)
+            meta['ego'].update(x=float(index), link_idx='same-known-map-link')
+            meta['spec'].update(role='front', yaw_limit=3, distance_bin=0, topology='route_general')
+            meta['runtime_actors'][0].update(data_id=40100002, name='WoodBox', motion='static',
+                position=dict(x=float(index)+10, y=0., z=0.), placement_yaw_deg=0., estimated_size=[1.,1.,1.])
+            records.append(dict(id='slot-'+str(index), meta=meta,
+                scenario_sha256=q.sha256(capture/'scenario.json')))
+        overlay = layout.allocate(records)
+        ident, assignment = next((key, value) for key, value in overlay['assignments'].items() if value['split']=='val')
+        overlay['overlay_sha256'] = layout.digest(overlay)
+        overlay_path = self.write('split_overlay.json', overlay)
+        meta = next(row['meta'] for row in records if row['id']==ident)
+        meta['training_split_overlay'] = dict(path=str(overlay_path), sha256=q.sha256(overlay_path),
+            overlay_sha256=overlay['overlay_sha256'])
+        self.write('raw/metadata.json', meta)
+        # A finalized cohort can authorize immutable RAW tags from its parent
+        # overlays while the derived ledger selects one merged overlay.
+        consolidated = copy.deepcopy(overlay)
+        consolidated.pop('overlay_sha256')
+        consolidated['authorized_source_overlays'] = {overlay['overlay_sha256']:
+            dict(path=str(overlay_path),sha256=q.sha256(overlay_path))}
+        consolidated['overlay_sha256'] = layout.digest(consolidated)
+        consolidated_path = self.write('consolidated_overlay.json',consolidated)
+        row, = q.ledger(ledger);row.update(id=ident,training_split_overlay=dict(
+            path=str(consolidated_path),sha256=q.sha256(consolidated_path),
+            overlay_sha256=consolidated['overlay_sha256']))
+        ledger.write_text(json.dumps(row)+'\n')
+        original = {p:p.read_bytes() for p in capture.rglob('*') if p.is_file()}
+        result = q.qualify_cohort('overlay', ledger, self.root/'overlay_derived',
+            q.REPO/'configs/sensors/Sensor_competition_local.json')
+        self.assertEqual(result['split_frames'], dict(val=1))
+        self.assertEqual(result['source_split_frames'], dict(train=1))
+        self.assertEqual(result['retained_gt'], 1)
+        package = Path(result['training3_package'])
+        info = pickle.loads((package/'infos/512x1056/morai_base5_infos_val.pkl').read_bytes())
+        self.assertEqual(info['data_list'][0]['scene_group_id'], assignment['group_id'])
+        self.assertEqual(original, {p:p.read_bytes() for p in capture.rglob('*') if p.is_file()})
+
     def test_changed_native_geometry_and_point_support_are_fatal(self):
         ledger, capture = self.native_fixture()
         row, = q.ledger(ledger)

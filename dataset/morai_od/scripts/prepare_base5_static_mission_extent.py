@@ -56,7 +56,7 @@ def density(metadata):
     return result
 
 
-def prepare(source, output, counts=None, maximum_attempts=1024):
+def prepare(source, output, counts=None, maximum_attempts=1024, known_map_layout_split=False):
     source, output = Path(source).resolve(), Path(output).resolve()
     runtime = spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR.resolve()
     if output.exists():
@@ -72,8 +72,12 @@ def prepare(source, output, counts=None, maximum_attempts=1024):
     watched = pins.collect_runtime(entrypoints=(Path(__file__).name,))
     inputs = pins.collect_inputs(source)
     config = copy.deepcopy(deck['config'])
+    if known_map_layout_split:
+        import base5_layout_split as layout_split
+        config[layout_split.CONFIG_KEY] = layout_split.configuration()
     ctx = prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR, spatial.gen.geo.DEFAULT_MGEO), config)
-    config[extent.CONFIG_KEY] = extent.configuration(ctx, counts)
+    config[extent.CONFIG_KEY] = extent.configuration(ctx, counts,
+        split_policy=layout_split.POLICY if known_map_layout_split else None)
     assigned = extent.assign(originals, config)
     source_audit = audit_base5_scenarios.audit(source)
     if source_audit.get('status') != 'OFFLINE_PASS' or source_audit.get('errors'):
@@ -179,6 +183,8 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--counts', type=int, nargs=3, metavar=('BEFORE', 'INTERSECTION', 'AFTER'))
     parser.add_argument('--maximum-attempts', type=int, default=1024)
+    parser.add_argument('--known-map-layout-split', action='store_true',
+        help='New candidate only: expose every extent stratum to both splits; final layout overlay required')
     args = parser.parse_args()
     counts = dict(zip(extent.STRATA, args.counts)) if args.counts else None
-    print(prepare(args.manifest, args.output, counts, args.maximum_attempts))
+    print(prepare(args.manifest, args.output, counts, args.maximum_attempts, args.known_map_layout_split))

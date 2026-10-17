@@ -16,7 +16,8 @@ import fcntl
 from base5_capture_audit import audit_capture
 from base5_capture_timing import StageTiming, preflight_stationary, stationary_witness, post_load_topics_ready, deferred_static_secondary, bounded_stationary_recheck
 from base5_event_cmd import BoundedServiceCaller
-from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError
+from base5_export_readiness import annotation_export_missing,AnnotationExportUnavailable
+from base5_capture_safety import prepare_session,archive_incomplete,collision_window,scene_collision_epoch,atomic_json,status_row,runtime_presence_review,confirm_park,park_request_fields,motion_capture_review,vertical_motion_review,SceneCollisionError,sha256,verified_shutdown
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -103,6 +104,8 @@ def main():
     if args.stop_after_new_captures is not None and args.stop_after_new_captures<1:p.error('Stop count must be positive')
     if args.test_interrupt_after_raw_move and args.limit>64:p.error('Interruption injection is pilot-only')
     manifest=json.loads(args.manifest.read_text())
+    from base5_layout_split import validate_manifest_overlay
+    validate_manifest_overlay(manifest,allow_subset=True)
     if manifest.get('config',{}).get('asset_scale_policy'):
         # Validate and freeze once, not once per actor. The immutable policy
         # keeps the exact evidence/digest while the capture plan remains JSON.
@@ -120,6 +123,8 @@ def main():
     required={'id','scenario','metadata','scenario_sha256','family','role','distance_bounds','subfamily','motion'}
     for row in rows:
         if required-set(row):raise ValueError('Incomplete scene entry '+str(row.get('id'))+': '+str(sorted(required-set(row))))
+        from base5_unit_geometry_contract import validate_entry as validate_unit_entry
+        validate_unit_entry(row,manifest)
         from base5_scale_capture_contract import validate_entry as validate_scale_entry
         validate_scale_entry(row,manifest)
     args.output.mkdir(parents=True,exist_ok=True)
@@ -138,6 +143,7 @@ def main():
     session=uuid.uuid4().hex[:8]
     ledger=args.output/'ledger.jsonl'; stopfile=args.output/'STOP'
     runner_options=dict(shared_ros_batch=args.shared_ros_batch,selected_scene_ids=[row['id'] for row in rows])
+    returning_session=(args.output/'session_contract.json').exists() or ledger.exists()
     previous,completed=prepare_session(args.output,args.manifest,args.network_template,sensor_source,runner_options)
     if any(r.get('scenario_sha256')!=next((s['scenario_sha256'] for s in rows if s['id']==r['id']),r.get('scenario_sha256')) for r in previous):
         raise ValueError('Resume scenario provenance mismatch')
@@ -149,17 +155,19 @@ def main():
             from base5_asset_scale import verify_frozen_policy
             verify_frozen_policy(manifest['config']['asset_scale_policy'])
         exit_record=args.output/'shutdown_safety.json'
-        unsafe_exit=exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']
+        unsafe_exit=not verified_shutdown(exit_record)
         saved.update(stage='halted_exit_safety' if unsafe_exit else 'complete',current=None,
             error='Previous exit Park not verified; raw complete, no live resume permitted' if unsafe_exit else None,
             updated_at=time.time(),requested=len(rows),finished=len(rows),
             accepted_candidate=sum(r['status']=='accepted_candidate' for r in finished),
             review=sum(r['status']=='review' for r in finished),failed=0,eta_sec=0,results=[status_row(r) for r in finished])
         atomic_json(args.output/'status.json',saved)
+        if unsafe_exit:
+            raise RuntimeError('Previous exit Park missing or not verified; raw preserved, no safe completion claim')
         return
     exit_record=args.output/'shutdown_safety.json'
-    if exit_record.exists() and not json.loads(exit_record.read_text())['park_verified']:
-        raise RuntimeError('Previous exit Park not verified; check MR and use a new output session')
+    if returning_session and not verified_shutdown(exit_record):
+        raise RuntimeError('Previous exit Park missing or not verified; check MR and use a new output session')
     live_master_lock=acquire_live_master_lock(os.environ.get('ROS_MASTER_URI','http://localhost:11311'))
     timing.mark('manifest_and_session_setup')
     import rospy
@@ -258,6 +266,7 @@ def main():
                 if any(not pub.get_num_connections() for pub in (control,loader,capture)):
                     raise RuntimeError('Batch live subscriber missing; no further load')
             meta=json.loads(Path(entry['metadata']).read_text()); scene=json.loads(Path(entry['scenario']).read_text())
+            validate_unit_entry(entry,manifest)
             if 'secondary_far_vehicle' in meta.get('spec',{}):
                 from base5_secondary_far_vehicle import validate_plan,verify_preserved,verify_payload
                 plan=validate_plan(meta['spec'],manifest['config'])
@@ -550,6 +559,20 @@ def main():
                     lidar=[f for f in new if f.name.endswith('_Intensity.bin')]
                     annotation=[f for f in new if f.parent.name.startswith('LIDAR') and f.name.endswith('_Instance.txt')]
                     if len(cams)==4 and len(lidar)==1 and len(annotation)==1 and lidar[0].stat().st_size and time.monotonic()-stable>.5: break
+                    absent,export_observed=annotation_export_missing(new,
+                        time.monotonic()-capture_requested_at,time.monotonic()-stable)
+                    if absent:
+                        # Keep the failed export as evidence; never try the
+                        # same broken sensor setting on the remaining deck.
+                        saved_files=[]
+                        for f in sorted(new):
+                            target=dest/f.relative_to(args.sensor_dir);target.parent.mkdir(parents=True,exist_ok=True)
+                            shutil.move(str(f),str(target));saved_files.append(str(target.resolve()))
+                        atomic_json(dest/'export_unavailable.json',dict(
+                            reason='native_annotation_export_unavailable',observed=export_observed,
+                            preserved_raw_files=saved_files,scenario_sha256=entry['scenario_sha256'],
+                            elapsed_sec=time.monotonic()-capture_requested_at,ordinary_deficit=False))
+                        raise AnnotationExportUnavailable('Native annotation export unavailable; raw preserved; halt before another scene')
                     fresh(4.);time.sleep(.05)
                 else: raise ValueError('Synchronous file completeness timeout')
                 timing.mark('capture_write_and_stability_wait')
@@ -668,6 +691,10 @@ def main():
                 timing.mark('failed_phase')
                 result=dict(id=entry['id'],scenario_sha256=entry['scenario_sha256'],family=entry['family'],
                     status='failed',error=str(exc),duration_sec=time.time()-t0)
+                if isinstance(exc,AnnotationExportUnavailable):
+                    export_evidence=dest/'export_unavailable.json'
+                    result.update(failure_kind='native_annotation_export_unavailable',ordinary_deficit=False,
+                        failure_evidence=str(export_evidence.resolve()),failure_evidence_sha256=sha256(export_evidence))
                 from base5_capture_safety import ScenePoseUnverifiedError,write_scene_pose_failure
                 if isinstance(exc,ScenePoseUnverifiedError):
                     with lock:ego_history=[r for r in traces if r['t']>=load_time]
@@ -716,9 +743,9 @@ def main():
             timing.mark('cleanup_and_ledger')
             if args.shared_ros_batch and (result['status']!='accepted_candidate' or not boundary['park_verified']):
                 raise RuntimeError('Batch review/failure or unsafe boundary Park; halt before next scene')
+            if failures>=3: raise RuntimeError('Capture halted after connection failure or three consecutive scene failures')
             if args.stop_after_new_captures and new_captures>=args.stop_after_new_captures:
                 status('stopped_for_resume_test',entry['id']);break
-            if failures>=3: raise RuntimeError('Capture halted after connection failure or three consecutive scene failures')
         else:
             if manifest['config'].get('asset_scale_policy'):
                 from base5_asset_scale import verify_frozen_policy

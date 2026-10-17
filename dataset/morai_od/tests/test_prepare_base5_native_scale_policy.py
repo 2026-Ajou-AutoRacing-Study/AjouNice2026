@@ -136,6 +136,27 @@ class NativeScalePolicyTests(unittest.TestCase):
                 self.qualify()
         self.assertFalse(self.output.exists())
 
+    def test_explicit_positive_profile_weights_override_only_declared_profiles(self):
+        review=json.loads(self.review.read_text())
+        review['profile_weights']=dict(CargoBox=dict(iso125=35))
+        write(self.review,review)
+        self.qualify()
+        policy=json.loads(self.output.read_text())
+        self.assertEqual(policy['assets']['CargoBox']['profiles']['iso125']['weight'],35)
+        self.assertEqual(policy['assets']['CargoBox']['variation_fraction'],.3)
+        self.assertEqual(policy['qualification']['reviewed']['profile_weights'],review['profile_weights'])
+
+    def test_unknown_unaccepted_nonfinite_boolean_or_nonpositive_weights_are_rejected(self):
+        for weights in ([],dict(UnknownAsset=dict(iso125=1)),dict(CargoBox=[]),
+                dict(CargoBox=dict(original=1)),dict(CargoBox=dict(iso300=1)),
+                *[dict(CargoBox=dict(iso125=value)) for value in (0,-1,True,'1',None,float('nan'),float('inf'))]):
+            with self.subTest(weights=weights):
+                review=dict(accepted=dict(CargoBox=['iso125']),rejected={},profile_weights=weights)
+                write(self.review,review)
+                with self.assertRaises(scale.ScaleContractError):
+                    self.qualify()
+                self.assertFalse(self.output.exists())
+
     def test_single_observation_or_same_yaw_not_enough(self):
         self.rows = [row for row in self.rows if not row['id'].endswith('y90_iso125')]
         self.save_ledger()
@@ -191,6 +212,112 @@ class NativeScalePolicyTests(unittest.TestCase):
             return result
         with patch.object(prepare, '_evidence_capture', side_effect=mutate):
             with self.assertRaisesRegex(scale.ScaleContractError, 'evidence changed'):
+                self.qualify()
+        self.assertFalse(self.output.exists())
+
+    def split_cohorts(self):
+        source=json.loads(self.manifest.read_text())
+        extra_manifest,extra_ledger=self.root/'extra.json',self.root/'extra.jsonl'
+        first,second=copy.deepcopy(source),copy.deepcopy(source)
+        first.update(count=2,scenes=source['scenes'][:2])
+        second.update(count=2,scenes=source['scenes'][2:])
+        first['config']['dataset_id']='first-screen'
+        second['config']['dataset_id']='barrier-followup'
+        write(self.manifest,first)
+        write(extra_manifest,second)
+        self.ledger.write_text(''.join(json.dumps(row)+'\n' for row in self.rows[:2]))
+        extra_ledger.write_text(''.join(json.dumps(row)+'\n' for row in self.rows[2:]))
+        return extra_manifest,extra_ledger
+
+    def test_explicit_multiple_cohorts_preserve_each_pin_and_do_not_rename_sources(self):
+        extra_manifest,extra_ledger=self.split_cohorts()
+        before={str(p):sha256(p) for p in self.root.rglob('*') if p.is_file()}
+        self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+        policy=json.loads(self.output.read_text())
+        self.assertEqual(policy['qualification']['combined_scene_count'],4)
+        self.assertEqual(len(policy['qualification']['diagnostic_cohorts']),2)
+        evidence={p['path']:p['sha256'] for p in policy['assets']['CargoBox']['profiles']['iso125']['native_qualification']['evidence']}
+        for p in (self.manifest,self.ledger,extra_manifest,extra_ledger):
+            self.assertEqual(evidence[str(p.resolve())],before[str(p)])
+        for p,digest in before.items():
+            self.assertEqual(sha256(p),digest)
+
+    def test_duplicate_ids_or_cross_cohort_ledger_ownership_fail_closed(self):
+        extra_manifest,extra_ledger=self.split_cohorts()
+        extra=json.loads(extra_manifest.read_text())
+        extra['scenes'][0]['id']=json.loads(self.manifest.read_text())['scenes'][0]['id']
+        write(extra_manifest,extra)
+        with self.assertRaisesRegex(scale.ScaleContractError,'Duplicate probe source IDs'):
+            self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+        extra['scenes'][0]['id']=self.rows[2]['id']
+        write(extra_manifest,extra)
+        extra_ledger.write_text(json.dumps(self.rows[0])+'\n')
+        with self.assertRaisesRegex(scale.ScaleContractError,'foreign cohort'):
+            self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+
+    def test_mixed_capture_contract_or_reused_raw_cannot_qualify(self):
+        extra_manifest,extra_ledger=self.split_cohorts()
+        extra=json.loads(extra_manifest.read_text())
+        extra['config']['capture']['ground_support_check']=False
+        write(extra_manifest,extra)
+        with self.assertRaisesRegex(scale.ScaleContractError,'contracts differ'):
+            self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+        extra['config']['capture'].pop('ground_support_check')
+        write(extra_manifest,extra)
+        row=copy.deepcopy(self.rows[2])
+        row['capture_root']=self.rows[0]['capture_root']
+        extra_ledger.write_text(json.dumps(row)+'\n')
+        with self.assertRaisesRegex(scale.ScaleContractError,'Duplicate physical capture'):
+            self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+
+    def test_nonapproved_transport_failure_does_not_require_nonexistent_capture_root(self):
+        source=json.loads(self.manifest.read_text())
+        entry=copy.deepcopy(source['scenes'][0])
+        entry['id']='unselected_failure'
+        scenario=json.loads(Path(entry['scenario']).read_text())
+        scenario['objectList'][0]['scale']=dict(x=3.,y=3.,z=3.)
+        metadata=json.loads(Path(entry['metadata']).read_text())
+        metadata['scale_probe'].update(profile='iso300',requested_scale=[3.]*3)
+        raw,meta=self.root/'unused.json',self.root/'unused_metadata.json'
+        write(raw,scenario)
+        write(meta,metadata)
+        entry.update(scenario=str(raw),metadata=str(meta),scenario_sha256=sha256(raw))
+        source['scenes'].append(entry)
+        source['count']=5
+        write(self.manifest,source)
+        self.rows.append(dict(id=entry['id'],status='failed',error='transport failure before capture'))
+        self.save_ledger()
+        self.qualify()
+        policy=json.loads(self.output.read_text())
+        self.assertEqual(set(policy['assets']['CargoBox']['profiles']),{'iso125'})
+
+    def test_combined_limit_and_source_metadata_mutation_fail_closed(self):
+        extra_manifest,extra_ledger=self.split_cohorts()
+        extra=json.loads(extra_manifest.read_text())
+        extra['scenes']=[dict(extra['scenes'][0],id='extra_'+str(i)) for i in range(63)]
+        extra['count']=63
+        write(extra_manifest,extra)
+        with self.assertRaisesRegex(scale.ScaleContractError,'scene cap is 64'):
+            self.qualify(additional_cohorts=[(extra_manifest,extra_ledger)])
+        first=json.loads(self.manifest.read_text())
+        # Restore the original fixture entries after the independent cap test.
+        first.update(count=4,scenes=[])
+        for row in self.rows:
+            scenario=self.root/'sources'/(row['id']+'.json')
+            first['scenes'].append(dict(id=row['id'],scenario=str(scenario),
+                metadata=str(self.root/'sources'/(row['id']+'_meta.json')),
+                scenario_sha256=sha256(scenario)))
+        write(self.manifest,first)
+        self.save_ledger()
+        original=prepare._evidence_capture
+        def mutate(*args,**kwargs):
+            result=original(*args,**kwargs)
+            metadata_path=json.loads(self.manifest.read_text())['scenes'][0]['metadata']
+            with Path(metadata_path).open('a') as stream:
+                stream.write('\n')
+            return result
+        with patch.object(prepare,'_evidence_capture',side_effect=mutate):
+            with self.assertRaisesRegex(scale.ScaleContractError,'evidence changed'):
                 self.qualify()
         self.assertFalse(self.output.exists())
 

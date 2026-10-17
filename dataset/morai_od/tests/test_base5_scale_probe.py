@@ -16,6 +16,17 @@ import report_base5_scale_probe as probe
 
 
 class ScaleProbeTest(unittest.TestCase):
+    def test_lazy_runtime_import_is_pinned_before_execution(self):
+        with patch.object(probe, 'runtime_sources', return_value={'a.py':'a','lazy.py':'b'}):
+            self.assertEqual(probe.verify_runtime_sources({'a.py':'a','lazy.py':'b','unused.py':'c'}),
+                             {'a.py':'a','lazy.py':'b'})
+
+    def test_lazy_runtime_mutation_or_unpinned_import_is_rejected(self):
+        for used in ({'a.py':'changed'}, {'new.py':'b'}):
+            with patch.object(probe, 'runtime_sources', return_value=used):
+                with self.assertRaisesRegex(ValueError, 'runtime source changed'):
+                    probe.verify_runtime_sources({'a.py':'a'})
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

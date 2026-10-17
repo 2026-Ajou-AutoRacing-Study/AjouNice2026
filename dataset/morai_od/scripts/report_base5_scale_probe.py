@@ -54,6 +54,14 @@ def runtime_sources():
     return {str(path): sha256(path) for path in sorted(paths)}
 
 
+def verify_runtime_sources(before_inventory):
+    """Include lazy imports, but compare each used helper to its pre-run bytes."""
+    used = runtime_sources()
+    require(all(before_inventory.get(path) == digest for path, digest in used.items()),
+            'Diagnostic runtime source changed during diagnosis')
+    return used
+
+
 def scale_xyz(value):
     """Scenario scale axes remain x/y/z, distinct from native length/width/height."""
     values = [value[k] for k in ('x', 'y', 'z')] if isinstance(value, dict) else value
@@ -480,7 +488,11 @@ def report(ledgers, output):
             require(output.resolve() != native and native not in output.resolve().parents,
                     'Diagnostic output cannot be inside immutable native evidence')
     before = inventory(ledgers, rows)
-    helpers_before = runtime_sources()
+    # Native corner validation imports some helpers lazily. Pin local Python
+    # bytes before processing, then retain only the helpers actually imported.
+    # A newly imported module is not itself evidence of a source mutation.
+    helpers_before = {str(path.resolve()): sha256(path)
+                      for path in Path(__file__).resolve().parent.glob('*.py')}
     output.mkdir(parents=True)
     captured, failures = [], []
     for index, row in enumerate(rows):
@@ -492,7 +504,7 @@ def report(ledgers, output):
     sheets = asset_comparison_sheets(captured, output)
     after = inventory(ledgers, rows)
     require(before == after, 'Native evidence changed during read-only diagnosis')
-    require(helpers_before == runtime_sources(), 'Diagnostic runtime source changed during diagnosis')
+    helpers_used = verify_runtime_sources(helpers_before)
     result = dict(schema=SCHEMA, ledgers=[dict(path=str(Path(p).resolve()), sha256=sha256(Path(p))) for p in ledgers],
         captures=captured, comparisons=comparisons, asset_comparison_sheets=sheets,
         failed_without_complete_native_audit=failures,
@@ -500,7 +512,7 @@ def report(ledgers, output):
             assets=len({r['probe']['asset'] for r in captured}),
             eligibility_violations=sum(r['probe']['scale_eligibility_violation'] for r in captured),
             comparable_scale_pairs=sum(r['comparable'] for r in comparisons)),
-        native_unchanged=True, source_inventory=before, runtime_sources=helpers_before,
+        native_unchanged=True, source_inventory=before, runtime_sources=helpers_used,
         script_sha256=sha256(Path(__file__)),
         limitations=['No new capture, approval, GT rewrite, training or detector AP measurement.',
             'Scenario Unity scale is requested metadata; native GT dimensions are measured once, never rescaled.',

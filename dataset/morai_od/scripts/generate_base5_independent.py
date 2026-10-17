@@ -990,6 +990,13 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
+    from base5_layout_split import enabled as layout_split_enabled, provisional_split, POLICY as LAYOUT_POLICY
+    if layout_split_enabled(config):
+        meta['source_physical_link_split'] = split
+        meta['split'] = provisional_split(meta, config)
+        meta['split_group'] = None  # Never reinterpret a physical link as a layout group.
+        meta['split_limit'] = 'Known-map provisional layout split; finalize coverage-constrained group overlay before training.'
+        meta['layout_split_policy'] = LAYOUT_POLICY
     if row.get('population_mode'):
         charges=[population.cost(a['estimated_size']) for a in actor_records]
         meta['population_budget']=dict(mode=row['population_mode'],layout=row['population_layout'],

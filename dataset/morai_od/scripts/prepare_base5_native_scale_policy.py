@@ -59,6 +59,15 @@ def _review(path):
                     'Visual review must name whitelisted nonunit profile IDs')
             target.update((name, profile) for profile in profiles)
     require(accepted and not accepted & rejected, 'Approval must be nonempty and must not contradict rejection')
+    weights=review.get('profile_weights',{})
+    require(isinstance(weights,dict), 'Explicit profile weights must be an asset/profile mapping')
+    for name,profiles in weights.items():
+        require(name in {name for name,_ in accepted} and isinstance(profiles,dict),
+                'Profile weights require an explicitly accepted asset/profile')
+        for profile,weight in profiles.items():
+            require((name,profile) in accepted, 'Profile weight names an unknown or unaccepted profile')
+            require(type(weight) in (int,float) and math.isfinite(weight) and weight>0,
+                    'Explicit profile weight must be finite and positive')
     return review, accepted
 
 
@@ -116,8 +125,7 @@ def _evidence_capture(entry, source, source_entry, source_metadata):
             and probe.get('asset') == name and probe.get('parent_uid') == uid,
             'Qualification parent identity/class/motion differs')
     source_actors = source_metadata.get('runtime_actors', [])
-    require(len(source_actors) == 1 and all(actor.get(k) == source_actors[0].get(k) for k in
-            ('name', 'data_id', 'source_list', 'motion', 'unique_id', 'position')),
+    require(len(source_actors) == 1 and actor == source_actors[0],
             'Captured parent differs from registered actor')
     payloads = raw.get('objectList', [])
     require(len(payloads) == 1 and payloads[0]['UNIQUEID'] == uid
@@ -175,40 +183,71 @@ def _evidence_capture(entry, source, source_entry, source_metadata):
         contact_is_initializer_not_collider_certificate=True)
 
 
-def prepare(manifest, ledger, review, unit_references, output, *, ground_aligned_pivot_z=()):
+def prepare(manifest, ledger, review, unit_references, output, *, ground_aligned_pivot_z=(),
+            additional_cohorts=()):
     manifest, ledger, review, output = map(lambda path: Path(path).resolve(), (manifest, ledger, review, output))
     require(not output.exists(), 'New qualified-policy output required')
-    initial_pins = [pin(manifest), pin(ledger), pin(review)] + [pin(path) for path in unit_references]
-    source = read(manifest)
-    require(source.get('config', {}).get('capture', {}).get('asset_scale_probe') is True
-            and str(source.get('status', '')).startswith('DIAGNOSTIC_ONLY')
-            and 1 <= source.get('count', 0) == len(source.get('scenes', [])) <= 64,
-            'Explicit bounded scale-probe source manifest required')
+    cohorts = [(manifest, ledger)] + [(Path(m).resolve(), Path(l).resolve()) for m,l in additional_cohorts]
+    require(len(set(cohorts)) == len(cohorts), 'Duplicate diagnostic cohort')
+    cohort_pins = [pin(path) for cohort in cohorts for path in cohort]
+    shared = cohort_pins + [pin(review)]
+    initial_pins = shared + [pin(path) for path in unit_references]
     visual, accepted = _review(review)
     ground_aligned = set(ground_aligned_pivot_z)
     require(ground_aligned <= {name for name, _ in accepted}, 'Ground-aligned pivot override must be explicitly approved asset')
     units, unit_pins = _unit_references(unit_references)
-    entries = {entry['id']: entry for entry in source['scenes']}
-    require(len(entries) == len(source['scenes']), 'Duplicate probe source IDs')
-    source_metadata = {}
-    for ident, entry in entries.items():
-        require(sha256(entry['scenario']) == entry['scenario_sha256'], 'Probe source payload changed')
-        source_metadata[ident] = read(entry['metadata'])
-    rows = [json.loads(line) for line in ledger.read_text().splitlines() if line.strip()]
-    require(len({row['id'] for row in rows}) == len(rows), 'Duplicate ledger observations cannot qualify as repeats')
+    sources, entries, source_metadata, rows = {}, {}, {}, []
+    source_file_pins, cohort_summaries = [], []
+    total, capture_roots, capture_config = 0, set(), None
+    for cohort_index, (cohort_manifest, cohort_ledger) in enumerate(cohorts):
+        source = read(cohort_manifest)
+        require(source.get('config', {}).get('capture', {}).get('asset_scale_probe') is True
+                and str(source.get('status', '')).startswith('DIAGNOSTIC_ONLY')
+                and 1 <= source.get('count', 0) == len(source.get('scenes', [])) <= 64,
+                'Explicit bounded scale-probe source manifest required')
+        total += source['count']
+        require(total <= 64, 'Combined diagnostic cohort scene cap is 64')
+        comparable_config={k:v for k,v in source['config'].items() if k!='dataset_id'}
+        if capture_config is None:
+            capture_config=comparable_config
+        require(comparable_config==capture_config,
+                'Diagnostic cohort capture/environment/placement contracts differ')
+        own_ids = set()
+        for entry in source['scenes']:
+            ident = entry['id']
+            require(ident not in entries, 'Duplicate probe source IDs across diagnostic cohorts')
+            require(sha256(entry['scenario']) == entry['scenario_sha256'], 'Probe source payload changed')
+            source_file_pins.extend((pin(entry['scenario']),pin(entry['metadata'])))
+            own_ids.add(ident)
+            entries[ident], source_metadata[ident], sources[ident] = entry, read(entry['metadata']), source
+        own_rows = [json.loads(line) for line in cohort_ledger.read_text().splitlines() if line.strip()]
+        require(len({row['id'] for row in own_rows}) == len(own_rows),
+                'Duplicate ledger observations cannot qualify as repeats')
+        for row in own_rows:
+            require(row['id'] in own_ids, 'Capture ledger includes foreign cohort source IDs')
+            # Renaming a scene must not count the same physical raw twice.
+            if row.get('capture_root'):
+                capture_root = str(Path(row['capture_root']).resolve(strict=True))
+                require(capture_root not in capture_roots, 'Duplicate physical capture root across cohorts')
+                capture_roots.add(capture_root)
+            else:
+                require(row.get('status')!='accepted_candidate', 'Accepted cohort observation lacks physical raw')
+        rows.extend(own_rows)
+        cohort_summaries.append(dict(index=cohort_index,manifest=pin(cohort_manifest),
+            ledger=pin(cohort_ledger),source_count=source['count'],ledger_count=len(own_rows),
+            scene_ids=sorted(own_ids),config=copy.deepcopy(source['config']),
+            source_status=source['status']))
     groups, controls = defaultdict(list), defaultdict(list)
     for row in rows:
-        require(row['id'] in entries, 'Capture ledger includes foreign source IDs')
         probe = source_metadata[row['id']].get('scale_probe', {})
         key = (probe.get('asset'), probe.get('profile'))
         needed = key in accepted or (probe.get('profile') == scale.BASE and probe.get('asset') in {name for name, _ in accepted})
         if not needed:
             continue
-        observation = _evidence_capture(row, source, entries[row['id']], source_metadata[row['id']])
+        observation = _evidence_capture(row, sources[row['id']], entries[row['id']], source_metadata[row['id']])
         (controls[observation['name']] if observation['profile_id'] == scale.BASE else groups[key]).append(observation)
     policy = dict(schema=scale.SCHEMA, policy=scale.POLICY, continuous_jitter=False,
                   training_gt_modified=False, assets={})
-    shared = initial_pins[:3]
     summaries = []
     for name, profile_id in sorted(accepted):
         observations, original = groups[(name, profile_id)], controls[name]
@@ -241,7 +280,8 @@ def prepare(manifest, ledger, review, unit_references, output, *, ground_aligned
             source_list='objectList', semantic_class='obstacle', variation_fraction=.3 if group == 'box' else .2,
             minimum_original=2, bbox_axis_to_scale_axis=AXES, profiles={}))
         record['profiles'][profile_id] = dict(status='qualified', scale_xyz=factors,
-            weight=7 if max(factors) <= 1.25 else 3,
+            weight=visual.get('profile_weights',{}).get(name,{}).get(
+                profile_id,7 if max(factors) <= 1.25 else 3),
             native_geometry=dict(bbox_size_m=size.tolist(), pivot_to_bbox_center_local_m=offset.tolist(),
                 pivot_height_above_ground_m=height,
                 bbox_source='validated_native_8corners_q50_no_scale_multiplication',
@@ -264,8 +304,11 @@ def prepare(manifest, ledger, review, unit_references, output, *, ground_aligned
         for profile in record['profiles'].values():
             scale._pins(profile['native_qualification']['evidence'])
     scale._pins(initial_pins)
+    scale._pins(source_file_pins)
     atomic_json(output, dict(policy, qualification=dict(schema=SCHEMA,
         sources=shared, unit_references=[pin(path) for path in unit_references],
+        diagnostic_cohorts=cohort_summaries,combined_scene_count=total,
+        source_files=source_file_pins,cohort_ids_and_raw_preserved=True,
         reviewed=visual, profiles=summaries, training_gt_from_native_corners_only=True,
         raw_files_modified=False, generator_adoption_not_run=True, bulk_started=False)))
     return output
@@ -275,10 +318,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--ledger', type=Path, required=True)
+    parser.add_argument('--additional-cohort',type=Path,nargs=2,action='append',default=[],
+                        metavar=('MANIFEST','LEDGER'),
+                        help='Additional bounded diagnostic cohort; all source IDs must be unique and combined count <=64')
     parser.add_argument('--review', type=Path, required=True)
     parser.add_argument('--unit-reference', type=Path, action='append', required=True)
     parser.add_argument('--ground-aligned-pivot-z', action='append', default=[])
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     print(prepare(args.manifest, args.ledger, args.review, args.unit_reference, args.output,
-                  ground_aligned_pivot_z=args.ground_aligned_pivot_z))
+                  ground_aligned_pivot_z=args.ground_aligned_pivot_z,
+                  additional_cohorts=args.additional_cohort))

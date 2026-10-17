@@ -1,6 +1,6 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-16.
+문서 상태: CURRENT. 근거 확인: 2026-10-17.
 Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 이전 정책의 offline 준비본이며 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
@@ -20,8 +20,8 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 다음 25K 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite` 보존. 최신 정책의 독립 재생성·환경별 smoke가 필요 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
-| 최신 Sunny13 동결 | v155m: 정적 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. 현재 센서의 native 17/17·CPU 1,545개·변환·재개 통과. [최종 실측·실행](261016_base5_native_scale_and_extent_evidence.md) |
-| 본수집 상태 | 미실행. `release_v155m/release.json`은 Sunny13 `bulk_ready=true`. 새 확대 부족분의 자동 보충은 별도 미승인이므로 `--complete` 불가. 과거 release는 보존 |
+| 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
+| 본수집 상태 | 미실행. [10/17 최종 판정](261017_base5_scale_split_qualification.md#확대-수집-중단과-다음-원형-경로): 확대 수집 중단, 다음 구성은 scale `(1,1,1)`. 재시작 후 정식 혼합 26장에서도 native 치수 문제가 원형에 남아 사전 한도로 안전 종료했다. 지도 전역 train·참조 감사 개선은 유지하되 원형 source의 새 조립·소량 검증·동결이 필요하다. 과거 `bulk_ready=true` 승계 및 현재 `--complete` 금지 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -48,7 +48,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 범용 혼합의 배치 수·크기 budget과 실제 보이는 객체/유효 component GT 수는 다르다.
 122종 primary coverage는 해당 release와 adopted manifest의 실제 할당으로 확인한다.
 
-현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다. v155m은 정적 구역을 삼거리 뒤까지 확장하고 외형·native 검증한 7종의 이산 scale만 기존 slot에 통합한다. RedBarrel 확대는 실측 예외로 보류하고 원형은 유지한다.
+현재 보강은 비율·primary 할당·거리/방향·미션 phase·capture split/spec과 기존 actor 목록을 유지한다. 파생 학습 split은 지도 전역 train coverage를 갖는 [배치 그룹 overlay](261017_base5_known_map_layout_split_evidence.md)를 사용한다. 정적 구역의 삼거리 뒤 확장은 유지한다. v155m/v156e의 7종 이산 확대는 과거 실험이며 10/17 혼합 안정성 실패 후 다음 수집에서 제외한다. 원형 복귀도 새 source와 실제 검증 없이 승인하지 않는다.
 범용 regular/dense의 일부에 19종 물리 장애물을 최대 하나 더하고 기존 0~20/20~30m 보조를 보호한다.
 장애물 보강은 30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
 같은 승인 ID 43장 대조에서 근거리 GT 64→98, LiDAR 20점 이상 39→55이고 Vehicle 36/Pedestrian 69는 유지됐다.
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13 본수집은 [v155m 실측·실행](261016_base5_native_scale_and_extent_evidence.md)의 동결 release를 사용한다. 현재는 실행하지 않았다. v154와 이전 release는 당시 source/runtime 이력이며 새 요구사항 승인으로 대체 사용하지 않는다.
+새 Sunny13 본수집은 [10/17 검증](261017_base5_scale_split_qualification.md)과 새 release 동결 후 진행한다. v155m·v154와 이전 release는 당시 source/runtime 이력이며 현재 수정 코드나 새 요구사항 승인으로 대체 사용하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 

@@ -29,6 +29,8 @@ def preflight(path,environment):
     deck=json.loads(Path(env['manifest']).read_text())
     if deck['count']!=5000 or not deck['config'].get('obstacle_support_policy'):
         raise ValueError('Qualified 5K support plan required')
+    from base5_layout_split import validate_manifest_overlay
+    validate_manifest_overlay(deck)
     return doc,env
 
 

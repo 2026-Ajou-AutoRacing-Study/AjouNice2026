@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import random
+import base5_layout_split as layout_split
 
 
 POLICY = 'stationary-mission-bounded-route-strata-v155'
@@ -60,9 +61,11 @@ def _append(rows, lo, hi):
         rows.append([float(lo), float(hi)])
 
 
-def configuration(ctx, counts=None, bounds=ARC_BOUNDS_M):
+def configuration(ctx, counts=None, bounds=ARC_BOUNDS_M, split_policy=None):
     """Resolve exact link ownership, including half-segments at link seams."""
     counts = copy.deepcopy(DEFAULT_COUNTS if counts is None else counts)
+    if split_policy not in (None, layout_split.POLICY):
+        raise ExtentContractError('Unknown mission extent split policy')
     if (set(counts) != set(STRATA) or any(type(v) is not int or v < 1 for v in counts.values())
             or sum(counts.values()) != 600):
         raise ExtentContractError('Exactly 600 positive stationary-mission stratum slots required')
@@ -78,16 +81,21 @@ def configuration(ctx, counts=None, bounds=ARC_BOUNDS_M):
             parts = [(float(a), mid, p.get('link_idx')), (mid, float(b), q.get('link_idx'))]
         for a, b, link in parts:
             if link in owner:
-                _append(intervals[owner[link]][split_for(link)], max(a, bounds[0]), min(b, bounds[1]))
+                splits = ('train', 'val') if split_policy else (split_for(link),)
+                for split in splits:
+                    _append(intervals[owner[link]][split], max(a, bounds[0]), min(b, bounds[1]))
     serial = {name: dict(parts) for name, parts in intervals.items()}
     if any(not serial[name] for name in STRATA):
         raise ExtentContractError('Reviewed MGeo mission links are absent from this route')
-    return dict(policy=POLICY, counts=counts, route_bounds_m=list(bounds), intervals_m=serial,
+    result = dict(policy=POLICY, counts=counts, route_bounds_m=list(bounds), intervals_m=serial,
         link_ids={key: list(value) for key, value in LINKS.items()},
         route_sha256=route_sha256(ctx),
         traffic_signal_interaction_constraint=False,
         official_georeferenced_polygon=False,
         limitation='Team-image interpretation on bounded MGeo links; coverage prior, not official spawn probabilities')
+    if split_policy:
+        result['split_policy'] = split_policy
+    return result
 
 
 def _phase_quotas(rows, amount):
@@ -119,6 +127,10 @@ def assign(metadata, config):
     by_split = defaultdict(list)
     for ident, meta in rows:
         by_split[meta['split']].append((ident, meta))
+    if settings.get('split_policy') == layout_split.POLICY:
+        if not layout_split.enabled(config):
+            raise ExtentContractError('Known-map extent requires matching generator policy')
+        return _assign_known_map(rows, by_split, settings)
     if set(settings['intervals_m']['before']) != {'train'} or set(settings['intervals_m']['intersection']) != {'val'}:
         raise ExtentContractError('Reviewed before/intersection split geometry changed')
     quotas = dict(train=_phase_quotas(by_split['train'], settings['counts']['before']),
@@ -151,11 +163,62 @@ def assign(metadata, config):
     return result
 
 
+def _assign_known_map(rows, by_split, settings):
+    """Both splits can use all three strata; preserve phase/identity/old seeds.
+
+    Initial split is only a generation allocation. The final layout overlay
+    performs group deduplication and train-coverage allocation after geometry.
+    """
+    if any(set(settings['intervals_m'][name]) != {'train', 'val'} for name in STRATA):
+        raise ExtentContractError('Known-map extent must expose all strata to both splits')
+    remaining_counts = dict(settings['counts'])
+    result = {}
+    for split_index, (split, values) in enumerate(sorted(by_split.items())):
+        total = len(values)
+        if split_index == len(by_split)-1:
+            counts = remaining_counts.copy()
+        else:
+            raw = {name: settings['counts'][name]*total/len(rows) for name in STRATA}
+            counts = {name: int(value) for name, value in raw.items()}
+            for name in sorted(STRATA, key=lambda name: (-(raw[name]-counts[name]), name))[:total-sum(counts.values())]:
+                counts[name] += 1
+        pending = sorted(values, key=lambda item: (digest([POLICY, item[0]]), item[0]))
+        for name in STRATA:
+            phase_counts = _phase_quotas(pending, counts[name]) if counts[name] else {}
+            chosen, kept = [], []
+            for item in pending:
+                phase = item[1]['spec']['avoidance_phase']
+                if phase_counts.get(phase, 0):
+                    chosen.append(item)
+                    phase_counts[phase] -= 1
+                else:
+                    kept.append(item)
+            pending = kept
+            for ident, meta in chosen:
+                spec = copy.deepcopy(meta['spec'])
+                population = [a['data_id'] for a in meta['runtime_actors']]
+                if spec.get('frozen_population_data_ids', population) != population:
+                    raise ExtentContractError('Existing frozen actor list differs')
+                spec['frozen_population_data_ids'] = population
+                spec[PLAN_KEY] = dict(policy=POLICY, stratum=name, split=split,
+                    split_policy=layout_split.POLICY, source_id=ident,
+                    source_spec_sha256=digest(meta['spec']), source_identity=identity(meta['runtime_actors']),
+                    settings_sha256=digest(settings), intervals_m=copy.deepcopy(settings['intervals_m'][name][split]))
+                result[ident] = spec
+            remaining_counts[name] -= counts[name]
+    if Counter(spec[PLAN_KEY]['stratum'] for spec in result.values()) != Counter(settings['counts']):
+        raise ExtentContractError('Known-map extent quota differs')
+    return result
+
+
 def validate_plan(row, config):
     plan = row.get(PLAN_KEY)
     if not plan:
         return None
     settings = config.get(CONFIG_KEY, {})
+    known_map = settings.get('split_policy') == layout_split.POLICY
+    if known_map != (plan.get('split_policy') == layout_split.POLICY) or known_map != layout_split.enabled(config):
+        raise ExtentContractError('Extent plan/config split policy mismatch')
     if (not eligible(row) or plan.get('policy') != POLICY or settings.get('policy') != POLICY
             or plan.get('stratum') not in STRATA or plan.get('settings_sha256') != digest(settings)
             or plan.get('intervals_m') != settings.get('intervals_m', {}).get(plan['stratum'], {}).get(plan.get('split'))
@@ -191,7 +254,7 @@ def anchor(gen, ctx, row, config, attempt=0):
     else:
         raise ExtentContractError('Mission arc sampling exhausted unexpectedly')
     base = gen.geo.continuous_route_pose_at_arc(ctx['route'], ctx['arc'], arc)
-    if split_for(base['link_idx']) != plan['split']:
+    if plan.get('split_policy') != layout_split.POLICY and split_for(base['link_idx']) != plan['split']:
         raise ExtentContractError('Mission anchor crossed frozen physical-link split')
     return ctx['route'], ctx['arc'], base, dict(spatial_stratum='static_obstacle',
         static_mission_extent=dict(policy=POLICY, stratum=plan['stratum'], sampled_base_arc_m=arc,

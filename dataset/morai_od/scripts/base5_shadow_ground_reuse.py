@@ -327,6 +327,34 @@ def _metadata(config, row):
     return meta
 
 
+def _without_verified_review_overlays(meta, entry, deck):
+    """Validate only explicit derived QA/split tags; protect every ground field.
+
+    Historical untagged inputs still take the original byte-hash path. New
+    overlays cannot change actors, prepared paths, source splits or ground
+    provenance. This helper never authorizes an actual geometry transition.
+    """
+    result=copy.deepcopy(meta)
+    unit_key='native_unit_geometry_reference'
+    if unit_key in result or deck.get('config',{}).get(unit_key) is not None:
+        from base5_unit_geometry_contract import validate_entry as validate_unit
+        validate_unit(entry,deck)
+        result.pop(unit_key,None)
+    if 'training_split_overlay' in result or deck.get('split_overlay') is not None:
+        from base5_layout_split import overlay_for_metadata,resolve
+        reference=deck.get('split_overlay')
+        tag=result.get('training_split_overlay')
+        if reference is None or tag is None or any(tag.get(k)!=reference.get(k) for k in ('path','sha256')):
+            raise ShadowReuseContractError('Shadow derived split reference differs')
+        overlay=overlay_for_metadata(meta)
+        assignment=resolve(overlay,entry['id'],entry,meta)
+        if (entry.get('derived_training_split')!=assignment['split']
+                or entry.get('derived_layout_group_id')!=assignment['group_id']):
+            raise ShadowReuseContractError('Shadow derived split/group differs')
+        result.pop('training_split_overlay')
+    return result
+
+
 def validate_manifest(deck, sensor=None):
     """Opt-in preflight for fresh, adopted and completed-resume manifests."""
     registry, pins = _registered(deck, sensor)
@@ -345,17 +373,22 @@ def validate_manifest(deck, sensor=None):
                 continue
             if sha256(entry['scenario']) != entry['scenario_sha256']:
                 raise ShadowReuseContractError('Shadow source scenario checksum mismatch')
-            quota = lambda r: {k: v for k, v in r.items()
-                               if k not in ('scenario', 'metadata', 'scenario_sha256')}
+            clean_meta=_without_verified_review_overlays(meta,entry,deck)
+            ignored={'scenario','metadata','scenario_sha256'}
+            if deck.get('split_overlay') is not None:
+                ignored.update(('derived_training_split','derived_layout_group_id'))
+            quota = lambda r: {k: v for k, v in r.items() if k not in ignored}
             if quota(entry) != quota(row['source_entry']):
                 raise ShadowReuseContractError('Registered source entry quota/identity changed')
             if KEY in meta:
                 if (entry['scenario_sha256'] != row['prepared_entry']['scenario_sha256']
-                        or meta != _metadata(deck['config'][KEY], row)):
+                        or clean_meta != _metadata(deck['config'][KEY], row)):
                     raise ShadowReuseContractError('Adopted shadow plan or metadata changed')
-            elif (entry['scenario_sha256'] != row['source_entry']['scenario_sha256']
-                    or sha256(entry['metadata']) != row['source_metadata_sha256']):
-                raise ShadowReuseContractError('Registered source differs from frozen input')
+            else:
+                exact_metadata=(clean_meta==read(row['source_entry']['metadata'])
+                    if clean_meta!=meta else sha256(entry['metadata'])==row['source_metadata_sha256'])
+                if (entry['scenario_sha256']!=row['source_entry']['scenario_sha256'] or not exact_metadata):
+                    raise ShadowReuseContractError('Registered source differs from frozen input')
         return pins
     except ShadowReuseContractError:
         raise
@@ -403,6 +436,13 @@ def adopt(source_manifest, output):
         if row is None:
             return None
         metadata = _metadata(deck['config'][KEY], row)
+        current_meta=read(original['metadata'])
+        if KEY in current_meta:
+            # Already materialized before split allocation: retain the exact
+            # validated payload and tags instead of adopting a second geometry.
+            return source_manifest
+        for tag in ('native_unit_geometry_reference','training_split_overlay'):
+            if tag in current_meta:metadata[tag]=copy.deepcopy(current_meta[tag])
         if output.exists():
             if (not (output / 'manifest.json').is_file()
                     or any((output / name).exists() for name in
