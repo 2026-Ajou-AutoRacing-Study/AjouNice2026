@@ -21,7 +21,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 본수집 상태 | 미실행. 확대 제외·원형 v158a 새 승인본 `artifacts/evaluation/base5_unit_release_261017/release_v158a/release.json` 동결. [최종 근거](261017_base5_unit_release_evidence.md): exact 32/32·물리 19종 43부모 치수 불일치 0·입력 101 GT·부분/완료 재개·CPU 2,041개 통과. Sunny13 `bulk_ready=true`이며 과거 승인을 승계하지 않았다. 별도 `--complete` 금지 |
+| 본수집 상태 | 미실행. 원형 v158a 전체 5K 확정·10/17 17:58 촬영 대기 준비: `~/morai_cap/base5_unit_v158_261017/collection_sunny13_5k`, 준비 5,000 / 취득 0. [최종 근거·명령](261017_base5_unit_release_evidence.md): exact 32/32·물리 19종 43부모 치수 불일치 0·입력 101 GT·재개·CPU 2,041개 통과. Sunny13 `release_v158a/release.json`의 `bulk_ready=true`. 별도 `--complete` 금지 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13 본수집은 [v158a 최종 근거·명령](261017_base5_unit_release_evidence.md)의 동결 release와 `launch_base5_obstacle_support.py`를 사용한다. v155m·v154와 이전 release는 당시 source/runtime 이력이며 현재 승인으로 대체 사용하지 않는다.
+새 Sunny13는 [v158a 최종 근거·명령](261017_base5_unit_release_evidence.md)의 동결 release와 `launch_base5_obstacle_support.py`를 사용한다. 촬영 시작·취득 후 재개는 `--run` 경로이며 취득분에 CPU 준비를 재실행하지 않는다. v155m·v154 등은 과거 이력이다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
@@ -93,7 +93,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
 v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v151의 9.75시간과 비용이 달라 순수 속도 개선으로 해석하지 않는다. 10/17 16:30 여유 약 59.8GiB로 신규 시작 55GiB 기준을 통과했지만 25K 전체 보관은 부족하다.
+실제 본수집 rate로 갱신한다. v151의 9.75시간과 비용이 달라 순수 속도 개선으로 해석하지 않는다. 10/17 17:58 여유 약 59.7GiB로 신규 시작 55GiB 기준을 통과했지만 25K 전체 보관은 부족하다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>

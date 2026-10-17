@@ -294,3 +294,39 @@ native 치수가 초기화된다고 가정하지 않는다. 그런 경우 새 �
 내부 회복은 위 실제 2/2 대조와 반복 방지 계약을 사용한다. 미준비 음영 이동 22장은 full5K에
 유지하며 촬영 전에 개별 terrain/reference 준비를 거친다. 이를 삭제하거나 이미 준비됐다고
 간주하지 않는다. 재학습 AP·대회용 4090 풀스택 성능·나머지 다섯 환경 승인은 후속 검증이다.
+
+## 최종 Sunny13 5K 시나리오 확정과 촬영 대기 준비
+
+2026-10-17 17:58 KST, 사용자의 최종 5K 시나리오 준비 요청에 따라 위 v158a를 운영 입력으로
+확정했다. 이미 전체 5,000개가 생성·검증된 구성이므로 새 seed나 다른 geometry로 다시 생성하지
+않았다. 기존 완료 5K를 복사해 새 배치라고 부른 것도 아니다. 최종 manifest와 release SHA는
+위 동결값 그대로이며 과거 16:30의 목표 output 미생성 기록은 당시 상태로 보존한다.
+
+실제 scenario 5,000개를 한 번씩 읽어 고유 ID·고유 payload SHA 각각 5,000개, 선언 SHA
+불일치 0개, 물리 object의 원형 배율과 범용 2,650 / 미션 2,350 구성을 확인했다.
+공통 overlay의 train 4,250 / val 750·69개 link·316개 셀·122종 train 하한도 일치했다.
+위치 파일들은 보존된 source 계보의 여러 디렉터리를 참조하므로 manifest 한 파일만 복사해
+독립 전달본으로 간주하거나 원래 source 폴더를 정리하지 않는다.
+
+승인 런처에서 다음 **CPU 준비 명령만** 실행했다. 이 단계는 운영 계약·대기 상태 파일을
+만들지만 native 취득·MORAI 환경 변경·동적 22장의 지면 준비는 실행하지 않는다.
+
+```bash
+python3 -u dataset/morai_od/scripts/launch_base5_obstacle_support.py \
+  --release artifacts/evaluation/base5_unit_release_261017/release_v158a/release.json \
+  --environment sunny13
+```
+
+준비 output은 `/home/luv/morai_cap/base5_unit_v158_261017/collection_sunny13_5k`다.
+`prepared_waiting_for_resume`, requested 5,000 / finished 0 / approved 0 / pending 5,000,
+빈 selected ledger, child capture 디렉터리와 센서 취득 근거 0개를 확인했다.
+16장 chunk·static-ready·overlap OFF·5,000개 source 계약을 만들었으며 기존 raw는 연결하지 않았다.
+당시 여유는 약 59.7GiB로 신규 시작 기준 55GiB를 충족했다. 실제 촬영 시작 때 다시 검사한다.
+
+감사 스크립트와 결과는 artifact root의 `final_sunny13_preparation_v1/audit_source.py`,
+`source_audit.json`, `verify_preparation.py`, `prepare_receipt.json`에 보존한다.
+새 준비가 과거 32장 native 검증의 대체 실험은 아니며, 수집기 코드는 변경하지 않았다.
+
+실제 촬영 시작·정상 중단 뒤 재개에는 앞 절의 **`--run --confirmed-environment sunny13`**
+명령을 사용한다. 취득분이 생긴 output에 위 CPU 준비 명령을 다시 실행하지 않는다.
+별도 `--complete` 미승인·음영 이동 22장의 촬영 전 개별 준비 조건은 그대로다.
