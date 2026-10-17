@@ -21,7 +21,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 r
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 본수집 상태 | 빌린 PC의 v158a Sunny13는 63장 뒤 Python 버전별 누적 거리 소수점 SHA 차이로 중단됐다. 10/18 사용자 승인으로 해당 수집 폴더만 삭제하고, 원본 좌표·코드·QA를 유지하는 별도 호환 실행기로 새 0/5,000장 CPU 준비를 마쳤다. 문제 셀 포함 재생성 7/7, 새 촬영 0회. [현재 근거·명령](261017_base5_unit_release_evidence.md#portable-route-compat-261018). 사용자가 명시적으로 시작하며 별도 `--complete`는 계속 금지한다. 로컬 준비 snapshot은 원격 진행 수가 아니다 |
+| 본수집 상태 | 빌린 PC의 v158a Sunny13는 63장 중단·승인 삭제 후 재시작한 별도 실행에서 69장 뒤 객체 구성 복구 오류로 중단됐다. 10/18 02:04 KST, 승인 69장을 검증·보존하고 새 `sunny13_5k_recovery_v2`를 승인 69 / 미검사 4,931로 준비했다. 객체 목록 보존 복구의 원격 CPU 20/20·68개 분기 축과 회귀 406개 통과, 새 촬영 0회다. [현재 근거·동일 명령](261017_base5_unit_release_evidence.md#portable-population-recovery-261018). 사용자가 명시적으로 시작하며 별도 `--complete`는 계속 금지한다. 과거 중단 폴더에는 승인 원본이 있으므로 삭제하지 않는다 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13는 [v158a](261017_base5_unit_release_evidence.md) 원형 source/launcher를 유지하되 빌린 Python 3.10 PC에서는 [별도 호환 실행기](261017_base5_unit_release_evidence.md#portable-route-compat-261018)로 진입한다. Sunny15는 [v159 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017)의 별도 `run_base5_batch_static_attitude.py`와 qualified release를 사용한다. 촬영/재개는 `--run` 경로이며 취득분에 CPU 준비를 다시 실행하지 않는다. v155m·v154 등은 이력이다.
+새 Sunny13는 [v158a](261017_base5_unit_release_evidence.md) 원형 source/runtime을 유지하되 빌린 Python 3.10 PC에서는 [69장 보존·객체 목록 복구 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)로 진입한다. 이 수정은 원격 Sunny13 전용이며 Sunny15 v159에 자동 적용됐다는 뜻은 아니다. Sunny15는 [v159 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017)의 별도 launcher와 qualified release를 사용한다. 촬영/재개는 `--run` 경로이며 취득분에 CPU 준비를 다시 실행하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
@@ -102,7 +102,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
 Base5 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth는 변환하지 않는다. 사용자 승인으로 Base3만 분석용 Q90으로 바꾸고 RGB PNG를 삭제한 예외는 [10/18 정리 근거](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)를 따른다.
-다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 정적/차량/이동 3/3장·Q90/upright·취득 0장은 당시 snapshot이다. 이후 본수집 63장 중단·사용자 승인 삭제·새 호환 실행기 준비는 [10/18 근거](261017_base5_unit_release_evidence.md#portable-route-compat-261018)를 따른다. 기존 native smoke 3장과 동결 bundle은 보존했다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하는 정책으로 바꾼 것은 아니다.
+다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 정적/차량/이동 3/3장·Q90/upright·취득 0장은 당시 snapshot이다. 이후 [63장 중단·승인 삭제](261017_base5_unit_release_evidence.md#portable-route-compat-261018)와 [별도 실행의 69장 보존·새 복구 준비](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 구분한다. 기존 native smoke·동결 bundle·69장 원본은 보존했다. RGB PNG를 resume 중 자동 삭제하는 정책이 아니다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 
 현재 native JPEG/upright 전달본은

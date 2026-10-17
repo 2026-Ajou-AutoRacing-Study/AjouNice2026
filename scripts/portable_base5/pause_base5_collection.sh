@@ -10,4 +10,10 @@ if [[ "${1:-}" == --resume-paused ]]; then
   ACTION=resume-paused
   shift
 fi
+if [[ -e "$ROOT/checks/population_recovery_intent.json" || -L "$ROOT/checks/population_recovery_intent.json" ]]; then
+  exec /usr/bin/python3 -B "$ROOT/checks/recovery_runtime.py" --workspace "$ROOT" "$ACTION" "$@"
+fi
+if [[ -e "$ROOT/checks/route_compat_intent.json" || -L "$ROOT/checks/route_compat_intent.json" ]]; then
+  exec /usr/bin/python3 -B "$ROOT/checks/live_route_compat.py" --workspace "$ROOT" "$ACTION" "$@"
+fi
 exec /usr/bin/python3 -B "$ROOT/checks/control.py" --workspace "$ROOT" "$ACTION" "$@"

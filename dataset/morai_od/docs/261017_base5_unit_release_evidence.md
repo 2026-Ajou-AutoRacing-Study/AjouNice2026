@@ -813,3 +813,118 @@ Sunny15는 기존 `qualified_release_context`의 실제 6개 gate도 읽기 전�
 과거 2,376개 CPU 회귀를 이번에 다시 전부 실행했다는 의미는 아니다.
 E9·E24·E25 실제 가중치의 SHA도 각 기존 기준과 일치했다.
 종합 receipt는 `artifacts/cleanup/approved_storage_261018/summary.json`에 남겼다.
+
+<a id="portable-population-recovery-261018"></a>
+
+## 10/18 원격 69장 보존과 다중 객체 복구 수정
+
+사용자가 route 호환 실행기로 다시 시작한 수집은 승인 69장 뒤 중단됐다. 앞 절의
+63장 중단·승인 삭제와는 **별개의 실행**이다. 이번에는 69장을 삭제하거나 원본 상태를
+`running`으로 바꾸지 않는다. 사용자는 69장 보존·복구 수정·재개 명령 준비를 승인했다.
+
+### 이번 중단의 실제 원인
+
+대상은 `sunny13_sunny11_b5v2_00082`다. 원래 `generic_dense` 장면의 5개 객체 중
+센서 근거가 충분한 부모가 1개여서 `population_visible_actor_deficit` 검토로 분류됐다.
+당시 scene boundary/final Park와 무충돌 근거는 정상이었다. native 치수 검사도 통과했고,
+통신 장애나 이전의 누적 거리 float SHA 오류 때문에 중단된 것이 아니다.
+
+원형 복구기는 새 후보를 만들 때 보조 자산을 다시 뽑는다. 실제 CPU 재현에서 retry 1은
+객체 수 5개지만 구성 차이로 후보 탈락, retry 2는 간격 조건 탈락, retry 3은 **5→6개**였다.
+생성기가 실제 개수를 `spec.actors`에 기록하자, 원형 복구기가 이를 후보 탈락 대신
+`Replacement changed frozen spec` 계약 오류로 처리했다. 부모에는
+`Single-cell recovery halted; no next load`로 전파됐다. 기존 source나 69장의 객체 수를
+바꿔 저장한 것은 아니다. 앞선 route CPU 7개는 정적 미션 extent 위주여서 이 분기를 놓쳤다.
+
+개수 차이만 후보 탈락으로 처리하는 초기 수정도 CPU에서 시험했지만, 해당 셀은 512개를
+소진했다. 같은 순서의 자산 5개를 매번 우연히 다시 뽑기 어려웠기 때문이다. 이 방식을
+본수집 수정본으로 승격하지 않았다.
+
+### 별도 roster-preserving 복구 정책
+
+새 `scripts/portable_base5/recovery_population.py`의 정책은
+`frozen-recovery-roster-preserving-v2`다. 복구 호출 안에서만 원래 객체의 순서·종류·수를
+보존하고 위치를 새로 생성한다. 원래 `population.choose`에 임시 인자만 전달하므로
+기존 RNG 소비·pool·차량 전용 구역·크기 budget·필수 보조 객체 검사를 그대로 거친다.
+부모 spec, metadata, native GT, capture split, effective split/group, motion, scale,
+UID를 고치지 않는다. 실제 다른 spec 변경이나 원본 불일치는 계속 중단한다.
+
+원형 quality loop의 512개 geometry / 8개 layout binding 상한과 네이티브 QA는 유지한다.
+가시성 등 일반 QA 실패는 제한된 새 후보·round를 거친 뒤 부족분으로 남기고 다음 셀로
+진행하는 원래 정책을 사용한다. 통신·Park·출처/코드 계약 실패를 일괄 무시하는
+‘무조건 무중단’ 옵션은 만들지 않았다. 실제 00082의 별도 로컬 CPU 시험은 3개 geometry /
+1개 layout binding 뒤 같은 순서의 5개 자산으로 후보 생성에 성공했고 원본 SHA는 유지됐다.
+
+### 69장의 인계와 실행 경로
+
+`recovery_import.py`가 원래 `inspect_batch`·완료된 recovery 검사와 authoritative ledger를
+대조했다. 정확히 **69개 승인 행**만 원형 schema-1 `base5_campaign_import.verify`가
+다시 검증한 `imported_prefix.json`으로 인계했다. 검토 장면 00082·미완료 recovery·raw에만
+남은 추가 성공분을 임의 채택하지 않았다. 기존 누적 활성 시간 약 610.38초도 인계했다.
+
+| 항목 | 경로와 의미 |
+|---|---|
+| 보존된 중단 실행 | `~/ajounice_base5_capture/collections/sunny13_5k` — 원본 status/contract/raw를 그대로 둔다 |
+| 새 수집 실행 | `~/ajounice_base5_capture/collections/sunny13_5k_recovery_v2` — 승인 69 / pending 4,931에서 재개한다 |
+| 새 실행기 | `checks/recovery_runtime.py`, `checks/population_recovery_intent.json` |
+| 새 CPU 검증 | `work/recovery-qualification/v1/qualification.json` |
+
+새 인계는 raw 복사가 아닌 검증된 참조다. **옛 중단 폴더 안에 최종 데이터 69장이 있으므로
+이 폴더를 찌꺼기로 삭제하면 안 된다.** 실제 exporter는 옛 트리의 쓰기를 차단하고 전후
+snapshot을 대조했다. 새 수집 child namespace도 그 폴더를 읽기 전용으로 mount한다.
+동결 bundle·기존 427개 source runtime·route witness·원래 host/native qualification은
+수정하지 않았다. 새 실행기·intent·output 계약을 따로 만들었다.
+
+새 dispatcher는 부모뿐 아니라 독립 Python child의 optimized/spatial/native capture에도
+정책을 명시적으로 전파한다. capture는 새 실제 파일·SHA·argv·PID/startticks로 구분하되
+ROS·브리지는 원래 실행기 신원과 같은 `capture.lock`을 유지한다. pause/resume, status와
+완료 후 수동 JPEG 후처리도 새 output에 연결한다. 별도 `--complete`는 계속 금지한다.
+
+### 사용자가 다시 실행할 명령
+
+새 준비·검증이 끝난 뒤 **빌린 PC**에서 기존과 같은 명령을 사용한다. 기존 ROS·브리지는
+중복 실행하지 않고 MORAI Sunny13·Capture Mode·annotation ON·Network Connect를 유지한다.
+
+```bash
+bash ~/ajounice_base5_capture/start_base5_collection.sh --run --confirmed-environment sunny13
+```
+
+이미 켜 둔 watch는 옛 실행기를 읽는 프로세스이므로 **그 watch 창만 Ctrl+C**로 끝낸 뒤
+다음 명령을 다시 실행한다. 수집 터미널을 종료하라는 뜻이 아니다.
+
+```bash
+bash ~/ajounice_base5_capture/status_base5_collection.sh --watch
+```
+
+기본 쉘 명령은 계획만 출력하며 위의 `--run`이 실제 시작 승인이다. 새 intent가 있으면
+새 실행기를 우선 사용하고, intent가 잘못됐을 때 이전 실행기로 자동 fallback하지 않는다.
+
+### 최종 확인: 10/18 02:04 KST
+
+원격의 실제 Python 3.10 환경에서 원본 5,000개 장면·10,000개 입력 파일을 CPU 감사했다.
+결과를 보기 전에 고른 20개 장면은 68개 분기 축을 모두 포함했고, 실제 원형 복구 호출은
+**20/20 성공**, 후보 소진 0 / 예기치 않은 계약 중단 0이었다. 문제 셀 00082도 통과했다.
+이는 전체 조합의 native 촬영 검증이 아니라 선정한 분기의 CPU 재생성 검증이다.
+선정 결과가 나쁘다고 장면을 바꾸거나 QA를 완화하지 않았다.
+
+원격 CPU receipt SHA256은
+`daab6d07e5d84f81a43f5e39250d0ba348c514f79d82ed6048631f15ccba9ad1`,
+69장 인계 receipt SHA256은
+`a6fd135f998f07a0323cc3e9319c82b44d789a46992b673ce9351fd4fc44b415`다.
+로컬 `scripts/portable_base5` 회귀 **406개**와 네 쉘의 구문 검사를 통과했다.
+원격의 서로 다른 child 진입 3종도 `--help`로 확인했으며 촬영을 실행하지 않았다.
+
+실제 새 status는 `prepared_waiting_for_resume`, 승인 **69 / 5,000**, 미검사 **4,931**,
+검토·실패 0, 새 native session 0이었다. 이전 실행은 여전히 `halted`·승인 69로 보존됐고,
+부모 selected/status SHA도 유지됐다. ROS·브리지 소유권과 비활성 capture 상태를 확인했다.
+새 준비 출력은 디렉터리 0700 / 파일 0600이며 private-mode 상태 읽기 검사도 통과했다.
+준비 상태에서는 heartbeat가 갱신되지 않으므로 watch의 오래된 상태 경고가 나타날 수 있다.
+
+승인 69장은 다시 찍지 않는다. 이전 검토 셀 00082는 새 campaign에서 원래 초기 검사를
+한 번 거칠 수 있으며, 다시 검토로 분류되면 객체 목록을 보존하는 제한된 새 후보 복구로
+진행한다. 같은 장면을 무한 반복하거나 복구 상한을 초기화하는 변경은 하지 않았다.
+원격 source/runtime 427개와 Sunny15의 별도 동결 계약은 변경하지 않았다.
+새 후보의 native 성공·5K 완료·향후 모든 안전 중단의 부재를 인증한 것은 아니다.
+
+로컬 근거는 `artifacts/evaluation/base5_borrowed_population_recovery_261018/`의
+`remote_cpu_v1/qualification.json`, `remote_ready.json`, `population_recovery_intent.json`이다.
