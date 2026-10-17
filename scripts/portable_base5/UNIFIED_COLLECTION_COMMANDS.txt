@@ -1,0 +1,45 @@
+Base5 공통 수집 — 2026-10-18 기준
+
+기존 수집 데이터와 부족분을 보존한 새 출력이다.
+이 명령을 안내하는 준비 작업은 본수집을 자동으로 시작하지 않는다.
+이전 start_base5_collection.sh / local_sunny15_after_crash.py 명령을 함께 실행하지 않는다.
+MORAI·ROS·기존 guarded bridge는 그대로 유지한다.
+Sunny 시간과 Capture Mode, 카메라 1~4·LiDAR 5 annotation ON을 유지한다.
+
+[빌린 PC Sunny13: 이 PC 터미널에서]
+계획 확인:
+bash ~/ajounice_base5_capture/start_base5_unified.sh
+
+실제 재개:
+bash ~/ajounice_base5_capture/start_base5_unified.sh run --confirmed-environment sunny13
+
+정상 일시정지 요청(현재 묶음과 정지·P 확인이 끝날 때까지 기다린다):
+touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1/PAUSE
+
+일시정지가 완료된 뒤에는 위 실제 재개 명령을 다시 사용한다.
+통신/Park 오류로 halted가 된 경우 이 명령이 강제로 우회하지 않는다.
+
+[로컬 Sunny15: 내 PC 터미널에서]
+cd ~/AjouNice2026
+bash scripts/portable_base5/start_unified_local.sh --run --confirmed-environment sunny15
+
+정상 일시정지 요청:
+touch ~/morai_cap/base5_sunny15_v159_261017/collection_5k_unified_v1/PAUSE
+
+[대시보드: 기존 대시보드 터미널에서 Ctrl+C로 웹 서버만 종료한 뒤]
+수집기·ROS·브리지를 종료하는 것이 아니다.
+빌린 PC의 새 대시보드:
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/unified_dashboard.py --borrowed --port 8075 --run
+
+로컬의 새 대시보드:
+cd ~/AjouNice2026
+python3 -B scripts/portable_base5/unified_dashboard.py --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json --port 8075 --run
+
+빌린 PC에서는 localhost:8075, 기존 SSH 터널을 유지한 내 PC에서는 localhost:8076이다.
+내 PC의 localhost:8075는 로컬 Sunny15다.
+포트가 사용 중이면 새 관측기는 기존 프로세스를 죽이지 않고 거부한다.
+구 웹 서버와 구 watch는 이전 출력의 PAUSE 상태를 보여 주므로 새 명령으로 바꿔야 한다.
+
+수집기 중단에 Ctrl+C를 사용하면 native 안전 종료/수동 확인이 필요한 halt가 될 수 있다.
+정상 일시정지는 위 PAUSE 요청을 사용한다. 실제 정지·P를 확인하기 전 MORAI·ROS를 끄지 않는다.
+5K 종료 후 부족분 보충·JPEG/압축/전달은 별도 완료 단계다. 구 완료 스크립트를 무작정 실행하지 않는다.

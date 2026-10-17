@@ -1,0 +1,217 @@
+# Base5 생성·수집 공통 실행 정책
+
+문서 상태: EVIDENCE. 기준: 2026-10-18 KST.
+공통 구현·기존 데이터 인계·두 PC의 소량 native 검증을 완료했다. 두 본수집은 사용자의 재개를 기다린다.
+이 문서는 새 5K 수집 완료나 전체 수집 시간의 인증이 아니다.
+
+## 결정과 보존 범위
+
+Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.
+과거 source/runtime·원본·native GT·승인·부족분·복구 시도·Park 실패 이력은 수정하지 않는다.
+새 출력의 schema-1 import가 기존 선택을 한 번만 참조한다. 부족분을 미검사 장면으로 되돌리거나
+소진한 복구 횟수를 초기화하지 않는다. 본수집은 검증 후 사용자가 각 터미널에서 시작한다.
+
+인계 기준은 다음과 같다. 수집기가 실제로 `paused`를 기록하고 모든 현재 native 세션의 정지·P를 확인했다.
+
+| 환경 | 보존할 직전 출력 | 승인 | 부족분 | 검사 완료 |
+|---|---|---:|---:|---:|
+| 빌린 PC Sunny13 | `collections/sunny13_5k_recovery_v2` | 1,313 | 15 | 1,328 |
+| 로컬 Sunny15 | `~/morai_cap/base5_sunny15_v159_261017/collection_5k_after_crash_v1` | 557 | 3 | 560 |
+
+Sunny15 원래 출력의 MORAI 종료·Park 미확인 실패는 그대로 남는다. 위 Sunny15 인계는 그 이후
+정상 재개한 별도 출력이 안전 PAUSE된 상태다. 옛 실패를 정상 PAUSE로 고친 것이 아니다.
+
+## 왜 시간이 늘었는가
+
+Sunny15의 `direction_reference.configuration()`은 장면 하나를 복구할 때도 고정된 원본 5K의
+`input_pins()` 전체와 연결 참조를 재귀 순회했다. parent도 일반 chunk/복구 전에 고정 입력 전체를
+반복 확인했고, portable child는 runtime·release·원본 계약 검사를 반복했다.
+기존 process-local SHA 캐시는 중복 파일 읽기는 줄였지만 JSON·경로·참조 순회까지 없애지는 못했다.
+시간대 자체가 이런 검사를 필요로 하는 것은 아니다.
+
+새 공통 실행은 다음을 구분한다.
+
+| 대상 | 새 검사 시점 |
+|---|---|
+| 동결 시나리오·메타데이터·코드·설정·지도 등 고정 입력 | 시작·재개·종료에서 실제 전체 SHA 확인 |
+| 고정 입력의 SHA·참조 목록·runtime import closure | 해당 부모 세션 안에서만 검증 결과 재사용 |
+| 새 대체 시나리오·메타데이터·지면 준비 자료 | 생성·연결·검증 시 실제 검사 |
+| 센서 원본·GT·캡처 audit·calibration·seed·session·Park·충돌 근거 | 기존 실제 검사 유지. 고정 입력 캐시 대상 아님 |
+
+새 자료 검사에서는 이미 검증한 고정 참조 그래프를 다시 열지 않는다. 원형 full closure를
+상위집합으로 유지하고 새 파일·새 참조만 실제 검사하는 delta 경로다. 과거 계약 대조에는
+원형과 정확히 같은 mapping을 사용하며 delta를 적용하지 않는다.
+
+부모는 sealed anonymous memfd와 실제 UID/PID/start ticks·실행 파일/모드를 통해 child에
+세션 snapshot을 전달한다. 디스크의 임의 JSON에 `verified=true`라고 쓰는 방식은 허용하지 않는다.
+타깃별 인자·장면 수·출력·복구 셀·seed 범위를 제한한다. direction child는 canonical module의
+`main()`을 호출하여 `runpy`의 별도 `__main__` 함수가 최적화를 우회하지 못하게 한다.
+
+고정 파일이 수집 중 바뀌면 그 즉시가 아니라 다음 경계에서 검출될 수 있다는 의도적인 절충이 있다.
+수집 중 동결 입력을 편집하지 않는다. 종료 검사 실패는 `halted`와 별도 integrity-failed 근거로 남기며,
+그 세션의 선택을 정상 인증하지 않는다. SIGKILL·프로세스 장애로 종료 검사를 못 했다면 정상 완료로
+간주하지 않으며 재개 검사와 native 안전 근거가 필요하다. 바뀐 파일을 원복하면 항상 탐지한다는
+주장도 하지 않는다. 원격에서는 동결 bundle·기존 output·실행 코드 overlay를 namespace의 읽기 전용으로 둔다.
+
+## 두 환경의 공통 수집 정책
+
+새로 찍는 부분은 같은 `unified_capture.py`와 원형 static-attitude parent를 사용한다.
+정적 full-RPY 도로 지지 관계 판정과 이동 복합체 최종 방향·넓은 지면 지지 준비를 모두 유지한다.
+가시성·native 크기·실제 이동·심각한 부유·충돌·통신·정지·P 기준을 완화하지 않는다.
+기존 Sunny13 성공분을 새 QA로 승인했다고 소급 해석하지 않는다.
+
+원격은 원래 427개 runtime 파일을 고치지 않고, 공통 파일 11개를 별도로 추가한다.
+전체 438개는 dataset scripts 371개와 모델 관련 67개다. 새 읽기 전용 overlay에는 전자만 복사하고,
+모델 관련 67개는 기존 bundle의 읽기 전용 파일을 그대로 사용한다.
+새 overlay와 portable helper는 `work/unified-runtime-v1`에만 배포한다. 기존 ROS·guarded bridge·
+bundle·시스템 설치·사용자가 보호한 TXT는 수정하지 않는다. 원래 release는 source의 기존 자격이고,
+새 실행 정책의 실제 소량 검증은 별도 자격이다. 옛 release가 새 실행기까지 승인했다고 쓰지 않는다.
+
+## 생성 통합과 기존 배치의 차이
+
+새 생성의 단일 진입점은 `scripts/portable_base5/generation.py`다. Sunny/Foggy 11/13/15의
+여섯 환경이 같은 v160 정책·11단계를 사용한다. 환경과 seed는 새로운 배치의 identity일 뿐
+정책 선택기가 아니다. 차선 배치 가능성 선별·원거리 보조 차량 fallback·capture split 고정·
+전구간 후보 및 known-map layout overlay를 공통 적용한다. 기존 중간 단계 생략 경로는 노출하지 않는다.
+새 Sunny13 생성은 별도 출력과 `--allow-new-sunny13-plan`을 명시해야 한다.
+
+기존 Sunny13 v158a와 Sunny15 v159의 동결 배치는 그대로다. 공통 파일은 같은 bytes지만,
+Sunny15에는 배치 가능 차선 사전 선별·원거리 fallback과 전구간 후보 split 처리가 추가됐었다.
+특히 Sunny13 정적 미션은 capture split에 따른 구간 제한이 남고 Sunny15는 전체 허용 구간을
+양쪽 후보로 사용한다. 따라서 기존 두 배치가 공간적으로 완전히 같은 분포라고 말하지 않는다.
+이 역사적 차이를 없애려고 이미 취득한 장면을 버리거나 나머지 고정 장면을 몰래 다시 생성하지 않는다.
+후속 환경부터 단일 생성 정책·구현 SHA를 receipt에 기록해 분기가 재발하지 않게 한다.
+
+새 생성 진입점은 동결 `dataset/.../scripts/*.py` 전수 inventory를 바꾸지 않는 별도 portable 위치에 둔다.
+기존 release 검증기를 우회하거나 동결 runtime 해시를 고쳐 쓰지 않는다.
+
+## 검증과 실측
+
+구현 중 실측: 고정 full-manifest 목록 최초 계산 약 14.306초, 같은 세션의 재사용 약 0.761초.
+21,849개 참조 중 native 등 재사용 대상이 아닌 자료는 여전히 실제 검사했다. 이 숫자는 반복 입력
+검사 단계의 비용이며, 5K 총 시간이나 실제 촬영 전체가 같은 비율로 줄었다는 뜻은 아니다.
+
+실제 직전 복구 장면 `...00589/.../replacement_deck_0/manifest.json`도 촬영 없이 대조했다.
+원형 새 자료 목록 계산 5.685초 → delta 0.777초(약 86.3% 감소)였다.
+원형 1,850개 pin이 새 21,854개 pin에 같은 SHA로 모두 포함됐다. 새 자료 7회 검사와 기존 참조
+82회 재사용을 관측했다. 추가 pin은 이미 확인한 full-base 맥락이며 native QA를 삭제한 것이 아니다.
+
+최종 회귀 검사는 portable 실행기와 기존 static-attitude·batch·direction·안전 관련 테스트를 함께
+실행해 **1,074개 통과**했다. 입력 변경 검출·잘못된 연결·중복 승인 거부·인계 이력 보존·child 권한·
+종료 검산 실패·완료 재생의 추가 촬영 방지를 포함한다. 두 쉘 wrapper의 `bash -n`도 통과했다.
+
+두 PC에서 같은 최종 실행기 SHA
+`3d64243e648e02686f4d7296b66e9a2b65583fe08801d00ffec4610ed414f522`로 검증했다.
+정적 혼합 장애물·차량·정지 사람·교차로 이동 사람·음영 이동 복합체의 다섯 장면이다.
+이동 복합체는 실제 strict-direction 지면 준비와 새 참조 연결 경로를 거쳤다.
+
+| 실제 별도 자격시험 | 로컬 Sunny15 | 빌린 PC Sunny13 |
+|---|---:|---:|
+| native 승인 / 시험 촬영 | 5 / 5 | 5 / 5 |
+| 첫 묶음 후 실제 PAUSE·재개 | 통과 | 통과 |
+| 완료 후 재확인 | 추가 촬영·worker 실행 없음 | 추가 촬영·worker 실행 없음 |
+| 자격시험의 활성 누적 시간 | 150.58초 | 202.95초 |
+| 새 본수집 출력의 native 촬영 | 0장 | 0장 |
+
+다섯 장면은 QA 경로를 확인하기 위한 불균등 표본이다. 5K의 시간 예측에 그대로 확대하지 않는다.
+로컬 시험의 시작·종료 경계 전체 검산은 합계 50,756회 읽기·약 5.03GB·6.89초였다.
+전체 원본 자격시험을 매번 다시 해석하는 대신, 그 입력·runtime·native 증거·gate 결과 파일의
+실제 SHA를 경계에서 모두 확인한 경우에만 기존 source 자격 결과를 재사용한다.
+새 실행기의 native 자격과 실제 촬영 QA는 이 결과로 대체하지 않는다.
+
+구현 중 완료 재확인에서 이동 장면용 복구 프로세스가 다시 실행되는 경로를 발견했다.
+추가 촬영 전에 시험을 차단하고 원형의 읽기 전용 native 검증 경로로 수정했다.
+당시 실패한 시험 출력은 `halted` 그대로 보존하고, 별도 새 시험에서 위 결과를 얻었다.
+기존 본수집 성공분을 잃거나 실패 status를 정상으로 바꾼 것이 아니다.
+
+인계 시 로컬 native 세션 21개·완료 복구 7건, 원격 native 세션 187개·완료 복구 64건을 확인했다.
+부모의 중첩 import와 이미 소진한 복구 이력도 보존했다. 원격 배포는 원본 runtime 427개를
+덮어쓰지 않고 승인된 작업 폴더의 새 overlay를 사용한다.
+
+기존 대시보드 ETA에는 과거 느린 구간의 누적 시간이 남는다. 재개 후 실제 승인 속도를 관측하기
+전에는 16시간을 특정 새 시간으로 바꾸어 약속하지 않는다. native 준비·캡처·실제 재배치 비용은 남는다.
+
+## 현재 출력과 실행 명령
+
+| 환경 | 새 본수집 출력 | 공통 profile |
+|---|---|---|
+| 로컬 Sunny15 | `~/morai_cap/base5_sunny15_v159_261017/collection_5k_unified_v1` | `artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json` |
+| 빌린 PC Sunny13 | `~/ajounice_base5_capture/collections/sunny13_5k_unified_v1` | `~/ajounice_base5_capture/work/unified-runtime-v1/sunny13_profile.json` |
+
+각 새 출력의 `unified_paused_handoff.json`, `imported_prefix.json`,
+`unified_live_qualification.json`이 실제 인계·자격 근거다. 새 출력의 상태는
+`prepared_waiting_for_resume`이며 승인/부족분은 위 인계 표와 같다. 별도 시험 장면은 본수집에 합산하지 않는다.
+최초 profile은 main native 0장인 준비 단계에서만 수정했고 수정 전 profile도 보존했다.
+이후 runtime 변경은 이 자격을 그대로 재사용할 수 있는 변경으로 간주하지 않는다.
+
+MORAI·ROS·기존 guarded bridge는 그대로 유지한다. Sunny 시간·Capture Mode·카메라 1~4와
+LiDAR 5 annotation ON을 확인한다. 이전 출력의 구 수집 명령을 동시에 실행하지 않는다.
+
+로컬 Sunny15 — 사용자가 직접 실행:
+
+```bash
+cd ~/AjouNice2026
+bash scripts/portable_base5/start_unified_local.sh --run --confirmed-environment sunny15
+```
+
+빌린 PC Sunny13 — 그 PC 터미널에서 사용자가 직접 실행:
+
+```bash
+bash ~/ajounice_base5_capture/start_base5_unified.sh run --confirmed-environment sunny13
+```
+
+두 wrapper 모두 실행 인자 없이 호출하면 촬영 없는 계획만 표시한다.
+로컬 wrapper는 기존 로컬 master 주소 `http://127.0.0.1:11311`을 명시한다.
+정상 일시정지는 별도 터미널에서 해당 새 출력에 `PAUSE`를 만든다.
+
+```bash
+# 로컬 Sunny15
+touch ~/morai_cap/base5_sunny15_v159_261017/collection_5k_unified_v1/PAUSE
+# 빌린 PC Sunny13
+touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1/PAUSE
+```
+
+현재 묶음 종료·실제 정지·P와 `paused`를 확인한 뒤 위의 같은 실행 명령으로 재개한다.
+`halted`를 강제 우회하지 않는다. 수집기에 Ctrl+C를 보내면 native 안전 종료나 수동 확인이 필요한
+중단이 될 수 있으므로 정상 일시정지 요청에는 `PAUSE`를 쓴다.
+통신·Park 확인 전 MORAI·ROS·bridge를 끄지 않는다.
+
+공통 실행기는 본수집을 자동 시작하지 않았으며, 자동 `--complete`도 켜지 않는다.
+5K 후 부족분 보충·Q90 변환·압축·전달은 별도 완료 단계다. 새 출력에 경로가 고정된 구 완료
+스크립트를 무작정 실행하지 않는다. 원본 PNG의 자동 삭제 정책도 추가하지 않았다.
+
+## 대시보드 전환
+
+기존 웹 서버와 구 `watch`는 이전 출력의 PAUSE 상태를 계속 보여 준다.
+해당 **웹 서버 터미널에서만** Ctrl+C를 누른 뒤 새 관측기를 수동 실행한다.
+수집기·ROS·bridge를 종료하는 것이 아니다. 새 관측기는 사용 중인 포트를 강제로 비우지 않는다.
+
+```bash
+# 로컬 Sunny15: 저장소에서 실행
+python3 -B scripts/portable_base5/unified_dashboard.py \
+  --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
+  --port 8075 --run
+
+# 빌린 PC Sunny13: 그 PC에서 실행
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/unified_dashboard.py \
+  --borrowed --port 8075 --run
+```
+
+로컬 8075는 Sunny15, 빌린 PC 자체의 8075는 Sunny13이다. 기존 로컬 8076→원격 8075 SSH 터널은
+유지할 수 있다. 관측기는 새 출력만 관측하며 원본·수집 상태를 수정하거나 캡처를 제어하지 않는다.
+두 PC 모두 촬영·서버 시작 없는 계획 검사를 통과했다.
+
+복사할 명령은 저장소의 `scripts/portable_base5/UNIFIED_COLLECTION_COMMANDS.txt`와 빌린 PC의
+`~/ajounice_base5_capture/work/unified-runtime-v1/UNIFIED_COLLECTION_COMMANDS.txt`에 있다.
+사용자가 편집을 금지한 기존 TXT의 보호 구역은 건드리지 않았다.
+
+## 코드 경로
+
+- 공통 생성: `scripts/portable_base5/generation.py`
+- 고정 입력 경계: `scripts/portable_base5/session_input_boundary.py`
+- 안전 PAUSE 인계: `scripts/portable_base5/unified_paused_import.py`
+- 공통 수집: `scripts/portable_base5/unified_capture.py`
+- 빌린 PC의 격리 실행: `scripts/portable_base5/unified_borrowed.py`
+
+현재 유효 상태는 [CURRENT](BASE5_V2_CURRENT.md), 기존 준비와 과거 실패는
+[fresh 환경 런북](261010_base5_fresh_environment_runbook.md)을 함께 참고한다.
