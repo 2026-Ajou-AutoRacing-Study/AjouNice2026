@@ -1,7 +1,9 @@
 # Base5 생성·수집 공통 실행 정책
 
 문서 상태: EVIDENCE. 기준: 2026-10-18 KST.
-공통 구현·기존 데이터 인계·두 PC의 소량 native 검증을 완료했다. 두 본수집은 사용자의 재개를 기다린다.
+공통 구현·기존 데이터 인계·두 PC의 소량 native 검증을 완료했다. 준비 후 사용자의 추가 명시 승인으로
+10/18 06:18 KST 두 본수집을 재개했다. 아래의 인계·자격시험 수치는 당시 고정 기록이며,
+최신 실행 상태는 [본수집 재개 기록](#본수집-재개-기록)을 따른다.
 이 문서는 새 5K 수집 완료나 전체 수집 시간의 인증이 아니다.
 
 ## 결정과 보존 범위
@@ -9,7 +11,8 @@
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.
 과거 source/runtime·원본·native GT·승인·부족분·복구 시도·Park 실패 이력은 수정하지 않는다.
 새 출력의 schema-1 import가 기존 선택을 한 번만 참조한다. 부족분을 미검사 장면으로 되돌리거나
-소진한 복구 횟수를 초기화하지 않는다. 본수집은 검증 후 사용자가 각 터미널에서 시작한다.
+소진한 복구 횟수를 초기화하지 않는다. 준비 단계에서는 본수집을 자동 시작하지 않았으며,
+이후 사용자가 두 PC의 실제 실행을 agent에 명시적으로 맡겨 재개했다.
 
 인계 기준은 다음과 같다. 수집기가 실제로 `paused`를 기록하고 모든 현재 native 세션의 정지·P를 확인했다.
 
@@ -140,7 +143,8 @@ Sunny15에는 배치 가능 차선 사전 선별·원거리 fallback과 전구�
 
 각 새 출력의 `unified_paused_handoff.json`, `imported_prefix.json`,
 `unified_live_qualification.json`이 실제 인계·자격 근거다. 새 출력의 상태는
-`prepared_waiting_for_resume`이며 승인/부족분은 위 인계 표와 같다. 별도 시험 장면은 본수집에 합산하지 않는다.
+인계 직후에는 `prepared_waiting_for_resume`였으며 승인/부족분은 위 인계 표와 같았다.
+현재 실행은 아래 재개 기록을 따른다. 별도 시험 장면은 본수집에 합산하지 않는다.
 최초 profile은 main native 0장인 준비 단계에서만 수정했고 수정 전 profile도 보존했다.
 이후 runtime 변경은 이 자격을 그대로 재사용할 수 있는 변경으로 간주하지 않는다.
 
@@ -176,7 +180,7 @@ touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1/PAUSE
 중단이 될 수 있으므로 정상 일시정지 요청에는 `PAUSE`를 쓴다.
 통신·Park 확인 전 MORAI·ROS·bridge를 끄지 않는다.
 
-공통 실행기는 본수집을 자동 시작하지 않았으며, 자동 `--complete`도 켜지 않는다.
+공통 실행기의 준비·자격시험 단계는 본수집을 자동 시작하지 않으며, 자동 `--complete`도 켜지 않는다.
 5K 후 부족분 보충·Q90 변환·압축·전달은 별도 완료 단계다. 새 출력에 경로가 고정된 구 완료
 스크립트를 무작정 실행하지 않는다. 원본 PNG의 자동 삭제 정책도 추가하지 않았다.
 
@@ -204,6 +208,43 @@ python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/unified_dashboard.py
 복사할 명령은 저장소의 `scripts/portable_base5/UNIFIED_COLLECTION_COMMANDS.txt`와 빌린 PC의
 `~/ajounice_base5_capture/work/unified-runtime-v1/UNIFIED_COLLECTION_COMMANDS.txt`에 있다.
 사용자가 편집을 금지한 기존 TXT의 보호 구역은 건드리지 않았다.
+
+## 본수집 재개 기록
+
+2026-10-18 06:18 KST, 사용자가 잠든 동안 두 PC의 본수집 실행을 명시적으로 요청해 위의
+동일 명령을 실행했다. 코드·profile·QA·동결 source는 변경하지 않았다.
+중복 수집기가 없고 기존 ROS·guarded bridge·Ego/CollisionData 수신이 정상임을 먼저 확인했다.
+시작 당시 디스크 여유는 로컬 약 143GiB, 원격 약 220GiB였다.
+
+06:20 KST 초기 진행 확인:
+
+| 환경 | 재개 직전 승인 | 부모 진행 보고 승인 | 부족분 | 동작 |
+|---|---:|---:|---:|---|
+| 로컬 Sunny15 | 557 | 573 | 3 | 첫 신규 묶음 16/16 승인, 다음 묶음 촬영 |
+| 빌린 PC Sunny13 | 1,313 | 1,329 | 15 | 첫 신규 묶음 16/16 승인, 다음 묶음 촬영 |
+
+이는 확인 시점의 부모 진행 보고다. selected ledger의 주기적 동결 체크포인트와 같다는 뜻은 아니다.
+64장 단위 저장 전에도 완료된 native 묶음의 실제 원본·ledger·Park 근거는 새 출력에 남는다.
+진행 중 child를 부모 숫자에 다시 더하지 않는다. 5K 완료·부족분 보충 완료 인증은 아니다.
+
+로컬은 별도 tmux 서버 `base5_unified`, 세션 `sunny15_261018_061755`에서 실행했다.
+SSH·VS Code·이 대화의 연결 종료와 독립적으로 유지된다.
+
+```bash
+tmux -L base5_unified attach -t sunny15_261018_061755
+```
+
+로컬 stdout 로그는
+`artifacts/evaluation/base5_unified_runtime_261018/sunny15_main_20261018_061755.log`다.
+원격은 tmux가 없어 새 session으로 분리한 supervisor PID `2784150`에서 실행했다.
+원격 stdout 로그는
+`~/ajounice_base5_capture/work/unified-runtime-v1/operator_capture_sunny13_20261018_061823_1792271903664811751.log`다.
+stdout은 진행마다 출력되는 로그가 아니므로, 최신 진행은 새 출력의 `status.json`과 native ledger를 본다.
+
+기존 웹 서버와 구 watch는 사용자의 별도 수동 운영을 존중해 변경하지 않았다.
+따라서 구 대시보드에 PAUSE가 보여도 새 본수집의 중단을 뜻하지 않는다.
+새 출력의 웹 관측으로 바꾸려면 위 대시보드 전환 명령을 사용한다.
+오류 시 안전 중단 정책은 유지하며, 상시 인력 감시·MORAI 자동 재시작을 추가한 것은 아니다.
 
 ## 코드 경로
 
