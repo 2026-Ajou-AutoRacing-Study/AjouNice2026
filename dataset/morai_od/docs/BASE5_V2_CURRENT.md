@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 Sunny13 5K는 완료했다. 사용자가 시작한 새 Sunny15 5K는 10/18 승인 190장·검토 2장에서 정상 PAUSE 후 반복 입력 검증을 최적화한 별도 실행기로 재개했다. v159 원형 runtime·QA·기존 취득은 유지하며 5K 완료 상태는 아니다. 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15는 10/18 입력 검증 가속 후 MORAI 종료로 Park 미확인 중단됐다. 05:07 KST, 승인 414장·검토 2장을 보존한 [별도 인계본](261010_base5_fresh_environment_runbook.md#sunny15-crash-handoff-261018)을 CPU 준비했다. 현재 `prepared_waiting_for_resume`이며 사용자가 새 명령으로 시작한다. 추가 촬영 0장이고 5K 완료 상태는 아니다. 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,7 +17,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 사용자가 시작한 새 Sunn
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 감사·가림 대체 2/2·exact32/32·음영 이동 2/2·Q90/upright·실제 CPU loader·재개·당시 CPU 2,376개 통과. 10/18 02:35의 native 0장·회귀 498개·원형 6-gate 통과는 당시 준비 기록이다. 이후 시작한 수집은 190장 보존 후 [입력 검증 가속 실행기](261010_base5_fresh_environment_runbook.md#sunny15-input-cache-261018)로 재개했다. portable 586개·관련 원형 113개 회귀와 파일별 SHA 전수 동등성을 확인했으며 5K 완료 인증은 아니다 |
+| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 감사·가림 대체 2/2·exact32/32·음영 이동 2/2·Q90/upright·실제 CPU loader·재개·당시 CPU 2,376개 통과. 입력 캐시 가속 후 MORAI 종료로 중단됐고, 10/18 05:07 [crash 인계본](261010_base5_fresh_environment_runbook.md#sunny15-crash-handoff-261018)을 승인 414 / 검토 2 / 미검사 4,584로 준비했다. portable 641개·관련 원형 116개 회귀 및 실제 CPU prepare 통과. 추가 촬영 0장이고 5K 완료 인증은 아니다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13는 원형 source/runtime과 빌린 PC의 [69장 보존 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 사용한다. Sunny15의 [최초 목록 보존 준비](261010_base5_fresh_environment_runbook.md#sunny15-population-261018)는 이력으로 보존하며, 현재는 원형 v159 source·438개 runtime·QA를 유지하는 [별도 입력 검증 가속 실행기](261010_base5_fresh_environment_runbook.md#sunny15-input-cache-261018)로 기존 취득을 재개한다. 원격 receipt를 재사용하거나 취득분에 `--prepare`를 다시 실행하지 않는다. 가속은 승인된 정상 PAUSE와 별도 attachment를 요구하며 source SHA·native QA·안전 실패를 우회하지 않는다.
+새 Sunny13는 원형 source/runtime과 빌린 PC의 [69장 보존 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 사용한다. Sunny15의 [최초 목록 보존 준비](261010_base5_fresh_environment_runbook.md#sunny15-population-261018)와 [정상 PAUSE 입력 가속](261010_base5_fresh_environment_runbook.md#sunny15-input-cache-261018)은 이력이다. 현재 원래 출력은 Park 미확인 `halted`이므로 구 `--resume-paused`를 쓰지 않는다. 원형 v159 source·438개 runtime·QA를 유지하는 [crash 인계 실행기](261010_base5_fresh_environment_runbook.md#sunny15-crash-handoff-261018)의 새 출력에서 사용자가 재개한다. 원격 receipt를 재사용하거나 취득분에 `--prepare`를 다시 실행하지 않는다. 과거 status·Park 실패를 정상으로 바꾸지 않는다.
 원격 Sunny13 읽기 전용 웹 관측은 [10/18 근거·연결 방법](261017_base5_unit_release_evidence.md#portable-web-dashboard-261018)을 따른다. 로컬 8075는 Sunny15, 로컬 8076은 원격 Sunny13의 SSH 터널이다. 구 v142 통신·대시보드는 [fresh 런북](261010_base5_fresh_environment_runbook.md)의 이력이다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 

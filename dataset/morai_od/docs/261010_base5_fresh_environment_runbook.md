@@ -424,6 +424,10 @@ inventory를 재개 때 검사한다. 실제 child의 CPU prepare-only 회귀에
 명령은 [로컬 객체 목록 보존 복구 실행기](#sunny15-population-261018)를 따른다.
 동결 release나 당시 native 판정을 수정한 것은 아니다.
 
+**10/18 MORAI 종료 후속:** 아래 및 입력 캐시 절의 구 재개 명령은
+`Batch final Park unverified`로 중단된 원래 출력에 사용할 수 없다.
+[별도 crash 인계 절](#sunny15-crash-handoff-261018)을 따른다.
+
 동결 release는
 `artifacts/evaluation/base5_sunny15_261017/finalization_v1/release_v159_sunny15/release.json`이다.
 SHA는 `9098b8959eb1fc25b4f5ce47ba6e2d638a8b68c199cf8c34fdcdc278a83ec28d`,
@@ -641,3 +645,87 @@ PAUSE 원본은 `PAUSE.resumed_...json`으로 보존했다.
 재개 후 원본 보존·신규 묶음 확인은 `input_cache_v1/live_resume_verification.json`에 보존했다.
 재개 직후에는 이전 결과를 복원하는 카운터 증가를 신규 촬영 속도로 해석하지 않는다.
 전체 ETA도 과거 느린 구간과 복원 비용이 포함되므로 새 장면이 쌓인 뒤 재평가한다.
+
+<a id="sunny15-crash-handoff-261018"></a>
+
+## 2026-10-18: MORAI 종료로 Park 미확인된 Sunny15의 별도 인계
+
+04:47 KST 원래 `collection_5k`는 `halted / Batch final Park unverified`로 종료됐다.
+부모의 확정 체크포인트는 검사 416 / 승인 414 / 검토 2다. 다음 `chunk_0026`은
+3개 승인 후보와 연결 단절 실패 1개를 저장했으나, 경계와 종료 Park가 모두 미확인이다.
+이 3개 후보는 부모 승인 목록에 포함되지 않았다. 정상 일시정지와 다르므로 기존
+`local_sunny15_fast.py --resume-paused`로 재개할 수 없다.
+
+새 `local_sunny15_crash_import.py`는 안전 종료한 26개 묶음의 원형 세션·자세 판정·
+복구 증거를 읽고 authoritative 승인 414개와 기존 검토 2개만 인계한다. 검토 셀의
+기존 복구 소진 이력을 보존하고, 실패한 마지막 묶음 전체는 제외한다. 기존 raw·GT·
+ledger·status·Park 실패 파일은 고치거나 지우지 않는다. 원래 schema-1 import 검증기가
+정확한 목록과 원본 해시를 확인하며 인계 전후 기존 트리의 inventory도 대조한다.
+
+새 실행기는 `scripts/portable_base5/local_sunny15_after_crash.py`다. 원래 v159 release는
+원래 목적지로 정상 검증하고, 별도 계약으로 아래의 정확한 새 목적지만 허용한다.
+동결 runtime 438개·장면 구성·native QA·복구 상한은 유지한다. SHA 캐시는 고정된
+입력에만 적용하고, 이전/현재 촬영 출력은 제외한다. 전체 인계 원본 확인은 부모 시작에
+수행하며 복구 child마다 414장의 원본을 다시 읽지는 않는다.
+
+- 원래 중단 출력: `~/morai_cap/base5_sunny15_v159_261017/collection_5k`
+- 새 인계 출력: `~/morai_cap/base5_sunny15_v159_261017/collection_5k_after_crash_v1`
+- 인계 근거: 새 출력의 `imported_prefix.json`, `crash_handoff.json`, `after_crash_contract.json`
+- `--prepare`는 최초 한 번 수행하는 CPU 준비이며 실제 촬영·ROS 연결·Park 요청을 하지 않는다.
+- `--run`은 사용자가 직접 시작한다. 이후 정상 PAUSE에서 재개할 때도 같은 명령을 쓴다.
+  새 출력에서도 다시 안전 중단되면 자동 우회하지 않는다.
+- 시작 직후에는 기존 인계 원본과 release 근거를 검사하므로 승인 414장이 잠시 유지될 수 있다.
+  이 복원·검사 시간을 새 장면의 촬영 속도로 해석하지 않는다.
+
+MORAI에서 Sunny15·Capture Mode·기존 센서·네트워크·카메라 1~4/LiDAR 5의
+annotation ON을 확인한 뒤 다음을 사용한다. `--prepare`를 다시 붙이거나 원래 중단
+출력의 status를 `paused`로 바꾸지 않는다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+export ROS_MASTER_URI=http://127.0.0.1:11311
+python3 -B -u scripts/portable_base5/local_sunny15_after_crash.py \
+  --run --confirmed-environment sunny15
+```
+
+안전한 일시정지는 다른 터미널에서 새 출력의 `PAUSE`를 요청한다.
+
+```bash
+touch "$HOME/morai_cap/base5_sunny15_v159_261017/collection_5k_after_crash_v1/PAUSE"
+```
+
+기존 8075 관측기는 원래 중단 출력을 계속 표시한다. 관측기만 새 경로로 다시 시작하거나,
+기존 관측기를 건드리지 않고 별도 터미널에서 8077을 사용한다. 8076은 원격 Sunny13 터널이다.
+과거 raw도 디스크 추정에 포함하지만 승인 수를 중복 합산하지 않는다.
+
+```bash
+python3 -B dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root "$HOME/morai_cap/base5_sunny15_v159_261017/collection_5k_after_crash_v1" \
+  --storage-root "$HOME/morai_cap/base5_sunny15_v159_261017/collection_5k" \
+  --manifest "$PWD/artifacts/evaluation/base5_sunny15_261017/finalization_v1/assembled_source_v2/final_source/manifest.json" \
+  --port 8077
+```
+
+### 원격과 로컬의 QA 차이에 대한 정정
+
+원격 Sunny13 v158a에는 지면·이동·심각한 높이·충돌/P 검사가 이미 있지만,
+후속 full-RPY 정적 오인 재분류와 최종 방향/이동 자세를 고려한 복합체 지면 준비는 없다.
+후자는 Sunny15에서 발견한 일반적인 준비 개선이지, 15시에만 필요한 물리 규칙은 아니다.
+기존 검사에서 지지 부족·높이 이상 등이 확인되면 검토가 되지만, **후속 보완이 없는
+사실 자체를 원격이 감지하거나 관련 사례를 전부 검토로 분류한다는 보장은 없다.**
+정적 보완은 주로 도로 대신 상부 평면을 연결한 거짓 실패를 구분하고, 복합체 보완은
+실제 촬영의 엄격한 기준을 유지한 채 더 넓은 지면을 준비한다. 원격의 해당 검토·부족분과
+실제 이동 복합체 결과를 선별 감사할 필요는 남아 있다. 이 작업에서 원격 수집기는 변경하지 않는다.
+
+### 실제 CPU 준비 결과 — 05:07 KST
+
+새 출력은 `prepared_waiting_for_resume / 승인 414 / 검토 2 / 미검사 4,584 / 실패 0`이다.
+새 native session·EventCmd 로그·추가 촬영은 모두 0이다. 기존 출력은 `halted`와
+Park 실패를 유지하며 7개 핵심 header SHA와 원래 계약 SHA가 동일하다.
+기존 트리 inventory 22,039개, 승인 raw 15,515개와 완료 복구 17건을 검증했다.
+보존·QA·부족분 상한·출력 경로·실제 부모 신원 회귀를 포함한 portable 641개 및
+관련 원형 수집/안전 116개, 총 757개 테스트를 통과했다. 이는 CPU 인계·준비의 검증이지,
+새 출력에서 MORAI 재시작 후 실제 촬영을 완료했다는 인증은 아니다.
+인계 계약 SHA256은 `7086fda297a51ad07deff79505a60d860f82fd30f602ad259042baeb35d0c9cb`다.
