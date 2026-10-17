@@ -552,3 +552,92 @@ source의 5,000개 고유 ID·payload와 10,000개 파일, 객체 목록·budget
 원형 source/release/runtime은 변경하지 않았고 빌린 PC에는 접속하지 않았다.
 receipt는 `finalization_v1/local_population_prepare_receipt_v1.json`에 보존했다.
 사용자가 실제 시작할 때도 원형 부모의 검증 때문에 처음 몇 분간 승인 수가 0일 수 있다.
+
+<a id="sunny15-input-cache-261018"></a>
+
+## 2026-10-18: 진행 중 Sunny15의 반복 입력 검증 비용 개선
+
+앞 절의 02:35 준비·0장 수치는 당시 이력이다. 이후 사용자가 본수집을 시작했다.
+잔여 약 20시간 표시를 조사한 뒤, 사용자의 안전 중단·해결 승인에 따라 `PAUSE`를 요청했다.
+현재 묶음이 끝난 시점에 **검사 192 / 승인 190 / 검토 2**로 정상 일시정지했다.
+25개 native session의 종료 상태·Park/gear 1·요청 중 brake 유지와 65개 잠금 해제를 확인했다.
+강제 종료·STOP 우회·기존 취득 삭제는 하지 않았다.
+
+### 병목과 실제 비교
+
+한 장의 strict 복구도 전체 5K 명세와 재귀 참조를 검증한다. 고유 입력은 21,849개지만,
+같은 상위 manifest와 split overlay가 반복 참조되어, `input_pins` 한 번에서 SHA 호출은
+75,500회, 마지막 전수 재검사 전까지 누적 읽기는 **122.272GiB**였다. 이는 추가 저장 공간이
+아니라 같은 bytes를 다시 읽고 계산한 양이다. 일반 장면 192건의 캡처 평균은 4.64초였다.
+
+| 입력 pin 조립·검증만 측정 | 소요 시간 | 원형과의 파일별 SHA mapping |
+|---|---:|---|
+| 원형, 프로파일러 없이 재측정 | 86.57초 | 기준 |
+| 최종 가속 allowlist, 프로세스 첫 호출 | 18.77초 | 21,849개 전부 동일 |
+| 같은 프로세스의 다음 호출 | 16.29초 | 21,849개 전부 동일 |
+
+이 단계는 약 78~81% 줄었다. 전체 5K 수집 시간이 같은 비율로 줄었다는 뜻은 아니다.
+시나리오 로드·정지·저장·native QA·이동 준비 비용은 그대로다. 대시보드 ETA는 원래
+`누적 활성초 / 검사 완료 수 × 미검사 수`이며 이전의 느린 처리 비용도 포함한다.
+최근 10분 승인 속도를 ETA에 직접 사용하는 방식은 아니다.
+
+### 바꾸지 않는 것과 새 실행 범위
+
+- 원형 438개 runtime, v159 source/release, 기존 wrapper와 세 계약 파일은 수정하지 않는다.
+- 객체 목록·geometry·split·배율·GT·QA·16장 chunk·512개 geometry/8개 layout 복구 상한은 유지한다.
+- 새 `verified_input_cache.py`는 프로세스 메모리에서만, 명시적으로 동결된 입력의 SHA를 재사용한다.
+  재사용 때 파일·조상 경로의 신원, 크기, ctime/mtime, 권한·소유자를 검사한다.
+  최근 2초 이내 파일은 재해시하고, 변경·삭제·symlink·최초 SHA 불일치는 중단한다.
+- 최종 allowlist 20,890개에는 원형 scenario 5,000개와 metadata 5,000개가 모두 들어 있다.
+  현재 출력뿐 아니라 과거 native/GT/QA/세션/안전 증거도 캐시에서 제외한다.
+  이들은 기존 SHA·검증 경로를 그대로 실행한다. 부모와 child가 캐시를 공유하거나 디스크에 저장하지 않는다.
+- 새 `local_sunny15_fast.py`는 기존 원본을 덮어쓰지 않는 별도 attachment를 사용한다.
+  실제 새 부모의 PID·시작 시각·UID·명령을 검증하고 원형 복구로 연결한다. 원형 argv를 위장하지 않는다.
+
+새 실행기의 기본 호출은 읽기 전용 계획이다. `--attach`는 정상 PAUSE와 전체 종료·잠금을
+검증한 뒤, 기존 raw의 SHA/신원과 190개 선택 목록을 출력 밖
+`finalization_v1/local_input_cache_v1/`에 보존한다. native-zero `--prepare`를 재실행하지 않는다.
+
+```bash
+# 정상 PAUSE 상태에서 최초 한 번만, 촬영하지 않고 연결 근거 작성
+python3 -B scripts/portable_base5/local_sunny15_fast.py --attach
+
+# 실제 재개: 기존 ROS·guarded bridge·Sunny15 MORAI는 그대로 유지
+python3 -B -u scripts/portable_base5/local_sunny15_fast.py \
+  --run --confirmed-environment sunny15 --resume-paused
+```
+
+재개 명령은 PAUSE 원본을 고유 감사 파일로 보존한 뒤 원형 부모를 호출한다.
+처음에는 기존 chunk와 복구 기록을 다시 검증하므로 카운터가 재구성될 수 있다.
+기존 승인 quota를 새로 촬영하는 명령은 아니다. `halted`·STOP·통신/Park 실패는 계속 강제 재개하지 않는다.
+빌린 PC Sunny13의 실행기·프로세스·txt에는 이 변경을 적용하지 않았다.
+
+검증: portable 실행기 회귀 **586개**, 관련 원형 수집/복구/안전 회귀 **113개** 통과.
+별도 검토에서 native 증거 제외와 5K source 전수 포함을 확인했다.
+실측 근거는 `artifacts/evaluation/base5_sunny15_261017/input_cache_v1/`의
+`baseline_profile.json`, `unprofiled_baseline.json`, `final_allowlist_benchmark.json`이다.
+
+### 최종 운영 확인 — 2026-10-18 04:00 KST
+
+실제 `--attach`는 촬영 0회로 완료했다. 원형 6-gate를 다시 대조했고, 외부 attachment에
+190개 선택 정보와 원본 7,635개 파일의 SHA·inode·mtime·크기를 보존했다.
+가속 실행기는 기존 수집을 재개했으며 새 출력이나 새 5K를 시작하지 않았다.
+PAUSE 원본은 `PAUSE.resumed_...json`으로 보존했다.
+
+- 원형 parent/batch/목록 보존 계약의 SHA는 모두 그대로다.
+- 기존 완료 복구 9건의 실제 새 child 검증은 약 26~27초였고 캐시 오류는 0건이었다.
+  이들은 과거 촬영을 재검증한 것이며 새 native 표본으로 합산하지 않는다.
+- 첫 신규 `chunk_0012`는 **16/16 승인·검토 0**, 정상 native 처리 **73.85초**였다.
+  일반 촬영 자체의 시간은 종전과 비슷하며, 개선 대상은 중복 입력 검증이다.
+- 재개 후 원본 7,635개와 기존 선택 190개가 모두 동일했고, 과거 촬영 요청 로그 25개도
+  변하지 않았다. 기존 성공분을 다시 촬영하지 않았음을 확인했다.
+- 부모 상태는 **running / 검사 208 / 승인 206 / 검토 2**였다. 이는 당시 관측으로,
+  5K 완료나 전체 수집 시간의 보장이 아니다. 중복 collector를 실행하지 않는다.
+
+실제 continuation 계약 SHA256은
+`3e91fb9cc10fca57a285c04f981c0006d03fb8926e1c99e2eeed4d5b48cff500`이며,
+실행기 SHA256은 `eb871c77ff4cd1831408ec7c0918df1df55580802441abd2f00fd003e7516aaf`다.
+운영 로그·PID/starttime receipt는 `finalization_v1/local_input_cache_v1/`에,
+재개 후 원본 보존·신규 묶음 확인은 `input_cache_v1/live_resume_verification.json`에 보존했다.
+재개 직후에는 이전 결과를 복원하는 카운터 증가를 신규 촬영 속도로 해석하지 않는다.
+전체 ETA도 과거 느린 구간과 복원 비용이 포함되므로 새 장면이 쌓인 뒤 재평가한다.
