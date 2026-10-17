@@ -154,6 +154,12 @@ def test_empty_background_has_valid_attitude_without_invented_corner_components(
     result=candidate.analyze(root)
     assert result['attitude_qualified'] and result['empty_background_native_records']
     assert not result['classification_changed'] and result['actors']==[]
+    original=candidate.read(root/'audit.json');before=copy.deepcopy(original)
+    (root/'audit.json').unlink()
+    from_ram=candidate.analyze(root,original_audit=original)
+    assert from_ram==result and original==before and not (root/'audit.json').exists()
+    with pytest.raises(ValueError,match='mapping'):
+        candidate.analyze(root,original_audit=['not','audit'])
 
 
 @pytest.mark.parametrize('kind',['different_stamp','yaw_offset','not_park','moving_ego','gyro','collision','extrinsics'])

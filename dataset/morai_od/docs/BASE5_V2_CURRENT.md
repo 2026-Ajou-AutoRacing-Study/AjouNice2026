@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-17.
-Base5-only 학습용 Sunny13 5K는 완료했다. 다음 Sunny15는 새 5K CPU 후보와 소량 native 검증까지 진행했지만 본수집 미승인이다. 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 runtime으로 수집 준비 자격을 동결했다. 디스크 확보 전 시작은 금지하며 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,7 +17,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다음 Sunny15는 새 5K CPU �
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 보존 이력이다. 10/17 로컬 Sunny15: 동일 배치 RGB 16/16, 독립 CPU 5K, 새 native 28/32 승인·4 검토. 지면 연결 후보 분석·실제 가림 복구·음영 이동 준비·디스크 확보 전 본수집은 미승인이다. [새 source와 후속 순서](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
+| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 전수 CPU 감사·가림 대체 2/2·새 exact32/32·별도 음영 이동 2/2·Q90/upright·실제 CPU loader·재개·전체 CPU 2,376개 통과. `release_v159_sunny15`는 수집 준비 자격이며 본수집 0장이다. 여유 약 45GiB로 55GiB 시작 기준 미달. [실제 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13는 [v158a 최종 근거·명령](261017_base5_unit_release_evidence.md)의 동결 release와 `launch_base5_obstacle_support.py`를 사용한다. 촬영 시작·취득 후 재개는 `--run` 경로이며 취득분에 CPU 준비를 재실행하지 않는다. v155m·v154 등은 과거 이력이다.
+새 Sunny13는 [v158a](261017_base5_unit_release_evidence.md)와 기존 launcher를 유지한다. Sunny15는 [v159 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017)의 별도 `run_base5_batch_static_attitude.py`와 qualified release를 사용한다. 촬영/재개는 `--run` 경로이며 취득분에 CPU 준비를 다시 실행하지 않는다. v155m·v154 등은 이력이다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
@@ -89,11 +89,11 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
   실제 접촉은 증거와 안전한 종료가 검증된 장면만 실패·부족분으로 넘긴다. 불확실한 접촉을 우회하지 않는다.
 - 정적은 원래 캡처의 QA를 유지하며 높이 확인만을 위한 추가 재취득을 남발하지 않는다.
 - 사거리 실제 이동은 수동 높이 lookup의 출발→도착 두 waypoint·선형 이동을 따른다.
-  음영은 독립 terrain/reference 준비가 기본이며 exact 두 장면만 [기존 준비 재사용](261016_base5_shadow_ground_reuse.md)을 등록했다. 나머지 22장은 개별 촬영 전 준비하며 자동 지면 추종이 아니다.
+  Sunny13 음영은 exact 두 장면만 [기존 준비 재사용](261016_base5_shadow_ground_reuse.md), 나머지 22장은 개별 준비다. Sunny15 24장은 모두 새 지면 준비이며, 복합체는 필요할 때 최종 방향 reference와 넓은 실측 지지 영역을 요구한다. 자동 지면 추종이나 QA 완화가 아니다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
 v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v151의 9.75시간과 비용이 달라 순수 속도 개선으로 해석하지 않는다. 10/17 17:58 여유 약 59.7GiB로 신규 시작 55GiB 기준을 통과했지만, 18:50 원격 전달 폴더·압축 보관 뒤에는 약 50GiB다. 다음 로컬 5K 전에 공간을 다시 확보해야 하며 25K 전체 보관은 부족하다.
+실제 본수집 rate로 갱신한다. v159 소량 검증만으로 새 5K ETA를 인증하지 않는다. 10/17 로컬 여유는 약 45GiB로 신규 시작 55GiB보다 적다. 사용자가 정리를 수집 직전으로 미뤘으므로 이번에는 삭제하지 않았다. 다음 로컬 5K 전에 공간을 확보해야 하며 25K 전체 보관도 부족하다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>
@@ -117,7 +117,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 현재 single-frame 7D OD 학습에 velocity supervision을 넣지 않는다. bag별 단위·기준점 정책은 별도로 확인한다.
 
 [JPEG/GT 변환 근거](../../../docs/bevfusion/README.md#evaluation)와 [MR 자산 계약](MR_ASSET_COLLECTION_CURRENT.md)을 참고한다.
-원본 5K와 새 pilot을 섞지 않는다. [v158a 입력 검사](261017_base5_unit_release_evidence.md)는 새 32장·101 GT의 Q90/upright·실제 CPU train/val 전처리를 확인했다. 복합체의 모호한 camera 성분을 임의 연결하지 않는다.
+원본 5K와 새 pilot을 섞지 않는다. [v158a 입력 검사](261017_base5_unit_release_evidence.md)는 당시 32장·101 GT다. [Sunny15 v159](261010_base5_fresh_environment_runbook.md#sunny15-261017)는 별도 32장·76 GT의 Q90/upright·CPU train/val 전처리를 통과했다. 복합체의 모호한 camera 성분을 임의 연결하지 않는다.
 
 ## 이력과 갱신
 

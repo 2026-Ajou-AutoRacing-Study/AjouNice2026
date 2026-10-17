@@ -327,3 +327,141 @@ RGB 차이가 있으므로 15시를 추가할 근거는 있지만, 어둡게 보
 이번에는 로컬 소량 촬영만 수행했고, 빌린 PC의 Sunny13 진행 상태는 조회하거나 변경하지 않았다.
 종료 시점의 로컬 디스크 여유는 약 47GiB로 55GiB 시작 기준보다 적다. 공간 부족이나 위 네
 검토 사례를 무시하고 본수집을 시작하지 않는다. 로컬 촬영 종료 시 P 확인은 완료했다.
+
+### 후속 검증: 원래 판정을 보존한 새 source/runtime
+
+위의 28/32 승인·4 검토는 첫 실행의 역사 판정이다. 이후 결과로 원본 audit나 ledger를
+고쳐 쓰지 않는다. 후속 근거는 같은 artifact 루트의 `finalization_v1/`에 분리했다.
+
+| 대상 | 후속 조치와 실제 관측 |
+|---|---|
+| 01156·04512 지면 연결 | 새 opt-in 실행기로 별도 정적 대조 2/2 승인. 원래 audit를 별도 파일에 보존하고, full-RPY·실제 native 꼭짓점·지도 높이가 지지하는 상부 평면 오인만 불확실성으로 재분류했다. 실제 지면 접촉을 인증하거나 GT를 고친 것이 아니다 |
+| 03754·04027 실제 가림 | 전체 spec·객체 목록/순서·거리 역할·unit·split/group을 유지한 새 배치를 각각 생성했고, 새 native 2/2 승인했다. 원래 실패 장면을 그대로 반복하지 않았다 |
+| 최종 5K CPU source | `finalization_v1/assembled_source_v2/final_source/manifest.json`. 위 실제 가림 대체 두 장만 채택하고 공통 layout overlay를 다시 감사했다. 5,000개 CPU 준비는 5,000장 취득이 아니다 |
+| 음영 Dog1 실제 이동 | 별도 빈 지면·정지 reference·근접 빈 지면 준비 후 기존 엄격 QA로 승인했다. Sunny13에서 지면 준비 기능이 없었다는 뜻이 아니라 새 Sunny15 geometry를 독립 검증한 것이다 |
+| 음영 Ped_Pet1 실제 이동 | 첫 장면과 같은 quota의 새 배치 모두 지면 지지 범위를 확인하지 못해 검토로 보존했다. 방향과 관절 자세를 고려한 준비 개선을 별도로 검증한다. QA 기준을 낮추거나 복합 GT를 합치지 않는다 |
+
+정적 실행기 `run_base5_capture_static_attitude.py`는 새 세션에만 사용할 수 있다.
+정지 보행자 확장도 명시적인 opt-in이며, 근거리·복합체·실제 이동·명백한 부유/매몰에는
+해당 재분류를 적용하지 않는다. 원형 collector와 Sunny13 동결 runtime을 수정하지 않았다.
+다른 QA reason·component·충돌/P·원본 GT는 유지하고, 판정 직전 telemetry와 metadata가
+저장된 뒤에만 별도 근거를 기록한다. 구 output에 이 실행기를 붙여 강제로 resume하지 않는다.
+
+#### 음영 복합체의 지면 준비 문제
+
+`base5_motion_ground.prepare`는 정지 reference로 지면 기준을 정한 뒤, 측정된 빈 지면과
+Ego 충돌 여유에 맞는 이동 방향을 고른다. 이 장면은 최종 방향이 180° 바뀌었다.
+비대칭 복합체의 사람·반려동물 위치도 달라져, 정지 footprint만 지지하던 작은 평면의
+범위를 실제 이동 GT가 벗어났다. GT가 빠졌거나 사람·동물 라벨이 잘못됐다는 증거는 아니다.
+
+선택된 방향으로 정지 reference를 새로 측정하되 원래 target XYZ를 유지한 대조에서도
+이동 장면은 검토였다. 같은 방향이라도 정지/달리기 자세와 허용 도착 오차 때문에
+반려동물 꼭짓점은 기존 지면 hull에서 약 1.11m 떨어졌고, 기존 허용값 0.75m를 넘었다.
+이 판정을 통과로 바꾸거나 허용값을 늘리지 않았다.
+
+추가 대조는 **취득 전 준비용 평면이 더 넓은 영역까지 실제로 측정됐는지** 요구했다.
+별도로 저장한 빈 지면 point cloud에서 정지 native 전체 component의 XY footprint에
+1m와 기존 target tolerance 0.4m를 더한 보수적 지원 영역을 요구하자, 원형 `surface_at`은
+3m 대신 5m patch를 선택했다. 지지점 738개·평면 RMS 약 7.9mm였고 기존 slope·잔차·
+hull 기준은 유지했다. 이 준비 입력의 새 실제 이동 대조는 기존 QA로 승인됐으며,
+최저 native 꼭짓점과 측정 평면의 간격은 약 −5cm였다. native GT나 시나리오 scale은 바꾸지 않았다.
+
+`direction_reference_probe_v2/`의 정지 기준·방향만 맞춘 이동 검토·지원 영역을 보강한 이동
+승인을 각각 보존했다. 동일 payload의 이 대조들은 사전에 목적을 명시한 진단이며 새 독립
+학습 장면으로 합산하지 않는다. 수동 대조의 성공만으로 자동 준비 경로 전체를 승인하지 않고,
+새 opt-in 자동 실행기와 독립 캠페인에서도 검증한다.
+
+자동 실행기 `run_base5_capture_campaign_direction_reference.py`의 별도 동물·복합 2장
+실행도 **2/2 승인**했다. 준비와 실제 촬영을 포함한 캠페인 누적시간은 약 133.2초였고,
+이동 직전 수신 시각 기반 속도 진단은 Dog1 약 1.21m/s, Ped_Pet1 약 2.20m/s였다.
+정확한 센서 동기 속도 GT라는 뜻은 아니다. 두 장 모두 기존 이동·심각한 높이·충돌·
+정지/P 검사를 통과했으며, 이전 검토 원본과 분리했다. 방향이 바뀌어도 복합체가 아닌
+Dog1에는 불필요한 최종 방향 reference를 추가하지 않았다.
+
+사전 준비는 더 넓은 지면 지원을 요구하지만 실제 촬영의 0.75m hull 지원·잔차·높이
+검사 기준을 완화하지 않는다. 지지 범위가 부족하면 기존의 제한된 추가 빈 지면 관측을
+사용하며, 같은 reference를 반복 취득하거나 지면을 외삽하지 않는다. 새 실행기는
+명시적인 opt-in, 고정 source/runtime·recipe·실제 native·선택·충돌/P 증거 검사를 사용한다.
+새 Dog/Pet 승인은 final exact32나 본수집 5,000장에 더해 세지 않는다.
+
+#### 실행 연결과 재개 검사
+
+일반 chunk는 `run_base5_batch_static_attitude.py`가 최대 16장씩 독립 subprocess로
+실행한다. 정적 지면 연결 재분류는 일반 chunk에만 명시적으로 적용하고, 독립 보충은
+앞의 방향·지원 영역 준비 실행기와 더 엄격한 원형 native QA를 사용한다. 통신·충돌
+근거·정지/P·해시 계약을 바꾸거나 새 QA를 구 수집 세션에 붙이지 않는다.
+
+첫 실행 연결 시험은 원형 child의 source/output 분리 보호에 걸려 **취득 0장**으로
+중단됐다. `final_exact_native_v1`에 이 사실을 보존했다. 보호 검사를 완화하지 않고,
+원본 `chunk_*/manifest.json`과 byte-identical한 실행본을 sibling
+`chunk_*/execution_source/manifest.json`에 두도록 수정했다. 실제 raw는 별도의
+`chunk_*/capture/`다. 원본·실행본·경로·실행기 SHA receipt와 정확한 디렉터리
+inventory를 재개 때 검사한다. 실제 child의 CPU prepare-only 회귀에서도 ROS에
+접근하지 않은 채 원래 경로 보호를 통과하는 것을 확인했다.
+
+실제 새 exact pilot은 `final_exact_native_v2`다. 첫 16/16장 승인 후 정상 종료하고
+`final_exact_partial_snapshot_v1.json`을 저장한 다음 나머지 16장을 재개했다.
+부분 재개와 완료 후 무촬영 재개의 최종 검증은 아래 후속 결과를 따른다.
+
+| 후속 검증 | 실제 결과·근거 (`finalization_v1/` 아래) |
+|---|---|
+| 최종 사전 등록 payload | `final_exact_native_v2`: 32/32 승인·검토 0·실패 0. 두 실행의 누적시간 약 176.2초이며 분석·작업자 대기 시간과 별도다 |
+| 부분 재개 | `final_exact_partial_resume_v1.json`: 첫 16장의 원본·세션·정답·이벤트·선택 내용과 추가 파일 유무까지 대조해 보존 확인 |
+| 완료 재개 | `final_exact_completed_resume_v1.json`: 실제 새 부모 실행 경로를 재생하되 모든 새 subprocess를 금지. 추가 촬영 0장·원본/이벤트/선택/누적시간 불변 |
+| Q90/upright 입력 | `training_inputs_v2/report.json`: 32장·native component 78개·유효 GT 76개, 유지해야 할 component 유실/추가 0. 복합 component는 원래 의미로 보존하고 학습에서만 Animal→Pedestrian 매핑 |
+| 실제 CPU loader | `loader_v1/report.json`: GPU·네트워크 미노출 고정 이미지에서 train/val 전처리 각각 32장·GT 76개 통과. 4×3×512×1056 uint8·BEV 증강·XYZ 중심/치수 대조. 신경망 학습·AP·추론 성능 검증은 아님 |
+| 전체 CPU 회귀 | `cpu_regression_v1/receipt.json`: 2,376개 통과·기존 고정 제외 1개. 실행 전후 438개 runtime과 테스트 SHA를 고정했으며 새 실패를 통과시키기 위한 제외는 없음 |
+| Sunny13 보존 | 기존 v158a runtime 427/427 파일 SHA 동일. 빌린 PC에 접속하거나 해당 프로세스·파일을 변경하지 않음 |
+
+입력 v1은 완료 재개 검사와 동시에 시작해 부모 상태 파일 갱신까지 포함한 보존 검사에서
+거부됐다. passing report를 발행하지 않았고 원본을 수정하지 않았다. 완료 재개가 끝난 뒤
+새 경로의 v2에서 변환·검사를 순차 실행해 통과했다. 이후 재현에서도 상태를 기록하는
+완료 재개 검사와 입력 변환을 동시에 실행하지 않는다. `training_inputs_v1`을 승인 근거로 쓰지 않는다.
+
+### Sunny15 v159 동결과 본수집 직전 명령
+
+동결 release는
+`artifacts/evaluation/base5_sunny15_261017/finalization_v1/release_v159_sunny15/release.json`이다.
+SHA는 `9098b8959eb1fc25b4f5ce47ba6e2d638a8b68c199cf8c34fdcdc278a83ec28d`,
+최종 5K manifest SHA는 `b320b67716b9df8b649b73635f1da40c633ecde70080dc82f04c720f872d0ebf`다.
+이 release는 **수집 준비 자격**이며 5,000장 취득 완료가 아니다. 원형 장애물 19종의
+실제 코너 관측 31건·복합 4종의 부모 관측 5건·필수 coverage 47개를 검증했다.
+별도 독립 리뷰에서도 native 1,268개 파일의 내용·inode·mtime·크기·inventory 불변을 확인했다.
+
+`bulk_ready=true`와 `bulk_training_observations=0`을 구분한다. freeze 시 여유 약
+44.98GiB여서 `start_blockers=["insufficient_storage_headroom_55GiB"]`다. 실행 직전에도
+55GiB를 재검사한다. 이번 작업에서는 기존 원본·실패 근거·validator 자료를 삭제하지 않았다.
+32장 표본 승인율을 전체 5K의 확정 승인율이나 새 학습 성능으로 외삽하지 않는다.
+공간을 정리할 때도 release의 `input_hashes`·`runtime_hashes`와 assembly가 참조하는
+과거 source/native 근거는 보호한다. `environment_v3` 등 중간 생성본도 새 source의
+실제 의존일 수 있으므로 이름만 보고 찌꺼기로 삭제하지 않는다.
+
+새 부모 실행기의 CPU prepare-only는 5K 전체와 6개 실제 검증 근거를 다시 대조한다.
+촬영·ROS child를 실행하는 `--run`과 구분한다. 원형 collector를 직접 실행하거나 기존
+Sunny13 launcher에 새 release를 넘겨 이 profile을 우회하지 않는다.
+본수집 출력은 `~/morai_cap/base5_sunny15_v159_261017/collection_5k`에 분리하며,
+`final_exact_native_v2`나 진단 캡처 폴더를 본수집 출력으로 재사용하지 않는다.
+
+아래는 **공간 확보 후 사용자가 본수집을 시작할 때**의 명령이다. 이번에는 실행하지 않았다.
+로컬 MORAI는 Sunny15·Capture Mode·카메라1~4/LiDAR5 annotation ON,
+`Sensor_competition_local`과 `ego_network_mr_base5_savesensordata_collision_local`을 사용한다.
+ROS master와 guarded bridge는 기존 한 개만 사용하며 다른 주행 제어기·collector를 겹쳐 켜지 않는다.
+
+```bash
+cd /home/luv/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+SUNNY15="$PWD/artifacts/evaluation/base5_sunny15_261017/finalization_v1"
+python3 -u dataset/morai_od/scripts/run_base5_batch_static_attitude.py \
+  --manifest "$SUNNY15/assembled_source_v2/final_source/manifest.json" \
+  --output "$HOME/morai_cap/base5_sunny15_v159_261017/collection_5k" \
+  --environment sunny15 --confirmed-environment sunny15 \
+  --qualified-release "$SUNNY15/release_v159_sunny15/release.json" \
+  --limit 5000 --chunk-size 16 --resume --run --approve-bulk-capture
+```
+
+이 실행기는 같은 source·runtime·출력의 일반 재개를 지원한다. 변경된 코드나 다른
+manifest로 기존 output을 강제로 resume하지 않는다. 종료가 `complete_with_deficit`이면
+이미 확보한 성공분과 review를 보존해 별도 부족분 workflow를 검토한다.
+`completion_live_qualified=false`이므로 검증하지 않은 `--complete`를 붙이거나 무제한
+반복을 구성하지 않는다. Sunny13 v158a는 기존 동결 실행 경로를 계속 사용한다.

@@ -6,6 +6,7 @@
 """
 import argparse
 from collections import Counter
+import copy
 import hashlib
 import json
 import math
@@ -213,10 +214,12 @@ def candidate_association(row, ground, metadata, corroboration, rotation, ego, *
         return dict(eligible=False, reason=str(error), proposed_native_approval=False)
 
 
-def analyze(root, *, allow_pedestrians=False, map_hashes=None):
+def analyze(root, *, allow_pedestrians=False, map_hashes=None, original_audit=None):
     root = Path(root).resolve(strict=True)
-    metadata, telemetry, scenario, sensor, audit = [read(root/name) for name in
-        ('metadata.json','telemetry.json','scenario.json','sensor_reference.json','audit.json')]
+    metadata, telemetry, scenario, sensor = [read(root/name) for name in
+        ('metadata.json','telemetry.json','scenario.json','sensor_reference.json')]
+    require(original_audit is None or isinstance(original_audit,dict), 'RAM original audit must be a mapping')
+    audit = read(root/'audit.json') if original_audit is None else copy.deepcopy(original_audit)
     original_reasons = audit.get('review_reasons', [])
     result = dict(capture_root=str(root), original_review_reasons=original_reasons,
         original_accepted_candidate=audit.get('accepted_candidate'), candidate_only=True,
