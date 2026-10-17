@@ -612,3 +612,109 @@ SHA와 모두 일치한다. `live_v2.py`의 SHA는 `7850aed3…e481fd00`이며 �
 ROS만 정상 종료 0**으로 정리했고 9090/11311이 비어 있음·관련 실행기 잔류 0을 확인했다.
 MORAI는 켜 둔 상태이며 본수집 취득 0·별도 smoke 3을 다시 확인했다. 여유는 약 228.93GiB다.
 따라서 다음 시작은 위 세 터미널과 GUI 재연결을 사용자가 직접 수행한다.
+
+<a id="portable-route-compat-261018"></a>
+
+## 10/18 원격 63장 중단 원인 수정·승인 삭제·새 시작 준비
+
+이 절이 빌린 PC의 최신 인계 기준이다. 앞 절의 10/17 검증·수집 0장은 당시 snapshot이며,
+그 뒤 사용자가 시작한 Sunny13 본수집은 승인 63장에서 중단됐다. 사용자는 해당 수집분을
+삭제하고 처음부터 다시 시작하도록 명시적으로 승인했으며, 추가 소량 촬영은 생략하도록 했다.
+**이번에도 에이전트가 본수집을 시작하지 않았다.**
+
+### 중단 원인과 수정 범위
+
+일반 장면 검토 후 새 후보를 생성하던 `00076`에서 `MGeo route changed from the frozen extent`가
+발생했다. 지도 자체가 바뀌거나 통신·P 확인이 실패한 것은 아니었다. 원형 경로 SHA는
+XYZ/link뿐 아니라 누적 거리의 float 전체를 포함한다. Python 3.8과 원격 3.10의 `math.hypot`
+계산 차이가 마지막 소수점에 남아 동일한 지도에서 SHA가 달라졌다. Python 3.11에서도 같은
+차이를 재현했다. 기존 3장 native 시험은 이 CPU 보충 생성 경로를 실행하지 않았으므로 놓쳤다.
+
+| 실제 원격 대조 | 결과 |
+|---|---|
+| XYZ·link·순서 | 4,392점 모두 원본과 정확히 같음 |
+| 누적 거리 | 1,864개 값의 마지막 비트 차이, 최대 `1.1368683772161603e-13m` |
+| 원형 Python 3.8 route SHA | `beb686e71457bf93b20a80d06b98cd413d47bf21c08770e98469ad5ba5260b4c` |
+| 보정 전 원격 route SHA | `eba670cea62c25d5cf80c9590822d787d0ed30a01c2149cdc927ed3fb7d72623` |
+| 호환 처리 뒤 | 원래 route SHA와 정확히 일치 |
+
+새 `scripts/portable_base5/route_compat.py`는 원래 Python 3.8이 만든 좌표·누적 거리 witness와
+지도·guide·generator·extent·manifest SHA를 확인한다. 실제 좌표는 정확히 같고 거리 차이가
+`1e-9m` 이하일 때만 새 context의 `arc`를 원본값으로 복원한다. 전역 수학 함수를 바꾸거나
+지도/manifest/GT를 고치지 않는다. 다른 지도·코드·큰 거리 차이는 계속 중단한다.
+
+새 `route_dispatch.py`는 launcher와 정확한 세 자식 entrypoint에 같은 처리를 적용한다.
+원형 `__file__`과 인자를 유지해 기존 native QA·동결 계약·bounded recovery·Park 처리를
+그대로 사용한다. 새 계약은 별도로 저장하며 완료 재개에서도 검사한다. CPU 후처리도
+호환 진입점으로 연결하되, 후처리 재실행 기록은 수집 폴더 밖에 저장해 입력 inventory를
+변경하지 않는다. 별도 `--complete`는 축약형까지 금지한다.
+
+새 `live_route_compat.py`는 ROS·브리지의 기존 실행기 신원을 그대로 검증하고, capture만
+새 실행기의 실제 SHA·PID·시작 시각·argv로 검증한다. 기존 `capture.lock`을 공유하며
+일시정지·재개·상태·완료 후 변환 쉘도 이 진입점으로 연결했다. 원형 live/host proof를
+새 실행기인 것처럼 위조하지 않았다. 시스템 설치·shell profile·자격증명 변경도 없다.
+
+### 실제 CPU 검증과 삭제
+
+원격 Python 3.10.12의 동일 namespace에서 아래 7개를 **결과를 보기 전에 고정**하고 원형
+`q.replacement`로 재생성했다. ROS import·네트워크·자식 실행을 차단한 CPU 전용 시험이며,
+7/7에서 다른 payload 생성과 spec·primary·순서 있는 actor 목록·동작·unit·분할·원본 계보
+유지를 확인했다. 원형 512개 geometry / 8개 layout 상한도 유지했다. 약 69.70초였다.
+
+| 원본 ID 끝자리 | 대표 primary / 정적 구간·capture split | 결과 |
+|---|---|---|
+| 00076 | RedBarrel / after·train, 실제 중단 셀 | 통과 |
+| 01407 | BabyStroller3 / after·val | 통과 |
+| 00687 | GV70 / before·train | 통과 |
+| 04850 | Woman5 / intersection·val | 통과 |
+| 03307 | Dog1 / after·train | 통과 |
+| 04074 | WoodBox / after·train | 통과 |
+| 03964 | Scooter_01 / intersection·val | 통과 |
+
+추가로 실제 독립 Python 자식 3종에서 dispatcher를 거쳐 원형 `--help`로 정상 종료하는 것을
+확인했다. 각 진입은 약 8초이며 새 helper/source 검사를 포함한 값이지 촬영·추론 시간은 아니다.
+이 시험도 ScenarioLoad/SaveSensorData를 호출하지 않았다. 시작·상태·pause·finish 쉘의 기본
+계획 실행과 문법 검사도 통과했다. portable 전체 CPU 회귀는 **312개 통과**했다.
+이는 호환 경로 검증이며 새 native 장면·5K 완주·AP 개선의 인증은 아니다.
+
+명시적으로 승인된 `collections/sunny13_5k`만 삭제했다. 삭제 직전 halted·승인 63·status SHA·
+전체 lock 해제·해당 경로를 사용하는 프로세스 없음·소유권·symlink/mount 경계를 확인했다.
+2,426파일, 논리 394,392,973 bytes의 해당 폴더를 제거하고 작은 중단 진단만 보존했다.
+기존 `collections/smoke_v1` 3장, immutable bundle, ROS·브리지, MORAI, 보호된
+`MORAI_START.txt`는 변경하거나 삭제하지 않았다. 기존 성공분을 자동 삭제하는 정책을 만든 것이 아니다.
+
+같은 v158a source로 새 CPU 준비를 마쳤다. 현재는 `prepared_waiting_for_resume`, 요청 5,000 /
+승인 0 / 부족 0이며 pending 5,000이다. 새 native session은 0개다. Sunny13 runtime **427/427**과
+별도 Sunny15 runtime **438/438** SHA가 모두 유지됐음을 다시 확인했다.
+
+최종 5초 read-only 통신 확인에서 Ego/Object/CollisionData는 251/250/250개, 마지막 수신 age는
+약 6~8ms였다. Ego 속도는 거의 0이며 제어·촬영 요청은 없었다. ROS·브리지 supervisor PID
+2688092/2688096은 그대로였고 활성 capture는 없었다. 여유는 약 **229.33GiB**였다.
+이는 당시 관측이며 새 수집 시작 시의 정지/P·충돌·freshness 검사를 대체하지 않는다.
+
+주요 근거는 원격 `work/route-compat-validation/v1`, `work/route-child-help-v1.json`,
+`work/halted63_reset_1792250860945474640.json`, `work/route-wrapper-upgrade-v1.json`이다.
+원본 qualification 입력과 최종 intent를 따로 보존하고 SHA로 연결했다. canonical witness SHA는
+`457d7f20747e52a04acaf2e0a9c613fa7bc291ebeb771a2c1f1556bde7558fae`, CPU qualification SHA는
+`a8848cac88958aaf5fc3b43fe44a02b72e473a2b7e4b78eaedaf6ff4ecec3662`다.
+로컬 근거 사본은 `artifacts/evaluation/base5_borrowed_route_compat_261018/`에 있다.
+
+### 지금 사용자가 실행할 명령
+
+기존 ROS·브리지 터미널이 계속 실행 중인 상태이므로 중복 실행하지 않는다. MORAI의 Sunny13·
+Capture Mode·카메라 1~4/LiDAR 5 annotation ON·Network Connect를 유지하고 **빌린 PC**에서 실행한다.
+
+```bash
+bash ~/ajounice_base5_capture/start_base5_collection.sh --run --confirmed-environment sunny13
+```
+
+별도 터미널에서 상태를 보고 싶다면 다음을 실행한다.
+
+```bash
+bash ~/ajounice_base5_capture/status_base5_collection.sh --watch
+```
+
+명령은 빌린 PC의 새 `~/ajounice_base5_capture/BASE5_ROUTE_COMPAT_COMMANDS.txt`에도 저장했다.
+기존 pause/resume-paused/finish 명령 형식은 앞 절과 같고 내부 진입점만 교체됐다.
+일반 QA 검토의 bounded 새 후보 생성은 유지하지만 통신·P 확인·코드/지도 계약 실패는
+계속 안전 중단한다. 5K 완료 뒤 전체 CPU 후처리를 실제 실행한 것은 아직 아니다.
