@@ -77,7 +77,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 ## 수집과 복구
 
 새 Sunny13는 원형 source/runtime과 빌린 PC의 [69장 보존 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 사용한다. Sunny15는 원형 v159 source·438개 runtime·QA를 유지하는 [별도 로컬 목록 보존 실행기](261010_base5_fresh_environment_runbook.md#sunny15-population-261018)로 진입한다. 원격 receipt를 재사용하지 않고 로컬 native 0장 준비본에 새 계약 하나만 추가했다. 촬영/일반 재개는 사용자의 명시적 `--run` 경로이며 취득분에 `--prepare`를 다시 실행하지 않는다.
-구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
+원격 Sunny13 읽기 전용 웹 관측은 [10/18 근거·연결 방법](261017_base5_unit_release_evidence.md#portable-web-dashboard-261018)을 따른다. 로컬 8075는 Sunny15, 로컬 8076은 원격 Sunny13의 SSH 터널이다. 구 v142 통신·대시보드는 [fresh 런북](261010_base5_fresh_environment_runbook.md)의 이력이다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 
 - SaveSensorData 수집과 UDP/ROS 실주행 streaming을 구분한다. 기존 master/guarded bridge를 중복 실행하지 않는다.

@@ -928,3 +928,75 @@ bash ~/ajounice_base5_capture/status_base5_collection.sh --watch
 
 로컬 근거는 `artifacts/evaluation/base5_borrowed_population_recovery_261018/`의
 `remote_cpu_v1/qualification.json`, `remote_ready.json`, `population_recovery_intent.json`이다.
+
+<a id="portable-web-dashboard-261018"></a>
+
+## 10/18 원격 Sunny13 읽기 전용 웹 대시보드
+
+사용자는 원격의 기존 수집을 중단하지 않고 웹 관측기를 추가하도록 승인했다.
+새 파일은 빌린 PC의 승인 workspace 안 `checks/remote_web_dashboard.py`와
+`work/web-dashboard-sunny13-v1/`에만 두었다. 보호된 TXT·개인 설정·설치 패키지·동결
+bundle·원형 runtime·시나리오·selected ledger를 수정하거나 수집 서비스를 재시작하지 않았다.
+
+### 서버와 원본 보호
+
+원형 `base5_capture_dashboard.py`와 HTML을 byte-identical 사본으로 새 work 폴더에
+함께 배치했다. 동결 bundle에는 Python만 있고 HTML이 없어 그 안을 고치지 않았다.
+Python SHA는 `8fab975eda002a5192987d28b8327cf7c6571ca4566e674d6d56096a906fc8c9`,
+HTML SHA는 `7e364fd1e2ac25ebd0ceeebc7f8328c395cb88d2d550706f204c65e3e1969c58`이다.
+
+새 실행기는 기존 namespace의 실제 source 경로를 재사용한다. 이 관측기 안에서만
+workspace 전체와 실제 MORAI 폴더를 RO로 다시 bind하고, 새 `state/` 디렉터리만 RW로
+노출한다. 실제 namespace의 `statvfs(ST_RDONLY)`로 새·옛 수집 폴더와 MORAI가 RO,
+`state/`만 RW임을 확인했다. 호스트 권한이나 다른 프로세스의 mount를 바꾸지 않는다.
+기존 source manifest의 보존된 mode 664는 chmod하지 않고 읽은 실제 bytes의 고정 SHA로
+검증한다. 새 helper·asset·상태 폴더는 private 권한과 소유자를 별도로 확인한다.
+
+수집 root는 실제 `collections/sunny13_5k_recovery_v2` 경로를 유지한다. 별도 alias로
+바꾸거나 status 파일 하나만 bind하지 않으므로 child 경로와 atomic 상태 교체를 읽는다.
+기존 승인 69장의 `imported_prefix`는 검증만 하며 부모 승인 수에 다시 더하지 않는다.
+현재 실행 중인 child의 승인 수도 부모 값에 중복 합산하지 않는다. 6환경 suite는 이번에
+별도 연결하지 않았으며 이 화면의 분모는 원격 Sunny13 5,000장이다.
+
+### 주소와 연결 수명
+
+| 브라우저를 여는 PC | 대상 | 주소 |
+|---|---|---|
+| 로컬 알고리즘 PC | 로컬 Sunny15 | `http://localhost:8075/` — 기존 서버 유지 |
+| 로컬 알고리즘 PC | 원격 Sunny13 | `http://localhost:8076/` — SSH 터널 |
+| 빌린 PC | 그 PC의 Sunny13 | `http://localhost:8075/` |
+
+서버는 원격 loopback에만 bind하며 외부 IP나 `0.0.0.0`에 노출하지 않는다.
+SSH 터널도 로컬 `127.0.0.1:8076`만 사용한다. 터널이 끊겼고 해당 로컬 포트가 비었을 때
+다음 명령으로 다시 연결할 수 있다. 이미 열려 있으면 중복 실행하거나 기존 서버를 끄지 않는다.
+
+```bash
+ssh -f -N -T -o BatchMode=yes -o ExitOnForwardFailure=yes \
+  -o StrictHostKeyChecking=yes -o UpdateHostKeys=no \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -o ControlMaster=no -o ControlPath=none \
+  -L 127.0.0.1:8076:127.0.0.1:8075 ddeungbuntu@ddeungbuntu
+```
+
+서버는 detached Python supervisor가 HTTP child를 기다리는 방식으로 유지한다.
+첫 시작은 HTTP 200 뒤에도 설치용 SSH가 끝나자 `bwrap --die-with-parent`로 서버가
+종료되는 수명 문제를 발견했다. 첫 `state/launch.json`·`server.log`는 보존하고, 새 helper를
+`Popen(...).wait()`로 바꾼 뒤 `launch_2.json`·`server_2.log`로 재검증했다.
+수집기나 ROS를 종료한 문제가 아니다. 새 HTTP supervisor와 child에는 낮은 우선순위
+nice 10을 적용했다. 저장량 스캔은 원형 관측기의 5분 주기를 유지한다.
+
+### 최종 실측: 2026-10-18 03:10 KST
+
+설치용 SSH 종료 뒤에도 로컬 터널의 `/`와 `/status.json`이 HTTP 200이었다.
+remote source와 수집 root·분모 5,000이 맞았으며 진단 경고는 0개였다.
+원격 상태는 `running`, 승인 **451장**, 검토 **3장**, 갱신 age 약 **0.24초**였다.
+이는 당시 snapshot이지 최종 5K 승인 결과가 아니다.
+
+ROS PID 2688092, bridge PID 2688096, capture PID 2695566의 PID/startticks는
+설치 전후 동일했다. 별도 HTTP supervisor는 PID 2718853이며 브라우저·설치용 SSH
+종료에 의존하지 않음을 확인했다. localhost에 원래 떠 있던 Sunny15 8075도 유지했다.
+이는 무중단 관측기 추가의 근거이며 읽기 I/O 부하가 완전히 0이라는 뜻은 아니다.
+
+최종 helper SHA는 `f1578ff1c38ba986f961d7cd67298a7687e969542ec24549769f83b39151f64c`다.
+전용·기존 live 검사 82개와 전체 portable 회귀 531개를 통과했다. 원형 수집 runtime은
+변경하지 않았다. 근거 사본은 `artifacts/evaluation/base5_borrowed_web_dashboard_261018/`에 보존한다.
