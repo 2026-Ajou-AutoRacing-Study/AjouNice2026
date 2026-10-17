@@ -718,3 +718,98 @@ bash ~/ajounice_base5_capture/status_base5_collection.sh --watch
 기존 pause/resume-paused/finish 명령 형식은 앞 절과 같고 내부 진입점만 교체됐다.
 일반 QA 검토의 bounded 새 후보 생성은 유지하지만 통신·P 확인·코드/지도 계약 실패는
 계속 안전 중단한다. 5K 완료 뒤 전체 CPU 후처리를 실제 실행한 것은 아직 아니다.
+
+<a id="approved-storage-cleanup-261018"></a>
+
+## 2026-10-18 승인된 로컬 저장소 정리
+
+사용자가 명시적으로 승인한 중복 파일·과거 시험 자료만 정리했다. 빌린 PC에는 접속하지
+않았고, 로컬 MORAI·ROS·브리지·수집 프로세스도 제어하지 않았다. 현재 Base5 원본과
+Base4는 정리 대상에서 제외했다. 아래 숫자는 파일의 논리 크기와 할당 블록을 구분한다.
+
+| 승인 범위 | 실제 처리 | 제거 용량 기준 |
+|---|---|---:|
+| 중복 전달 압축물·백업 분할본·다운로드 캐시·옛 ROS 로그 | 정확한 압축물 2개, 분할본 19개, pip 캐시 395개, Conda 압축 패키지 153개, 옛 세션의 회전 로그 30개 | 논리 46.48GiB |
+| 과거 캡처 4개 폴더 | `base5_v2_261006`, `base5_v2_261007`, `base5_postcollection_261010/runtime_benchmark`, `260829_161242_base3_dynamic_ped_addon_v1_final75` | 파일 할당 블록 19.52GiB |
+| 짧은 학습·resume 시험 체크포인트 | 고정 목록의 `epoch_1.pth`·`epoch_2.pth` 12개만 삭제 | 파일 할당 블록 5.64GiB |
+
+백업 분할본은 보존된 통합 `base5_sunny13_5k_v140_261010.tar.zst`와 분할본 연결의 실제
+SHA가 모두 `ab24307ee17007c4170dacabb00e6c97130e090ddbdb45f0e99c38b244a8374f`로
+같은 것을 확인한 뒤 제거했다. 전체 압축본·복구 근거·압축 해제된 전달본은 유지했다.
+캐시는 다운로드 파일만 지웠으며 Conda 환경·설치 패키지·현재 ROS 로그는 건드리지 않았다.
+체크포인트와 함께 있던 설정·계약·로그·시험 결과는 보존했다. E9·E24·E25·production·
+nuScenes/초기화 가중치는 삭제 대상이 아니다.
+
+과거 캡처는 일반 파일 경로 536,692개와 symlink 625개를 제거했다. symlink 대상은 따라가지
+않았으며 외부 경로와 공유한 hardlink는 없었다. 원본 전체 백업을 만들었다는 뜻은 아니다.
+전체 inventory와 작은 결과 근거 2,505개만 약 18.1MiB로 따로 보존했다.
+
+삭제 전후 최신 두 release가 참조한 실제 파일 **49,735개**의 SHA가 모두 일치했다.
+기존 Sunny13 canonical ledger 5,000개와 서로 다른 capture source 5,000개가 모두 남아 있다.
+Base4 `rosbags/datasets/base4_temporal`의 bag **414개, 20.47GiB**도 그대로 유지했다.
+시스템 보안 프로세스의 일부 `/proc` 접근 제한은 보고서에 기록했고, 권한을 우회하거나
+서비스를 중단하지 않았다. 접근 가능한 관련 프로세스와 파일 참조에서는 충돌이 없었다.
+
+로컬 근거는 `artifacts/cleanup/approved_storage_261018/` 아래에 있다.
+
+- `archives_caches/report.json`: 삭제 파일별 경로·원래 SHA·보존 경로 대조.
+- `legacy_captures/cleanup_result.json`: 정확한 4개 폴더와 release/ledger 전후 대조.
+- `legacy_captures/*.inventory.jsonl.gz`, `*.small_evidence.tar.gz`: 삭제 목록과 작은 근거.
+- `smoke_checkpoints/report.json`: 정확한 12개 체크포인트와 제한된 CPU 삭제 실행 기록.
+
+실행기는 동결된 수집 runtime 밖인 `scripts/maintenance/cleanup_*_261018.py`에 남겼다.
+이번 승인 범위에 고정된 일회성 도구이며 일반적인 자동 청소 정책이 아니다.
+
+### Base3는 재학습용이 아닌 분석용 JPEG로 보존
+
+사용자는 Base3로 다시 학습할 계획이 없으므로 옛 학습 infos나 절대 경로 계약을
+현재 학습기에 맞춰 이식하지 않도록 했다. 대상은
+`~/morai_cap/260829_034057_base3_static_10k` 아래 카메라 1~4의 RGB
+`*_Intensity.png` **44,212장**뿐이다. 다른 PNG를 포괄적으로 지우지 않았다.
+
+원래 해상도인 1280×720·640×480을 유지하고 Base5와 같은 PNG→RGB→OpenCV Q90
+JPEG 변환을 사용했다. RGB 논리 크기는 **37.22→3.45GiB, 약 90.74% 감소**했다.
+JPEG는 손실 형식이며 원본 PNG의 픽셀을 무손실 복원할 수 있다는 뜻은 아니다.
+사용자 승인에 따라 전수 변환·검증 후 해당 RGB PNG 경로 44,212개를 삭제했다.
+2,800개 원본은 외부 hardlink를 공유해 승인 경로의 링크만 제거했다. 외부 경로는
+건드리지 않았으므로 이 부분을 실제 회수 용량에 더하지 않는다.
+
+JPEG 전부의 SHA·디코딩·원래 해상도를 삭제 전후 대조했다. LiDAR·GT·메타데이터 등
+보존 파일 **163,681개**도 삭제 전후 내용 SHA·inode·mtime·크기가 일치했다.
+Semantic PNG 44,212개, Instance PNG 540개, Depth PNG 540개는 그대로다.
+실제 source에는 JPEG 44,212개가 있고 RGB PNG는 0개다. 이는 보조 PNG나
+승인 경로 밖 hardlink까지 제거했다는 뜻이 아니다. 관련 CPU 단위 검사 8개도 통과했다.
+
+분석용 색인은 `artifacts/datasets/base3_static_10k_jpeg90_analysis_261018/`에 있다.
+
+- `manifest.json`: 기존 source 루트와 상대 경로 색인·해시를 연결한다.
+- `frames.jsonl`: 프레임별 JPEG 4개와 LiDAR·native corner GT의 상대 경로를 제공한다.
+- `rgb_mapping.jsonl`: 원래 PNG 경로·SHA와 JPEG 경로·SHA·해상도를 기록한다.
+- `preserved_files.jsonl`: 변경하지 않은 LiDAR·GT·보조 PNG·메타데이터의 전수 기준이다.
+- `png_deletions.jsonl`: 실제로 삭제한 RGB PNG 경로별 대응표다.
+- `completion.json`: **`passed=true`, `deleted_png=44212`**인 최종 전후 검증 결과다.
+
+`manifest.json`의 `complete`·`delete_started`와 mapping의 `source_deleted=false`는
+삭제 전 변환 검증 시점의 기록이다. 최종 삭제·성공 여부는 `completion.json`과
+`png_deletions.jsonl`로 확인한다. 이를 현재 PNG가 남아 있다는 뜻으로 읽지 않는다.
+색인에는 원래 raw 11,053프레임이 있고 4카메라+LiDAR를 갖춘 것은 11,040프레임이다.
+과거 rejected run 135프레임도 표시했다. 이는 승인 학습 장면 수를 새로 판정한 값이
+아니며, 과거 채택 ledger·GT·split을 변경하거나 실패 raw를 학습에 편입하지 않았다.
+
+### 정리 뒤 저장 공간
+
+2026-10-18 01:25 KST 관측에서 디스크 여유는 **45.35→148.42GiB**, 실제 순증은
+약 **103.07GiB**였다. 디렉터리 용량 단순 합계가 아니라 같은 파일시스템의 가용 공간
+차이이며, 정리 중의 작은 로그·색인 쓰기도 포함한다. Sunny15의 55GiB 시작 기준을
+충족하지만 아직 본수집을 시작하지 않았다. 25K 전체 보관이나 후처리 중복본의 여유까지
+인증한 것은 아니다. frozen release의 과거 디스크 snapshot은 수정하지 않는다.
+
+모든 정리가 끝난 뒤 두 release의 실제 pin 49,735개를 다시 해시 대조했고 모두 일치했다.
+Sunny15는 기존 `qualified_release_context`의 실제 6개 gate도 읽기 전용으로 재검증했다.
+약 201.79초, runtime **438개**·input **25,366개**·6개 gate 전부 통과였다.
+임시 폴더에서 계약을 계산해 비교하는 작업만 허용했으며 원본·계약·출력의 영속 쓰기,
+수집 child·ROS·네트워크 호출은 차단했다. frozen release SHA도 그대로다.
+출력은 `prepared_waiting_for_resume`, 요청 5,000 / 완료·승인 0이고 native 센서 파일도 0개다.
+과거 2,376개 CPU 회귀를 이번에 다시 전부 실행했다는 의미는 아니다.
+E9·E24·E25 실제 가중치의 SHA도 각 기존 기준과 일치했다.
+종합 receipt는 `artifacts/cleanup/approved_storage_261018/summary.json`에 남겼다.

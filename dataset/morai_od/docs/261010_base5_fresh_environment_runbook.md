@@ -436,6 +436,12 @@ SHA는 `9098b8959eb1fc25b4f5ce47ba6e2d638a8b68c199cf8c34fdcdc278a83ec28d`,
 과거 source/native 근거는 보호한다. `environment_v3` 등 중간 생성본도 새 source의
 실제 의존일 수 있으므로 이름만 보고 찌꺼기로 삭제하지 않는다.
 
+**2026-10-18 후속 갱신:** 사용자 승인에 따라 중복 압축물·과거 시험 캡처·캐시 등을
+정리해 현재 디스크는 55GiB 시작 기준을 충족한다. [정리·보존 검증](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)을 참고한다.
+위 `44.98GiB`와 release JSON의 `start_blockers`는 동결 당시 관측값이므로 고쳐 쓰거나
+release를 다시 동결하지 않았다. 실행기는 실제 시작 시의 여유 공간을 별도로 재검사한다.
+정리 작업에서 본수집을 시작한 것은 아니다.
+
 새 부모 실행기의 CPU prepare-only는 5K 전체와 6개 실제 검증 근거를 다시 대조한다.
 촬영·ROS child를 실행하는 `--run`과 구분한다. 원형 collector를 직접 실행하거나 기존
 Sunny13 launcher에 새 release를 넘겨 이 profile을 우회하지 않는다.

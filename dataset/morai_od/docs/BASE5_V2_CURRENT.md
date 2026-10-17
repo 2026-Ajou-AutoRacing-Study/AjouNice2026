@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 runtime으로 수집 준비 자격을 동결했다. 디스크 확보 전 시작은 금지하며 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 runtime으로 수집 준비 자격을 동결했다. 10/18 승인 정리로 디스크 시작 기준을 충족했다. 본수집은 별도 시작하며 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,7 +17,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 r
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 전수 CPU 감사·가림 대체 2/2·새 exact32/32·별도 음영 이동 2/2·Q90/upright·실제 CPU loader·재개·전체 CPU 2,376개 통과. `release_v159_sunny15`는 수집 준비 자격이며 본수집 0장이다. 여유 약 45GiB로 55GiB 시작 기준 미달. [실제 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
+| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 전수 CPU 감사·가림 대체 2/2·새 exact32/32·별도 음영 이동 2/2·Q90/upright·실제 CPU loader·재개·전체 CPU 2,376개 통과. `release_v159_sunny15`는 수집 준비 자격이며 본수집 0장이다. 10/18 [승인 정리](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)로 55GiB 시작 기준을 충족했다. [실제 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
@@ -93,7 +93,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
 
 v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v159 소량 검증만으로 새 5K ETA를 인증하지 않는다. 10/17 로컬 여유는 약 45GiB로 신규 시작 55GiB보다 적다. 사용자가 정리를 수집 직전으로 미뤘으므로 이번에는 삭제하지 않았다. 다음 로컬 5K 전에 공간을 확보해야 하며 25K 전체 보관도 부족하다.
+실제 본수집 rate로 갱신한다. v159 소량 검증만으로 새 5K ETA를 인증하지 않는다. 10/17 여유 약 45GiB·시작 기준 미달은 당시 기록이다. 10/18 사용자가 승인한 중복물·과거 시험 자료를 정리해 55GiB 기준을 충족했다. [정리 근거](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)를 따르며 25K 전체 보관량은 환경별 실제 크기로 다시 확인한다.
 실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
 
 <a id="gt"></a>
@@ -101,7 +101,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 ## GT와 학습 입력
 
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
-원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
+Base5 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth는 변환하지 않는다. 사용자 승인으로 Base3만 분석용 Q90으로 바꾸고 RGB PNG를 삭제한 예외는 [10/18 정리 근거](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)를 따른다.
 다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 정적/차량/이동 3/3장·Q90/upright·취득 0장은 당시 snapshot이다. 이후 본수집 63장 중단·사용자 승인 삭제·새 호환 실행기 준비는 [10/18 근거](261017_base5_unit_release_evidence.md#portable-route-compat-261018)를 따른다. 기존 native smoke 3장과 동결 bundle은 보존했다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하는 정책으로 바꾼 것은 아니다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 
