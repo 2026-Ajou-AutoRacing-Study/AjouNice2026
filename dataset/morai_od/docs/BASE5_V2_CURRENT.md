@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 runtime으로 수집 준비 자격을 동결했다. 10/18 승인 정리로 디스크 시작 기준을 충족했다. 본수집은 별도 시작하며 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 v159 원형 runtime과 별도 객체 목록 보존 실행기로 준비했다. 10/18 02:35 KST 본수집 0장이며 사용자가 직접 명령으로 시작한다. 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,7 +17,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 새 Sunny15 5K는 별도 v159 r
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 전수 CPU 감사·가림 대체 2/2·새 exact32/32·별도 음영 이동 2/2·Q90/upright·실제 CPU loader·재개·전체 CPU 2,376개 통과. `release_v159_sunny15`는 수집 준비 자격이며 본수집 0장이다. 10/18 [승인 정리](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)로 55GiB 시작 기준을 충족했다. [실제 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
+| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159: 독립 5K 감사·가림 대체 2/2·exact32/32·음영 이동 2/2·Q90/upright·실제 CPU loader·재개·당시 CPU 2,376개 통과. 10/18 02:35 KST 새 목록 보존 복구 CPU 20/20·70개 축·회귀 498개와 원형 6-gate 재대조를 통과했다. 본수집 0장·시작 대기, 여유 약 148GiB다. [현재 근거·사용자 실행 명령](261010_base5_fresh_environment_runbook.md#sunny15-population-261018)을 따른다. native 성공률·5K 완료 인증이 아니다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
@@ -76,7 +76,7 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 
 ## 수집과 복구
 
-새 Sunny13는 [v158a](261017_base5_unit_release_evidence.md) 원형 source/runtime을 유지하되 빌린 Python 3.10 PC에서는 [69장 보존·객체 목록 복구 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)로 진입한다. 이 수정은 원격 Sunny13 전용이며 Sunny15 v159에 자동 적용됐다는 뜻은 아니다. Sunny15는 [v159 근거·명령](261010_base5_fresh_environment_runbook.md#sunny15-261017)의 별도 launcher와 qualified release를 사용한다. 촬영/재개는 `--run` 경로이며 취득분에 CPU 준비를 다시 실행하지 않는다.
+새 Sunny13는 원형 source/runtime과 빌린 PC의 [69장 보존 실행기](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 사용한다. Sunny15는 원형 v159 source·438개 runtime·QA를 유지하는 [별도 로컬 목록 보존 실행기](261010_base5_fresh_environment_runbook.md#sunny15-population-261018)로 진입한다. 원격 receipt를 재사용하지 않고 로컬 native 0장 준비본에 새 계약 하나만 추가했다. 촬영/일반 재개는 사용자의 명시적 `--run` 경로이며 취득분에 `--prepare`를 다시 실행하지 않는다.
 구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
 기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
 

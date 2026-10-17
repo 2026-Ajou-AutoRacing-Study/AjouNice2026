@@ -420,6 +420,10 @@ inventory를 재개 때 검사한다. 실제 child의 CPU prepare-only 회귀에
 
 ### Sunny15 v159 동결과 본수집 직전 명령
 
+**10/18 후속 안내:** 아래 원형 명령은 동결 당시 기록이다. 현재 사용자가 직접 시작할
+명령은 [로컬 객체 목록 보존 복구 실행기](#sunny15-population-261018)를 따른다.
+동결 release나 당시 native 판정을 수정한 것은 아니다.
+
 동결 release는
 `artifacts/evaluation/base5_sunny15_261017/finalization_v1/release_v159_sunny15/release.json`이다.
 SHA는 `9098b8959eb1fc25b4f5ce47ba6e2d638a8b68c199cf8c34fdcdc278a83ec28d`,
@@ -471,3 +475,80 @@ manifest로 기존 output을 강제로 resume하지 않는다. 종료가 `comple
 이미 확보한 성공분과 review를 보존해 별도 부족분 workflow를 검토한다.
 `completion_live_qualified=false`이므로 검증하지 않은 `--complete`를 붙이거나 무제한
 반복을 구성하지 않는다. Sunny13 v158a는 기존 동결 실행 경로를 계속 사용한다.
+
+<a id="sunny15-population-261018"></a>
+
+### 2026-10-18: 로컬 Sunny15 본수집 명령 준비
+
+사용자는 로컬 Sunny15도 본수집할 수 있도록 **터미널 명령만 제공**하라고 정정했다.
+이 작업에서 본수집 실행 승인을 추정하지 않는다. MORAI·ROS·브리지를 재시작하거나
+시나리오를 로드하거나 SaveSensorData를 호출하지 않는다. 빌린 PC에는 접속하지 않는다.
+
+앞선 원격 중단의 객체 수 변경 문제는 Sunny15 원형 복구 경로에도 남아 있었다.
+전체 5K 중 객체 목록을 미리 고정하지 않은 generic 혼합 918장이 해당할 수 있다.
+일반 QA를 통과한 장면까지 잘못된다는 뜻이나 정확히 69장에서 중단된다는 뜻은 아니다.
+다만 검토 뒤 새 후보를 생성하는 분기를 보호하지 않은 채 준비 완료로 안내하지 않는다.
+
+새 `scripts/portable_base5/local_sunny15.py`는 정확한 v159 source/release/output만 허용한다.
+원형 부모·정적 자세 QA·엄격 방향 reference와 438개 파일은 유지한다. 원형 부모의 실행
+closure 82개는 전체 438개의 동일 SHA 상위집합 안에 있어야 하며 두 수를 혼동하지 않는다.
+실제 복구 child만 별도 entrypoint로 연결해 `recovery_population.installed()`를 먼저 설치하고,
+방향 보정 AST가 이 replacement를 복사하게 한다. 원래 자산 순서·개수·의미·동작·unit·분할은
+보존하고 위치를 다시 생성한다. 일반적인 QA 실패의 제한된 복구와 안전 중단을 구분한다.
+
+원형 512개 geometry / 8개 layout binding 상한·native QA·지면 준비는 유지한다.
+원형 deep 6-gate는 시작 시 부모가 한 번 수행하며, 새 wrapper 때문에 각 복구 child가
+과거 native 시험 전체를 다시 분석하지 않도록 한다. child는 살아 있는 승인 부모의
+PID/startticks/argv와 실제 sidecar SHA·runtime·입력 계약을 검증한다.
+
+`local_sunny15_qualification.py --run`은 **CPU 근거 작성만** 뜻한다. source 5,000개와
+실제 branch axis를 감사한 뒤 결과 전에 20개를 고른다. 00082·00076 외에 이미 한 번
+복구한 03754·04027도 고정해 canonical root와 immediate parent/ordinal 2를 대조한다.
+ROS·네트워크·subprocess 및 새 근거 폴더 밖 쓰기를 차단한 본문에서 실제 guarded
+replacement를 호출한다. Shapely의 libgeos 등 읽기 전용 라이브러리 초기화는 그 전에 한다.
+방향 보정 AST의 연결은 검사하지만 native 방향/지면 reference를 새로 촬영한 것은 아니다.
+
+`--prepare`는 위 CPU 근거와 원형 6-gate를 확인한 뒤, native가 0개인 기존 준비 출력에
+`local_population_recovery_contract.json` 하나만 추가한다. 기존 parent/batch guard,
+빈 selected ledger, 상태·할당표는 바꾸지 않는다. 이미 취득한 output에 정책을 끼워 넣지 않는다.
+기본 실행은 읽기 전용 계획이며, **아래 명령을 사용자가 입력할 때만** 본수집을 시작한다.
+
+```bash
+cd /home/luv/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+python3 -B scripts/portable_base5/local_sunny15.py --run --confirmed-environment sunny15
+```
+
+MORAI는 Sunny15·Capture Mode·카메라1~4/LiDAR5 annotation ON과 위 v159 네트워크·센서를
+유지한다. 기존 ROS master·guarded bridge는 중복 실행하지 않는다. 원본 취득 경로는
+`~/morai_cap/base5_sunny15_v159_261017/collection_5k` 그대로이며 일반 재개도 같은 명령이다.
+통신/Park/원본 계약 실패로 `halted`가 된 실행은 강제로 resume하지 않는다.
+
+진행을 별도 터미널에서 읽기만 하려면 다음 명령을 사용한다.
+
+```bash
+watch -n 5 'cat "$HOME/morai_cap/base5_sunny15_v159_261017/collection_5k/status.json"'
+```
+
+추가 CPU 검증은 **20/20 성공**, 요구·검사 분기 축 **70/70**, 누락·후보 소진·예기치 않은
+계약 중단 모두 0이었다. 기존 복구를 잇는 두 장면도 원래 뿌리와 ordinal 2를 유지했다.
+source의 5,000개 고유 ID·payload와 10,000개 파일, 객체 목록·budget·실제 split/group이
+일치했고 검사 전후 입력 SHA는 유지됐다. `scripts/portable_base5` 전체 회귀는 **498개**
+통과했다. 70개 축은 전체 조합의 native 성공률이 아니며 새로 촬영한 표본은 0장이다.
+
+근거는 `finalization_v1/local_population_recovery_v1/qualification.json`이며 SHA256은
+`270680a7245472db689a7b3213a6380d9c470e7d2c494c771b5e82b7b6009fc8`이다.
+새 wrapper SHA256은
+`ce18a77207e230b78311b66ff79c0f1a27e501843261f2e0427d2f99dc5dff45`다.
+원격 Sunny13의 receipt를 Sunny15 검증 결과로 재사용하지 않았다.
+
+최종 준비 확인은 **2026-10-18 02:35 KST**다. ROS import·네트워크·subprocess를 차단하고
+정확한 새 sidecar 및 개인 `/tmp/base5-environment-contract-*` 외의 쓰기를 거부한
+실제 준비 호출에서 원형 6-gate를 다시 대조했다. 약 **201.99초**였으며 촬영 호출은 0회다.
+기존 준비 파일의 SHA·크기·mtime과 inventory는 그대로였고 sidecar 하나만 추가됐다.
+새 계약 SHA256은 `b506d109ba45073e77b6f1de5f14a32fa0e1fd589b00dbbe62b9191fc9fcd3da`다.
+준비 후 상태는 `prepared_waiting_for_resume`, 승인 **0/5,000장**이었다.
+원형 source/release/runtime은 변경하지 않았고 빌린 PC에는 접속하지 않았다.
+receipt는 `finalization_v1/local_population_prepare_receipt_v1.json`에 보존했다.
+사용자가 실제 시작할 때도 원형 부모의 검증 때문에 처음 몇 분간 승인 수가 0일 수 있다.
