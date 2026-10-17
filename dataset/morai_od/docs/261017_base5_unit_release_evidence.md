@@ -474,3 +474,45 @@ socket은 사용하므로 일반적인 보안 격리 인증으로 표현하지 �
 원격 receipt는 `checks/{extract,restore-modes,prepare-morai,check}-*.json`이다. 로컬 사본은
 artifact root의 `remote_stage1_261017/`에 보존한다. 이 검사는 실행 전 호환성 근거이지
 새 PC의 통신·native annotation·소량 촬영·본수집 성공을 뜻하지 않는다.
+
+<a id="portable-shortpath"></a>
+
+## Path Error 이후 실행용 복사본을 짧은 HOME 경로로 이동
+
+2026-10-17 19:28 KST, 사용자가 Path Error를 보고하며 우리 PC와 같은
+`~/MoraiLauncher_Lin` 이름으로 이동하도록 **별도 승인**했다. 대상
+`/home/ddeungbuntu/MoraiLauncher_Lin`에 기존 파일·디렉터리·symlink가 없는 것과 MORAI
+프로세스가 종료된 것을 먼저 확인했다. 실행용 복사본만 `mv --no-clobber`로 옮겼으며
+기존 `capture_bundle/morai` 검증본은 유지했다. 같은 filesystem/inode를 확인했고 새 실행
+폴더는 `0700`이다. 예전 실행용 경로는 없어졌고, 파일 내용·로그인/UI 자료는 그대로 이동했다.
+기존 실패 로그도 `checks/launcher-before-shortpath-*.log`로 별도 보존했다.
+
+| 역할 | 현재 경로 |
+|---|---|
+| 실제 MORAI 실행본 | `/home/ddeungbuntu/MoraiLauncher_Lin` |
+| 검증용 snapshot | `/home/ddeungbuntu/ajounice_base5_capture/capture_bundle/morai/MoraiLauncher_Lin` |
+| 사용자 실행 스크립트 | `/home/ddeungbuntu/ajounice_base5_capture/start_morai_capture.sh` |
+| 복사할 명령 TXT | `/home/ddeungbuntu/ajounice_base5_capture/MORAI_START.txt` |
+| 설정·캐시·로그 | 기존 `ajounice_base5_capture/work/morai-session/` 유지 |
+
+실행 스크립트는 실제 HOME과 짧은 설치 경로를 사용하도록 수정했다. HOME 나머지는 계속
+read-only이고, 쓰기 허용은 **원래 승인 workspace와 새로 승인한 MoraiLauncher_Lin 두 폴더만**이다.
+XDG 설정·캐시·로그는 여전히 workspace 내부이며 기존 `.config`나 시스템 설정을 바꾸지 않았다.
+새 경로를 사용하는 `--check`와 핵심 파일 4개 SHA 대조를 통과했다. TXT의 실행 명령은
+이전과 같으며 이동 안내를 추가했다. 직접 executable을 실행하는 대신 이 스크립트를 사용한다.
+
+로그에는 누락된 `/../setPermission.sh` 호출도 있었다. launcher가 기대하는 이 파일을
+**실행용 복사본에만** 보완했다. 저장소의 `morai_set_permission.sh`는 원래 기능인
+`chmod -R a+x MoraiLauncher_Lin_Data`를 수행하되 자기 설치 위치가 정확히
+`$HOME/MoraiLauncher_Lin`인지 확인하고 그 디렉터리로 이동한다. sudo나 시스템 파일 수정은 없다.
+실제 원격에서 이 스크립트나 MORAI를 시작한 것은 아니며 사용자의 다음 실행 때 호출된다.
+
+이동이 Linux Path Error의 원인을 확정하거나 실제 GUI 성공을 인증한 것은 아니다.
+정적 확인상 설치 경로 길이 안내는 Windows 관련 일반 공지였고, 로그의 `/boot/efi`
+UnauthorizedAccessException은 `LocalServer.CheckLocalServer_StandaloneMode`가
+`DriveInfo.GetDrives()`로 라이선스 폴더를 탐색하는 과정의 별도 오류였다. HOME 산출 실패나
+긴 경로 때문이라고 단정하지 않는다. 기존 드라이브·`/boot/efi` 권한과 라이선스 파일은 건드리지 않았다.
+
+이동·기존 대상 보존·별도 승인·symlink·로그 보존·두 쓰기 범위·권한 helper 범위를 포함한
+회귀 134개와 shell 구문 검사를 통과했다. 실제 GUI 재실행·통신·native 촬영은 사용자 확인 대기다.
+이동 receipt는 원격 `checks/relocate-morai-*.json`과 로컬 `remote_stage1_261017/`에 보존했다.

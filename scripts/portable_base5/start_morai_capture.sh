@@ -72,7 +72,8 @@ def make_plan(workspace, inherited=None):
         raise ValueError('Workspace basename must be ' + WORKSPACE_NAME)
     bundle = owned_directory(workspace / 'capture_bundle')
     work = owned_directory(workspace / 'work')
-    mr = owned_directory(work / 'morai/MoraiLauncher_Lin')
+    # The short second writable root needs the separate relocation approval.
+    mr = owned_directory(workspace.parent / 'MoraiLauncher_Lin')
     original = owned_directory(bundle / 'morai/MoraiLauncher_Lin')
     bwrap = owned_file(bundle / 'bin/bwrap', executable=True)
     hashes = {}
@@ -109,7 +110,9 @@ def make_plan(workspace, inherited=None):
                     'LANG', 'LC_ALL', 'LC_CTYPE', 'WAYLAND_DISPLAY')}
     if authority:
         environment['XAUTHORITY'] = authority
-    environment.update(PATH='/usr/local/bin:/usr/bin:/bin', HOME=str(folders['home']),
+    # Preserve the native HOME/layout expected by the launcher. The rest of
+    # HOME stays read-only; settings/caches/logs still use the approved session.
+    environment.update(PATH='/usr/local/bin:/usr/bin:/bin', HOME=str(workspace.parent),
         XDG_CONFIG_HOME=str(folders['config']), XDG_CACHE_HOME=str(folders['cache']),
         XDG_DATA_HOME=str(folders['data']), XDG_STATE_HOME=str(folders['state']),
         TMPDIR=str(folders['tmp']), TMP=str(folders['tmp']), TEMP=str(folders['tmp']),
@@ -118,12 +121,13 @@ def make_plan(workspace, inherited=None):
     command = [str(bwrap), '--unshare-user', '--unshare-pid', '--die-with-parent', '--new-session',
         '--ro-bind', '/', '/', '--proc', '/proc', '--dev-bind', '/dev', '/dev', '--tmpfs', '/tmp',
         '--dir', '/tmp/.X11-unix', '--ro-bind', str(x11), str(x11),
-        '--bind', str(workspace), str(workspace), '--chdir', str(mr), '--',
+        '--bind', str(workspace), str(workspace), '--bind', str(mr), str(mr),
+        '--chdir', str(mr), '--',
         str(mr / 'MoraiLauncher_Lin.x86_64'), '-logFile', str(session / 'launcher.log')]
     return dict(schema='base5_borrowed_morai_desktop_plan_v1', workspace=str(workspace),
         working_morai=str(mr), session=str(session), directories=[str(p) for p in folders.values()],
         core_sha256=hashes, command=command, environment=environment, gui_ready=gui_ready,
-        display=display, filesystem_policy='host root read-only; approved workspace read-write; private /tmp',
+        display=display, filesystem_policy='host root read-only; approved workspace and short MORAI root read-write; private /tmp',
         fallback_allowed=False, ros_started=False, capture_started=False, morai_started=False,
         note='Local desktop X11/XWayland is required. Device/socket access is not a general security guarantee.')
 

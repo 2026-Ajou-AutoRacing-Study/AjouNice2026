@@ -19,7 +19,7 @@ class LauncherTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.workspace = Path(self.temp.name) / 'ajounice_base5_capture'
         self.bundle = self.workspace / 'capture_bundle'
-        self.mr = self.workspace / 'work/morai/MoraiLauncher_Lin'
+        self.mr = Path(self.temp.name) / 'MoraiLauncher_Lin'
         self.original = self.bundle / 'morai/MoraiLauncher_Lin'
         for root in (self.mr, self.original):
             for relative in NAMESPACE['CORE']:
@@ -31,8 +31,11 @@ class LauncherTests(unittest.TestCase):
         bwrap.parent.mkdir(parents=True)
         bwrap.write_text('#!/bin/sh\nexit 94\n')
         bwrap.chmod(0o755)
-        for directory in (self.workspace, *[p for p in self.workspace.rglob('*') if p.is_dir()]):
-            directory.chmod(0o755)
+        for base in (self.workspace, self.mr):
+            for directory in (base, *[p for p in base.rglob('*') if p.is_dir()]):
+                directory.chmod(0o755)
+        (self.workspace / 'work').mkdir(exist_ok=True)
+        (self.workspace / 'work').chmod(0o755)
 
     def plan(self, environment=None):
         return NAMESPACE['make_plan'](self.workspace, {} if environment is None else environment)
@@ -73,7 +76,11 @@ class LauncherTests(unittest.TestCase):
             self.assertNotIn(key, plan['environment'])
         self.assertNotIn('sudo', ' '.join(command))
         self.assertNotIn('MORAISim.sh', ' '.join(command))
-        for key in ('HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TMPDIR', 'CUDA_CACHE_PATH', '__GL_SHADER_DISK_CACHE_PATH'):
+        self.assertEqual(plan['environment']['HOME'], str(self.workspace.parent))
+        writable = [command[i + 1:i + 3] for i, value in enumerate(command) if value == '--bind']
+        self.assertEqual(writable, [[str(self.workspace), str(self.workspace)], [str(self.mr), str(self.mr)]])
+        self.assertIn('--ro-bind', command)
+        for key in ('XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'TMPDIR', 'CUDA_CACHE_PATH', '__GL_SHADER_DISK_CACHE_PATH'):
             self.assertTrue(plan['environment'][key].startswith(str(self.workspace) + '/'))
 
     def test_run_execs_only_fake_bwrap_and_never_falls_back(self):
@@ -132,6 +139,29 @@ class LauncherTests(unittest.TestCase):
     def test_discovery_does_not_depend_on_current_directory(self):
         script = self.bundle / 'tools/start_morai_capture.sh'
         self.assertEqual(NAMESPACE['discover_workspace'](script), self.workspace)
+
+    def test_permission_helper_is_cwd_independent_and_stays_in_short_morai(self):
+        helper = self.mr / 'setPermission.sh'
+        helper.write_bytes(SCRIPT.with_name('morai_set_permission.sh').read_bytes())
+        outside = Path(self.temp.name) / 'unrelated'
+        outside.write_text('preserve')
+        outside.chmod(0o640)
+        before = outside.stat().st_mode
+        result = subprocess.run(['bash', str(helper)], cwd=self.temp.name,
+                                env={'HOME': self.temp.name, 'PATH': '/usr/bin:/bin'}, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(outside.stat().st_mode, before)
+        self.assertEqual(outside.read_text(), 'preserve')
+        self.assertEqual((self.mr / NAMESPACE['CORE'][-1]).stat().st_mode & 0o111, 0o111)
+
+    def test_permission_helper_refuses_wrong_home_without_changes(self):
+        helper = self.mr / 'setPermission.sh'
+        helper.write_bytes(SCRIPT.with_name('morai_set_permission.sh').read_bytes())
+        before = {p: p.stat().st_mode for p in self.mr.rglob('*')}
+        result = subprocess.run(['bash', str(helper)], env={'HOME': '/nonexistent', 'PATH': '/usr/bin:/bin'},
+                                capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(before, {p: p.stat().st_mode for p in self.mr.rglob('*')})
 
 
 if __name__ == '__main__':

@@ -207,10 +207,62 @@ def prepare_morai(root):
     return dict(morai=str(target), files=count, bytes=total, hardlinked=False, morai_started=False)
 
 
+def relocate_morai(root, approved=False):
+    """Move only our working copy to the separately approved short HOME path."""
+    if not approved:
+        raise ValueError('Separate approval for HOME/MoraiLauncher_Lin is required')
+    source = root / 'work/morai/MoraiLauncher_Lin'
+    target = root.parent / 'MoraiLauncher_Lin'
+    for path in (source, *source.parents):
+        if path.is_symlink():
+            raise ValueError('Source parent symlink is forbidden')
+    if (not source.is_dir() or source.stat().st_uid != os.getuid()
+            or target.exists() or target.is_symlink()):
+        raise ValueError('Owned source and an absent destination are required; nothing overwritten')
+    if source.stat().st_dev != target.parent.stat().st_dev:
+        raise ValueError('Only a same-filesystem move is supported')
+    active = []
+    for process in Path('/proc').glob('[0-9]*'):
+        try:
+            executable = os.readlink(process / 'exe')
+        except OSError:
+            continue
+        if executable.startswith(str(source) + '/'):
+            active.append(process.name)
+    if active:
+        raise ValueError('Close the running MORAI working copy first: ' + ','.join(active))
+    before = source.stat()
+    log = root / 'work/morai-session/launcher.log'
+    for folder in (root / 'checks', log.parent):
+        for path in (folder, *folder.parents):
+            if path.is_symlink():
+                raise ValueError('Log/receipt parent symlink is forbidden')
+            if path == root:
+                break
+    backup = None
+    if log.is_file() and not log.is_symlink():
+        backup = root / 'checks' / ('launcher-before-shortpath-' + str(time.time_ns()) + '.log')
+        with log.open('rb') as original, backup.open('xb') as copied:
+            shutil.copyfileobj(original, copied)
+        backup.chmod(0o600)
+    subprocess.run(['mv', '--no-clobber', '--no-target-directory', '--', str(source), str(target)], check=True)
+    if source.exists() or not target.is_dir() or target.is_symlink():
+        raise ValueError('Move did not complete; preserve both paths and inspect')
+    after = target.stat()
+    if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+        raise ValueError('Unexpected move identity')
+    target.chmod(0o700)
+    return dict(source=str(source), target=str(target), same_inode=True,
+                existing_destination_overwritten=False, log_backup=str(backup) if backup else None,
+                morai_started=False, ros_started=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace', type=Path, required=True)
-    parser.add_argument('action', choices=('extract', 'restore-modes', 'check', 'prepare-morai'))
+    parser.add_argument('action', choices=('extract', 'restore-modes', 'check', 'prepare-morai', 'relocate-morai'))
+    parser.add_argument('--allow-short-home-morai', action='store_true',
+                        help='Only with separate user approval for HOME/MoraiLauncher_Lin')
     parser.add_argument('--run', action='store_true')
     args = parser.parse_args()
     root = scope(args.workspace)
@@ -218,8 +270,11 @@ def main():
         print(json.dumps(dict(action=args.action, workspace=str(root), execute=False, morai_started=False)))
         return
     start = time.monotonic()
-    result = {'extract': extract, 'restore-modes': restore_modes,
-              'check': check, 'prepare-morai': prepare_morai}[args.action](root)
+    if args.action == 'relocate-morai':
+        result = relocate_morai(root, args.allow_short_home_morai)
+    else:
+        result = {'extract': extract, 'restore-modes': restore_modes,
+                  'check': check, 'prepare-morai': prepare_morai}[args.action](root)
     result.update(action=args.action, elapsed_sec=round(time.monotonic()-start,3),
                   checked_at=datetime.datetime.now(datetime.timezone.utc).isoformat(), workspace=str(root))
     receipt = root / 'checks' / (args.action + '-' + str(time.time_ns()) + '.json')

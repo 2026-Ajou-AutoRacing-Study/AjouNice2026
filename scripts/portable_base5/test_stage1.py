@@ -77,6 +77,14 @@ class Stage1Tests(unittest.TestCase):
         }}
         return bundle, source, doc
 
+    def relocation_fixture(self, home):
+        root = self.workspace(home)
+        source = root / 'work/morai/MoraiLauncher_Lin'
+        source.mkdir(parents=True)
+        (source / 'MoraiLauncher_Lin.x86_64').write_bytes(b'fixture only; never executed')
+        (root / 'checks').mkdir()
+        return root, source, home / 'MoraiLauncher_Lin'
+
     def modes_fixture(self, root, records=None):
         """Real load_bundle validation; only graph-schema verification is stubbed."""
         bundle = root / 'capture_bundle'
@@ -382,6 +390,142 @@ class Stage1Tests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'differs or is hardlinked'):
                         stage1.prepare_morai(root)
 
+    def test_morai_relocation_moves_only_working_copy_preserving_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)
+            root, source, target = self.relocation_fixture(home)
+            before = source.stat()
+            immutable = root / 'capture_bundle/morai/MoraiLauncher_Lin'
+            immutable.mkdir(parents=True)
+            (immutable / 'keep').write_bytes(b'immutable input')
+            unrelated = home / 'unrelated'
+            unrelated.write_bytes(b'borrowed user file')
+            with patch.object(Path, 'glob', return_value=[]):
+                result = stage1.relocate_morai(root, approved=True)
+            self.assertFalse(source.exists())
+            self.assertEqual((target.stat().st_dev, target.stat().st_ino),
+                             (before.st_dev, before.st_ino))
+            self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((target / 'MoraiLauncher_Lin.x86_64').read_bytes(),
+                             b'fixture only; never executed')
+            self.assertEqual((immutable / 'keep').read_bytes(), b'immutable input')
+            self.assertEqual(unrelated.read_bytes(), b'borrowed user file')
+            self.assertTrue(result['same_inode'])
+            self.assertFalse(result['existing_destination_overwritten'])
+            self.assertFalse(result['morai_started'])
+            self.assertFalse(result['ros_started'])
+            self.assertIsNone(result['log_backup'])
+
+    def test_morai_relocation_requires_separate_approval_before_any_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root, source, target = self.relocation_fixture(Path(folder))
+            before = source.stat()
+            with patch.object(stage1.subprocess, 'run') as child:
+                with self.assertRaisesRegex(ValueError, 'Separate approval'):
+                    stage1.relocate_morai(root)
+                child.assert_not_called()
+            self.assertEqual(source.stat().st_ino, before.st_ino)
+            self.assertFalse(target.exists())
+            self.assertEqual(list((root / 'checks').iterdir()), [])
+
+    def test_morai_relocation_preserves_existing_file_directory_or_symlink(self):
+        for kind in ('file', 'directory', 'symlink', 'broken_symlink'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as folder:
+                home = Path(folder)
+                root, source, target = self.relocation_fixture(home)
+                original_source = source.stat().st_ino
+                if kind == 'file':
+                    target.write_bytes(b'existing user file')
+                elif kind == 'directory':
+                    target.mkdir()
+                    (target / 'keep').write_bytes(b'existing user directory')
+                else:
+                    outside = home / 'other'
+                    if kind == 'symlink':
+                        outside.mkdir()
+                        (outside / 'keep').write_bytes(b'untouched symlink target')
+                    target.symlink_to(outside, target_is_directory=True)
+                with patch.object(stage1.subprocess, 'run') as child:
+                    with self.assertRaisesRegex(ValueError, 'absent destination'):
+                        stage1.relocate_morai(root, approved=True)
+                    child.assert_not_called()
+                self.assertEqual(source.stat().st_ino, original_source)
+                if kind == 'file':
+                    self.assertEqual(target.read_bytes(), b'existing user file')
+                elif kind == 'directory':
+                    self.assertEqual((target / 'keep').read_bytes(), b'existing user directory')
+                else:
+                    self.assertTrue(target.is_symlink())
+                    self.assertEqual(Path(os.readlink(target)), home / 'other')
+                    if kind == 'symlink':
+                        self.assertEqual((target / 'keep').read_bytes(), b'untouched symlink target')
+                self.assertEqual(list((root / 'checks').iterdir()), [])
+
+    def test_morai_relocation_refuses_source_and_parent_symlinks(self):
+        for linked_parent in (False, True):
+            with self.subTest(parent=linked_parent), tempfile.TemporaryDirectory() as folder:
+                home = Path(folder)
+                root, source, target = self.relocation_fixture(home)
+                moved = home / 'outside'
+                if linked_parent:
+                    source.parent.rename(moved)
+                    source.parent.symlink_to(moved, target_is_directory=True)
+                    preserved = moved / source.name
+                else:
+                    source.rename(moved)
+                    source.symlink_to(moved, target_is_directory=True)
+                    preserved = moved
+                with patch.object(stage1.subprocess, 'run') as child:
+                    with self.assertRaisesRegex(ValueError, 'Source parent symlink'):
+                        stage1.relocate_morai(root, approved=True)
+                    child.assert_not_called()
+                self.assertFalse(target.exists())
+                self.assertEqual((preserved / 'MoraiLauncher_Lin.x86_64').read_bytes(),
+                                 b'fixture only; never executed')
+
+    def test_morai_relocation_refuses_log_or_receipt_parent_symlinks(self):
+        for relative in ('checks', 'work/morai-session'):
+            with self.subTest(path=relative), tempfile.TemporaryDirectory() as folder:
+                home = Path(folder)
+                root, source, target = self.relocation_fixture(home)
+                outside = home / 'unrelated-directory'
+                outside.mkdir()
+                marker = outside / 'launcher.log'
+                marker.write_bytes(b'borrowed file; preserve')
+                link = root / relative
+                if link.exists():
+                    link.rmdir()
+                link.symlink_to(outside, target_is_directory=True)
+                with patch.object(Path, 'glob', return_value=[]):
+                    with self.assertRaisesRegex(ValueError, 'parent symlink'):
+                        stage1.relocate_morai(root, approved=True)
+                self.assertTrue(source.is_dir())
+                self.assertFalse(target.exists())
+                self.assertEqual([p.name for p in outside.iterdir()], ['launcher.log'])
+                self.assertEqual(marker.read_bytes(), b'borrowed file; preserve')
+
+    def test_morai_relocation_copies_existing_log_without_modifying_original(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root, _, target = self.relocation_fixture(Path(folder))
+            log = root / 'work/morai-session/launcher.log'
+            log.parent.mkdir()
+            evidence = b'fixture path error evidence\n'
+            log.write_bytes(evidence)
+            log.chmod(0o640)
+            before = log.stat()
+            with patch.object(Path, 'glob', return_value=[]):
+                result = stage1.relocate_morai(root, approved=True)
+            backup = Path(result['log_backup'])
+            self.assertEqual(backup.parent, root / 'checks')
+            self.assertTrue(backup.name.startswith('launcher-before-shortpath-'))
+            self.assertEqual(backup.read_bytes(), evidence)
+            self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+            self.assertNotEqual(backup.stat().st_ino, before.st_ino)
+            self.assertEqual(log.read_bytes(), evidence)
+            self.assertEqual(log.stat().st_ino, before.st_ino)
+            self.assertEqual(log.stat().st_mode & 0o777, 0o640)
+            self.assertTrue(target.is_dir())
+
     def test_restore_modes_changes_only_posix_permissions_not_file_bytes(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -486,7 +630,7 @@ class Stage1Tests(unittest.TestCase):
                 self.assertEqual(release.read_bytes(), original)
 
     def test_default_plan_makes_no_files_and_runs_no_child_actions(self):
-        for action in ('extract', 'restore-modes', 'check', 'prepare-morai'):
+        for action in ('extract', 'restore-modes', 'check', 'prepare-morai', 'relocate-morai'):
             with self.subTest(action=action), tempfile.TemporaryDirectory() as folder:
                 home = Path(folder)
                 root = self.workspace(home)
@@ -497,11 +641,12 @@ class Stage1Tests(unittest.TestCase):
                         patch.object(stage1, 'restore_modes') as restore, \
                         patch.object(stage1, 'check') as check, \
                         patch.object(stage1, 'prepare_morai') as prepare, \
+                        patch.object(stage1, 'relocate_morai') as relocate, \
                         patch.object(stage1.subprocess, 'run') as child, \
                         patch.object(stage1.subprocess, 'Popen') as process, \
                         contextlib.redirect_stdout(output):
                     stage1.main()
-                    for unused in (extract, restore, check, prepare, child, process):
+                    for unused in (extract, restore, check, prepare, relocate, child, process):
                         unused.assert_not_called()
                 self.assertEqual(list(root.iterdir()), [])
                 receipt = json.loads(output.getvalue())

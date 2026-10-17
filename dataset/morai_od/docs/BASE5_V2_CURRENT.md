@@ -102,7 +102,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
-다른 PC용 [1단계 전달·환경 검사](261017_base5_unit_release_evidence.md#portable-stage1)는 10/17 19:12 완료했다. 빌린 PC의 새 폴더만 사용했으며 MORAI·ROS 시작과 소량/본수집은 아직 미실행이다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하지 않는다.
+다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 사용자 GUI 시도에서 Path Error가 나와, 10/17 19:28 별도 승인으로 실행본을 [~/MoraiLauncher_Lin으로 이동](261017_base5_unit_release_evidence.md#portable-shortpath)했다. 재실행 대기이며 ROS·촬영은 미실행이다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하지 않는다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 
 현재 native JPEG/upright 전달본은
