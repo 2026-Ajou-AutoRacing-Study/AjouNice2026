@@ -21,7 +21,7 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 본수집 상태 | 미실행. [10/17 최종 판정](261017_base5_scale_split_qualification.md#확대-수집-중단과-다음-원형-경로): 확대 수집 중단, 다음 구성은 scale `(1,1,1)`. 재시작 후 정식 혼합 26장에서도 native 치수 문제가 원형에 남아 사전 한도로 안전 종료했다. 지도 전역 train·참조 감사 개선은 유지하되 원형 source의 새 조립·소량 검증·동결이 필요하다. 과거 `bulk_ready=true` 승계 및 현재 `--complete` 금지 |
+| 본수집 상태 | 미실행. 확대 수집 중단·scale `(1,1,1)` 방향 유지. [재시작 후 원형 검증](261017_base5_unit_only_restart_validation.md): 확대 미노출 89장·물리 19종 352부모 관측에서 native 치수 불일치 0. 핵심 독립 배치는 64개이며 반복·대조를 독립 수에 합산하지 않는다. 지도 전역 train·참조 감사 개선은 유지하고 원형 full source의 새 조립·분할·입력/재개·동결이 필요하다. 과거 `bulk_ready=true` 승계 및 현재 `--complete` 금지 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
