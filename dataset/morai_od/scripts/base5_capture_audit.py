@@ -193,7 +193,7 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 ground['manual_policy_decision']=ground_decision(ground)
                 reasons.extend(ground['manual_policy_decision']['review_reasons'])
             elif light_static:
-                ground['static_policy_decision']=static_decision(ground)
+                ground['static_policy_decision']=static_decision(ground,metadata)
                 reasons.extend(ground['static_policy_decision']['review_reasons'])
             else:
                 reasons.extend(ground['review_reasons'])

@@ -9,7 +9,8 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
-| 현재 판정: 확대 수집 중단·다음 원형 구성·남은 최종 검증 | [10/17 통합 검증](261017_base5_scale_split_qualification.md) |
+| 현재 원형 구성·초근접 보완·최종 입력/재개 검증과 수집 승인 | [10/17 원형 수집 근거](261017_base5_unit_release_evidence.md) |
+| 과거 확대 안정성 판정과 확대 수집 중단 경위 | [10/17 통합 검증](261017_base5_scale_split_qualification.md) |
 | 재시작 후 원형만 취득한 치수 안정성·같은 WoodBox의 회복 | [원형 89장과 19종 native 검산](261017_base5_unit_only_restart_validation.md) |
 | 배치 치수와 native GT의 과거 불일치·원형 크기 검사 | [크기 참조 전수 감사](261017_base5_geometry_reference_audit.md) |
 | 같은 RGB·마스크에서 native 치수만 바뀐 혼합 반례 | [반복 원문 대조·cold/hot 계약](261017_base5_native_extent_repeat_mask_evidence.md) |

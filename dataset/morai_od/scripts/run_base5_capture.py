@@ -127,6 +127,8 @@ def main():
         validate_unit_entry(row,manifest)
         from base5_scale_capture_contract import validate_entry as validate_scale_entry
         validate_scale_entry(row,manifest)
+        from base5_close_primary_observation import validate_entry as validate_close_entry
+        validate_close_entry(row,manifest)
     args.output.mkdir(parents=True,exist_ok=True)
     process_lock=(args.output/'.runner.lock').open('a')
     try:fcntl.flock(process_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)

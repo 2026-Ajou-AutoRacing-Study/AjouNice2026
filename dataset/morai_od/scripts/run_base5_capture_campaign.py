@@ -29,6 +29,7 @@ def contract(source, indices, rounds):
            'generate_base5_independent.py','prepare_base5_ground_retry.py',
            'prepare_base5_empty_ground_probe.py','prepare_base5_probed_retry.py',
            'run_base5_capture.py','base5_capture_safety.py','base5_capture_audit.py','base5_far_vehicle_native.py',
+           'base5_close_primary_observation.py',
            'base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','base5_capture_timing.py','base5_event_cmd.py']
     names.extend(['prepare_base5_setup_budget_pilot.py','base5_motion_ground.py','base5_static_height.py',
         'base5_static_ground_reference.py','prepare_base5_static_height_reference.py','base5_population_budget.py',
@@ -36,6 +37,13 @@ def contract(source, indices, rounds):
         'base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py',
         'base5_region_contract.py','base5_static_yaw.py','base5_placement_geometry.py'])
     reference=data['config'].get('static_placement_geometry')
+    if data['config'].get('native_unit_geometry_reference') or data.get('split_overlay'):
+        names.extend(['base5_calibration_layout.py','base5_front_release_inputs.py',
+            'base5_scale_capture_contract.py','base5_shadow_ground_reuse.py'])
+    if data['config'].get('native_unit_geometry_reference'):
+        names.append('base5_unit_geometry_contract.py')
+    if data.get('split_overlay'):
+        names.append('base5_layout_split.py')
     if data['config'].get('obstacle_support_policy'):
         names.extend(['base5_obstacle_support_policy.py','base5_obstacle_rich_floor.py'])
     if data['config'].get('obstacle_front_support_policy'):
@@ -169,7 +177,8 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
             deck=subset_deck(original,[row])
             manifest=cell/'manifest.json'
             if not manifest.exists():atomic_json(manifest,deck)
-            outcome=None;far_known=set()
+            outcome=None;far_known=set();native_known=set()
+            enforce_nonrepeat=bool(original.get('split_overlay') or original.get('config',{}).get('native_unit_geometry_reference'))
             far_plan='secondary_far_vehicle' in loop.gen.geo.load_json(Path(row['metadata'])).get('spec',{}) if row.get('metadata') else False
             for ordinal in range(rounds):
                 target=cell/f'round_{ordinal}';report=target/'report.json'
@@ -182,6 +191,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                             for r in (outcome or {}).get('unresolved',[]))
                         try:
                             options={}
+                            if enforce_nonrepeat:options['known_payloads']=native_known
                             if needs_ground:options['require_ground_observable']=True
                             if far_plan:options.update(far_known_payloads=far_known,far_retry_block=ordinal)
                             loop.replacement(manifest,replacement.parent,**options)
@@ -210,6 +220,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                     if verify_only:raise ValueError('Completed cell evidence missing; verification cannot recapture')
                     # STOP is also watched within the running bounded loop.
                     options=dict(resume=target.exists(),stop_path=output/'STOP',progress=progress)
+                    if enforce_nonrepeat:options['known_payloads']=native_known
                     if ordinal==0 and seed_capture is not None:options['seed_capture']=seed_capture
                     if far_plan:options['far_known_payloads']=far_known
                     code=loop.execute(manifest,[0],target,**options)
@@ -217,6 +228,7 @@ def execute(source, indices, output, resume=False, rounds=2, stop_after=0, bulk=
                     if code:raise RuntimeError('Quality child halted; no next cell: '+str(target))
                     validate_selected(outcome)
                 if far_plan:far_known.update(loop.captured_payloads(outcome['attempts']))
+                if enforce_nonrepeat:native_known.update(loop.native_payloads(outcome['attempts']))
                 if outcome['selected']:
                     accepted=copy.deepcopy(outcome['selected'][0]);accepted['source_cell_id']=row['id']
                     selected.append(accepted);break

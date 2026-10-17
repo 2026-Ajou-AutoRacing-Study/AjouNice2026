@@ -681,7 +681,7 @@ def build(row,config,ctx,attempt=0):
             if assignment and assignment['profile_id']!=SCALE_BASE:
                 avoidance_ctx=dict(ctx,geometry=dict(ctx['geometry'],**{asset['name']:
                     dict(bbox_size_m=scaled_size,pivot_to_bbox_center_local_m=scaled_off)}))
-        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],avoidance_ctx,route,arc,base,asset,row,rng,yaw_attempt=attempt)
+        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],avoidance_ctx,route,arc,base,asset,row,rng,yaw_attempt=attempt,config=config)
         yaw_delta=ego['yaw']-base['yaw']
         offset=0. if row.get('avoidance_origin')=='generic_close' else avoidance_ref['lateral_center_offset_m']
         if avoidance_ref.get('road_relocation'):

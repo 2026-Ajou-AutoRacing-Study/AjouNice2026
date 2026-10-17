@@ -280,7 +280,9 @@ def test_quality_loop_skips_only_registered_terrain_and_keeps_native_audit(tmp_p
         out = Path(cmd[cmd.index('--output') + 1])
         d = reuse.read(path)
         assert reuse.KEY in reuse.read(d['scenes'][0]['metadata'])
-        row = dict(id='a', status='accepted_candidate', audit=dict(review_reasons=[]))
+        raw = out/'captures'/'a'
+        atomic_json(raw/'metadata.json',reuse.read(d['scenes'][0]['metadata']))
+        row = dict(id='a', status='accepted_candidate', capture_root=str(raw), audit=dict(review_reasons=[]))
         ledger(out / 'ledger.jsonl', [row])
         atomic_json(out / 'shutdown_safety.json', dict(park_verified=True))
         return Child()
