@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-17.
-Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 이전 정책의 offline 준비본이며 최신 보강 승인이 아니다.
+Base5-only 학습용 Sunny13 5K는 완료했다. 다음 Sunny15는 새 5K CPU 후보와 소량 native 검증까지 진행했지만 본수집 미승인이다. 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -17,11 +17,11 @@ Base5-only 학습용 Sunny13 5K는 완료했다. 다른 다섯 환경의 25K는 
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite` 보존. 최신 정책의 독립 재생성·환경별 smoke가 필요 |
+| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 보존 이력이다. 10/17 로컬 Sunny15: 동일 배치 RGB 16/16, 독립 CPU 5K, 새 native 28/32 승인·4 검토. 지면 연결 후보 분석·실제 가림 복구·음영 이동 준비·디스크 확보 전 본수집은 미승인이다. [새 source와 후속 순서](261010_base5_fresh_environment_runbook.md#sunny15-261017) 참고 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 본수집 상태 | 미실행. 원형 v158a 전체 5K 확정·10/17 17:58 촬영 대기 준비: `~/morai_cap/base5_unit_v158_261017/collection_sunny13_5k`, 준비 5,000 / 취득 0. [최종 근거·명령](261017_base5_unit_release_evidence.md): exact 32/32·물리 19종 43부모 치수 불일치 0·입력 101 GT·재개·CPU 2,041개 통과. Sunny13 `release_v158a/release.json`의 `bulk_ready=true`. 별도 `--complete` 금지 |
+| 본수집 상태 | v158a Sunny13는 이후 사용자가 빌린 PC에서 실행해 수집 중이다. 로컬 `~/morai_cap/base5_unit_v158_261017/collection_sunny13_5k`의 준비 5,000 / 취득 0은 10/17 17:58 대기 snapshot이며 원격 진행 수가 아니다. [최종 근거·명령](261017_base5_unit_release_evidence.md): exact 32/32·물리 19종 43부모 치수 불일치 0·입력 101 GT·재개·CPU 2,041개 통과. Sunny13 동결 release만 `bulk_ready=true`, 별도 `--complete` 금지. 현재 원격 수는 실제 status/journal로 확인한다 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -102,7 +102,7 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 
 원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
-다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)에서 같은 버전·ROS 연결·정적/차량/이동 3/3장·Q90/upright 변환을 통과했다. 수동 실행기와 5K CPU 준비만 완료했고 본수집은 0장이다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하지 않는다.
+다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 같은 버전·ROS 연결·정적/차량/이동 3/3장·Q90/upright 변환과 취득 0장은 20:36 인계 당시 상태다. 이후 사용자가 본수집을 실행했다. 로컬 Sunny15 시험은 별도이며 원격 프로세스를 변경하지 않는다. 원본 해시 기반 resume 중 RGB PNG를 자동 삭제하지 않는다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 
 현재 native JPEG/upright 전달본은
