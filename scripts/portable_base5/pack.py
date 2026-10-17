@@ -61,7 +61,7 @@ def pack(bundle, destination, run=False):
                         raise ValueError('Archive symlink refused')
                     info = tarfile.TarInfo(name)
                     info.size = expected[name]['bytes']
-                    info.mode = 0o755 if path.stat().st_mode & 0o111 else 0o644
+                    info.mode = path.stat().st_mode & 0o777
                     with path.open('rb') as source:
                         archive.addfile(info, source)
             process.stdin.close()

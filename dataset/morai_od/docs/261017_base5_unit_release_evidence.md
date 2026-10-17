@@ -411,3 +411,66 @@ CPU `--help` import도 통과했다. 이번에 만든 실패/중간 조립 폴�
 최종 조립 폴더와 압축을 함께 보관한 뒤 로컬 여유는 약 50GiB다. 다음 로컬 5K의 시작 기준
 55GiB에는 부족하다. 원격 전달·검증 뒤 재생성 가능한 로컬 조립 복사본 약 6.78GiB를 정리하거나
 별도 공간을 확보하고 다시 검사한다. 촬영 raw·완료 원본을 자동 삭제해 공간을 맞추지 않는다.
+
+<a id="portable-stage1"></a>
+
+## 빌린 PC 1단계: 전송·해제·환경 검사 완료
+
+2026-10-17 19:12 KST 기준이다. 사용자가 위 계획 중 **1번 전송·압축 해제·환경 검사만**
+승인하고 MORAI는 직접 실행하겠다고 요청했다. 따라서 새 작업 폴더
+`/home/ddeungbuntu/ajounice_base5_capture/`만 생성·사용했다. 기존 설치 파일·shell 설정·
+`/opt/ros`·시스템 패키지는 변경하지 않았다. MORAI·ROS 노드·촬영은 시작하지 않았다.
+
+| 항목 | 실제 결과 |
+|---|---|
+| rsync 전송 | 압축+checksum 약 4.36GB, 약 83초, 관측 40~53MiB/s·전체 평균 약 49.9MiB/s |
+| 압축 검사 | 기존 `e56cb949…` SHA256 일치. 31,182개·7,282,719,132 bytes 해제, 약 14초 |
+| 원격 검증본 | `capture_bundle/`, manifest·원문 내용 SHA 유지 |
+| Python/ROS | 실제 Ubuntu 22.04.5·Python 3.10.12·기존 Noetic과 동봉 overlay import·8종 MD5 통과 |
+| 원래 경로 검사 | 실제 user namespace에서 26,302개 파일 SHA 대조 통과 |
+| CPU 도구 | GT/JPEG 변환기와 승인 런처의 `--help` import 통과 |
+| 실행 파일 | launcher/simulator 및 UnityPlayer 4개 `ldd` 누락 없음 |
+| 주요 plugin | ZFGameBrowser·zf_cef.so·libkfunc64.so `ldd` 누락 없음 |
+| GPU 조회 | RTX 3090 Ti 24,564MiB·driver 580.159.03 확인. GPU 작업/GUI는 수행하지 않음 |
+| 실행용 MORAI | `work/morai/MoraiLauncher_Lin/` 별도 정상 복사. 804파일·4,121,077,856 bytes SHA 일치·하드링크 0 |
+| 공간 | 승인 폴더 할당량 약 14.75GiB·PC 여유 약 229GiB. 100GiB 예산의 본수집 보장은 아님 |
+| 안전 회귀 | 기존 항목 포함 126개·ResourceWarning 엄격 검사·shell 구문 검사 통과 |
+
+첫 원격 검사에서 파일 내용은 정상이었으나 graph의 mode 검사가 실패했다. v1 압축기가
+일반 파일의 `0664`를 `0644` 등으로 정규화했기 때문이다. 같은 known-SHA 압축을 다시
+받거나 JSON/SHA 검사를 완화하지 않고, `checks/stage1.py restore-modes --run`으로
+**새 payload의 26,301개 파일에 동결 graph의 원래 일반 POSIX 권한만 복원**했다.
+byte·SHA·원문 경로는 변경하지 않았다. 새 폴더 안의 group/world-writable 디렉터리 1,988개도
+쓰기 권한을 줄였다. 작업 폴더 자체는 `0700`이다. 복원 후 환경 검사 9개 묶음이 모두 PASS다.
+첫 실패 receipt와 수정 후 receipt는 모두 보존했다. 현재 저장소의 `pack.py`와 새 해제 도구는
+정확한 일반 권한을 보존하고 setuid/setgid 등 특수 비트는 전달하지 않도록 회귀를 추가했다.
+기존 전달 압축과 package manifest는 여전히 위 고정 SHA를 사용한다.
+
+추가 준비 도구는 원래 bundle 안에 덮어쓰지 않았다. 원격 `checks/stage1.py`와
+작업 폴더 바로 아래 `start_morai_capture.sh`로 분리했다. 실행용 MORAI도 검증용 복사본과
+별도로 두었으므로 로그인·UI 설정이 원본 파일과 하드링크로 공유되지 않는다.
+
+사용자는 **빌린 PC의 그래픽 데스크톱 터미널에서** 다음을 실행한다. SSH shell은 DISPLAY가
+없으므로 이 명령을 실행할 장소가 아니다. 원격 SSH에서 실행기의 `--check`는 통과했지만
+`gui_ready=false`였고 실제 X11 socket은 `X1`이 관측됐다. DISPLAY를 임의로 하드코딩하지 않는다.
+
+```bash
+bash /home/ddeungbuntu/ajounice_base5_capture/start_morai_capture.sh --run
+```
+
+실행기는 사용자의 명시적인 `--run`에서만 launcher를 시작한다. 기존 `MORAISim.sh`·sudo
+설치기를 호출하지 않는다. HOME/XDG·캐시·로그는 `work/morai-session/`에 두고 원래 데스크톱의
+DISPLAY/XAUTHORITY를 사용한다. bundled bwrap로 일반 호스트 파일시스템은 read-only,
+승인 workspace는 read-write, `/tmp`는 별도 임시 공간으로 설정한다. GPU device와 데스크톱
+socket은 사용하므로 일반적인 보안 격리 인증으로 표현하지 않는다. 실패해도 비격리 자동 재시도는 없다.
+`--check`·`--plan`·기본 실행은 파일 생성과 프로그램 시작 없이 준비 상태만 출력한다.
+
+로그인 후 기존 `v.S4.251001.MolitComp03`·K-city 맵까지만 연다. 실제 로그인·라이선스·화면·
+맵 구동은 아직 검증 전이다. ROS master/bridge·센서/네트워크 연결·소량 SaveSensorData 시험과
+완료 후 자동 체인은 다음 단계이며 5K 본수집은 여전히 별도 승인 대상이다. `can_run=false`도
+유지했다. 기존 flags는 복사본에서도 원문 `False`를 유지했으며 자동 업데이트 비활성화를
+검증한 것이 아니다. 다른 버전 설치/업데이트는 누르지 않고 화면이 다르면 먼저 확인한다.
+
+원격 receipt는 `checks/{extract,restore-modes,prepare-morai,check}-*.json`이다. 로컬 사본은
+artifact root의 `remote_stage1_261017/`에 보존한다. 이 검사는 실행 전 호환성 근거이지
+새 PC의 통신·native annotation·소량 촬영·본수집 성공을 뜻하지 않는다.

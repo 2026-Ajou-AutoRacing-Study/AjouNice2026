@@ -79,7 +79,7 @@ class PackTests(unittest.TestCase):
                 members = {item.name: item for item in tar}
                 self.assertEqual(set(members), set(expected))
                 self.assertEqual(members['bundle/bin/bwrap'].mode, 0o755)
-                self.assertEqual(members['bundle/tools/runtime.py'].mode, 0o644)
+                self.assertEqual(members['bundle/tools/runtime.py'].mode, 0o640)
                 self.assertTrue(all(item.isfile() for item in members.values()))
             self.assertEqual(result['sha256'], runtime.sha256(archive))
             self.assertEqual(result['bytes'], archive.stat().st_size)
