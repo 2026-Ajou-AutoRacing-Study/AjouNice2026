@@ -40,6 +40,34 @@ restart도 같은 방향 편차를 보인다. 전방 train 122개 중 LiDAR 0점
 근거: `artifacts/evaluation/base5_foggy13_design_261019/{training_review,data_audit}/`.
 학습·자산·거리·방향별 CSV와 입력 SHA, component별 JSONL을 보존했다.
 
+### 추가 요청: E24 조건의 새 Sunny13 학습 중간 대조
+
+원형 로그와 새 학습의 E13까지 완료된 로그를 읽기 전용으로 대조했다.
+기존 E24 실험의 실제 총 길이는 24에폭이다. 기존 학습 조건을 유지한 새 run을 시작했으며
+이 중간 표는 **서로 다른 own-val**의 점수다. 순수 데이터 개선량으로 해석하지 않는다.
+
+| 에폭 | 기존 epoch 평균 loss | 신규 epoch 평균 loss | 기존 own-val mAP | 신규 own-val mAP |
+|---|---:|---:|---:|---:|
+| 1 | 3.422 | 3.412 | 70.19% | 78.50% |
+| 4 | 1.009 | 1.014 | 80.61% | 86.28% |
+| 8 | 0.714 | 0.746 | 82.57% | 88.21% |
+| 12 | 0.545 | 0.578 | 82.35% | 89.15% |
+
+두 학습 모두 에폭 평균 loss와 유한 gradient 표본의 중앙값이 감소해 전반적인 학습 붕괴 징후는 없었다.
+AMP 중 일부 비유한 gradient 로그가 있어 모든 optimizer update의 정상 수행을 인증하는
+분석은 아니다. 기존 run의 own-val은 E9 이후 포화 경향이지만 신규는 E13까지 개선되어
+아직 같은 포화 시점이라고 단정하지 않는다. 평가 GT는 차량 341→676, 보행자 687→468,
+장애물 674→594로 달라졌다. 특히 신규 장애물 30~50m는 GT 29개에서 E12/E13 AP가
+0.39/1.49%로 낮아, 전체 장애물 AP가 올라도 이 구간이 해결됐다고 볼 수 없다.
+장애물 20~30m는 E8/E12에서 기존 72.90/76.18%, 신규 75.77/74.98%로 우열이 고정되지 않았다.
+
+최종 24에폭과 재개용 Drive 백업이 실제 완료된 뒤 기존/신규 모델 × 기존/신규 val의
+2×2 공통 평가를 실행하도록 별도 감시기를 준비했다. 네 평가는 동일한 current-nearest
+depth raster·compile OFF·AMP·batch 1·증강 OFF 조건을 사용한다. 아직 이 최종 결과는 없다.
+원형의 먼 거리 로깅은 E11부터라 앞 에폭의 빈 값은 AP 0이 아니다. GT 0도 정의되지 않은
+AP로 구분한다. 상세 CSV·정의·원형 로그 SHA는
+`training_review/matched13_progress_compare/`에 보존했다. 원격 학습·설정·백업은 변경하지 않았다.
+
 ### 전방 원거리 LiDAR 0점의 추가 원인 검사
 
 새 Sunny13+15를 합친 80~100m의 실제 앞/뒤 차량은 305/317개이며, LiDAR 0점은
@@ -207,17 +235,107 @@ binding 근거 34,030개(약 2.850GB)는 시작·끝에 전량 실제 SHA를 읽
 거쳐 재개했다. 06:21 KST 실제 부모 종료 상태는 **승인 32·부족 0·실패 0·오류 없음**이다.
 다만 후속 입력 변환에서 1개 복구 overlay를 발견했다. 원래 geometry의 무검토 32/32나
 최종 exact32 자격 통과로 해석하면 안 된다. 원형 31장과 실제 새 복구 1장이며, 이 32장을
-본수집 5K에 더하지 않는다. 완료 재개 검사는 통과했지만 입력/최종 자격은 아직 미통과다.
+본수집 5K에 더하지 않는다. 당시 완료 재개 검사는 통과했지만 입력/최종 자격은 미통과였다.
 
 해당 canonical `...00674`는 고주로 뒤차 10~30m 장면이다. 원본 regular ledger의
 `population_visible_actor_deficit` 검토를 보존하고, ordinal 2의 실제 승인 배치
 `...00674_replace_replace`로 회복했다. source payload `e1337c91...`와 승인 payload
 `74cc668d...`가 다르므로 같은 source의 exact 관측으로 셀 수 없다. 입력 qualifier의 첫 overlay
 자동선택과도 충돌해 `Captured split overlay content differs`로 중단됐다.
-이는 GT 손상 증거가 아니라 아직 authoritative source로 채택하지 않은 정상 복구 계보 문제다.
+이는 GT 손상 증거가 아니라 당시 authoritative source로 채택하지 않은 정상 복구 계보 문제였다.
 31+1 overlay를 임시 합치거나 32장을 전체 5K native 선택으로 위장해 finalize하지 않는다.
-이미 지원하는 depth 2 실제 native adoption으로 source를 새로 조립한 뒤 새 등록·촬영으로 검증한다.
+이미 지원하는 depth 2 실제 native adoption으로 source를 새로 조립한 뒤 새 등록·촬영으로 검증하기로 했다.
 기존 source·등록·원본·입력 변환 실패 출력과 로그는 그대로 보존한다.
+
+### 00674 원형과 실제 복구의 가림 대조
+
+원형과 실제 복구 3회, 총 4개 캡처를 읽기 전용으로 대조했다. 모두 예상 UID 8500/8501이
+native GT와 촬영 전후 Object_topic에 있었고, 원형의 실제 위치 차이는 각각 약 5.4/5.2mm였다.
+NPC 로드 누락보다 가까운 MPV가 보조 Sonata를 가린 근거가 강하다. 원형 Sonata는 17.16m에서
+LiDAR 0점·카메라 instance 0픽셀이었고, 대상 OBB를 지나는 실제 반환 방향 52개 모두 앞 MPV
+안에서 먼저 반환됐다. 대상 박스를 5cm 넓히고 앞차 박스를 면마다 10cm 줄인 보수적 기하
+검사에서도 LiDAR·후방 카메라 각각 27/27개 표본이 가렸다. 반면 실제 승인 복구의 Sonata는
+더 먼 40.90m에서도 LiDAR 6점·카메라 295픽셀, 현재 512×1056 입력 crop에서 204픽셀이 남았다.
+
+OBB는 실제 mesh가 아니므로 완전 차폐나 안개 인과의 인증으로 확대하지 않는다. 동일 geometry의
+반복·맑음 대조도 없어 전체 실패율이나 Foggy 거리 상한·차량 quota 변경의 근거가 아니다.
+완전히 가려진 보조 객체를 기존 품질 검토·실제 새 배치 복구로 처리한 사례로만 해석한다.
+이 분석은 부모 승인 32와 원형 승인 31+복구 1의 구분을 바꾸지 않는다.
+이 분석 기록 당시 source3의 depth 2 native adoption을 준비 중이었으며 본수집 시작이나
+최종 자격 통과가 아니었다. 이후 실제 완료 상태는 다음 절을 따른다.
+
+근거는 `generator_review/case00674_native_visibility_v1.json`과
+`generator_review/case00674_native_visibility_validation_v1.json`이다. 입력 77개 SHA를 다시
+확인했고, 4개 캡처의 8개 component 포인트 재계산은 모두 audit와 일치했다.
+같은 폴더의 `analyze_case00674.py`로 읽기 전용 재현이 가능하다. 원본·runtime·정책은 변경하지 않았다.
+
+### Depth 2 실제 채택 완료와 새 최종 검증
+
+06:48 KST 원형 `prepare`는 후행 `verify_binding`까지 실제 exit 0으로 완료됐다.
+실행 시간은 약 1,238.7초였으며 정적 SHA scope의 양경계 실제 검산과 failures 0을 확인했다.
+새 source는 `reinforced_source_v3/assembled_source/final_source/manifest.json`이며 SHA256은
+`83f3b86fc1d8640e9cd148054f04923ff04dd89e08979563b8d7390eccbae595`다.
+이전 source의 4,999 payload와 149개 보강 목표·actor 순서·capture split을 보존하고,
+canonical `...00674` 한 장만 실제 ordinal 2 승인 geometry로 채택했다.
+
+새 binding과 이전 depth 1 부모의 연결을 유지한다. 새 source의 native exact32는 별도
+`qualification_v2`에 사전 등록한 뒤 다시 관측했다. 원형 등록 함수는 한 번만 호출했으며,
+이전 v3 단계 본문을 변경하지 않은 새 `direct_phase_v4.py`가 정확한 새 binding·출력 경로를
+고정한다. source 양쪽의 정적 파일 SHA만 재사용하고 native raw·session·ledger·QA/context는
+재사용하지 않는다. 독립 부정 테스트를 포함한 v4·v3·static 회귀 151개가 통과했다.
+`source3_preparation_validation_receipt.json`과 `direct_phase_v4_code_validation_receipt.json`에
+실제 입력 SHA·완료 코드·회귀 결과를 보존한다. 이 준비 완료는 native 자격이나 본수집 시작이 아니다.
+
+새 source의 원형 등록은 약 488.4초에 exit 0으로 완료됐다. 이후 `qualification_v2/exact32`의
+원형 regular ledger 32개가 **모두 승인**됐고, 선택 ID도 원형 32개와 같으며 recovery ledger는
+없었다. 첫 16장 뒤 정상 일시정지·partial 저장, 나머지 16장 재개와 완료 상태의 읽기 전용
+재개 검증도 통과했다. 앞선 `qualification_v1`의 31+1과 다른 실제 새 관측이다.
+
+동일 32장의 Q90/upright 입력 변환과 GT 76개를 실제 CPU train/val 전처리·packing 경로
+모두에서 확인했다. train 32·val 32는 같은 소량 자료를 두 입력 경로로 시험한 숫자이며
+독립 64장이나 실제 학습 분할 장수가 아니다. GPU 학습이나 AP 검증도 아니다.
+별도로 사전 등록한 음영 이동 animal/human 두 장면도 **2/2 승인·검토 0·오류 없음**과
+실제 종료·이동 근거 대조를 통과했다. 소량 시험은 본수집 5K에 합산하지 않는다.
+
+최종 원형 freeze는 약 562.2초에 실제 exit 0으로 완료됐다. native exact·독립 음영 이동·
+training inputs·CPU 회귀·partial resume·completed resume **여섯 gate가 모두 통과**했고,
+`qualification_v2/release/release.json`의 `bulk_ready=true`, 저장 공간 `start_blockers=[]`를
+확인했다. 당시 `bulk_started=false`와 학습 관측 0은 올바른 동결 기록이다.
+이후 실제 공통 CLI의 `--prepare-fresh`를 시작했다. release 통과만으로 본수집 시작을
+주장하지 않으며, 공통 실행기의 5장 촬영·정상 재개 검사와 실제 5K 출력 상태를 별도로 확인한다.
+
+<a id="foggy13-live-261019"></a>
+
+## Foggy13 본수집 시작과 관측
+
+07:27 KST 공통 실행기 5장 시험이 **5/5 승인**과 실제 일시정지·재개·추가 촬영 없는 완료
+재생 검사를 통과한 뒤 5K 본수집에 진입했다. 첫 묶음의 **실제 새 원본 16장·승인 16·검토 0·
+오류 없음**과 다음 묶음 진행을 확인했다. 앞선 진단·exact32·음영 이동·공통 5장 시험은
+본수집 승인 수에 더하지 않는다. 이는 5K 완료가 아니라 실제 본수집 시작 확인이다.
+
+- 최종 source: `reinforced_source_v3/assembled_source/final_source/manifest.json`.
+- 동결 자격: `qualification_v2/release/release.json`.
+- 공통 프로파일: `qualification_v2/common-profile.json`.
+- 실제 본수집: `~/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1`.
+- 수집 세션: `foggy13-common-depth2-v1`. 실행 중에는 같은 명령을 중복 실행하지 않는다.
+- 대시보드: **http://localhost:8081**, 세션 `foggy13-dashboard-8081`.
+  HTTP에서 정확한 Foggy13 manifest·5K 목표·실제 새 승인 갱신을 확인했고 브라우저도 열었다.
+
+기존 로컬 관측기와 빌린 PC Sunny11 수집·대시보드는 중단하거나 변경하지 않았다.
+일반 센서 근거 부족은 기존 검토·부족분/실제 새 배치 복구로 처리하고, 통신·정지/P·동결
+입력 검증 실패는 계속 안전 중단한다. 새 PNG/native 원본의 삭제나 JPEG 최종 전달본 변환은
+이번 본수집 시작 단계에서 수행하지 않았다.
+
+공통 초기 준비는 약 501.0초였다. 읽기 전용 15.01초 표본에서 CPU 15.00초·논리 읽기
+약 5.62GB·실제 disk read 0B였으므로 회선/디스크 대기보다 반복 SHA/JSON CPU 비용의
+근거가 강하다. portable의 미리 가져온 SHA 별칭 일부는 기존 frozen-directory 설치 범위에서
+빠진다. SHA와 JSON 각각의 기여율은 측정하지 않았다. 현재 실행·동결 코드를 바꾸지 않고
+`common_prepare_cpu_readonly_diagnosis_v1.json`에 후속 개선 근거로 보존했다.
+준비 때 저장한 `source_authority`와 전체 경계 검산을 사용하므로, 이 전체 자격 context가
+본수집의 매 복구에서 다시 실행되는 구조는 아니다. 새 대체 자료·실제 QA 검사는 유지한다.
+
+Vast 새 Sunny13의 동일 조건 24에폭 학습과 Drive 백업도 별도 세션에서 진행 중이다.
+최종 데이터 개선량·새 production 선정·30K 수집 완료는 아직 인증하지 않는다.
 
 ## Sunny 추가 보강 초안
 
