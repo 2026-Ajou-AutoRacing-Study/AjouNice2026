@@ -13,6 +13,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 항목 | 현재 선택과 상태 |
 |---|---|
 | 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인과 warm-up restart는 모두 8 epoch 정상 완료하며 각각 마지막 E8이 자체 val best |
+| 진행 중인 데이터 대조 학습 | 10/19 04:11:54 KST 새 Sunny13 5K를 기존 E24의 실제 24 epoch·동결 source/init·seed·증강·batch 4·AdamW·cosine·compile ON과 동일한 조건으로 새로 시작했다. 바뀐 것은 data와 그에 따른 train count/iteration이다. 실제 GPU iteration·W&B loss 수신을 확인했다. 일반 새 학습의 compile OFF 정책과 production E24는 유지한다. [실행·비교 계약](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-261019) |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
 | 이미지 | Q90 JPEG, 모델 입력 512×1056, resize 0.825. [512/576 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) 후 현재 크기 유지. native 크기·homography 보존 |

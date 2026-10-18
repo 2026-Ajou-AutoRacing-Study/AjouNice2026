@@ -1,7 +1,8 @@
 # Base5 원격 실행과 보존 안내
 
-문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-18.
-Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
+문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-19.
+기존 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 새 데이터 대조 학습을 포함한
+현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
 
 ## 점검과 재개 경계
@@ -560,6 +561,67 @@ payload·설정·계약·검증 증거·COMPLETE 전체 readback을 완료했다
 재읽기 검증을 통과했다. 원격→로컬 병렬 SSH 수신 뒤 전체 SHA를 대조하고 Drive로 올렸다.
 full 수신은 약 14분 15초가 걸렸으며, Drive payload 업로드·전체 재읽기는 약 45초였다.
 기존 자동 백업 상태를 성공으로 덮어쓰거나 원격 가중치·Sunny11 수집을 수정하지 않는다.
+
+<a id="sunny13-matched-e24-261019"></a>
+
+### 새 Sunny13 데이터만 교체한 E24 조건 대조 학습 — 2026-10-19
+
+사용자 요청으로 기존 E24의 실제 동결 소스와 실행 manifest를 대조했다. 당시 예산은
+25가 아니라 **24 epoch**다. 기존 source·초기화·seed 261010·증강·batch 4·workers 4·
+AdamW(lr 1e-4, weight decay 0.01)·500 iteration warm-up 이후 cosine·compile ON을 보존했다.
+이 compile ON은 재현 대조군이며 다음 일반 학습의 OFF 기본값이나 production을 바꾼 것이 아니다.
+E24에서 fine-tune/resume한 것이 아니라 같은 변환 nuScenes initializer로 새로 시작했다.
+
+새 Sunny13 전달본 3,382,560,124바이트를 Drive 경유로 약 291.9초에 수신했다.
+전체 SHA와 184,055개 멤버, 5K 장면·20K JPEG, portable payload·group split 검증을 통과했다.
+실제 identity 차이는 dataset manifest SHA·train 4,255→4,250·epoch당 iteration 1,064→1,063의
+세 항목뿐이다. 이에 따라 총 update는 25,536→25,512로 달라진다. 같은 seed가 역사적
+worker/prefetch·중간 resume까지 비트 단위로 재현한다는 뜻은 아니다.
+
+- 시작: **2026-10-19 04:11:54 KST**. 실제 E1 120 iteration까지 오류 없이 진행했고,
+  W&B API에서 epoch·train loss·유한 gradient 수신을 확인했다.
+- 원격 work: `/workspace/sunny13_matched_e24_261019`.
+- 계약: `4b350d8b8d2a52a75322c2dc590f289b59c525028044d8aada4b09f1082c9321`.
+- [W&B 실험](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/sunny13_matched_e24_261019-4b350d8b8d2a).
+- 초기 compile 뒤 약 0.56초/iteration, 학습 로그 memory 약 27.6GiB다. 전체 4.5~5시간은
+  초기 실측 기반 예상이며 완료 시간 인증이 아니다. 냉간 compile을 포함한 최초 ETA와 구분한다.
+- Drive 백업 감시기와 온라인 W&B 중계는 독립 tmux `sunny13-matched-e24-supervisor`에서
+  실행한다. **04:34:24 KST에 실제 E1 full checkpoint 519,738,181바이트의 Drive 백업을 확인했다.**
+  전체 SHA·metadata 재읽기와 COMPLETE/LATEST 검사가 통과했다. SHA는
+  `6696333a558db54338489753d005c2dc30e357ad4480753693af954119344f5a`다.
+  초기 SSH 일부 범위의 연결 종료는 이미 받은 범위를 재사용해 복구했다. 후속 epoch도
+  validation 완료·파일 안정화 뒤 개별 receipt로 확인하며, 폴더 존재만으로 완료를 주장하지 않는다.
+
+05:25 KST 실제 원격 확인에서는 E7 학습 약 0.56초/iteration과 온라인 W&B의 E7 loss 수신을
+확인했다. E6 자체 val은 mAP 88.52%, Vehicle 95.15 / Pedestrian 92.20 / Obstacle 78.22%다.
+05:27:49 KST E4 full도 전체 SHA·metadata·COMPLETE·LATEST의 Drive 재읽기를 통과했다.
+동기 백업 중에는 마지막 inventory 시간이 오래돼 보일 수 있어, 상태 명령에서 수신 중 바이트·
+마지막 쓰기 시각·로컬 SHA·Drive 완료를 구분한다. 중계의 `relay_ready` 파일은 시작 표식이며
+heartbeat가 아니다. 이 점검 때문에 학습을 재시작하거나 하이퍼파라미터를 바꾸지 않았다.
+실측 근거는 같은 artifact 폴더의 `health_0528_receipt.json`이다.
+
+첫 E1 자체 val mAP는 구/신규 70.19→78.50%, obstacle은 43.78→55.99%다.
+하지만 val GT 구성이 달라 순수 개선량이 아니다. 장애물 20~30m는 GT 143개로 같고
+AP 36.23→47.54%지만, 30~50m는 GT 91→29개·AP 12.27→0.12%다.
+초기 한 epoch·작은 표본만으로 최종 퇴보를 확정하거나 중거리 문제를 해결했다고 주장하지 않는다.
+
+근거는 `artifacts/evaluation/base5_sunny13_matched_e24_261019/`의
+`matched_condition_comparison.json`·`first_training_observation.json`·전송/복원 receipt다.
+서로 다른 자체 val AP만으로 데이터 개선량을 주장하지 않는다. 원본 val 745장과 새 val 750장
+각각에서 구 E24와 새 E24를 평가하는 **2×2 공통 평가를 후행 큐에 준비했다.**
+현재는 `sunny13-matched-posteval` tmux에서 학습 24 epoch의 정상 종료와 실제 full E24
+Drive 백업을 기다린다. 네 칸 모두 같은 current-nearest/sorted·compile OFF·AMP FP16·
+batch 1·증강 OFF·score 0의 평가 전용 snapshot을 사용한다. 학습의 legacy depth raster나
+production 설정을 바꾸지 않는다. 기존 자체 val 수치를 이 네 칸의 결과로 재사용하지 않는다.
+CPU strict 검사에서 구 E24·새 E2의 state key/shape 574개와 입력/지표 계약을 확인했다.
+최종 E24의 SHA·source·데이터는 평가 시작 직전에 다시 검사한다. 실제 네 칸 결과는 아직 없다.
+평가별 600초·전체 2,500초 상한과 별도 Drive/W&B 결과를 사용하며, 이후 독립 bag 비교는 별도다.
+
+읽기 전용 상태 명령은
+`python3 -B artifacts/evaluation/base5_sunny13_matched_e24_261019/status.py`다.
+`--local-only`는 원격 SSH 없이 마지막 관측만 읽는다. 로컬 PC의 supervisor를 끄면
+GPU 학습이 계속되더라도 W&B 중계·Drive 자동 백업·후행 평가가 중단될 수 있으므로
+학습 종료/백업 확인 전에 로컬 PC를 종료하지 않는다.
 
 ## 기존 링크 호환
 

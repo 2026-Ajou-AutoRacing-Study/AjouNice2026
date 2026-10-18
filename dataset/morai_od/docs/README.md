@@ -1,6 +1,6 @@
 # MORAI 데이터셋 작업별 문서 인덱스
 
-문서 상태: ROUTER. 정리 기준: 2026-10-17.
+문서 상태: ROUTER. 정리 기준: 2026-10-19.
 현재 Base5 작업은 [Base5 CURRENT](BASE5_V2_CURRENT.md)에서 시작한다.
 아래 모든 문서를 차례로 읽지 않고 현재 요청에 필요한 행만 선택한다.
 
@@ -9,6 +9,8 @@
 | 작업 | 읽을 문서 |
 |---|---|
 | 승인 데이터·현재 release·다음 수집 상태 | [Base5 CURRENT](BASE5_V2_CURRENT.md) |
+| 공통 생성·수집·보충·Sunny13/15 전달본과 Sunny11 실행 | [10/18~19 통합 실행 근거](261018_base5_unified_generation_capture.md) |
+| Foggy 특성·전 클래스 학습/GT 대조·근거 기반 중거리 보강 | [10/19 Foggy13 설계와 실제 검증](261019_base5_foggy13_reinforcement_and_capture.md) |
 | 최종 Sunny13 5K 시나리오·촬영 대기 준비·입력/재개 검증과 수집 승인 | [10/17 원형 수집 근거](261017_base5_unit_release_evidence.md) |
 | 과거 확대 안정성 판정과 확대 수집 중단 경위 | [10/17 통합 검증](261017_base5_scale_split_qualification.md) |
 | 재시작 후 원형만 취득한 치수 안정성·같은 WoodBox의 회복 | [원형 89장과 19종 native 검산](261017_base5_unit_only_restart_validation.md) |

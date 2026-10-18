@@ -147,8 +147,15 @@ def route_compatibility(doc):
 
 def fresh_release_verifier(value):
     """새 원형과 실제 대체를 반영한 source 모두 기존 검증기를 그대로 쓴다."""
-    name = ('finalize_base5_environment_release' if value.get('qualification_schema') ==
-        'base5_new_environment_release_qualification_v1' else 'fresh_environment_qualification')
+    verifiers = {
+        'base5_new_environment_release_qualification_v1': 'finalize_base5_environment_release',
+        'base5_fresh_environment_release_qualification_v1': 'fresh_environment_qualification',
+        'base5_reinforced_environment_release_qualification_v1': 'reinforcement_qualification',
+        'base5_reinforced_native_adopted_release_qualification_v1': 'reinforcement_native_adoption',
+    }
+    schema = value.get('qualification_schema')
+    require(schema in verifiers, 'Unknown fresh source qualification schema; explicit verifier required')
+    name = verifiers[schema]
     return importlib.import_module(name)
 
 
@@ -244,11 +251,24 @@ def validate_fresh_release(doc, value):
             manifest_sha256=source_sha, capture_output=value['capture_output'])},
         'Fresh release must bind this exact new source/environment/output')
     adapter = fresh_release_verifier(value)
-    if value.get('qualification_schema') == 'base5_new_environment_release_qualification_v1':
+    adopted_schema = value.get('qualification_schema')
+    if adopted_schema in ('base5_new_environment_release_qualification_v1',
+                          'base5_reinforced_native_adopted_release_qualification_v1'):
+        writer = (adapter.original if adopted_schema ==
+                  'base5_reinforced_native_adopted_release_qualification_v1' else adapter)
         require(value.get('release_policy') == adapter.POLICY
-            and value.get('helper_sha256') == sha(adapter.__file__)
+            and value.get('helper_sha256') == sha(writer.__file__)
+            and doc['fixed_pins'].get(str(physical(writer.__file__))) == sha(writer.__file__)
             and doc['fixed_pins'].get(str(physical(adapter.__file__))) == sha(adapter.__file__),
             'Existing native-adopted six-gate release verifier is not pinned')
+        if adopted_schema == 'base5_reinforced_native_adopted_release_qualification_v1':
+            for name in ('reinforcement_profile', 'reinforcement_qualification',
+                         'reinforcement_screen', 'reinforcement_native_adoption'):
+                implementation = importlib.import_module(name)
+                path = str(physical(implementation.__file__))
+                require(doc['fixed_pins'].get(path) == sha(path)
+                    and value.get('input_hashes', {}).get(path) == sha(path),
+                    'Reinforced native-adopted implementation is not bound to six-gate evidence: '+name)
         return
     registration = importlib.import_module('prepare_base5_unit_environment_smoke')
     require(value.get('qualification_schema') == adapter.QUALIFICATION_SCHEMA
@@ -258,6 +278,13 @@ def validate_fresh_release(doc, value):
         'Fresh release requires its explicitly pinned unit-registration six-gate adapter')
     require(doc['fixed_pins'].get(str(physical(adapter.__file__))) == sha(adapter.__file__),
             'Fresh source adapter is missing from the fixed boundary inventory')
+    if value.get('qualification_schema') == 'base5_reinforced_environment_release_qualification_v1':
+        implementation = importlib.import_module('reinforcement_profile')
+        path = str(physical(implementation.__file__))
+        require(doc['fixed_pins'].get(path) == sha(path)
+            and value.get('input_hashes', {}).get(path) == sha(path)
+            and value.get('input_hashes', {}).get(str(physical(adapter.__file__))) == sha(adapter.__file__),
+            'Reinforcement profile/qualification implementation is not bound to original six-gate evidence')
 
 
 def validate_fresh_authority(doc, value, saved, parent):

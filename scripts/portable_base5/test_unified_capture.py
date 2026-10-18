@@ -722,7 +722,7 @@ def fresh_source(tmp_path,monkeypatch):
     inputs = {str(manifest):capture.sha(manifest),str(adapter_file):capture.sha(adapter_file)}
     full_audit = tmp_path/'full_source_audit.json';full_audit.write_text('{"status":"OFFLINE_PASS"}')
     values = dict(qualified_runtime=dict(runtime_profile=profiles),bulk_ready=True,
-        qualification_schema='fresh-environment-test-schema',release_policy='fresh-environment-test-policy',
+        qualification_schema='base5_fresh_environment_release_qualification_v1',release_policy='fresh-environment-test-policy',
         qualified_environments=['sunny11'],environment='sunny11',full_manifest=str(manifest),
         full_manifest_sha256=capture.sha(manifest),capture_output=str(output),
         qualification_inputs=dict(manifest=str(manifest)),
@@ -827,6 +827,52 @@ def test_fresh_release_cannot_reuse_old_environment_source_or_unpinned_adapter(f
     with pytest.raises(RuntimeError,match='Fresh release|Fresh source adapter'):
         capture.source_authority(doc,parent)
     adapter.qualified_release_context.assert_not_called()
+
+
+@pytest.mark.parametrize('change', [None, 'policy', 'helper_sha', 'fixed_pin', 'input_pin', 'writer_pin'])
+def test_reinforced_actual_native_adoption_requires_all_implementation_pins(fresh_source, monkeypatch, change):
+    doc, values, parent, _, original = fresh_source
+    modules = {}
+    for name in ('reinforcement_profile', 'reinforcement_qualification',
+                 'reinforcement_screen', 'reinforcement_native_adoption'):
+        filename = Path(doc['release']).with_name(name+'.py')
+        filename.write_text('# explicit tested common reinforcement implementation\n')
+        modules[name] = SimpleNamespace(__file__=str(filename))
+        monkeypatch.setitem(capture.sys.modules, name, modules[name])
+        values['input_hashes'][str(filename)] = capture.sha(filename)
+        doc['fixed_pins'][str(filename)] = capture.sha(filename)
+    verifier = modules['reinforcement_native_adoption']
+    verifier.POLICY = 'truthful-native-adopted-reinforcement-policy'
+    verifier.qualified_release_context = Mock(return_value=original)
+    writer = Path(doc['release']).with_name('finalize_base5_environment_release.py')
+    writer.write_text('# unchanged original six-gate release writer\n')
+    verifier.original = SimpleNamespace(__file__=str(writer))
+    values['input_hashes'][str(writer)] = capture.sha(writer)
+    doc['fixed_pins'][str(writer)] = capture.sha(writer)
+    values.update(qualification_schema='base5_reinforced_native_adopted_release_qualification_v1',
+        release_policy=verifier.POLICY, helper_sha256=capture.sha(writer))
+    values.pop('fresh_source_adapter')
+    if change == 'policy':values['release_policy'] = 'unqualified'
+    elif change == 'helper_sha':values['helper_sha256'] = '0'*64
+    elif change == 'fixed_pin':doc['fixed_pins'].pop(modules['reinforcement_screen'].__file__)
+    elif change == 'input_pin':values['input_hashes'].pop(modules['reinforcement_qualification'].__file__)
+    elif change == 'writer_pin':doc['fixed_pins'].pop(str(writer))
+    Path(doc['release']).write_text(json.dumps(values));doc['release_sha256'] = capture.sha(doc['release'])
+    if change:
+        with pytest.raises(RuntimeError, match='native-adopted'):
+            capture.source_authority(doc, parent)
+        verifier.qualified_release_context.assert_not_called()
+    else:
+        result = capture.source_authority(doc, parent)
+        assert result['original_authority'] == original
+        verifier.qualified_release_context.assert_called_once()
+        doc['source_authority'] = result
+        assert capture.source_authority(doc, parent) == result
+
+
+def test_unknown_fresh_source_verifier_schema_is_never_guessed():
+    with pytest.raises(RuntimeError, match='Unknown fresh source qualification schema'):
+        capture.fresh_release_verifier({'qualification_schema':'unregistered-reinforcement'})
 
 
 @pytest.mark.parametrize('change',['native31','native49','native_bool','environment','manifest_sha','output','runtime',
