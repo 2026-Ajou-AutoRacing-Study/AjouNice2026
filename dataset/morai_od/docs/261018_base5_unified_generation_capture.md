@@ -6,6 +6,49 @@
 최신 실행 상태는 [본수집 재개 기록](#본수집-재개-기록)을 따른다.
 이 문서는 새 5K 수집 완료나 전체 수집 시간의 인증이 아니다.
 
+<a id="sunny11-fresh-preparation-261019"></a>
+
+## 새 Sunny11의 공통 생성·원격 준비 — 2026-10-19
+
+Sunny11은 Sunny13의 시나리오를 복제하지 않고 공통 `generation.py`의 v160·11단계와
+seed `26101911`로 다시 생성했다. 5,000개 모두 scale 1이며 최종 계획은
+`/home/luv/morai_cap/base5_sunny11_v160_261019/candidate_sunny11/manifest.json`이다.
+SHA는 `6353febc5c5dccca93cd108ee19be66f98704b53f07b070d0cae5432f61c775e`다.
+기존 두 환경의 실제 선정 배치와 합친 계획 감사에서 15,000개 layout이 고유하며,
+새 환경의 exact/near duplicate와 cross-split group은 0이었다. 이는 native GT·AP 감사가 아니다.
+
+빌린 PC의 승인된 전용 경로 `~/ajounice_base5_capture/work/fresh-sunny11-v1`에 새 source와
+동결 실행기를 분리 배포했다. 기존 bundle·ROS master·guarded bridge·수집본·원격 PNG와
+사용자가 보호한 TXT는 수정하지 않았다. 원본 371개 dataset script도 변경하지 않고 별도
+읽기 전용 snapshot으로 실행한다. 새 도구는 환경별 분기가 아닌 공통 fresh-start 경로다.
+과거 PAUSE나 승인 장면을 가짜 시작 이력으로 만들지 않는다.
+
+| 준비·실측 | 결과와 한계 |
+|---|---|
+| UI | 사용자 설정 후 11AM·Sunny multiplier 1.00을 실제 화면에서 확인 |
+| 전송 | source archive 937,098,749바이트를 약 86초에 전송하고 양쪽 SHA 일치 확인. runtime archive도 SHA 일치 |
+| CPU 회귀 | 현재 동결 source에서 2,376개 통과·1개 deselect. 첫 제한 sandbox 실행의 loopback socket EPERM 실패는 별도 v1 기록으로 보존하고 v2에서 재검증 |
+| Namespace probe | 새 논리 경로·runtime import 통과. ROS 서비스는 기존 승인된 프로세스 재사용 |
+| 정식 등록 | native 관측 전에 32장·필수 coverage 47개 등록. 독립 shadow 이동은 별도 자격 필요 |
+| 실제 첫 묶음 | 16장 처리 후 `paused`, 선택 승인 16장·부족 0. 원형 15장·새 geometry 복구 1장 |
+| 안전 종료 | 일반 캡처와 복구 캡처 모두 `shutdown_safety.json`의 `park_verified=true` |
+| 새 본수집·웹 | 아직 시작하지 않음. 기존 8075/8077 관측기를 Sunny11이라고 표시하지 않음 |
+
+첫 묶음의 `sunny11_sunny13_sunny11_b5v2_00580`은
+`primary_no_sensor_evidence`·`shadow_approach_visible_forward_primary_deficit`로 review였고,
+새 `...00580_replace` 배치가 native QA를 통과했다. 원래 실패 원본과 판정은 보존한다.
+원형 자격 검증은 renamed/recovered geometry를 원형 승인으로 세지 않으므로,
+부모의 승인 16이라는 수를 정식 exact32 자격으로 해석하지 않는다. 남은 16장만 찍는 것으로
+이 차이가 사라지는 것도 아니다. 원형/복구를 연결하는 실제 canonical 자격 경로나 새로운
+독립 source의 사전 등록을 검토해야 하며, 실패 ID를 숨기거나 관측 후 선택을 미관측 선택으로
+표현하지 않는다. **새 Sunny11 release·공통 5장 실행 자격·5K 본수집은 미완료다.**
+
+근거는 로컬 `artifacts/evaluation/base5_sunny11_remote_261019_v1/`의 build·registration·
+CPU v2 receipt·UI 원본과 빌린 PC 위 전용 경로의 `deployment-source.json`,
+`prototype_exact32_intent.json`, `qualification/exact32/status.json`, selected ledger·원본이다.
+새 출력은 `collections/sunny11_5k_v160_v1`로 계획했지만 아직 생성·시작한 본수집 출력은 아니다.
+이 준비 기록이 다른 환경의 release나 가시성·지면·충돌·Park 기준을 바꾸지 않는다.
+
 ## 결정과 보존 범위
 
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.

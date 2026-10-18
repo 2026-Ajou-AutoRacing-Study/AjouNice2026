@@ -1,6 +1,6 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-18.
+문서 상태: CURRENT. 근거 확인: 2026-10-19.
 Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)도 10/18
 **승인 5,000장·부족 0장·실행 오류 없음**으로 수집을 마쳤다. 최종 선택은
 `artifacts/evaluation/base5_sunny15_completion_261018/last_cell_v1/selected_ledger.jsonl` 하나다.
@@ -68,6 +68,7 @@ JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 �
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | 새 sunny13·sunny15 각 5K는 완료했다. sunny11, foggy11/13/15의 새 배치 각 5K를 더하는 총 30K 계획이며 실제 30K 완료가 아님 |
+| 새 Sunny11 준비 | 공통 v160·seed 26101911로 독립 5K를 생성하고 빌린 PC의 별도 `work/fresh-sunny11-v1`에 배포했다. UI Sunny11 확인·namespace/ROS import·CPU 회귀는 통과했다. 정식 32장 사전시험의 첫 16장 후 정상 PAUSE·두 native 세션의 최종 P를 확인했다. 선택 16장 중 원형은 15장이고 1장은 센서 근거 부족 후 새 배치 복구 승인이라 **원형 32장 자격 완료가 아니다**. 새 5K 본수집·새 대시보드는 아직 시작하지 않았다. [준비·남은 자격](261018_base5_unified_generation_capture.md#sunny11-fresh-preparation-261019)을 따른다 |
 | 과거 환경 준비·중간 인계 | 구 `candidate_v150c/future_suite`와 Sunny15 v159의 exact32/32·음영 이동 2/2·Q90/upright·CPU loader·재개 자격은 당시 이력이다. 10/18 정상 PAUSE의 승인 557 / 부족 3 / 미검사 4,440 인계도 중간 기록으로 보존하며 현재 완료 수치가 아니다. 이후 Sunny15 5K 완료는 위 최종 선택 ledger를 따른다. 새 실행기의 별도 소량 자격시험은 [통합 근거](261018_base5_unified_generation_capture.md)를 따른다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |

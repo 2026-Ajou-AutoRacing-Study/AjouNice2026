@@ -28,6 +28,8 @@ import unified_paused_import as handoff
 
 SCHEMA = 'base5_unified_capture_v1'
 POLICY = 'fixed-input-boundaries-and-common-native-profiles-v1'
+FRESH_AUTHORITY_SCHEMA = 'base5_unified_fresh_source_authority_v1'
+FRESH_ORIGIN_SCHEMA = 'base5_unified_fresh_empty_origin_v1'
 SCRIPTS = Path('/home/luv/AjouNice2026/dataset/morai_od/scripts')
 TARGETS = {'run_base5_capture_static_attitude.py',
            'run_base5_capture_campaign_direction_reference.py',
@@ -80,11 +82,18 @@ def modules():
     return parent, direction
 
 
-def helpers():
+def helpers(*, fresh_start=False):
     paths = [Path(__file__).absolute(), Path(boundary_module.__file__).absolute(),
              Path(handoff.__file__).absolute(), Path(handoff.historical.__file__).absolute(),
              Path(recovery_population.__file__).absolute()]
+    if fresh_start:
+        for name in ('fresh_route_compat', 'fresh_environment_qualification'):
+            paths.append(Path(__file__).absolute().with_name(name+'.py'))
     return {str(physical(p)): sha(p) for p in paths}
+
+
+def profile_helpers(doc):
+    return helpers(fresh_start=True) if doc.get('fresh_start') is True else helpers()
 
 
 def merge(*groups):
@@ -128,7 +137,7 @@ def route_compatibility(doc):
     if not witness:
         yield
         return
-    import route_compat
+    route_compat = importlib.import_module('fresh_route_compat' if doc.get('fresh_start') is True else 'route_compat')
     gen = importlib.import_module('generate_base5_independent')
     extent = importlib.import_module('base5_static_mission_extent')
     with route_compat.installed(witness['path'], generator=gen, extent=extent,
@@ -142,19 +151,27 @@ def source_authority(doc, parent):
     require(sha(release) == doc['release_sha256'] and sha(doc['manifest']) == doc['manifest_sha256'],
             'Frozen source/release changed')
     value = read(release)
+    fresh = doc.get('fresh_start') is True
+    if fresh:
+        validate_fresh_release(doc, value)
     saved = doc.get('source_authority')
     if saved is not None:
         # The actual original verifier ran during prepare. Reuse its result
         # only after the boundary has checked EVERY original evidence byte,
         # including historical native files and bags (never hot-cached).
         required = merge(value['input_hashes'], value['runtime_hashes'])
+        if fresh:
+            audit = value['full_cpu_audit']
+            required = merge(required, {audit['path']:audit['sha256']})
         for gate in value.get('gate_evidence', {}).values():
             required = merge(required, {gate['path']: gate['sha256']})
         require(all(doc['fixed_pins'].get(path) == digest for path, digest in required.items())
             and saved.get('path') == str(release) and saved.get('sha256') == doc['release_sha256']
             and saved.get('original_runtime_count') == len(value['runtime_hashes']),
             'Cached original qualification lacks complete boundary evidence pins')
-        if 'qualified_runtime' in value:
+        if fresh:
+            validate_fresh_authority(doc, value, saved, parent)
+        elif 'qualified_runtime' in value:
             original = saved.get('original_authority', {})
             require(saved.get('source_qualification') == 'original-six-gate-environment-release'
                 and original.get('input_hashes') == value['input_hashes']
@@ -165,6 +182,27 @@ def source_authority(doc, parent):
             require(saved.get('source_qualification') == 'original-support-release',
                     'Cached support source result differs')
         return copy.deepcopy(saved)
+    if fresh:
+        adapter = importlib.import_module('fresh_environment_qualification')
+        authority = adapter.qualified_release_context(release, doc['environment'], physical(doc['manifest']))
+        require(authority.get('passed') is True and authority.get('bulk_ready') is True
+            and authority.get('environment') == doc['environment']
+            and authority.get('manifest_sha256') == doc['manifest_sha256']
+            and authority.get('capture_output') == doc['output']
+            and authority.get('runtime_profile') == parent.profiles()
+            and type(authority.get('native_exact_observations')) is int
+            and 32 <= authority['native_exact_observations'] <= 48
+            and authority.get('bulk_training_observations') == 0
+            and authority.get('runtime_hashes') == value['runtime_hashes']
+            and all(authority['runtime_hashes'].get(path) == digest
+                for path, digest in doc['runtime_hashes'].items()),
+            'Fresh source requires actual 32..48 native approvals and unchanged complete runtime/output')
+        result = dict(schema=FRESH_AUTHORITY_SCHEMA, path=str(release), sha256=doc['release_sha256'],
+            source_qualification='fresh-six-gate-environment-release', environment=doc['environment'],
+            manifest=doc['manifest'], manifest_sha256=doc['manifest_sha256'],
+            original_runtime_count=len(value['runtime_hashes']), original_authority=authority)
+        validate_fresh_authority(doc, value, result, parent)
+        return result
     if 'qualified_runtime' not in value:
         launcher = importlib.import_module('launch_base5_obstacle_support')
         _, env = launcher.preflight(release, doc['environment'])
@@ -181,9 +219,64 @@ def source_authority(doc, parent):
                 original_runtime_count=len(value['runtime_hashes']), original_authority=authority)
 
 
+def validate_fresh_release(doc, value):
+    """새 환경의 source 증거를 과거 환경의 자격이나 빈 prefix로 대체하지 않는다."""
+    source = doc.get('canonical_manifest', doc['manifest'])
+    source_sha = sha(source)
+    environment = doc['environment']
+    deck = read(source)
+    require(deck.get('count') == len(deck.get('scenes', [])) == 5000
+        and deck.get('config', {}).get('environment_tag') == environment
+        and value.get('bulk_ready') is True and 'qualified_runtime' in value
+        and value.get('qualified_environments') == [environment]
+        and value.get('environment') == environment and value.get('full_manifest') == source
+        and value.get('full_manifest_sha256') == source_sha
+        and value.get('qualification_inputs', {}).get('manifest') == source
+        and value.get('capture_output') == doc.get('canonical_output', doc['output'])
+        and value.get('environments') == {environment:dict(manifest=source,
+            manifest_sha256=source_sha, capture_output=value['capture_output'])},
+        'Fresh release must bind this exact new source/environment/output')
+    adapter = importlib.import_module('fresh_environment_qualification')
+    registration = importlib.import_module('prepare_base5_unit_environment_smoke')
+    require(value.get('qualification_schema') == adapter.QUALIFICATION_SCHEMA
+        and value.get('release_policy') == adapter.POLICY
+        and value.get('fresh_source_adapter') == dict(path=str(physical(adapter.__file__)),
+        sha256=sha(adapter.__file__), registration_schema=registration.SCHEMA),
+        'Fresh release requires its explicitly pinned unit-registration six-gate adapter')
+    require(doc['fixed_pins'].get(str(physical(adapter.__file__))) == sha(adapter.__file__),
+            'Fresh source adapter is missing from the fixed boundary inventory')
+
+
+def validate_fresh_authority(doc, value, saved, parent):
+    original = saved.get('original_authority', {})
+    require(saved.get('schema') == FRESH_AUTHORITY_SCHEMA
+        and saved.get('source_qualification') == 'fresh-six-gate-environment-release'
+        and saved.get('environment') == doc['environment']
+        and saved.get('manifest') == doc['manifest']
+        and saved.get('manifest_sha256') == doc['manifest_sha256']
+        and original.get('passed') is True and original.get('bulk_ready') is True
+        and original.get('environment') == doc['environment']
+        and original.get('manifest_sha256') == doc['manifest_sha256']
+        and original.get('capture_output') == doc['output']
+        and type(original.get('native_exact_observations')) is int
+        and 32 <= original['native_exact_observations'] <= 48
+        and original.get('native_exact_observations') == value.get('native_exact_observations')
+        and original.get('bulk_training_observations') == value.get('bulk_training_observations') == 0
+        and original.get('runtime_hashes') == value['runtime_hashes']
+        and all(value['runtime_hashes'].get(path) == digest for path,digest in doc['runtime_hashes'].items())
+        and original.get('input_hashes') == value['input_hashes']
+        and original.get('gate_evidence') == value['gate_evidence']
+        and original.get('runtime_profile') == parent.profiles()
+        and set(original.get('gate_evidence', {})) == set(parent.GATES),
+        'Fresh six-gate source authority differs from this exact source or original evidence')
+    for gate in original['gate_evidence'].values():
+        require(gate.get('passed') is True and sha(gate['path']) == gate['sha256'],
+                'Fresh six-gate native evidence changed')
+
+
 def validate_profile(doc):
     require(doc.get('schema') == SCHEMA and doc.get('policy') == POLICY
-        and doc.get('environment') in ENVIRONMENTS and doc.get('helper_pins') == helpers(),
+        and doc.get('environment') in ENVIRONMENTS and doc.get('helper_pins') == profile_helpers(doc),
         'Unified profile/helper version changed')
     old, output, manifest = map(physical, (doc['old_output'], doc['output'], doc['manifest']))
     require(old != output and not inside(old, output) and not inside(output, old)
@@ -191,28 +284,43 @@ def validate_profile(doc):
     require(doc.get('native_qa_unchanged') is True and doc.get('common_static_attitude') is True
         and doc.get('common_final_direction_reference') is True and doc.get('automatic_completion') is False,
         'Unified QA/safety policy differs')
+    if 'fresh_start' in doc:
+        canonical_output = physical(doc.get('canonical_output', doc['output']))
+        require(doc['fresh_start'] is True
+            and old == canonical_output.parent/(canonical_output.name+'_fresh_origin')
+            and doc.get('fresh_origin_schema') == FRESH_ORIGIN_SCHEMA,
+            'Fresh profile must declare a separate exact empty origin, never historical capture')
     return doc
 
 
-def build_profile(manifest, release, old_output, output, route_witness=None):
-    manifest, release, old, output = map(physical, (manifest, release, old_output, output))
+def build_profile(manifest, release, old_output, output, route_witness=None, *, fresh_start=False):
+    manifest, release, output = map(physical, (manifest, release, output))
+    require((old_output is None) == fresh_start, 'Fresh prepare forbids historical output; paused prepare requires it')
+    old = output.parent/(output.name+'_fresh_origin') if fresh_start else physical(old_output)
     parent, _ = modules()
     value, deck = read(release), read(manifest)
     require(deck['count'] == len(deck['scenes']) == 5000, 'Exact frozen 5K manifest required')
     require(not output.exists() and output.parent.is_dir(), 'Fresh sibling output required')
     doc = dict(schema=SCHEMA, policy=POLICY, environment=deck['config']['environment_tag'],
         manifest=str(manifest), manifest_sha256=sha(manifest), release=str(release), release_sha256=sha(release),
-        old_output=str(old), output=str(output), helper_pins=helpers(),
+        old_output=str(old), output=str(output),
         native_qa_unchanged=True, common_static_attitude=True, common_final_direction_reference=True,
         automatic_completion=False, chunk_size=16)
+    if fresh_start:
+        require(not old.exists(), 'Fresh origin must not reuse any existing directory')
+        doc.update(fresh_start=True, fresh_origin_schema=FRESH_ORIGIN_SCHEMA)
+    doc['helper_pins'] = profile_helpers(doc)
     if route_witness:
         doc['route_witness'] = dict(path=str(physical(route_witness)), sha256=sha(route_witness))
     supplemental = parent.runtime_hashes()
     require(all(supplemental.get(name, digest) == digest for name, digest in value['runtime_hashes'].items()),
             'A shared frozen runtime file was edited; never qualify a mixed runtime')
-    extras = {str(release): sha(release), str(manifest): sha(manifest), **helpers()}
+    extras = {str(release): sha(release), str(manifest): sha(manifest), **doc['helper_pins']}
+    if fresh_start:
+        audit = value['full_cpu_audit']
+        extras = merge(extras, {audit['path']:audit['sha256']})
     if route_witness:
-        import route_compat
+        route_compat = importlib.import_module('fresh_route_compat' if fresh_start else 'route_compat')
         extras[str(physical(route_witness))] = sha(route_witness)
         extras[str(Path(route_compat.__file__).absolute())] = sha(route_compat.__file__)
     doc['fixed_pins'] = merge(value['input_hashes'], value['runtime_hashes'], supplemental, extras,
@@ -220,6 +328,8 @@ def build_profile(manifest, release, old_output, output, route_witness=None):
     require(not any(inside(physical(filename), root) for filename in doc['fixed_pins'] for root in (old, output)),
             'Live/historical capture output cannot be declared a source boundary input')
     doc['runtime_hashes'] = supplemental
+    if fresh_start:
+        validate_fresh_release(doc, value)
     return validate_profile(doc)
 
 
@@ -302,6 +412,53 @@ def initialize(parent, doc, authority):
     require(parent.run(arguments(doc)) == 0, 'Original parent rejected the imported unified profile')
 
 
+def fresh_empty_prefix(doc):
+    """실제 과거 수집이 없는 새 환경은 명시적인 0장 origin으로만 시작한다."""
+    validate_profile(doc)
+    require(doc.get('fresh_start') is True, 'Explicit fresh prepare is required for an empty prefix')
+    origin, output = physical(doc['old_output']), physical(doc['output'])
+    require(not origin.exists() and not output.exists(), 'Fresh origin/output must both be new')
+    receipt = dict(schema=FRESH_ORIGIN_SCHEMA, fresh_start=True, historical_capture=False,
+        manifest=doc['manifest'], manifest_sha256=doc['manifest_sha256'], environment=doc['environment'],
+        release=doc['release'], release_sha256=doc['release_sha256'], output=doc['output'],
+        selected=[], deficits=[], elapsed_sec=0, helper_pins=doc['helper_pins'])
+    origin.mkdir(mode=0o700)
+    proof = origin/'fresh_empty_origin.json'
+    write_new(proof, receipt)
+    output.mkdir(mode=0o700)
+    write_new(output/'imported_prefix.json', dict(schema=1, manifest_sha256=doc['manifest_sha256'],
+        original_output=str(origin), selected=[], deficits=[], elapsed_sec=0,
+        hashes={str(proof):sha(proof)}, sensor_stats={}, fresh_start=True,
+        fresh_origin_schema=FRESH_ORIGIN_SCHEMA,
+        raw_integrity='No historical capture exists; empty source prefix, no inherited observations'))
+    verify_fresh_prefix(doc)
+    return dict(imported=0, deficits=0, pending=5000, elapsed_sec=0, historical_capture=False,
+        fresh_origin=str(origin))
+
+
+def verify_fresh_prefix(doc):
+    if doc.get('fresh_start') is not True:
+        return
+    origin, output = physical(doc['old_output']), physical(doc['output'])
+    proof = origin/'fresh_empty_origin.json'
+    require(set(origin.iterdir()) == {proof}, 'Fresh empty origin contains unexpected historical data')
+    receipt = read(proof)
+    expected = dict(schema=FRESH_ORIGIN_SCHEMA, fresh_start=True, historical_capture=False,
+        manifest=doc['manifest'], manifest_sha256=doc['manifest_sha256'], environment=doc['environment'],
+        release=doc['release'], release_sha256=doc['release_sha256'], output=doc['output'],
+        selected=[], deficits=[], elapsed_sec=0, helper_pins=doc['helper_pins'])
+    require(receipt == expected, 'Fresh origin does not prove the exact new source and zero inherited observations')
+    prefix = read(output/'imported_prefix.json')
+    require(prefix.get('schema') == 1 and prefix.get('fresh_start') is True
+        and prefix.get('fresh_origin_schema') == FRESH_ORIGIN_SCHEMA
+        and prefix.get('original_output') == str(origin)
+        and prefix.get('manifest_sha256') == doc['manifest_sha256']
+        and prefix.get('selected') == [] and prefix.get('deficits') == []
+        and type(prefix.get('elapsed_sec')) is int and prefix['elapsed_sec'] == 0
+        and prefix.get('hashes') == {str(proof):sha(proof)} and prefix.get('sensor_stats') == {},
+        'Fresh prefix cannot inherit any observations, deficit, elapsed time or unbound evidence')
+
+
 def prepare(doc, profile):
     parent, direction = modules()
     boundary = boundary_for(doc)
@@ -309,8 +466,11 @@ def prepare(doc, profile):
         with boundary.installed(scripts_dir=SCRIPTS, direction_module=direction), route_compatibility(doc):
             authority = source_authority(doc, parent)
             warm_boundary(boundary, doc, direction)
-            summary = handoff.export(Path(doc['manifest']), Path(doc['old_output']), Path(doc['output']),
-                **historical_verifiers(doc, parent))
+            if doc.get('fresh_start') is True:
+                summary = fresh_empty_prefix(doc)
+            else:
+                summary = handoff.export(Path(doc['manifest']), Path(doc['old_output']), Path(doc['output']),
+                    **historical_verifiers(doc, parent))
             doc['source_authority'] = authority
             with qualified_handoff(parent, doc, authority):
                 initialize(parent, doc, authority)
@@ -330,6 +490,8 @@ def refresh_prepared_profile(profile):
     """
     profile = physical(profile)
     previous = read(profile); previous_sha = sha(profile)
+    require(previous.get('fresh_start') is not True,
+            'Fresh empty-origin contracts are immutable; prepare a new separate output after helper changes')
     require(previous.get('schema') == SCHEMA and previous.get('policy') == POLICY,
             'Only the same explicit unified policy can be revised before capture')
     root = physical(previous['output'])
@@ -341,7 +503,7 @@ def refresh_prepared_profile(profile):
         and not (root/'STOP').exists() and not (root/'PAUSE').exists(),
         'Profile revision is forbidden after any main native capture, qualification or halt')
     require(sha(root/'imported_prefix.json') == previous['import_sha256'], 'Prepared import changed')
-    current_helpers = helpers()
+    current_helpers = profile_helpers(previous)
     require(set(previous['helper_pins']) == set(current_helpers), 'Helper scope changed; use a new output')
     doc = copy.deepcopy(previous)
     doc['helper_pins'] = current_helpers
@@ -582,6 +744,15 @@ def qualify_prototype(doc, indices):
         and all(type(index) is int and 0 <= index < 5000 for index in indices),
         'Qualification requires 2..8 explicit unique source indices')
     root = physical(doc['output'])
+    if doc.get('fresh_start') is True:
+        require(len(indices) == 5, 'Fresh common-runtime qualification requires exactly five native scenes')
+        verify_fresh_prefix(doc)
+        require(sha(root/'imported_prefix.json') == doc['import_sha256'], 'Fresh imported prefix changed')
+        state = read(root/'status.json')
+        require(state.get('stage') == 'prepared_waiting_for_resume' and state.get('current') is None
+            and all(state.get(key) == 0 for key in ('finished','accepted_candidate','review','failed'))
+            and not list(root.rglob('session_contract.json')),
+            'Fresh qualification must precede every main native capture')
     qualification_path = root/'unified_live_qualification.json'
     require(not qualification_path.exists(), 'Qualification already exists; preserve its actual evidence')
     parent, direction = modules()
@@ -596,6 +767,8 @@ def qualify_prototype(doc, indices):
     pilot = copy.deepcopy(doc)
     pilot.update(canonical_manifest=doc['manifest'], manifest=str(source), manifest_sha256=sha(source),
                  output=str(folder/'capture'), chunk_size=1)
+    if doc.get('fresh_start') is True:
+        pilot['canonical_output'] = doc['output']
     pilot_boundary = boundary_for(doc)
     started = time.perf_counter()
     try:
@@ -659,9 +832,19 @@ def run(doc, stop_after_chunks=0):
     validate_profile(doc)
     root = physical(doc['output'])
     require(sha(root / 'imported_prefix.json') == doc['import_sha256'], 'Imported prefix changed')
+    verify_fresh_prefix(doc)
     require((root / 'unified_live_qualification.json').is_file(),
             'Common native-profile live qualification must pass before operator bulk start')
     qualification = read(root / 'unified_live_qualification.json')
+    if doc.get('fresh_start') is True:
+        require(qualification.get('schema') == 'base5_unified_native_profile_qualification_v1'
+            and qualification.get('environment') == doc['environment']
+            and qualification.get('captures') == qualification.get('approved') == 5
+            and qualification.get('main_output_native_captures') == 0
+            and len(qualification.get('source_indices', [])) == 5
+            and len(set(qualification['source_indices'])) == 5
+            and qualification.get('proof_hashes'),
+            'Fresh bulk start requires its actual five-scene common-runtime qualification')
     require(qualification.get('passed') is True and qualification.get('policy') == POLICY
         and qualification.get('manifest_sha256') == doc['manifest_sha256']
         and qualification.get('helper_pins') == doc['helper_pins'], 'Live qualification differs')
@@ -711,6 +894,8 @@ def main(argv=None):
     parser.add_argument('--profile', type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--prepare', action='store_true')
+    mode.add_argument('--prepare-fresh', action='store_true',
+        help='Prepare an explicitly empty new-environment prefix; never inherit historical captures')
     mode.add_argument('--run', action='store_true')
     mode.add_argument('--qualify-prototype', action='store_true')
     mode.add_argument('--refresh-prepared-profile', action='store_true')
@@ -727,16 +912,20 @@ def main(argv=None):
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     if args.worker is not None:
-        require(not args.prepare and not args.run and not args.qualify_prototype
+        require(not args.prepare and not args.prepare_fresh and not args.run and not args.qualify_prototype
             and not args.refresh_prepared_profile and args.session_fd is not None
             and args.parent_pid is not None and args.parent_start_ticks, 'Explicit authenticated worker required')
         return run_worker(args)
     require(args.profile is not None and not args.arguments, 'Explicit unified profile required')
     require(args.stop_after_chunks >= 0, 'Nonnegative bounded chunk limit required')
-    if args.prepare:
-        require(all(v is not None for v in (args.manifest, args.release, args.old_output, args.output))
-            and args.confirmed_environment is None, 'Prepare requires explicit source and separate output, no capture')
-        doc = build_profile(args.manifest, args.release, args.old_output, args.output, args.route_witness)
+    if args.prepare or args.prepare_fresh:
+        require(all(v is not None for v in (args.manifest, args.release, args.output))
+            and ((args.old_output is None) if args.prepare_fresh else (args.old_output is not None))
+            and args.confirmed_environment is None and args.indices is None,
+            'Prepare requires explicit source/separate output and correct fresh or historical origin, no capture')
+        require(not physical(args.profile).exists(), 'Prepare requires a new profile; never overwrite an existing contract')
+        doc = build_profile(args.manifest, args.release, args.old_output, args.output, args.route_witness,
+            **({'fresh_start':True} if args.prepare_fresh else {}))
         print(json.dumps(prepare(doc, args.profile), ensure_ascii=False), flush=True)
         return 0
     require(all(v is None for v in (args.manifest, args.release, args.old_output, args.output, args.route_witness)),

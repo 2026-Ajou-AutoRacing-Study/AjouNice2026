@@ -695,3 +695,315 @@ def test_boundary_rechecks_native_bytes_before_cached_authority_can_be_used(prof
     Path(filename).write_text('changed actual native qualification proof')
     with pytest.raises(capture.boundary_module.BoundaryInputError,match='changed at session boundary'):
         boundary.verify()
+
+
+@pytest.fixture
+def fresh_source(tmp_path,monkeypatch):
+    """Actual source/pin/gate bytes with a stub ONLY for the expensive original verifier."""
+    manifest = tmp_path/'fresh_manifest.json'
+    manifest.write_text(json.dumps(dict(count=5000,config=dict(environment_tag='sunny11'),
+        scenes=[dict(id='fresh%04d'%i) for i in range(5000)])))
+    release = tmp_path/'fresh_release.json'
+    adapter_file = tmp_path/'fresh_environment_qualification.py';adapter_file.write_text('# six-gate adapter\n')
+    route_file = tmp_path/'fresh_route_compat.py';route_file.write_text('# exact route witness\n')
+    runtime_file = tmp_path/'original_runtime.py';runtime_file.write_text('# unchanged native QA\n')
+    registration_schema = 'base5_unit_environment_smoke_preregistration_v1'
+    gates = {}
+    for name in ('native_exact','independent_shadow','training_inputs','cpu_regression','partial_resume','completed_resume'):
+        path = tmp_path/(name+'.json');path.write_text(json.dumps(dict(passed=True,gate=name)))
+        gates[name] = dict(path=str(path),sha256=capture.sha(path),passed=True)
+    helper_pins = {str(path):capture.sha(path) for path in (adapter_file,route_file)}
+    monkeypatch.setattr(capture,'helpers',lambda **kwargs:dict(helper_pins))
+    runtime = {str(runtime_file):capture.sha(runtime_file)}
+    profiles = {'regular':'static-attitude','recovery':'strict-final-direction'}
+    parent = SimpleNamespace(runtime_hashes=lambda:dict(runtime),profiles=lambda:dict(profiles),
+        GATES=tuple(gates),qualified_release=Mock(side_effect=AssertionError('No legacy source/old guard')))
+    output = tmp_path/'sunny11_capture'
+    inputs = {str(manifest):capture.sha(manifest),str(adapter_file):capture.sha(adapter_file)}
+    full_audit = tmp_path/'full_source_audit.json';full_audit.write_text('{"status":"OFFLINE_PASS"}')
+    values = dict(qualified_runtime=dict(runtime_profile=profiles),bulk_ready=True,
+        qualification_schema='fresh-environment-test-schema',release_policy='fresh-environment-test-policy',
+        qualified_environments=['sunny11'],environment='sunny11',full_manifest=str(manifest),
+        full_manifest_sha256=capture.sha(manifest),capture_output=str(output),
+        qualification_inputs=dict(manifest=str(manifest)),
+        environments={'sunny11':dict(manifest=str(manifest),manifest_sha256=capture.sha(manifest),capture_output=str(output))},
+        input_hashes=inputs,runtime_hashes=runtime,gate_evidence=gates,
+        native_exact_observations=32,bulk_training_observations=0,
+        full_cpu_audit=dict(path=str(full_audit),sha256=capture.sha(full_audit)),
+        fresh_source_adapter=dict(path=str(adapter_file),sha256=capture.sha(adapter_file),registration_schema=registration_schema))
+    release.write_text(json.dumps(values))
+    original = dict(passed=True,bulk_ready=True,environment='sunny11',manifest_sha256=capture.sha(manifest),
+        capture_output=str(output),runtime_hashes=runtime,input_hashes=inputs,runtime_profile=profiles,
+        native_exact_observations=32,bulk_training_observations=0,gate_evidence=gates)
+    adapter = SimpleNamespace(__file__=str(adapter_file),qualified_release_context=Mock(return_value=original),
+        QUALIFICATION_SCHEMA=values['qualification_schema'],POLICY=values['release_policy'])
+    monkeypatch.setitem(capture.sys.modules,'fresh_environment_qualification',adapter)
+    monkeypatch.setitem(capture.sys.modules,'prepare_base5_unit_environment_smoke',SimpleNamespace(SCHEMA=registration_schema))
+    monkeypatch.setattr(capture,'modules',lambda:(parent,SimpleNamespace()))
+    doc = capture.build_profile(manifest,release,None,output,fresh_start=True)
+    return doc,values,parent,adapter,original
+
+
+def test_fresh_build_is_explicit_new_environment_and_creates_no_native_or_origin_files(fresh_source):
+    doc,_,_,adapter,_ = fresh_source
+    assert doc['fresh_start'] is True and doc['fresh_origin_schema'] == capture.FRESH_ORIGIN_SCHEMA
+    assert Path(doc['old_output']) == Path(doc['output']).with_name(Path(doc['output']).name+'_fresh_origin')
+    assert not Path(doc['old_output']).exists() and not Path(doc['output']).exists()
+    assert doc['automatic_completion'] is False
+    assert doc['helper_pins'][adapter.__file__] == capture.sha(adapter.__file__)
+    adapter.qualified_release_context.assert_not_called()
+
+
+@pytest.mark.parametrize('fresh,old',[ (True,'historical'),(False,None) ])
+def test_fresh_and_paused_origins_cannot_be_confused(fresh_source,fresh,old):
+    doc,_,_,_,_ = fresh_source
+    with pytest.raises(RuntimeError,match='Fresh prepare forbids'):
+        capture.build_profile(doc['manifest'],doc['release'],old,doc['output'],fresh_start=fresh)
+
+
+def test_fresh_source_runs_actual_adapter_without_inventing_old_history(fresh_source):
+    doc,_,parent,adapter,original = fresh_source
+    authority = capture.source_authority(doc,parent)
+    adapter.qualified_release_context.assert_called_once_with(Path(doc['release']),'sunny11',Path(doc['manifest']))
+    parent.qualified_release.assert_not_called()
+    assert authority['schema'] == capture.FRESH_AUTHORITY_SCHEMA
+    assert authority['source_qualification'] == 'fresh-six-gate-environment-release'
+    assert authority['environment'] == 'sunny11' and authority['original_authority'] == original
+    assert not Path(doc['old_output']).exists()
+    doc['source_authority'] = authority
+    again = capture.source_authority(doc,parent)
+    assert again == authority and again is not authority
+    assert adapter.qualified_release_context.call_count == 1
+
+
+@pytest.mark.parametrize('change',['environment','manifest','manifest_sha','qualification_manifest','output','environment_map',
+    'support_only','adapter_sha','adapter_path','registration_schema','deck_environment','missing_adapter_pin'])
+def test_fresh_release_cannot_reuse_old_environment_source_or_unpinned_adapter(fresh_source,change):
+    doc,values,parent,adapter,_ = fresh_source
+    if change == 'environment':values['environment'] = 'sunny13'
+    elif change == 'manifest':values['full_manifest'] += '.old'
+    elif change == 'manifest_sha':values['full_manifest_sha256'] = 'a'*64
+    elif change == 'qualification_manifest':values['qualification_inputs']['manifest'] += '.old'
+    elif change == 'output':values['capture_output'] += '.old'
+    elif change == 'environment_map':values['environments']['sunny11']['manifest'] += '.old'
+    elif change == 'support_only':values.pop('qualified_runtime')
+    elif change == 'adapter_sha':values['fresh_source_adapter']['sha256'] = 'a'*64
+    elif change == 'adapter_path':values['fresh_source_adapter']['path'] += '.old'
+    elif change == 'registration_schema':values['fresh_source_adapter']['registration_schema'] = 'legacy-assembled'
+    elif change == 'deck_environment':
+        deck = capture.read(doc['manifest']);deck['config']['environment_tag'] = 'sunny13'
+        Path(doc['manifest']).write_text(json.dumps(deck));doc['manifest_sha256'] = capture.sha(doc['manifest'])
+    else:doc['fixed_pins'].pop(adapter.__file__)
+    Path(doc['release']).write_text(json.dumps(values));doc['release_sha256'] = capture.sha(doc['release'])
+    with pytest.raises(RuntimeError,match='Fresh release|Fresh source adapter'):
+        capture.source_authority(doc,parent)
+    adapter.qualified_release_context.assert_not_called()
+
+
+@pytest.mark.parametrize('change',['native31','native49','native_bool','environment','manifest_sha','output','runtime',
+    'input_hashes','profile','passed','bulk','bulk_training','missing_gate','false_gate'])
+def test_fresh_actual_deep_result_must_preserve_every_native_runtime_and_gate_guard(fresh_source,change):
+    doc,_,parent,_,original = fresh_source
+    if change.startswith('native'):
+        original['native_exact_observations'] = {'native31':31,'native49':49,'native_bool':True}[change]
+    elif change == 'environment':original['environment'] = 'sunny13'
+    elif change == 'manifest_sha':original['manifest_sha256'] = 'a'*64
+    elif change == 'output':original['capture_output'] += '.old'
+    elif change == 'runtime':original['runtime_hashes'] = {}
+    elif change == 'input_hashes':original['input_hashes'] = {}
+    elif change == 'profile':original['runtime_profile'] = {}
+    elif change == 'passed':original['passed'] = False
+    elif change == 'bulk':original['bulk_ready'] = False
+    elif change == 'bulk_training':original['bulk_training_observations'] = 1
+    elif change == 'missing_gate':original['gate_evidence'] = {k:v for k,v in original['gate_evidence'].items() if k != 'native_exact'}
+    else:
+        original['gate_evidence'] = capture.copy.deepcopy(original['gate_evidence'])
+        original['gate_evidence']['native_exact']['passed'] = False
+    with pytest.raises(RuntimeError,match='Fresh source|Fresh six-gate'):
+        capture.source_authority(doc,parent)
+
+
+@pytest.mark.parametrize('change',['schema','source_type','source','environment','legacy_result','missing_evidence_pin'])
+def test_fresh_cached_authority_never_accepts_legacy_source_qualification(fresh_source,change):
+    doc,_,parent,_,_ = fresh_source
+    doc['source_authority'] = capture.source_authority(doc,parent)
+    saved = doc['source_authority']
+    if change == 'schema':saved['schema'] = 'old-schema'
+    elif change == 'source_type':saved['source_qualification'] = 'original-six-gate-environment-release'
+    elif change == 'source':saved['manifest'] += '.old'
+    elif change == 'environment':saved['environment'] = 'sunny13'
+    elif change == 'legacy_result':saved['original_authority']['native_exact_observations'] = 0
+    else:doc['fixed_pins'].pop(next(iter(saved['original_authority']['input_hashes'])))
+    with pytest.raises(RuntimeError,match='Fresh six-gate|complete boundary evidence pins'):
+        capture.source_authority(doc,parent)
+
+
+def test_fresh_zero_prefix_is_accepted_by_unchanged_original_import_verifier(fresh_source,monkeypatch):
+    doc,_,_,_,_ = fresh_source
+    result = capture.fresh_empty_prefix(doc)
+    assert result['imported'] == result['deficits'] == result['elapsed_sec'] == 0
+    assert result['pending'] == 5000 and result['historical_capture'] is False
+    monkeypatch.syspath_prepend(str(capture.SCRIPTS))
+    import base5_campaign_import
+    assert base5_campaign_import.verify(Path(doc['output'])/'imported_prefix.json',
+        Path(doc['manifest']),list(range(5000))) == ([],[],0)
+    assert list(Path(doc['output']).iterdir()) == [Path(doc['output'])/'imported_prefix.json']
+    assert len(list(Path(doc['old_output']).iterdir())) == 1
+
+
+@pytest.mark.parametrize('change',['selected','deficits','elapsed','float_elapsed','source','origin','hashes','sensor_stats','origin_extra','origin_changed'])
+def test_fresh_prefix_may_not_inherit_history_or_change_its_empty_origin(fresh_source,change):
+    doc,_,_,_,_ = fresh_source;capture.fresh_empty_prefix(doc)
+    path = Path(doc['output'])/'imported_prefix.json';prefix = capture.read(path)
+    if change == 'selected':prefix['selected'] = [{'source_cell_id':'fresh0000'}]
+    elif change == 'deficits':prefix['deficits'] = [{'id':'fresh0000'}]
+    elif change == 'elapsed':prefix['elapsed_sec'] = 1
+    elif change == 'float_elapsed':prefix['elapsed_sec'] = 0.0
+    elif change == 'source':prefix['manifest_sha256'] = 'a'*64
+    elif change == 'origin':prefix['original_output'] += '.old'
+    elif change == 'hashes':prefix['hashes'] = {}
+    elif change == 'sensor_stats':prefix['sensor_stats'] = {'old-raw':[1,2]}
+    elif change == 'origin_extra':(Path(doc['old_output'])/'old_ledger.jsonl').write_text('{}\n')
+    else:(Path(doc['old_output'])/'fresh_empty_origin.json').write_text('{}')
+    path.write_text(json.dumps(prefix))
+    with pytest.raises(RuntimeError,match='Fresh origin|Fresh prefix|Fresh empty origin'):
+        capture.verify_fresh_prefix(doc)
+
+
+@pytest.mark.parametrize('which',['old_output','output'])
+def test_fresh_bootstrap_never_reuses_any_existing_capture_directory(fresh_source,which):
+    doc,_,_,_,_ = fresh_source
+    folder = Path(doc[which]);folder.mkdir();(folder/'preserve').write_text('original')
+    with pytest.raises(RuntimeError,match='must both be new'):capture.fresh_empty_prefix(doc)
+    assert (folder/'preserve').read_text() == 'original'
+
+
+def test_fresh_prepare_writes_only_zero_prefix_and_never_calls_paused_export_or_native(fresh_source,tmp_path,monkeypatch):
+    doc,_,parent,_,_ = fresh_source
+    boundary = SimpleNamespace(installed=lambda **kwargs:nullcontext(),verify=Mock())
+    monkeypatch.setattr(capture,'boundary_for',lambda doc:boundary)
+    monkeypatch.setattr(capture,'route_compatibility',lambda doc:nullcontext())
+    monkeypatch.setattr(capture,'warm_boundary',Mock())
+    old_export = Mock(side_effect=AssertionError('Fresh source must not import historical data'))
+    monkeypatch.setattr(capture.handoff,'export',old_export)
+    def initialize(used_parent,used_doc,authority):
+        assert used_parent is parent and used_doc['source_authority'] == authority
+        assert authority['schema'] == capture.FRESH_AUTHORITY_SCHEMA
+        capture.verify_fresh_prefix(used_doc)
+    init = Mock(side_effect=initialize);monkeypatch.setattr(capture,'initialize',init)
+    profile_path = tmp_path/'fresh_profile.json'
+    result = capture.prepare(doc,profile_path)
+    assert result['native_captures'] == 0 and result['automatically_started'] is False
+    assert result['imported']['imported'] == result['imported']['deficits'] == 0
+    saved = capture.read(profile_path)
+    assert saved['import_sha256'] == capture.sha(Path(doc['output'])/'imported_prefix.json')
+    old_export.assert_not_called();init.assert_called_once();boundary.verify.assert_called_once()
+
+
+def test_fresh_prepare_cannot_create_an_origin_before_actual_source_gates_pass(fresh_source,tmp_path,monkeypatch):
+    doc,_,_,adapter,_ = fresh_source
+    boundary = SimpleNamespace(installed=lambda **kwargs:nullcontext(),verify=Mock())
+    monkeypatch.setattr(capture,'boundary_for',lambda doc:boundary)
+    monkeypatch.setattr(capture,'route_compatibility',lambda doc:nullcontext())
+    adapter.qualified_release_context.side_effect = RuntimeError('Actual native32 gate failed')
+    with pytest.raises(RuntimeError,match='Actual native32'):capture.prepare(doc,tmp_path/'profile.json')
+    assert not Path(doc['old_output']).exists() and not Path(doc['output']).exists()
+    boundary.verify.assert_called_once()
+
+
+def test_fresh_cli_prepare_requires_no_history_and_uses_explicit_mode(tmp_path,monkeypatch):
+    doc = {'fresh':'source'};build = Mock(return_value=doc);prepare = Mock(return_value={'native_captures':0})
+    monkeypatch.setattr(capture,'build_profile',build);monkeypatch.setattr(capture,'prepare',prepare)
+    manifest,release,output,profile_path = (tmp_path/name for name in ('manifest','release','output','profile'))
+    values = ['--profile',str(profile_path),'--prepare-fresh','--manifest',str(manifest),
+        '--release',str(release),'--output',str(output)]
+    assert capture.main(values) == 0
+    build.assert_called_once_with(manifest,release,None,output,None,fresh_start=True)
+    prepare.assert_called_once_with(doc,profile_path)
+    with pytest.raises(RuntimeError,match='correct fresh or historical origin'):
+        capture.main(values+['--old-output',str(tmp_path/'old')])
+    assert build.call_count == 1
+
+
+def test_fresh_profile_revision_requires_new_output_not_modified_origin(fresh_source,tmp_path):
+    doc,_,_,_,_ = fresh_source
+    path = tmp_path/'profile.json';path.write_text(json.dumps(doc))
+    with pytest.raises(RuntimeError,match='Fresh empty-origin contracts are immutable'):
+        capture.refresh_prepared_profile(path)
+
+
+def test_fresh_route_adapter_is_scoped_to_fresh_profiles_and_uses_canonical_source(fresh_source,tmp_path,monkeypatch):
+    doc,_,_,_,_ = fresh_source
+    witness = tmp_path/'route.json';witness.write_text('{}')
+    doc['route_witness'] = dict(path=str(witness),sha256=capture.sha(witness))
+    calls = []
+    @contextmanager
+    def installed(*args,**kwargs):
+        calls.append((args,kwargs));yield
+    monkeypatch.setitem(capture.sys.modules,'fresh_route_compat',SimpleNamespace(installed=installed))
+    gen,extent = object(),object()
+    monkeypatch.setitem(capture.sys.modules,'generate_base5_independent',gen)
+    monkeypatch.setitem(capture.sys.modules,'base5_static_mission_extent',extent)
+    doc['canonical_manifest'] = doc['manifest'];doc['manifest'] = str(tmp_path/'pilot_source.json')
+    with capture.route_compatibility(doc):pass
+    assert calls == [((str(witness),),dict(generator=gen,extent=extent,
+        manifest=doc['canonical_manifest'],expected_witness_sha256=capture.sha(witness)))]
+
+
+@pytest.mark.parametrize('indices',[[0,1],[0,1,2,3],[0,1,2,3,4,5]])
+def test_fresh_common_runtime_requires_exactly_five_native_qualification_scenes(fresh_source,indices):
+    doc,_,_,_,_ = fresh_source
+    with pytest.raises(RuntimeError,match='exactly five'):capture.qualify_prototype(doc,indices)
+
+
+def test_fresh_pilot_keeps_canonical_output_and_empty_origin_separate_from_its_native_capture(fresh_source,tmp_path,monkeypatch):
+    doc,_,parent,_,_ = fresh_source
+    capture.fresh_empty_prefix(doc);root = Path(doc['output'])
+    doc['import_sha256'] = capture.sha(root/'imported_prefix.json')
+    (root/'status.json').write_text(json.dumps(dict(stage='prepared_waiting_for_resume',current=None,
+        finished=0,accepted_candidate=0,review=0,failed=0)))
+    selected = [0,10,20,30,40];calls = [];routed = []
+    def subset(deck,entries):
+        return dict(deck,count=len(entries),scenes=entries)
+    def execute(*args,**kwargs):
+        assert kwargs['_verification'] == {}
+        kwargs['_verification'].update(selected={str(i):{} for i in selected},deficits={});return 0
+    parent.batch = SimpleNamespace(campaign=SimpleNamespace(subset_deck=subset),execute=execute)
+    def native(args):
+        calls.append(args)
+        pilot = Path(args.output);pilot.mkdir(exist_ok=True)
+        if len(calls) == 3:return parent.batch.execute(args.manifest,range(5),pilot)
+        paused = len(calls) == 1
+        (pilot/'status.json').write_text(json.dumps(dict(stage='paused' if paused else 'complete',
+            finished=1 if paused else 5,accepted_candidate=1 if paused else 5,review=0,failed=0)))
+        return 0
+    parent.run = Mock(side_effect=native);parent.completed_snapshot = lambda path:{'unchanged':'actual proof bytes'}
+    boundary = SimpleNamespace(installed=lambda **kwargs:nullcontext(),verify=Mock(),stats={})
+    monkeypatch.setattr(capture,'boundary_for',lambda doc:boundary)
+    monkeypatch.setattr(capture,'warm_boundary',lambda *args:None)
+    monkeypatch.setattr(capture,'route_compatibility',lambda doc:nullcontext())
+    monkeypatch.setattr(capture.handoff,'verify_exit',Mock())
+    @contextmanager
+    def router(pilot,boundary):
+        capture.validate_profile(pilot)
+        assert pilot['canonical_manifest'] == doc['manifest'] and pilot['canonical_output'] == doc['output']
+        assert pilot['old_output'] == doc['old_output']
+        assert Path(pilot['manifest']).parent.name == 'source'
+        assert Path(pilot['output']).name == 'capture'
+        routed.append(pilot);yield
+    monkeypatch.setattr(capture,'routed_workers',router)
+    receipt = capture.qualify_prototype(doc,selected)
+    assert receipt['captures'] == receipt['approved'] == 5 and receipt['main_output_native_captures'] == 0
+    assert receipt['actual_pause_resume'] is True and receipt['completed_replay_no_new_capture'] is True
+    assert len(routed) == 1 and len(calls) == 3
+    assert not list(root.rglob('session_contract.json'))
+    capture.verify_fresh_prefix(doc);boundary.verify.assert_called_once()
+
+
+def test_fresh_run_cannot_replace_common_five_native_proofs_with_source_release_marker(fresh_source,monkeypatch):
+    doc,_,_,_,_ = fresh_source;capture.fresh_empty_prefix(doc)
+    root = Path(doc['output']);doc['import_sha256'] = capture.sha(root/'imported_prefix.json')
+    path = root/'unified_live_qualification.json'
+    path.write_text(json.dumps(dict(passed=True,policy=capture.POLICY,manifest_sha256=doc['manifest_sha256'],
+        helper_pins=doc['helper_pins'],proof_hashes={})))
+    with pytest.raises(RuntimeError,match='actual five-scene'):capture.run(doc)
