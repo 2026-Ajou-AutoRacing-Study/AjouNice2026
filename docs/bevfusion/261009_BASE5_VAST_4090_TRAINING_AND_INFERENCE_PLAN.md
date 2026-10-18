@@ -511,6 +511,56 @@ AjouNice2026/model/bevfusion/base5/sunny15_ab_261018/checkpoint_backups/
 과거 문서 개편 자체는 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.
 위에 명시한 10/18 데이터 전달·새 설정 준비 실행과 구분한다.
 
+<a id="sunny15-restarts-e8-result-backup-261019"></a>
+
+### Sunny15 restart E8 완료·수동 Drive 백업 — 2026-10-19
+
+일반 코사인과 재시작형 모두 8 epoch·exit 0으로 완료했고 각 자체 val best는 E8이다.
+원격 `run_manifest.json`의 identity를 재귀 비교해 차이가 `param_schedulers`뿐임을 확인했다.
+재시작형 실제 로그는 10/18 23:44:06~10/19 01:30:48 KST, 1시간 46분 42초다.
+일반 코사인은 1시간 46분 57초다. 15초 차이를 유의미한 학습 처리속도 개선으로 해석하지 않는다.
+
+| 같은 Sunny15 val, E8 | 일반 코사인 | Warm-up restart |
+|---|---:|---:|
+| 전체 center mAP | 88.49% | 88.05% |
+| Vehicle | 94.60% | 95.12% |
+| Pedestrian | 91.17% | 90.09% |
+| Obstacle | 79.69% | 78.93% |
+| Obstacle 0~10m | 86.74% | 87.23% |
+| Obstacle 20~30m | 71.06% | 69.99% |
+| Vehicle 80~100m | 73.09% | 74.43% |
+
+재시작형은 E4 86.49% → E5 84.78%로 일시 하락한 뒤 E8 88.05%까지 회복했다.
+이번 짧은 예산에서는 전체 성능·20~30m 장애물의 개선을 확인하지 못했다.
+단일 seed 대조이므로 일반적인 scheduler 우열이나 30K 최종 성능을 인증하지 않는다.
+현재 일반 코사인을 주 후보로 유지하며 production E24·학습 설정은 변경하지 않았다.
+원본 scalar 로그는 `artifacts/evaluation/bevfusion/sunny15_ab_result_261019/`에 회수했다.
+W&B 전체 동기화 완료 여부와 원본 로그 정상 완료는 별도다.
+
+사용자 승인으로 restart best E8과 full E8을 로컬 경유 수동 백업한다.
+원격 CPU 검증으로 두 파일의 계약·epoch 8·iteration 8,504와 전체 SHA를 확인했다.
+full은 optimizer·scheduler·AMP scaler·RNG·message hub를 포함하며 best는 weights-only다.
+
+| 파일 | 바이트 | SHA256 |
+|---|---:|---|
+| `best_val_center_mAP_epoch_8.pth` | 202,071,999 | `c231f3abf3136179146b6dbeabf66c9d33e4ec5254936cf7f543d0fbf8022114` |
+| `epoch_8.pth` | 521,239,685 | `1bbb0a56305442259e0ac0d2fb9b6496eed3f21290d90fe3be8162ded3ecd8c8` |
+
+계약은 `7d345c6b32761b3fbd2ba5180fa1a2181325ce35003ffe11c0031111839af8f8`이다.
+자동 백업과 충돌하지 않는 별도 prefix를 사용한다.
+
+```text
+AjouNice2026/model/bevfusion/base5/sunny15_ab_261018/checkpoint_backups/
+  manual_e8_recovery_261019/restarts/<checkpoint SHA256>/
+```
+
+로컬 실행 근거는 위 결과 폴더의 `restart_e8_backup/progress.jsonl`·
+`source_verification.json`·`receipt.json`이다. 2026-10-19 03:31 KST 두 파일의
+payload·설정·계약·검증 증거·COMPLETE 전체 readback을 완료했다. full용 `LATEST.json`도
+재읽기 검증을 통과했다. 원격→로컬 병렬 SSH 수신 뒤 전체 SHA를 대조하고 Drive로 올렸다.
+full 수신은 약 14분 15초가 걸렸으며, Drive payload 업로드·전체 재읽기는 약 45초였다.
+기존 자동 백업 상태를 성공으로 덮어쓰거나 원격 가중치·Sunny11 수집을 수정하지 않는다.
+
 ## 기존 링크 호환
 
 <a id="base5-user-oneclick-training-261011"></a>

@@ -12,15 +12,15 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 
 | 항목 | 현재 선택과 상태 |
 |---|---|
-| 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인은 8 epoch 정상 완료하며 마지막 E8이 자체 val best |
+| 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인과 warm-up restart는 모두 8 epoch 정상 완료하며 각각 마지막 E8이 자체 val best |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
 | 이미지 | Q90 JPEG, 모델 입력 512×1056, resize 0.825. [512/576 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) 후 현재 크기 유지. native 크기·homography 보존 |
 | 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
-| 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 cosine은 compile OFF·nearest·batch 4로 약 1시간 47분에 완료했다. 사용자 요청으로 10/18 23:43 KST 동일 데이터의 **warm-up restart 8 epoch**를 새로 시작했다. 두 run identity 차이는 scheduler뿐이다. E8 resume가 아니며 첫 train·GPU·W&B running을 확인했다. [완료·다음 실험](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-cosine-complete-restarts-start-261018)을 따른다 |
-| 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine의 **best E8·full E8도 10/19 00:10 KST 로컬 경유 수동 Drive 백업·전체 SHA readback·metadata·COMPLETE·full용 LATEST 검증을 완료**했다. full은 학습 상태를 포함하며 best는 weights-only다. 원격 원본은 보존한다. 자동 전송의 속도·1,200초 제한 문제나 후속 restart 백업까지 해결했다는 뜻은 아니다. [수동 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-e8-manual-drive-backup-261019)를 따른다. rosbag val은 train에 혼합하지 않음 |
+| 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 두 후보는 compile OFF·nearest·batch 4이며 각각 약 1시간 47분에 완료했다. 두 run identity 차이는 scheduler뿐이며 restart는 cosine E8 resume가 아니다. 동일 val의 center mAP는 cosine 88.49% / restart 88.05%다. 단일 seed의 결과로 일반적인 우열을 단정하지 않으며 짧은 학습 예산의 우선 후보는 일반 코사인으로 유지한다. [대조 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-restarts-e8-result-backup-261019)를 따른다 |
+| 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine은 10/19 00:10 KST, restart는 03:31 KST에 각각 best E8·full E8 수동 Drive 백업·전체 SHA readback·metadata·COMPLETE·full용 LATEST 검증을 완료했다. full은 학습 상태를 포함하며 best는 weights-only다. 원격 원본은 보존한다. 자동 전송의 속도·1,200초 제한 문제를 해결했다는 뜻은 아니다. [cosine 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-e8-manual-drive-backup-261019)와 아래 restart 백업 근거를 따른다. rosbag val은 train에 혼합하지 않음 |
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.
@@ -36,7 +36,14 @@ E24의 실제 입력 계약과 대조했고 같은 JPEG·GT·보정 규칙을 �
 실제 train의 해당 GT는 610→677개로 늘었다. 새 native 716개 중 센서 지원이 없는 39개를
 제외한 수이며, 주된 보강은 0~20m에 집중됐다. [첫 8 epoch·GT 대조](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-first8-distance-review-261019)를 따른다.
 공통 val/bag의 새 E8 대 E24 교차 평가는 아직 하지 않았고 production은 E24를 유지한다.
-후속 재시작형은 4 epoch×2주기·주기별 500 iteration warm-up, 동일 초기화·seed·학습 예산이다.
+완료 재시작형은 4 epoch×2주기·주기별 500 iteration warm-up, 동일 초기화·seed·학습 예산이다.
+restart E8은 vehicle 95.12 / pedestrian 90.09 / obstacle 78.93%다. 차량 일부 지표는 높지만
+장애물 20~30m는 cosine 71.06 / restart 69.99%로 이번 scheduler 변경으로 해결되지 않았다.
+restart의 best E8(weights-only)과 full E8(optimizer·scheduler·AMP·RNG 포함)도
+10/19 03:31 KST 수동 Drive 백업을 완료했다. 두 payload와 metadata·COMPLETE,
+full용 LATEST를 전체 재읽기·SHA로 검증했으며 원격 원본은 보존했다.
+[restart 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-restarts-e8-result-backup-261019)를 따른다.
+이는 기존 자동 백업 오류를 고치거나 그 상태를 성공으로 덮어쓴 것이 아니다.
 학습 정상 종료·W&B 수신·실제 Drive 백업 완료는 구분한다.
 [변환·전송 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md#sunny15-training-package)를 따른다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
