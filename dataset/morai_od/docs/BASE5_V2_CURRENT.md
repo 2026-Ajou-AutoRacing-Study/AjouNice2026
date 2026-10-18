@@ -33,13 +33,19 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 기존 4,999개 선택 행·원본·실패·세 번의 후보 부족 이력은 보존했고, 5,000개의 ID·원본 경로·payload가
 각각 고유함을 확인했다. 마지막 한 장만 동물 의미군·정적 미션은 유지하고 거리 목적을 5~30m로
 완화해 Dog1 약 7.86m의 새 장면을 촬영했다. native QA·최종 P를 통과했다.
-실제 선택 기반 train 4,250 / val 750 분할도 확정했다. 새 Sunny13 JPEG/학습 전달본은 아직 만들지 않았다.
+실제 선택 기반 train 4,250 / val 750 분할도 확정했다. 사용자 승인으로 Sunny15와 같은
+Q90/upright 3클래스 전체 검증·변환과 **약 3.38GB 단일 압축본의 전 멤버 검증까지 완료**했다.
+JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 전후 동일을 확인했다.
+보고서·원본 snapshot·압축 SHA 목록은 로컬에 회수했다. 압축본 자체의 로컬 회수는 아직
+완료하지 않았다. SSH 속도가 8MB/s 기준에 못 미쳐 재측정 또는 사용자 허용을 기다린다.
+현재 경로·원본 보존·전송 상태는 [Sunny13 전달본](261018_base5_unified_generation_capture.md#borrowed-sunny13-training-package)을 따른다.
 현재 출력·명령은 [원격 유연 보충](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)을 따른다.
 최종 보충 관측기는 `borrowed_completion_dashboard.py --terminal-animal`이며 빌린 PC 8077/이 PC 8078을 쓴다.
 플래그 없는 기존 보충 관측기는 이전 4,999장 출력이다. `recovered_dashboard.py`의 기존 8075/이 PC 8076과
 구 `unified_dashboard.py --borrowed`는 이전 본수집 출력이다. 과거
 [crash 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)는 그대로 보존한다.
-새 Sunny15의 native 수집·Q90/upright 학습 전달본 검증은 완료했다. Vast 전달과 학습 시작은 별도다.
+새 Sunny15의 native 수집·Q90/upright 학습 전달본과 Vast 전달도 완료했다.
+전달본 검증과 실제 학습 상태는 별도 단계로 구분하며 학습 상태는 모델 CURRENT를 따른다.
 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 

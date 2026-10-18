@@ -673,7 +673,8 @@ relabel하지 않는다. 기존 동결 4파일 runtime은 그대로이고 새 �
 - derived ledger SHA: `516419ed47c6a0b1b2089c85251638421d0a04dbb29891cdd4f241d0c28e716c`
 
 분할 확정도 추가 촬영 없이 완료했다. 이는 native 수집·선택·파생 분할 완료이며,
-새 Sunny13 JPEG/GT 전달본·전송·학습이 완료됐다는 뜻은 아니다.
+새 Sunny13 JPEG/GT 전달본·전송·학습이 완료됐다는 뜻은 아니다. 이후 전달본 준비 상태는
+[Sunny13 변환·회수](#borrowed-sunny13-training-package)를 따른다.
 로컬 근거는 `artifacts/evaluation/base5_borrowed_completion_261018/final_selection_receipt.json`이며,
 별도 호스트 실행 기록은 같은 폴더의 `terminal_animal_host.py`다.
 
@@ -690,6 +691,106 @@ python3 -B ~/ajounice_base5_capture/work/completion-observer-terminal-animal-v1/
 ```bash
 python3 -m json.tool ~/ajounice_base5_capture/collections/sunny13_5k_terminal_animal_v1/status.json
 ```
+
+<a id="borrowed-sunny13-training-package"></a>
+
+## 빌린 PC Sunny13의 Q90 학습 전달본과 로컬 회수
+
+사용자는 수집 완료를 확인한 뒤 Sunny15와 같은 PNG→JPEG 변환·압축·로컬 회수를 요청했다.
+5,000장·부족 0·최종 P와 실제 분할 확정 후 별도의 CPU 파생 작업을 시작했다.
+기존 수집기·원형 bundle·native 승인·실패 근거·PNG는 수정하거나 삭제하지 않는다.
+Vast 학습에도 손대지 않는다. 초기 여유 공간은 빌린 PC 약 191GiB, 로컬 약 117GiB다.
+
+### 같은 변환 규칙과 원본 보호
+
+- `training_convert_adapter.py`와 `pack_training.py`·`finish.py`는 Sunny15와 동일한 파일을 사용한다.
+- Sunny15 `report.json`에 기록된 CPU 의존 코드 11개와 센서 SHA를 원격 논리 경로에서 모두 대조했다.
+  3개 핵심 변환기 SHA와 frame-admission adapter SHA도 같다.
+- 원본 크기의 RGB를 Q90으로 한 번 변환한다. 이미지를 512×1056으로 미리 잘라 저장하지 않는다.
+  native full-RPY/upright 7D·component·ROI·calibration·Animal→Pedestrian 정책은 그대로다.
+- 빌린 PC OpenCV는 4.8.1, Sunny15 로컬은 4.2.0이다. 같은 함수·Q90 규칙을 확인한 것이며,
+  전체 JPEG의 라이브러리 버전 간 바이트 동일성을 확인했다고 주장하지 않는다.
+- namespace에서 전체 workspace와 MORAI 경로를 읽기 전용으로 두고 새 export 한 곳만 쓰기 허용한다.
+  네트워크도 분리한다. 첫 native→PNG portable 복사만 `hardlink` 대신 `copy`로 바꿔
+  RO bind 사이의 `EXDEV`를 피한다. 픽셀·GT가 아닌 저장 I/O만 바꾸며 후속 파생 단계의
+  하드링크는 유지한다. 원형 함수 SHA·signature·정확히 한 번의 호출·복원을 검사한다.
+- 이후 압축은 전달본과 최소 provenance만 포함한다. 캐시·RGB PNG·실패 수집물·인증정보는
+  넣지 않는다. 최종 archive와 receipt는 같은 export mount 안에 둔다.
+
+새 실행기는 `scripts/portable_base5/borrowed_training_export.py`이고 원격 배포는
+`~/ajounice_base5_capture/work/training-export-runtime-v1/`이다. 새 파생 root는
+`~/ajounice_base5_capture/work/sunny13-training-export-v1/`이다.
+호스트 namespace 실행기와 11개 기준 SHA는 로컬
+`artifacts/evaluation/base5_borrowed_completion_261018/host_training_export.py`,
+`training_export_deployment.json`, `sunny15_conversion_reference.json`에 남긴다.
+원격 실행 중 이 배포의 코드는 수정하지 않는다.
+
+계획 검사 뒤 **전체 5K qualification과 단일 압축본 전수 검증을 완료했다**.
+원형 변환 규칙으로 5,000장 모두 유지됐고 별도 primary-crop 예외 장면은 0개다.
+새 실행기와 로컬 안전 복원기까지 portable 회귀 **1,372개**를 통과했다.
+기존 출력의 실패나 부분 산출물을 덮어쓰지 않았다.
+로컬 복원은 `verify_retrieved_training.py`가 압축본 전체 SHA, 전 멤버 SHA·크기,
+5K portable 계약·상대 경로·4카메라·분할을 검사하며 링크·경로 탈출·중복을 거부한다.
+
+### 원격 완료 결과와 회수 경계
+
+| 확인 항목 | 실제 결과 |
+|---|---|
+| 고유 관측 / 최종 infos | 5,000 / 5,000장 |
+| 최종 split | train 4,250 / val 750 / test 0 |
+| 유효 GT | 11,653개: Vehicle 4,496 / Pedestrian 3,229 / Obstacle 3,928 |
+| 지원 component 누락 / 추가 | 0 / 0 |
+| JPEG 전수 입력 검사 | 20,000개, 원본 해상도 Q90, 실제 512×1056 입력 변환 확인 |
+| RGB PNG → JPEG 합계 | 17,977,477,781 → 1,629,710,045바이트 |
+| 전체 qualification 시간 | 1,261.73초, 약 21분. 그중 Q90 이미지 생성 440.83초 |
+| 최종 package manifest SHA | `3f7f3b096339de3bd3e33e2ea812e0984e1937932eed83d074126d8e7f6205d0` |
+| 단일 압축본 | 3,382,560,124바이트, 184,055개 regular member 전수 해제·SHA 검사 통과 |
+| 원본 전후 동일 / PNG 삭제 | 동일 / 0개 |
+
+원격 export root 기준 최종 경로:
+
+- 학습·분석 package: `qualified/sunny13/training3_jpeg_portable/`
+- 보고서·원본 snapshot: `qualified/report.json`, `qualified/sunny13/source_snapshot.json`
+- 완료 증거: `QUALIFIED.json`, `archive_receipt/COMPLETE.json`
+- 단일 압축본: `base5_sunny13_5k_jpeg90_upright3_261018.tar.zst`
+- 압축 SHA: `22c7a231f464af4cbdb8b9ee2e2bd88ac7fb6ee29bcd3006cb82262ed85d91f5`
+- 압축 대상 파일 합계: 10,596,378,140바이트. 최종 package와 최소 provenance를 포함한다.
+
+로컬에는 `artifacts/evaluation/base5_borrowed_completion_261018/`의
+`final_native_receipts/`와 `export_receipts/`로 최종 선택·분할·보고서·source snapshot·
+압축 완료 및 전체 member SHA 목록을 회수했다. 보고서·snapshot의 원격 receipt SHA도
+로컬에서 일치했다. **이 증거 회수는 3.38GB 압축본 자체의 로컬 회수 완료가 아니다.**
+
+네트워크는 Tailscale direct·RTT 약 3ms였다. 작은 증거 파일 66.29MB의 rsync 평균은
+약 2.50MB/s였고, 65.18MB 단일 SSH 읽기는 25초 내 완료되지 않아 중단했다.
+4개 독립 SSH의 20초 한정 병렬 읽기는 합산 평균 6.45MB/s로 8MB/s 기준에 못 미쳤다.
+같은 시점의 다른 증거 전송·Moonlight와 경합했을 수 있으므로 회선 자체의 한계라고
+단정하지 않는다. 원격 파일 생성이나 네트워크 설정 변경 없이 읽기만 시험했다.
+작은 rsync와 압축이 끝난 뒤 마지막 8개 SSH·20초 한정 읽기에서는 평균 7.26MB/s,
+5초 구간별 8.67 / 6.32 / 5.93 / 8.12MB/s였다. 지속 8MB/s 조건을 통과하지 못했다.
+모든 측정용 SSH는 종료했고, 별도 사용자 스트리밍·ROS·MORAI 프로세스는 건드리지 않았다.
+대용량 archive는 아직 내려받지 않았으며 사용자에게 Moonlight 연결 종료 여부를 물었다.
+경합 제거 후 속도 자격을 통과하거나 현재 속도 전송을 별도로 허용받은 뒤 회수를 진행한다.
+원본 PNG·native GT·실패 근거는 빌린 PC에 그대로 보존한다.
+
+회수 허용 후의 단일 파일 명령은 다음과 같다. `-z`로 이미 압축된 파일을 다시 압축하지 않는다.
+아래 명령은 아직 실행하지 않았다. 속도 기준에 다시 걸리면 본 전송을 계속하지 않는다.
+
+```bash
+rsync -rt --partial --partial-dir=.rsync-partial --protect-args --info=progress2 \
+  -e 'ssh -o BatchMode=yes -o ConnectTimeout=8' \
+  ddeungbuntu@ddeungbuntu:/home/ddeungbuntu/ajounice_base5_capture/work/sunny13-training-export-v1/base5_sunny13_5k_jpeg90_upright3_261018.tar.zst \
+  artifacts/handoff/
+
+python3 -B scripts/portable_base5/verify_retrieved_training.py \
+  --archive artifacts/handoff/base5_sunny13_5k_jpeg90_upright3_261018.tar.zst \
+  --archive-manifest artifacts/evaluation/base5_borrowed_completion_261018/export_receipts/archive_receipt/archive_manifest.json \
+  --output artifacts/evaluation/base5_sunny13_training_retrieved_261018_v1 \
+  --trusted-generated-archive --run
+```
+
+로컬 복원 완료가 확인되면 위 새 output의 `dataset/`을 학습·분석 입력으로 사용한다.
+같은 파일명이라도 기존 산출물 위에 덮어쓰지 말고 먼저 manifest·완료 receipt를 확인한다.
 
 <a id="sunny15-training-package"></a>
 
