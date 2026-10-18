@@ -1,7 +1,7 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny13(v158a)·Sunny15(v159)는 10/18 정상 일시정지 후 [공통 생성·수집 실행기](261018_base5_unified_generation_capture.md)로 인계했다. 원격 승인 1,313장·부족분 15장, 로컬 승인 557장·부족분 3장을 보존했고, 두 PC 각각 별도 native 5/5·실제 PAUSE/재개·완료 후 추가 촬영 없는 재확인과 회귀 1,074개를 통과했다. 이후 사용자의 추가 명시 승인으로 06:18 KST 두 본수집을 분리 실행했다. 06:20 부모 진행 보고는 원격 승인 1,329·부족 15, 로컬 승인 573·부족 3이며 각각 첫 신규 묶음 16/16 승인 후 다음 묶음을 촬영했다. [실행·로그 기록](261018_base5_unified_generation_capture.md#본수집-재개-기록)을 따른다. 새 5K 완료 상태가 아니며 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
+Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny13(v158a)·Sunny15(v159)는 [공통 생성·수집 실행기](261018_base5_unified_generation_capture.md)로 인계한 뒤 10/18 06:18 KST 사용자 승인으로 두 본수집을 재개했다. 원격은 09:28 MORAI의 Vulkan crash로 안전 중단됐다. 승인 2,688장·부족분 32장·검사 완료 2,720장의 안전 prefix를 별도 `sunny13_5k_unified_v1_after_crash_v1`에 CPU 인계했고 사용자의 실행을 기다린다. 기존 halted·Park false·미합산 마지막 8장 원본은 보존했다. 원격의 새 재개 명령은 [crash 이후 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다. 로컬 수집은 변경하지 않았으며 이번 작업 중 확인한 부모 진행 보고는 승인 4,192·부족 48·running이었다. 새 5K 완료 상태가 아니며 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>

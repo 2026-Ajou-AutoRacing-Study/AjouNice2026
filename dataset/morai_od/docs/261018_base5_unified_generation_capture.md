@@ -246,6 +246,62 @@ stdout은 진행마다 출력되는 로그가 아니므로, 최신 진행은 새
 새 출력의 웹 관측으로 바꾸려면 위 대시보드 전환 명령을 사용한다.
 오류 시 안전 중단 정책은 유지하며, 상시 인력 감시·MORAI 자동 재시작을 추가한 것은 아니다.
 
+## 원격 MORAI crash 이후 안전 인계
+
+10/18 09:28 KST, 원격 Simulator가 Vulkan 렌더링 경로의 signal 11로 종료됐다.
+`work/morai-session/config/unity3d/MORAI/Simulator/Player-prev.log`에 오류가 남았고,
+Ego·Object·CollisionData가 끊겨 chunk 0170의 종료 P를 확인하지 못했다.
+부모는 `Batch final Park unverified`로 halted했다. 고정 입력 경계 검산은 통과했고,
+디스크 부족이나 입력 해시 불일치로 종료된 것이 아니다.
+
+확정된 안전 prefix는 승인 2,688장·부족분 32장, 검사 완료 2,720장이다.
+마지막 chunk의 8장 승인 후보와 실패 1장은 부모에 합산하지 않고 원본 그대로 격리한다.
+이 8장의 품질이 나쁘다는 판정이 아니라, 묶음 종료 안전 근거가 없기 때문이다.
+기존 halted·Park false·raw·선택·부족분·완료 복구 이력은 수정하지 않는다.
+
+새 `unified_crash_import.py`는 정확한 checkpoint 다음의 stale/Park-false chunk 하나만
+격리하고 안전 prefix를 schema-1로 새 출력에 인계한다. 다른 원인의 halted·임의의 unsafe
+세션·진행 중 복구·구멍 난 prefix를 같은 명령으로 우회하지 않는다.
+원형 native·static-attitude·완료 복구 verifier와 중첩 import를 실제로 대조하며,
+새 native 촬영 없이 CPU 준비만 한다. 동일한 공통 수집기와 입력의 기존 5/5 자격은 모든
+proof byte를 다시 검산한 뒤 원 보고서를 바이트 그대로 계승한다. 새 live 시험이라고 쓰지 않는다.
+
+| 구분 | 경로 |
+|---|---|
+| 보존한 실패 출력 | `~/ajounice_base5_capture/collections/sunny13_5k_unified_v1` |
+| 별도 복구 출력 | `~/ajounice_base5_capture/collections/sunny13_5k_unified_v1_after_crash_v1` |
+| 별도 복구 profile | `~/ajounice_base5_capture/work/unified-runtime-v1/crash-continuation-v1/sunny13_profile.json` |
+| CPU 인계 근거 | 새 출력의 `unified_crash_handoff.json`, `unified_crash_continuation.json` |
+
+인계 준비 후 원격 터미널에서 사용자가 실행한다. Sunny13·Capture Mode·카메라 1~4와
+LiDAR 5 annotation ON·Ego Network Connect를 확인하고 기존 ROS·guarded bridge를 유지한다.
+
+```bash
+bash ~/ajounice_base5_capture/resume_base5_collection.sh run --confirmed-environment sunny13
+```
+
+CPU `prepare`는 이미 준비한 출력에 다시 실행하지 않는다. 이 run은 원래의
+`checks/unified_capture.py`를 새 profile로 실행하므로 수집·검증·복구 정책을 분기하지 않는다.
+Ctrl+C의 정상 PAUSE 요청도 새 출력에만 연결한다. 복구 wrapper는 기존 실패 출력과 source
+profile을 읽기 전용으로 보호하며, 예전 `start_base5_unified.sh run`으로 halted를 강제 재개하지 않는다.
+현재 상태 확인은 다음 명령이다.
+
+```bash
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recover_unified_borrowed.py status
+```
+
+실제 원격 CPU 인계는 완료했다. native 세션 193개·완료 복구 59건과 중첩 import를 검산했고,
+원형 schema-1 verifier가 승인 2,688장·부족분 32장·기존 활성 누적 시간을 그대로 승인했다.
+기존 출력은 `halted / Batch final Park unverified` 그대로이며 새 출력은
+`prepared_waiting_for_resume`, 신규 native 세션 0개다. 기존 5/5 자격의 proof 629개를 다시 확인했다.
+공통 수집기 SHA `3d64243e648e02686f4d7296b66e9a2b65583fe08801d00ffec4610ed414f522`는 변경하지 않았다.
+신규 crash importer 50개·wrapper 49개를 포함한 전체 관련 회귀 1,173개와 쉘 문법 검사를 통과했다.
+이번 작업에서는 명령 준비와 CPU 인계만 했으며 본수집을 자동 시작하지 않았다.
+
+사용자가 운영 중인 8075 웹 서버는 종료하거나 교체하지 않았다. 기존 공통 대시보드는 이전
+출력의 crash 이력을 계속 보여 주므로 새 복구 출력의 진행과 혼동하지 않는다.
+새 복구 실행은 위 status와 새 native ledger로 확인한다. 원격 TXT에도 이 구분을 기록한다.
+
 ## 코드 경로
 
 - 공통 생성: `scripts/portable_base5/generation.py`

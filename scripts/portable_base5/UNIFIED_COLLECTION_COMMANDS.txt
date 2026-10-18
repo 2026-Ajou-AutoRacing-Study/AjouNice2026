@@ -7,14 +7,19 @@ MORAI·ROS·기존 guarded bridge는 그대로 유지한다.
 Sunny 시간과 Capture Mode, 카메라 1~4·LiDAR 5 annotation ON을 유지한다.
 
 [빌린 PC Sunny13: 이 PC 터미널에서]
-계획 확인:
-bash ~/ajounice_base5_capture/start_base5_unified.sh
+2026-10-18 MORAI crash 후 안전 인계 출력의 상태 확인:
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recover_unified_borrowed.py status
 
-실제 재개:
-bash ~/ajounice_base5_capture/start_base5_unified.sh run --confirmed-environment sunny13
+현재 실제 재개(원격에서 실행):
+bash ~/ajounice_base5_capture/resume_base5_collection.sh run --confirmed-environment sunny13
+
+승인 2,688장·부족분 32장과 완료 복구 이력을 새 별도 출력에 인계한다.
+이전 halted/Park false는 그대로 보존한다. 마지막 안전 미확인 chunk의 8장 후보는 합산하지 않는다.
+위 run 명령은 CPU 인계 준비가 완료된 뒤 사용한다. prepare를 취득분에 반복 실행하지 않는다.
+이전 start_base5_unified.sh run 명령은 이전 halted 출력을 가리키므로 현재 복구 명령이 아니다.
 
 정상 일시정지 요청(현재 묶음과 정지·P 확인이 끝날 때까지 기다린다):
-touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1/PAUSE
+touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1_after_crash_v1/PAUSE
 
 일시정지가 완료된 뒤에는 위 실제 재개 명령을 다시 사용한다.
 통신/Park 오류로 halted가 된 경우 이 명령이 강제로 우회하지 않는다.
@@ -30,6 +35,9 @@ touch ~/morai_cap/base5_sunny15_v159_261017/collection_5k_unified_v1/PAUSE
 수집기·ROS·브리지를 종료하는 것이 아니다.
 빌린 PC의 새 대시보드:
 python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/unified_dashboard.py --borrowed --port 8075 --run
+주의: 위 기존 통합 대시보드는 sunny13_5k_unified_v1의 crash 이력을 표시한다.
+새 after_crash 출력의 실제 진행은 위 recover_unified_borrowed.py status로 확인한다.
+이 복구 작업은 사용자가 운영 중인 웹 서버를 자동 종료하거나 새 대상으로 전환하지 않는다.
 
 로컬의 새 대시보드:
 cd ~/AjouNice2026
