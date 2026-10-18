@@ -12,6 +12,24 @@ from mmengine.config import Config
 
 
 class DirectRunnerTest(unittest.TestCase):
+    def test_restart_schedule_is_pinned_and_rejects_partial_cycles(self):
+        with tempfile.TemporaryDirectory() as name:
+            args = self.fixture(Path(name))
+            args.lr_schedule = 'warmup-restarts'
+            args.epochs = 8
+            args.restart_cycle_epochs = 4
+            args.restart_warmup_updates = 1
+            args.wandb_group = 'base5-sunny15-ab-261018'
+            cfg, manifest = prepare(args)
+            self.assertEqual(cfg.param_scheduler[0].type, 'MoraiWarmupCosineRestarts')
+            self.assertEqual(manifest['identity']['param_schedulers'][0]['cycle_steps'], 8)
+            args.restart_warmup_updates = 2
+            with self.assertRaisesRegex(FileExistsError, 'changed run'):
+                prepare(args)
+            args.epochs = 7
+            with self.assertRaisesRegex(ValueError, 'complete fixed cycles'):
+                prepare(args)
+
     def fixture(self, root):
         rows=[]; records=[]
         for i in range(2):

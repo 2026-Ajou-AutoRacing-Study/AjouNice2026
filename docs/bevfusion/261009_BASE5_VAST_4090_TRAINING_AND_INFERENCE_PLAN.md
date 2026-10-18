@@ -59,6 +59,64 @@ bash scripts/runtime/prepare_base5_next_training.sh \
 
 ## 상세 운영과 실측의 보존
 
+## Sunny15 스케줄 대조 준비 — 2026-10-18
+
+사용자는 기존 48GB 4090 매물을 유지하기로 했다. 새 이미지로 재대여하거나 기존
+인스턴스를 Destroy하지 않는다. 새 Sunny15 본학습은 아직 시작하지 않는다.
+
+- 별도 원격 소스: `/workspace/ajounice_sunny15_training_source_261018_v2`.
+  기존 소스 복사본에 변경분을 전송하고 1,797개 파일의 SHA를 확인했다. 기존 E24 source·
+  run·데이터는 변경하지 않았다. CUDA 확장은 기존 설치본에서 새 복사본으로 재사용한다.
+- 일반 코사인과 재시작형은 8 epoch·batch 4·누적 1·workers 4·lr 1e-4·seed 261018을
+  공통 사용한다. compile OFF·nearest·512×1056·5cm/20cm·depth 25cm·3클래스를 유지한다.
+- 재시작형은 고정 4 epoch 주기 두 번, 주기마다 500 iteration warm-up,
+  시작/최대/최소 LR 비율 0.1/1/0.01이다. 주기 길이 증가·최대 LR 감소·optimizer reset은 없다.
+  katsura-jp 코드는 참고만 했고 외부 패키지를 설치하거나 그대로 복제하지 않았다.
+  MMEngine이 유일하게 scheduler를 step하며 parameter-group LR 비율을 보존한다.
+- 스케줄 목록과 W&B group을 새 run contract에 넣었다. 서로 다른 스케줄·데이터·코드의
+  optimizer를 강제 resume하지 않는다. 기존 원격 E24 실행기는 그대로다.
+- CPU에서 경계/비율/저장·재개와 기존 runner 회귀 9개를 통과했다. 원격에서도 scheduler
+  3개가 통과했다. 원격 기존 Sunny13의 7장 표본으로 두 스케줄 각각 4회 AMP iteration과
+  실제 저장·중단·재개도 통과했다. 두 보고서의 model·optimizer/scaler·scheduler·Python/
+  NumPy/Torch/CUDA RNG·iteration·compiler prefix 검사는 모두 true다. 새 Sunny15의 AP나
+  8 epoch 수렴·W&B/Drive 업로드 인증으로 해석하지 않는다.
+  원격 근거는 `/workspace/sunny15_env_qualification_261018_v1/{cosine,restarts}/report.json`이다.
+- W&B group은 `base5-sunny15-ab-261018`이다. 기존 `base5-sunny13` run을 재사용하지 않는다.
+  거리별 AP 진단 wrapper를 유지한다. 자동 Drive 백업은 새 데이터와 run 계약 확정 뒤
+  인증·write/readback·실제 checkpoint 업로드를 다시 검증해야 한다.
+- Docker Hub `base5-cu128-261018-v1`은 이 후속 scheduler 구현 이전의 소스 snapshot이다.
+  재시작형이 그 이미지에 이미 들어 있다고 가정하지 않는다. 현재 기존 Vast의 별도 소스에
+  준비한 것이며 향후 이미지 갱신은 새 태그로 한다.
+
+원격 Python 환경에서 CPU 준비하는 명령은 아래와 같다. `JPEG_PORTABLE`은 **새 Sunny15**
+검증본으로 교체한다. 기본 동작은 준비뿐이다. 실제 시작 전 초기화·GPU·W&B·Drive 자격을
+확인하며 구 E24 oneclick 명령으로 이 작업을 시작하지 않는다.
+
+```bash
+cd /workspace/ajounice_sunny15_training_source_261018_v2
+bash scripts/runtime/prepare_sunny15_ab.sh cosine "$JPEG_PORTABLE" /workspace/sunny15_ab_261018
+bash scripts/runtime/prepare_sunny15_ab.sh restarts "$JPEG_PORTABLE" /workspace/sunny15_ab_261018
+```
+
+### 코드 전송과 Drive 인증
+
+직접 scp의 약 3MB archive는 30초 제한으로 중단했으며 완전하지 않은 archive는 사용하지
+않았다. 이후 원격 소스를 재사용한 차이 전달은 완료했고 실제 파일 SHA를 검산했다.
+본 데이터 전송은 시작하지 않았다. 코드/설정/추가 패키지도 전달 대상이며 데이터셋만
+Drive 우회 대상이라고 해석하지 않는다.
+
+동일 소스 archive의 SHA는
+`1a47604550f2e12ffcfe523f1cc4fe579b2eea93a7150d40ed7a0c8bb2cc5697`이다.
+팀 Drive의 `model/bevfusion/runtime_sources/sunny15_ab_261018/source_v1.tar.gz`에 업로드했다.
+원격 직접 다운로드 완료·지속 10MB/s 충족은 아직 인증하지 않았다.
+
+전용 `ajou_drive_private`는 `invalid_grant`로 사용할 수 없었다. 기존 `ajou_drive`로
+업로드는 됐으나 후속 목록 조회에서 공유 API project의 `403 rateLimitExceeded`가 발생했다.
+반복 요청을 중단했고 사용자에게 로컬에서 `rclone config reconnect ajou_drive_private:`로
+전용 연결을 재인증하도록 요청했다. 장기 갱신 토큰·client secret은 원격으로 전달하지 않는다.
+재인증 전 Drive 전송·백업이 준비됐다고 보고하지 않는다. 작은 코드 archive의 완료 시간은
+대용량 데이터의 지속 대역폭 인증과 구분하며 10MB/s 기준 미달 전송을 장시간 유지하지 않는다.
+
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
 문서 개편은 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.
 
