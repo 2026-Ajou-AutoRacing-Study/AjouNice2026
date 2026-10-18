@@ -13,9 +13,8 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 복원한 5,000장·전체 payload·Sunny15 provenance도 검증했다. 두 8-epoch 후보에 같은 manifest를
 연결하고 설정 준비·GPU/W&B/Drive 시작 전 온라인 검사를 모두 통과했다. 이후 사용자가
 일반 코사인 8-epoch 학습을 시작했고 이후 E8 정상 완료·W&B 수신을 확인했다.
-후속 warm-up restart 8-epoch 대조군도 시작했다. 새 cosine checkpoint의 검증 완료 Drive
-백업은 0개이며, 느린 업로드·시간 제한 실패와 원격 가중치 보존은
-[모델 CURRENT](../../../docs/bevfusion/CURRENT.md)를 따른다.
+후속 warm-up restart 8-epoch 대조군도 시작했다. checkpoint의 실제 Drive 백업·수동 복구와
+원격 가중치 보존 상태는 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)를 따른다.
 현재 출력·E24 동일 변환 대조·삭제 receipt는
 [Sunny15 학습 전달본](261018_base5_unified_generation_capture.md#sunny15-training-package)을 따른다.
 본수집 4,941장에 exact 보충 3장·유연 보충 55장·사용자가 승인한 마지막 쉬운 장면 1장을 더했다.

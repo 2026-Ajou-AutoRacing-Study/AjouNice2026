@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-18.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-19.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -20,7 +20,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
 | 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 cosine은 compile OFF·nearest·batch 4로 약 1시간 47분에 완료했다. 사용자 요청으로 10/18 23:43 KST 동일 데이터의 **warm-up restart 8 epoch**를 새로 시작했다. 두 run identity 차이는 scheduler뿐이다. E8 resume가 아니며 첫 train·GPU·W&B running을 확인했다. [완료·다음 실험](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-cosine-complete-restarts-start-261018)을 따른다 |
-| 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine의 검증 완료 Drive 백업은 0개로 확인됐으며, 원격 E6/E7/E8·best E8은 보존한다. 느린 업로드와 1,200초 제한의 반복 실패는 별도 복구 대상이다. rosbag val은 train에 혼합하지 않음 |
+| 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine의 **best E8·full E8도 10/19 00:10 KST 로컬 경유 수동 Drive 백업·전체 SHA readback·metadata·COMPLETE·full용 LATEST 검증을 완료**했다. full은 학습 상태를 포함하며 best는 weights-only다. 원격 원본은 보존한다. 자동 전송의 속도·1,200초 제한 문제나 후속 restart 백업까지 해결했다는 뜻은 아니다. [수동 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-e8-manual-drive-backup-261019)를 따른다. rosbag val은 train에 혼합하지 않음 |
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.

@@ -332,6 +332,9 @@ bash scripts/runtime/start_sunny15_vast_training.sh restarts --run
 
 #### 새 cosine checkpoint의 외부 백업 주의
 
+아래는 10/18 후속 학습을 시작할 당시의 실패 이력이다. 사용자 추가 요청 이후의 실제 E8
+복구 상태는 [로컬 경유 수동 백업](#sunny15-e8-manual-drive-backup-261019)을 따른다.
+
 학습·짧은 Drive write/readback 성공과 실제 새 checkpoint 전체 백업은 다르다.
 조회에서 검증 완료한 새 cosine Drive 백업은 **0개**였고 `backup_status.uploaded={}`다.
 로그상 8회 시작·7회 실패, 그중 6회는 약 0.27~0.42MB/s의 느린 전송이 1,200초 상한을
@@ -353,6 +356,54 @@ Drive 업로드·전체 SHA readback하는 것이다. 이 읽기 전용 조사�
 새 [cosine W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/cosine-d68f0824772a)와
 구 [Sunny13 W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_init_full_3class_e1_261011-ecddcbad9c2a)를
 구분한다. 같은 공통 val/bag에서의 E8 대 E24 결과는 아직 없다.
+
+<a id="sunny15-e8-manual-drive-backup-261019"></a>
+
+### Sunny15 cosine E8의 로컬 경유 Drive 백업 — 2026-10-19
+
+사용자가 기존 cosine E8의 실제 외부 백업을 요청했다. 느린 Vast→Drive 자동 전송과
+진행 중인 restart 학습은 수정하지 않고, Vast→로컬 회수 후 로컬 rclone으로 업로드했다.
+로컬→Drive best E8 업로드는 약 14MiB/s로 완료했고, 실제 Drive 파일 전체를 다시 읽어
+원격 원본과 크기·SHA가 정확히 같은 것을 확인했다. 단순 폴더 생성이나 작은 probe의
+성공을 checkpoint 백업 성공으로 사용하지 않는다. **10/19 00:10:37 KST에 두 checkpoint의
+payload·metadata·COMPLETE와 full용 LATEST readback까지 완료**했으며 수동 실행은 exit 0이다.
+
+| 파일 | 바이트 | SHA256 | 현재 검증 |
+|---|---:|---|---|
+| `best_val_center_mAP_epoch_8.pth` | 202,071,167 | `93882eafc93ecbadbee546ae31ce1dfef0794efb7a0aa03a08ee9468ca5c63ef` | 로컬·Drive 전체 readback·metadata·COMPLETE 확인 완료. weights-only이며 optimizer resume용이 아님 |
+| `epoch_8.pth` | 521,239,045 | `42e18d77c2eb598f48b178a4bb4fe6c2384a70e49d10d2e6d306be4d68be6973` | full 상태·로컬·Drive 전체 readback·metadata·COMPLETE·LATEST 확인 완료. optimizer·scheduler·AMP·RNG를 포함함 |
+
+두 파일의 계약은 `d68f0824772a2f6da30520cc4c91b28906ecd629a7a2e721da7a8ddaa156975e`,
+epoch 8·iteration 8,504다. 기존 검증 helper로 full의 optimizer·scheduler·AMP scaler·RNG·
+message hub를 확인했고, 같은 SHA의 로컬 파일에 그 증거를 연결했다. 원격 rsync는 실행
+권한이 없어 scp를 사용했다. full 단일 전송은 느려서 내가 시작한 scp만 종료한 뒤,
+이미 받은 137,265,152바이트를 보존하고 나머지를 읽기 전용 SSH 6개 범위로 회수했다.
+잔여 수신·합치기·전체 SHA 확인은 약 411.1초였으며 정식 로컬 파일로 확정했다.
+full E8의 로컬→Drive 업로드는 약 53.8초, 실제 전체 Drive readback·SHA 확인은 약 28.1초였다.
+
+로컬 파일·증거는 `artifacts/evaluation/bevfusion/sunny15_cosine_e8_backup_261018/`에 둔다.
+각 파일은 해당 폴더의 `cosine/`, 수동 실행 receipt는
+`manual_drive_recovery_20261018T150121_193959Z/receipt.json`과 `progress.jsonl`이다.
+원격 CPU 검증 증거는 `source_verification.json`으로 보존한다.
+
+기존 자동 watcher와 충돌하지 않는 별도 Drive 경로를 사용한다.
+
+```text
+AjouNice2026/model/bevfusion/base5/sunny15_ab_261018/checkpoint_backups/
+  manual_e8_recovery_261018/cosine/<checkpoint SHA256>/
+```
+
+[실제 Drive 복구 폴더](https://drive.google.com/drive/folders/1oGQQbVCDYpQSzyll4TqFrcNfIgqktToS)에서
+각 SHA 폴더를 확인한다. 각 파일의 `run_manifest.json`·`resolved_train.py`·`fresh_start.json`·
+`oneclick_status.json`·원격 검증 증거도 업로드 후 전체 readback했다. payload와 metadata가
+모두 일치한 뒤에만 `COMPLETE.json`을 썼고, full E8 완료 후에만 복구 폴더의 `LATEST.json`을
+썼다. best는 weights-only, full은 resume-capable로 명시한다. 실제 로그에서 이 순서를 확인했다.
+
+이 수동 백업은 기존 `backup_status.json`을 성공으로 덮어쓰지 않는다. 자동 전송 경로의
+속도·1,200초 상한 문제를 해결했다고 표현하지 않으며, 후속 restart의 백업 완료도 아니다.
+원격 원본 가중치·PNG·native GT·학습 source·relay는 수정하거나 삭제하지 않는다.
+백업 중 10/19 00:07:44 KST에도 restart의 epoch 2·900/1,063 iteration과 실제 train 세션을
+확인했다. 이후 남은 학습·후속 백업 완료 여부는 별도 관측이 필요하다.
 
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
 과거 문서 개편 자체는 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.
