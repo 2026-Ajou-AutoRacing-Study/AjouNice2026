@@ -186,6 +186,9 @@ touch ~/ajounice_base5_capture/collections/sunny13_5k_unified_v1/PAUSE
 
 ## 대시보드 전환
 
+원격 MORAI crash 이후의 현재 대시보드는 아래 [안전 인계 절](#원격-morai-crash-이후-안전-인계)의
+`recovered_dashboard.py`를 사용한다. 여기의 원격 `unified_dashboard.py --borrowed`는 이전 출력용 이력이다.
+
 기존 웹 서버와 구 `watch`는 이전 출력의 PAUSE 상태를 계속 보여 준다.
 해당 **웹 서버 터미널에서만** Ctrl+C를 누른 뒤 새 관측기를 수동 실행한다.
 수집기·ROS·bridge를 종료하는 것이 아니다. 새 관측기는 사용 중인 포트를 강제로 비우지 않는다.
@@ -299,8 +302,20 @@ python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recover_unified_borr
 이번 작업에서는 명령 준비와 CPU 인계만 했으며 본수집을 자동 시작하지 않았다.
 
 사용자가 운영 중인 8075 웹 서버는 종료하거나 교체하지 않았다. 기존 공통 대시보드는 이전
-출력의 crash 이력을 계속 보여 주므로 새 복구 출력의 진행과 혼동하지 않는다.
-새 복구 실행은 위 status와 새 native ledger로 확인한다. 원격 TXT에도 이 구분을 기록한다.
+출력의 crash 이력을 보여 주므로 새 복구 출력용 읽기 전용 관측기를 별도로 제공한다.
+기존 **웹 서버 터미널에서만** Ctrl+C 후 사용자가 다음 명령으로 교체한다.
+
+```bash
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recovered_dashboard.py --port 8075 --run
+```
+
+`recovered_dashboard.py`는 새 profile·인계 receipt·원 자격 증거를 검증하고 동일한 동결 UI/HTML을
+재사용한다. 새/기존 원본·MORAI·workspace는 읽기 전용이며 별도 observer history만 쓰기 가능하다.
+수집 lock·PAUSE·캡처·기존 서버를 조작하지 않는다. 포트가 사용 중이면 종료를 강제하지 않고 거부한다.
+중첩 인계의 원본 경로도 승인 분모와 함께 용량 추정에 포함하며 workspace/collections 밖의
+임의 경로는 거부한다. 원격 8077의 실행 없는 계획 검사와 동결 backend의 `--once` 대조에서
+정확한 새 출력의 `running / 승인 2,699 / 부족 32`를 확인했다. 기존 서버와 수집은 그대로 유지했다.
+원격 TXT의 대시보드 명령도 갱신했다. 새 관측기·공통 관측기·원형 backend 관련 테스트 109개를 통과했다.
 
 ## 코드 경로
 

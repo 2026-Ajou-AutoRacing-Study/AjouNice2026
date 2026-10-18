@@ -33,11 +33,11 @@ touch ~/morai_cap/base5_sunny15_v159_261017/collection_5k_unified_v1/PAUSE
 
 [대시보드: 기존 대시보드 터미널에서 Ctrl+C로 웹 서버만 종료한 뒤]
 수집기·ROS·브리지를 종료하는 것이 아니다.
-빌린 PC의 새 대시보드:
-python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/unified_dashboard.py --borrowed --port 8075 --run
-주의: 위 기존 통합 대시보드는 sunny13_5k_unified_v1의 crash 이력을 표시한다.
-새 after_crash 출력의 실제 진행은 위 recover_unified_borrowed.py status로 확인한다.
-이 복구 작업은 사용자가 운영 중인 웹 서버를 자동 종료하거나 새 대상으로 전환하지 않는다.
+빌린 PC의 현재 대시보드(안전 복구 후 새 출력):
+python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recovered_dashboard.py --port 8075 --run
+새 sunny13_5k_unified_v1_after_crash_v1의 실제 진행을 표시한다.
+이전 unified_dashboard.py --borrowed 명령은 크래시 전 출력을 보여 주므로 현재 원격용이 아니다.
+기존 웹 서버를 자동 종료하지 않는다. 그 웹 서버 터미널에서만 Ctrl+C 후 위 명령으로 교체한다.
 
 로컬의 새 대시보드:
 cd ~/AjouNice2026
