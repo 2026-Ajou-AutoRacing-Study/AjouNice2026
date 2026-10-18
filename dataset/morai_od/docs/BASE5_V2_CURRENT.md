@@ -37,7 +37,10 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 Q90/upright 3클래스 전체 검증·변환과 **약 3.38GB 단일 압축본의 전 멤버 검증까지 완료**했다.
 JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 전후 동일을 확인했다.
 보고서·원본 snapshot·압축 SHA 목록은 로컬에 회수했다. 압축본 자체의 로컬 회수는 아직
-완료하지 않았다. SSH 속도가 8MB/s 기준에 못 미쳐 재측정 또는 사용자 허용을 기다린다.
+완료하지 않았다. Moonlight 종료 후 단일 시험은 약 15.3MB/s였지만 본 rsync는 다시
+8MB/s 미만으로 지속돼 중단했다. 약 952MB 부분 파일은 보존했다. 병렬 SFTP도 기존
+10초 창 8MB/s 감시에서 자동 중단됐다. 추가 전송은 이 파일의 속도 기준 완화 승인 또는
+별도의 안정된 경로를 확보한 뒤 진행한다. PNG·GT 원본은 그대로 보존한다.
 현재 경로·원본 보존·전송 상태는 [Sunny13 전달본](261018_base5_unified_generation_capture.md#borrowed-sunny13-training-package)을 따른다.
 현재 출력·명령은 [원격 유연 보충](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)을 따른다.
 최종 보충 관측기는 `borrowed_completion_dashboard.py --terminal-animal`이며 빌린 PC 8077/이 PC 8078을 쓴다.
