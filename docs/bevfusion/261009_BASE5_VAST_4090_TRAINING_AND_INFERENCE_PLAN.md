@@ -15,7 +15,9 @@ Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 현재 모델·�
 - 백업은 업로드 폴더 존재가 아니라 full checkpoint·metadata·COMPLETE/LATEST·SHA readback으로 확인한다.
 - GPU Stop 후 재할당과 재시작 불가가 가능하다. 데이터 복사·백업 확인 없이 Destroy하지 않는다.
 - SSH endpoint·현재 요금·가용 GPU는 실제 인스턴스에서 확인한다. 이력의 IP·가격을 현재값으로 쓰지 않는다.
-- 새 임대용 고정 팀 이미지의 registry 게시/pull 검증은 별도 미완료 작업이다.
+- 2026-10-18 새 임대용 private 학습 이미지 `fluffyluv/ajounice2026-bevfusion-train:base5-cu128-261018-v1`을 게시했다.
+  [빌드·고정 digest·Vast 설정](../../docker/bevfusion/README.md#vast-오프라인-학습-이미지--2026-10-18)을 따른다.
+  CPU import/config/CLI 검증과 새 Vast의 실제 pull·GPU 학습/재개·백업 검증은 구분하며 후자는 아직 미완료다.
 
 <a id="next-training-cpu"></a>
 

@@ -21,6 +21,30 @@
 - `SimpleTrack`: Tracking
 - `autoware_universe`: Autoware 전체 -> 여기서 prediction이나 planning 뽑아와서 우리 ws로 가져오기 -> 얘는 ros2 기반이기에 최종 실행 대상 코드는 아님.
 - `lidar_ai_solution/CUDA-BEVFusion`: NVIDIA CUDA·TensorRT 배포 참조. 로컬 ignored clone이며 submodule이나 runtime dependency가 아니다.
+- `pytorch-cosine-annealing-with-warmup`: katsura-jp의 주기별 warm-up·코사인 재시작 구현 참조. 로컬 ignored clone이며 현재 학습 의존성이 아니다.
+
+## Cosine warm-up restart 로컬 참조
+
+2026-10-18 사용자 요청으로 아래 공개 저장소를 shallow clone했다.
+
+- 원본: https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup
+- 로컬: `third_party/pytorch-cosine-annealing-with-warmup`
+- 확인 revision: `12d03c07553aedd3d9e9155e2b3e31ce8c64081a`
+- 라이선스: MIT. 원본 LICENSE를 그대로 보존한다.
+- 참조만 준비했다. 패키지 설치·학습기 연결·기존 스케줄 변경·학습 실행은 하지 않았다.
+
+새 checkout에서 같은 revision을 받으려면 아래를 실행한다. 기존 폴더가 있으면 덮어쓰지 않는다.
+
+```bash
+git clone --no-checkout \
+  https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup.git \
+  third_party/pytorch-cosine-annealing-with-warmup
+git -C third_party/pytorch-cosine-annealing-with-warmup checkout --detach \
+  12d03c07553aedd3d9e9155e2b3e31ce8c64081a
+```
+
+원본 clone은 기존 ignore 정책을 따른다. 향후 통합 시 MMEngine scheduler의 step 소유권,
+parameter-group 학습률, 주기 경계와 checkpoint 저장·재개 일치를 별도로 검증한다.
 
 ## CUDA-BEVFusion 로컬 참조
 
