@@ -64,6 +64,9 @@ bash scripts/runtime/prepare_base5_next_training.sh \
 사용자는 기존 48GB 4090 매물을 유지하기로 했다. 새 이미지로 재대여하거나 기존
 인스턴스를 Destroy하지 않는다. 새 Sunny15 본학습은 아직 시작하지 않는다.
 
+위 문단은 준비 당시 이력이다. 이후 사용자가 일반 코사인 학습을 시작했으며,
+현재 실행 관측은 [실제 학습 기록](#sunny15-live-training-261018)을 따른다.
+
 - 별도 원격 소스: `/workspace/ajounice_sunny15_training_source_261018_v2`.
   기존 소스 복사본에 변경분을 전송하고 1,797개 파일의 SHA를 확인했다. 기존 E24 source·
   run·데이터는 변경하지 않았다. CUDA 확장은 기존 설치본에서 새 복사본으로 재사용한다.
@@ -205,7 +208,9 @@ payload 약 7.65MB/s였고, 4병렬은 약 50.9MB를 받은 시점의 합산 약
 실제 새 데이터 연결·전체 payload 해시·온라인 사전검사 통과 전에는 ready로 표시하거나
 본학습을 시작하지 않는다.
 
-### 최종 사용자 실행 명령 — 학습 미시작
+<a id="최종-사용자-실행-명령--학습-미시작"></a>
+
+### 최종 사용자 실행 명령 — 준비 당시 기록
 
 최종 manifest SHA는 `aea7d157f5cc646a125c6e2f603108d81990a17ee9e1f516e433be5a4be6a2c7`이다.
 원격 data는 `/workspace/base5_sunny15_jpeg90_pedestrian_merged_261018`이며 train 4,250/val 750,
@@ -232,6 +237,39 @@ bash scripts/runtime/start_sunny15_vast_training.sh cosine --run
 로컬 제한 relay가 W&B와 백업을 처리하므로 이 PC와 네트워크는 켜 둔다. 두 후보의 실제
 새 checkpoint 업로드는 아직 없으며 첫 새 epoch의 전체 외부 백업 검증이 남아 있다.
 최종 점검 근거는 v5 폴더의 `prepared_ready_261018.json`과 `readiness_summary.json`이다.
+
+<a id="sunny15-live-training-261018"></a>
+
+### 사용자 시작 후 실제 학습 관측 — 2026-10-18
+
+사용자가 일반 코사인 후보를 시작한 뒤 읽기 전용으로 확인했다. 재시작·설정 변경·추가 학습은
+수행하지 않았다. Run은 `cosine-d68f0824772a`이며
+[W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/cosine-d68f0824772a) 수신도 확인했다.
+
+20:53~20:56 KST 관측에서 1 epoch train 1,063회와 val 750장을 완료했다. 최근 iteration은
+약 0.662초, data time은 약 0.0134초이며 GPU 약 30.2GiB/48GB를 사용했다.
+첫 center mAP는 **78.90%**, Vehicle/Pedestrian/Obstacle은 각각 **88.74/84.96/63.00%**다.
+이는 새 val의 초기 관측이며 기존 E24와 동일 셋 비교나 최종 모델 선정 결과가 아니다.
+초기 AMP 구간에 `grad_norm: inf` 1회가 있었으나 이후 유한값으로 복귀했고, 반복 NaN·OOM은
+관측하지 않았다. `epoch_1.pth`와 best checkpoint가 실제로 생성됐다. 첫 저장 snapshot은
+519,510,789바이트였고 validation 후 atomic 갱신한 최종 epoch 파일은 519,738,245바이트다.
+
+첫 epoch의 실제 외부 Drive 백업이 시작됐으나, 확인 시점에는 업로드·전체 SHA readback이
+끝나지 않았다. 진행 중인 업로드의 약 49초 표본은 41.9MB/519.5MB·약 1.07MB/s·오류 0으로
+느렸다. 이전 백업 방식 자격을 이번 checkpoint의 업로드 완료로 표현하지 않는다.
+학습 프로세스와 checkpoint 저장, W&B 수신, 외부 백업 완료는 각각 별도로 확인한다.
+
+20:57 KST에는 2 epoch 80/1,063·0.670초/iteration·loss 1.1207·유한 gradient로
+학습이 계속됐다. 백업은 약 100초에 67.1MB·약 0.75MB/s·오류 0이며 아직 완료 전이다.
+별도 watcher의 업로드는 학습을 동기적으로 막지 않는다. 현재 업로드는 첫 저장 snapshot이고,
+기존 helper가 완료 후 fingerprint 재확인으로 validation 후 최종본을 후속 처리한다.
+따라서 이전 snapshot의 업로드 완료만으로 최종 checkpoint 백업을 완료로 판정하지 않는다.
+전송 경로는 Vast→독립 SSH 터널→로컬 제한 relay→Drive이며, 현재 로그로 어느 구간이
+병목인지는 구분하지 못했다. W&B는 별도 연결을 사용한다.
+
+첫 train 약 11분 45초·val 약 1분 25초를 단순 확대하면 8 epoch는 약 1시간 45분~2시간이다.
+백업 대역폭·후속 val 비용에 따라 달라지며 완료 보장이 아니다. 학습 중에는 로컬 relay와
+네트워크를 유지하고, 기존 run과 같은 후보를 중복 시작하지 않는다.
 
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
 과거 문서 개편 자체는 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.

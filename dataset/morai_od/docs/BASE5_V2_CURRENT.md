@@ -11,7 +11,9 @@ Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v1
 Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자가 승인한 2분 한정 재개로
 정상 범위를 재사용하고 약 363MB만 추가 수신해 전체 SHA를 통과했다. Vast의 정식 data 경로에
 복원한 5,000장·전체 payload·Sunny15 provenance도 검증했다. 두 8-epoch 후보에 같은 manifest를
-연결하고 설정 준비·GPU/W&B/Drive 시작 전 온라인 검사를 모두 통과했다. 학습은 시작하지 않았다.
+연결하고 설정 준비·GPU/W&B/Drive 시작 전 온라인 검사를 모두 통과했다. 이후 사용자가
+일반 코사인 8-epoch 학습을 시작해 첫 train/val·checkpoint 생성·W&B 수신을 확인했다.
+실제 새 checkpoint의 Drive 백업은 진행 중이며 완료/readback은 미확인이다. 실행 상태는 모델 CURRENT를 따른다.
 현재 출력·E24 동일 변환 대조·삭제 receipt는
 [Sunny15 학습 전달본](261018_base5_unified_generation_capture.md#sunny15-training-package)을 따른다.
 본수집 4,941장에 exact 보충 3장·유연 보충 55장·사용자가 승인한 마지막 쉬운 장면 1장을 더했다.
@@ -25,9 +27,13 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 보충 대시보드는 로컬 8077이며 기존 8075는 이전 완료 출력이다. 본수집을 처음부터
 재실행하거나 기존 실패 판정을 승인으로 고치지 않는다. 실제 실행 상태와 새 출력은
 [통합 실행 근거](261018_base5_unified_generation_capture.md)를 따른다.
-빌린 PC의 새 Sunny13(v158a)은 이번 Vast 학습 준비와 별도 작업이다. MORAI crash 이후 인계와
-마지막 관측 수치·새 명령은 [원격 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다.
-해당 PC의 observer는 `recovered_dashboard.py`이며 구 `unified_dashboard.py --borrowed`는 옛 출력을 표시한다.
+빌린 PC의 새 Sunny13(v158a)은 본수집 승인 4,944장·부족 56장·오류 없음으로 정상 종료했다.
+사용자 승인으로 로컬과 동일한 `flexible_complete.py`를 별도 runtime에 배포했고,
+첫 실제 보충은 승인·최종 P를 통과해 4,945장·부족 55장을 확인한 뒤 연속 보충을 시작했다.
+현재 출력·명령은 [원격 유연 보충](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)을 따른다.
+보충은 빌린 PC 8077/이 PC 8078에서 관측한다. `recovered_dashboard.py`의 기존 8075/이 PC 8076과
+구 `unified_dashboard.py --borrowed`는 이전 본수집 출력이다. 과거
+[crash 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)는 그대로 보존한다.
 새 Sunny15의 native 수집·Q90/upright 학습 전달본 검증은 완료했다. Vast 전달과 학습 시작은 별도다.
 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
@@ -50,7 +56,7 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 본수집 상태 | 빌린 PC v158a Sunny13는 10/18 정상 PAUSE의 승인 1,313 / 부족 15 / 미검사 3,672를 `sunny13_5k_unified_v1`에 인계했다. native 세션 187개·완료 복구 64건과 기존 출력을 보존했고, 이후 사용자 승인으로 공통 실행기를 실제 재개했다. 최신 확인 시점과 수치는 위 요약·[실행 기록](261018_base5_unified_generation_capture.md#본수집-재개-기록)을 따른다. 별도 `--complete`는 계속 금지한다. 과거 원본·부족분·시도 이력을 삭제하지 않는다 |
+| 새 Sunny13 본수집·보충 | 빌린 PC v158a는 crash 인계 이후 검사 5,000장·승인 4,944장·부족 56장으로 정상 종료했다. 별도 `sunny13_5k_flexible_v1`에서 공통 유연 보충을 시작했다. 부모 선택·실패·시도·native 원본은 보존하며 별도 구 `--complete`는 사용하지 않는다. 실제 현재 수치는 [보충 기록](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)의 새 출력에서 확인한다 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.
@@ -108,6 +114,12 @@ Vehicle primary 2,214장과 기존 5K는 보존했다. v153의 고주로 범용 
 ## 수집과 복구
 
 현재 실행 경로는 [공통 실행 문서](261018_base5_unified_generation_capture.md)다. 고정 입력 전체 검사는 시작·재개·종료 경계에서 수행하고, 신규 자료와 native QA는 실제 검사한다. 새로 찍는 부분은 두 환경 모두 같은 정적 full-RPY·이동 최종 방향 지면 정책을 사용한다. Sunny15 `collection_5k_unified_v1`과 빌린 PC `collections/sunny13_5k_unified_v1`은 기존 선택을 참조하는 별도 출력이며, 사용자 승인으로 두 환경을 실제 재개했다. 구 명령으로 이전 출력의 수집을 동시에 재개하지 않는다.
+
+위 full-RPY는 공통 본수집 묶음의 정책이다. 정상 종료 후 부족분은 두 PC 모두 같은
+격리형 strict-direction recovery와 유연 보충 코드를 사용한다. 일반 정적 묶음의 full-RPY
+재분류를 이 경로에 새로 켠 것이 아니며, native QA·최종 방향/지면 준비·안전 기준은 유지한다.
+기존 4,944장의 원본 품질을 다시 전수 검사하지 않고 확정 선택·정상 종료·source/runtime 경계를
+확인하며 새 후보만 native 검사한다. 자세한 구분은 위 원격 유연 보충 절을 따른다.
 
 새 생성의 단일 진입점은 `scripts/portable_base5/generation.py`다. 여섯 환경의 동일 정책·단계·구현 SHA를 기록하며 환경과 seed만 새 identity로 바꾼다. 현재 동결 v158a/v159 배치는 재생성하지 않았다. 특히 기존 capture split에 따른 공간 후보 차이는 역사적 차이로 보존하며, 다음 환경은 공통 known-map layout 정책으로 생성한다.
 

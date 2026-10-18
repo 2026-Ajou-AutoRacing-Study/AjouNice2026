@@ -19,7 +19,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
-| 학습 실행 계약 | 완료 E24는 48GB 4090·batch 4·누적 1·학습 compile ON으로 보존. 다음 학습은 compile OFF·nearest다. 기존 Vast 48GB에서 일반 코사인/재시작형 각각 7장·4회 AMP iteration·저장/재개 시험을 통과했으나 새 Sunny15 본학습은 미시작이다. [새 데이터 전용 시작기](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#새-데이터-전용-시작기와-남은-차단-조건) v5는 새 5K 연결·시작 전 점검을 기다린다. 동일 도구·기존 full readback·현재 쓰기/읽기에 근거한 백업 방식 재사용 자격은 통과했고, 첫 새 epoch의 실제 백업은 후속 확인한다 |
+| 학습 실행 계약 | 완료 E24는 48GB 4090·batch 4·누적 1·학습 compile ON으로 보존. 새 Sunny15 일반 코사인 8-epoch 학습은 사용자가 시작했으며 compile OFF·nearest·batch 4다. 10/18 첫 epoch train/val 완료·checkpoint 생성·W&B 수신을 확인했다. 첫 checkpoint의 실제 Drive 백업은 진행 중이며 완료/readback은 아직 미확인이다. 재시작형은 별도 준비 후보로 유지한다. [실제 학습 관측](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-live-training-261018)을 따른다 |
 | 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
@@ -27,7 +27,9 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 E24의 실제 입력 계약과 대조했고 같은 JPEG·GT·보정 규칙을 사용한다. Vast 첫 수신의 8MB/s
 중단 뒤 사용자 승인으로 정상 범위를 재사용해 전체 archive SHA까지 통과했다. 복원·입력
 전수 검증과 두 후보의 데이터 연결·설정 준비·GPU/W&B/Drive 온라인 검사도 모두 통과했다.
-8 epoch·batch 4·compile OFF이며 학습은 아직 시작하지 않았다. 시작 시 온라인 검사를 다시 수행한다.
+준비 이후 사용자가 일반 코사인 8 epoch·batch 4·compile OFF 학습을 시작했다.
+첫 validation의 center mAP는 78.90%(V 88.74 / P 84.96 / O 63.00%)다. 새 val 분포의 첫 epoch
+관측이며 E24와 동일 검증셋 비교나 최종 성능 인증은 아니다. 백업 완료와 학습 진행은 구분한다.
 [변환·전송 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md#sunny15-training-package)를 따른다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
 새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.

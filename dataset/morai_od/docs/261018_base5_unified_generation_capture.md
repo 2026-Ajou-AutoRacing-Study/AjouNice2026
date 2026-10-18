@@ -569,6 +569,72 @@ python3 -B scripts/portable_base5/complete_last_cell.py \
 수집은 종료했고 추가 촬영하지 않는다. 빌린 PC의 원격 수집·Vast 학습 상태는 이번 마지막 한 장
 마감에서 변경하지 않았다. 다음 단계는 이 최종 선택을 기준으로 한 JPEG/GT 학습 전달본 준비다.
 
+<a id="borrowed-flexible-completion"></a>
+
+## 빌린 PC Sunny13의 공통 유연 보충
+
+10/18 본수집은 `sunny13_5k_unified_v1_after_crash_v1`에서 검사 5,000장·승인
+4,944장·부족 56장·오류 없음으로 정상 종료했다. 종료 입력 경계 검산도 통과했다.
+사용자 요청으로 로컬 Sunny15에서 검증한 유연 보충을 같은 구현으로 배포했다.
+환경별 분기 코드를 새로 만들거나 Sunny15의 배치·센서 입력을 Sunny13에 복사한 것이 아니다.
+
+원래 공통 본수집은 이미 두 PC에서 같은 full-RPY 정적 묶음·이동 최종 방향 지면 정책을
+사용했다. 보충은 두 PC 모두 같은 **격리형 strict-direction recovery** 경로를 사용한다.
+이 경로는 일반 정적 묶음의 full-RPY 재분류를 켜는 방식이 아니며, 기존 native QA와
+최종 방향 reference·필요한 지면 지지 준비·실제 이동·가시성·충돌·통신·정지/P를 유지한다.
+기존 승인 4,944장을 새 검증으로 소급 재승인하지 않는다.
+
+| 항목 | 별도 경로 (`~/ajounice_base5_capture/` 기준) |
+|---|---|
+| 보존할 정상 종료 부모 | `collections/sunny13_5k_unified_v1_after_crash_v1` |
+| 촬영 0회인 선택 계보 | `collections/sunny13_5k_completion_seed_v1` |
+| 유연 보충 | `collections/sunny13_5k_flexible_v1` |
+| 새 실행기와 배포 해시 | `work/completion-runtime-v1/complete_borrowed.py`, `deployment.json` |
+| 별도 관측기와 명령 TXT | `work/completion-observer-v1/borrowed_completion_dashboard.py`, `SUNNY13_COMPLETION_COMMANDS.txt` |
+
+기존 bundle·371개 dataset runtime·공통 checks·profile·보호된 TXT·원본은 덮어쓰지 않았다.
+별도 실행기는 원래 공통 helper를 원래 절대 경로에서 import해 source/runtime 계약을 유지한다.
+새 native 촬영에서도 같은 호스트 `capture.lock`을 사용한다. 정상 종료 부모는 namespace에서
+읽기 전용이다. 중간 선택 계보는 기존 `.completion.lock`을 열기 위해 쓰기 가능하지만,
+선택·계약·상태 5개 파일의 SHA를 고정해 보충 전후 변경을 거부한다.
+
+CPU 준비는 기존 승인 장면의 선택·계약·시나리오/metadata identity를 한 번 확인한다.
+RGB·LiDAR·가시성/native QA 4,944건을 재실행하는 검사가 아니다. 개별 보충에서는
+그 선택을 재사용하고 새 후보만 실제 검사한다. 같은 실패 payload 재사용·중복 승인·시도
+상한 초기화를 금지하며, 기존과 같은 패밀리·의미군·동작·capture split·학습 거리 목적을 유지한다.
+정확한 자산·actor 수·도로 위치·세부 거리 칸은 완화한다. 기존 GT를 다른 클래스로 고치지 않는다.
+
+보충 전 읽기 전용 5초 검사에서 Ego·Object·CollisionData는 각각 250건, 최신 age는
+4~8ms였고 Ego는 정지·브레이크 상태였다. 새 실행기 20개·관측기 21개를 포함해
+portable 전체 회귀 **1,309개**를 통과했다. 촬영 없는 준비는 기존 4,944장·부족 56장을
+그대로 보존했고 첫 새 CPU 후보만 준비했다. 실제 native 진행 수치는 아래 실행 기록으로 갱신한다.
+
+실제 첫 보충은 승인·최종 P를 통과해 **4,945장·부족 55장**으로 정상 PAUSE했다.
+기존 4,944개 선택 행이 모두 동일하고, 전체 4,945개의 source ID·capture root·scenario SHA가
+각각 고유함을 확인했다. 이후 사용자 요청 범위의 연속 보충을 분리 세션으로 실행했다.
+마지막 관측 checkpoint는 **4,950장·부족 50장·오류 없음·수집 중**이다. 5K 완료 인증은 아니다.
+수집 로그는 빌린 PC의 `work/completion-observer-v1/capture_1792324433822849728.log`이고,
+이 PC의 준비·배포 근거는 `artifacts/evaluation/base5_borrowed_completion_261018/`이다.
+SSH 터미널을 닫아도 실행은 유지하며, 일시정지에는 아래 PAUSE를 사용한다.
+
+```bash
+# 빌린 PC: 진행 중이면 중복 실행하지 않는다.
+python3 -B ~/ajounice_base5_capture/work/completion-runtime-v1/complete_borrowed.py status
+python3 -B ~/ajounice_base5_capture/work/completion-runtime-v1/complete_borrowed.py run --confirmed-environment sunny13
+
+# 정상 일시정지: 현재 장면 종료와 실제 정지/P 확인을 기다린다.
+touch ~/ajounice_base5_capture/collections/sunny13_5k_flexible_v1/PAUSE
+
+# 보충 대시보드: 빌린 PC 자체 8077, 이 PC의 SSH 터널 8078.
+python3 -B ~/ajounice_base5_capture/work/completion-observer-v1/borrowed_completion_dashboard.py --port 8077 --run
+```
+
+정상 PAUSE는 재개 시 이력을 남겨 소비한다. STOP·halted·Park 불확실·통신 실패는
+같은 명령으로 강제 우회하지 않는다. 기존 원격 8075/이 PC 8076은 이전 본수집 상태다.
+보충 관측기는 기존 서버·수집·PAUSE를 조작하지 않고 전체 원본을 읽기 전용으로 본다.
+5,000장·부족 0으로 정상 종료한 후에만 `finalize`로 실제 선택 기반 파생 분할을 확정한다.
+JPEG 변환·PNG 삭제·Vast 전달·학습 시작은 이 보충 명령에 포함되지 않는다.
+
 <a id="sunny15-training-package"></a>
 
 ## Sunny15 최종 학습 전달본과 RGB 원본 정리
