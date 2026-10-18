@@ -319,6 +319,9 @@ python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recovered_dashboard.
 
 ## Sunny15 정상 종료 후 부족분 보충
 
+아래 `exact_v2` 설명과 명령은 당시 실행 기록이다. 현재는
+[유연 보충](#flexible-completion)으로 전환했으므로 이전 명령으로 동시 취득하지 않는다.
+
 로컬 `collection_5k_unified_v1`은 검사 5,000장·승인 4,941장·부족 59장·실행 오류 0으로
 `complete_with_deficit` 종료했다. 단순히 기존 본수집 명령을 다시 실행하면 완료 기록을
 재검증할 뿐 부족분을 새로 찍지 않는다. 사용자의 추가 수집 승인으로
@@ -405,6 +408,94 @@ python3 -B dataset/morai_od/scripts/base5_capture_dashboard.py \
 기존 `finish.py finish`는 fresh-parent 전용 계약이므로 이 unified completion에 바로 사용하지 않는다.
 Vast에는 검증된 `training3_jpeg_portable`만 전달하며 중간 PNG portable·JPEG cache를 함께 보내지 않는다.
 
+<a id="flexible-completion"></a>
+
+### 부족분 정책 전환: 같은 패밀리·학습 목적의 새 장면
+
+`exact_v2`는 기존 자산 조합·객체 수·거리·방향 등을 함께 고정해 새 geometry를 만들었다.
+본수집에서 실패한 어려운 조건만 남은 상황에서, 다른 geometry에서도 센서 근거가 부족하거나
+새 배치 생성이 실패해 보충 효율이 낮았다. 11개 슬롯을 시도해 3개를 추가 승인한 시점에
+사용자가 정확한 소수 분포 복원보다 남은 대회 준비 시간과 수집 효율을 우선하도록 요청했다.
+현재 셀의 실제 종료·정지/P를 확인하고 `paused`로 멈췄다. 승인 **4,944장·부족 56장**과
+원본·native GT·실패 기록·기존 실행 코드를 그대로 보존한다.
+
+새 진입점은 `scripts/portable_base5/flexible_complete.py`다. 기존 4,944장의 native QA를
+다시 실행하지 않는다. 같은 패밀리·미션·의미적 객체군·실제 동작 종류·capture split과
+대략적인 거리 목적 안에서, 이미 승인된 후보의 구성을 참고해 **새 geometry**를 만든다.
+정확한 primary 자산·보조 객체 목록·객체 수·도로 위치·방향은 바꿀 수 있다.
+근거리 장애물과 80~100m 차량 목적은 보호하며, 60~80m 보조 차량만으로 80~100m 몫을
+채우지 않는다. 원형 크기와 새 native QA·GT·지면·충돌·통신·정지/P 기준은 유지한다.
+이전에 실패한 원본의 미관측 계획 quota를 새 선택에 강제하지 않지만, 실제 승인분은 삭제하지 않는다.
+
+각 대체 슬롯의 원본 ID·donor·새 시나리오·정책·구현 SHA를 따로 기록한다. 새 동결 코드를
+기존 `exact_v2`에 강제로 resume하지 않는다. `--prepare`는 CPU 후보 준비만 하며
+`--run --confirmed-environment sunny15`만 실제 촬영을 허용한다. 슬롯별 시도 이력과 상한은 재개해도
+초기화하지 않는다. 시간 예산은 각 실행의 추가 작업 시간이며, 안전 중단을 일반적인 부족분으로
+우회하지 않는다.
+
+첫 CPU 준비 `flexible_v1`은 native 0장 상태에서 donor의 파생 split 필드 누락을 검출해
+중단했다. 원본·기존 승인분에는 영향이 없으며 당시 출력은 보존한다. 실제 소량 촬영 결과와
+최종 운영 출력은 아래에 별도로 기록한다. 준비·테스트 통과를 촬영 완료로 표현하지 않는다.
+`flexible_v2`에서는 CPU 후보 준비를 통과한 뒤 첫 native 장면이 9.778초에 승인·최종 P를
+통과했다. 다만 외부 exact 검증기가 2회 시도 계약을 고정해 상위 합산 전에 중단했다.
+이 출력과 native 시험 한 장은 보존한다. 새 전용 검증기는 실제 1회 계약·report·quota를
+재구성하고 원형 direction/native/Park/identity 검사를 재사용한다. 저장된 시험 한 장의
+읽기 전용 재검증과 기존 exact·캐시 포함 CPU 회귀 **123개**가 통과했다.
+
+최종 보충 출력은 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3`다.
+기존 4,944장을 그대로 계승하며, 앞선 시험 한 장은 중복 합산하지 않는다.
+tmux `base5-sunny15-flex`가 실제 보충을 수행하고, `base5-sunny15-flex-dashboard`가
+**http://localhost:8077/** 에서 이 출력을 관측한다. 기존 8075는 이전 본수집 출력이다.
+콘솔 로그는 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3_console.log`다.
+
+```bash
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+export ROS_MASTER_URI=http://127.0.0.1:11311
+
+# 실행 중에는 중복 실행하지 않는다. 정상 PAUSE 이후에는 같은 명령으로 이어간다.
+python3 -B scripts/portable_base5/flexible_complete.py \
+  --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
+  --parent artifacts/evaluation/base5_sunny15_completion_261018/exact_v2 \
+  --output artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3 \
+  --run --confirmed-environment sunny15 --time-budget-sec 3600
+```
+
+기본 최대 3회이며 이미 완료한 슬롯·시도는 재개 때 다시 찍지 않는다. native 셀 안전 종료
+후 PAUSE/STOP/시간 경계를 적용한다. `halted` 출력에 일반 재개를 강제하지 않는다.
+5,000장 도달 후에는 같은 인자의 `--run --confirmed-environment sunny15` 대신 `--finalize`로
+실제 선택 기반 layout을 확정한다. 실패한 원래 계획의 미관측 train floor만 제외하고
+승인 prefix·실제 geometry·group·alias·누수·native 근거 검사는 유지한다.
+이후 Q90/upright 학습 전달본 검증은 별도다. 원거리 AP나 새 모델의 성능 향상을 인증한 것이 아니다.
+
+18:20경 첫 네 슬롯은 **4/4 승인**으로, 부모 4,944장에 새 4장을 더해 **4,948장·부족 52장**을
+확인했다. 모두 실제 native 승인·최종 P·무접촉 근거를 통과했고 보충을 계속한다.
+이는 초기 표본이며 전체 56장 승인율을 확정하거나 정확한 완료 시간을 보장하는 수치가 아니다.
+
+| 부족 슬롯 | 기존 primary → 새 primary | actor 수 | 유지한 거리 목적 |
+|---|---|---|---|
+| 00211 | Lane_Separation_Bar → Bollard04 | 2 → 1 | 음영 중거리: 계획 32.59 → 42.04m |
+| 00577 | WoodBox → CargoBox | 6 → 1 | 20~30m 장애물: 계획 28.53 → 24.04m |
+| 00666 | Bollard01 → PE_Firewall_Orange | 4 → 1 | 0~20m 장애물: 계획 1.68 → 6.81m |
+| 00693 | Porter2 → DEFAULT_SUV | 3 → 1 | 90~95m 보조 차량 조건 → 실제 primary 86.01m |
+| 00727 | DEFAULT_MPV → Kia EV6 | 2 → 1 | 95~99m 보조 차량 조건 → 실제 primary 82.81m |
+
+00693은 LiDAR 0점이지만 native 카메라 160픽셀·기존 320 crop 76픽셀의 양성 가시 근거가 있어
+기존 QA가 승인했다. LiDAR가 없다는 이유로 버리거나, 반대로 카메라 근거가 없는 장면을
+승인한 것이 아니다. 후보 생성 약 12초·정적 native 취득 약 9.6~9.8초 외에 새 증거 검증 비용이
+남아 있다. 효율 개선의 핵심은 실패 조합의 정확한 복원을 고집하지 않아 승인 낭비를 줄인 점이다.
+이후 여섯 번째까지 **6/6 승인·4,950장·부족 50장**을 확인했다. 00727도 LiDAR 4점과
+카메라 원본 150픽셀의 양성 근거를 통과했다. 세부 95~99m 칸은 완화했지만 80~100m 목적은 유지했다.
+
+빌린 PC Sunny13은 확인 당시 검사 4,192장·승인 4,151장·부족 41장·미검사 808장으로,
+약 30분간 239장(약 481장/h), 마지막 15분 약 455장/h를 승인하며 정상 본수집 중이었다.
+로컬의 낮은 보충 효율과 다른 상태이므로 현재 본수집은 중단하거나 코드를 교체하지 않는다.
+**원격에는 유연 보충을 아직 적용하지 않았다.** 정상 본수집 종료 후 남은 부족분에만 검증된
+새 정책을 적용한다. 동결 bundle·runtime·profile·수집 원본은 그대로 보존한다.
+마무리 시점에 한 번 더 읽기 전용으로 확인한 원격 상태는 `running`·승인 4,276장·부족 44장·
+미검사 680장·오류 없음이었다. 부모 heartbeat는 확인 0.24초 전으로 최신이었고,
+이전 확인보다 승인 125장이 늘었다. 원격 파일·프로세스 변경은 하지 않았다.
+
 ## 코드 경로
 
 - 공통 생성: `scripts/portable_base5/generation.py`
@@ -412,6 +503,7 @@ Vast에는 검증된 `training3_jpeg_portable`만 전달하며 중간 PNG portab
 - 안전 PAUSE 인계: `scripts/portable_base5/unified_paused_import.py`
 - 공통 수집: `scripts/portable_base5/unified_capture.py`
 - 정상 종료 후 부족분: `scripts/portable_base5/complete_unified.py`
+- 같은 패밀리·학습 목적의 유연 보충: `scripts/portable_base5/flexible_complete.py`
 - 부족분 검증의 분할표 해석 재사용: `scripts/portable_base5/overlay_read_cache.py`
 - 빌린 PC의 격리 실행: `scripts/portable_base5/unified_borrowed.py`
 
