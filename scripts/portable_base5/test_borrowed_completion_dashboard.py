@@ -150,3 +150,102 @@ def test_original_observer_source_is_checked_before_import(tmp_path,monkeypatch)
     loader=Mock();monkeypatch.setattr(dashboard,'load_file',loader)
     with pytest.raises(ValueError,match='implementation changed'):dashboard.load_components(root)
     loader.assert_not_called()
+
+
+def terminal_fixture(setup):
+    target = setup.workspace/'collections'/dashboard.TERMINAL_OUTPUT_NAME
+    target.mkdir(mode=0o700)
+    prior = [dict(source_cell_id='source'+str(i), capture_root='/native/'+str(i),
+                  scenario_sha256=format(i, '064x'), status='accepted_candidate') for i in range(4999)]
+    selected = prior + [dict(source_cell_id='source4999', capture_root='/native/4999',
+                             scenario_sha256=format(4999, '064x'), status='accepted_candidate')]
+    for folder, values in ((setup.new, prior), (target, selected)):
+        path = folder/'selected_ledger.jsonl'
+        path.write_text(''.join(json.dumps(row)+'\n' for row in values))
+        path.chmod(0o600)
+    write(setup.new/'state.json', dict(stage='complete_with_deficit', current=None))
+    write(setup.new/'status.json', dict(stage='complete_with_deficit', error=None, failed=0,
+        current=None, accepted_candidate=4999, review=1))
+    write(setup.new/'quota.json', dict(accepted=4999, deficit=1, pending=0))
+    pins = {str(setup.new/name):observer.sha(setup.new/name)
+        for name in ('state.json', 'status.json', 'quota.json', 'selected_ledger.jsonl')}
+    state = dict(stage='complete', current=None, current_child=None,
+        contract=dict(policy=dashboard.FLEXIBLE_POLICY, parent=str(setup.new),
+            profile=str(setup.profile), profile_sha256=observer.sha(setup.profile),
+            source_sha256=setup.doc['manifest_sha256'], parent_pins=dict(pins)),
+        import_receipt=dict(policy=dashboard.TERMINAL_POLICY, approved_prefix_preserved=4999,
+                            pins=dict(pins)),
+        baseline_selected_sha256=observer.sha(setup.new/'selected_ledger.jsonl'))
+    write(target/'state.json', state)
+    write(target/'status.json', dict(stage='complete', accepted_candidate=5000, review=0,
+        failed=0, error=None, current=None))
+    write(target/'quota.json', dict(target=5000, accepted=5000, deficit=0, pending=0))
+    return SimpleNamespace(target=target, state=state, selected=selected)
+
+
+def test_terminal_plan_keeps_default_unchanged_and_never_writes(setup,monkeypatch):
+    terminal = terminal_fixture(setup)
+    before = snapshot(setup.workspace)
+    spawn = Mock(); monkeypatch.setattr(dashboard.subprocess, 'Popen', spawn)
+    _, default = dashboard.configuration()
+    assert default['root'] == setup.new and default['old'] == setup.old
+    code, text = call(['--terminal-animal'])
+    plan = json.loads(text)
+    assert code == 0 and plan['capture_root'] == str(terminal.target)
+    assert not plan['files_written'] and not plan['process_started'] and not plan['capture_controls']
+    assert before == snapshot(setup.workspace)
+    assert 'state-terminal-animal-port8077' in plan['writable_state_only']
+    spawn.assert_not_called()
+
+
+def test_terminal_namespace_retains_all_prior_storage_read_only(setup):
+    terminal = terminal_fixture(setup)
+    _, config = dashboard.configuration(terminal_animal=True)
+    assert config['root'] == terminal.target and config['old'] == setup.new
+    assert set(config['storage_ancestors']) == {setup.new, setup.old, setup.seed, setup.earlier}
+    command = dashboard.namespace_command(observer, config)
+    storage = [command[i+1] for i, value in enumerate(command) if value == '--storage-root']
+    assert len(storage) == len(set(storage)) == 4
+    effective = {command[i+2]:flag for i, flag in enumerate(command) if flag in ('--bind', '--ro-bind')}
+    assert effective[str(setup.workspace)] == effective[str(setup.mr)] == '--ro-bind'
+    assert {path for path, flag in effective.items() if flag == '--bind'} == {str(config['state'])}
+
+
+@pytest.mark.parametrize('kind', ['incomplete', 'halted', 'policy', 'parent', 'source', 'ledger_sha',
+                                 'parent_pin', 'import_pin', 'prefix', 'duplicate_id',
+                                 'duplicate_root', 'duplicate_payload'])
+def test_terminal_selection_requires_complete_pinned_unique_literal_prefix(setup,kind):
+    terminal = terminal_fixture(setup)
+    if kind in ('incomplete', 'halted'):
+        status = observer.read(terminal.target/'status.json')
+        status['stage'] = 'running' if kind == 'incomplete' else 'halted'
+        write(terminal.target/'status.json', status)
+    elif kind in ('policy', 'parent', 'source', 'ledger_sha', 'parent_pin', 'import_pin'):
+        state = terminal.state
+        if kind == 'policy':state['import_receipt']['policy'] = 'different'
+        elif kind == 'parent':state['contract']['parent'] = str(setup.old)
+        elif kind == 'source':state['contract']['source_sha256'] = 'changed'
+        elif kind == 'ledger_sha':state['baseline_selected_sha256'] = 'changed'
+        elif kind == 'parent_pin':state['contract']['parent_pins'][str(setup.new/'state.json')] = 'changed'
+        else:state['import_receipt']['pins'][str(setup.new/'state.json')] = 'changed'
+        write(terminal.target/'state.json', state)
+    else:
+        selected = terminal.selected
+        if kind == 'prefix':selected[100]['status'] = 'changed'
+        else:
+            key = dict(duplicate_id='source_cell_id', duplicate_root='capture_root',
+                       duplicate_payload='scenario_sha256')[kind]
+            selected[-1][key] = selected[0][key]
+        (terminal.target/'selected_ledger.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in selected))
+    with pytest.raises(ValueError):
+        dashboard.configuration(terminal_animal=True)
+
+
+def test_terminal_observer_can_use_only_explicit_new_observer_deployment(setup,monkeypatch):
+    terminal = terminal_fixture(setup)
+    script = write(setup.workspace/dashboard.TERMINAL_OBSERVER_REL/'borrowed_completion_dashboard.py', {})
+    monkeypatch.setattr(dashboard, '__file__', str(script))
+    with pytest.raises(ValueError, match='separate approved'):
+        dashboard.configuration()
+    _, config = dashboard.configuration(terminal_animal=True)
+    assert config['root'] == terminal.target and config['state'].parent == script.parent

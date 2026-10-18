@@ -27,11 +27,16 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 보충 대시보드는 로컬 8077이며 기존 8075는 이전 완료 출력이다. 본수집을 처음부터
 재실행하거나 기존 실패 판정을 승인으로 고치지 않는다. 실제 실행 상태와 새 출력은
 [통합 실행 근거](261018_base5_unified_generation_capture.md)를 따른다.
-빌린 PC의 새 Sunny13(v158a)은 본수집 승인 4,944장·부족 56장·오류 없음으로 정상 종료했다.
-사용자 승인으로 로컬과 동일한 `flexible_complete.py`를 별도 runtime에 배포했고,
-첫 실제 보충은 승인·최종 P를 통과해 4,945장·부족 55장을 확인한 뒤 연속 보충을 시작했다.
+빌린 PC의 새 Sunny13(v158a)도 **승인 5,000장·부족 0장·오류 없음**으로 보충을 마쳤다.
+본수집 4,944장·공통 유연 보충 55장·마지막 동물 장면 1장으로 구성한다.
+최종 선택은 빌린 PC의 `~/ajounice_base5_capture/collections/sunny13_5k_terminal_animal_v1/selected_ledger.jsonl`이다.
+기존 4,999개 선택 행·원본·실패·세 번의 후보 부족 이력은 보존했고, 5,000개의 ID·원본 경로·payload가
+각각 고유함을 확인했다. 마지막 한 장만 동물 의미군·정적 미션은 유지하고 거리 목적을 5~30m로
+완화해 Dog1 약 7.86m의 새 장면을 촬영했다. native QA·최종 P를 통과했다.
+실제 선택 기반 train 4,250 / val 750 분할도 확정했다. 새 Sunny13 JPEG/학습 전달본은 아직 만들지 않았다.
 현재 출력·명령은 [원격 유연 보충](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)을 따른다.
-보충은 빌린 PC 8077/이 PC 8078에서 관측한다. `recovered_dashboard.py`의 기존 8075/이 PC 8076과
+최종 보충 관측기는 `borrowed_completion_dashboard.py --terminal-animal`이며 빌린 PC 8077/이 PC 8078을 쓴다.
+플래그 없는 기존 보충 관측기는 이전 4,999장 출력이다. `recovered_dashboard.py`의 기존 8075/이 PC 8076과
 구 `unified_dashboard.py --borrowed`는 이전 본수집 출력이다. 과거
 [crash 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)는 그대로 보존한다.
 새 Sunny15의 native 수집·Q90/upright 학습 전달본 검증은 완료했다. Vast 전달과 학습 시작은 별도다.
@@ -56,7 +61,7 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
-| 새 Sunny13 본수집·보충 | 빌린 PC v158a는 crash 인계 이후 검사 5,000장·승인 4,944장·부족 56장으로 정상 종료했다. 별도 `sunny13_5k_flexible_v1`에서 공통 유연 보충을 시작했다. 부모 선택·실패·시도·native 원본은 보존하며 별도 구 `--complete`는 사용하지 않는다. 실제 현재 수치는 [보충 기록](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)의 새 출력에서 확인한다 |
+| 새 Sunny13 본수집·보충 | 빌린 PC v158a는 최종 승인 5,000장·부족 0·오류 없음이다. 최종 선택은 `sunny13_5k_terminal_animal_v1/selected_ledger.jsonl`, 파생 split은 같은 출력의 `layout_split_final/`이며 train 4,250 / val 750이다. 기존 `sunny13_5k_flexible_v1`의 4,999장과 그 부모·실패·시도·native 원본은 보존한다. [완료 기록](261018_base5_unified_generation_capture.md#borrowed-terminal-animal-completion)을 따르며 구 `--complete`나 본수집을 재실행하지 않는다 |
 
 완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
 구 v150의 `bulk_ready=true`와 v151의 `bulk_ready=false`는 각 당시 snapshot이다. 현재 source의 승인으로 재사용하거나 과거 판정을 고쳐 쓰지 않는다.

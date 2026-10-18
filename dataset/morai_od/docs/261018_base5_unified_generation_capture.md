@@ -573,6 +573,9 @@ python3 -B scripts/portable_base5/complete_last_cell.py \
 
 ## 빌린 PC Sunny13의 공통 유연 보충
 
+아래 4,950장·수집 중 기록은 당시 checkpoint다. 이후 **최종 5,000장·부족 0·오류 없음**으로
+마쳤으며 현재 선택과 관측 명령은 [마지막 한 장 마감](#borrowed-terminal-animal-completion)을 따른다.
+
 10/18 본수집은 `sunny13_5k_unified_v1_after_crash_v1`에서 검사 5,000장·승인
 4,944장·부족 56장·오류 없음으로 정상 종료했다. 종료 입력 경계 검산도 통과했다.
 사용자 요청으로 로컬 Sunny15에서 검증한 유연 보충을 같은 구현으로 배포했다.
@@ -634,6 +637,59 @@ python3 -B ~/ajounice_base5_capture/work/completion-observer-v1/borrowed_complet
 보충 관측기는 기존 서버·수집·PAUSE를 조작하지 않고 전체 원본을 읽기 전용으로 본다.
 5,000장·부족 0으로 정상 종료한 후에만 `finalize`로 실제 선택 기반 파생 분할을 확정한다.
 JPEG 변환·PNG 삭제·Vast 전달·학습 시작은 이 보충 명령에 포함되지 않는다.
+
+<a id="borrowed-terminal-animal-completion"></a>
+
+### 빌린 PC의 마지막 정적 동물 한 장 마감
+
+공통 유연 보충은 **4,999장·부족 1장·오류 없음**으로 정상 종료했다. 본수집 4,944장에
+새 native 승인 55장을 더했다. 남은 `sunny13_sunny11_b5v2_04060`은 정적 장애물 미션에
+배치한 Dog2 약 43.88m다. `family=obstacle`은 미션 패밀리이며 동물 GT를 Obstacle로
+바꾼다는 뜻이 아니다. 같은 의미군·같은 30~80m 거리 목적의 승인 donor가 없어 1~3회 모두
+native 촬영 전 CPU 후보 없음으로 끝났다. 실패 장면을 세 번 재촬영한 것이 아니다.
+
+사용자가 미완료분을 마저 채우도록 요청해 로컬 마지막 한 장과 같은 별도 마감 절차를 적용했다.
+새 `scripts/portable_base5/complete_terminal_animal_cell.py`는 기존 4,999개 선택을 그대로
+참조하고, 세 번의 소진 이력을 보존한 새 출력에서 4~5번 후보만 허용한다.
+추가 완화는 거리 목적을 5~30m로 바꾸는 것뿐이다. 동물 의미군·정적 미션·train·원형 크기와
+native GT·가시성·지면·충돌·통신·최종 P 검사는 유지한다. 차량으로 대체하거나 기존 GT를
+relabel하지 않는다. 기존 동결 4파일 runtime은 그대로이고 새 어댑터만 별도 폴더에 배포했다.
+
+실제 4번 후보는 donor `00508`의 정상 관측 구성을 참고해 **Dog1 약 7.8598m**의 새 장면을
+만들었고 첫 native 촬영에서 승인됐다. 검토 사유는 없으며 최종 정지/P를 통과했다.
+최종 **5,000장·부족 0장·오류 없음**과 기존 4,999개 및 최초 4,944개 선택 행의 동일성을
+확인했다. 최종 source ID·capture root·scenario SHA도 각각 5,000개가 고유하다.
+기존 실패·부족·원본·attempt 이력은 수정하지 않았고 RGB PNG도 삭제하지 않았다.
+새 어댑터·관측기와 전체 portable 회귀 **1,331개**를 통과했다.
+
+빌린 PC `~/ajounice_base5_capture/` 기준 최종 경로:
+
+- 최종 native 선택: `collections/sunny13_5k_terminal_animal_v1/selected_ledger.jsonl`
+- 선택 SHA: `bb759771bb26b4461c11229f74fe0821a9de145e622f28e3749cd08e149a395f`
+- 학습 변환 manifest: 같은 출력의 `layout_split_final/manifest.json`
+- 학습 변환 선택: 같은 출력의 `layout_split_final/derived_selected_ledger.jsonl`
+- 최종 분할: **train 4,250 / val 750**, 원래 배치와 geometry가 달라진 선택 249개를 실제 계보로 반영.
+- manifest SHA: `83d7a5c746a7b98de1dfdfffa8a5e6b92d081364ea3a31c01468f12ea894b869`
+- derived ledger SHA: `516419ed47c6a0b1b2089c85251638421d0a04dbb29891cdd4f241d0c28e716c`
+
+분할 확정도 추가 촬영 없이 완료했다. 이는 native 수집·선택·파생 분할 완료이며,
+새 Sunny13 JPEG/GT 전달본·전송·학습이 완료됐다는 뜻은 아니다.
+로컬 근거는 `artifacts/evaluation/base5_borrowed_completion_261018/final_selection_receipt.json`이며,
+별도 호스트 실행 기록은 같은 폴더의 `terminal_animal_host.py`다.
+
+완료 대시보드의 주소는 빌린 PC 8077/이 PC 8078을 유지한다. agent가 띄운 이전 보충 관측기만
+종료하고 아래 최종 출력용 읽기 전용 관측기로 전환한다. ROS·MORAI·수집 원본은 건드리지 않는다.
+
+```bash
+python3 -B ~/ajounice_base5_capture/work/completion-observer-terminal-animal-v1/borrowed_completion_dashboard.py \
+  --terminal-animal --port 8077 --run
+```
+
+보충은 완료했으므로 구 본수집·보충 run을 다시 실행하지 않는다. 상태만 확인하려면 다음을 쓴다.
+
+```bash
+python3 -m json.tool ~/ajounice_base5_capture/collections/sunny13_5k_terminal_animal_v1/status.json
+```
 
 <a id="sunny15-training-package"></a>
 
