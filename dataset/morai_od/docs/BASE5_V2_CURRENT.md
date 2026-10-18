@@ -12,8 +12,10 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 정상 범위를 재사용하고 약 363MB만 추가 수신해 전체 SHA를 통과했다. Vast의 정식 data 경로에
 복원한 5,000장·전체 payload·Sunny15 provenance도 검증했다. 두 8-epoch 후보에 같은 manifest를
 연결하고 설정 준비·GPU/W&B/Drive 시작 전 온라인 검사를 모두 통과했다. 이후 사용자가
-일반 코사인 8-epoch 학습을 시작해 첫 train/val·checkpoint 생성·W&B 수신을 확인했다.
-실제 새 checkpoint의 Drive 백업은 진행 중이며 완료/readback은 미확인이다. 실행 상태는 모델 CURRENT를 따른다.
+일반 코사인 8-epoch 학습을 시작했고 이후 E8 정상 완료·W&B 수신을 확인했다.
+후속 warm-up restart 8-epoch 대조군도 시작했다. 새 cosine checkpoint의 검증 완료 Drive
+백업은 0개이며, 느린 업로드·시간 제한 실패와 원격 가중치 보존은
+[모델 CURRENT](../../../docs/bevfusion/CURRENT.md)를 따른다.
 현재 출력·E24 동일 변환 대조·삭제 receipt는
 [Sunny15 학습 전달본](261018_base5_unified_generation_capture.md#sunny15-training-package)을 따른다.
 본수집 4,941장에 exact 보충 3장·유연 보충 55장·사용자가 승인한 마지막 쉬운 장면 1장을 더했다.
@@ -36,11 +38,12 @@ Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자
 실제 선택 기반 train 4,250 / val 750 분할도 확정했다. 사용자 승인으로 Sunny15와 같은
 Q90/upright 3클래스 전체 검증·변환과 **약 3.38GB 단일 압축본의 전 멤버 검증까지 완료**했다.
 JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 전후 동일을 확인했다.
-보고서·원본 snapshot·압축 SHA 목록은 로컬에 회수했다. 압축본 자체의 로컬 회수는 아직
-완료하지 않았다. Moonlight 종료 후 단일 시험은 약 15.3MB/s였지만 본 rsync는 다시
-8MB/s 미만으로 지속돼 중단했다. 약 952MB 부분 파일은 보존했다. 병렬 SFTP도 기존
-10초 창 8MB/s 감시에서 자동 중단됐다. 추가 전송은 이 파일의 속도 기준 완화 승인 또는
-별도의 안정된 경로를 확보한 뒤 진행한다. PNG·GT 원본은 그대로 보존한다.
+**압축본의 로컬 회수·전체 SHA·184,055개 내부 파일·5K 학습 입력 검증도 완료**했다.
+로컬 입력은 `artifacts/evaluation/base5_sunny13_training_retrieved_261018_v1/dataset/`,
+압축본은 `artifacts/handoff/base5_sunny13_5k_jpeg90_upright3_261018.tar.zst`다.
+사용자가 8MB/s를 엄격한 중단선으로 쓰지 말고 비정상적 정체만 감시하라고 정정해
+보존분 약 952MB를 재사용했고, 추가 수신은 약 7분 19초에 마쳤다. 몇 MB/s의 일반적인
+변동으로는 중단하지 않는다. **사용자 재확인대로 빌린 PC의 PNG·native GT는 계속 보존**한다.
 현재 경로·원본 보존·전송 상태는 [Sunny13 전달본](261018_base5_unified_generation_capture.md#borrowed-sunny13-training-package)을 따른다.
 현재 출력·명령은 [원격 유연 보충](261018_base5_unified_generation_capture.md#borrowed-flexible-completion)을 따른다.
 최종 보충 관측기는 `borrowed_completion_dashboard.py --terminal-animal`이며 빌린 PC 8077/이 PC 8078을 쓴다.
@@ -65,8 +68,8 @@ JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 �
 | 완료 경위 | 기존 4,974장 보존 + 같은 패밀리의 새 정상 장면 26장. 실제 대체 내용은 adopted manifest/mapping |
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
-| 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 25K 준비본 | 구 `candidate_v150c/future_suite`는 이력이다. Sunny15 v159의 당시 exact32/32·음영 이동 2/2·Q90/upright·CPU loader·재개 자격은 보존했다. 이후 crash 인계 출력에서 사용자 수집을 진행했고 10/18 정상 PAUSE의 승인 557 / 부족 3 / 미검사 4,440을 새 공통 출력으로 인계했다. 새 실행기의 별도 소량 자격시험은 [통합 근거](261018_base5_unified_generation_capture.md)를 따른다. 5K 완료 인증은 아니다 |
+| 다음 환경 | 새 sunny13·sunny15 각 5K는 완료했다. sunny11, foggy11/13/15의 새 배치 각 5K를 더하는 총 30K 계획이며 실제 30K 완료가 아님 |
+| 과거 환경 준비·중간 인계 | 구 `candidate_v150c/future_suite`와 Sunny15 v159의 exact32/32·음영 이동 2/2·Q90/upright·CPU loader·재개 자격은 당시 이력이다. 10/18 정상 PAUSE의 승인 557 / 부족 3 / 미검사 4,440 인계도 중간 기록으로 보존하며 현재 완료 수치가 아니다. 이후 Sunny15 5K 완료는 위 최종 선택 ledger를 따른다. 새 실행기의 별도 소량 자격시험은 [통합 근거](261018_base5_unified_generation_capture.md)를 따른다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |
 | 직전 확대 동결 | v155m: 전/안/후 300/120/180, 확대 7종·14규격·315장/361부모. native 17/17·CPU 1,545개·변환·재개 통과는 [당시 실측](261016_base5_native_scale_and_extent_evidence.md)으로 보존 |
@@ -171,9 +174,11 @@ Q90은 손실 변환이며 PNG의 무손실 백업이 아니다. 삭제된 RGB�
 다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 정적/차량/이동 3/3장·Q90/upright·취득 0장은 당시 snapshot이다. 이후 [63장 중단·승인 삭제](261017_base5_unit_release_evidence.md#portable-route-compat-261018)와 [별도 실행의 69장 보존·새 복구 준비](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 구분한다. 기존 native smoke·동결 bundle·69장 원본은 보존했다. RGB PNG를 resume 중 자동 삭제하는 정책이 아니다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 
-현재 native JPEG/upright 전달본은
-`artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
-512 입력의 유효 GT 11,052개와 이전 320 crop의 10,959개는 서로 다른 파생 버전이다.
+구 E24 학습용 native JPEG/upright 전달본은
+`artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`로 보존한다.
+그 입력의 유효 GT 11,052개와 이전 320 crop의 10,959개는 서로 다른 파생 버전이다.
+새 Sunny13 5K의 전수 검증 입력은 위 `base5_sunny13_training_retrieved_261018_v1/dataset/`이며
+유효 GT 11,653개다. 구 학습 입력이나 새 Sunny15 입력을 이 경로로 덮어쓰지 않는다.
 가시성 미확인과 실제 비가시를 동일하게 취급하거나 낮은 LiDAR 점 수만으로 전부 버리지 않는다.
 
 수집 원본의 vehicle/pedestrian/obstacle/animal 의미는 유지한다.

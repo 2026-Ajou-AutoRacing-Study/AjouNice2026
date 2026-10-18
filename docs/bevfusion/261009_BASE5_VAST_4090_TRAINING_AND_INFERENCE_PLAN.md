@@ -201,9 +201,11 @@ payload 약 7.65MB/s였고, 4병렬은 약 50.9MB를 받은 시점의 합산 약
 10MB/s 기준에 따라 중단했다. startup과 payload 시간을 구분한 짧은 측정이며 대용량의
 지속 속도를 인증하지 않는다. 장기 갱신 토큰·client secret은 원격으로 보내지 않았다.
 
-이후 사용자가 **8MB/s 이상이면 진행하고, 그 아래로 지속되면 중단**하도록 기준을
-명시적으로 변경했다. 다음 실제 전송은 이 기준을 적용하며, 이전 10MB/s 미달 판정과
-측정 이력은 고쳐 쓰지 않는다. 근거는 v5 준비 폴더의 `transfer_probe_261018.json`과
+이후 사용자가 **8MB/s 이상이면 진행하고, 그 아래로 지속되면 중단**하도록 당시 기준을
+명시적으로 변경했다. 이는 당시 전송의 기준이며, 이후 10/18에 사용자가 8MB/s를 엄격하게
+적용할 필요 없이 10KB/s 같은 비정상적 정체만 아니면 진행하라고 정정했다.
+이전 10/8MB/s 미달 판정과 측정 이력은 고쳐 쓰지 않으며 과거 고정 guard를 새 요청에
+자동 적용하지 않는다. 근거는 v5 준비 폴더의 `transfer_probe_261018.json`과
 `drive_range_probe_authorized_261018.json`이다. 원격 환경·초기화·GPU 자격은 재사용하되
 실제 새 데이터 연결·전체 payload 해시·온라인 사전검사 통과 전에는 ready로 표시하거나
 본학습을 시작하지 않는다.
@@ -242,6 +244,9 @@ bash scripts/runtime/start_sunny15_vast_training.sh cosine --run
 
 ### 사용자 시작 후 실제 학습 관측 — 2026-10-18
 
+아래 20:53~20:57 기록은 첫 epoch 당시 이력이다. 최종 E8 완료와 후속 학습은
+[완료·재시작형 실행](#sunny15-cosine-complete-restarts-start-261018)을 따른다.
+
 사용자가 일반 코사인 후보를 시작한 뒤 읽기 전용으로 확인했다. 재시작·설정 변경·추가 학습은
 수행하지 않았다. Run은 `cosine-d68f0824772a`이며
 [W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/cosine-d68f0824772a) 수신도 확인했다.
@@ -270,6 +275,84 @@ bash scripts/runtime/start_sunny15_vast_training.sh cosine --run
 첫 train 약 11분 45초·val 약 1분 25초를 단순 확대하면 8 epoch는 약 1시간 45분~2시간이다.
 백업 대역폭·후속 val 비용에 따라 달라지며 완료 보장이 아니다. 학습 중에는 로컬 relay와
 네트워크를 유지하고, 기존 run과 같은 후보를 중복 시작하지 않는다.
+
+<a id="sunny15-cosine-complete-restarts-start-261018"></a>
+
+### Sunny15 cosine E8 완료·재시작형 실행 — 2026-10-18
+
+사용자가 일반 코사인 실험 완료를 알리고, 기존 Sunny13 E24와의 간단 비교 및 다음 실험의
+즉시 시작을 요청했다. 비교를 기다리지 않고 별도 agent가 기존 restarts 후보를 시작했다.
+데이터셋·소스·CUDA를 다시 전송·설치하지 않았다. 빌린 수집 PC의 원격 PNG는 사용자
+재확인대로 보존하며, 이 모델 실험과 별개의 Sunny13 로컬 회수·전수 검증도 완료했다.
+
+일반 코사인은 exit 0이며 E8이 최종이자 자체 val best다. 학습 로그는 20:42:16~22:29:13 KST로
+8 epoch·validation 포함 **1시간 46분 57초**다. 마지막 train은 0.6682초/iteration,
+data 0.0150초·메모리 29,441MiB였다. mAP의 E1~E8 기록은
+78.90 / 82.34 / 85.80 / 86.75 / 86.70 / 88.37 / 88.43 / 88.49%다.
+
+| 지표 | 구 Sunny13 E24 자체 val | 새 Sunny15 E8 자체 val |
+|---|---:|---:|
+| Center mAP | 83.47% | 88.49% |
+| Vehicle | 89.90% | 94.60% |
+| Pedestrian | 87.73% | 91.17% |
+| Obstacle | 72.79% | 79.69% |
+| Obstacle 0~10m | 85.32%, GT 206 | 86.74%, GT 209 |
+| Obstacle 10~20m | 86.13%, GT 190 | 81.50%, GT 180 |
+| Obstacle 20~30m | 76.74%, GT 143 | 71.06%, GT 116 |
+| Vehicle 50~80m | 58.83%, GT 51 | 83.87%, GT 78 |
+| Vehicle 80~100m | 29.38%, GT 6 | 73.09%, GT 42 |
+
+이는 같은 이름의 center AP(0.5/1/2/4m 평균)지만 **같은 검증셋에서 교차 평가한 결과가 아니다**.
+구 val은 745장·V/P/O GT 341/687/674, 새 val은 750장·650/454/544다. 조명·배치·지원 객체·
+분할·nearest·학습 compile 및 스케줄 길이 차이도 있다. 따라서 mAP +5.01pp를 순수 모델
+개선량으로 단정하지 않는다. 원거리 차량은 유망하지만 10~30m 장애물은 아직 공통 평가가
+필요하다. 구 E24의 epoch 24 train median 0.564초/iteration과 새 OFF의 iteration 비용도
+구분한다. 구 학습 E2~24 resume 구간 약 4시간 36분은 E1을 포함한 정확한 총시간이 아니다.
+새 E8을 production으로 승격하거나 구 E24를 교체하지 않았다.
+
+#### 다음 8 epoch 대조군 실제 시작
+
+```bash
+bash scripts/runtime/start_sunny15_vast_training.sh restarts --run
+```
+
+- 새 run: [restarts-7d345c6b3276](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/restarts-7d345c6b3276).
+- 원격 work/log: `/workspace/sunny15_ab_261018/restarts/console.log`.
+- 23:43:16 KST fresh 시작. `resumed=false`, 시작 epoch/iteration 0, optimizer 초기 상태다.
+- 실제 두 `run_manifest.identity` 전 항목 대조에서 차이는 **param_schedulers 한 항목뿐**이다.
+  데이터·초기화·source·모델·seed·batch·8 epoch·평가 계약은 같다.
+- 스케줄: 4 epoch×2주기, 주기별 500 iteration warm-up. 시작/최대/최소 LR은
+  1e-5 / 1e-4 / 1e-6이며 주기 길이 증가·optimizer reset은 없다.
+- 23:45 KST epoch 1의 40/1,063 iteration·0.6650초/iteration·loss 11.7625·유한 gradient를
+  확인했다. 첫 20 iteration에 baseline처럼 `grad_norm: inf` 1회가 있었지만 40에서 회복했고
+  NaN loss·OOM·traceback은 관측하지 않았다. GPU 90%, 30,960/49,140MiB였다.
+- W&B API도 `running`을 확인했다. 예상 약 1시간 45분~2시간은 완료 cosine 실측에 기반한
+  예산이며 완료 보장이 아니다. 기존 cosine checkpoint·relay는 수정하지 않았다.
+- 시작 증거는 로컬 v5 준비 폴더의 `restarts_start_observation_261018.json`이다.
+
+#### 새 cosine checkpoint의 외부 백업 주의
+
+학습·짧은 Drive write/readback 성공과 실제 새 checkpoint 전체 백업은 다르다.
+조회에서 검증 완료한 새 cosine Drive 백업은 **0개**였고 `backup_status.uploaded={}`다.
+로그상 8회 시작·7회 실패, 그중 6회는 약 0.27~0.42MB/s의 느린 전송이 1,200초 상한을
+넘어 SIGTERM으로 끝났다. E8 시도도 약 318.8MB/521.2MB에서 끝났으며 완료·전체 readback
+성공 기록은 없다. `epoch_1 unclassified_copy_failure`는 오래된 상태 기록이지 현재 실패가
+계속 E1이라는 뜻이 아니다. 정확한 HTTP/TLS 원인은 기존 오류 분류의 관측 부족으로 미확정이다.
+
+Vast의 원본 E6/E7/E8와 best E8은 보존한다. E8 full은 521,239,045바이트, best E8은
+202,071,167바이트다. 남은 `.backup_stage_*`의 E2/E3/E5/E7/E8 snapshot도 지우지 않는다.
+E1/E4는 현재 work/남은 stage에서 찾지 못했고 검증된 Drive 백업 근거도 없다.
+다음 실험은 실제 온라인 사전검사를 통과해 시작했지만, 이것을 bulk checkpoint 백업
+문제 해결로 표현하지 않는다. 별도 권장 복구는 best E8·full E8을 로컬 회수한 뒤 로컬에서
+Drive 업로드·전체 SHA readback하는 것이다. 이 읽기 전용 조사에서 업로드나 relay 변경을
+수행하지 않았다. 백업 확인 전 인스턴스를 Destroy하지 않는다.
+
+비교 근거는 새 원격 cosine의 `20261018_114215/vis_data/scalars.json`,
+`distance_diagnostics/epoch_8.json`, `oneclick_status.json`과 구 로컬
+`artifacts/evaluation/bevfusion/base5_training_history_261018/base5_init_full_3class_e1_261011-ecddcbad9c2a/history.jsonl`이다.
+새 [cosine W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/cosine-d68f0824772a)와
+구 [Sunny13 W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_init_full_3class_e1_261011-ecddcbad9c2a)를
+구분한다. 같은 공통 val/bag에서의 E8 대 E24 결과는 아직 없다.
 
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
 과거 문서 개편 자체는 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.

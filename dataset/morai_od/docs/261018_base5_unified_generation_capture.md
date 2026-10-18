@@ -759,7 +759,8 @@ Vast 학습에도 손대지 않는다. 초기 여유 공간은 빌린 PC 약 191
 로컬에는 `artifacts/evaluation/base5_borrowed_completion_261018/`의
 `final_native_receipts/`와 `export_receipts/`로 최종 선택·분할·보고서·source snapshot·
 압축 완료 및 전체 member SHA 목록을 회수했다. 보고서·snapshot의 원격 receipt SHA도
-로컬에서 일치했다. **이 증거 회수는 3.38GB 압축본 자체의 로컬 회수 완료가 아니다.**
+로컬에서 일치했다. 이 단계는 증거 회수만 완료한 당시 기록이며, 압축본 자체의 회수·복원은
+아래 ‘로컬 회수·복원 완료’에서 별도로 확인했다.
 
 네트워크는 Tailscale direct·RTT 약 3ms였다. 작은 증거 파일 66.29MB의 rsync 평균은
 약 2.50MB/s였고, 65.18MB 단일 SSH 읽기는 25초 내 완료되지 않아 중단했다.
@@ -774,8 +775,8 @@ Vast 학습에도 손대지 않는다. 초기 여유 공간은 빌린 PC 약 191
 원본 PNG·native GT·실패 근거는 빌린 PC에 그대로 보존한다.
 
 회수용 단일 파일 명령은 다음과 같다. `-z`로 이미 압축된 파일을 다시 압축하지 않는다.
-재검사에서 이 rsync를 실제 실행한 뒤 속도 기준에 따라 중단했으며, 복원 명령은 아직 실행하지 않았다.
-이후 재개도 속도 기준 완화 승인 또는 안정된 경로가 필요하다.
+재검사에서 이 rsync를 실제 실행한 뒤 당시 속도 기준에 따라 중단했다. 이후 사용자 정정과
+재개 상태는 아래 ‘전송 기준 정정’을 따른다. 과거 8MB/s 판정을 현재 중단 조건으로 재사용하지 않는다.
 
 ```bash
 rsync -rt --partial --partial-dir=.rsync-partial --protect-args --info=progress2 \
@@ -827,6 +828,51 @@ Drive 업로드·목록 API는 호출하지 않았다.
 보장되지는 않았다. 단일 경로·서버·회선 중 어느 것이 근본 원인인지는 확정하지 않는다.
 추가 대용량 전송은 중단했으며, 이 파일만 속도 기준을 완화해 이어받을지 사용자에게 확인한다.
 로컬 여유는 약 116GiB로 충분하고, 원격 Q90·GT 전달본과 검증된 단일 압축본은 그대로다.
+
+### 전송 기준 정정과 보존분 재사용
+
+사용자는 8MB/s를 엄격히 지키라는 뜻이 아니며 **10KB/s 같은 비정상적인 전송만 아니면
+진행**하라고 명확히 정정했다. 따라서 과거 8MB/s 자동 중단은 당시 이력으로 보존하며,
+이번 회수에는 그대로 적용하지 않는다. 몇 MB/s 구간이나 짧은 속도 변동을 이유로 중단하지 않는다.
+원본·GT·해시·분할·수신 후 전체 검증 기준은 완화하지 않았다.
+
+약 952MB의 rsync 부분 파일을 재사용해 같은 archive를 다시 수신하기 시작했다.
+통신 장기 무응답용 `--timeout=120`과 SSH keepalive만 추가했다. 이는 데이터 속도 8MB/s
+감시가 아니며, 강제 종료된 수집기를 재개하는 명령도 아니다. SFTP 시험을 반복하거나
+기존 속도 감시 source를 변경하지 않는다. 실제 회수 완료와 로컬 복원은 아래에서 별도로 확인했다.
+
+### 로컬 회수·복원 완료
+
+정정한 기준으로 rsync를 끝까지 수행해 exit 0으로 완료했다. 화면의 payload 경과는
+약 7분 19초다. 기존 부분 파일 중 951,876,736바이트를 매칭했고 새 literal data는
+2,430,683,388바이트였다. 프로토콜을 포함한 실제 수신량은 2,431,400,381바이트,
+rsync 요약 평균은 약 5.48MB/s다. 진행률의 최종 7.34MiB/s에는 기존 매칭분도 포함하므로
+이를 순수 네트워크 속도로 해석하지 않는다. 성공한 rsync가 자신의 부분 파일을 소비했다.
+
+로컬 압축본 `artifacts/handoff/base5_sunny13_5k_jpeg90_upright3_261018.tar.zst`의
+3,382,560,124바이트와 전체 SHA `22c7a231f464af4cbdb8b9ee2e2bd88ac7fb6ee29bcd3006cb82262ed85d91f5`가
+원격 기록과 정확히 일치했다. 별도 새 디렉터리에 안전 복원한 뒤 다음 검증도 모두 통과했다.
+
+| 로컬 확인 항목 | 결과 |
+|---|---|
+| 압축 내부 파일 | 184,055개 전부 크기·SHA 일치. 링크·경로 탈출·누락·중복 없음 |
+| 실제 Sunny13 native metadata | 5,000 / 5,000장 |
+| 학습 infos | 고유 token 5,000개, train 4,250 / val 750, JPEG 20,000개 |
+| GT | Vehicle 4,496 / Pedestrian 3,229 / Obstacle 3,928 = 11,653개 |
+| Pedestrian 원래 의미 | 사람 2,955 + Animal 274. 원래 component 의미도 보존 |
+| 최종 manifest | `3f7f3b096339de3bd3e33e2ea812e0984e1937932eed83d074126d8e7f6205d0` 일치 |
+| provenance | derived 선택·split overlay·qualification report 3종 모두 회수한 증거 SHA와 일치 |
+
+현재 학습·분석 입력은
+`artifacts/evaluation/base5_sunny13_training_retrieved_261018_v1/dataset/`이다.
+같은 새 출력의 `COMPLETE.json`이 압축본·전체 내부 파일·5K 입력 검증의 완료 증거다.
+추가 독립 검토도 metadata 환경·GT 개수·원래 의미·provenance 정합을 확인했다.
+네트워크 수신 증거는 기존 보충 근거 폴더의 `rsync_receive_completed.json`이다.
+`sftp_receive_v1/INCOMPLETE.json`과 이전 중단 근거는 성공으로 고쳐 쓰지 않았다.
+
+**사용자가 원격 PNG 보존을 다시 명시했다.** 빌린 PC의 PNG·native GT·실패 근거·최종 선택·
+검증된 원격 JPEG/압축본은 그대로 보존하며, 이번 작업은 삭제·재수집·새 학습을 시작하지 않았다.
+새 Sunny15 학습·후속 스케줄 대조는 별도의 모델 CURRENT와 원격 학습 기록을 따른다.
 
 <a id="sunny15-training-package"></a>
 

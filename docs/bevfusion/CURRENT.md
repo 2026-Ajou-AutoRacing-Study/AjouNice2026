@@ -12,24 +12,27 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 
 | 항목 | 현재 선택과 상태 |
 |---|---|
-| 학습 완료 | Sunny13 5K로 24 epoch 완료. native val 기준 best E9, 마지막 E24 |
+| 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인은 8 epoch 정상 완료하며 마지막 E8이 자체 val best |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
 | 이미지 | Q90 JPEG, 모델 입력 512×1056, resize 0.825. [512/576 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) 후 현재 크기 유지. native 크기·homography 보존 |
 | 공간 | 의미 ROI X±100/Y±30 m, LiDAR XY voxel 5 cm / Camera BEV 20 cm. 내부 padding과 의미 ROI를 구분 |
 | 깊이 | 1–100 m, bin 간격 0.25 m. 간격이 실제 depth 정확도를 보증하지 않음 |
 | 초기화 | 축·물리 단위를 변환한 호환 nuScenes camera/sparse·BEV·fusion·head 재사용. E25/COST-only 가중치 초기화가 아님 |
-| 학습 실행 계약 | 완료 E24는 48GB 4090·batch 4·누적 1·학습 compile ON으로 보존. 새 Sunny15 일반 코사인 8-epoch 학습은 사용자가 시작했으며 compile OFF·nearest·batch 4다. 10/18 첫 epoch train/val 완료·checkpoint 생성·W&B 수신을 확인했다. 첫 checkpoint의 실제 Drive 백업은 진행 중이며 완료/readback은 아직 미확인이다. 재시작형은 별도 준비 후보로 유지한다. [실제 학습 관측](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-live-training-261018)을 따른다 |
-| 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
+| 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 cosine은 compile OFF·nearest·batch 4로 약 1시간 47분에 완료했다. 사용자 요청으로 10/18 23:43 KST 동일 데이터의 **warm-up restart 8 epoch**를 새로 시작했다. 두 run identity 차이는 scheduler뿐이다. E8 resume가 아니며 첫 train·GPU·W&B running을 확인했다. [완료·다음 실험](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-cosine-complete-restarts-start-261018)을 따른다 |
+| 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine의 검증 완료 Drive 백업은 0개로 확인됐으며, 원격 E6/E7/E8·best E8은 보존한다. 느린 업로드와 1,200초 제한의 반복 실패는 별도 복구 대상이다. rosbag val은 train에 혼합하지 않음 |
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.
 E24의 실제 입력 계약과 대조했고 같은 JPEG·GT·보정 규칙을 사용한다. Vast 첫 수신의 8MB/s
 중단 뒤 사용자 승인으로 정상 범위를 재사용해 전체 archive SHA까지 통과했다. 복원·입력
 전수 검증과 두 후보의 데이터 연결·설정 준비·GPU/W&B/Drive 온라인 검사도 모두 통과했다.
-준비 이후 사용자가 일반 코사인 8 epoch·batch 4·compile OFF 학습을 시작했다.
-첫 validation의 center mAP는 78.90%(V 88.74 / P 84.96 / O 63.00%)다. 새 val 분포의 첫 epoch
-관측이며 E24와 동일 검증셋 비교나 최종 성능 인증은 아니다. 백업 완료와 학습 진행은 구분한다.
+일반 코사인 최종 E8 center mAP는 **88.49%(V 94.60 / P 91.17 / O 79.69%)**다.
+구 Sunny13 E24 자체 val의 83.47%와 검증셋이 달라 순수 개선량으로 해석하지 않는다.
+원거리 차량 수치는 유망하지만 10~30m 장애물은 오히려 낮은 구간이 남았다.
+공통 val/bag의 새 E8 대 E24 교차 평가는 아직 하지 않았고 production은 E24를 유지한다.
+후속 재시작형은 4 epoch×2주기·주기별 500 iteration warm-up, 동일 초기화·seed·학습 예산이다.
+학습 정상 종료·W&B 수신·실제 Drive 백업 완료는 구분한다.
 [변환·전송 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md#sunny15-training-package)를 따른다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
 새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.
