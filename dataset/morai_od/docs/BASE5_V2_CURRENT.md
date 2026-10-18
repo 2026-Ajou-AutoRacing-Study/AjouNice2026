@@ -1,7 +1,16 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny13(v158a)·Sunny15(v159)는 [공통 생성·수집 실행기](261018_base5_unified_generation_capture.md)로 인계한 뒤 10/18 06:18 KST 사용자 승인으로 두 본수집을 재개했다. 원격은 09:28 MORAI의 Vulkan crash로 안전 중단됐다. 승인 2,688장·부족분 32장·검사 완료 2,720장의 안전 prefix를 별도 `sunny13_5k_unified_v1_after_crash_v1`에 CPU 인계했으며, 후속 읽기 전용 관측에서 running·승인 2,699·부족 32를 확인했다. 기존 halted·Park false·미합산 마지막 8장 원본은 보존했다. 원격의 새 재개·대시보드 명령은 [crash 이후 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다. 원격 관측은 `recovered_dashboard.py`를 사용하며 이전 `unified_dashboard.py --borrowed`는 이전 출력을 표시한다. 로컬 수집은 변경하지 않았으며 직전 복구 작업 중 확인한 부모 진행 보고는 승인 4,192·부족 48·running이었다. 새 5K 완료 상태가 아니며 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
+Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)의 로컬 공통 수집은
+5,000장 검사를 마쳤으며 승인 4,941장·부족 59장으로 정상 종료했다. 10/18 사용자 요청으로
+기존 승인·실패 근거를 보존하는 별도 부족분 보충을 시작했다. 첫 새 장면을 승인해 4,942장·부족 58장을
+확인했고 나머지 보충을 재개했다. 보충 대시보드는 로컬 8077이며 기존 8075는 이전 완료 출력이다. 본수집을 처음부터
+재실행하거나 기존 실패 판정을 승인으로 고치지 않는다. 실제 실행 상태와 새 출력은
+[통합 실행 근거](261018_base5_unified_generation_capture.md)를 따른다.
+빌린 PC의 새 Sunny13(v158a)은 이번 Vast 학습 준비와 별도 작업이다. MORAI crash 이후 인계와
+마지막 관측 수치·새 명령은 [원격 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다.
+해당 PC의 observer는 `recovered_dashboard.py`이며 구 `unified_dashboard.py --borrowed`는 옛 출력을 표시한다.
+새 Sunny15 5K 완료·학습 전달본 검증은 아직 아니며 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>

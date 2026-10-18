@@ -1,6 +1,6 @@
 # Base5 원격 실행과 보존 안내
 
-문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-15.
+문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-18.
 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
 
@@ -116,6 +116,69 @@ Drive 우회 대상이라고 해석하지 않는다.
 전용 연결을 재인증하도록 요청했다. 장기 갱신 토큰·client secret은 원격으로 전달하지 않는다.
 재인증 전 Drive 전송·백업이 준비됐다고 보고하지 않는다. 작은 코드 archive의 완료 시간은
 대용량 데이터의 지속 대역폭 인증과 구분하며 10MB/s 기준 미달 전송을 장시간 유지하지 않는다.
+
+후속 사용자 재인증으로 전용 연결은 복구됐고, 로컬에서 동일 파일의 목록/ID 조회가 성공했다.
+전용 client 설정이 Downloads에 보존된 OAuth 앱과 일치함도 값 노출 없이 확인했다.
+그러나 원격 rclone 다운로드는 15초 하드 제한에 걸렸고, 파일 ID 직접 Drive API 요청도
+약 6.9초 후 TimeoutError로 끝났다. 추가 전송 시도는 중단했다. 이는 로컬 인증 복구와
+원격 통신 성공이 별개임을 보여 주며, Drive→Vast 전송 성공·속도나 백업 완료의 근거가 아니다.
+코드는 이미 별도 차이 전송으로 배포·GPU 검증됐으므로 이 실패를 코드 배포 실패와 혼동하지 않는다.
+
+### 새 데이터 전용 시작기와 남은 차단 조건
+
+기존 E24 시작기와 분리한 `scripts/runtime/start_sunny15_vast_training.sh`를 준비했다.
+인자 없이 후보 이름만 주면 상태 조회만 한다. `--run`이 없으면 본학습을 시작하지 않는다.
+로컬 설정은 `artifacts/evaluation/bevfusion/sunny15_training_readiness_261018_v5/`의
+`cosine.json`·`restarts.json`, 원격 실행기는 `/workspace/sunny15_runtime_261018_v5`다.
+코드·초기화 가중치·두 스케줄의 짧은 GPU/저장·재개 시험은 완료했으며, 기존 Sunny13 데이터로
+새 Sunny15 학습을 잘못 시작하지 않도록 새 5K portable manifest의 SHA를 명시적으로 연결해야 한다.
+원본 선택 ledger의 SHA·5,000개 고유 승인·portable provenance와 각 native metadata SHA·
+실제 `fresh_environment_provenance.environment=sunny15`도 검사한다. 폴더 이름이나 설정 문자열만
+바꾼 구 Sunny13 패키지는 연결하지 못한다. 48GB GPU의 실제 여유·W&B 연결·전체 checkpoint
+백업 검증도 시작 전에 확인한다.
+두 후보는 별도 work/W&B run을 사용하며 같은 GPU에서 동시에 시작하지 못하도록 잠근다.
+
+```bash
+# 로컬 저장소에서 실행한다. 두 명령 모두 조회뿐이다.
+bash scripts/runtime/start_sunny15_vast_training.sh cosine --status
+bash scripts/runtime/start_sunny15_vast_training.sh restarts --status
+
+# 새 Sunny15 Q90/upright 5K를 전송·해시 검증한 뒤, 각 후보에 동일한 manifest를 연결한다.
+python3 -B scripts/runtime/sunny15_vast_training.py \
+  --config artifacts/evaluation/bevfusion/sunny15_training_readiness_261018_v5/cosine.json \
+  --bind-local-manifest "$JPEG_PORTABLE/manifest.json"
+# restarts.json에도 같은 명령을 적용한다.
+bash scripts/runtime/start_sunny15_vast_training.sh cosine --prepare
+bash scripts/runtime/start_sunny15_vast_training.sh cosine --check
+# --check의 모든 조건을 통과하고 사용자가 학습을 승인한 뒤에만 --run을 사용한다.
+```
+
+현재 두 후보는 `training_started=false`, 새 데이터 SHA 미연결로 `ready=false`다.
+조회 시점에 GPU 49,140MiB와 W&B 0.22.3·기존 온라인 probe의 인증 조회를 확인했다.
+새 시작기·백업 자격 회귀 24개와 기존 oneclick 회귀 19개가 통과했다. 이는 새 5K 전체 학습이나
+새 데이터의 AP 검증 결과가 아니다.
+
+Drive는 로컬 갱신 자격증명을 유지하고 원격에는 RAM의 단기 access token만 전달하는
+기존 제한 relay를 재사용한다. 작은 receipt의 업로드·동일 내용 재확인은 34.68초에 성공했다.
+실제 checkpoint의 앞 32MiB 전송은 25초 제한 안에 완료하지 못해 중단했다.
+API 초기 지연과 payload 전송을 분리한 시험이 아니므로 이를 0MB/s나 지속 10MB/s 미달의
+측정값으로 표현하지 않는다. 약 519MB 전체 checkpoint 재전송은 시작하지 않았다.
+
+후속 대조에서 기존 E24의 **524,552,773바이트 전체 readback·SHA·resumable 판정**과
+현재 로컬 3개·원격 2개 backup helper의 SHA가 정확히 같은 것을 확인했다. 같은 backend와
+Drive root, 새 destination의 소량 쓰기·동일 내용 읽기 결과를 연결해 v5의 별도
+`reused_full_backup_qualification.json`으로 재사용 자격을 검증했다. 시작 전 원본 근거·도구·
+원격 helper·자격증명 앱/프로필·새 destination 연결을 다시 확인한다. 작은 probe 단독으로는
+통과하지 않는다. **검증된 백업 방식의 자격 재사용**이지 새 Sunny15 checkpoint 업로드 완료가
+아니다. `new_checkpoint_uploaded=false`를 명시하며 첫 새 epoch의 full checkpoint·metadata·
+SHA readback은 실제 생성 후 반드시 확인한다. 이 검증을 위해 같은 대용량 파일을 다시
+올릴 필요는 없으며, 현재 시작 준비에서 남은 데이터 조건은 새 Sunny15 5K 전달본 연결이다.
+근거는 `artifacts/evaluation/bevfusion/sunny15_training_readiness_261018/`의
+`drive_small_probe.json`·`backup_transport_probe.json`과
+`sunny15_training_readiness_261018_v3/network_environment_probe.json`이다.
+최종 v5의 `readiness_summary.json`·`reused_full_backup_qualification.json`에 재사용 근거와
+남은 검증 범위를 기록했다. 이전 v1~v4는 학습 미시작 이력으로 보존한다.
+학습 중 로컬 relay/백업을 사용하는 경우 이 PC와 네트워크를 계속 켜 둬야 한다.
 
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
 문서 개편은 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.

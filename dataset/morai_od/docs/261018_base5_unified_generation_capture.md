@@ -317,12 +317,102 @@ python3 -B ~/ajounice_base5_capture/work/unified-runtime-v1/recovered_dashboard.
 정확한 새 출력의 `running / 승인 2,699 / 부족 32`를 확인했다. 기존 서버와 수집은 그대로 유지했다.
 원격 TXT의 대시보드 명령도 갱신했다. 새 관측기·공통 관측기·원형 backend 관련 테스트 109개를 통과했다.
 
+## Sunny15 정상 종료 후 부족분 보충
+
+로컬 `collection_5k_unified_v1`은 검사 5,000장·승인 4,941장·부족 59장·실행 오류 0으로
+`complete_with_deficit` 종료했다. 단순히 기존 본수집 명령을 다시 실행하면 완료 기록을
+재검증할 뿐 부족분을 새로 찍지 않는다. 사용자의 추가 수집 승인으로
+`scripts/portable_base5/complete_unified.py`를 별도 진입점으로 준비했다.
+기존 부모 status·ledger·원본·native GT·실패 기록은 변경하지 않는다.
+
+별도 출력은 `artifacts/evaluation/base5_sunny15_completion_261018/exact_v2`다.
+부족한 59개 quota만 새 geometry로 재생성하며 spec·primary·ordered actors·motion·yaw 규칙·
+capture split·group·원형 크기·환경을 보존한다. 이미 실패한 payload는 내부 복구의 실제 촬영
+직전까지 금지 목록을 전달한다. 기본 명령은 읽기 전용 계획이며 `--run`만 촬영을 허용한다.
+각 quota의 추가 시도 상한은 기본 2회로 고정하고 재개 때 초기화하지 않는다.
+
+새 보충은 **기존 isolated strict direction-reference recovery QA**를 사용한다. 일반 정적 chunk의
+full-RPY 재분류 경로와 동일한 구현이라고 표현하지 않는다. 기존 strict 승인 기준을 완화하지
+않으며 통신·CollisionData·정지/P 불명은 후속 장면을 중단한다. PAUSE·STOP·시간 예산은
+현재 단일 셀의 native 안전 종료 후 다음 셀 경계에서 적용된다. 미완료 child나 `halted`를
+일반 resume로 강제 재실행하지 않는다. 종료 무결성 실패는 선택 미인증으로 남긴다.
+
+```bash
+source /opt/ros/noetic/setup.bash
+source base_ws/install_aw149/setup.bash
+export ROS_MASTER_URI=http://127.0.0.1:11311
+
+# 읽기 전용 계획
+python3 -B scripts/portable_base5/complete_unified.py \
+  --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
+  --output artifacts/evaluation/base5_sunny15_completion_261018/exact_v2
+
+# 본수집 재시작이 아니라 부족분만 새로 취득한다.
+# 첫 native 확인은 같은 명령에 --stop-after-cells 1을 추가한다.
+python3 -B scripts/portable_base5/complete_unified.py \
+  --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
+  --output artifacts/evaluation/base5_sunny15_completion_261018/exact_v2 \
+  --run --confirmed-environment sunny15
+```
+
+처음에는 기존 5K의 native QA를 전수 재구성하도록 준비했으나, 약 30분 동안 보충 촬영으로
+진입하지 못했다. 사용자의 지적에 따라 불필요하게 범위를 확대한 이 검사를 중단했다.
+현재는 **기존 승인 4,941장을 정상 종료된 확정 부모 ledger로 신뢰**한다. 승인/부족분 ID·개수,
+source/runtime·guard·인계 receipt·기존 5셀 자격·정상 종료 근거와 SHA 불변성을 확인한다.
+기존 4,941장의 픽셀·포인트·full-RPY·가시성을 다시 판정하거나 raw bitrot을 감사하지 않는다.
+새 59개의 실제 strict native QA는 유지한다. 학습 전달본 생성 시 실제 raw·GT를 별도 검증한다.
+최초 `exact_v1` 준비는 입력 그래프 미등록 오류로 native 0장·시도 0회에서 종료했으며 보존했다.
+고정 입력 그래프만 한 번 등록하도록 고친 새 `exact_v2`를 사용하고 `halted`를 정상으로 고치지 않는다.
+
+별도로 같은 약 3.985MB 분할 overlay의 반복 JSON 해석 비용도 확인했다.
+동결 dataset 파일을 편집하지 않고 portable 범위에
+`overlay_read_cache.py`를 추가했다. **호출할 때마다 실제 파일 SHA를 읽고**, 처음 보는
+`(path, SHA)`만 원형 `read_overlay`로 전부 검증한 후 해석 결과를 재사용한다.
+재귀 불변 dict/list, 일반 컨테이너로의 deepcopy, 최대 16개 LRU, 종료 파일/RAM 무결성,
+함수 소유권 복구를 검사한다. 새 보충 출력은 캐시에서 제외한다. native QA·geometry·분할
+정합·원본 pin 검사는 생략하지 않는다. helper 자체도 시작/재개/종료 코드 pin에 포함한다.
+
+실제 overlay의 내용·JSON·deepcopy 호환 검사와 캐시 회귀 41개를 통과했다.
+별도 20회 읽기는 원형 0.661초, 캐시 0.121초·종료 검사 포함 0.142초였다.
+이는 해당 함수 단독 결과이지 5K 전체 검증·촬영의 개선율이 아니다.
+기존 통합/분할/정적/strict/안전 회귀를 함께 확인했다. 이후 기본 경로가 기존 native 함수를
+호출하지 않는지와 부모 계약 변조 거부·선택 불변성을 추가해 보충 55개·캐시 41개가 통과했다.
+실제 native 승인·남은 부족분은 새 출력의 `status.json`·`selected_ledger.jsonl`을 확인한다.
+
+`exact_v2`에서 첫 부족 slot `...00126`을 새 배치로 실제 취득하고 strict QA·안전 종료·
+완료 증거 검증을 통과했다. **승인 4,942장·부족 58장**을 확인한 뒤 나머지를
+tmux `base5-sunny15-deficit`에서 재개했다. 첫 시험의 정상 PAUSE는 `--stop-after-cells 1`의
+의도된 경계다. 기존 4,941장·부모 status·ledger는 변경하지 않았다.
+
+새 읽기 전용 웹 대시보드는 **http://localhost:8077/** 이다.
+tmux `base5-sunny15-deficit-dashboard`에서 아래 명령으로 실행하며 기존 8075 서버는 유지했다.
+실제 `/status.json` 응답이 `exact_v2`의 승인 4,942·부족 58을 제공하는 것을 확인했다.
+
+```bash
+python3 -B dataset/morai_od/scripts/base5_capture_dashboard.py \
+  --capture-root artifacts/evaluation/base5_sunny15_completion_261018/exact_v2 \
+  --manifest artifacts/evaluation/base5_sunny15_261017/finalization_v1/assembled_source_v2/final_source/manifest.json \
+  --storage-root /home/luv/morai_cap/base5_sunny15_v159_261017 \
+  --history-file artifacts/evaluation/base5_sunny15_completion_261018/dashboard_history.jsonl \
+  --port 8077
+```
+
+수집 로그는 `exact_v2/console.log`다. 별도 서버는 관측만 하며 수집기·MORAI·PAUSE를 조작하지 않는다.
+
+5,000장에 도달해도 학습 전달 준비 완료를 자동 선언하지 않는다. 새 selected/adopted manifest로
+`finalize_base5_layout_split.py`의 실제 선택 기반 분할 검증을 다시 통과하고,
+`qualify_base5_training_inputs.py`로 Q90/upright/Animal→Pedestrian 전달본을 검증한다.
+기존 `finish.py finish`는 fresh-parent 전용 계약이므로 이 unified completion에 바로 사용하지 않는다.
+Vast에는 검증된 `training3_jpeg_portable`만 전달하며 중간 PNG portable·JPEG cache를 함께 보내지 않는다.
+
 ## 코드 경로
 
 - 공통 생성: `scripts/portable_base5/generation.py`
 - 고정 입력 경계: `scripts/portable_base5/session_input_boundary.py`
 - 안전 PAUSE 인계: `scripts/portable_base5/unified_paused_import.py`
 - 공통 수집: `scripts/portable_base5/unified_capture.py`
+- 정상 종료 후 부족분: `scripts/portable_base5/complete_unified.py`
+- 부족분 검증의 분할표 해석 재사용: `scripts/portable_base5/overlay_read_cache.py`
 - 빌린 PC의 격리 실행: `scripts/portable_base5/unified_borrowed.py`
 
 현재 유효 상태는 [CURRENT](BASE5_V2_CURRENT.md), 기존 준비와 과거 실패는
