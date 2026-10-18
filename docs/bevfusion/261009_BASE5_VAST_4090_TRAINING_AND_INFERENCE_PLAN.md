@@ -310,6 +310,108 @@ data 0.0150초·메모리 29,441MiB였다. mAP의 E1~E8 기록은
 구분한다. 구 학습 E2~24 resume 구간 약 4시간 36분은 E1을 포함한 정확한 총시간이 아니다.
 새 E8을 production으로 승격하거나 구 E24를 교체하지 않았다.
 
+<a id="sunny15-first8-distance-review-261019"></a>
+
+#### 첫 8 epoch와 장애물 20~30m의 실제 GT 대조 — 2026-10-19
+
+사용자가 요청한 비교 기준은 구 실험의 최종 E24가 아니라 **첫 E1~E8 안에서의 최고 결과**다.
+아래는 기존 로그·infos·변환 보고서를 읽기 전용으로 다시 집계한 결과다. 추론·재학습·설정 변경은
+하지 않았으며, 별도로 진행하는 Sunny11 수집 준비와도 독립이다.
+
+| 선정 기준·지표 | 구 Sunny13 첫 8 epoch | 새 Sunny15 cosine 첫 8 epoch |
+|---|---:|---:|
+| 전체 center mAP 최고 | E8, 82.57% | E8, 88.49% |
+| 위 전체 최고 epoch의 Obstacle 전체 AP | 69.27% | 79.69% |
+| 위 전체 최고 epoch의 Obstacle 0~10m | 83.83%, GT 206 | 86.74%, GT 209 |
+| 위 전체 최고 epoch의 Obstacle 10~20m | 80.45%, GT 190 | 81.50%, GT 180 |
+| 위 전체 최고 epoch의 Obstacle 20~30m | 72.90%, GT 143 | 71.06%, GT 116 |
+| **20~30m 구간 자체 최고** | **E5, 74.59%** | **E6, 71.53%** |
+
+전체 최고끼리의 20~30m 격차는 −1.84pp, 구간 최고끼리는 −3.06pp다. 앞 표의 E24 대 E8 격차
+−5.68pp와 구분한다. 새 E8의 전체 Vehicle/Pedestrian AP는 94.60/91.17%로 구 E8의
+88.89/89.55%보다 높지만, 모든 거리·클래스가 상승한 것은 아니다. 예를 들어 Pedestrian
+20~30m는 91.33→86.68%다. 검증 장면과 자산 구성이 달라 이를 그대로 순수 성능 변화로 해석하지 않는다.
+
+새 cosine의 Obstacle 20~30m AP는 E1~E8에서
+53.69 / 58.41 / 65.74 / 67.48 / 67.20 / 71.53 / 71.01 / 71.06%다.
+후반 정체가 있어 추가 학습만으로 해결된다고 보장할 수 없다. 구 실험은 24 epoch 스케줄의
+E8 마지막 LR이 약 `7.7021e-5`였지만 새 실험은 8 epoch 안에 약 `1e-6`까지 내린다.
+같은 8 epoch라도 최적화 단계가 다르며, 끝난 실험을 최저 LR로 단순 연장하는 것과
+처음부터 긴 스케줄로 학습하는 것도 다르다. 현재 restart의 E1~E4 해당 AP는
+54.75 / 64.79 / 63.53 / 65.20%다. 이 조회 시점까지 restart의 우위를 확인한 것은 아니다.
+
+##### 배치 보강과 GT 제외를 분리한 확인
+
+| 실제 train infos의 Obstacle GT | 구 Sunny13 | 새 Sunny15 | 변화 |
+|---|---:|---:|---:|
+| 0~10m | 780 | 1,268 | +62.6% |
+| 10~20m | 837 | 1,187 | +41.8% |
+| 20~30m | 610 | 677 | +11.0% |
+| 전체 거리 | 2,615 | 3,414 | +30.6% |
+
+이 수는 프레임 수나 고유 자산 수가 아니라 학습 infos의 instance 관측 수다.
+`bbox_label_3d == 2`를 선택하고 `hypot(bbox_3d[0], bbox_3d[1])`에
+`lower <= distance < upper`를 적용했다. 20~30m GT가 있는 train 프레임은 455→513장이다.
+절대 GT는 늘었지만 전체 Obstacle 내 해당 구간의 비중은 23.3→19.8%로 낮아졌다.
+증가율 11%만으로 충분하거나 부족하다고 판정하지 않는다.
+
+보강이 근거리에 더 집중된 이유는 당시 [생성기 설계](../../dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md#현재-근거와-해석)와
+[실제 비교](../../dataset/morai_od/docs/261013_base5_obstacle_support_experiments.md#후보-변경)에 있다.
+기존 0~20m 노출은 Base3보다 크게 적었지만 20~30m의 프레임당 GT 수는 비슷했고,
+후자는 점 희소성·가림·형상 학습도 별도 문제로 보았다. 기존 중거리 객체까지 근거리로
+이동한 초기안은 중거리 감소 때문에 기각했다. 채택한 rich-floor는 기존 20~30m 보조 객체를
+보호하되 새 추가 객체는 주로 6~20m에 배치하고 일부 기존 30m 이상 보조 객체만 20~29m로
+이동한다. 이후 전방 지원 보완도 주로 6~14m를 늘렸다. 따라서 20~30m를 대폭 늘린 정책이
+아니며, 그 구간 AP 향상이 소량 배치 시험으로 입증됐다고 해석하지 않는다.
+
+실제 새 Sunny15의 20~30m native component와 최종 GT는 다음과 같다.
+
+| 최종 split | native Obstacle component | 센서 지원 없어 제외 | 최종 infos GT |
+|---|---:|---:|---:|
+| train | 716 | 39 | 677 |
+| val | 122 | 6 | 116 |
+| 합계 | 838 | 45, 5.37% | 793 |
+
+제외 45개는 모두 LiDAR 0점·현재 512 입력의 확인된 카메라 지원 없음이며 ROI 제외가 아니다.
+카메라 상태는 `below_gate` 12 / `incomplete` 29 / `no_observed_instance_pixels` 4개다.
+`incomplete`는 대응 annotation 일부 없음이라는 관측 분류이며 수집 손상이나 실제 비가시를
+확정한 뜻이 아니다. 지원을 새로 지어내지 않는 기존 양성 GT 규칙으로 제외했고 raw는 보존했다.
+반면 LiDAR 0점이어도 카메라 지원이 있는 53개는 train 45 / val 8개 모두 유지했다.
+확인된 지원 GT의 누락·추가 component는 전수 검증에서 0개다. 대량 사후 삭제로 보강이
+사라진 양상은 아니지만, 이 제외가 AP에 미친 영향 자체는 별도 평가가 필요하다.
+
+보고서의 계획 수는 선택된 5K metadata 기준 물리 장애물 parent 20~30m
+819개(train 701 / val 118)다. 이는 **Ego 기준 계획 중심 거리·19종 물리 parent**이며,
+위 native 수는 **LiDAR 기준 실제 component 중심 거리·유모차 Obstacle 성분 포함**이다.
+두 수를 직접 빼서 유실량으로 계산하지 않는다.
+
+새 val은 Obstacle 20~30m 116개·82프레임이고 구 val은 143개·97프레임이다. 해당 구간의
+LiDAR 점 수 중앙값은 모두 4점, 평균은 5.70→6.53점이며 0점 GT는 각각 8개다.
+새 val의 센서 근거가 전반적으로 더 희소해졌다고 단정할 수 없다. 자산·전후방 구성도 달라졌다.
+전체 Obstacle val 중 30m 이상 비중도 20.0→7.2%로 줄어 전체 AP 상승의 분포 효과를 분리해야 한다.
+AP는 고정 운영 threshold 하나의 정확도가 아니므로 threshold만 낮춰 격차가 해결된다고 보지 않는다.
+현재 restart를 마친 뒤 같은 val에서 E24·새 E8을 교차 평가하고, 20~30m의 자산별 누락·오검출을
+나누는 것이 다음 판단 근거다. **그 교차 평가는 아직 수행하지 않았다.**
+
+##### 근거 파일과 집계 범위
+
+아래 `artifacts/` 경로는 로컬 저장소 `/home/luv/AjouNice2026` 기준이다.
+
+- 구 E2~E24 및 LR: `artifacts/evaluation/bevfusion/base5_training_history_261018/base5_init_full_3class_e1_261011-ecddcbad9c2a/history.jsonl`.
+  구 E1은 Vast `/workspace/base5_init_full_3class_e1_261011/20261011_123906/vis_data/scalars.json`과
+  같은 디렉터리의 `20261011_123906.log` 최종 `Epoch(val) [1]`로 별도 확인했다.
+- 새 cosine: Vast `/workspace/sunny15_ab_261018/cosine/20261018_114215/vis_data/scalars.json` 및
+  `/workspace/sunny15_ab_261018/cosine/distance_diagnostics/epoch_1.json`~`epoch_8.json`.
+- restart 조회: Vast `/workspace/sunny15_ab_261018/restarts/20261018_144405/vis_data/scalars.json`의
+  E1~E4 기록. 완료 상태나 이후 epoch를 이 조회로 인증하지 않는다.
+- 구 train/val: `artifacts/handoff/base5_sunny13_jpeg90_pedestrian_merged_v1_261011/infos/512x1056/morai_base5_infos_{train,val}.pkl`.
+- 새 train/val: `artifacts/evaluation/base5_sunny15_training_export_261018_v2/sunny15/training3_jpeg_portable/infos/512x1056/morai_base5_infos_{train,val}.pkl`.
+- 계획·native·제외 이유: `artifacts/evaluation/base5_sunny15_training_export_261018_v2/sunny15/report.json`과
+  같은 디렉터리의 `objects.json`. `training_class`, `distance_lidar_xy_m`, `split`, `retained`,
+  `exclusion_reason`, `lidar_points`, `camera512_supported`를 대조했다.
+- 새 스케줄: `artifacts/evaluation/bevfusion/sunny15_cosine_e8_backup_261018/cosine/run_manifest.json`의
+  `identity.param_schedulers`. 기존 실행·checkpoint·양성 GT 정책은 변경하지 않았다.
+
 #### 다음 8 epoch 대조군 실제 시작
 
 ```bash
