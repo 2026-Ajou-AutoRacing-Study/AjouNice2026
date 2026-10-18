@@ -129,6 +129,32 @@ def test_missing_target_uses_mount_only_merge_without_old_source_copy(deployment
     assert argv[-2:]==['python3','read_only.py']
 
 
+def test_prior_work_evidence_is_mounted_readonly(deployment):
+    f=deployment;prior=f.w/'work/prior_native';prior.mkdir(mode=0o700)
+    f.doc['preserved_roots']=[str(prior)];write(f.p['deployment'],f.doc)
+    argv=fresh.namespace(load(f),['python3','read_only.py'])
+    assert any(argv[i:i+3]==['--ro-bind',str(prior),str(prior)] for i in range(len(argv)-2))
+
+
+def test_native_adoption_can_pin_actual_simulator_asset_but_not_other_home(deployment):
+    f=deployment;ctx=load(f)
+    asset=write(ctx['mr']/'MoraiLauncher_Lin_Data/SaveFile/Scenario/assets.json',{'assets':[]})
+    assert fresh.mapped(ctx,str(asset))==asset
+    fresh.verify_pins(ctx,{str(asset):fresh.sha(asset)})
+    with pytest.raises(ValueError,match='escaped'):
+        fresh.mapped(ctx,str(f.home/'unrelated.json'))
+
+
+@pytest.mark.parametrize('kind',['outside','ancestor','descendant'])
+def test_prior_work_mount_cannot_cover_current_deployment_or_other_home(deployment,kind):
+    f=deployment
+    root={'outside':f.w,'ancestor':f.p['root'].parent,'descendant':f.p['checks']}[kind]
+    root.chmod(0o700)
+    f.doc['preserved_roots']=[str(root)];write(f.p['deployment'],f.doc)
+    with pytest.raises(ValueError,match='separate prior root'):
+        fresh.namespace(load(f),['python3','read_only.py'])
+
+
 def test_full_named_pin_root_overlay_needs_no_tmpfs_or_repository_copy(deployment):
     f=deployment;f.doc['bindings'].append(dict(source=str(f.p['root']/'source_payload/repository'),target=str(fresh.PROJECT)))
     replacement=Path(f.doc['bindings'][-1]['source']);replacement.mkdir(mode=0o700)

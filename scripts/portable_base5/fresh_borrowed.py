@@ -109,6 +109,10 @@ def mapped(ctx, filename, *, include_new=True):
         _, source, root = max(matches, key=lambda row:(len(row[2].parts), row[0]))
         return physical(source/target.relative_to(root))
     if inside(target, ctx['workspace']):return physical(target)
+    # Native adoption records the simulator's actual asset JSON location.
+    # Permit only the already approved simulator tree; verify_pins still
+    # checks the exact file SHA, and namespace does not add any new mount.
+    if inside(target, ctx['mr']):return physical(target)
     raise ValueError('Logical source escaped the isolated input roots: '+filename)
 
 
@@ -219,6 +223,11 @@ def namespace(ctx, command):
         if folder != p['output']:mounts += ['--ro-bind',str(folder),str(folder)]
     for name in ('host_contract.json','qualification.json'):
         path = ctx['session']/name;mounts += ['--ro-bind',str(path),str(path)]
+    for value in ctx['deployment'].get('preserved_roots', []):
+        path = owned(value, True)
+        require(inside(path, ctx['workspace']/'work') and not inside(p['root'],path)
+            and not inside(path,p['root']), 'Preserved work evidence must be a separate prior root')
+        mounts += ['--ro-bind',str(path),str(path)]
     return argv[:index]+mounts+argv[index:]
 
 

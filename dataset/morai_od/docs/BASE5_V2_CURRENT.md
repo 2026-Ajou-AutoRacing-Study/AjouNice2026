@@ -68,7 +68,7 @@ JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 �
 | 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | 새 sunny13·sunny15 각 5K는 완료했다. sunny11, foggy11/13/15의 새 배치 각 5K를 더하는 총 30K 계획이며 실제 30K 완료가 아님 |
-| 새 Sunny11 준비 | 공통 v160·seed 26101911로 독립 5K를 생성하고 빌린 PC의 별도 `work/fresh-sunny11-v1`에 배포했다. UI Sunny11 확인·namespace/ROS import·CPU 회귀는 통과했다. 정식 32장 사전시험의 첫 16장 후 정상 PAUSE·두 native 세션의 최종 P를 확인했다. 선택 16장 중 원형은 15장이고 1장은 센서 근거 부족 후 새 배치 복구 승인이라 **원형 32장 자격 완료가 아니다**. 새 5K 본수집·새 대시보드는 아직 시작하지 않았다. [준비·남은 자격](261018_base5_unified_generation_capture.md#sunny11-fresh-preparation-261019)을 따른다 |
+| 새 Sunny11 수집 | 공통 v160·seed 26101911로 독립 생성했다. 기존 Sunny15 절차로 **원래 geometry 4,997 + 실제 복구 geometry 3 = 5,000개**를 확정하고 exact32/32·음영 이동 2/2·Q90/upright 및 CPU train/val 32장·GT 93개·재개 보존·여섯 release 검사·공통 실행기 5/5를 통과했다. 빌린 PC `collections/sunny11_5k_v160_v1`에서 **본수집 실행 중**이며 시작 확인 당시 첫 child의 실제 새 캡처 3장 승인을 확인했다. 5K 완료가 아니다. 새 대시보드는 양쪽 PC **8079**, 로컬 시험은 종료했다. [현재 경로·명령·근거](261018_base5_unified_generation_capture.md#sunny11-fresh-preparation-261019)를 따른다 |
 | 과거 환경 준비·중간 인계 | 구 `candidate_v150c/future_suite`와 Sunny15 v159의 exact32/32·음영 이동 2/2·Q90/upright·CPU loader·재개 자격은 당시 이력이다. 10/18 정상 PAUSE의 승인 557 / 부족 3 / 미검사 4,440 인계도 중간 기록으로 보존하며 현재 완료 수치가 아니다. 이후 Sunny15 5K 완료는 위 최종 선택 ledger를 따른다. 새 실행기의 별도 소량 자격시험은 [통합 근거](261018_base5_unified_generation_capture.md)를 따른다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |
 | 직전 Sunny13 동결 | [v154 검증](261016_base5_precollection_final_review.md)의 native 40/40·CPU 1,279개·`bulk_ready=true`는 당시 scale 1 계약으로 보존 |

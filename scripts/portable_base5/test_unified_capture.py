@@ -776,6 +776,35 @@ def test_fresh_source_runs_actual_adapter_without_inventing_old_history(fresh_so
     assert adapter.qualified_release_context.call_count == 1
 
 
+@pytest.mark.parametrize('change', [None, 'policy', 'helper_sha', 'missing_pin'])
+def test_fresh_adopted_source_uses_original_six_gate_verifier(fresh_source, monkeypatch, change):
+    doc, values, parent, _, original = fresh_source
+    filename = Path(doc['release']).with_name('finalize_base5_environment_release.py')
+    filename.write_text('# original native-adoption six-gate verifier\n')
+    verifier = SimpleNamespace(__file__=str(filename), POLICY='original-native-adopted-policy',
+        qualified_release_context=Mock(return_value=original))
+    monkeypatch.setitem(capture.sys.modules, 'finalize_base5_environment_release', verifier)
+    values.update(qualification_schema='base5_new_environment_release_qualification_v1',
+        release_policy=verifier.POLICY, helper_sha256=capture.sha(filename))
+    values.pop('fresh_source_adapter')
+    values['input_hashes'][str(filename)] = capture.sha(filename)
+    doc['fixed_pins'][str(filename)] = capture.sha(filename)
+    if change == 'policy':values['release_policy'] = 'unqualified'
+    elif change == 'helper_sha':values['helper_sha256'] = '0'*64
+    elif change == 'missing_pin':doc['fixed_pins'].pop(str(filename))
+    Path(doc['release']).write_text(json.dumps(values));doc['release_sha256'] = capture.sha(doc['release'])
+    if change:
+        with pytest.raises(RuntimeError, match='native-adopted six-gate'):
+            capture.source_authority(doc, parent)
+        verifier.qualified_release_context.assert_not_called()
+    else:
+        result = capture.source_authority(doc, parent)
+        assert result['original_authority'] == original
+        verifier.qualified_release_context.assert_called_once()
+        doc['source_authority'] = result
+        assert capture.source_authority(doc, parent) == result
+
+
 @pytest.mark.parametrize('change',['environment','manifest','manifest_sha','qualification_manifest','output','environment_map',
     'support_only','adapter_sha','adapter_path','registration_schema','deck_environment','missing_adapter_pin'])
 def test_fresh_release_cannot_reuse_old_environment_source_or_unpinned_adapter(fresh_source,change):

@@ -145,6 +145,13 @@ def route_compatibility(doc):
         yield
 
 
+def fresh_release_verifier(value):
+    """새 원형과 실제 대체를 반영한 source 모두 기존 검증기를 그대로 쓴다."""
+    name = ('finalize_base5_environment_release' if value.get('qualification_schema') ==
+        'base5_new_environment_release_qualification_v1' else 'fresh_environment_qualification')
+    return importlib.import_module(name)
+
+
 def source_authority(doc, parent):
     """구 release는 원래 source의 자격만 입증한다. 새 실행기 자격과 혼동하지 않는다."""
     release = physical(doc['release'])
@@ -183,7 +190,7 @@ def source_authority(doc, parent):
                     'Cached support source result differs')
         return copy.deepcopy(saved)
     if fresh:
-        adapter = importlib.import_module('fresh_environment_qualification')
+        adapter = fresh_release_verifier(value)
         authority = adapter.qualified_release_context(release, doc['environment'], physical(doc['manifest']))
         require(authority.get('passed') is True and authority.get('bulk_ready') is True
             and authority.get('environment') == doc['environment']
@@ -236,7 +243,13 @@ def validate_fresh_release(doc, value):
         and value.get('environments') == {environment:dict(manifest=source,
             manifest_sha256=source_sha, capture_output=value['capture_output'])},
         'Fresh release must bind this exact new source/environment/output')
-    adapter = importlib.import_module('fresh_environment_qualification')
+    adapter = fresh_release_verifier(value)
+    if value.get('qualification_schema') == 'base5_new_environment_release_qualification_v1':
+        require(value.get('release_policy') == adapter.POLICY
+            and value.get('helper_sha256') == sha(adapter.__file__)
+            and doc['fixed_pins'].get(str(physical(adapter.__file__))) == sha(adapter.__file__),
+            'Existing native-adopted six-gate release verifier is not pinned')
+        return
     registration = importlib.import_module('prepare_base5_unit_environment_smoke')
     require(value.get('qualification_schema') == adapter.QUALIFICATION_SCHEMA
         and value.get('release_policy') == adapter.POLICY

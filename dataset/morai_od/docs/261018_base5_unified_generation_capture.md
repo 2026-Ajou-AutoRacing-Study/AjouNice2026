@@ -49,6 +49,62 @@ CPU v2 receipt·UI 원본과 빌린 PC 위 전용 경로의 `deployment-source.j
 새 출력은 `collections/sunny11_5k_v160_v1`로 계획했지만 아직 생성·시작한 본수집 출력은 아니다.
 이 준비 기록이 다른 환경의 release나 가시성·지면·충돌·Park 기준을 바꾸지 않는다.
 
+### 로컬 확인과 기존 native 조립 경로 연결 — 2026-10-19 후속
+
+위 첫 16장 기록은 당시 상태로 보존한다. 후속 원격 시험은 32개 슬롯을 마쳤고,
+원형 29장과 실제 새 배치 복구 3장을 확보했다. 최초 실패 native·판정은 보존한다.
+이는 원형 exact32 전부 통과를 뜻하지 않는다. 별도 운영 자격을 새로 만들지 않고,
+Sunny15에서 사용한 `base5_environment_qualification.assemble/register_smoke`와
+`finalize_base5_environment_release`의 원래 여섯 검사를 사용한다.
+
+최종 조립은 **기존 4,997개 geometry + 실제 복구 승인 geometry 3개 = 5,000개**다.
+Sunny13·15 시나리오를 재사용하거나 4,997장으로 수집 목표를 줄인 것이 아니다.
+공통 생성 receipt의 `settings.seed`와 `fresh_geometry_policy.seed`는 `26101911`이다.
+기존 quota/spec 계보의 `config.seed=261006`은 옛 템플릿 필드이며 새 geometry seed가 아니다.
+같은 코드·할당 규칙 안에서 Ego·객체 배치를 다시 샘플링했고, 과거 환경과의 지도 배경
+중복은 허용하되 동일·근접 layout 여부는 별도로 감사했다.
+
+로컬 Sunny11 대표 5장 시험은 **승인 5/5·부족 0·실패 0**, 약 109.6초였다.
+정적 장애물·혼합·복합체·교차로 이동·음영 이동을 포함했고 실제 1장 후 PAUSE →
+나머지 재개와 기존 raw 보존, 완료 후 추가 촬영 없는 재개를 확인했다.
+근거는 `artifacts/evaluation/base5_sunny11_local_261019_v1/result.json`이다.
+
+빌린 PC의 새 조립 source는 `work/sunny11-source-finalized-v1/`, 공통 실행기는
+`work/fresh-sunny11-v3/`다. 과거 v1 원본과 미채택 운영 자격 준비 v2는 보존하며,
+v2의 별도 운영 자격은 본수집 승인으로 사용하지 않는다. v3는 기존 여섯 검사를
+그대로 선택하도록 공통 실행기를 보완했으며 환경별 QA 분기는 추가하지 않았다.
+실제 MORAI 자산 파일의 경로도 이미 승인된 simulator 트리 안에서만 해시 대조한다.
+최종 목록 소량 시험은 **32/32 승인·부족 0·실패 0**, 독립 음영 이동은 동물·사람
+**2/2 승인**으로 마쳤다. Q90/upright 3클래스 입력은 32장·GT 93개였고 고정 팀 이미지의
+GPU·네트워크 미노출 CPU 검사에서 실제 train/val 파이프라인 각각 32장·GT 93개를 유지했다.
+16장 후 PAUSE·재개 원본 보존과 완료 재실행의 추가 촬영 0도 확인했다.
+공통 실행기·원형 fresh 자격·route 경로 회귀는 **284개 통과**했다.
+최종 release의 여섯 검사는 모두 통과했다. 기존 CPU 영수증의 원본 테스트가 원격 배포에서
+일부 빠진 것을 발견해 동일 SHA의 212개 테스트 원본을 보완했다. 수집·모델 관련 runtime
+439개는 전부 동일했다. 영수증이나 판정을 수정해 통과시킨 것이 아니다.
+
+확정 full manifest는 빌린 PC의
+`work/sunny11-source-finalized-v1/final_source/manifest.json`, SHA
+`6ac61a4dffc831d966c8f8e5203fc1ab66a07f31c94b308d90e4690d3ff35548`이다.
+release는 `work/fresh-sunny11-v3/qualification/release/release.json`이다.
+공통 빠른 실행기의 별도 연결 시험도 **5/5·부족 0·실패 0**, 약 110.5초로 통과했다.
+실제 1장 후 PAUSE·나머지 재개·완료 재실행 추가 촬영 0을 포함한다.
+
+그 뒤 사용자 승인에 따라 `collections/sunny11_5k_v160_v1`에서 **5K 본수집을 실제 시작**했다.
+기존 승인 0·미검사 5,000개로 시작했고, 최초 확인에서 정규 child의 새 캡처 **3장 승인·부족 0·오류 0**을
+확인했다. 이는 첫 묶음의 진행 수이며 부모가 확정한 전체 승인 수나 5K 완료 수가 아니다.
+로컬 5장 시험은 종료됐으며 기존 ROS·MORAI·Sunny13 대시보드·원격 PNG는 그대로 보존한다.
+
+- 현재 상태·로그: 빌린 PC `work/fresh-sunny11-v3/{capture-service.log,started-services.json}` 및
+  위 본수집 출력의 `status.json`·`selected_ledger.jsonl`.
+- 새 웹: **이 PC `http://localhost:8079/`**, 빌린 PC에서도 `http://127.0.0.1:8079/`.
+  전용 SSH 터널을 추가했고 HTTP 200과 `/status.json`의 Sunny11·최종 manifest·새 output 연결을 확인했다.
+  기존 8075/8077을 종료하거나 Sunny11로 재표시하지 않았다.
+- 새 명령 파일: 빌린 PC `~/ajounice_base5_capture/SUNNY11_COMMANDS.txt`.
+  로그 관측·정상 PAUSE·정상 PAUSE 후 재개 명령이다. MORAI crash나 Park 미확인 상태를
+  정상 PAUSE로 고쳐서 재개하는 명령이 아니다. 기존 보호 TXT의 내용은 변경하지 않았다.
+- 일반 review는 기존 공통 복구/부족분 경로로 처리한다. 통신·충돌 수신 불확실·Park 실패의 안전 중단은 유지한다.
+
 ## 결정과 보존 범위
 
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.
