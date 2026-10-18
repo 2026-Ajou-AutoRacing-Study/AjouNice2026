@@ -245,3 +245,72 @@ def test_native_verifier_uses_one_actual_round_and_retains_original_completed_pr
         result=flex.verify_attempt(attempt,meta())
         assert bool(result['selected'])==accepted and 'direction' in calls and 'native-report' in calls
         assert ('completed-native-proof' in calls)==accepted
+
+
+def test_stable_distance_window_is_preferred_over_boundary_crossing_template():
+    source=meta(distance=9.,actors=1)
+    source['spec']['distance_bounds']=[6,10]
+    crossing=meta(asset=2,distance=12.,actors=1);crossing['spec']['distance_bounds']=[10,30]
+    stable=meta(asset=2,distance=9.,actors=1);stable['spec']['distance_bounds']=[6,10]
+    ordered=flex.donor_order(source,[({'scenario_sha256':'cross'},crossing),({'scenario_sha256':'stable'},stable)],
+        {1:'obstacle',2:'obstacle'},'slot',1,set())
+    assert ordered[0][0]['scenario_sha256']=='stable'
+
+
+def test_import_reverifies_only_new_native_and_preserves_consumed_attempt_history(tmp_path,monkeypatch):
+    import json
+    parent=tmp_path/'exact';parent.mkdir()
+    baseline=[dict(id='old-a',source_cell_id='a')]
+    flex.atomic_rows(parent/'selected_ledger.jsonl',baseline)
+    source=tmp_path/'old_flexible';folder=source/'cells'/'b'/'attempt_1'/'template_1'
+    placement=folder/'placement';placement.mkdir(parents=True);child=folder/'campaign';child.mkdir()
+    mp=placement/'metadata.json';mp.write_text(json.dumps(dict(fresh_completion_source={
+        'source_cell_id':'b','source_scenario_sha256':'original-sha'}))+'\n')
+    manifest=placement/'manifest.json';manifest.write_text(json.dumps({'scenes':[{'metadata':str(mp)}]})+'\n')
+    selected=dict(id='new-b',source_cell_id='candidate',capture_root=str(child/'raw'))
+    result={'selected':selected}
+    attempt=dict(id='b',ordinal=1,donor_id='donor',donor_sha256='donor-sha',manifest=str(manifest),
+        manifest_sha256=flex.common.sha(manifest),child=str(child),result=result)
+    state=dict(contract=dict(parent=str(parent),source_sha256='source-sha',parent_pins={},
+        adapter_sha256='old-adapter',attempts=3),source_order=['a','b','c'],deficits=['b','c'],
+        baseline_selected_sha256=flex.common.sha(parent/'selected_ledger.jsonl'),attempts=[attempt,
+            dict(id='c',ordinal=1,result=None,manifest=None)],stage='halted',current=None,
+        error='Flexible family/motion/split/distance purpose changed')
+    source.mkdir(exist_ok=True)
+    for name,value in [('state.json',state),('status.json',dict(stage='halted',current_cell_id=None,accepted_candidate=2)),
+                       ('quota.json',{})]:
+        (source/name).write_text(json.dumps(value)+'\n')
+    flex.atomic_rows(source/'selected_ledger.jsonl',flex.merge(state,baseline)[0])
+    before={name:(source/name).read_bytes() for name in ('state.json','status.json','selected_ledger.jsonl')}
+    calls=[]
+    monkeypatch.setattr(flex,'verify_attempt',lambda a,meta:calls.append(a['id']) or result)
+    monkeypatch.setattr(flex,'evidence_pins',lambda a:{str(manifest):flex.common.sha(manifest)})
+    deck={'scenes':[{'id':'a'},{'id':'b','scenario_sha256':'original-sha'},{'id':'c'}]}
+    imported=flex.import_completion([source],parent,deck,baseline,['b','c'],'source-sha')
+    assert calls==['b'] and len(imported['selected'])==1
+    assert imported['selected'][0]['source_cell_id']=='b'
+    assert {a['id'] for a in imported['history']}=={'b','c'}
+    assert all((source/name).read_bytes()==value for name,value in before.items())
+
+
+def test_geometry_purpose_miss_uses_original_bounded_proposal_rejection_path(monkeypatch):
+    import sys
+    class Exhausted(ValueError):pass
+    quality=SimpleNamespace(PlacementProposalExhausted=Exhausted)
+    parent=SimpleNamespace(batch=SimpleNamespace(campaign=SimpleNamespace(loop=quality)))
+    monkeypatch.setattr(flex.common,'modules',lambda:(parent,None))
+    original=lambda *args:pytest.fail('Compatibility miss must not bind/load a scene')
+    layout=SimpleNamespace(register_recovery_overlay=original)
+    monkeypatch.setitem(sys.modules,'base5_layout_split',layout)
+    monkeypatch.setattr(flex,'rebind_clone',lambda module:original)
+    source=meta(distance=10.);candidate=meta(distance=25.)
+    with flex.flexible_rebinding({1:'obstacle'}):
+        with pytest.raises(Exhausted,match='^Recovery layout leakage/coverage changed:'):
+            layout.register_recovery_overlay({},source,{},candidate,'unused')
+    assert layout.register_recovery_overlay is original
+    # q.bind_replacement_contract catches ValueError and recognizes precisely
+    # this prefix as ReplacementGeometryRejected, rather than a contract fault.
+    source_path=Path(__file__).parents[2]/'dataset/morai_od/scripts/run_base5_quality_loop.py'
+    tree=ast.parse(source_path.read_text())
+    fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='bind_replacement_contract')
+    assert any(isinstance(n,ast.Constant) and n.value=='Recovery layout leakage/coverage changed:' for n in ast.walk(fn))

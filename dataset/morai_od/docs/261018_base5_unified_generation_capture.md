@@ -442,11 +442,24 @@ Vast에는 검증된 `training3_jpeg_portable`만 전달하며 중간 PNG portab
 재구성하고 원형 direction/native/Park/identity 검사를 재사용한다. 저장된 시험 한 장의
 읽기 전용 재검증과 기존 exact·캐시 포함 CPU 회귀 **123개**가 통과했다.
 
-최종 보충 출력은 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3`다.
+첫 연속 취득 출력은 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3`다.
 기존 4,944장을 그대로 계승하며, 앞선 시험 한 장은 중복 합산하지 않는다.
-tmux `base5-sunny15-flex`가 실제 보충을 수행하고, `base5-sunny15-flex-dashboard`가
-**http://localhost:8077/** 에서 이 출력을 관측한다. 기존 8075는 이전 본수집 출력이다.
-콘솔 로그는 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3_console.log`다.
+이 출력에서 7개 슬롯이 연속 승인돼 **4,951장·부족 49장**을 확보했다. 이후 01138의 CPU 후보가
+목적 거리 경계를 벗어나 상위 실행이 중단됐다. donor는 원래 11.92m였지만 재생성 허용 범위가
+10~30m여서 20m 경계를 넘을 수 있었다. 이 때 아직 새 native 촬영은 없었고, 앞선 7개의 native
+승인·정지/P 근거는 보존됐다. v3의 `halted`와 `selected_not_certified`를 정상으로 고치지 않는다.
+
+수정 실행 `flexible_v4`는 목적 거리 창에 완전히 들어오는 donor를 우선하며, 생성 중 경계를
+넘거나 실제 layout이 겹치는 후보만 원형의 제한된 CPU 재생성 경로로 보낸다. 입력·해시·계보·
+native·통신·Park 오류를 일반적인 후보 실패로 바꾸지 않는다. `--import-native-completion`은
+진단된 CPU 중단 출력의 새 완료 child만 직접 검증해 계승한다. 기존 4,944장의 native QA는
+재실행하지 않고, 새 승인 7장·소비한 시도 횟수·실패 payload 이력을 그대로 인계한다.
+이 인계에서도 구 status·state·선택 기록을 수정하지 않는다. 관련 CPU 회귀는 총 **126개** 통과했다.
+
+현재 운영 출력은 `artifacts/evaluation/base5_sunny15_completion_261018/flexible_v4`다.
+tmux `base5-sunny15-flex`와 로컬 **http://localhost:8077/** 관측기를 사용한다.
+기존 8075는 이전 본수집 출력이다. 새 콘솔은
+`artifacts/evaluation/base5_sunny15_completion_261018/flexible_v4_console.log`다.
 
 ```bash
 source /opt/ros/noetic/setup.bash
@@ -457,7 +470,8 @@ export ROS_MASTER_URI=http://127.0.0.1:11311
 python3 -B scripts/portable_base5/flexible_complete.py \
   --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
   --parent artifacts/evaluation/base5_sunny15_completion_261018/exact_v2 \
-  --output artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3 \
+  --output artifacts/evaluation/base5_sunny15_completion_261018/flexible_v4 \
+  --import-native-completion artifacts/evaluation/base5_sunny15_completion_261018/flexible_v3 \
   --run --confirmed-environment sunny15 --time-budget-sec 3600
 ```
 
@@ -486,6 +500,11 @@ python3 -B scripts/portable_base5/flexible_complete.py \
 남아 있다. 효율 개선의 핵심은 실패 조합의 정확한 복원을 고집하지 않아 승인 낭비를 줄인 점이다.
 이후 여섯 번째까지 **6/6 승인·4,950장·부족 50장**을 확인했다. 00727도 LiDAR 4점과
 카메라 원본 150픽셀의 양성 근거를 통과했다. 세부 95~99m 칸은 완화했지만 80~100m 목적은 유지했다.
+
+v3 정상 취득 구간은 7장에 313.82초, 승인당 44.83초였고 실제 native 완료 간격은 평균 42.00초였다.
+이 속도로 남은 49장을 선형 추정하면 36.61분이다. 재개 인계·일부 재시도를 포함한 운영 예상은
+약 40~60분으로 설명했다. 코드 수정 중 정지 시간과 아직 발생하지 않은 어려운 장면 비용을
+완료 속도로 숨기지 않는다. 전체 원격 5K의 ETA와는 다른 로컬 보충 추정이며 완료 보장이 아니다.
 
 빌린 PC Sunny13은 확인 당시 검사 4,192장·승인 4,151장·부족 41장·미검사 808장으로,
 약 30분간 239장(약 481장/h), 마지막 15분 약 455장/h를 승인하며 정상 본수집 중이었다.

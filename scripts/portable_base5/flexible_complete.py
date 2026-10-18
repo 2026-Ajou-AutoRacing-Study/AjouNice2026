@@ -98,8 +98,14 @@ def donor_order(source, donors, pools, ident, ordinal, used):
     rng.shuffle(eligible)
     # Prefer a different observed-success primary and fewer mandatory actors.
     # This does not waive any visibility threshold on the chosen new scene.
-    eligible.sort(key=lambda item: (item[1]['runtime_actors'][0]['data_id'] == primary,
-                                   len(item[1]['runtime_actors'])))
+    window = {'near_0_20m':(0,20),'near_20_30m':(20,30),
+        'middle_30_80m':(30,80),'vehicle_80_100m':(80,100),'far_80_100m':(80,100)}[range_purpose(source)]
+    def stable(meta):
+        plan = meta['spec'].get('secondary_far_vehicle') if far_purpose(meta) else None
+        bounds = plan.get('distance_bounds_m') if plan else meta['spec'].get('distance_bounds')
+        return bool(bounds and window[0] <= bounds[0] <= bounds[1] <= window[1])
+    eligible.sort(key=lambda item: (not stable(item[1]),len(item[1]['runtime_actors']),
+                                   item[1]['runtime_actors'][0]['data_id'] == primary))
     return eligible
 
 
@@ -181,14 +187,22 @@ def flexible_rebinding(pools):
     original = layout.register_recovery_overlay
     clone = rebind_clone(layout)
     def register(source_entry, source_meta, candidate, proposed, output):
-        require(compatible(source_meta, proposed, pools), 'Flexible family/motion/split/distance purpose changed')
+        if not compatible(source_meta, proposed, pools):
+            raise common.modules()[0].batch.campaign.loop.PlacementProposalExhausted(
+                'Recovery layout leakage/coverage changed: Flexible geometry crossed its family/motion/split/distance purpose; choose another donor')
         proof = dict(policy=POLICY, relaxed_fields=list(RELAXED),
             portable_adapter_sha256=common.sha(__file__), frozen_layout_implementation_sha256=common.sha(layout.__file__),
             appended_to_approved_prefix=True, native_qa_unchanged=True)
         proposed['flexible_completion_policy'] = proof
         # The original writes source_metadata before returning; include explicit
         # semantics in that immutable planned core and its content binding.
-        reference = clone(source_entry, source_meta, candidate, proposed, output)
+        try:
+            reference = clone(source_entry, source_meta, candidate, proposed, output)
+        except ValueError as error:
+            if str(error).startswith(('Recovery duplicates another actual layout; propose distinct geometry',
+                                      'Recovery layout leakage/coverage changed:')):
+                raise common.modules()[0].batch.campaign.loop.PlacementProposalExhausted(str(error)) from error
+            raise
         document = read(reference['path'])
         document['audit']['flexible_completion_policy'] = proof
         document['flexible_recovery_policy'] = proof
@@ -306,6 +320,10 @@ def generate(source, original, donor, donor_meta, deck, folder, known, ordinal):
 
 def merge(state, baseline):
     chosen = {row['source_cell_id']:copy.deepcopy(row) for row in baseline}
+    for row in state.get('imported_selected',[]):
+        ident = row['source_cell_id']
+        require(ident in state['deficits'] and ident not in chosen,'Duplicate/foreign imported native approval')
+        chosen[ident] = copy.deepcopy(row)
     for attempt in state['attempts']:
         result = (attempt.get('result') or {}).get('selected')
         if not result:
@@ -317,6 +335,78 @@ def merge(state, baseline):
             adapter_sha256=state['contract']['adapter_sha256'],relaxed_fields=list(RELAXED)))
         chosen[attempt['id']] = result
     return [chosen[i] for i in state['source_order'] if i in chosen], [i for i in state['deficits'] if i not in chosen]
+
+
+def import_completion(sources, parent, deck, baseline, deficits, source_sha):
+    """Import only independently complete native children from a stopped wrapper.
+
+    Old halted status/history are never changed. A wrapper's CPU-selection
+    failure is not a native safety failure, and cannot erase seven completed
+    native approvals. Only those new children are directly reverified here.
+    """
+    selected,history,pins,known = [],[],{},set()
+    chosen = {r['source_cell_id']:r for r in baseline}
+    order = [e['id'] for e in deck['scenes']]
+    originals = {e['id']:e for e in deck['scenes']}
+    for source in sources:
+        source = common.physical(source)
+        state,status = read(source/'state.json'),read(source/'status.json')
+        require(state['contract']['parent'] == str(parent)
+            and state['contract']['source_sha256'] == source_sha
+            and state['source_order'] == order and state['deficits'] == deficits
+            and state['baseline_selected_sha256'] == common.sha(parent/'selected_ledger.jsonl'),
+            'Imported supplemental source/parent/quota binding differs')
+        require(status.get('current_cell_id') is None and state.get('current') is None
+            and status['stage'] == state['stage'] and state['stage'] in SAFE_STAGES+('halted',),
+            'Only an idle completed/paused or diagnosed CPU-stopped supplement can be imported')
+        if state['stage']=='halted':
+            require(str(state.get('error','')).startswith((
+                'Flexible family/motion/split/distance purpose changed',
+                'Flexible geometry crossed its family/motion/split/distance purpose')),
+                'Unknown/native safety failure cannot be imported as a CPU proposal miss')
+        require(all(common.sha(path)==sha for path,sha in state['contract']['parent_pins'].items()),
+                'Imported supplement original parent changed')
+        recorded,unused = merge(state,baseline)
+        require(recorded == rows(source/'selected_ledger.jsonl') and len(recorded)==status['accepted_candidate'],
+                'Imported canonical selection differs from its snapshot')
+        observed=[]
+        for attempt in state['attempts']:
+            ident,ordinal=attempt['id'],attempt['ordinal']
+            require(ident in deficits and type(ordinal) is int and 1<=ordinal<=state['contract']['attempts'],
+                    'Imported attempt escaped its original deficit/budget')
+            history.append(dict(id=ident,ordinal=ordinal,source=str(source),
+                donor_sha256=attempt.get('donor_sha256'),manifest=attempt.get('manifest')))
+            result = attempt.get('result')
+            if result is None:
+                require(not attempt.get('child') or not Path(attempt['child']).exists(),
+                        'Unverified native child cannot become an ordinary imported CPU failure')
+                continue
+            manifest = common.physical(attempt['manifest']);child=common.physical(attempt['child'])
+            require(common.inside(manifest,source/'cells'/ident/f'attempt_{ordinal}')
+                and child == manifest.parent.parent/'campaign'
+                and common.sha(manifest)==attempt['manifest_sha256'], 'Imported candidate escaped or changed')
+            meta=read(read(manifest)['scenes'][0]['metadata'])
+            declaration=meta.get('fresh_completion_source',{})
+            require(declaration.get('source_cell_id')==ident
+                and declaration.get('source_scenario_sha256')==originals[ident]['scenario_sha256'],
+                'Imported candidate does not map to the authoritative original deficit')
+            require(verify_attempt(attempt,meta)==result,'Imported native completed proof changed')
+            pins.update(evidence_pins(attempt))
+            if result.get('selected'):
+                row = next(r for r in recorded if r['source_cell_id']==ident)
+                require(ident not in chosen,'Duplicate imported supplemental approval')
+                require(common.inside(common.physical(row['capture_root']),child), 'Imported native root escaped child')
+                chosen[ident]=row;observed.append(row);selected.append(copy.deepcopy(row))
+        require(len(observed)==len(recorded)-len(baseline)-len(state.get('imported_selected',[])),
+                'Imported selection has no directly verified native evidence')
+        # Nested imports remain explicit and pinned; avoid silently copying
+        # approvals whose direct child evidence was not inspected in this pass.
+        require(not state.get('imported_selected'), 'Chained imports require explicit direct-source arguments')
+        pins.update({str(source/name):common.sha(source/name) for name in
+            ('state.json','status.json','selected_ledger.jsonl','quota.json')})
+        known.update(exact.prior_payloads(source,dict(scenes=[])))
+    return dict(selected=selected,history=history,pins=pins,known_payloads=sorted(known),
+                policy=POLICY,existing_native_qa_recomputed=False,new_children_reverified=True)
 
 
 def evidence_pins(attempt):
@@ -539,18 +629,26 @@ def execute(args):
             contract = dict(policy=POLICY,profile=str(common.physical(args.profile)),profile_sha256=common.sha(args.profile),
                 source_sha256=doc['manifest_sha256'],parent=str(parent),parent_pins=pins,
                 adapter_sha256=common.sha(__file__),exact_helper_sha256=common.sha(exact.__file__),
-                helpers=common.helpers(),attempts=args.attempts)
+                helpers=common.helpers(),attempts=args.attempts,
+                import_sources=[str(common.physical(p)) for p in args.import_native_completion])
             path = output/'state.json'
             if path.exists():
                 state = read(path)
                 require(state['contract'] == contract and state['stage'] in SAFE_STAGES,
                         'Resume source/runtime changed or safety diagnosis needed')
                 validate_resume(state,output,deck,deficits,selected)
+                require(all(common.sha(path)==sha for path,sha in state.get('import_receipt',{}).get('pins',{}).items()),
+                        'Imported source/native snapshot changed')
             else:
                 require(not any(p.name != '.flexible.lock' for p in output.iterdir()),'Fresh registered output required')
+                with exact.overlay_read_cache.installed(exclude_roots=(output,)), \
+                        boundary.installed(scripts_dir=common.SCRIPTS,direction_module=common.modules()[1],
+                            delta_input_manifest=doc['manifest']),common.route_compatibility(doc):
+                    common.warm_boundary(boundary,doc,common.modules()[1])
+                    imported=import_completion(args.import_native_completion,parent,deck,selected,deficits,doc['manifest_sha256'])
                 state = dict(contract=contract,source_order=[e['id'] for e in deck['scenes']],deficits=deficits,
                     baseline_selected_sha256=common.sha(parent/'selected_ledger.jsonl'),attempts=[],stage='prepared',
-                    elapsed_sec=0.,current=None)
+                    elapsed_sec=0.,current=None,imported_selected=imported['selected'],import_receipt=imported)
                 atomic(output/'baseline_snapshot.json',dict(parent=str(parent),native_qa_recomputed=False,
                     source_ids=[r['source_cell_id'] for r in selected],selected_sha256=state['baseline_selected_sha256']))
             if args.finalize:
@@ -560,6 +658,7 @@ def execute(args):
             publish(output,state,selected,elapsed)
             known = exact.prior_payloads(baseline,deck) | exact.prior_payloads(parent,dict(scenes=[]))
             known.update(exact.prior_payloads(output,dict(scenes=[])))
+            known.update(state.get('import_receipt',{}).get('known_payloads',[]))
             known.update(a['scenario_sha256'] for a in state['attempts'] if a.get('scenario_sha256'))
             lookup = {e['id']:e for e in deck['scenes']}
             try:
@@ -574,6 +673,9 @@ def execute(args):
                                 if ident not in merge(state,selected)[1]:
                                     continue
                                 previous = [a for a in state['attempts'] if a['id'] == ident]
+                                historical=[a for a in state.get('import_receipt',{}).get('history',[]) if a['id']==ident]
+                                if any(a['ordinal']==ordinal for a in historical):
+                                    continue
                                 attempt = next((a for a in previous if a['ordinal'] == ordinal),None)
                                 if attempt and (attempt.get('result') is not None or attempt.get('unavailable')):
                                     continue
@@ -586,7 +688,7 @@ def execute(args):
                                 state.update(current=ident,stage='preparing')
                                 if attempt is None:
                                     original = read(lookup[ident]['metadata'])
-                                    used = {a['donor_sha256'] for a in previous if a.get('donor_sha256')}
+                                    used = {a['donor_sha256'] for a in previous+historical if a.get('donor_sha256')}
                                     options = donor_order(original,donors,pools,ident,ordinal,used)
                                     attempt = dict(id=ident,ordinal=ordinal,result=None,manifest=None)
                                     state['attempts'].append(attempt);publish(output,state,selected,elapsed)
@@ -623,7 +725,7 @@ def execute(args):
                         chosen,_ = publish(output,state,selected,elapsed)
                         adopted(output,state,parent/'adopted_manifest.json',chosen,deck)
             except BaseException as error:
-                state.update(stage='halted',error=str(error),selected_not_certified=True,current=None,
+                state.update(stage='halted',error=str(error),selected_not_certified=True,current=None,current_child=None,
                     elapsed_sec=prior+time.monotonic()-start)
                 publish(output,state,selected,elapsed)
                 raise
@@ -631,10 +733,12 @@ def execute(args):
                 try:
                     boundary.verify()
                     require(all(common.sha(path) == sha for path,sha in pins.items()),'Parent snapshot changed during completion')
+                    require(all(common.sha(path)==sha for path,sha in state.get('import_receipt',{}).get('pins',{}).items()),
+                            'Imported completed snapshot changed during completion')
                     require(common.sha(__file__) == contract['adapter_sha256']
                         and common.sha(exact.__file__) == contract['exact_helper_sha256'], 'Completion implementation changed')
                 except BaseException as error:
-                    state.update(stage='halted',error=str(error),selected_not_certified=True,current=None)
+                    state.update(stage='halted',error=str(error),selected_not_certified=True,current=None,current_child=None)
                     publish(output,state,selected,elapsed)
                     raise
             return dict(event='flexible_completion_result',approved=len(merge(state,selected)[0]),
@@ -645,6 +749,7 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
     p.add_argument('--profile',type=Path,required=True);p.add_argument('--parent',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--import-native-completion',type=Path,action='append',default=[])
     mode=p.add_mutually_exclusive_group();mode.add_argument('--prepare',action='store_true');mode.add_argument('--run',action='store_true')
     mode.add_argument('--finalize',action='store_true')
     p.add_argument('--confirmed-environment',choices=common.ENVIRONMENTS)
