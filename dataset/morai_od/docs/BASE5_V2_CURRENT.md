@@ -4,13 +4,23 @@
 Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)도 10/18
 **승인 5,000장·부족 0장·실행 오류 없음**으로 수집을 마쳤다. 최종 선택은
 `artifacts/evaluation/base5_sunny15_completion_261018/last_cell_v1/selected_ledger.jsonl` 하나다.
-부모 성공분을 다시 더하지 않는다. 원본은 기존 수집·보충 출력에 분산된 상태로 보존한다.
+부모 성공분을 다시 더하지 않는다. native GT·비RGB 원본은 기존 수집·보충 출력에 분산해 보존한다.
+사용자 승인으로 새 Sunny15 선택분의 Q90/upright 3클래스 전달본 전수 검증과 단일 3.32GB
+압축본·Drive 저장을 마쳤다. 선택 RGB PNG 20,000개와 중간 하드링크 이름의 삭제·보존 대상
+해시 검사를 완료해 약 17.75GB를 확보했다. 실패·비선택 원본은 삭제하지 않았다.
+Vast 첫 수신은 8MB/s 지속 미달로 89.1%에서 중단됐지만, 사용자가 승인한 2분 한정 재개로
+정상 범위를 재사용하고 약 363MB만 추가 수신해 전체 SHA를 통과했다. Vast의 정식 data 경로에
+복원한 5,000장·전체 payload·Sunny15 provenance도 검증했다. 두 8-epoch 후보에 같은 manifest를
+연결하고 설정 준비·GPU/W&B/Drive 시작 전 온라인 검사를 모두 통과했다. 학습은 시작하지 않았다.
+현재 출력·E24 동일 변환 대조·삭제 receipt는
+[Sunny15 학습 전달본](261018_base5_unified_generation_capture.md#sunny15-training-package)을 따른다.
 본수집 4,941장에 exact 보충 3장·유연 보충 55장·사용자가 승인한 마지막 쉬운 장면 1장을 더했다.
 마지막 장면은 같은 음영 패밀리의 정적 Kia Niro 약 12.73m 장면이며, native QA와 최종 P를
 통과했다. 동물 GT를 차량으로 바꾼 것이 아니라 새 장면을 촬영했다.
 기존 승인분·실패 원본·과거 중단 상태는 수정하지 않았다. 실제 선택 기반 분할 최종화도
 **train 4,250장 / val 750장**으로 통과했다. 학습 변환은 `last_cell_v1/layout_split_final/manifest.json`과
-같은 폴더의 `derived_selected_ledger.jsonl`을 사용하며 Q90/upright 전달본 검증은 별도다.
+같은 폴더의 `derived_selected_ledger.jsonl`을 사용한다. 학습 입력은 전수 검증된
+`artifacts/evaluation/base5_sunny15_training_export_261018_v2/sunny15/training3_jpeg_portable`이다.
 정책과 실제 실행 수치는 [부족분 정책 전환](261018_base5_unified_generation_capture.md#flexible-completion)을 따른다.
 보충 대시보드는 로컬 8077이며 기존 8075는 이전 완료 출력이다. 본수집을 처음부터
 재실행하거나 기존 실패 판정을 승인으로 고치지 않는다. 실제 실행 상태와 새 출력은
@@ -18,7 +28,7 @@ Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v1
 빌린 PC의 새 Sunny13(v158a)은 이번 Vast 학습 준비와 별도 작업이다. MORAI crash 이후 인계와
 마지막 관측 수치·새 명령은 [원격 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다.
 해당 PC의 observer는 `recovered_dashboard.py`이며 구 `unified_dashboard.py --borrowed`는 옛 출력을 표시한다.
-새 Sunny15의 native 수집은 완료했지만 Q90/upright 학습 전달본 검증·Vast 전송·학습 시작은 별도다.
+새 Sunny15의 native 수집·Q90/upright 학습 전달본 검증은 완료했다. Vast 전달과 학습 시작은 별도다.
 다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
@@ -125,8 +135,13 @@ v152의 64+8장 QA 포함 가중 예상은 5K 약 7.95시간/30.43GiB다. 운영
 
 ## GT와 학습 입력
 
-원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
-Base5 원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth는 변환하지 않는다. 사용자 승인으로 Base3만 분석용 Q90으로 바꾸고 RGB PNG를 삭제한 예외는 [10/18 정리 근거](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)를 따른다.
+native annotation·parent/component 관계를 보존한다. 카메라 RGB의 학습·분석·공유 입력은
+원본 PNG가 온전한 상태에서 검증해 만든 Q90 JPEG다. mask/depth는 변환하지 않는다.
+원본 PNG 보존이 기본이지만 사용자 승인으로 Base3 분석용 RGB를 정리한
+[10/18 예외](261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)와,
+완료 Sunny15 선택 RGB의 [명시적 정리](261018_base5_unified_generation_capture.md#sunny15-training-package)를 구분한다.
+Q90은 손실 변환이며 PNG의 무손실 백업이 아니다. 삭제된 RGB가 포함된 과거 원본 SHA 증거는
+고쳐 쓰지 않는다. 원본 재검사가 필요할 때 삭제 receipt를 먼저 확인하고, 완료 세션을 강제로 resume하지 않는다.
 다른 PC용 [1단계 검사](261017_base5_unit_release_evidence.md#portable-stage1) 뒤 별도 승인으로 실행본을 ~/MoraiLauncher_Lin으로 옮겼다. [10/17 원격 검증](261017_base5_unit_release_evidence.md#portable-live)의 정적/차량/이동 3/3장·Q90/upright·취득 0장은 당시 snapshot이다. 이후 [63장 중단·승인 삭제](261017_base5_unit_release_evidence.md#portable-route-compat-261018)와 [별도 실행의 69장 보존·새 복구 준비](261017_base5_unit_release_evidence.md#portable-population-recovery-261018)를 구분한다. 기존 native smoke·동결 bundle·69장 원본은 보존했다. RGB PNG를 resume 중 자동 삭제하는 정책이 아니다.
 학습 GT는 native full RPY를 포함하는 upright 7D enclosure를 사용한다. 현재 원형 QA 19종은 실제 8Points와 치수 참조를 대조하며 native GT를 치수표로 덮어쓰지 않는다. 과거 확대용 size 도출도 stale 요약이나 scale 재곱 대신 실제 8Points를 사용했다. 중심·yaw·구성요소는 보존한다.
 

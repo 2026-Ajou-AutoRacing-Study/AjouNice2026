@@ -153,7 +153,10 @@ bash scripts/runtime/start_sunny15_vast_training.sh cosine --check
 # --check의 모든 조건을 통과하고 사용자가 학습을 승인한 뒤에만 --run을 사용한다.
 ```
 
-현재 두 후보는 `training_started=false`, 새 데이터 SHA 미연결로 `ready=false`다.
+최종 Sunny15 5K를 원격에 복원·전수 검증하고 두 후보에 같은 manifest SHA를 연결했다.
+두 후보 모두 `--prepare`와 GPU·W&B·Drive `--check`를 통과했으며 `training_started=false`다.
+실제 시작 때는 온라인 사전검사를 다시 수행한다. 상태 조회의 보수적인 `ready=false`는
+온라인 자격을 상태 조회만으로 인증하지 않는다는 뜻이며, `data_and_contract_ready`와 구분한다.
 조회 시점에 GPU 49,140MiB와 W&B 0.22.3·기존 온라인 probe의 인증 조회를 확인했다.
 새 시작기·백업 자격 회귀 24개와 기존 oneclick 회귀 19개가 통과했다. 이는 새 5K 전체 학습이나
 새 데이터의 AP 검증 결과가 아니다.
@@ -172,7 +175,7 @@ Drive root, 새 destination의 소량 쓰기·동일 내용 읽기 결과를 연
 통과하지 않는다. **검증된 백업 방식의 자격 재사용**이지 새 Sunny15 checkpoint 업로드 완료가
 아니다. `new_checkpoint_uploaded=false`를 명시하며 첫 새 epoch의 full checkpoint·metadata·
 SHA readback은 실제 생성 후 반드시 확인한다. 이 검증을 위해 같은 대용량 파일을 다시
-올릴 필요는 없으며, 현재 시작 준비에서 남은 데이터 조건은 새 Sunny15 5K 전달본 연결이다.
+올릴 필요는 없다. 당시 남았던 새 Sunny15 5K 전달본 연결은 이후 전수 검증·전송·연결까지 완료했다.
 근거는 `artifacts/evaluation/bevfusion/sunny15_training_readiness_261018/`의
 `drive_small_probe.json`·`backup_transport_probe.json`과
 `sunny15_training_readiness_261018_v3/network_environment_probe.json`이다.
@@ -180,8 +183,59 @@ SHA readback은 실제 생성 후 반드시 확인한다. 이 검증을 위해 �
 남은 검증 범위를 기록했다. 이전 v1~v4는 학습 미시작 이력으로 보존한다.
 학습 중 로컬 relay/백업을 사용하는 경우 이 PC와 네트워크를 계속 켜 둬야 한다.
 
+### 최종 Sunny15 전달 형식과 전송 재측정
+
+최종 5K의 입력 형식·변환 중 발견한 장면 제외 전제·압축·RGB 원본 정리는
+[데이터 전달본 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md#sunny15-training-package)를 따른다.
+이미지를 미리 512×1056으로 잘라 압축하는 방식이 아니다. 원본 해상도 Q90 JPEG와
+현재 resize/crop·upright 7D·Animal→Pedestrian·최종 split을 결합한 portable package다.
+`tar.zst`는 그 전달본을 무손실 압축하며 PNG·중간 cache를 다시 싣지 않는다.
+
+동일 Vast에서 짧게 재측정한 SSH 전송은 direct 약 0.09MB/s(중단 전 확인량 기준),
+proxy 약 0.81MB/s였다. 새 데이터의 대용량 SSH 전송은 시작하지 않았다. 사용자 승인 후
+단기 Drive access token만 원격 RAM으로 전달해 기존 백업의 일부를 읽었다. 단일 32MiB는
+payload 약 7.65MB/s였고, 4병렬은 약 50.9MB를 받은 시점의 합산 약 9.87MB/s로 기존
+10MB/s 기준에 따라 중단했다. startup과 payload 시간을 구분한 짧은 측정이며 대용량의
+지속 속도를 인증하지 않는다. 장기 갱신 토큰·client secret은 원격으로 보내지 않았다.
+
+이후 사용자가 **8MB/s 이상이면 진행하고, 그 아래로 지속되면 중단**하도록 기준을
+명시적으로 변경했다. 다음 실제 전송은 이 기준을 적용하며, 이전 10MB/s 미달 판정과
+측정 이력은 고쳐 쓰지 않는다. 근거는 v5 준비 폴더의 `transfer_probe_261018.json`과
+`drive_range_probe_authorized_261018.json`이다. 원격 환경·초기화·GPU 자격은 재사용하되
+실제 새 데이터 연결·전체 payload 해시·온라인 사전검사 통과 전에는 ready로 표시하거나
+본학습을 시작하지 않는다.
+
+### 최종 사용자 실행 명령 — 학습 미시작
+
+최종 manifest SHA는 `aea7d157f5cc646a125c6e2f603108d81990a17ee9e1f516e433be5a4be6a2c7`이다.
+원격 data는 `/workspace/base5_sunny15_jpeg90_pedestrian_merged_261018`이며 train 4,250/val 750,
+각 후보 8 epoch·batch 4·누적 1·workers 4·lr 1e-4·compile OFF·nearest다.
+epoch당 optimizer update는 1,063회다. 준비와 `--check`만 실행했으며 본학습은 시작하지 않았다.
+
+| 후보 | 준비한 contract SHA |
+|---|---|
+| cosine | `d68f0824772a2f6da30520cc4c91b28906ecd629a7a2e721da7a8ddaa156975e` |
+| restarts | `7d345c6b32761b3fbd2ba5180fa1a2181325ce35003ffe11c0031111839af8f8` |
+
+사용자가 시작할 때 로컬 저장소에서 아래 명령 중 **한 개만** 실행한다. 같은 GPU에서 두 후보를
+동시에 시작하지 않는다. 첫 비교의 결과를 본 뒤 다른 후보를 같은 초기화에서 새로 시작한다.
+미시작 후보에 `--resume`를 붙이거나 기존 E24 시작기를 사용하지 않는다.
+
+```bash
+cd ~/AjouNice2026
+bash scripts/runtime/start_sunny15_vast_training.sh cosine --run
+
+# 별도 비교 후보를 시작할 때만 사용한다. 위 학습과 동시에 실행하지 않는다.
+# bash scripts/runtime/start_sunny15_vast_training.sh restarts --run
+```
+
+로컬 제한 relay가 W&B와 백업을 처리하므로 이 PC와 네트워크는 켜 둔다. 두 후보의 실제
+새 checkpoint 업로드는 아직 없으며 첫 새 epoch의 전체 외부 백업 검증이 남아 있다.
+최종 점검 근거는 v5 폴더의 `prepared_ready_261018.json`과 `readiness_summary.json`이다.
+
 설치·전송·OAuth·백업·학습 준비·재개 실험의 명령은 아래 해당 anchor의 당시 기록으로 연결한다.
-문서 개편은 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.
+과거 문서 개편 자체는 원격 접속·이미지 게시·학습·과금 상태를 변경하지 않았다.
+위에 명시한 10/18 데이터 전달·새 설정 준비 실행과 구분한다.
 
 ## 기존 링크 호환
 

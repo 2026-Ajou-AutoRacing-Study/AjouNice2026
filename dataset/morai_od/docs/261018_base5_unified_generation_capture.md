@@ -569,6 +569,157 @@ python3 -B scripts/portable_base5/complete_last_cell.py \
 수집은 종료했고 추가 촬영하지 않는다. 빌린 PC의 원격 수집·Vast 학습 상태는 이번 마지막 한 장
 마감에서 변경하지 않았다. 다음 단계는 이 최종 선택을 기준으로 한 JPEG/GT 학습 전달본 준비다.
 
+<a id="sunny15-training-package"></a>
+
+## Sunny15 최종 학습 전달본과 RGB 원본 정리
+
+사용자는 완료된 5,000장 선택을 학습용 JPEG로 변환하고, 검증 후 해당 RGB PNG를
+삭제하도록 승인했다. 이 예외는 선택된 카메라 RGB에만 적용한다. native annotation·
+Instance/Depth/Semantic·LiDAR·실패 원본·선택 기록·과거 계약은 삭제하거나 고쳐 쓰지 않는다.
+JPEG Q90은 손실 변환이므로 PNG 원본을 무손실로 백업한 것이라고 표현하지 않는다.
+
+전달 형식은 임의의 이미지 압축이 아니다. 원본 해상도 RGB를 기존 OpenCV Q90 경로로
+변환하고, 512×1056 resize/crop·센서 보정에 맞는 infos와 native full-RPY 기반 upright 7D
+GT를 결합한다. 512×1056으로 이미지를 미리 잘라 저장하는 방식이 아니다. Animal만
+Pedestrian으로 매핑한 3클래스, train 4,250 / val 750, 원래 component·asset 의미를 유지한다.
+최종 `training3_jpeg_portable`과 계보 자료를 단일 `tar.zst`로 무손실 압축한다. PNG 중간본이나
+JPEG cache를 전달 압축본에 중복 포함하지 않는다.
+
+### 전체 5K 변환에서 발견한 장면 제외 전제
+
+첫 시도 `artifacts/evaluation/base5_sunny15_training_export_261018_v1`은 **4,999장**에서
+정합 검사가 중단됐다. 원본 승인이 잘못되거나 수집이 한 장 부족한 것이 아니다.
+`sunny15_sunny13_sunny11_b5v2_03252`의 주 객체 Steel_Barricade는 약 83.87m·LiDAR 0점이며,
+기존 320 crop의 카메라 17픽셀로 native 승인을 받았다. 현재 512×1056 측정에서는
+13픽셀로 기존 16픽셀 가시성 기준에 못 미쳤다. 과거 변환기가 주 객체의 유효 GT를
+요구해, 정상적인 다른 객체 3개가 남아 있는 장면 전체를 제외한 것이 원인이다.
+
+이 장면의 주 객체를 강제로 양성으로 만들거나 native 판정을 변경하지 않는다. native
+승인 장면에서 현재 입력으로 지원되는 다른 GT가 남아 있으면 장면을 유지하는 별도
+portable adapter를 사용한다. 비가시 객체를 빈 배경으로 바꾸는 정책은 허용하지 않는다.
+동결 수집·변환 스크립트와 실패한 첫 출력은 보존한다. 실제 재변환·압축·삭제 완료는
+각 출력의 검증 보고서와 삭제 receipt를 기준으로 구분한다.
+
+### 전체 입력 검증 완료
+
+별도 출력 `artifacts/evaluation/base5_sunny15_training_export_261018_v2`의 전체 검증이
+약 1,073.53초에 완료됐다. 실패한 v1 출력은 덮어쓰지 않았다.
+
+| 확인 항목 | 실제 결과 |
+|---|---|
+| 고유 원본 관측 / 최종 infos | 5,000 / 5,000장 |
+| 실제 분할 | train 4,250 / val 750 / test 0 |
+| 유효 GT | 11,637개: Vehicle 4,499 / Pedestrian 3,180 / Obstacle 3,958 |
+| 지원되는 component 누락 / 추가 | 0 / 0 |
+| 512×1056 입력과 원본 해상도 JPEG | 20,000개 전수 확인 |
+| RGB PNG → Q90 JPEG 크기 | 17,748,977,731 → 1,546,421,284바이트 |
+| 학습 전달본 전체 payload | 10,423,189,016바이트. native GT·mask·LiDAR 등을 포함한 무압축 합계 |
+| 별도 원거리 보조 차량 | 142개 보존, 이 중 LiDAR 0점·카메라 지원 28개 |
+| 원본·선택 기록 변경 | 전후 snapshot 동일. 이 단계에서는 PNG 삭제 0개 |
+
+최종 package는 `v2/sunny15/training3_jpeg_portable`, 전수 근거는 최상위 `report.json`과
+`sunny15/source_snapshot.json`이다. 여기서 `v2`는 위의 전체 출력 경로를 뜻한다.
+최종 portable manifest SHA는
+`aea7d157f5cc646a125c6e2f603108d81990a17ee9e1f516e433be5a4be6a2c7`이다.
+수집 동결 스크립트에서 재사용한 `pilot_only` 등의 과거 진단 문자열은 보존했다.
+실제 범위는 최종 선택 5,000장 전수이며, 새 모델 학습·AP 개선·독립 일반화 검증을
+의미하지 않는다. 압축 검증과 원본 삭제는 이 입력 검증 이후의 별도 단계다.
+
+### E24 변환 계약 직접 대조
+
+사용자의 재확인 요청으로 기존 Vast의 실제 E24 학습용 Sunny13 전달본도 읽기 전용으로
+조회했다. 새 데이터와 기존 데이터의 전 split Q90·원본 해상도·RGB 채널 사용,
+`native_rpy_fixed_yaw_enclosure_v1`·`animal_to_pedestrian_v1`·LiDAR 좌표 ROI·양성 GT
+정책·single-frame/velocity OFF가 일치했다. 표본의 4개 카메라는 파일 경로를 제외한
+해상도·내외부 보정 행렬 전체가 정확히 같고 LiDAR 외부 보정도 같았다.
+
+이번 호스트의 OpenCV 4.2.0과 E24 환경의 4.11.0은 버전이 다르다. 이를 숨기거나
+전체 20,000개 JPEG의 버전 간 바이트 동일성을 주장하지 않았다. 기존 E24 이미지에서
+네트워크·GPU·파일 쓰기 없이 새 원본 256개를 고정 seed로 재인코딩한 결과,
+**256/256 JPEG가 현재 전달본과 바이트 단위로 같았다.** 변환 함수를 새로 만들거나
+품질 계수를 임의로 바꾼 것이 아니다. RGBA의 A는 기존 PNG 로더와 같은
+`PIL.convert('RGB')`에서 합성 없이 제외하며 Instance·Depth·정답 annotation은 별개다.
+
+기존 전달본의 448×896/512×1056 두 profile 중 이번에는 선택된 512×1056만 포장한다.
+새 관측과 최종 layout overlay에 따라 분할 수는 4,255/745에서 4,250/750으로 달라진다.
+source sensor JSON의 SHA도 다르지만 실제 입력 보정 행렬이 같은 것을 별도로 확인했다.
+앞서 설명한 1장 유지 처리는 frame admission의 보완이며 JPEG 압축이나 개별 GT 양성
+판정을 변경한 것이 아니다. 근거는 v2의 `e24_input_contract_comparison.json`과
+`vast_delivery_v1/old_e24_contract_readonly.json`이다.
+
+### 압축과 Drive 전달
+
+`scripts/portable_base5/pack_training.py`로 최종 package와 최종 선택·split overlay·입력 검증
+보고서만 포장했다. 원본 수집의 QA를 다시 실행하지 않으며, 중간 RGB PNG·JPEG cache·
+체크포인트·인증정보는 압축 범위가 아니다. 내부 187,769개 regular-file payload를
+실제로 해제 스트림에서 읽어 크기와 SHA256을 전수 대조한 뒤 압축본을 확정했다.
+
+- 압축본: `artifacts/handoff/base5_sunny15_5k_jpeg90_upright3_261018.tar.zst`
+- 크기: **3,315,767,472바이트**. 단일 파일이며 part 복제본을 따로 만들지 않았다.
+- SHA256: `6760df5da48002510e6fbc253b26f08bdf23010c88738a8709b004b3f5b61a99`
+- 압축 근거: v2의 `archive_receipt/COMPLETE.json`, `archive_manifest.json`, `SHA256SUMS`.
+- Drive: `ajou_drive_private:dataset/Base5/sunny15_5k_jpeg90_upright3_261018/`.
+  압축본·`SHA256SUMS`·`FORMAT.json`을 저장했다. 압축본은 Drive 크기와 MD5까지 일치했다.
+- 업로드: payload 약 100.00초, 평균 약 33.16MB/s. 관측한 최저 10초 구간 약 30.76MB/s.
+  로컬 검증·Drive 조회 시간은 payload 속도에서 분리했다.
+
+로컬 시스템 rclone 1.50.2는 바이트 수가 담긴 구조화 통계를 내지 않아 전송 중단 조건을
+검증하기 어려웠다. 공식 배포본의 SHA를 확인한 1.75.2를
+`artifacts/tools/rclone_261018/` 안에만 두고 사용했다. 시스템 설치·전역 PATH 변경은 없다.
+격리 도구의 URL·SHA·네트워크 없는 통계 시험은 같은 폴더의 `installation_receipt.json`에 있다.
+업로드 실행기와 원격 읽기 실행기는 모두 기본 동작이 계획뿐이고 실제 전송에만 `--run`을 쓴다.
+
+이후 Vast의 첫 수신은 305초에 **2,955,935,744 / 3,315,767,472바이트**에서 중단됐다.
+전체 평균은 약 9.81MB/s였지만 마지막 rolling 구간이 새 8MB/s 기준 미달로 지속돼 자동
+중단했다. 전체 SHA 확인·완성 archive 확정·복원·학습 연결은 수행하지 않았다.
+근거는 `v2/vast_delivery_v1/DELIVERY_FAILED.json`과 `fetch_console.jsonl`이다.
+병렬 pwrite 결과는 연속된 prefix라는 보장이 없으므로 단순 이어붙이지 않는다.
+추가 재개가 승인되면 신뢰하는 로컬 압축본의 범위별 SHA와 대조해 정상 범위만 재사용하고,
+불일치 범위만 새 파일에 받아 최종 전체 SHA를 확인해야 한다. 중단 기준을 임의로 낮추거나
+처음부터 전체 파일을 자동 반복 전송하지 않는다.
+
+사용자가 남은 부분에 한해 속도 예외·최대 2분 완료 시도를 승인했다. 별도 범위 재개
+실행기는 신뢰하는 로컬 압축본 전체 SHA를 다시 확인한 뒤 32MiB씩 99개 범위를 만들었다.
+기존 실패 파일에서 **88개 범위·2,952,790,016바이트**만 SHA 일치로 새 파일에 복사하고,
+나머지 **11개 범위·362,977,456바이트**만 수신했다. 범위별 SHA와 전체 archive SHA를
+모두 통과했으며 네트워크·최종 해시 약 38.82초, 전체 약 44.86초로 상한 안에 마쳤다.
+기존 `.partial`·실패 receipt는 그대로다. 새 archive는 원격의
+`/workspace/base5_sunny15_5k_jpeg90_upright3_261018.resume_v1.tar.zst`다.
+이는 한 번의 명시적 완료 예외이며 이후 대용량 전송의 8MB/s 기준을 낮춘 결정이 아니다.
+복원과 run 연결은 archive SHA 통과 이후의 별도 검사다.
+
+Vast에서 tar 실행 직전에 실제 archive SHA를 다시 확인하고 `dataset/*`만 새 staging에
+복원했다. 기존 qualified source의 portable validator로 전체 payload SHA를 검산하고,
+5,000개 실제 Sunny15 metadata·3클래스·train 4,250/val 750/test 0·고유 JPEG 20,000개를
+확인한 뒤 아래 정식 경로에 atomic publish했다. 복원·전수 검증은 약 69.68초였다.
+
+- 원격 data: `/workspace/base5_sunny15_jpeg90_pedestrian_merged_261018`
+- 원격 검증 보고서: 같은 경로 뒤의 `.verification.json`.
+- 로컬 근거: v2의 `vast_delivery_resume_v1/COMPLETE.json`.
+- 기존 E24·초기화 가중치·모델 소스·실패 파일은 변경하지 않았다.
+- 이후 두 8-epoch 후보에 같은 manifest를 연결하고 `--prepare`까지 완료했다.
+  두 후보의 GPU·W&B·Drive 소량 쓰기/읽기까지 `--check`를 통과했고 학습은 시작하지 않았다.
+  실제 학습은 [원격 런북](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#최종-사용자-실행-명령--학습-미시작)을 따른다.
+
+### 승인된 RGB PNG 정리 완료
+
+`prune_selected_rgb.py`의 선택·GT·보정·Q90 매핑 전수 대조와 압축본 검증 후 사용자 승인
+범위만 정리했다. 원본 20,000개와 `png_portable`의 같은 inode를 가리키는 20,000개 이름,
+합계 **40,000개 경로**를 unlink했다. 물리적으로 확보한 원본 크기는
+**17,748,977,731바이트(약 16.53GiB)**다. 하드링크 이름의 논리 합계 35.50GB를 실제
+확보 용량으로 보고하지 않는다. 완료 시 이 PC의 디스크 여유는 약 117GiB였다.
+
+후검사에서 보존 대상 **335,513개 경로**와 선택·manifest의 해시가 그대로임을 확인했다.
+JPEG·native GT·mask/depth·LiDAR·실패 원본과 과거 증거는 보존했다. 마지막 proof를
+현재 원본이 완전하다는 주장으로 고쳐 쓰지 않았고, source PNG 기반 과거 재검사 경로는
+의도적으로 더 이상 재생할 수 없다. 이후 학습·분석은 최종 JPEG package 또는 Drive의
+검증된 학습 archive를 사용한다. 수집 원본 승인·Park 상태를 바꾼 것이 아니다.
+
+- 계획: v2의 `rgb_prune_plan.json`, SHA `680d9b39af85a701c0fff7ba0aa3313e78d559710b0ddcbe216d62d5cf4c2d31`.
+- 실행 증거: v2의 `rgb_prune_receipt/intent.json`, `deleted.jsonl`, `COMPLETE.json`.
+- 삭제 범위 외 raw와 native annotation은 삭제하지 않았다. 폴더 전체를 재귀 삭제한 작업이 아니다.
+- 변환·포장·정리·전송·재개 관련 CPU 회귀는 **395개 통과**했다. 실제 모델 학습은 시작하지 않았다.
+
 ## 코드 경로
 
 - 공통 생성: `scripts/portable_base5/generation.py`
@@ -580,6 +731,11 @@ python3 -B scripts/portable_base5/complete_last_cell.py \
 - 마지막 한 슬롯의 승인된 쉬운 장면 마감: `scripts/portable_base5/complete_last_cell.py`
 - 부족분 검증의 분할표 해석 재사용: `scripts/portable_base5/overlay_read_cache.py`
 - 빌린 PC의 격리 실행: `scripts/portable_base5/unified_borrowed.py`
+- 최종 선택의 학습 변환: `scripts/portable_base5/training_convert_adapter.py`
+- 검증된 JPEG 전달본 단일 포장: `scripts/portable_base5/pack_training.py`
+- 승인된 RGB 원본 이름만 정리: `scripts/portable_base5/prune_selected_rgb.py`
+- 속도 제한·해시 검증 전송: `scripts/portable_base5/upload_training_archive.py`, `vast_drive_fetch.py`
+- 실패 파일의 범위별 SHA 기반 재개: `scripts/portable_base5/vast_drive_resume.py`
 
 현재 유효 상태는 [CURRENT](BASE5_V2_CURRENT.md), 기존 준비와 과거 실패는
 [fresh 환경 런북](261010_base5_fresh_environment_runbook.md)을 함께 참고한다.

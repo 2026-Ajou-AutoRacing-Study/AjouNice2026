@@ -23,6 +23,12 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 검증과 보존 | SaveSensorData train 4,255 / val 745. E9/E24 Drive 백업·readback 완료. 이번 학습에 rosbag val을 혼합하지 않음 |
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
+새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.
+E24의 실제 입력 계약과 대조했고 같은 JPEG·GT·보정 규칙을 사용한다. Vast 첫 수신의 8MB/s
+중단 뒤 사용자 승인으로 정상 범위를 재사용해 전체 archive SHA까지 통과했다. 복원·입력
+전수 검증과 두 후보의 데이터 연결·설정 준비·GPU/W&B/Drive 온라인 검사도 모두 통과했다.
+8 epoch·batch 4·compile OFF이며 학습은 아직 시작하지 않았다. 시작 시 온라인 검사를 다시 수행한다.
+[변환·전송 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md#sunny15-training-package)를 따른다.
 과거 4클래스 E2나 다른 초기화/shape의 optimizer를 현재 계약에 강제로 resume하지 않는다.
 새 학습은 사용자 요청과 새로운 source/data/work 계약을 확인한 뒤 시작한다.
 
