@@ -1,15 +1,16 @@
 # Base5 데이터와 수집의 현재 기준
 
 문서 상태: CURRENT. 근거 확인: 2026-10-18.
-Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)의 로컬 공통 수집은
-5,000장 검사를 마쳤으며 승인 4,941장·부족 59장으로 정상 종료했다. 10/18 사용자 요청으로
-기존 승인·실패 근거를 보존하는 별도 부족분 보충으로 부모 승인 4,944장·부족 56장을 확보했다.
-정확한 자산 조합·객체 수까지 고정한 보충의 효율이 낮아 안전 중단했고, 사용자 승인으로
-같은 패밀리·학습 목적의 새 장면을 고르는 유연 보충으로 전환한다. 기존 승인분과 실패 근거는
-변경하지 않으며 새 후보의 native QA·충돌·통신·정지/P 검사는 유지한다.
-유연 보충 `flexible_v3`에서 7/7 승인으로 4,951장·부족 49장을 확보했다. 이후 CPU 후보의 거리
-경계 거절을 전체 오류로 처리하던 문제를 수정하고, 기존 7장을 보존해 `flexible_v4`에서 재개했다.
-과거 중단 상태는 수정하지 않았다. 최신 수치는 보충 대시보드·실제 status를 확인한다.
+Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)도 10/18
+**승인 5,000장·부족 0장·실행 오류 없음**으로 수집을 마쳤다. 최종 선택은
+`artifacts/evaluation/base5_sunny15_completion_261018/last_cell_v1/selected_ledger.jsonl` 하나다.
+부모 성공분을 다시 더하지 않는다. 원본은 기존 수집·보충 출력에 분산된 상태로 보존한다.
+본수집 4,941장에 exact 보충 3장·유연 보충 55장·사용자가 승인한 마지막 쉬운 장면 1장을 더했다.
+마지막 장면은 같은 음영 패밀리의 정적 Kia Niro 약 12.73m 장면이며, native QA와 최종 P를
+통과했다. 동물 GT를 차량으로 바꾼 것이 아니라 새 장면을 촬영했다.
+기존 승인분·실패 원본·과거 중단 상태는 수정하지 않았다. 실제 선택 기반 분할 최종화도
+**train 4,250장 / val 750장**으로 통과했다. 학습 변환은 `last_cell_v1/layout_split_final/manifest.json`과
+같은 폴더의 `derived_selected_ledger.jsonl`을 사용하며 Q90/upright 전달본 검증은 별도다.
 정책과 실제 실행 수치는 [부족분 정책 전환](261018_base5_unified_generation_capture.md#flexible-completion)을 따른다.
 보충 대시보드는 로컬 8077이며 기존 8075는 이전 완료 출력이다. 본수집을 처음부터
 재실행하거나 기존 실패 판정을 승인으로 고치지 않는다. 실제 실행 상태와 새 출력은
@@ -17,7 +18,8 @@ Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v1
 빌린 PC의 새 Sunny13(v158a)은 이번 Vast 학습 준비와 별도 작업이다. MORAI crash 이후 인계와
 마지막 관측 수치·새 명령은 [원격 안전 인계](261018_base5_unified_generation_capture.md#원격-morai-crash-이후-안전-인계)를 따른다.
 해당 PC의 observer는 `recovered_dashboard.py`이며 구 `unified_dashboard.py --borrowed`는 옛 출력을 표시한다.
-새 Sunny15 5K 완료·학습 전달본 검증은 아직 아니며 다른 환경의 구 준비본도 최신 보강 승인이 아니다.
+새 Sunny15의 native 수집은 완료했지만 Q90/upright 학습 전달본 검증·Vast 전송·학습 시작은 별도다.
+다른 환경의 구 준비본은 최신 보강 승인이 아니다.
 학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
 
 <a id="data"></a>
@@ -26,6 +28,7 @@ Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v1
 
 | 항목 | 현재 상태 |
 |---|---|
+| 새 Sunny15 원형 수집 | 승인 5,000장 / 부족 0. `last_cell_v1/selected_ledger.jsonl`이 최종 선택이며 이전 부모 ledger를 중복 연결하지 않음 |
 | 완료 환경 | Sunny13, 승인 5,000장 / 부족 0 |
 | Canonical raw | `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_sunny13_flexible_v140` |
 | Canonical 선택 | 위 경로의 selected ledger 하나. 부모 성공분을 다시 연결하지 않음 |

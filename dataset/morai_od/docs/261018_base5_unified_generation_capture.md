@@ -515,6 +515,60 @@ v3 정상 취득 구간은 7장에 313.82초, 승인당 44.83초였고 실제 na
 미검사 680장·오류 없음이었다. 부모 heartbeat는 확인 0.24초 전으로 최신이었고,
 이전 확인보다 승인 125장이 늘었다. 원격 파일·프로세스 변경은 하지 않았다.
 
+### 마지막 한 슬롯의 명시적 마감
+
+`flexible_v4`는 추가 작업 2,360.50초(약 39분 21초)에 **4,999장·부족 1장**으로
+정상 종료했다. 남은 `01143`은 음영 접근 구간의 Dog1/Dog2 장면이다. 첫 후보는 실제 센서
+근거와 전방 primary 조건을 통과하지 못했고, 두 번째·세 번째 시도는 적합한 donor를 찾지
+못했다. 대시보드의 100.0%는 4,999/5,000=99.98% 반올림이며 무한 재시도 중이 아니었다.
+
+사용자가 같은 패밀리의 쉬운 정상 장면 한 개로 마감하도록 승인했다. 새 진입점
+`scripts/portable_base5/complete_last_cell.py`는 정상 종료된 4,999장 선택을 그대로 계승한다.
+이번 한 슬롯만 primary 의미군·거리대·음영 phase의 계획 quota를 풀고, 같은 shadow 패밀리·
+capture split·정지 동작·원형 크기는 유지한다. 실제 GT·센서 근거·충돌·통신·정지/P QA는
+바꾸지 않는다. 동물 GT를 차량으로 relabel하는 것이 아니라 새 정적 차량 장면을 촬영한다.
+예외 정책·실행기 SHA·부모 선택 SHA는 새 계획 metadata에 명시한다.
+
+과거 1~3회 시도는 보존하고, 별도 출력 `last_cell_v1`에서 4~5번의 최대 두 추가 후보만 허용한다.
+완료된 부모의 status·state·ledger·원본은 수정하지 않는다. 4,999장의 native QA를 다시
+실행하지 않고 확정 선택·작은 계약/새 시도 해시를 확인한다. 읽기 전용 계획에서
+4,999장·부족 1장·취득/파일 쓰기 없음이 확인됐고, 관련 CPU 회귀는 **129개** 통과했다.
+
+```bash
+python3 -B scripts/portable_base5/complete_last_cell.py \
+  --profile artifacts/evaluation/base5_unified_runtime_261018/sunny15_profile.json \
+  --parent artifacts/evaluation/base5_sunny15_completion_261018/flexible_v4 \
+  --output artifacts/evaluation/base5_sunny15_completion_261018/last_cell_v1 \
+  --run --confirmed-environment sunny15
+```
+
+위 명령은 현재 실행 중이거나 완료된 상태에서 중복 실행하지 않는다. 실제 5,000장 선택이
+완료된 뒤에는 같은 인자의 `--run --confirmed-environment sunny15` 대신 `--finalize`로
+실제 선택 기반 분할을 확정한다. Q90/upright 학습 전달본 검증·Vast 전송·학습 시작은 별도다.
+
+실제 추가 4번 후보가 **첫 촬영에서 승인**돼 `last_cell_v1`은 `complete`·승인 **5,000장**·
+부족 **0장**·오류 없음으로 종료했다. 추가 구간은 약 60.89초였으며, 고정 입력 시작 검증 시간은
+별도다. donor `00317`의 관측된 정상 구성을 참고해 새로 생성한 정적
+`2017_Kia_Niro(HEV)` 약 12.727m 장면이다. native review 사유는 없고 최종 `park_verified=true`다.
+기존 4,999개 선택 행은 바뀌지 않았으며 이전 1~3회 시도와 실패 원본도 보존됐다.
+대시보드 **http://localhost:8077/** 는 최종 `last_cell_v1`의 5,000장·부족 0장을 관측하도록 전환했다.
+
+완료 후 실제 선택 기반 분할 최종화도 통과했다. 5,000개 canonical ID·runtime ID·capture root가
+각각 고유하고, 이전 4,999개 선택 행이 모두 동일함을 별도로 확인했다. 최종 파생 split은
+**train 4,250 / val 750**이며, 원래 source와 geometry가 달라진 268개 선택도 실제 계보로 결합했다.
+이는 native 승인·선택·분할 정합 완료이지 새 모델의 AP나 Q90/upright 입력 검증 완료는 아니다.
+
+- 최종 원본 선택: `last_cell_v1/selected_ledger.jsonl`
+- 학습 변환용 manifest: `last_cell_v1/layout_split_final/manifest.json`
+- 학습 변환용 선택: `last_cell_v1/layout_split_final/derived_selected_ledger.jsonl`
+- 결과/분할 근거: `last_cell_v1/layout_split_final/result.json`과 `split_overlay.json`
+- 최종 manifest SHA: `dcd09de06c9b4e563a6cc4661d147ac594f8630b668b79a8f9942579b9140c6e`
+- 최종 파생 선택 SHA: `d380fc243b8c38cd7f7d4c535bbf6427454accb99d73b0745af37fbc7130a7cd`
+
+위 경로의 공통 prefix는 `artifacts/evaluation/base5_sunny15_completion_261018/`다.
+수집은 종료했고 추가 촬영하지 않는다. 빌린 PC의 원격 수집·Vast 학습 상태는 이번 마지막 한 장
+마감에서 변경하지 않았다. 다음 단계는 이 최종 선택을 기준으로 한 JPEG/GT 학습 전달본 준비다.
+
 ## 코드 경로
 
 - 공통 생성: `scripts/portable_base5/generation.py`
@@ -523,6 +577,7 @@ v3 정상 취득 구간은 7장에 313.82초, 승인당 44.83초였고 실제 na
 - 공통 수집: `scripts/portable_base5/unified_capture.py`
 - 정상 종료 후 부족분: `scripts/portable_base5/complete_unified.py`
 - 같은 패밀리·학습 목적의 유연 보충: `scripts/portable_base5/flexible_complete.py`
+- 마지막 한 슬롯의 승인된 쉬운 장면 마감: `scripts/portable_base5/complete_last_cell.py`
 - 부족분 검증의 분할표 해석 재사용: `scripts/portable_base5/overlay_read_cache.py`
 - 빌린 PC의 격리 실행: `scripts/portable_base5/unified_borrowed.py`
 
