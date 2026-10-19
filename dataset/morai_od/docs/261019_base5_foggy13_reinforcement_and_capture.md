@@ -911,3 +911,341 @@ runtime 439/test source 212개의 기존 CPU 회귀 원문도 변하지 않으�
 `immutable_followup_actual_v1/{manifest,binding,execution}.json`에 있다.
 기존 v2와 첫 실행 실패는 보존했다. 이 완료 시점에도 정규 canonical native·본수집은
 0장이며, 새 route·`qualification/full_v2` 등록과 원래 후속 gate를 이어간다.
+
+### v3 source의 route·정규 등록과 실제 촬영 진입
+
+새 source의 원형 route witness export는 **0.885초·exit 0**으로 완료됐다. witness는
+`adoption-v3/route-witness-v1.json`이며 SHA는
+`0a6d46974cf17bbbdd3ae921bc738db587fedc92d8f3ec81516a4346810eb031`이다.
+이어 `qualification/full_v2/registered/`의 정규 32장 등록을 실제 실행해
+**628.28초·exit 0**으로 마쳤다. 종료 원문
+`qualification/full-register-hybrid-immutable-v2.json`의 SHA는
+`864ef6735f68d126e8abf0c4201d7deb90000e4b70a448c0f4f4f4c82fbffd35`다.
+이전 `full_v1` 등록이나 실패 산출물은 변경하지 않았다.
+
+첫 정규 촬영 전 새 Ego/Object/Collision 수신·정지·P를 확인했고, 동일 SHA 생성 모듈의
+source-only canonical HOME 초기화 후 기존 native HOME `work/ros-home-v2`와 전체 환경을
+복원하는 별도 entry를 사용했다. 원형 guard·worker argv·QA는 유지했다. 긴 원형 binding
+재검산 뒤 **2026-10-20 04:05 KST에 실제 `exact32` 상태와 첫 native 묶음이 생성**됐다.
+명령 시작을 촬영 완료로 계산하지 않으며, 소량 시험의 원본·일반 검토·복구는 모두 보존한다.
+독립 shadow 2장 CPU 등록도 **265.50초·exit 0**으로 끝났지만 이 등록은 실제 shadow 촬영
+성공이나 release 자격이 아니다. 본수집 시작은 후속 실제 완료 근거로 별도 기록한다.
+
+정규 first16은 **728.37초·exit 0**, 실제 상태 **정상 pause·16/16 승인·검토 0·실패 0**으로
+마쳤다. binding 검산 이후 실제 native 구간은 161.71초였다. shared 묶음의 후방 차량
+1장이 처음에는 센서 근거 부족으로 검토됐지만 원형 direction-reference 복구의 실제
+재확인을 통과했다. 최초 검토 raw와 복구 근거는 모두 보존하며 과거 판정을 고치지 않았다.
+shared 묶음 종료와 별도 shadow 시작 전 모두 실제 P gear 1·오류 없음을 확인했다.
+이 16장은 자격시험 자료이며 본수집 5K에 합산하지 않는다.
+
+직후 선택 ledger와 등록 SHA를 대조해 위 집계의 한계를 확인했다. 후방 차량 `01228`의
+원형 복구 승인은 **동일 geometry 재확인이 아니라 `01228_replace`의 새 geometry**였다.
+부모가 16/16 승인으로 집계했더라도 원형 최종 exact gate는 `id == source_cell_id`와
+등록 scenario SHA의 일치를 요구하므로 이 상태를 exact16 통과로 해석하면 안 된다.
+최초 검토·실제 대체 승인·부모 집계를 그대로 보존하고, 등록 32개 전체의 원래 관측 이력을
+확보한 뒤 원래 지원되는 depth 1→2 후속 adoption을 검토한다. 기존 6개 대체는 parent
+binding으로 계승하며, 새 대체를 옛 geometry의 exact 승인처럼 고쳐 쓰지 않는다.
+
+별도 shadow 관측은 **737.18초·exit 0**, 실제 native 상태 **2/2 승인·검토 0·실패 0**으로
+완료했다. 첫 동물 장면의 일반 검토와 원형 복구는 보존했다. 실제 native 구간은 190.87초였고
+종료 후 최신 수신·정지·P를 다시 확인했다. `full_v2/shadow-cases.json`을 만드는 CPU phase도
+**254.53초·exit 0**으로 끝났다. 고정 SHA scope는 실제 진입·종료 해시 검사를 마쳤으며
+native/QA/JSON/context 결과 cache는 사용하지 않았다. 이 phase는 실제 case 참조를
+만드는 단계이고 원형 `verify_shadow()`의 최종 gate 통과는 후속 release 검증에서 구분한다.
+나머지 정규 16개의 원래 관측은 새 관측 결과와 검토·실제 대체를 보존하는 진단으로 이어간다.
+
+이 재개는 **647.86초·exit 0**으로 끝났고, 최종 부모 상태는 complete·32/32 승인·검토 0·
+실패 0이었다. 재개 중 기존 ledger를 재구성할 때 보인 3개 등의 중간 수치를 이전 16개에
+더하지 않았다. 알려진 `01228_replace` 때문에 이 부모 집계를 unchanged exact32 PASS로
+표현하지 않는다. 원래 등록 32개 관측의 실제 ledger·검토·대체·최종 P를 보존한 뒤, 원형이
+지원하는 마지막 bounded depth 1→2 adoption에 필요한 입력으로 사용한다.
+
+등록 32개 원문을 읽기 전용으로 대조한 결과 **원래 승인 31 / 원래 검토 1**, 부모의
+canonical slot은 고유 32개였고 실제 새 대체는 `01228` 한 개뿐이었다. 원형
+`replacement_shape()`의 다섯 계보 필드와 동일 spec·ordered roster·split을 확인했으며,
+세 실제 session의 종료 P와 원형 parent row 변환 뒤 나머지 값 차이 0도 확인했다.
+해당 slot은 reinforcement allocation target이 아니므로 target transition 검사는 해당하지
+않는다. 전체 nearbudget와 native QA는 후속 원형 adoption에서 실제로 다시 검사한다.
+
+| 실제 새 대체 입력 | SHA-256 |
+| --- | --- |
+| session 계약이 가리키는 `replacement_deck_0/manifest.json` | `d49d77e890c9418b21e23669944bd8b3a5ea8914a8388b999c5ac25810009db3` |
+| 실제 승인 session의 `ledger.jsonl` | `e7e193b4c20e5a00bd9be6976ce6a978ef0311657a33e32c6bb40f3a462791e2` |
+
+원래 scenario SHA `ec26c8e4…`에서 실제 승인 대체 SHA `6819940c…`로 바뀌었다.
+자동 discovery의 제한된 탐색은 이 nested manifest를 찾지 못하므로 코어를 수정하지 않고
+원형 CLI의 원래 ledger 두 개와 실제 `manifest:ledger` 명시쌍을 사용한다. 보조 수령기의
+import/pin map/parent slot 변환/manifest 탐색 연결 실패들은 별도 로그로 보존했다.
+이 대조는 원문 확보·계보 사전검사이며 unchanged exact32 gate나 본수집 승인이 아니다.
+로컬 근거는 `cpu_gate_prepare_v1/depth2_diagnostic32_controls_actual_v6/`에 있다.
+
+명시쌍을 봉인한 새 CPU 권위의 실제 분리 probe는 **36.76초·exit 0**이었다. 원형 producer
+3.8의 실제 v3 5K 감사 dict와 저장 감사의 정확한 일치, host 3.10의 native 상세 판정,
+1,181개 고정 입력의 scope 종료·실제 재진입 SHA, 환경·함수 복원을 확인했다. QA 결과나
+새 native 입력을 cache하지 않았다. 권위 SHA는
+`94e94d28477bbc39842e6544f1bd89a24159e79d4dff242ea96984a226768ec6`이며 probe 원문은
+`qualification/hybrid-split-depth2-probe-v1.{json,log}`다.
+이어 **04:50 KST에 `adoption-v4`의 원형 depth2 adoption을 실제 시작**했다. 기존 6개는
+parent binding으로 계승하고 새 실제 대체 한 개만 명시한다. 실행 로그는
+`qualification/full-adopt-hybrid-depth2-immutable-v4.log`다. 이 시작을 source 연결 완료나
+새 exact32·본수집 완료로 집계하지 않는다.
+
+<a id="foggy13-main-completion-261020"></a>
+
+## 로컬 Foggy13 본수집 종료와 4,998장 보충 상태
+
+로컬 본수집의 실제 terminal 시점은 **2026-10-20 03:51:25.393 KST**였다.
+5,000개 검사가 끝났고 원래 승인 4,936 / 부족 64 / 미검사 0 / 실패 0으로 정상 종료했다.
+main exit 0·작업자 종료·idle lock·마지막 묶음의 8개 between-scene P와 최종 P gear 1·
+오류 없음을 담당 에이전트가 확인했다. 기존 input boundary도 passed/result 0이었으며
+SHA는 `828b2cd0e248cca1a2cd12dcd338bc365a6d4ba5d3dfd6ebdab489d1b811d3b6`이었다.
+
+기존 승인 4,936행과 원본을 그대로 참조하는 0촬영 seed를 준비했다. 이때 geometry 생성·
+native 촬영·기존 원본 QA 재계산은 0이었다. seed 원문은
+`artifacts/evaluation/base5_foggy13_completion_261020/seed_v1/zero_capture_seed.json`, SHA는
+`cbc8f17ee247cae2d2f29c252d0703986c847e81b90b1afc45a830a23f4b17b5`다.
+이어 기존 bounded 보충을 3,600초/3 attempts 한도에서 실행했고
+**04:50:36.945 KST에 exit 0·승인 4,998 / 부족 2 / 미검사 0 / 실패 0**으로 종료했다.
+새 승인 62개를 더한 수치이며 부모 4,936행을 중복 합산하지 않았다.
+
+실제 후보는 65개(승인 62 / 검토 3), attempt 기록은 69행이었다. 나머지 4행은 같은
+목적 donor 부재로 새 native를 촬영하지 않은 기록이다. 마지막 실제 후보 `00008`의
+두 번째 시도는 승인됐고 종료 P·gear 1·오류 없음을 확인했다. 남은 slot은 `02260`
+(첫 native의 `primary_no_sensor_evidence`)과 `00016`
+(`motion_ground_preparation_unavailable`)이며, 후속 차례에 donor가 없어 촬영 0개였다.
+이를 native 실패 4장이나 완료 5K로 바꾸어 표현하지 않는다.
+
+현재 보충 출력은 `artifacts/evaluation/base5_foggy13_completion_261020/flexible_v1/`이다.
+기존 parent pins·source/runtime·QA·센서는 바꾸지 않았고, 5K finalize도 아직 하지 않았다.
+현재 status의 4,998/2/실패 0을 직접 대조했다. 종료 원문은 같은 준비 root의
+`terminal_receipt_v1.json`, SHA
+`2cb70961755b0777d89336e6745dfea856b6911c35dda2785c88ec746d3ad239`다.
+새 후속 수집은 별도 범위를 확인한 뒤 진행한다. 원격 Foggy15의 동결 runtime이나 제어와
+섞지 않는다.
+
+<a id="foggy15-depth2-source-completed-261020"></a>
+
+## 원격 Foggy15의 원형 depth2 source 연결 완료
+
+`adoption-v4` 조립은 **10/20 05:17 KST까지 실제 1,547.30초·exit 0**으로 끝났다.
+원형 5K 감사는 `OFFLINE_PASS`·5,000 scenes·5,000 unique payloads·오류 0이었고,
+마지막 `verify_binding()`까지 정상 종료한 실행 원문을 별도로 수령했다. CPU 검산은
+host 3.10의 실제 native QA와 producer 3.8의 실제 source audit 분리를 유지했으며,
+QA·context 결과를 cache하거나 원형 판정을 바꾸지 않았다.
+
+| 실제 완료 원문 | SHA-256 |
+| --- | --- |
+| `qualification/full-adopt-hybrid-depth2-immutable-v4.json` | `a3bff239ddd7c7e69ac485ef719d82d24cec01f2c529623e45a0818a37130174` |
+| `adoption-v4/binding.json` | `5cc6a7b86c3ea719685bf31fdcb62762c335d0df60b7e1fe6631575dfb284bc0` |
+| `adoption-v4/assembled_source/final_source/manifest.json` | `012a60fea570620816c1036b491e1ee975d025e79bd4b4319a13f4decb4ffa54` |
+
+로컬 수령본은 `cpu_gate_prepare_v1/source4_followup_actual_v1/`에 원문 bytes로 보존한다.
+v3/v4의 고유 5,000 ID 집합은 같고 scenario SHA가 달라진 것은 실제 승인 대체를 연결한
+`01228` 한 개뿐이며, 5,000개 entry의 split 변경은 0개다. 기존 6개 대체의 계보는 parent binding으로
+계승했다. 이 binding은 명시적 `adoption_depth=2`이며 `native_qualified`, `bulk_ready`,
+`bulk_started`는 모두 false다. 따라서 새 source의 등록·unchanged exact32·독립 shadow·
+나머지 원형 gate와 공통5를 별도로 통과해야 한다. 이 source 연결 완료를 본수집 5K나
+새 native 자격 완료로 표현하지 않는다.
+
+이어 source4의 원형 route witness를 **0.83초·exit 0**으로 생성·수령했다. 실제 witness는
+`adoption-v4/route-witness-v1.json`, SHA
+`54c6a5f94d9045117c9070ee98cff1198d44b40729817ecbc70390aa20de4807`이다.
+새 `qualification/full_v3`의 32장 CPU 사전 등록도 **05:38 KST까지 935.47초·exit 0**으로
+끝났다. 실행 원문은 `qualification/full-register-hybrid-depth2-immutable-v3.json`이며,
+등록 권위 SHA는 `746d8df33ecd179000bfe91a525a96ed06fc7e18ccf9151475dc41fb77af1040`이다.
+기존 107개 제어 pin에 실제 source4·binding·witness·adopt 실행 원문의 4개를 더했으며,
+기존 고정 SHA 1,181개·원형 QA는 바꾸지 않았다. 이 시점에는 새 native 촬영과 본수집은 0이다.
+
+새 native3 진입 권위는 `eab5a360b188e65e12d1cb007e77303f20b5f80ac891f65d65470e06890d61fd`다.
+기존 native 환경·`ros-home-v2` HOME·source 모듈 3개의 pin을 그대로 유지했다. 촬영 직전
+원형 서비스·정지/P를 새로 실측했고 P gear 1·정지 sample 17개·오류 0이었다.
+첫16장은 **959.74초·exit 0**으로 정상 PAUSE했다. 실제 parent 선택 16개가 고유하고
+등록 ID 및 scenario SHA와 모두 일치했으며, 원래 session의 16행도 전부 승인·검토 0이었다.
+각 장면 사이 P 16/16과 마지막 shutdown P·gear 1·오류 0을 확인했다. 이전 `01228`도
+이번 등록 geometry 그대로 실제 승인됐다. 실행 원문은
+`qualification/full-canonical-first16-depth2-source-home-v4.json`, SHA
+`b18d6cc0b699d5c4b287f1237fa44ce1af0a7ba0efd335d9996c05842aaa7837`다.
+이것은 원형 exact32의 조기 ID·geometry 대조이며 전체 32장 최종 gate PASS는 아니다.
+
+정상 PAUSE 경계에서 기존 음영 2장의 raw·session을 바꾸지 않는 참조 문서 한 개를 새
+`full_v3/shadow-cases.json`으로 전달했다(SHA `fc20a759…b50ff`). 새 등록32와 음영 ID
+`00000`·`00003`의 교집합은 0이며, 원래 cases에서 source SHA 필드만 실제 parent source로
+바꿨다. 이것은 새 음영 촬영이나 원형 `verify_shadow()` 통과를 주장하는 자료가 아니다.
+전체 원형 검증은 freeze에서 실제 수행한다. 첫16장 출력이 멈춘 상태에서 snapshot34를
+시작했고, 그 실제 exit 0 전에 remaining16을 실행하지 않는다. 본수집은 아직 0장이다.
+
+snapshot34는 이후 **410.23초·exit 0**으로 끝났고 실제 산출물은 `full_v3/partial.json`이다.
+SHA scope 1,181개의 진입·종료 실제 검산과 모든 alias 복원, source audit 호출 0,
+QA/context 결과 cache 0을 확인했다. 이 실제 종료 뒤 서비스·정지/P를 다시 실측해
+P gear 1·정지 sample 16개·오류 0을 확인하고 remaining16 실행기를 시작했다.
+이 실행기 시작은 아직 나머지16장 승인이나 전체 exact32 완료로 집계하지 않는다.
+
+remaining16은 이후 **945.86초·exit 0**으로 정상 종료했다. 새 `full_v3/exact32`는
+complete·고유 승인 32 / 검토 0 / 실패 0 / 오류 없음이었다. 등록32의 ID 집합이 정확히
+같았고 모든 선택 행의 `id == source_cell_id`·등록 scenario SHA가 일치했다. 두 원래
+session의 32행도 전부 승인됐으며 between-scene P 32/32·양쪽 shutdown P gear 1·오류 0을
+확인했다. 새 geometry 복구를 등록 원형 승인처럼 합산한 결과가 아니다.
+누적 실제 native elapsed는 **173.68초**이며 첫16장 시간을 다시 더하지 않는다.
+
+| 실제 완료 원문 | SHA-256 |
+| --- | --- |
+| `qualification/full-canonical-remaining16-depth2-source-home-v4.json` | `c2bb906fa25d70740dd6815eab1165263ff94daed1789a19a115b8b6620da012` |
+| `qualification/full_v3/exact32/selected_ledger.jsonl` | `33169f67567a78c98777d2b4e7278de8f73aa17fd512a09d97b38ac2a9f225c5` |
+
+이후 원형 partial/completed resume35 CPU 검증을 실제 시작했다. 입력 자료 준비도 이
+정상 종료 원문을 기준으로 진행하며, unit corner·독립 음영·입력/loader·CPU·재개를
+포함한 전체 6 gate PASS는 아직 freeze의 실제 결과가 필요하다. 본수집은 아직 0장이다.
+
+재개 검증은 이후 **418.33초·exit 0**으로 끝났다. 원형 partial receipt는 `passed=true`·
+기존 선택 16개 보존·이전 raw 불변이고, completed replay receipt도 `passed=true`였다.
+이는 중간 PAUSE 뒤 나머지 촬영과 완료 뒤 읽기 전용 재실행의 근거이며, 5K 중단 장면
+복구나 본수집 완료 인증은 아니다.
+
+| 실제 재개 검증 원문 | SHA-256 |
+| --- | --- |
+| `qualification/full-resume-proof-hybrid-depth2-immutable-v3.json` | `6fc3a9f28eac2e3da9fad80783ccfef505c3803f66e21675bda7bd63534d24f7` |
+| `qualification/full_v3/partial-resume.json` | `9062ff65280cccd1c489fab5379f623972f9baee9e52393878558ae75a0cb4ed` |
+| `qualification/full_v3/completed-resume.json` | `36f8b7bc7870e6428a8b651312c36297ec7b05845cb284e5b5032e4bd295b982` |
+
+별도 학습입력 v4 실행은 **875.03초 뒤 exit 1**이었다. 원래 qualifier가 명시하는
+`copy_mode='hardlink'`에서 raw와 출력 사이 `EXDEV`가 발생했다. 원인은 입력 전용
+장식에서 추가한 `exact32` 읽기 전용 bind mount와 출력 mount의 분리다. 촬영·GT 승인
+실패와 구분하며 실패 출력·로그를 보존한다. 일반복사 staging도 원형 source snapshot의
+inode·mtime exact 계약과 충돌하므로 그대로 채택하지 않는다. 원형 코드·QA·snapshot
+비교는 유지하고, 새 출력 경로에서 원래 hardlink 연결을 만족시키는 최소 namespace
+수정안을 검토한다. 이 시점에 입력/loader·전체 6 gate·본수집은 완료되지 않았다.
+
+후속으로 **원형 `fresh.namespace`의 동일 mount를 유지하는 public qualifier CLI**를
+새 `full_v3/training-inputs-v5`에 실제 실행했다. 추가했던 `exact32` subtree RO bind만
+입력 변환에서 제외했고, 기존 Sunny work/collection 보호·원형 qualifier·117개 기존
+control pin·실패 출력은 유지했다. 저렴한 동일 mount/dummy hardlink 확인은
+**0.189초·exit 0**, 실제 입력 변환은 **9.357초·exit 0**이었다. 이전 875초는 변환
+자체의 필요 시간이 아니라 상위 workflow context를 반복한 경로까지 포함한 시간이다.
+
+원형 보고서는 고유 raw·payload·source cell 각 32개, `source_unchanged=true`,
+retained component 누락·추가 0을 확인했다. before/after 비교의 SHA·bytes·inode·mtime
+exact 조건은 그대로다. hardlink가 필요한 원형 경로이므로 raw가 mount-RO였다고
+표현하지 않는다. 원본 내용 쓰기·chmod·unlink는 없고 nlink/ctime 변화 가능성은 원형
+hardlink 특성과 구분한다. 실패 출력 변경·원형 qualifier 변경·추가 native는 모두 false다.
+
+| 실제 입력 완료 원문 | SHA-256 |
+| --- | --- |
+| `qualification/full-inputs-original-same-mount-v5.json` | `3d1f16a2228f6e6458d2dfb729cc783d77b4a9ee2bf693ccae4a88bd713cfa73` |
+| `qualification/full_v3/training-inputs-v5/report.json` | `a30a337d7ad6652692a57b57c8c9eca09fb0c09246ca1d0ce88c26034f256232` |
+
+다음 loader와 원형 freeze에는 새 보고서 경로를 인자로 명시하며, 저장 보고서·PKL을
+사후 수정하지 않는다. 입력 변환 성공을 실제 모델 AP 개선이나 전체 6 gate 완료로
+표현하지 않는다.
+
+실제 입력 package 3,816파일·295,016,651 bytes를 131.67초에 수령·전수 대조한 뒤,
+고정된 기존 Docker image의 CPU-only loader도 **14.148초·exit 0**으로 끝났다.
+기존 loader 본문에서 새 `training-inputs-v5` basename만 명시한 연결이며,
+`cuda_available=false`·`gpu_execution=false`·`training=false`, source GT 101개를 확인했다.
+원문 보고서는 `qualification/full_v3/loader-report-v5.json`에 EXCL로 전달했고 SHA는
+`0b0dccd402edcc0488017dc746a567bfc05eed009b7a2d0000e0df540b59baa7`이다.
+원형 freeze에는 이 원문과 입력 보고서 경로를 public API 값으로 명시한다.
+상위 workflow context의 동일 binding 선행 재검산은 다시 호출하지 않는다.
+
+원형 `reinforcement_native_adoption.freeze(values, output)`는 이후 **590.339초·exit 0**으로
+끝났다. `native_exact`, `independent_shadow`, `training_inputs`, `cpu_regression`,
+`partial_resume`, `completed_resume` 여섯 gate가 실제로 모두 통과했고,
+`native_exact_observations=32`·`bulk_training_observations=0`·`bulk_ready=true`였다.
+원형 QA·source audit·판정 문턱을 바꾸거나 과거 검토를 승인으로 승격한 결과가 아니다.
+
+| 실제 최종 자격 원문 | SHA-256 |
+| --- | --- |
+| `qualification/full-freeze-direct-original-v5.json` | `8bcb2727a454da90b48fd2890e0c8d51c9200b29972b5b82a050a0ad10320ddc` |
+| `qualification/full_v3/release/release.json` | `618db882b7b0b149c6a30151b8408a35e5eaba9a33503c5d20ef182a2e174474` |
+| `deployment-full-source-v5.json` | `458af54c9d8a4b914e3d774fe309bb40f736fb599be7016f8314e08d689ccaaf` |
+
+순수 final metadata factory도 실제 release와 source4 원문을 연결해 완료했다.
+사용자의 명시적 신속 진행 요청에 따라 다음 CPU prepare는 이미 완료된 같은 6 gate를
+다시 계산하지 않는 핸드오프를 사용한다. 원형 `qualified_release_context`의 전체 evidence
+실제 SHA·현재 runtime·gate 파일 내용·source/output 안전·audit 검사는 그대로 실행한다.
+그 검증 안의 `qualify` 콜백에만 실제 성공 freeze가 쓴 원문 결과를 RAM으로 전달하고,
+콜백은 단일 prepare 프로세스 안에서만 설치·복원한다. 실패 PASS 변조나 native QA 캐시
+확대가 아니며, 원형 profile writer·실제 common5·P/재개·본수집 worker는 그대로 유지한다.
+이 시점에는 prepare 실행 중이며 본수집은 아직 0장이다.
+
+한계 정정: 실제 완료된 입력5 즉시 실행기는 원형 namespace를 그대로 사용했으므로
+별도 `--unshare-net` 차단 증거가 아니다. 원형 qualifier는 로컬 파일 처리·추가 native 0·
+원본 snapshot 불변으로 통과했다. 이 원문은 사후 수정하지 않는다. CPU Docker loader의
+실제 `network=none`·GPU 0 및 source-audit RPC의 원래 network-off와 구분한다.
+
+<a id="foggy15-actual-bulk-start-261020"></a>
+
+## 원격 Foggy15 공통5 통과와 실제 본수집 시작
+
+완료된 release의 핸드오프를 사용하는 공통 prepare는 **57.387초·exit 0**으로 끝났다.
+원형 profile writer가 새 5K 출력과 source4를 연결했으며, 기존 6 gate의 재계산만 생략했다.
+원형 전체 evidence SHA·runtime·source/output 안전 검사는 유지했다. 실제 profile과
+prepare 원문은 다음과 같다. 원격 상대 경로는 모두
+`~/ajounice_base5_capture/work/fresh-foggy15-v1/` 기준이다.
+
+| 실제 완료 원문 | SHA-256 |
+| --- | --- |
+| `profile.json` | `3083db331078654a5161b088ad902a95b68843016f7fc2b29f4d54d25c69ac77` |
+| `qualification/common-prepare-completed-release-v1.json` | `5e4de15d8ab27eb70a09f00973268f51f786730cc72a258f5432217f4c8e2d6d` |
+
+새 서비스 freshness·정지/P를 실측한 뒤 원형 공통5를 source indices `0,1,2,3,4`로
+실행했다. **147.498초·exit 0·승인 5/5·검토/실패 0**이었으며, 실제 PAUSE→resume와
+완료 뒤 추가 촬영 없는 replay를 통과했다. 첫 regular `00001`의 센서 근거 부족은
+원래 review로 보존했고 원형 bounded recovery가 새 승인 장면을 확보했다. 따라서
+이를 최초 geometry 5개가 모두 unchanged 승인됐다고 표현하지 않는다. 이 공통5는
+실행기 검증용 별도 출력이며 본수집에 합산하지 않는다.
+
+실제 공통5 원문은 collection의 `unified_live_qualification.json`이며 SHA는
+`2f3ea9eb9cb66f1a65e760f338245e90ce7d958c396cc8e85db3272a1b2720b2`다.
+고정 입력 boundary는 실제 SHA 확인 2회·7,571,551,168 bytes·9.755초였고,
+고정 pin hit 566,681회와 passthrough 9,628회를 기록했다. 이는 고정 입력 SHA 재사용의
+근거이지 native QA 결과 캐시가 아니다.
+
+공식 관측기도 최종 profile의 `adoption-v4` manifest로 교체했다. 빌린 PC
+`http://127.0.0.1:8083/`와 로컬 터널 `http://127.0.0.1:8084/`에서 source SHA
+`012a60fe…fa54`, 새 5K collection, `diagnostic_warnings=[]`·오류 없음을 확인했다.
+최종 관측기 supervisor는 PID 3553773, 실제 서버는 PID 3554385이며 SSH 종료 뒤에도
+유지됐다. 전환 원문 `observer_final_switch_v1.json`의 SHA는
+`156501ade3f8080fddd9b94cf7680c7a8e5ca5e28a4ffd83158554889df4c44e`다.
+기존 임시 UI만 교체했으며 MORAI·다른 브라우저·수집 제어는 건드리지 않았다.
+
+이어 새 정지/P·gear 1·정지 sample 17개·오류 없음을 확인하고, 이미 준비한 원형
+detached launcher에 실제 deployment/profile/공통5 원문을 연결했다. 실제 본수집
+**PID 3555237**은 별도 session·stdin `/dev/null`·일반 파일 로그로 시작했으며,
+SSH 종료 뒤 PPID 1로 유지됐다. 실제 명령은 다음과 같다.
+
+```bash
+/usr/bin/python3 -B ~/ajounice_base5_capture/work/fresh-foggy15-v1/checks/reinforced_borrowed.py \
+  --deployment ~/ajounice_base5_capture/work/fresh-foggy15-v1/deployment-full-source-v5.json \
+  --environment foggy15 run --confirmed-environment foggy15
+```
+
+본수집 출력은 `~/ajounice_base5_capture/collections/foggy15_5k_v163_v1`이다.
+설정은 **limit 5,000 / chunk 16 / stop-after-chunks 0 / 외부 timeout 없음**이며,
+원형 묶음·복구 timeout, capture lock, P·freshness·접촉/native QA를 유지했다.
+실행 원문은 `bulk-launch-v1/launch-receipt.json`, 로그는 `bulk-launch-v1/bulk.log`다.
+이 시점에는 실제 본수집 `running`과 첫 slot의 원형 촬영·복구 진입을 확인했으며,
+프로세스 시작만으로 첫 묶음 통과나 5K 완료를 주장하지 않는다.
+
+이후 첫 `chunk_0000`이 실제로 끝났고 부모 status가 **finished 16 / 승인 16 / 검토 0 /
+실패 0 / 오류 없음**으로 집계됐다. regular 원문은 승인 15 / 검토 1이며, 검토 원문을
+보존한 별도 원형 recovery의 승인 1개가 같은 source slot을 채웠다. regular의 16개
+between-scene P가 모두 true이고 마지막 shutdown도 P gear 1·오류 없음을 확인했다.
+따라서 최초 geometry 16개 unchanged 승인을 주장하지 않으며, 실제 선택 계보를 따른다.
+
+첫 묶음 집계 후 **`chunk_0001`의 실제 regular 4행이 생성되는 중**인 것을 확인했다.
+본수집 PID 3555237은 별도 session·PPID 1로 생존했고 부모 상태는 running이었다.
+원형 bulk checkpoint의 selected ledger/quota는 64장 경계에서 갱신될 수 있으므로,
+초기 ledger 0행을 촬영 중단으로 해석하지 않는다. 실시간 상태는 status와 현재 child의
+원형 ledger를 함께 확인한다. 실행 원문의 수령 SHA는
+`c7957a2ff2bf8fcf6234020e894b3b4285da30859bef9bb93a83203213e04d0a`이며,
+로컬 근거는 `cpu_gate_prepare_v1/bulk_actual_received_v1/launch-receipt.json`이다.
+본수집을 계속 실행한 상태로 문서만 갱신했으며 5K 완료나 이후 무중단을 선인증하지 않는다.
+
+동시 진행한 로컬 Foggy13 담당자는 이후 새 승인 동물 1장과 마지막 walking 1장으로
+**5,000 승인 / 부족 0 / 실패 0 / 오류 없음 / 작업자 종료**를 확인했다. 원래 본수집
+4,936행 + 기존 보충 62행 + 새 2행의 구성이고, 직전 4,999행을 그대로 보존했다.
+마지막 walking은 20~30m 목적과 원형 native QA·P를 통과했으며 거리 fallback은 0이었다.
+실제 최종 선택 출력은 `artifacts/evaluation/base5_foggy13_completion_261020/flexible_last_walking_v7/`다.
+담당자가 원형 split finalize를 시작했으며 이 기록 시점의 JPEG 변환·PNG 삭제와
+독립 Foggy11의 native 촬영은 아직 0이다. 기존 4,998/2 terminal과 실패 근거를
+소급 수정하지 않고 후속 실제 승인으로 구분한다.
