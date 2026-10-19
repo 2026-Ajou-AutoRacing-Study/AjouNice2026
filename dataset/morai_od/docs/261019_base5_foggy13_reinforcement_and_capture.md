@@ -515,6 +515,22 @@ python3 -B scripts/portable_base5/recover_unified_fresh_chain.py --run \
 세 번째 인계 fixture를 회귀 검사했다. 이 작업에서 PNG 삭제·JPEG 변환·5K 완료
 판정은 수행하지 않았다.
 
+### 10/20 종료 후 보충 경로의 사전 점검
+
+본수집이 아직 실행 중인 상태에서 종료 후 보충 경로만 읽기 전용으로 점검했다.
+현재 crash-chain의 `old_output`은 최초 origin이고 prefix의 `original_output`은 직전
+crash 출력이므로 일반 completion의 경로 동일성 비교를 그대로 적용할 수 없다.
+새 운영 helper는 기존 chain receipt·prefix SHA를 확인하고 그 비교 한 곳만 직전 부모로
+연결한다. 원형 source authority·native QA·승인/검토 판정은 유지하며 기존 Sunny11에서
+사용한 0촬영 seed API와 공통 유연 보충·finalize를 재사용한다.
+
+`artifacts/evaluation/base5_foggy13_completion_261020/`의 helper fixture는 **15/15 통과**했고,
+root의 실제 profile/계보 읽기 전용 점검도 depth 2 연결을 통과했다. 이때 seed·보충 출력은
+없었고 촬영·원형 부모 verifier 실행·원본/profile 변경은 모두 0이었다. 정상 종료·최종 P·
+부모/worker 종료를 확인한 뒤에만 prepare/run할 수 있다. 기존 5K native QA 전수 재판정을
+새로 추가하거나 부모와 child의 누적 승인을 중복 합산하지 않는다. 명령과 종료 조건은
+같은 폴더의 `README.md`를 따른다. **이 준비를 실제 보충 완료로 해석하지 않는다.**
+
 ## Sunny 추가 보강 초안
 
 Sunny 15K 완료 후 추가 보강은 별도 초안으로 남겼다. 잠정 예산은 750장으로,
@@ -630,6 +646,15 @@ Foggy13에는 공통 v160이 계승한 원거리 보조·거리 분산·fallback
 별도 수집·학습·배포 버전으로 비교한다. 새로운 30K의 즉시 수집이나 기존 모델의 새 배치
 동등 성능을 확정한 것은 아니다.
 
+운영 안전망은 **기존 배치·기존 calibration·현재 30K 기반 모델**의 묶음으로 유지한다.
+새 배치의 목표는 전방 원거리 개선이며, 후방·근거리·낮은 객체·도로 경사 조건을 포함한
+회귀 확인 없이 마지막 모델을 자동 교체하지 않는다. 새 배치의 소량 비교에서 이득을
+확인한 뒤 필요한 추가 수집량을 정한다. 추가 30K는 가능한 규모이지 먼저 채워야 하는
+조건이 아니며, 기존 모델과 센서 설정을 함께 복귀할 수 있도록 버전을 분리한다.
+새 센서는 점군·native GT·카메라 투영·ROS 출력 변환까지 같은 좌표 계약인지 확인한다.
+특히 pitch를 바꾸는 경우 기존 upright box·수직축 가정을 그대로 적용할 수 있는지도
+점검한다. 설정 파일의 센서 위치/각도만 바꾸면 모든 변환이 자동으로 맞는다고 가정하지 않는다.
+
 ### Foggy15 준비 관측 대시보드
 
 10/19 23시대에 빌린 PC **127.0.0.1:8083**, 이 PC SSH 터널 **localhost:8084**의
@@ -733,3 +758,72 @@ adoption 출력이나 촬영은 생성하지 않았고 실패 로그도 보존�
 Python 3.8.10·원형 모듈 경로/SHA·동일 VIC 클래스·의존 모듈과 runtime 439/test 212
 전후 불변을 확인했다. 그 뒤 새 authority로 원형 adoption을 재개했다. 검토·probe의
 성공과 실제 adoption 완료는 구분하며, 이때 본수집은 여전히 시작하지 않았다.
+
+### 생성 감사와 native 검증의 수치 환경 분리
+
+그다음 실제 adoption은 523.04초에 `Saved attitude decision differs from recomputation`으로
+종료됐다. 새 5K source의 지도 감사는 고유 5,000장·오류 0·`OFFLINE_PASS`였지만,
+실제 native 상세 판정의 재계산이 저장 dict와 정확히 일치하지 않았다. 이 부분 출력은
+`native-adoption-v1/`에 보존하며 최종 binding이나 정식 adoption 성공으로 쓰지 않는다.
+
+원형 32장 전체(승인 26장·검토 6장)를 읽기 전용으로 비교해 원인을 구분했다.
+
+| 재계산 환경 | 저장된 상세 판정과 완전 일치 | 차이 |
+| --- | ---: | --- |
+| 실제 native 촬영 환경 Python 3.10·NumPy 1.23.5 | 32/32 | 없음 |
+| 생성 감사 재현용 Python 3.8·NumPy 1.17.4 | 5/32 | 27장의 수치 필드 57개, 최대 약 `5.684e-14m` |
+
+3.8 비교의 비수치 필드 차이는 0개였고, 32장 모두 eligibility·classification·review
+reason이 같았다. raw/source SHA도 전후 동일했다. 원형 검사는 dict의 실수 값까지
+`==`로 비교하므로 이 극미세한 차이도 거부한다. 이를 근거로 native GT나 QA를 고치거나
+허용오차를 늘리지 않는다. 또한 이 상세 판정의 반올림 수준 차이와 앞서 확인한
+SciPy KD-tree 후보 집합 차이는 별개다.
+
+따라서 native 상세 검증은 원래 촬영 환경 3.10에 두고, 생성 source의 지도 감사 함수만
+원래 생성 환경 3.8의 별도 읽기 전용 실행에서 매번 실제 재계산하는 연결을 검증한다.
+보존된 partial 5K로 실행한 3.8 감사는 실제 함수 1회 호출·결과 cache 없이
+`OFFLINE_PASS`였고 저장 감사 dict와 완전히 같았다. geometry 10,001개와 runtime 439개의
+SHA도 전후 같았다. 원문은 `native_attitude_replay_host310_all32_v2.json`,
+`actual_attitude_cohort32_producer38_v2.json` 및 CPU gate prepare 근거에 보존한다.
+이 비교·분리 probe는 실제 정식 adoption·후속 native 시험·본수집의 대체 인증이 아니다.
+
+이 문제는 센서 배치 변경이나 모델 재학습이 필요한 증거가 아니라, 서로 다른 CPU 수치
+환경을 정확한 dict 동일성 검사에 연결한 이식성 문제다. 이번 동결 수집에서는 원래 환경을
+재현해 처리한다. 후속 공통 실행기 정리 시 생성·촬영·검증 환경의 버전 계약을 명시하고,
+수치 중간값과 실제 승인/검토 결정을 구분하는 검증 설계를 별도 release에서 검토한다.
+현재 수집 도중 이 개선을 이유로 원형 검사나 허용오차를 변경하지 않는다.
+
+이후 실제 분리 실행 probe는 **38.48초·exit 0**으로 통과했다. 1,181개 고정 입력의
+SHA scope 종료 → 원형 3.8의 실제 5K 감사 → 새 scope 진입 → 원래 3.10의 native 상세
+판정 exact 검증 → 실행 환경/함수 복원까지 실제로 확인했다. 메타데이터 로더는 실제
+배포된 동일 SHA helper와 원래 작업자 HOME을 사용하고, source 수치 계산은 기존
+canonical 환경에 둔다. 중간 연결부 probe 실패들은 별도로 보존했다. 그 뒤 올바른
+실제 대체 6개와 원래 ledger를 새 `native-adoption-v2/`에 연결하는 adoption을 시작했다.
+이 probe의 성공이나 adoption 시작을 adoption 완료·추가 native 촬영·5K 본수집으로
+집계하지 않는다. 원문 로그는 `qualification/full-adopt-hybrid-correct-v4.log`다.
+
+후반 검산의 성능 후보도 별도로 확인했다. 원형 `effective_diagnostic`는 승인된 진단 행마다
+`verify_regular(session, chunk_manifest)`를 호출하며, 이 함수는 같은 묶음의 승인·검토
+전체를 다시 확인한다. 따라서 같은 16장 session이 반복 검증될 수 있다. 이는 실제 코드의
+호출 구조 관측이지 개별 비용을 측정한 병목 확정은 아니다. 이번 동결 실행은 유지하고,
+후속 release에서 입력/종료 경계가 동일한 session 검증을 한 번으로 묶을 수 있는지 검토한다.
+현재 실행에 QA 결과 cache나 검사 생략을 추가하지 않는다.
+
+### 올바른 6개 대체의 정식 source 연결 완료
+
+동일 실행은 **828.79초·exit 0**으로 끝났다. 새 binding을 쓴 뒤 원형
+`verify_binding()`의 최종 자기 검증까지 통과했으며, 앞서 중단된 v1 출력과 원본 native·
+검토 근거는 그대로 보존했다. 원문 3개를 회수하고 로컬/원격 SHA를 대조했다.
+
+| 실제 완료 산출물 | SHA-256 |
+| --- | --- |
+| `qualification/full-adopt-hybrid-correct-v4.json` | `ab9725fa62d175da59fb50ff6f26a2c0fc585596a2a7e9bc732cd7897eb5a3de` |
+| `native-adoption-v2/binding.json` | `a43d0fd0a86ecd478df1e2c5e1a7ae18d64a922f29656c208d465474e5cfb769` |
+| `native-adoption-v2/assembled_source/final_source/manifest.json` | `f3db513401a92bcfebad99f514ffa7dc1ecb00f23db0e1766eedebb4504ffa91` |
+
+경로의 원격 root는 위 `work/fresh-foggy15-v1/`다. 이는 실제 대체 6개를 반영한
+**5K source 조립과 소량 근거 연결 완료**이며, 본수집 승인 5,000장이 아니다.
+이 완료 시점에는 정규 canonical 32장·독립 shadow 2장·여섯 release gate·공통
+pause/resume 자격과 본수집은 아직 완료되지 않았다. 다음 단계는 이 실제 binding에서
+원형 route witness와 등록 권위를 만들며, CPU-only 독립 등록은 native 단독 제어와
+서로 분리된 출력에서 병렬 준비한다.
