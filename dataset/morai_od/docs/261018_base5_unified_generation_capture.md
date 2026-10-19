@@ -185,6 +185,96 @@ python3 -B ~/ajounice_base5_capture/work/sunny11-completion-runtime-v1/observe_c
 후에만 같은 어댑터의 `--environment sunny11 finalize`로 실제 선택 기반 분할을 확정한다.
 JPEG 변환·PNG 삭제·압축·전송·학습은 이 보충 작업에 포함하지 않는다.
 
+<a id="borrowed-sunny11-completed-finalized-261019"></a>
+
+#### Sunny11 승인 5K 완료와 실제 선택 기반 분할 확정
+
+위 진행 수치와 재개 명령은 당시 이력이다. 실제 보충은 **2026-10-19 20:02:49 KST에
+승인 5,000장·부족 0장·실행 오류 0으로 정상 완료**했다. `status.json`은 `stage=complete`,
+`finished=5000`, `failed=0`, `current=null`, `selected_not_certified=false`다.
+기존 4,944개 승인 행을 모두 동일하게 보존했고, 새 56장은 **56회 시도로 전부 승인**됐다.
+최종 선택의 source ID·capture 경로·시나리오 SHA는 각각 5,000개 고유하다.
+보충 하위의 지면 준비를 포함한 **60개 `shutdown_safety.json` 모두 최종 P·gear 1·오류 없음**을
+독립적으로 확인했다. 60개는 안전 종료 기록 수이며 승인 장면 수가 아니다.
+
+이후 같은 동결 어댑터의 `--environment sunny11 finalize`가 **exit 0**으로 완료됐다.
+실제 채택 geometry·계보·분할 누수 감사는 `CPU_PASS`, 오류 목록은 비어 있고, 최종 분할은
+**train 4,250 / val 750**이다. 이 검사는 파생 입력의 정합성 확인이지 모델 정확도 인증이 아니다.
+결과의 `changed_geometry=250`은 최초 계획과 실제 채택 장면의 geometry가 달랐던 선택 수다.
+이전 복구 계보도 포함하므로 이번 추가 보충 56장의 수와 다르다. native 원본·GT를 250개
+수정했다는 뜻이 아니며, 기존 선택·원본은 그대로 두고 파생 manifest·split·ledger만 확정했다.
+
+최종 학습 변환에는 빌린 PC의
+`~/ajounice_base5_capture/collections/sunny11_5k_flexible_v1/layout_split_final/`에 있는
+다음 입력을 사용한다. 기존 부모 ledger를 다시 합산하거나 완료 수집을 재실행하지 않는다.
+
+| 최종 입력 | 새로 읽어 검산한 SHA256 |
+|---|---|
+| `manifest.json` | `0f1484dbbb3ef71f9741e3a82e4ff2024d4b2b404948b9cce13c2a048554959a` |
+| `split_overlay.json` | `4a946bd56006b62caccf2049828493d7b6c88bee46152471e1e219d0bac59208` |
+| `derived_selected_ledger.jsonl` | `5f194f7bc188aeae65df259767a13be3d45cbfcd27821d24eebef6095883b996` |
+
+완료·원본 선택 보존·60개 P·분할·SHA 근거는 로컬
+`artifacts/evaluation/base5_sunny11_completion_261019/final_completion_receipt.json`에 보관한다.
+사용자 요청에 따라 같은 Q90/upright 3클래스 규칙의 전달본 변환·압축·로컬 회수를 진행하도록
+승인했다. **이 완료 기록은 변환이나 로컬 회수까지 끝났다는 뜻이 아니다.** 원격 PNG·native GT·
+실패 원본은 계속 보존하며 삭제 승인은 포함하지 않는다. 새 변환기 독립 검토는 같은 폴더의
+`export_independent_review_receipt.json`을 따른다.
+
+<a id="sunny11-training-package-261019"></a>
+
+#### Sunny11 Q90/upright 전달본 변환·압축 완료
+
+위 최종 선택 5,000장을 Sunny13·Sunny15와 같은 동결 변환 규칙으로 처리했다.
+**2026-10-19 22:33 KST에 원격 qualification → pack → validate가 모두 exit 0으로
+완료됐다. 이 시점의 로컬 회수는 진행 중이며, 로컬 SHA·복원 검증 완료를 뜻하지 않는다.**
+원격 PNG·native GT·실패 근거는 삭제하지 않았고, 완료 선택·분할 제어 파일 9개의 SHA도
+작업 전후 모두 같았다. 학습·Vast 전달·Drive 업로드는 이번 원격 CPU 작업에 포함하지 않았다.
+
+- 새 진입점은 `scripts/portable_base5/cohort_training_export.py`와
+  `cohort_training_export_host.py`다. 환경 identity만 일반화하고 기존
+  `borrowed_training_export.py`·`training_convert_adapter.py`·`pack_training.py`·`finish.py`와
+  Sunny15 기준 CPU 코드 11종·센서 SHA를 그대로 검사·호출한다.
+- RGB는 카메라별 **원본 해상도에서 Q90으로 한 번** 변환했다. 512×1056으로 미리 잘라 저장한
+  것이 아니다. native full-RPY의 upright 7D enclosure·component·ROI·보정·실제 선택 기반
+  split·Animal→Pedestrian 3클래스 규칙은 유지했다. 실제 입력 resize/crop도 전수 검사했다.
+- namespace는 전체 수집 workspace·MORAI·완료 선택을 RO로 두고 새 export 한 곳만 RW로
+  허용하며 네트워크를 분리했다. 첫 native→PNG portable 복사만 기존 저장용 adapter의
+  SHA·signature·정확히 한 번 호출·복원 검사를 거쳐 `hardlink` 대신 `copy`로 실행했다.
+  이후 파생 payload의 하드링크는 유지했고, 픽셀·GT 규칙은 바꾸지 않았다.
+
+| 실제 검증 항목 | 결과 |
+|---|---|
+| 고유 학습 관측 / split | 5,000장 / train 4,250·val 750·test 0 |
+| 유효 GT | 11,654개: Vehicle 4,480 / Pedestrian 3,218 / Obstacle 3,956 |
+| 지원 component 누락 / 추가 | 0 / 0 |
+| RGB / 비RGB 원본 | Q90 20,000개 전수 검사 / native auxiliary lossless 유지 |
+| CPU qualification 보고서 시간 | 1,202.14초, 약 20분. host 경계 검사를 포함한 서비스 단계는 약 21분 |
+| 최종 package manifest SHA256 | `5ea87c829b26d3e63b72376211a8be6d5d15771eddc3330844b750f41dfe52de` |
+| 단일 archive | 3,378,353,769바이트 / 187,850개 regular member 전수 해제·SHA 검증 통과 |
+| Archive SHA256 | `01e20a4a46734fdd4da1feaa054172f5c091476d6040542b27b9a6bd3e824c99` |
+
+최종 원격 runtime은 `~/ajounice_base5_capture/work/sunny11-training-export-runtime-v3/`,
+export는 `~/ajounice_base5_capture/work/sunny11-training-export-v2/`다.
+export 아래 학습 입력은 `qualified/sunny11/training3_jpeg_portable/`, 단일 압축본은
+`base5_sunny11_5k_jpeg90_upright3_261019.tar.zst`다. `QUALIFIED.json`,
+`qualified/report.json`, `archive_receipt/{COMPLETE.json,archive_manifest.json,SHA256SUMS}`와
+runtime의 `PIPELINE_COMPLETE.json`·단계별 로그가 완료 근거다.
+
+초기 `runtime-v2` 감시기는 새 파생 `*.json.tmp`가 atomic rename으로 사라지는 순간을
+할당량 순회 오류로 처리해 새 CPU 변환만 중단했다. 수집·native GT 오류나 디스크 부족이
+아니었다. 당시 `export-v1`의 파생 audit 일부와 약 24.8MB 부분본·오류 로그를 보존했다.
+새 감시기는 **새 동적 export의 사라진 `*.tmp`만** 할당량 관측에서 제외하고, 원본·완료
+제어 파일·일반 파일의 missing 및 symlink·권한 오류는 계속 거부한다. 변환 코드는 그대로
+새 runtime/export에서 처음부터 실행해 위 전수 검증을 통과했다.
+
+100GiB 관리 예산은 Sunny11 본수집·seed·보충·새 export에 적용하고 이전 부분본도 감시했다.
+과거 Sunny13는 RO 보존하되 이번 작업 예산에 중복 합산하지 않았다. 별도로 전체 디스크의
+실제 여유 10GiB 하한을 30초 주기로 감시했으며, 완료 시 약 77.41GiB가 남았다.
+새 진입점과 기존 finisher·packer·로컬 회수 검증기를 포함한 CPU 회귀 **127개**, 감시기
+임시 파일 race의 한정 처리 검사 **3개**를 통과했다. 로컬 배포·검증 근거는
+`artifacts/evaluation/base5_sunny11_training_export_261019_v1/`에 보관한다.
+
 ## 결정과 보존 범위
 
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.

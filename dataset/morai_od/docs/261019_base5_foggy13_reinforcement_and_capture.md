@@ -348,6 +348,9 @@ Foggy13 거리 보강의 학습 결과나 production 교체로 해석하지 않�
 
 ## MORAI 종료와 첫 crash 인계
 
+이 절은 첫 사고와 당시 복구의 이력이다. 이후 두 번째 종료 뒤의 현재 출력·실행 명령은
+[두 번째 crash 인계](#foggy13-second-crash-continuation-261019)를 따른다.
+
 본수집의 마지막 확정 checkpoint는 **승인 2,043장·검토 21장·검사 완료 2,064장**이다.
 이후 `chunk_0129`에서 Ego/Object/CollisionData 수신이 끊겨 마지막 Park를 확인하지 못했고,
 부모는 `Batch final Park unverified`로 중단했다. 사용자도 MORAI가 꺼졌음을 확인했다.
@@ -420,6 +423,97 @@ python3 -B scripts/portable_base5/recover_unified_fresh.py --run \
   --output /home/luv/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1_after_crash_v1 \
   --confirmed-environment foggy13
 ```
+
+<a id="foggy13-second-crash-continuation-261019"></a>
+
+## 두 번째 MORAI 종료와 계보 보존 인계
+
+첫 continuation에서 **승인 2,657장·검토 31장·확정 2,688장**까지 수집한 뒤 다시
+MORAI 연결이 끊겼다. 기존 출력의 오류는 `Batch final Park unverified`이며 마지막
+`chunk_0168`은 native 후보 15개와 stale 실패 1개다. 이 미확정 16행의 원본과
+`park_verified=false`는 그대로 보존했다. 후보 15개를 승인으로 합산하거나 기존
+`halted`를 정상으로 고치지 않고, 동일한 다음 16장 묶음을 새 출력에서 다시 취득했다.
+
+기존 `recover_unified_fresh.py`는 원래 fresh 출력의 첫 인계만 지원한다. 이미 동결된
+이 파일을 고치지 않고 **`scripts/portable_base5/recover_unified_fresh_chain.py`**를 추가했다.
+이 실행기는 첫 wrapper의 `prepared` 검증을 재사용해 이전 profile·receipt·원형 공통
+5장 자격을 확인한다. 원래 source 권한의 `canonical_output`과 빈 `old_output` origin은
+처음 값 그대로 유지하고, 바로 이전 profile의 SHA·출력·계보 깊이를 새 계약에 기록한다.
+중첩 `imported_prefix`는 기존 crash exporter와 원형 schema 1 verifier로 검증한다.
+worker의 parent PID·start ticks·sealed memfd·허용된 native target 범위도 유지한다.
+반복 인계 계보를 지원하지만 MORAI의 자동 재시작이나 모든 사고의 무인 복구를
+보장하는 기능은 아니다. 새 crash에 기존 출력을 강제로 resume하지 않는다.
+
+CPU 준비는 **21:49:17~21:57:27 KST, 8분 10초·exit 0**으로 완료했다.
+기존 2,657개 선택 행·31개 부족 사유·경과시간을 보존했고 준비 중 새 촬영은 0장이다.
+원형 완료 native 세션 103개와 recovery 41개의 근거를 확인했다. 새/첫 복구·공통 수집·
+crash/paused import·경계 adapter 집중 회귀 **375개가 통과**했다. XML은 새 recovery
+폴더의 `tests.xml`에 보존했다. 기존 수집기·QA·manifest·원본은 수정하지 않았다.
+
+| 항목 | 현재 경로·근거 |
+|---|---|
+| 보존된 이전 출력 | `~/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1_after_crash_v1` |
+| 실제 새 출력 | 같은 부모의 `collection_5k_v1_after_crash_v2` |
+| 이전 profile | `artifacts/evaluation/base5_foggy13_crash_recovery_261019_v1/continuation-profile.json` |
+| 새 profile·로그·receipt | `artifacts/evaluation/base5_foggy13_crash_recovery_261019_v2/` |
+| CPU 준비 세션 | `foggy13-crash-import-v2` — 정상 종료 |
+| 실제 수집 세션 | `foggy13-crash-resume-v2` |
+| 관측 | **http://localhost:8081/** — v2 profile에 연결, 관측기만 전환 |
+
+이전 profile SHA는 `010b535d5556cb25571ebd85dfa94c41696e0cc9290862d612da564ef3b085f4`,
+첫 wrapper SHA는 `706c603fb13a329b36e3e72d0e108b5a3a0f899b6355b5fd2ce8cd55f7214a50`로
+그대로다. 새 profile SHA는 `2caae18f80adc8e9d9019f3d1232bc15d51c4e0c0d99f661d075ef601fbb7871`,
+새 imported prefix SHA는 `eb058e95cff6de9eaf94a7b5892debc34ba84f723000ced49871c488da251140`이다.
+
+### 실제 재촬영·승인·관측 확인
+
+사용자가 재시작 후 Capture Mode와 카메라 1~4·LiDAR 5 annotation ON을 재확인했다.
+이후 실제 통신·P/gear 1과 공식 도구의 Foggy·13:00을 확인한 뒤 재개했다.
+**22:03:17 KST 첫 새 묶음 16/16 승인·검토 0·실패 0·최종 P/gear 1**을 확인했다.
+각 행의 중간 P와 native audit 승인도 모두 통과했다. 새 원본 경로는 v2 아래이며,
+구 미확정 후보 15개의 원본 경로가 선택에 들어가지 않았다. 따라서 첫 묶음의 확정
+신규 승인은 기존 2,657장에 더하는 16장이지, 구 후보 15장까지 더한 31장이 아니다.
+
+16장 모두 카메라 Instance/RGB 4개 뷰, 총 64세트와 LiDAR annotation 16세트를 확인했다.
+카메라 BBox text는 26개 뷰에 쌍으로 존재했고 나머지 38개 뷰에는 없었다. 전 뷰의
+Instance PNG와 원형 native QA 통과를 확인했으며, 각 카메라에 BBox text가 반드시
+있어야 한다는 별도 조건을 추가하지 않았다. BBox text 부재만으로 annotation 설정
+OFF라고 판정하지 않는다. 이 검사는 파일 존재·native QA·계보의 확인이지 각 뷰의
+상세 가시성·GT 기하 정확도나 학습 AP 인증은 아니다.
+
+**22:06:32 KST** 읽기 전용 관측에서 부모는 **실행 중·승인 후보 2,686·검토 32·
+검사 2,718·오류 없음**이며 다음 `chunk_0169`가 진행 중이었다. 공통 bulk 실행기는
+64개 검사 경계마다 부모 선택 ledger를 snapshot하므로 당시 부모 ledger 2,657행·
+`checkpoint_finished=2688`과 더 최신 native 진행 수가 다른 것은 정상이다.
+기존 2,657행이 모두 그대로 남아 있음을 비교했고, 확정 checkpoint와 진행 중 후보를
+중복 합산하지 않았다. 근거는 `live_observation_1792415192734348738.json`이며 SHA는
+`34fa7374b2aaed88fe2c1799734a065a9ffd575852d09e298c6427d722597f3d`이다.
+
+재개 직후 부모 상태가 잠시 `prepared_waiting_for_resume`이고 상위 로그가 비어 있어도
+무한 대기라고 단정하지 않는다. 이 재개는 원형 imported-prefix 검증을 두 번 수행한다.
+각 검증은 증거 파일 123,152개·약 17.38GB를 읽으며 그중 센서 파일은 약 10.44GB다.
+그 외 고정 입력 경계·source 확인도 있다. 실제 native worker가 이미 시작된 동안에도
+부모 checkpoint와 상위 로그는 늦게 갱신될 수 있어 child `status.json`·ledger·batch log를
+함께 확인했다. 기존 동결 검증을 이번 실행 중 생략하거나 바꾸지는 않았다.
+
+아래는 **현재 실행 중에는 중복 입력하지 않는다.** 같은 환경의 정상 PAUSE 뒤
+재개에만 사용한다. 새로운 crash나 Park 미확인에는 새 안전 인계가 필요하다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+python3 -B scripts/portable_base5/recover_unified_fresh_chain.py --run \
+  --source-profile "$PWD/artifacts/evaluation/base5_foggy13_crash_recovery_261019_v1/continuation-profile.json" \
+  --profile "$PWD/artifacts/evaluation/base5_foggy13_crash_recovery_261019_v2/continuation-profile.json" \
+  --output /home/luv/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1_after_crash_v2 \
+  --confirmed-environment foggy13
+```
+
+새 실행기는 원형 scripts의 모듈 검색 경로를 직접 등록하므로 첫 사고 때의 별도
+`PYTHONPATH` 보완 없이 worker까지 동작한다. 원형 importer 실제 로딩과 두 번째·
+세 번째 인계 fixture를 회귀 검사했다. 이 작업에서 PNG 삭제·JPEG 변환·5K 완료
+판정은 수행하지 않았다.
 
 ## Sunny 추가 보강 초안
 
