@@ -526,3 +526,118 @@ Sunny 15K 완료 후 추가 보강은 별도 초안으로 남겼다. 잠정 예�
 `generator_review/sunny15k_supplement_draft_v1.json`에 분석 근거 7개의 경로·SHA를 보존했고
 작성 시 모두 재검산했다. 수량은 출제 확률이나 성능 개선을 보장하는 확정 정책이 아니다.
 얇은 객체·작은 동물 표본·전방 원거리 차량을 낮은 AP만 보고 일괄 증량하지 않는다.
+
+<a id="foggy15-independent-borrowed-261019"></a>
+
+## 빌린 PC Foggy15 독립 배치의 CPU 준비
+
+공통 v160 생성기에 **독립 seed 26101915**와 기존 v163 장애물 보강 프로파일을 적용해
+새 Foggy15 **5,000장 source를 CPU로 준비**했다. Foggy13의 장면을 복사하거나 기존
+수집을 재생성한 것이 아니다. 새 seed에서 보강 규칙에 해당한 장면은 **152장**으로,
+20~30m 낮은·부피형 119장과 30~45m 큰 가시형 33장이다. Foggy13의 149장과 수가 다른
+것은 독립 배치에서 규칙에 맞는 후보 수가 달라졌기 때문이며 v163 정책은 변경하지 않았다.
+
+| 고정 입력 | SHA256 |
+|---|---|
+| 기존 v163 프로파일 | `052dd5d1b79f89371d113fcb2fc928b978843c91abb4726f4cf3e1edb8ba50a9` |
+| 공통 Foggy15 5K manifest | `7cf1eb24278b69c835ceb1b66fd2fa3d33bd6828cfb070167acfb741b3eba9cf` |
+| 보강 후 최종 5K manifest | `8e2fef9ad217d8bc42e428f4da387f274628162dc9c1fdd46949b200ca17d134` |
+
+기존 Foggy13와 합쳐 geometry를 추가 대조했을 때 10,000장 중 로터리 출구의
+`DEFAULT_SUV` **근접 동등 배치 1쌍**이 같은 그룹으로 나왔다. 두 장면은 각각 독립
+seed로 생성됐고 geometry SHA는 다르지만 actor의 route snapshot 위치는 같으며 Ego는
+약 3.1cm·0.103° 차이다. 둘 다 유효 **train/train**이고 교차 split 쌍은 0이다.
+이 1쌍을 명시한 train-only 중첩으로 수용하되, 원감사의 **`passed=false`는 수정하지
+않았다.** `cross_foggy13_geometry_review.json`에 별도 판단을 남겼다. 기존 Sunny13 대비
+필수 공통 감사의 통과 결과·비교 문턱은 변경하지 않았으며 완전한 지리·배치 독립성이나
+원격 센서 가시성 검증을 주장하지 않는다.
+
+실행은 새 공통 진입점 `scripts/portable_base5/reinforced_environment_workflow.py`와
+`reinforced_borrowed.py`를 사용하도록 준비했다. 기존 Foggy13 orchestration 본문은
+SHA `e255792210e6aa98c47ab11beb57704ff86d2195ff801f871e95c17de187f482`로 동결하고
+환경·경로·intent identity만 명시적으로 연결한다. 독립 검토의 CPU 회귀 **139개**와 실제
+CLI/import·논리 경로/구현 SHA 검사를 통과했으나, 이는 native 자격의 대체 증거가 아니다.
+
+로컬 source package v2는 **60,037개 파일·3,913,544,411바이트(약 3.9GB)**였다.
+이후 CPU 검사 코드 등 빠진 참조의 closure를 보완한 **v3는 60,250개·3,915,249,775바이트**,
+입력 identity SHA는 `0994e8ac48cee111b87e544f193c2753e633d71131fb4b22fb872fb025a90685`다.
+원본 runtime closure 439개·실제 scripts overlay 371개·helper 16개를 보존했고,
+v3에는 CPU test 212개와 조상 source·공통 생성기 runtime 참조까지 포함했다.
+이 수치는 압축본 크기나 원격 배포 완료 수치가 아니라 **로컬 배포 staging의 입력 목록**이다.
+
+현재 근거는 `artifacts/evaluation/base5_foggy15_design_261019/`의 `cpu_complete.json`,
+`source_package_complete_v2.json`·`source_package_complete_v3.json`,
+`cross_foggy13_geometry_audit.json`·`cross_foggy13_geometry_review.json`,
+`independent_reinforced_workflow_review_v1.json`이다. 원격 후보 경로는
+`~/ajounice_base5_capture/work/fresh-foggy15-v1/`이며 기존 Sunny11/Sunny13 source·export·
+다른 work는 RO로 보존하도록 계획했다. 최종 배포의 실제 mount·SHA 검증은 별도 확인 대상이다.
+
+**이 절 작성 시점에는 CPU/source 준비만 완료됐고 Foggy15 native 촬영은 0장이다.**
+원격 배포·실제 Foggy15/annotation 설정·32장 및 독립 이동 검증·원래 6개 release gate·
+공통 5장 pause/resume 자격·5K 본수집은 아직 완료로 판정하지 않는다. 기존 Foggy13 native
+증거를 Foggy15 인증으로 재사용하지 않으며, 자격용 표본은 본수집 5K에 합산하지 않는다.
+이후 실제 배포·소량 자격·날씨·본수집 결과는 아래 후속 절에 관측 시각과 근거를 추가한다.
+
+### 원격 배포와 실제 Foggy15 설정 확인
+
+Sunny11은 [로컬 수령 검증까지 완료](261018_base5_unified_generation_capture.md#sunny11-local-retrieved-261019)한 뒤
+환경을 전환했다. 기존 PNG는 삭제하지 않았다. 새 원격 root의 CPU 배포는 전체 60,250개
+입력 SHA를 통과했다. 이미 배포된 과거 정적 source 중 같은 경로·SHA인 33,979개를
+**새 root에 일반 복사**하고, 새 입력만 136,566,347바이트의 단일 delta로 전송했다.
+기존 파일은 각 복사 전후 SHA·identity, 새 파일은 SHA·별도 inode를 확인했으며 기존 파일에
+하드링크하거나 내용을 바꾸지 않았다. 기존 Sunny11 완료 제어 파일 9개와 전달 완료 근거
+4개의 SHA·크기·mtime도 배포 전후 같았다. 새 collection 촬영이나 기존 사진 전수 재검사는
+이 배포 검사의 내용이 아니다.
+
+공식 `WeatherTimeChanger_Linux`를 새
+`~/ajounice_base5_capture/work/weather-time-changer-261019-v1/`에 복사했고, 원본 SHA
+`8c47f48a8d54b79b657920a661f582bd587c9f9065b6b55c9e911d42a0369609`가 같음을 확인했다.
+이 도구와 관측 helper의 HOME·XDG·임시 경로도 같은 허용 폴더 안에 두었다.
+MORAI의 `127.0.0.1:7789`에 연결한 뒤 15:00과 Foggy를 적용했다. 두 자동 순환은 OFF다.
+
+**버튼 직후 `Current`와 로그는 이전 11:00/Sunny를 표시했다.** 이 표시만으로 적용 실패나
+성공을 단정하지 않았다. MORAI 단일 창에서 실제 안개를 확인하고 공식 도구를
+Disconnect → Connect한 뒤, 새 응답에서 **`Current: 15:00` / `Current: Foggy`**를 확인했다.
+도구의 버튼 직후 응답이 적용 전 값일 가능성을 보여 주는 관측이며, 내부 통신 원인을
+확정한 것은 아니다. 이후 수집에서는 클릭 사실보다 재연결 후 readback을 환경 근거로 사용한다.
+Foggy 버튼의 기본 preset을 그대로 사용했고 숫자 slider를 임의로 변경하지 않았다.
+
+환경 근거는 로컬 `base5_sunny11_training_export_261019_v1/`의
+`weather_connected_2313.png`·`weather_foggy15_2313.png`·`simulator_initial_2317.png`·
+`weather_reconnected_2318.png`다. 이 폴더는 `artifacts/evaluation/` 아래에 있다.
+이 환경 확인 시점에는 원격 native 취득을 시작하지 않았으며, 확인 이후 단독 소량 검증
+제어권을 인계했다. 로컬 Foggy13 수집·날씨·제어에는 개입하지 않았다.
+
+<a id="front-far-sensor-followup-261019"></a>
+
+### 전방 초장거리와 후속 센서 배치 검토의 경계
+
+전방 80~100m의 LiDAR 지원 부족은 위 진단의 **전방 305개 중 125개 0점**, 후방
+317개 중 3개 0점 관측을 따른다. 전방 0점 125개 중 100개는 native full-RPY 박스와
+교차 가능한 수직 빔 자체가 없었다. 약 0.17°의 작은 차체/도로 상대 기울기도 90m에서
+약 27cm 높이 차이가 되어 16채널 빔 사이의 공백을 만들 수 있다. 이는 관측과 잘 맞는
+기하 설명이지 장착각 오류나 가림·mesh·수평 샘플링까지 확정한 인과 분석은 아니다.
+
+Foggy13에는 공통 v160이 계승한 원거리 보조·거리 분산·fallback이 들어 있다. 그러나
+**이번 v163의 신규 149장 변경은 장애물 거리 재할당뿐**이며 전방 100m 빔 공백을 겨냥한
+차량 추가 정책은 아니다. 차량·보행자 분포를 유지했다는 사실과 기존 원거리 보강을
+계승했다는 사실을 구분한다. 작은 val의 방향별 AP를 프레임별 검출 확률로 해석하지 않는다.
+
+사용자는 현재 센서 배치로 계획한 30K를 마치고 기준 모델을 확보한 뒤 새 센서 배치와
+추가 수집을 검토하자는 방향을 제안했다. 현재 수집의 센서 위치·각도·extrinsics·분포는
+바꾸지 않는다. 후속 변경은 먼저 대회에서의 허용 범위를 확인하고 같은 장면의 소량 A/B로
+전방 80~100m, 후방, 근거리의 손익을 함께 검증한다. 효과가 확인된 경우 새 calibration과
+별도 수집·학습·배포 버전으로 비교한다. 새로운 30K의 즉시 수집이나 기존 모델의 새 배치
+동등 성능을 확정한 것은 아니다.
+
+### Foggy15 준비 관측 대시보드
+
+10/19 23시대에 빌린 PC **127.0.0.1:8083**, 이 PC SSH 터널 **localhost:8084**의
+실제 HTTP 응답을 확인하고 로컬 브라우저에 열었다. 원형 UI/HTML의 동결 SHA를 확인했고
+관측 이력은 새 `work/fresh-foggy15-v1/observer-state-port8083/`에만 저장한다. 수집 출력이나
+제어 상태 파일을 만들거나 수정하지 않았다. 이전 Sunny11 완료 대시보드와 별개다.
+
+이때 표시되는 것은 위 SHA `8e2fef9a…ca17d134`의 **Foggy15 CPU full 계획**이며
+`not_started`, **0/5,000**이 실제 상태다. 최종 native adoption manifest와 profile은 아직
+준비 전이므로 소량 자격이나 본수집 시작의 증거가 아니다. 최종 profile 준비 후에는 실제
+adoption 입력을 확인하는 정식 fresh observer로 이 임시 관측 서버만 교체한다.

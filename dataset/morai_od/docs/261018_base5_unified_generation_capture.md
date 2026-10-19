@@ -275,6 +275,36 @@ runtime의 `PIPELINE_COMPLETE.json`·단계별 로그가 완료 근거다.
 임시 파일 race의 한정 처리 검사 **3개**를 통과했다. 로컬 배포·검증 근거는
 `artifacts/evaluation/base5_sunny11_training_export_261019_v1/`에 보관한다.
 
+<a id="sunny11-local-retrieved-261019"></a>
+
+#### Sunny11 로컬 수령·복원 완료와 조건부 PNG 보존
+
+이후 **2026-10-19 23:10:31 KST에 로컬 복원까지 정상 완료**했다. 단일 rsync는
+3,378,353,769바이트를 약 34분 23초에 수신했고 exit 0이었다. 요약 평균은 약 1.64MB/s다.
+중간 속도 변동으로 전송을 중단하거나 새 압축 규칙으로 바꾸지 않았다. 사용자가 Moonlight
+연결을 종료했지만 다른 조건을 통제한 대조가 아니므로, 속도 저하 원인을 스트리밍 하나로
+확정하지 않는다. 수신 중 별도의 4 SSH·18.5초 범위 읽기도 합산 약 1.62MB/s여서 전송을
+갈아탈 근거가 없었다. 측정 프로세스만 종료했고 기존 rsync·MORAI·ROS는 건드리지 않았다.
+
+- 압축본은 로컬 `artifacts/handoff/base5_sunny11_5k_jpeg90_upright3_261019.tar.zst`다.
+  위 원격 archive와 **전체 SHA가 동일**하다.
+- 실제 입력은 `artifacts/evaluation/base5_sunny11_training_retrieved_261019_v1/dataset/`이다.
+  새 경로에만 복원했고 **187,850개 regular member·10,669,657,104바이트의 전 멤버 SHA**를
+  확인한 뒤 신뢰된 infos를 읽었다. train 4,250 / val 750, 고유 5,000장·카메라 JPEG 20,000개와
+  Vehicle 4,480 / Pedestrian 3,218 / Obstacle 3,956개를 다시 대조했다.
+- 최종 선택 ledger·split overlay의 SHA는 위 확정 입력과 같고, 전달본 manifest SHA도
+  `5ea87c829b26d3e63b72376211a8be6d5d15771eddc3330844b750f41dfe52de`로 일치한다.
+  다른 시간대의 전달본이나 이전 부모 ledger를 대신 수령한 것이 아니다.
+- 수령 근거는 복원 경로의 `COMPLETE.json`, export 근거 폴더의 `receive.exit=0`·`receive.log`와
+  `root_received_audit.json`이다. 학습·Vast 전달·Drive 업로드는 시작하지 않았다.
+
+사용자는 **로컬 JPEG 수령 검증 후 다음 원격 수집 공간이 부족하면 기존 RGB PNG를
+삭제해도 된다**고 추가 승인했다. 이는 앞선 무조건 보존 요청 이후의 조건부 변경이며,
+native GT·Instance/Depth/Semantic·LiDAR·실패 근거까지 삭제하라는 뜻이 아니다.
+새 Foggy15 source 배포 후 실제 여유는 약 **73.4GiB**로, 새 수집의 보수적인 55GiB 준비량과
+10GiB 여유 기준을 충족했다. 따라서 이 시점에는 **PNG를 하나도 삭제하지 않았다**.
+다음 실제 환경 전환·수집은 [Foggy15 근거](261019_base5_foggy13_reinforcement_and_capture.md#foggy15-independent-borrowed-261019)를 따른다.
+
 ## 결정과 보존 범위
 
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.
