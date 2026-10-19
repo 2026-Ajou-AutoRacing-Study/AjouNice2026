@@ -1249,3 +1249,167 @@ between-scene P가 모두 true이고 마지막 shutdown도 P gear 1·오류 없�
 담당자가 원형 split finalize를 시작했으며 이 기록 시점의 JPEG 변환·PNG 삭제와
 독립 Foggy11의 native 촬영은 아직 0이다. 기존 4,998/2 terminal과 실패 근거를
 소급 수정하지 않고 후속 실제 승인으로 구분한다.
+
+<a id="inactive-source-cache-cleanup-261020"></a>
+
+## 비활성 로컬 복제·전송 cache 정리
+
+부모 에이전트는 현재 실행·CPU 후속 경로에서 참조하지 않는 로컬 복제 8개 subtree와
+Sunny13·Sunny11·Sunny15의 중복 로컬 전송 tar 3개만 검증 후 삭제했다.
+실측은 **163,852파일·26,278,735,872 bytes(24.47GiB)**이며, 완료 직후 여유는
+52,002,385,920 bytes였다. 이는 Foggy13 선택 PNG 삭제 전의 수치다.
+
+Sunny13·Sunny11의 `training_retrieved_*/dataset/`과 Sunny15의
+`training_export_261018_v2/sunny15/training3_jpeg_portable` 총 15K는 각각 전체
+payload SHA와 manifest·당시 receipt를 대조하고 보존했다. 원본 capture·GT·모델·
+receipt, 원격 source/runtime·PNG와 원격 원본 archive는 삭제하지 않았다.
+삭제한 tar 경로는 당시 회수 근거이지 현재 존재하는 학습 입력 경로가 아니다.
+완료 근거는 `artifacts/evaluation/base5_storage_cleanup_261020/COMPLETE.json`이다.
+
+별도 Foggy13 no-archive RGB prune 보완의 단위 테스트 9개 통과는 준비 근거다.
+이 문단 작성 시점의 실제 Foggy13 JPEG 변환·선택 PNG 삭제는 아직 0이며,
+후속 완료 원문이 생기기 전에는 확보 용량이나 삭제 완료로 합산하지 않는다.
+
+<a id="foggy13-supported-training-export-261020"></a>
+
+## Foggy13 native 5K 분할과 지원 GT 4,999장 전달본
+
+최종 원형 분할은 `flexible_last_walking_v7/layout_split_final/result.json`에서
+**native 5,000장·train 4,250 / val 750**으로 완료했다. 직전 승인 4,999행을 보존했고
+native QA·geometry·누수 검사도 유지했다. 실제 native 선택 ledger SHA는
+`be2c2a073a52fb2bd611f60851f2c6e18c8b8e2711e66efeb927afce3874afb2`다.
+
+같은 현재 변환 정책의 최초 5K 변환에서는 `foggy13_sunny13_sunny11_b5v2_00001`이
+유효 GT 0으로 제외되어 전체 5K 입력 자격을 통과하지 못했다. 이 장면은 후방 약
+49.52m의 Bollard04이며 LiDAR 0점·후방 camera native instance 23pixels다.
+원형 `lidar1_camera0` 판정은 `positive_lidar1_camera0=false`였다. native 승인과
+학습 지원 component를 구분하며, 해당 객체를 강제 GT 또는 배경으로 바꾸지 않았다.
+최초 실패 출력 `qualified/foggy13/derived/conversion_report.json`과 원래 audit를 보존한다.
+
+학습용은 이 한 행만 명시적으로 제외한 **지원 4,999장·train 4,249 / val 750**의
+새 `supported_selected_v2.jsonl`을 사용한다. 다른 선택 행의 bytes·순서와 원본 5K
+선택은 바꾸지 않았다. 근거 루트는
+`artifacts/evaluation/base5_foggy13_training_export_261020_v1/`이며, 08:01 KST의
+`qualified_supported_v2/report.json`과 실제 `supported_conversion_COMPLETE_v2.json`은
+4,999개 고유 raw/payload/source cell·Q90 JPEG 19,996개·유효 GT 11,652개·지원
+component 누락/추가 0·`source_unchanged=true`를 확인했다. 보고서 SHA는
+`99a697b1e7d6fc9f866c80be4ee8046f97b9838e448f4c90a7d0fe151ab29530`이다.
+현재 입력은 같은 루트의
+`qualified_supported_v2/foggy13/training3_jpeg_portable/`이며 archive는 만들지 않았다.
+이는 입력 자격이지 tensor loader·학습·AP 개선의 검증이 아니다.
+
+제외한 장면의 native GT·원본과 RGB PNG 4개는 모두 보존한다. 지원 4,999장에만
+적용하는 `prune_supported_subset_v2.py`의 원형 전체 검사와 삭제 계획은 별도 단계다.
+08:04 KST 확인 시점에는 계획 검사 중이며 실제 PNG 삭제는 0개다. 계획 또는
+단위 테스트 통과를 실제 삭제·확보 용량으로 합산하지 않는다.
+
+이후 원형 전수 검사를 마친 계획의 실제 삭제가 **08:20 KST**에 완료됐다.
+작은 원문 `rgb_prune_supported_v2_receipt/COMPLETE.json`은 `complete=true`·
+**삭제 이름 39,992개**(지원 4,999장 × 원본/portable 2개 경로 × 4camera),
+logical unlink 27,950,958,512 bytes·inode 회수 추정 13,975,479,256 bytes(약 13.02GiB)를
+기록했다. 두 hardlink 이름의 logical bytes를 실제 회수량으로 중복 집계하지 않는다.
+계획 SHA는 `bd0b7ebc9007efaaed3baeb09b11580c75b043892ef0103362a1aec732d5cf3c`다.
+원형 원문은 auxiliary 335,401개 보존·과거 integrity proof 수정 0을 확인했다.
+이것은 사용자 승인 범위의 지원 4,999장 RGB PNG 삭제이며, Q90 JPEG는 손실 변환이다.
+별도 무손실 archive를 만들었다고 표현하지 않고 과거 source-RGB 검사는 삭제 뒤
+그대로 재실행할 수 없다는 한계도 보존한다. 부모 담당자의 08:20 공간 실측은
+여유 57.13GiB였으며, helper 종료 뒤 제외 장면의 원본 불변 확인은 별도 종료 근거로 남긴다.
+
+후속 helper 최종 검사도 `excluded_raw_preserved=true`로 끝났다. 제외한 `00001`의
+전체 native 원본과 RGB PNG 4개는 이전 SHA 그대로 보존했고, native 5K 선택·GT를
+지원 4,999장 학습 분모에 맞춰 수정하지 않았다. 담당자는 실제 여유 약 57.1GiB와
+55GiB 목표 통과를 확인했으며 JPEG 입력 폴더만 유지하고 tar는 보류했다.
+운영 종료 근거는 `prune_supported_v2_owner_exit.json`이며, 이미 관측한 실제
+session 57988의 exit 0·최종 stdout을 후속 전사한 자료다. 이를 위한 재검산은 0이고
+원형 COMPLETE SHA `bba246f2d1d09a48adb0c75ad77b87c681fc2679cbd00892f2ce69beaf648e3b`와
+원본 proof는 바꾸지 않았다.
+
+<a id="foggy11-independent-preparation-261020"></a>
+
+## 독립 Foggy11 준비와 반복 CPU 검사 범위
+
+준비 루트는 `artifacts/evaluation/base5_foggy11_design_261020/`이다. 공통 v160·같은
+v163 정책에 독립 seed **26102011**을 사용했고, 실제 CPU 완료 원문 `cpu_complete.json`은
+보강 141장(20~30m 117 / 30~45m 24)을 기록했다. Foggy13 장면을 Foggy11로 이름만
+바꿔 쓰거나 이전 native 성공을 새 환경 승인으로 합산하지 않는다.
+
+`qualification/pilot_v1/exact32/status.json`은 실제 승인 32/32·검토/실패 0·오류 없음을
+기록했다. 이 중 3개는 원래 검토 원문을 보존한 새 geometry 복구 승인이다. 따라서
+원래 pilot의 unchanged exact32 또는 전체 6 gate 완료로 표현하지 않는다. 실제
+복구 계보를 연결한 새 source의 원형 adoption·등록·자격은 별도 확인한다.
+
+최초 `adoption-v1` CPU 실행은 고정 source/지도 근거의 SHA·JSON을 상위 context마다
+반복 읽는 경로에서 약 11분이 소요되어 정상 SIGINT로 중단했다. 실패 로그·부분 출력과
+`cpu_adoption_v1_normal_interrupt.json`을 보존하며 성공으로 바꾸지 않는다. 새
+`adoption-v2`는 기존 검증 cache의 고정 code 388개·과거 source blob 770개·명시된
+준비 manifest/overlay 14개만 exact SHA 경계 안에서 재사용한다. 원래 immutable overlay
+reader의 SHA 검증은 유지하고 raw/session·native QA·context 판정 결과는 cache하지 않는다.
+CPU 범위에서는 child 실행을 금지하고 종료 후 원래 함수를 복원한다.
+
+이후 prepare용 `completed_release_prepare_v1.py`는 실제 성공 freeze·같은 source와
+전체 evidence/runtime SHA가 있어야만 완료된 6 gate 결과를 다시 연결할 수 있다.
+helper·단위 테스트만으로 release나 native gate를 통과시키지 않는다. 실제 common5·
+P/freshness·접촉/native QA·resume·본수집 worker는 유지한다. 08:04 KST 시점에는
+새 adoption 원형 검증 중이며 binding/freeze·공통5·본수집은 아직 완료되지 않았다.
+`http://localhost:8085/`는 읽기 전용 준비 관측기이며 실제 촬영 수집기는 아니다.
+예정 본수집 출력은 `/home/luv/morai_cap/base5_foggy11_final_v163_261020/collection_5k_v1`이고,
+실제 시작 후 최종 수집 관측기는 로컬 8081로 연결한다. 원격 Foggy15의 8084와 구분한다.
+
+이후 `cached_adoption_v2_exit.json`이 실제 **870.715초·returncode 0**으로 생성됐다.
+원형 adoption이 3개 실제 복구를 새 5K source에 연결했고 4,997개 payload를 유지했다.
+최종 manifest SHA는 `a60f5c63b0ad2dffb4e73f5736830c1efadd293dc272dc9445d12efa83255d12`다.
+CPU cache scope는 native 전에 닫혔으며 QA 변경은 0이다. binding의
+`native_qualified`·`bulk_ready`·`bulk_started`는 여전히 false다.
+`adopted_pipeline_v2/00_route_exit.json`도 **0.508초·exit 0**이며, 08:10 KST에는
+새 source의 원형 등록을 실제 시작했다. adoption·route 완료를 새 exact32·6 gate·
+공통5·본수집 완료로 올려 세지 않는다.
+
+<a id="foggy15-running-observation-0805-261020"></a>
+
+## Foggy15 08:05 KST 실행 관측
+
+부모 담당자는 기존 8084의 `/status.json`을 읽기 전용으로 확인했다. 원격 Foggy15는
+**running·부모 승인 285 / finished 288 / review 3·error null**이었으며, child
+`chunk_0018`의 실제 진행 7/16과 P gear 1을 관측했다. `diagnostic_warnings=[]`·
+`status_stale=false`였고 원격 여유는 68.18GiB였다. 이 시점 관측은 기존 본수집 실행
+근거에 추가하는 상태이며, 원격 파일 복사·수집 제어·새 쓰기는 수행하지 않았다.
+review 원문과 복구 계보를 유지하며 5K 완료·모든 원래 geometry 승인·향후 무중단을
+선인증하지 않는다. 로컬 Foggy11의 준비 관측과 혼동하지 않는다.
+
+<a id="foggy11-exact32-review-blocker-261020"></a>
+
+## Foggy11 실제 exact32의 일반 센서 review와 본수집 미시작
+
+새 source의 원형 등록은 `adopted_pipeline_v2/01_register_exit.json`에서
+**797.617초·exit 0**으로 끝났다. 첫16장도 실제 승인 16/16·P 통과 후
+`adopted_pipeline_v3/00_first16_exit.json`의 **377.070초·exit 0**으로 종료했다.
+그러나 나머지16장 뒤 최종 원형 집계는 **검사 32 / 승인 31 / review 1 / 실패 0 /
+error null·complete_with_deficit**이었다. `adopted_pipeline_v5/00_remaining16_exit.json`은
+**201.887초·exit 1**이며, native worker의 실행 오류가 아니라 review 0을 요구하는
+원형 source 자격 조건에서 후속 workflow가 중단된 것이다.
+
+남은 ID는 `foggy11_sunny13_sunny11_b5v2_03980`이다. Dog2 약 38.9m 장면의
+LiDAR 0점·CAM1 native instance 28pixels로 `primary_no_sensor_evidence`였고
+원형 bounded 복구 3회도 승인에 이르지 못했다. 원래 검토·실패 후보·raw·QA와
+이전 31개 실제 승인은 그대로 보존했다. 검토를 승인으로 고치거나 QA/P를 위조하지 않았다.
+
+실제 종료 근거는 `exact32_review_stop_v1.json`이다. 최종 owner 3169446·child 3169447·
+자동 main 대기 caller 3169461은 모두 종료됐고, 마지막 실제 shutdown은
+`park_verified=true`·P gear 1·errors `[]`였다. shutdown 원문 SHA는
+`64161b7443a9b339a93d6ab4572b8e8cd8718be784ffcbb571785942b725c1ef`다.
+통신·정지/P 장애가 아닌 일반 센서 review로 구분한다. **후속 6 gate·공통5·본수집은
+미완료이며 최종 profile·본수집 출력 자체가 없다. 본수집 0장·중단 뒤 새 adoption/추가 촬영 0**이다.
+8085는 준비 RO 관측기로 유지하고 8081을 Foggy11 본수집 관측기로 전환하지 않았다.
+원형 엄격 계약 아래 새 source adoption/재검증을 할지, 이 일반 센서 부족을 사전
+인증과 분리하는 정식 정책을 정할지는 사용자 결정 대기로 남긴다. 이 문서가 정책
+완화·추가 MORAI 조작을 승인하거나 이미 시작했다고 뜻하지 않는다.
+
+반복 CPU 지연의 최종 경계도 실제 실행과 구분해 기록한다.
+`completed_binding_phase_entry_v1.py`는 실제 완료 REGISTER·binding·등록본 SHA를
+고정하고, 초기 `bind_paths` 안의 중복 source geometry 재계산 한 호출에만 완료 근거를
+재사용했다. 각 phase의 전체 binding evidence/runtime는 원형 `verify_hashes`로 실제
+검사하며, 최종 remaining16 로그 첫 행은 **입력 33,990개·실제 pin 검산·
+`gate_pass_claimed=false`**를 기록했다. hook은 phase 본문 전에 복원했으며 native QA·
+freeze 본문의 원형 검증과 6 gate 문턱은 바꾸지 않았다. 이 최적화가 일반 review를
+PASS로 바꾸지 않았다는 실제 결과가 위 exit 1이다. 완료 release 재사용 helper와
+그 테스트는 준비 근거일 뿐, 이번 실행의 freeze·공통5·본수집 성공 근거는 아니다.
