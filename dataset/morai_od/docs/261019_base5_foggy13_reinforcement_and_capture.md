@@ -827,3 +827,87 @@ canonical 환경에 둔다. 중간 연결부 probe 실패들은 별도로 보존
 pause/resume 자격과 본수집은 아직 완료되지 않았다. 다음 단계는 이 실제 binding에서
 원형 route witness와 등록 권위를 만들며, CPU-only 독립 등록은 native 단독 제어와
 서로 분리된 출력에서 병렬 준비한다.
+
+이후 원형 producer route export는 **0.898초·exit 0**, 실제 route witness SHA는
+`66d3214269799487e4627ec571332823ad7b8bf51a881038b185c52688465b59`였다.
+이를 연결한 정규 canonical 32장 등록은 **627.61초·exit 0**으로 통과했다.
+병렬 CPU 근거 대조도 **264.03초·exit 0**이었으며, 동일 source의 기존 2,376 PASS
+receipt와 runtime 439/test source 212개의 일치 확인이지 원격 신규 전체 테스트 결과가
+아니다. 최신 Ego/Object/Collision freshness·P·정지를 확인한 뒤 정규 first16 실행에
+진입했다. 이 native 진입도 먼저 원형 binding을 검산하므로 명령 시작과 첫 이미지
+생성 시점은 다르다. 여기까지도 본수집은 시작 전이며 정규 32장 완료를 주장하지 않는다.
+
+첫 first16 실행은 **568.31초·exit 1·`Adoption evidence inventory changed`**로
+촬영/intent 생성 전에 종료됐다. 원형 adoption summary 비교는 통과했지만
+`evidence_hashes` 집합이 달랐으므로 기준을 완화하거나 승인으로 바꾸지 않았다.
+실패 원문을 보존하고 생성 모듈의 HOME 기반 기본 asset 참조 경로를 읽기 전용으로
+비교한다. 후속 연결은 실제 source 계산용 기본 참조와 원래 native worker의 HOME·
+scenario-dir·sensor-dir·ROS 로그/출력 경로를 분리해 맞추는 범위에서 검토한다.
+이 중단을 native GT 실패나 추가 승인 장수로 해석하지 않는다.
+
+실제 native namespace의 기본 참조만 대조한 시험은 **1.473초·exit 0**이었다.
+원래 live HOME인 `work/ros-home-v2`에서 asset JSON 3개가 실제
+`/home/ddeungbuntu/MoraiLauncher_Lin/...`로 resolve됐고, binding에는 대응하는
+`/home/luv/MoraiLauncher_Lin/...` 키가 있었다. **3개 모두 actual SHA·선언 SHA·canonical
+SHA가 동일**했다. 같은 바이트의 다른 경로 키 3건을 실제 확인한 것이며, 전체 34,172개
+pin map을 다시 만든 시험은 아니다. 전체 일치는 후속 원형 가드에서 확인한다.
+helper 논리 경로/SHA와 runtime 439개도 같았다. 원문은
+`cpu_gate_prepare_v1/actual_native_default_reference_paths_v2.json`이다.
+source-only 생성 모듈 초기화 뒤 복원할 대상은 메타데이터 로더의 사용자 HOME가 아니라
+기존 live HOME `work/ros-home-v2`다. native argv·환경·ROS 로그·캡처 기본 경로는 원형을 유지한다.
+
+source-only preimport의 실제 회귀는 **1.739초·exit 0**이었다. 원형 생성 모듈을 canonical
+HOME에서 초기화한 뒤 원래 live HOME·전체 환경을 복원했고, 기본 JSON 3개의 키가 binding과
+일치했다. 원형 collector parser의 실제 default 식으로 scenario-dir·sensor-dir도 전후
+같음을 확인했다. runtime 439개·Popen·원형 코드/가드는 변경하지 않았다. 이 시험은 원격
+쓰기·촬영 없이 네트워크가 격리된 환경에서 수행했다. 전체 binding guard 통과나 실제
+first16 완료의 대체 근거는 아니며, 새 별도 entry로 원형 검증에 재진입한다.
+후속 공통 release에서는 source asset 위치를 명시적인 입력 경로로 다루고 live HOME에서
+암묵적으로 유도하지 않도록 정리할 후보로 남긴다. 현재 동결 source는 변경하지 않는다.
+
+### 본수집 전 발견한 immutable source 폴더명 충돌
+
+공통 `SessionInputBoundary`는 부모 경로에 `native`가 있는 JSON을 원본/가변 근거로
+분류한다. 새 원격 조립 root를 `native-adoption-v2`라고 지은 탓에 정당한 고정 입력인
+manifest와 metadata 5,000개까지 이 분류에 걸리는 것을 실행 전에 발견했다.
+그대로 진행하면 `warm_boundary→remember_input_pins`가 고정 manifest를 인정하지 못한다.
+이는 품질 검사 강화나 센서 문제가 아니라 우리 배포 경로와 기존 분류 규칙의 충돌이다.
+
+원격 전용 guard 예외를 추가하지 않고, **`adoption-v3`의 새 경로에 원형 함수로 조립**하는
+방향을 선택했다. 실제 manifest entry 경로와 원형 predicate를 읽기 전용으로 대조했다.
+이름을 바꾸면 manifest·metadata가 고정 후보가 되고 기존 `pilot_v1/native/...`의 실제
+proposal JSON 5개만 원래 nonfixed passthrough로 남는다. raw/native 전체를 고정 cache로
+승격하지 않는다. v2 binding/manifest·등록·실패·CPU 완료 이력은 그대로 보존한다.
+
+재실행 범위는 원형 adoption(기존 실측 약 14분) → 새 route witness → 새 정규 등록
+(약 10분)이다. **기존 실제 대체 6개의 native를 재사용하며 재촬영하지 않는다.**
+아직 canonical 촬영은 0장이므로 이후 정규 32장·shadow 2장은 새 입력으로 처음 촬영한다.
+runtime 439/test source 212개의 기존 CPU 회귀 원문도 변하지 않으며 전체 테스트를 새로
+반복할 이유는 없다. 최종 원형 gate는 새 source와 실제 새 native 근거에 연결한다.
+새 조립·등록 완료와 본수집 시작은 이후 실제 결과로 별도 기록한다.
+
+새 경로의 촬영 없는 연결 점검은 **2.899초·두 실행 환경 모두 exit 0**이었다.
+실제 host 3.10의 phase import/argv와 producer 3.8의 원형 감사 import/context만
+확인했으며, 대형 감사·native 촬영·추가 품질 gate를 실행한 시험은 아니다.
+원형 boundary predicate가 `adoption-v3`의 manifest를 고정 입력으로 분류하는 것도
+확인했다. runtime 439개의 SHA는 유지됐다. 새 권위 SHA는
+`460323d93cf71bf3bd520149b639d9f2cf21dcfce38687b8ceab47e08457dcf3`이다.
+그 뒤 원형 함수의 실제 재조립을 시작했으며 로그는
+`qualification/full-adopt-hybrid-immutable-v3.log`에 보존한다. 디렉터리 생성이나
+실행 프로세스 관측만으로 binding 완료·정규 32장·본수집 시작을 주장하지 않는다.
+
+이후 실제 v3 재조립이 **821.97초·exit 0**으로 완료됐다. 종료 원문·binding·manifest
+세 파일을 로컬로 회수하고 root와 담당 에이전트가 각각 SHA를 대조했다.
+
+| 실제 v3 완료 산출물 | SHA-256 |
+| --- | --- |
+| `qualification/full-adopt-hybrid-immutable-v3.json` | `20df02a82da58265603916b8315e5a4ff0dcf092fc603158f5aec9ad8eb2e1e3` |
+| `adoption-v3/binding.json` | `e8863c936fb9c9ddb565e968c111bf540fd8b4849301e936271458c133a4e390` |
+| `adoption-v3/assembled_source/final_source/manifest.json` | `64be28a3ef975569ea0a8c9b206902901148e5b614efd63e4b91105bc707e272` |
+
+회수한 v2/v3 manifest에서 ID별 `(scenario_sha256, split)`을 비교한 결과
+**5,000개 모두 동일·변경 0개**였다. 경로를 바로잡은 재조립이며 geometry 재생성이나
+재촬영이 아니다. 로컬 원문은 위 CPU gate 준비 폴더의
+`immutable_followup_actual_v1/{manifest,binding,execution}.json`에 있다.
+기존 v2와 첫 실행 실패는 보존했다. 이 완료 시점에도 정규 canonical native·본수집은
+0장이며, 새 route·`qualification/full_v2` 등록과 원래 후속 gate를 이어간다.
