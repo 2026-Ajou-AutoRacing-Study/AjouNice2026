@@ -566,6 +566,9 @@ full 수신은 약 14분 15초가 걸렸으며, Drive payload 업로드·전체 
 
 ### 새 Sunny13 데이터만 교체한 E24 조건 대조 학습 — 2026-10-19
 
+아래 시작·E1/E6 관측·후행 평가 대기는 당시 이력이다. 실제 24 epoch 정상 종료·백업과
+동일 val 교차 결과는 [완료 결과](#sunny13-matched-e24-result-261019)를 따른다.
+
 사용자 요청으로 기존 E24의 실제 동결 소스와 실행 manifest를 대조했다. 당시 예산은
 25가 아니라 **24 epoch**다. 기존 source·초기화·seed 261010·증강·batch 4·workers 4·
 AdamW(lr 1e-4, weight decay 0.01)·500 iteration warm-up 이후 cosine·compile ON을 보존했다.
@@ -609,12 +612,12 @@ AP 36.23→47.54%지만, 30~50m는 GT 91→29개·AP 12.27→0.12%다.
 `matched_condition_comparison.json`·`first_training_observation.json`·전송/복원 receipt다.
 서로 다른 자체 val AP만으로 데이터 개선량을 주장하지 않는다. 원본 val 745장과 새 val 750장
 각각에서 구 E24와 새 E24를 평가하는 **2×2 공통 평가를 후행 큐에 준비했다.**
-현재는 `sunny13-matched-posteval` tmux에서 학습 24 epoch의 정상 종료와 실제 full E24
-Drive 백업을 기다린다. 네 칸 모두 같은 current-nearest/sorted·compile OFF·AMP FP16·
+당시에는 `sunny13-matched-posteval` tmux에서 학습 24 epoch의 정상 종료와 실제 full E24
+Drive 백업을 기다렸다. 네 칸 모두 같은 current-nearest/sorted·compile OFF·AMP FP16·
 batch 1·증강 OFF·score 0의 평가 전용 snapshot을 사용한다. 학습의 legacy depth raster나
 production 설정을 바꾸지 않는다. 기존 자체 val 수치를 이 네 칸의 결과로 재사용하지 않는다.
 CPU strict 검사에서 구 E24·새 E2의 state key/shape 574개와 입력/지표 계약을 확인했다.
-최종 E24의 SHA·source·데이터는 평가 시작 직전에 다시 검사한다. 실제 네 칸 결과는 아직 없다.
+최종 E24의 SHA·source·데이터는 평가 시작 직전에 다시 검사하도록 했다. 당시 실제 네 칸 결과는 없었다.
 평가별 600초·전체 2,500초 상한과 별도 Drive/W&B 결과를 사용하며, 이후 독립 bag 비교는 별도다.
 
 읽기 전용 상태 명령은
@@ -622,6 +625,85 @@ CPU strict 검사에서 구 E24·새 E2의 state key/shape 574개와 입력/지�
 `--local-only`는 원격 SSH 없이 마지막 관측만 읽는다. 로컬 PC의 supervisor를 끄면
 GPU 학습이 계속되더라도 W&B 중계·Drive 자동 백업·후행 평가가 중단될 수 있으므로
 학습 종료/백업 확인 전에 로컬 PC를 종료하지 않는다.
+
+<a id="sunny13-matched-e24-result-261019"></a>
+
+#### 24 epoch 완료·Drive 백업·동일 val 2×2 결과
+
+새 Sunny13 **v158a 원형 5K** 학습은 10/19 04:11:54~08:48:18 KST,
+약 **4시간 36분 24초·24 epoch·exit 0**으로 정상 종료했다. 이 결과는 Foggy13의 장애물
+149장 거리 재분포나 Sunny 추가 보강 초안으로 학습한 결과가 아니다.
+같은 초기화에서 시작한 위 대조 계약을 유지했으며 학습 도중 하이퍼파라미터를 바꾸지 않았다.
+
+full E24와 자체 val best E20의 payload·metadata·COMPLETE에 대한 Drive 전체 readback을
+완료했고 full용 LATEST도 검증했다. 10/19 후속 읽기 전용 확인에서 Vast 원본 두 파일의
+전체 SHA를 다시 계산해 아래 값과 대조했다. Drive의 두 COMPLETE·LATEST와 공통 평가
+SUMMARY도 다시 읽어 일치를 확인했다. 이번 확인에서 대용량 가중치를 로컬로 다시 받지는 않았다.
+
+| 파일 | 역할 | 바이트 | SHA256 |
+|---|---|---:|---|
+| `epoch_24.pth` | optimizer·scheduler·AMP·RNG를 포함한 full | 524,630,021 | `6d86c4726c0f7d3abc4870999767a594d623f97b9bb85b8e48a42429bcbd6f32` |
+| `best_val_center_mAP_epoch_20.pth` | 자체 val best, weights-only | 204,640,447 | `33b262bcffd2d09efadf9d6eff1f81c86b2b7c53e088588d0126bf5141080585` |
+
+Drive 위치는 `ajou_drive_private:model/bevfusion/base5/sunny13_matched_e24_261019/` 아래
+`checkpoint_backups/<checkpoint SHA256>/`이며 full용 LATEST는 `checkpoint_backups/LATEST.json`이다.
+
+예약한 **구/신규 E24 × 기존 745장/신규 750장 val의 네 평가가 모두 완료**됐으며,
+실제 평가 시간 합계는 약 6분 28초다. 네 칸 모두 current-nearest/sorted·compile OFF·
+AMP FP16·batch 1·이미지/BEV 증강 OFF·score threshold 0을 사용했다.
+각 val에서 두 모델의 GT 수는 같고, 개별 COMPLETE와 SUMMARY의 수치·checkpoint SHA·
+평가 계약을 대조했다. 아래 값은 0.5/1/2/4m 중심 거리 AP의 평균이며 단위는 %다.
+
+| 같은 평가 자료 | 모델 | 전체 mAP | Vehicle | Pedestrian | Obstacle |
+|---|---|---:|---:|---:|---:|
+| 기존 val 745장 | 구 E24 | 83.47 | 89.91 | 87.73 | 72.79 |
+| 기존 val 745장 | 새 E24 | 87.63 | 93.04 | 92.05 | 77.79 |
+| 신규 val 750장 | 구 E24 | 89.93 | 96.05 | 92.31 | 81.42 |
+| 신규 val 750장 | 새 E24 | 91.00 | 95.73 | 93.42 | 83.84 |
+
+같은 val에서 전체 mAP 차이는 기존 val **+4.15%p**, 신규 val **+1.07%p**다.
+서로 다른 자체 val의 83.47→91.00%를 그대로 데이터 개선량으로 해석하지 않는다.
+새 E24의 근거리 장애물 AP는 두 val에서 모두 높아졌지만 중거리 장애물과 원거리 차량의
+개선은 일관되지 않았다. 아래 각 행의 GT는 두 모델이 공유하는 해당 거리·방향의 개수다.
+
+| 거리·방향별 AP | 기존 val GT | 구→새 E24 | 신규 val GT | 구→새 E24 |
+|---|---:|---:|---:|---:|
+| Obstacle 0~10m | 206 | 85.34→92.63 | 199 | 89.78→92.14 |
+| Obstacle 10~20m | 190 | 86.14→88.78 | 206 | 88.01→91.19 |
+| Obstacle 20~30m | 143 | 76.73→81.23 | 143 | 78.20→79.74 |
+| Obstacle 30~50m | 91 | 27.64→23.95 | 29 | 3.52→2.13 |
+| Vehicle 50~80m | 51 | 58.83→74.63 | 67 | 84.43→83.47 |
+| Vehicle 80~100m | 6 | 29.40→29.70 | 46 | 77.67→73.94 |
+| Vehicle 전방 50~80m | 47 | 55.66→72.39 | 43 | 82.43→86.48 |
+| Vehicle 후방 50~80m | 4 | 98.89→98.89 | 24 | 85.85→77.76 |
+| Vehicle 전방 80~100m | 4 | 0.65→0.53 | 24 | 53.27→49.31 |
+| Vehicle 후방 80~100m | 2 | 98.89→98.89 | 22 | 95.36→93.20 |
+
+특히 30~50m 장애물은 두 val 모두에서 낮아져 해결되지 않았다. 신규 val의 80~100m 차량도
+전·후방 모두 낮아졌다. 기존 val의 원거리 차량 GT 6개와 후방 50~80m GT 4개는 매우 작아
+그 AP만으로 일반적인 방향별 성능을 인증하지 않는다. 점수·거리별 상세 값은 CSV를 따른다.
+
+자체 val best는 구 모델 **E9 83.97397%**, 새 모델 **E20 91.01361%**다. 새 E24의 학습 중
+자체 val은 90.99242%다. **이번 네 칸은 E24끼리 평가했으며 best E20의 교차 평가는 하지 않았다.**
+학습 당시 자체 val과 현재 nearest 평가의 수치는 미세하게 달라질 수 있으므로 두 계열을
+섞지 않는다. 단일 seed·같은 지도 합성 분포 대조이며 개별 생성기 변경의 인과, 두 데이터셋
+간 train/val 기하 중복, rosbag·threshold·tracker·실제 24GB ROS 풀스택 성능을 새로 인증한 것은 아니다.
+**Production은 기존 Sunny13 E24를 유지**하고 새 가중치를 자동 승격하지 않았다.
+
+[학습 W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/sunny13_matched_e24_261019-4b350d8b8d2a)와
+[별도 공통 평가 W&B](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/sunny13-commonval-2a176b2069ac)는
+API에서 모두 `finished`를 확인했다. 학습 epoch 24와 평가 네 칸의 mAP도 실제 수신값과 일치했다.
+공통 평가 로그·설정·결과의 Drive 위치는 위 prefix의 `commonval_2x2/`다.
+
+근거는 `artifacts/evaluation/base5_sunny13_matched_e24_261019/` 아래
+`commonval_results/{SUMMARY,EXECUTION_CONTRACT,WANDB}.json`·개별 COMPLETE,
+`commonval_drive_COMPLETE.json`·checkpoint별 backup receipt와 `final_review_v1/`이다.
+`final_review_v1/comparison.json`·`commonval_comparison.csv`·`ownval_epoch_history.csv`에 전체 비교를,
+`remote_observation.json`·`wandb_observation.json`·`drive_observation.json`에 읽기 전용 재확인을 보존했다.
+최종 비교 JSON SHA256은 `8565202a15a2c2a2797eab3aa116178e3be7f05c4948f75957711bba4d09ed25`,
+공통 평가 원본 SUMMARY SHA256은 `2f3c84141522bdce47da6f2c0e1da9318c5633dfdf8da43ced5e65466b4bfc2a`다.
+평가 계약은 `2a176b2069acacfab42c1f7d900212521cd8b25b2a8119ccc08267df14e0489c`이며,
+Vast 원본·학습 설정·production·다른 PC의 수집 프로세스는 변경하지 않았다.
 
 ## 기존 링크 호환
 

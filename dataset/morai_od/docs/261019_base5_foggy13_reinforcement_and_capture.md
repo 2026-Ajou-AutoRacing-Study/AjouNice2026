@@ -42,6 +42,9 @@ restart도 같은 방향 편차를 보인다. 전방 train 122개 중 LiDAR 0점
 
 ### 추가 요청: E24 조건의 새 Sunny13 학습 중간 대조
 
+이 절은 학습 진행 중의 관측이다. 이후 완료된 24 epoch·Drive 백업·동일 val 교차 평가의
+최종 결과는 [모델 근거의 완료 절](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)을 따른다.
+
 원형 로그와 새 학습의 E13까지 완료된 로그를 읽기 전용으로 대조했다.
 기존 E24 실험의 실제 총 길이는 24에폭이다. 기존 학습 조건을 유지한 새 run을 시작했으며
 이 중간 표는 **서로 다른 own-val**의 점수다. 순수 데이터 개선량으로 해석하지 않는다.
@@ -336,6 +339,87 @@ training inputs·CPU 회귀·partial resume·completed resume **여섯 gate가 �
 
 Vast 새 Sunny13의 동일 조건 24에폭 학습과 Drive 백업도 별도 세션에서 진행 중이다.
 최종 데이터 개선량·새 production 선정·30K 수집 완료는 아직 인증하지 않는다.
+
+위 문장은 본수집 시작 당시의 기록이다. 이후 새 Sunny13 학습·백업·동일 val 네 칸 평가는
+완료했다. [최종 모델 비교](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)를 따르며,
+Foggy13 거리 보강의 학습 결과나 production 교체로 해석하지 않는다.
+
+<a id="foggy13-crash-continuation-261019"></a>
+
+## MORAI 종료와 첫 crash 인계
+
+본수집의 마지막 확정 checkpoint는 **승인 2,043장·검토 21장·검사 완료 2,064장**이다.
+이후 `chunk_0129`에서 Ego/Object/CollisionData 수신이 끊겨 마지막 Park를 확인하지 못했고,
+부모는 `Batch final Park unverified`로 중단했다. 사용자도 MORAI가 꺼졌음을 확인했다.
+MORAI의 `Player-prev.log`에는 fatal signal 11이 남았다. 그 앞의 차량 제어 예외만으로
+crash의 직접 원인을 확정하지 않는다. 당시 고정 입력 검사는 통과했으므로 hash 불일치를
+통신 중단 원인으로 해석하지 않는다.
+
+마지막 미확정 묶음의 native 15행은 승인 후보 14개와 stale 실패 1개다. 원본과 실패 근거는
+그대로 보존하되 **이 15행을 최종 선택에 넣지 않고 다음 16장 묶음 전체를 다시 취득**한다.
+이미 확정된 2,043개 선택 행·21개 부족 사유·과거 경과시간은 새 출력으로 인계한다.
+구 출력의 `halted`나 `park_verified=false`를 정상으로 바꾸지 않는다.
+
+일반 환경용 `scripts/portable_base5/recover_unified_fresh.py`를 별도로 추가했다.
+원형 source·여섯 release gate·공통 5장 자격·fresh empty origin을 변경하지 않고,
+기존 source 권한을 원래 출력 기준으로 검사한 뒤 새 sibling 출력에 명시적으로 연결한다.
+worker의 parent PID·start ticks·sealed memfd 검사는 유지한다. 기존 동결 수집 코드는
+변경하지 않았다. **원래 fresh 출력의 첫 crash 인계만 지원**하며 반복 crash 전부를
+자동 복구하는 기능을 완성했다고 주장하지 않는다.
+
+CPU 인계는 기존 crash verifier를 그대로 사용한다. 이 verifier는 파일 hash만 읽는 것이
+아니라 **기존 묶음의 static-attitude 지면 판정도 다시 계산**하므로 준비 비용이 든다.
+5K 재촬영이나 매 장면마다 수행하는 새 검사는 아니다. 검증을 생략해 과거 승인분을
+임의 채택하지 않는다. 실제 준비 종료와 새 native 승인은 별도로 확인한다.
+
+- 기존 출력: `~/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1`.
+- 새 출력: 같은 부모의 `collection_5k_v1_after_crash_v1`.
+- 기존 프로파일: `artifacts/evaluation/base5_foggy13_design_261019/qualification_v2/common-profile.json`.
+- 새 프로파일·로그·종료 코드: `artifacts/evaluation/base5_foggy13_crash_recovery_261019_v1/`.
+- CPU 인계 세션: `foggy13-crash-import-v1`; 현재 실제 수집 세션은 `foggy13-crash-resume-importpath-v2`다.
+- 재시작 후 raw 통신·P/gear 1을 실제 확인했고, 사용자에게 Capture Mode와 카메라 1~4·LiDAR 5 annotation ON도 재확인받았다.
+- 공식 도구로 Foggy·13:00을 적용했다. 새 검증이나 촬영을 Sunny로 대체하지 않는다.
+
+집중 회귀 323개와 별도 두 새 실행기 테스트 82개를 통과했다. portable 전체는
+1,805개 통과·기존 socket 테스트 1개 sandbox 권한 실패였고, 해당 대시보드 테스트를
+host에서 다시 실행해 25개 모두 통과했다. 이 수는 중복 없는 단일 합계로 더하지 않는다.
+원본·PNG 삭제나 JPEG 최종 변환은 이 crash 복구에서 수행하지 않는다.
+
+### 실제 인계·재개 확인
+
+CPU 인계는 19:31 KST에 **exit 0·승인 2,043·부족 21·확정 2,064·새 촬영 0**으로
+완료했다. 첫 `--run`은 원형 모듈 검색 경로가 없어서 native 진입 전에 실패했다.
+`verify_fresh_prefix`가 `common.modules()`보다 먼저 importer를 불러오는 호출 순서가
+원인이었다. 이 실패 로그·exit 1도 보존했다. 동결 wrapper나 준비된 profile·SHA를
+고치지 않고, 해당 Python 실행에만 원형 scripts의 `PYTHONPATH`를 명시해 재실행했다.
+실물 원형 importer 두 모듈을 읽는 CPU 회귀도 추가했다.
+
+19:36 KST **새 첫 묶음 16/16 승인·검토 0·최종 P/gear 1·오류 없음**과 다음 묶음
+진행을 확인했다. 부모 checkpoint는 **승인 2,059·검토 21·확정 2,080장**이다.
+기존 2,043개 선택 행이 모두 그대로 있고 ID·원본 경로가 고유하며, 구 미확정 suffix의
+원본은 하나도 선택되지 않았다. 원형 재개부터 실제 worker/중첩 worker까지 성공한 결과다.
+미확정 묶음을 다시 찍어 얻은 새 16개이므로 과거 후보 14개와 중복 합산하지 않는다.
+
+8081의 구 관측기만 종료하고 새 continuation profile로 전환했다. 기존 서버 종료 뒤
+TCP TIME-WAIT 때문에 포트 재사용을 잠깐 기다렸으며, 수집은 중단하지 않았다.
+**http://localhost:8081/** 의 실제 HTTP·새 root·승인 갱신을 확인했다.
+근거는 위 recovery 폴더의 `prepare.{log,exit}`·`resume.{log,exit}`·
+`resume_importpath_v2.log`·`live_observation_1792406200623990734.json`이다.
+
+다음 명령은 **현재 수집 중에는 중복 실행하지 않는다.** 정상 PAUSE 뒤 같은 Foggy13에서
+재개할 때만 사용한다. 새로운 crash나 Park 미확인을 이 명령으로 강제 우회하지 않는다.
+
+```bash
+cd ~/AjouNice2026
+source /opt/ros/noetic/setup.bash
+source base_ws/devel/setup.bash
+PYTHONPATH="$PWD/dataset/morai_od/scripts${PYTHONPATH:+:$PYTHONPATH}" \
+python3 -B scripts/portable_base5/recover_unified_fresh.py --run \
+  --source-profile "$PWD/artifacts/evaluation/base5_foggy13_design_261019/qualification_v2/common-profile.json" \
+  --profile "$PWD/artifacts/evaluation/base5_foggy13_crash_recovery_261019_v1/continuation-profile.json" \
+  --output /home/luv/morai_cap/base5_foggy13_final_v163_261019/collection_5k_v1_after_crash_v1 \
+  --confirmed-environment foggy13
+```
 
 ## Sunny 추가 보강 초안
 

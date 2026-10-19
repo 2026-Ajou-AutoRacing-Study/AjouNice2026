@@ -105,6 +105,86 @@ release는 `work/fresh-sunny11-v3/qualification/release/release.json`이다.
   정상 PAUSE로 고쳐서 재개하는 명령이 아니다. 기존 보호 TXT의 내용은 변경하지 않았다.
 - 일반 review는 기존 공통 복구/부족분 경로로 처리한다. 통신·충돌 수신 불확실·Park 실패의 안전 중단은 유지한다.
 
+<a id="borrowed-sunny11-completion-261019"></a>
+
+### 빌린 PC Sunny11의 정상 종료와 공통 유연 보충 — 2026-10-19
+
+Sunny11 본수집 `collections/sunny11_5k_v160_v1`은 검사 5,000장·승인 4,944장·
+부족 56장·실행 오류 0으로 `complete_with_deficit` 정상 종료했다. 수집 프로그램이
+중간에 죽은 상태가 아니며, 미검사 장면은 없다. 마지막 native 세션의
+`shutdown_safety.json`에서 `park_verified=true`, `gear=1`, `errors=[]`를 확인했다.
+사용자 요청에 따라 기존 승인분을 보존하고 남은 부족분만 별도 출력에서 보충한다.
+
+| 구분 | 빌린 PC `~/ajounice_base5_capture/` 기준 경로 |
+|---|---|
+| 보존하는 정상 종료 본수집 | `collections/sunny11_5k_v160_v1` |
+| 촬영 0회인 선택 계보 | `collections/sunny11_5k_completion_seed_v1` |
+| 실제 새 유연 보충 | `collections/sunny11_5k_flexible_v1` |
+| 별도 실행기·배포 | `work/sunny11-completion-runtime-v1/fresh_completion_borrowed.py`, `deployment.json` |
+| 현재 보충 로그 | `work/sunny11-completion-runtime-v1/capture-service-v2.log` |
+| 새 명령 파일 | `work/sunny11-completion-runtime-v1/COMMANDS.txt` |
+
+새 공통 어댑터는 기존 `complete_borrowed.prepare_seed`, `complete_unified`,
+`flexible_complete`를 변경 없이 사용한다. Sunny11의 원래 `fresh_borrowed` namespace·
+supervisor·호스트 `capture.lock`도 재사용한다. 원래 fresh 프로파일과 정상 종료 부모는
+읽기 전용이며, seed의 불변 제어 파일 6개도 읽기 전용으로 연결한다. 새 보충만 별도
+출력에 기록한다. 원래 4,944장의 RGB·점군·가시성·native QA를 다시 실행하지 않고,
+확정 선택·계약·source/runtime 경계를 확인한 뒤 새 후보에만 원래 native QA를 적용한다.
+같은 패밀리·의미군·동작·split·거리 목적의 새 장면을 만들며 정확한 실패 자산 조합을
+고집하지 않는다. 실제 통신·충돌 수신·지면·가시성·최종 P 기준은 완화하지 않는다.
+
+시작 전 MORAI 단일 창에서 **11 AM·Sunny multiplier 1.00**을 확인했다. 날씨·시간은
+변경하지 않았다. 기존 읽기 전용 5초 진단에서 Ego·Object·CollisionData는 각각 249건,
+최신 age는 약 4~5ms였고 Ego 속도는 약 `3e-6m/s`, brake는 1이었다.
+관련 CPU 회귀는 **211개 통과**했다. 기존 보호 TXT·ROS master·bridge·과거 웹 서버·
+native GT·실패 원본·PNG는 변경하거나 삭제하지 않았다.
+
+첫 준비는 많은 기존 세션의 잠금을 동시에 확인하다 프로세스의 기본 FD 1,024개
+한도로 중단했다. 잠금 검사를 생략하는 대신 **새 보충 프로세스에만** 한도 32,768개를
+적용했다. 이후 첫 실제 실행은 SSH 기본 umask `0002`로 만들어진 새 seed 제어 파일의
+group-write 권한을 거부해 native 진입 전에 중단했다. 새 seed·보충 출력의 권한만
+파일 600·디렉터리 700으로 제한하고, 새 어댑터의 supervisor 호출에는 umask `0077`을
+명시했다. 내용·SHA·판정·과거 상태를 정상으로 고친 것이 아니다. 두 시작 전 실패의
+로그·수정 전 별도 배포는 보존하며 기존 동결 runtime과 본수집 프로파일은 변경하지 않았다.
+
+**10/19 19:26 KST 관측에서 승인 4,946장·부족 54장·오류 0으로 실제 보충 중**이었다.
+새 두 장이 연속 승인됐으며 첫 native 취득은 약 9.60초였다. 첫 새 세션도 최종 P·gear 1·
+오류 없음을 확인했다. 기존 4,944개 선택 행은 모두 동일했고 전체 source ID·원본 경로·
+payload가 각각 고유했다. 원래 profile SHA `9e25dc6ae0c52c901de1f133820929b7520ecd2017fac1e752f5e93611578a2d`와
+fresh 배포 SHA `a7fbabca77dfc171195caf5af61f20feff1863aefcc1b779b2cf91555e11ea85`도 유지됐다.
+19:27 KST 후속 관측은 승인 4,947장·부족 53장·오류 0이었다. 이는 진행 checkpoint이며
+5K 완료 인증이 아니다. 첫 승인·P·선택 보존 근거는 로컬
+`artifacts/evaluation/base5_sunny11_completion_261019/start_receipt.json`, 테스트 근거는
+같은 폴더의 `cpu_tests.xml`이다.
+
+새 보충 웹은 **빌린 PC와 이 PC 모두 `http://localhost:8082/`**다. 실제 HTTP 200과
+새 보충 output 연결을 확인했다. 기존 **8079는 완료된 Sunny11 본수집**을 그대로 관측한다.
+두 관측기의 숫자를 합산하지 않는다. 8082 관측기는 수집을 제어하지 않는 별도 읽기 전용
+observer이며 SSH 연결을 닫아도 보충 실행은 유지된다.
+
+```bash
+# 빌린 PC: 상태만 확인한다.
+python3 -B ~/ajounice_base5_capture/work/sunny11-completion-runtime-v1/fresh_completion_borrowed.py \
+  --environment sunny11 status
+
+# 현재 장면의 안전 종료 후 정상 일시정지를 요청한다.
+touch ~/ajounice_base5_capture/collections/sunny11_5k_flexible_v1/PAUSE
+
+# 실행 중에는 중복 실행하지 않는다. 정상 PAUSE 뒤 같은 Sunny11 환경에서만 재개한다.
+ulimit -n 32768
+python3 -B ~/ajounice_base5_capture/work/sunny11-completion-runtime-v1/fresh_completion_borrowed.py \
+  --environment sunny11 run --confirmed-environment sunny11 --time-budget-sec 7200
+
+# 관측기가 종료됐고 8082가 비어 있을 때만 별도 웹 서버를 다시 시작한다.
+python3 -B ~/ajounice_base5_capture/work/sunny11-completion-runtime-v1/observe_completion.txt \
+  --port 8082 --run
+```
+
+기본은 셀당 최대 3회이며 시도 이력은 재개해도 유지된다. STOP·halted·MORAI crash·
+통신/Park 불확실은 위 재개 명령으로 우회하지 않는다. 승인 5,000장·부족 0의 정상 완료
+후에만 같은 어댑터의 `--environment sunny11 finalize`로 실제 선택 기반 분할을 확정한다.
+JPEG 변환·PNG 삭제·압축·전송·학습은 이 보충 작업에 포함하지 않는다.
+
 ## 결정과 보존 범위
 
 Sunny13와 Sunny15를 안전하게 일시정지한 뒤, 환경별 실행기 분기를 공통 실행기로 통합한다.
