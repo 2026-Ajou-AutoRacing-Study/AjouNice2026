@@ -1,6 +1,6 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-19.
+문서 상태: CURRENT. 근거 확인: 2026-10-20.
 Base5-only 학습용 구 Sunny13 5K(v140)는 완료했다. 새 원형 Sunny15(v159)도 10/18
 **승인 5,000장·부족 0장·실행 오류 없음**으로 수집을 마쳤다. 최종 선택은
 `artifacts/evaluation/base5_sunny15_completion_261018/last_cell_v1/selected_ledger.jsonl` 하나다.
@@ -69,7 +69,7 @@ JPEG 20,000개·유효 GT 11,653개·지원 component 누락/추가 0·원본 �
 | Split | train 4,255 / val 745. 장면·group 계보를 보존 |
 | 다음 환경 | 새 Sunny11·Sunny13·Sunny15 각 5K의 native 수집·최종 분할은 완료했다. Foggy13은 수집 중이며 Foggy11/15는 후속이다. 계획 전체 30K가 완료된 것은 아니다 |
 | 새 Foggy13 본수집 | 공통 생성기·독립 seed 26101913·v163 거리 보강과 기존 자격을 유지한다. 두 번째 MORAI 종료 뒤 **승인 2,657·검토 31·확정 2,688장**을 `collection_5k_v1_after_crash_v2`로 인계했다. 10/19 환경·Capture·annotation·실제 P 재확인 후 재개해 **새 첫 묶음 16/16 승인·최종 P·오류 없음**과 다음 묶음을 확인했다. 이전 원본·중단 상태와 미확정 후보 15개를 보존하며 중복 합산하지 않는다. **8081**은 새 v2 profile을 관측한다. [두 번째 인계·현재 재개 명령](261019_base5_foggy13_reinforcement_and_capture.md#foggy13-second-crash-continuation-261019)을 따른다 |
-| 새 Foggy15 준비 | 공통 v160·독립 seed 26101915·같은 v163 규칙의 5K CPU source를 새 원격 root에 배포했다. 장애물 재할당은 독립 배치에서 152장(20~30m 119 / 30~45m 33)이며 기존 차량·보행자 분포는 유지한다. 공식 도구의 재연결 readback으로 실제 Foggy·15:00·자동 순환 OFF를 확인했다. **본수집은 아직 0/5,000**이며 소량 native와 최종 release를 준비 중이다. 빌린 PC **8083 / 이 PC 8084**는 CPU full 계획의 `not_started` 관측이며 이전 Sunny11 완료 화면이 아니다. [준비·환경·관측 근거](261019_base5_foggy13_reinforcement_and_capture.md#foggy15-independent-borrowed-261019)를 따른다 |
+| 새 Foggy15 준비 | 공통 v160·독립 seed 26101915·같은 v163 규칙의 독립 5K이며 장애물 재할당 152장(20~30m 119 / 30~45m 33), 기존 차량·보행자 분포와 센서를 유지한다. 실제 Foggy·15:00·자동 순환 OFF를 확인했다. 진단 32장은 실제 대체 5장을 포함해 승인 31·부족 1로 종료했다. 마지막 1장의 첫 출처 연결 오류를 보존하고, 올바른 등록 root·동일 geometry의 새 **1/1 승인·충돌/최종 P 통과**를 확인했다. 이 실제 6개 대체를 정식 adoption에 연결하는 단계이며 **본수집은 아직 0/5,000**이다. 빌린 PC **8083 / 이 PC 8084**는 CPU full 계획의 `not_started` 관측이다. [준비·환경](261019_base5_foggy13_reinforcement_and_capture.md#foggy15-independent-borrowed-261019)과 [실제 소량 시험·새 계보](261019_base5_foggy13_reinforcement_and_capture.md#foggy15-native-qualification-261020)를 구분한다 |
 | 새 Sunny11 수집·전달 | 공통 v160·독립 seed 26101911의 실제 취득은 10/19 20:02:49 KST **승인 5,000·부족 0·오류 0**으로 완료했다. 본수집 4,944개 행을 보존하고 새 유연 보충 56개가 56회 시도에 모두 승인됐다. 최종 ID·원본 경로·시나리오 SHA는 각각 5,000개 고유하며 train 4,250 / val 750 최종화도 통과했다. **23:10:31 KST에 같은 Q90/upright 전달본의 로컬 회수·전체 SHA·187,850개 멤버·5K/20,000 JPEG·GT 11,654개 검증까지 완료**했다. 로컬 입력은 `artifacts/evaluation/base5_sunny11_training_retrieved_261019_v1/dataset/`이다. 다음 원격 수집 공간이 부족하면 수령 검증된 RGB PNG를 삭제할 수 있다는 추가 승인이 있으나, 실제 여유 73.4GiB로 충분해 **삭제 0개**다. **8082**는 완료된 보충, **8079**는 본수집 관측이며 새 Foggy15 관측이 아니다. [native 완료](261018_base5_unified_generation_capture.md#borrowed-sunny11-completed-finalized-261019)와 [전달·보존 근거](261018_base5_unified_generation_capture.md#sunny11-local-retrieved-261019)를 따른다 |
 | 과거 환경 준비·중간 인계 | 구 `candidate_v150c/future_suite`와 Sunny15 v159의 exact32/32·음영 이동 2/2·Q90/upright·CPU loader·재개 자격은 당시 이력이다. 10/18 정상 PAUSE의 승인 557 / 부족 3 / 미검사 4,440 인계도 중간 기록으로 보존하며 현재 완료 수치가 아니다. 이후 Sunny15 5K 완료는 위 최종 선택 ledger를 따른다. 새 실행기의 별도 소량 자격시험은 [통합 근거](261018_base5_unified_generation_capture.md)를 따른다 |
 | 과거 Sunny13 동결 | [v152](261015_base5_primary_obstacle_range.md)의 정적 64/64·이동 8/8·거리 변경 53/53·probe 4/4는 당시 source/runtime 근거로 보존 |

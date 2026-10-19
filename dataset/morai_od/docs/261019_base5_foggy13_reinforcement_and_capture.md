@@ -641,3 +641,95 @@ Foggy13에는 공통 v160이 계승한 원거리 보조·거리 분산·fallback
 `not_started`, **0/5,000**이 실제 상태다. 최종 native adoption manifest와 profile은 아직
 준비 전이므로 소량 자격이나 본수집 시작의 증거가 아니다. 최종 profile 준비 후에는 실제
 adoption 입력을 확인하는 정식 fresh observer로 이 임시 관측 서버만 교체한다.
+
+<a id="foggy15-native-qualification-261020"></a>
+
+### 10/20 새벽 소량 native와 CPU 환경의 실제 재현
+
+원격 배포 이후 보강 대상 진단 32장을 실제 촬영했다. 첫 정규 묶음 16장은 최종 P·기어 1·
+실행 오류 없음을 확인했다. 최종 파일은 RGB뿐 아니라 카메라 Instance 4개와 LiDAR
+Instance·8Points를 포함한다. 최초 실패 판정을 승인으로 바꾸지 않았으며, 기존 동일 자산·
+순서·거리·방향·split 계약 안에서 새 배치를 촬영한 결과 최초 진단 실행은
+**승인 31장·부족 1장·실행 오류 0건**으로 끝났다. 승인 31장에는 실제 대체 5장이 포함된다.
+이 수치는 본수집 5K의 진척이 아니다.
+
+원격 CPU의 지도 감사에서는 5K 중 `01363`의 NCAP_EBT 지지면 후보가 한 번 달라졌다.
+원본 배열 4개의 SHA는 같았지만 NumPy/SciPy 버전에 따라 KD-tree의 가까운 32개 후보
+집합에 선호 link가 포함되는지가 달랐다. 원형 k=32·허용오차·지도 판정은 바꾸지 않고,
+생성 당시 Python 3.8.10·NumPy 1.17.4·SciPy 1.3.3 등을 새 작업 폴더의 CPU 전용
+읽기 전용 환경에 분리했다. 실제 5K 감사는 **32.52초·오류 0·OFFLINE_PASS**였고,
+저장된 생성 당시 감사와 정확히 일치했다. 원격 시스템 설치·ROS/실제 촬영 환경은 변경하지
+않았다. 동결 runtime 439개와 test source 212개의 SHA도 유지됐다.
+
+이 재현과 별개로, 원격의 최초 전체 CPU suite 실패 로그는 보존한다. 기존 동일 source의
+**2,376개 통과·1개 명시적 deselect** 근거를 검증해 재사용한 것이지, 원격에서 그 전체
+suite가 새로 통과했다고 주장하지 않는다. CPU 전용 파일 SHA 재사용도 검증 범위 안에서만
+실행하며 실제 native QA·GT·새 manifest·세션 결과를 캐시하지 않는다.
+
+마지막 부족 slot은 최종 selected ledger의 `source_cell_id`를 등록된 32개 원본 slot과
+대조해 **`03160`**으로 확정했다. 중간 복구 ID나 현재 표시 장면으로 추정하면 `02908`을
+잘못 지목할 수 있었지만, 실제 `02908`은 이미 승인된 대체에 포함돼 있었다. raw ID 차집합을
+그대로 부족 장면 수로 세지 않는다. 관련 원문은 `actual_adoption_pairs_v1.json`에 보존한다.
+
+`03160`은 전방 30~45m OrangePEFirewall 앞에 보조 Niro가 놓여 완전 가림이 반복됐다.
+원형 후보 한도 512회·layout 한도 8개를 늘리지 않고, CPU 제안 단계에서만 명백한 3D
+완전 가림을 반려했다. 358회 build 중 17개를 이 기준으로 반려한 뒤, 장애물 약 34.6m·
+Niro 약 38.5m의 후보를 얻었다. 자산·개수·순서·거리 목적·split·native QA는 유지했다.
+OBB ray 검사는 후보 선택 보조이지 mesh 가시성의 증명은 아니며, 기존 높이 초기화가
+불확실하다는 원문 근거도 함께 보존한다.
+
+첫 실제 재촬영은 **1/1 승인·검토 0·실행 오류 0·최종 P 확인**이었다. 실제 장애물 거리는
+약 34.98m였고 LiDAR 0점은 그대로지만 전방 카메라 Instance 436픽셀에서 대응이 생겼다.
+따라서 앞 차량의 완전 가림을 피한 성공이지 LiDAR 원거리 빔 공백의 해결이 아니다.
+
+다만 이 한 장을 정식 source에 연결하는 첫 CPU adoption은
+**`Replacement root/spec provenance differs`로 중단**했다. 기존 대체 5장의 연결은 맞았지만,
+새 `03160` helper가 등록 pilot root 대신 full root에서 출발해 root entry의 두 경로와
+metadata SHA가 달랐다. 실제 촬영 승인과 정식 연결의 성공을 구분한다. 과거 PASS·native
+metadata·manifest는 수정하지 않는다. 올바른 등록 root의 새 계보를 촬영 전에 검증하고
+별도 출력에서 최소 재촬영하는 방식을 택했다. **이 기록 시점에는 최종 adoption·정규 32장·
+음영 이동·여섯 release gate·공통 pause/resume·5K 본수집은 아직 완료가 아니다.**
+
+근거는 로컬 `artifacts/evaluation/base5_foggy15_design_261019/`의
+`cpu_gate_prepare_v1/producer_cpu38_summary_v1.json`, `actual_adoption_pairs_v1.json`,
+`actual_four_reviews_and_cpu_candidate_occlusion_v1.json`과 원격 새 root의
+`qualification/pilot_v1/`, `qualification/pilot_supplement_03160_v3/`,
+`qualification/full-adopt-actual-six-pairs-v1.log`다. 이후 성공은 새 절에 추가하며 이 중단
+기록이나 최초 31/32 결과를 소급 수정하지 않는다.
+
+### 올바른 등록 root의 1장 재검증
+
+이후 새 helper는 pilot 5K entry와 원등록 subset entry의 동일성부터 검사했다. 원형 제안
+루프에서 기존 승인 geometry SHA `3ebf0036…`를 9.70초에 정확히 재현했고, root entry·
+root metadata SHA·ordinal·부모 불변·분할 최종화 대기 필드를 촬영 전에 모두 대조했다.
+새 runner는 P 응답 후 원형 base capture의 **`--limit 1`만 허용**했다. 방향 복구 재시도
+여러 번을 숨긴 1회 명령이 아니다. 이 base capture는 원형 `verify_accepted_native`가
+지원하는 경로이며 본수집의 native 정책이나 허용오차를 바꾼 것이 아니다.
+
+`qualification/pilot_supplement_03160_v4/`의 실제 촬영은 **13.89초·승인 1·검토 0·
+실행 오류 0·충돌/최종 P 검사 통과**였다. 새 manifest SHA는
+`37df97d4deb4f223c921dedb8c61a4cb1457b1ecd92e61721096138e4ee23a65`다.
+기존 대체 5장과 이 올바른 새 1장은 `actual_adoption_pairs_v2.json`에 연결했다.
+과거 승인 사진·잘못된 계보의 성공 기록·실패 4장·첫 adoption 중단은 모두 보존한다.
+이 한 장의 성공만으로 정식 adoption이나 후속 여섯 gate·본수집 시작을 주장하지 않는다.
+
+6개 실제 후보는 원형 `profile.verify_transition`의 거리·방향·spec·roster·split과 보조
+장애물의 기존 `<20m` / `20~30m` 보호를 개별 선검사해 **6/6 통과**했다. 전역 near budget과
+전체 source의 자격은 이 개별 검사로 대체하지 않는다. 원문은
+`actual_six_profile_transitions_v1.json`이다.
+
+후행 CPU 연결에서 동일 과거 참조 blob의 SHA를 수십 번 다시 읽는 비용을 줄이기 위해
+기존 411개 고정 입력에 **원형 v4 source의 정확한 PNG 768개·bag 2개**만 별도 예외로
+더했다. 추가분은 1,109,071,378바이트(약 1.03GiB), 경로→SHA 목록 identity는
+`a19af31f13d1566fad2c0f840b080c8f48fed16f3c516be4b3c85321c0b28e8a`다.
+임의 PNG/bag 전체가 아니라 이 정확한 읽기 전용 source 770개만 허용한다. 기존 VIC·
+StaticScope 본문은 유지하며 entry/exit 실제 SHA·각 hit의 파일/상위 경로 확인·subprocess
+금지·실제 촬영 전 scope 종료를 유지한다. 현재 native·audit·ledger·등록/대체 control은
+이 cache와 분리해 실제 SHA를 검사한다. JSON 객체·문맥/QA 결과를 재사용하는 방식이 아니다.
+
+첫 추가 controller는 원형 cache 모듈의 import 경로 누락으로 0.394초에 종료됐다.
+adoption 출력이나 촬영은 생성하지 않았고 실패 로그도 보존했다. 새 버전에서 정확히
+핀된 `CACHE.parent` 경로만 보완했다. 실제 producer namespace의 import-only probe가
+Python 3.8.10·원형 모듈 경로/SHA·동일 VIC 클래스·의존 모듈과 runtime 439/test 212
+전후 불변을 확인했다. 그 뒤 새 authority로 원형 adoption을 재개했다. 검토·probe의
+성공과 실제 adoption 완료는 구분하며, 이때 본수집은 여전히 시작하지 않았다.
