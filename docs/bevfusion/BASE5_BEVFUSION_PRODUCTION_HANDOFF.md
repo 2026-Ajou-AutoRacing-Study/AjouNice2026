@@ -7,6 +7,9 @@
 2026-10-14 전체 통합은 nearest·중심 보완·보행자 연결 순위·출력 동일 CPU 최적화와
 validator 분석 녹화/공유를 planning 브랜치용 코드에 함께 반영한다. 팀 PC는 아래 pull·증분 설치 후
 기존 tracker·planner를 종료하고 fresh stack으로 실행한다. 코드 통합은 팀 PC의 폐루프 검증 완료가 아니다.
+2026-10-15 PR #38·#39·#40에서 LiDAR 50을 포함한 전체 코드를 planning·develop·main에 병합했다.
+현재 전달본은 `261015_lidar50`이며, 이전 ZIP의 센서 launch 해시 불일치에 따른 설치 차단을 해소한다.
+기존 가중치·모델 설정은 변경하지 않았으며 팀 PC의 실제 설치·LAN 주행 확인은 별도다.
 
 ## 고정 실행 계약
 
@@ -59,11 +62,11 @@ bash scripts/runtime/install_base5_production.sh
 기존 가중치의 SHA가 맞으면 다운로드하지 않는다. 다른 파일은 자동 덮어쓰지 않는다.
 정상 ZIP은 `~/bevfusion_artifacts/downloads`에 재사용하며 토큰은 각 PC의 rclone 설정에만 둔다.
 
-현재 전달 ZIP은 `model/bevfusion/production/base5_e24_261014_fullmerge/ajounice_base5_e24_production_261014_fullmerge.zip`이며
-449,672,205 bytes, 약 429MiB다. SHA256은
-`027a3c4c46f183e043406604d2d54bad0979bffb55f93f17ef66b932f06d71fb`이다.
-[공유 Drive ZIP](https://drive.google.com/file/d/16rp-6oXthouEUFL115hWHBqD_y7m9HpF/view)은 원격 크기·MD5와 로컬 SHA256을 대조했다.
-위 설치기가 현재 release의 Drive 경로를 자동 선택한다. 10월 13일 및 14일 runtime ZIP은
+현재 전달 ZIP은 `model/bevfusion/production/base5_e24_261015_lidar50/ajounice_base5_e24_production_261015_lidar50.zip`이며
+449,672,211 bytes, 약 429MiB다. SHA256은
+`199f7328fdee518b4d5fcb2c9583f7d366d4a5272023ececabda8857030d37e4`이다.
+[공유 Drive ZIP](https://drive.google.com/file/d/1FC90CTXcOYHuxiGS-tFG0_JWk57JiK6f/view)은 새 경로에 업로드하고 원격 크기·MD5를 로컬과 대조했다.
+위 설치기가 현재 release의 Drive 경로를 자동 선택한다. 10월 13일 및 14일 runtime/fullmerge ZIP은
 이전 코드 재현용으로 보존하며 새 checkout 설치에 혼용하지 않는다.
 가중치·검증 manifest·README·현재 runtime과 상속 config의 참고 사본만 포함한다.
 `reference/`는 비교용이며 checkout에 덮어쓰지 않는다. 데이터셋·optimizer·인증 정보·Docker 이미지는 없다.
@@ -72,7 +75,7 @@ bash scripts/runtime/install_base5_production.sh
 ZIP을 브라우저로 받았다면 같은 설치기에 경로만 넘긴다.
 
 ```bash
-bash scripts/runtime/install_base5_production.sh --archive /전달받은/ajounice_base5_e24_production_261013_runtime.zip
+bash scripts/runtime/install_base5_production.sh --archive /전달받은/ajounice_base5_e24_production_261015_lidar50.zip
 ```
 
 모델 설치만 이미 확인했으면 `--check-only`로 재검사한다. 이 옵션은 빌드를 생략하고 작은 Docker GPU
@@ -91,11 +94,11 @@ bash scripts/runtime/install_base5_production.sh --check-only
 ### LiDAR 50 적용과 51 복귀
 
 2026-10-14 사용자 승인으로 `lidar.launch`와 `morai_udp_interface.launch`의 기본 묶음을 50으로
-변경했다. 이 변경은 우선 `dataset/base5`에 반영하며 planning 브랜치에는 후속 통합이 필요하다.
-2026-10-15 원격 재조회 기준 planning은 `82321449`이며 50 전환 커밋 `ff24bdb9`를 포함하지 않는다.
-두 launch의 packet count 기본값도 아직 빈 값으로 이전 드라이버 계산을 사용한다.
-현재 작업 브랜치·이 PC 설치본의 50 반영과 팀 브랜치 머지·팀 PC 설치 완료는 별개다.
-팀 PC는 해당 변경 포함 여부와 설치된 launch의 실제 50 기본값을 확인한 뒤 사용한다.
+변경했다. 당시 `dataset/base5`에만 반영돼 planning에는 후속 통합이 필요했으나,
+2026-10-15 PR #38·#39·#40에서 planning·develop·main까지 전체 병합했다.
+과거 planning `82321449` 조회에서 기본값이 비어 있던 기록은 병합 전 상태이며 현재 기본값은 50이다.
+팀 브랜치의 코드 반영과 팀 PC 설치 완료는 별개다. 팀 PC는 최신 pull과 증분 설치 후
+설치된 launch의 실제 50 기본값을 확인한다.
 코드 반영 뒤 `sensor_interface`를 증분 설치하고 기존 UDP/LiDAR 수신기를 종료·재시작해야 한다.
 실행 중 `rosparam set`만으로 이미 초기화된 드라이버의 묶음을 바꾸지 않는다.
 MORAI의 LiDAR 15Hz 설정·카메라·timestamp 정책·E24 가중치는 변경하지 않는다.
@@ -104,7 +107,9 @@ MORAI의 LiDAR 15Hz 설정·카메라·timestamp 정책·E24 가중치는 변경
 새 기본값은 기존 UDP 실행 명령을 그대로 사용한다. 51로 복귀할 때만 게이트웨이 명령에
 `lidar_npackets:=51`을 추가한다. LiDAR 단독 launch는 `npackets:=51`이다.
 빈 CLI 인자 `lidar_npackets:=`는 Noetic에서 무시되어 새 기본값 50이 적용되므로 복귀 인자가 아니다.
-기존 모델 ZIP의 가중치와 runtime 계약은 그대로이며 이 launch 변경만으로 새 ZIP은 필요하지 않다.
+가중치 자체는 그대로이며 재학습은 필요하지 않다. 다만 전달 ZIP은 센서 launch의 해시도
+고정하므로 50 전환 뒤에는 최신 코드 기준 재동결이 필요하다. `261014_fullmerge`를 현재 코드에
+설치하면 보호 검사가 중단되며, 이를 우회하지 않고 `261015_lidar50` 전달본을 사용한다.
 
 2026-10-14 현재 박스 원점이 수정됐다. 기존 detector·tracker·planner를 모두 정지하고
 새 stack으로 시작한다. 실행 중인 track/planner memory에 새 중심 기준을 hot-switch하지 않는다.
@@ -128,7 +133,8 @@ sensor JSON은 서버와 bridge에 같은 파일로 전달된다. 기본값이 L
 자동으로 바꾸지는 않는다. `tracking`·planning은 기존 순서로 실행하며 `start_detector:=false`를 유지한다.
 
 보행자 순위 후속은 tracker submodule `1cdf0a9`와 새 object pipeline launch를 함께 사용한다.
-기존 E24 ZIP·가중치를 다시 내려받을 필요는 없고 installer의 Git/submodule 증분 빌드가 필요하다.
+정상 SHA의 E24 가중치가 이미 설치돼 있으면 다시 내려받지 않는다. 설치기의 최신 배포 명세와
+Git/submodule 증분 빌드는 필요하며, 구 ZIP을 현재 checkout의 `--archive` 인자로 혼용하지 않는다.
 시작 로그의 `pedestrian_gaussian_rank=1`을 확인한다. 독립 비교·복귀는
 `tracking pedestrian_gaussian_association_ranking:=false`이며 기존 노드를 종료한 뒤 실행한다.
 Tracker 옵션은 detector 모델 선택과 독립적이므로 E25 가중치로 복귀하는 것만으로 이 순위가 OFF되지는 않는다.
@@ -154,6 +160,21 @@ Validator가 소유한 Base5 서버는 별도 포트 29515와 기존 `/perceptio
 유지하지만 detection 출력은 canonical topic이다. 수동 `bevfusion`과 GUI 자동 실행을 중복하지 않는다.
 
 ## 통합 코드 검증
+
+### 2026-10-15 전달본 재동결 검증
+
+`261015_lidar50`는 50패킷 센서 launch를 포함한 현재 runtime 62개 파일의 해시를 고정한다.
+기존 `261014_fullmerge`와 달라진 runtime 참고 파일은 `lidar.launch` 하나이며 E24 가중치 SHA는 동일하다.
+보호 검사를 완화하지 않고 배포 명세·ZIP·Drive 경로를 함께 갱신했다. 이전 전달본은 삭제하지 않았다.
+
+배포 bundle 검사 8개와 production profile/health 검사 7개가 통과했다. 기존 정상 가중치가 있어도
+낡은 소스 해시는 거부하는 회귀 검사를 포함한다. Drive 업로드 뒤 원격 크기·MD5를 대조하고,
+별도의 빈 임시 HOME에서 설치기가 실제 ZIP을 다시 다운로드해 archive SHA256·runtime 사본·
+가중치 SHA를 검증한 뒤 설치했다. 이어 `--check-only` 재실행에서 다운로드하지 않고 가중치 mtime을
+유지함을 확인했다. 이 전달 검증에서는 Docker GPU 검사·ROS 빌드·노드 실행·실주행을 생략했다.
+팀 PC는 최신 코드를 pull하고 위 기본 설치 명령으로 필요한 증분 빌드까지 수행해야 한다.
+
+### 2026-10-13 최초 통합 검증 이력
 
 2026-10-13 planning 기준 `0ab05110`의 최신 네 커밋을 합쳤다. 로터리 stopline·early pass 설정과
 원거리 CollisionData 오염 처리, 정적 장애물 17장 캠페인은 보존했다. 새 인지 배포 때문에 해당

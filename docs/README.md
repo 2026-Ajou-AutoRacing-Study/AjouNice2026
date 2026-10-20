@@ -10,6 +10,7 @@
    production Tracking·Map-CV 계약.
 6. [`runbooks/morai_full_stack_by_terminal.md`](runbooks/morai_full_stack_by_terminal.md):
    full-stack 실행 순서.
+7. [`competition/README.md`](competition/README.md): 대회 최종 규정 v1.2와 과거 규정 구분.
 
 `legacy/`가 붙은 문서, `docs/jsw/`, `external_docs/`, 과거 detector 폴더는 재현·참고
 기록이다. 날짜가 최신이거나 내용이 자세하다는 이유만으로 CURRENT 실행값을 덮어쓰지

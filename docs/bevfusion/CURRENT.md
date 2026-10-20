@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-14.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-15.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 완료 Base5의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -58,7 +58,7 @@ E25의 원래 강도 계약과 혼용하지 않는다. Launch만 실행해서 GP
 topic·coasting·motion policy는 detector 선택과 별도다.
 
 평가 pose는 [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md)을 따른다. 운영 localization/TF와 독립 raw Ego GT를 구분하고 MR −1.347°를 중복 적용하지 않는다.
-2026-10-14 planning 전체 통합은 nearest·ROS 중심·보행자 순위·CPU 최적화와 validator 진단/공유 구현을 함께 포함한다.
+2026-10-15 PR #38·#39·#40으로 LiDAR 50을 포함한 전체 코드를 planning·develop·main에 반영했다. E24 ZIP `261015_lidar50`도 현재 센서 launch 해시에 맞춰 재동결했다. 가중치·추론 설정은 유지하며 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의 설치·검증 기준을 따른다.
 Validator 분석은 [현재 런북](../planning/SCENARIO_VALIDATOR_RUNBOOK.md#5-결과-확인공유)을 따른다. [최초 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md)는 이력이며 실제 팀 PC 실행·공유 검증은 별도다.
 
 <a id="optimization"></a>

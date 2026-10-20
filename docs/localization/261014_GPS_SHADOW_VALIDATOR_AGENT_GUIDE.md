@@ -457,3 +457,37 @@ translation tau 0.25초 후보를 각각 1회 실행했다. 세 조건 모두 �
 이 확인은 **실험 수행 기반이 동작한다**는 의미다. tau 후보 개선, 장애물 회피 조건,
 실제 통신 단절·SIGKILL 안전성, 대회 LAN/다른 PC 재현은 인증하지 않았다.
 특히 이 MR의 GPS status는 음영에서도 1이므로 status만으로 유효 GNSS를 분류하지 않는다.
+
+## 후속 localization hardening 실험 (2026-10-15)
+
+현재 source/결과 계약은 [CURRENT](COMPETITION_LOCALIZATION_CURRENT_STATE.md)와
+[누적 EVIDENCE 마지막 절](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)을 따른다.
+기본 soft/Smooth는 유지하며 GNSS motion projection0초·relocation guard OFF다.
+`stack.localization_args.gnss_motion_compensation_sec`는0–0.1초 opt-in 후보지만,
+20ms는 최신/구형 입력에서 효과가 역전되어 공통 production 기본값으로 켜지 않는다.
+guard의 age/future rejection은 reset 발행 안전 조건이지 core 센서 시간 정책 변경이 아니다.
+`/localization/relocation/status`는 활성화할 때만 있는 optional 분석 토픽이다.
+
+개발 helper `scripts/evaluation/localization/run_validator_intervention.py`는 stock
+validator 주행 도중 관측된 정지/P·ScenarioLoad·명시적 known prior를 삽입한다.
+같은 실제 planning/PP·PI/UDP를 사용하며 `--execute` 없이는 check만 한다.
+한scene·safety/bagON·intervention시간을 포함한timeout·새execution이 필수다.
+원래 validator CLI에는 여전히 `--run`을 붙이지 않는다.
+
+‘실제 체크포인트는 음영 밖’은 사용자 지도 그림 판단이었다는 후속 확인과
+[공식 좌표·제공 Spawn 툴 번호 대조](../competition/261015_공식_체크포인트_안내_보관.md)를 따른다.
+수정안 START+CP1–14는 툴0–14와 일치한다. 구표와의 차이는 버전 차이로 확인돼 불일치 문의는 철회한다.
+변경 전 실제 툴14(수정안CP14, 구CP15)도 로컬에서 raw NMEA zero를 재현했다.
+2026-10-15 운영측은 **CP14 좌표·spawn 위치는 유지하고 음영구역 범위를 조정**하겠다고 답변했다.
+새 환경 배포와 툴14 유효 GPS·Global/Smooth 정합·새 route·제어 재개는 아직 재검증 대기다.
+이 답변만으로 실행 좌표·측위 기본값을 바꾸거나 기존 zero 관측을 해결 완료로 처리하지 않는다.
+이하 과거 실험의 CP13/15는 구번호(현행12/14)이며 원본 metadata는 보존한다.
+`run_validator_intervention.py`가 조회하는 runtime rules는 아직 구15점 표이므로
+새 수정안 번호를 그대로 `--checkpoint`에 주지 않는다. 별도 config 동기화 후 사용한다.
+로컬 CP15 개발 장면의0-GPS 순간이동은 새 위치 정보 없이 복구할 수 없었지만,
+공식 체크포인트가 음영에 있다는 근거는 아니다. 로컬 zero의 원인은 아직 미확인이다.
+실험에서 확정한 반환 위치를 `--known-checkpoint-prior`로 한 번 제공한 대조는 통과했다.
+이를 대회 필수 입력·공식 이벤트·허용 입력으로 간주하지 않는다. 대회에는 유효 GNSS
+재정합·새 route·제어 재개를 우선 검증하고, 명시적 prior를 쓸 경우에만 복귀 이벤트·번호·
+배치 정확도/허용 범위를 운영측·판단팀과 확인한다. Ego는 안전/평가용이며 초기 임시
+위치 이후 지속 fusion하지 않는다. 원본bag·실패·known receipt와 helper SHA를 함께 보존한다.

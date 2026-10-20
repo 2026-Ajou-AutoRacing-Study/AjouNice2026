@@ -947,3 +947,478 @@ signed mean은 약−26~−27cm로 평균적으로 oracle보다 뒤에 있다.
 oracle lag 진단이다. GT는 평가용으로만 사용하고 임의 pose offset이나
 UDP receipt-time 변경을 production에 넣지 않는다. 장시간 음영 정차·재출발,
 LAN-to-LAN·슬립·checkpoint gate는 별도로 남아 있다.
+
+## 최종 hardening: 장기 정차·checkpoint·종방향 epoch (2026-10-15)
+
+판정: **기존 soft/Smooth production 유지.** 추가 ZUPT는 보류, heuristic checkpoint reset은
+OFF/monitor-only, GNSS motion projection은0초가 기본이다. 대회 LAN·공식 reset 이벤트·
+충돌/slip을 전부 해결했다는 뜻은 아니다. branch `dataset/base5`, 기반 runtime
+`d834e2ad` + 이번 source, 규정 문서 commit `d376ed1c` 이후 실행을 구분한다.
+case별 source/installed SHA·명령·parameter·snapshot·events가 날짜보다 우선한다.
+Q/R·heading·UDP receipt-time·Local EKF·detector/판단/제어 정책은 변경하지 않았다.
+
+### 장시간 GPS 음영의 실제 정차·재출발
+
+`260919_231906...`의 실제 음영27.75초·정차24.59초를 현재 estimator로 재생했다.
+같은 초기화/입력에서 Global 횡p95는 prior OFF16.52m 대 ON8.41cm였다.
+마지막 실제 정차 센서를 추가60초 유지한 **합성 모델 진단**의 누적 Global 변화는
+ON0.021cm 대 OFF144.62m였다. 합성 구간에 GT 위치를 만들어 넣지 않았다.
+최신 pair에 합성60초 정차를 삽입하고 원래 입력을 재개한 clean replay도
+Global/Smooth 정차 변위0.062/0.589cm,50Hz였다. 재획득1–5초 후 unpaused estimator와의
+XY 차이p95는0.81/0.70cm였으며 이 차이는 GT accuracy가 아니다.
+
+실제 `loc_final_shadow_hold_261015_062342`는 기존 PP/PI 주행 중 음영→controller 종료→
+stock brake/P·실제 정지 확인→30초 Park→같은 PP/PI 재개다. 별도 직진·정속 제어기가 아니다.
+
+| 실제 hold·재출발 지표 | 결과 |
+|---|---:|
+| 총 GPS invalid / Park hold | 50.246 / 30.068초 |
+| hold raw GPS / 유효 GNSS odometry | 815개 전부zero(status1) / 0개 |
+| Global/Smooth hold rate / 최대 header gap | 약50Hz / 25.57ms |
+| hold 횡 / XY 오차 p95 | 9.80 / 26.66cm |
+| hold 시작·끝1초 median 오차 변화 | XY0.00119cm, 횡0.00115cm |
+| hold 종편차 | 약−24.79cm: 기존 offset은 남지만 발산하지 않음 |
+| 재개 후 GPS invalid 유지 / Smooth 횡p95 | 8.640초 / 10.57cm |
+| 재획득 첫1초 / 이후1–5초 Smooth 횡p95 | 13.14 / 4.16cm |
+| 재개 후 TF closure p95 | 0.0218cm |
+| 목적지·충돌·안전 종료 | SUCCESS, 충돌0, 실제 P VERIFIED |
+
+nominal 정차에서는 fresh vx=0 측정과 Global soft vy prior가 충분히 제한한다.
+**새 ZUPT/Local prior는 구현하지 않았다.** 큰 Local vy covariance를 실제 mean 발산과
+동일시하거나 작은 값으로 clamp하지 않았다. 초기 private replay harness의 hot-edit로
+Bash file-offset 오류가 난 실행은 보존·제외하고 clean frozen-runner exit0와 구분했다.
+
+### 체크포인트: 유효 GNSS 복귀와 로컬 무GNSS 예외 실험의 차이
+
+번호 주의: 이 절의 과거 CP13/CP15는 구표 번호이며 수정안에서는 CP12/CP14다.
+후속 재배포 수정안과 Spawn 프로그램의 일치는 아래 실제 Spawn 시험 절에 반영했다.
+원본 실행명·snapshot·측정값은 당시 provenance 그대로 보존한다.
+
+**대회 조건 후속 정정 (2026-10-15): ‘체크포인트는 음영 밖’은 사용자 지도 그림 판단이었다.**
+대회측 유효 GNSS 보장은 아니며, 이후 제공된 실제 Spawn 툴14(수정안CP14, 구그림CP15)에서도
+로컬 raw NMEA zero를 재현했다. 여기서 CP15는 구번호(수정안14)다.
+아래 SceneLoad 기록은 보존하고 마지막 후속 실측 절과 구분한다.
+[공식 좌표 안내 백업](../competition/261015_공식_체크포인트_안내_보관.md)에 원래 좌표·yaw를
+보존했다. 아래 CP15 개발 장면에서 GPSzero가 관측된 사실은 유지하지만 공식 CP15가 음영에
+있다는 이전 해석은 철회한다. 로컬 장면의 zero 원인은 별도 미확인이다. 본 절의 실험 수치와
+원본 bag/snapshot은 수정하지 않으며, 무GNSS reset을 대회 복귀의 필수 조건으로 세지 않는다.
+
+기존 좌표 config의 CP13으로 정차/P에서 약114m SceneLoad 순간이동을 에뮬레이션했다.
+원래 목적지로 fresh route를 확인하고 stock PP/PI를 재개했다.
+
+| CP13 개발 emulation | Guard OFF | Guard active ON |
+|---|---:|---:|
+| Global XY≤25cm를0.5초 유지 | 3.369초 | 3.262초 |
+| Smooth 동일 gate | 4.009초 | 3.942초 |
+| 실제 relocation reset / ACK | 0 / 0회 | 0 / 0회 |
+| 재개 후 Smooth 횡p95 | 8.39cm | 8.61cm |
+| 목적지/충돌/최종 P | PASS/0/VERIFIED | PASS/0/VERIFIED |
+
+GNSS update가 innovation114m를 먼저 줄여 정차 gate가 준비될 때≤1.362m였다.
+**ON이 더 빠르게 reset했다는 증거가 아니다.** Local XY step은약5.8cm 이하였지만
+SceneLoad의 absolute heading으로 Local yaw는약46° 변했다. Local 전체 pose의 연속성과
+TF closure/독립 GT 정확도를 혼용하지 않는다.
+
+가드는 opt-in 안전 계약만 강화했다: 정상 frame·finite/unit quaternion/covariance·
+co-time state/orientation, vx≤0.05m/s1초, GNSS span≤0.3m1초, gap/invalid/duplicate
+count 초기화·재획득1초 grace, 단일 pending reset과 새 Global2개 ACK다.
+ACK2초 timeout/발행 실패는 blocked latch이며 restart 전 재시도하지 않는다.
+미래 stamp로 cache가 고정되거나 잘못 reset되던 결함도 mock으로 재현·수정했다.
+age≤0.5초/미래≤0.05초 검사는 **guard만의 발행 안전 조건**이며 core 시간 정책은 그대로다.
+`061917`은 마지막 absolute-age 강화 전 snapshot이므로36unit/격리 transport와 구분한다.
+
+**로컬 CP15 ScenarioLoad에서 raw GPS=0이 관측됐다.** 공식 체크포인트의 음영 여부를
+증명한 것이 아니며, 공식 운영 이벤트가 아니라 개발 장면의 예외 조건 대조다.
+
+| CP15 emulation | 새 위치 정보 없음 `064054` | 명시적 known prior `064654` |
+|---|---:|---:|
+| 순간이동 뒤 위치 차이 | 약138.65m 유지 | reset 후약1.94mm |
+| 음영 중 GNSS odometry | 0개 | 0개 |
+| 추가initialpose | 0회 | lab prior1회(총2회) |
+| 재출발 | GPS safety gate 차단 | stock PP/PI 재개·PASS |
+
+known prior는 요청한 SceneLoad checkpoint 좌표를 map TF로 변환하고 fresh canonical
+Competition heading을 복사해 기존 `/localization/initialpose`에 한 번 전달했다.
+Ego XY는 runtime prior가 아니라 안전·독립 오차 확인용이다. guard 자체 reset/ACK는0회,
+fake GNSS도0개였다. Global-only reset에서 Local XY는 이동하지 않았다.
+실제 reset receipt 후약18ms에25cm 안으로 회복, 약518ms에0.5초 유지 gate를 충족했다.
+GPS는 stock 제어 재개1.682초 뒤에야 돌아왔다. 당시 prior header/receipt 차이가302ms라
+후속 helper는 TF/subscriber 준비 뒤 fresh P·heading을 다시 확인하고 발행 직전에
+새 event stamp를 설정했다. 최신 `065447` 반복도 같은 stock 경로로PASS했다.
+
+**알려진 반환 위치가 있으면 음영에서도 재초기화 가능**하지만 GNSS·새 위치 정보가
+모두 없으면 삼각함수/ZUPT/Kalman 튜닝으로138m 이동을 알아낼 수 없다.
+유효 GNSS로 재정합하는 복귀를 우선 검증하되, 실대회 유효 GNSS는 아직 보장되지 않았다.
+명시적 좌표 prior를 사용할 경우에는 운영측이 제공/허용하는 복귀
+이벤트·번호·배치 정확도 계약이 추가로 필요하다. 임의 위치 추측/Ego GT 재활성화를
+해결책으로 사용하지 않는다. z는 마지막 GNSS를
+유지하며 known XY prior가 높이 측정을 대체하지 않는다. 옛 metadata의 GNSS-only
+문자열보다 실제 known receipt/bag가 우선이고 새 helper는 metadata도 두 모드로 구분한다.
+
+### 종방향 원인과20ms 후보의 이득/악화
+
+raw GPS 직접 UTM 변환과 recorded GNSS odometry는 일치했다. signed 종오차는 속도에
+비례했고 robust 회귀/독립 Ego lag sweep에서 최신 full은약19–20ms,E24는24ms,
+pair는16ms,9/19는거의0ms의 apparent lag였다. 정지 때는약5cm cell bias뿐이고 vx 차이도
+작아−26cm 고정 lever-arm/vx scale/Smooth 단독 지연으로 설명하지 않는다.
+이는 상대 observation epoch 진단이지 실제 네트워크 지연20ms의 확정이 아니다.
+
+후보는 GPS map XY에 `dt * vx * [cos(corrected_map_yaw), sin(corrected_map_yaw)]`를 더한다.
+header/UDP 시간/z/cell/Q/R/heading은 유지한다. canonical twist·orientation의 같은 stamp,
+base_link header, 정상 quaternion·≤0.1초 source age에서만 적용한다. missing/stale/future/
+malformed pair는 원래 유효 GPS를 발행한다. map yaw를 또 회전하지 않고 Ego 위치나
+미제공 Competition vy를 사용하지 않는다. default0은 aux 구독도 없다.
+motion 상관/모델 불확실성의 별도 covariance 보상은 하지 않은 단일변수 후보다.
+
+| 동일입력 Smooth moving 종오차(cm), mean/p50/p95 | 0ms | 20ms |
+|---|---:|---:|
+| 최신 full `044421` | 27.21 / 25.97 / 57.92 | 2.99 / 2.24 / 7.64 |
+| historical9/19 heldout | 2.46 / 1.83 / 6.59 | 21.86 / 23.22 / 36.54 |
+
+최신 정상선회 종p95는31.18→7.72cm,고속20m/s+는72.80→7.20cm였다.
+반면 Global 정상선회 횡p95는4.11→4.74cm로 소폭 악화했다. moving fallback은 최신
+0.37%,과거6.71%다. fallback이 항상 성능상 무해하다고 보장하지 않는다.
+raw byte/header/count·static TF·초기화/SHA·약50Hz를 감사했다. 최신은 원본 post-load
+pose/covariance까지 일치했다. 과거 원본에initialpose가 없어 두조건 동일first-raw 초기화를
+썼으며 당시live 완전 재현으로 주장하지 않는다. Ego 없는 GPS 변위/Competition 적분은
+trapezoid에서최신30/과거8–10ms,left-hold12/0ms,right-hold40/20ms로 바뀌었다.
+상대 변화의 단서는 있지만 절대 보정값을 자동 선택하는 근거로 쓰지 않는다.
+
+실제 짧은020 주행`062131`은PASS했다. 같은scene Smooth 음영 종p95는 기본25.10cm
+대 후보6.52cm,횡p95는8.56 대4.64cm였다. 다른 실제 주행이며 인과 replay 표와 구분한다.
+기본 전체 코스`062655`는PASS했으나020 전체`063115`는고주로 MPT infeasible→비상제동→
+out-of-route→먼 목적지2점zero-speed fallback으로 중단했다. 첫warning에서 독립 GT 대비
+Global/Smooth XY는7.17/6.09cm,횡−2.15/−1.35cm,GPS invalid0개였다. GPS 발산/프로세스
+crash는 아니며 기존 baseline의 같은 장소/route 실패 이력도 있다. 다만 후보와의
+상호작용을 기각하지 않았으므로 **전체 코스 승격 gate는 실패**다. 정책을 바꿔 통과시키지 않았다.
+ERROR/MANUAL_ABORT·안전 P 확인을 보존하고 partial을 완주와 비교하지 않는다.
+
+### 재현·검증·BEVFusion 인계
+
+새10개 실행은 [bag catalog](260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md)의 정확한
+execution명을 따른다. 상세JSON/그림/생성script는 Git제외
+`planner_logs/analysis/261015_localization_final_hardening/`의
+`stationary/`, `checkpoint/`, `longitudinal/`, `collapse/`에 있다.
+localization_manager/bringup/validator만 증분 설치했다. 순수unit202개(측위124,validator70,
+helper8), 가드36unit 포함 및 격리ROS transport를 통과했다. ROS transport 파일을 일반
+unittest discovery로 실행한 초기 실패는 runner 오류였고 격리rostest와 구분했다.
+source/old install 혼재 시험은 gate에서 중단한 뒤 새 실행을 사용했다.
+
+helper는 **개발용 정차·SceneLoad 개입**이며 production launcher가 아니다.
+stock stack/PP·PI/UDP를 사용하고 `--execute` 없으면 check만 한다. 다른 주행기와 중복
+실행하지 않는다. 본래 `planning_validator.py`에는 여전히 `--run`을 붙이지 않는다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+# 공유 baseline YAML 전체를 개인workspace에 복사해 한scene·safety/bagON으로 실행.
+# intervention시간도포함하도록timeout설정(이번180초). 조건변경강제resume금지.
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode shadow_hold --hold-sec 30 --execute
+
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode checkpoint --checkpoint 13 --execute
+
+# lab에서확정한반환정보대조. 공식이벤트없는자동대회명령이아님.
+/usr/bin/python3 scripts/evaluation/localization/run_validator_intervention.py \
+  <개인 캠페인 YAML> --mode checkpoint --checkpoint 15 --known-checkpoint-prior --execute
+
+# 환경을검증하는별도후보. 공통실대회기본변경아님.
+localization gnss_motion_compensation_sec:=0.02
+```
+
+BEVFusion 재개 시 기존 alias/토픽/Heading/UDP/soft/Smooth 계약은 그대로다.
+새 기능을 함께 켜야 하는 의존성도 없고 가중치/perception/controller 정책을 변경하지 않았다.
+**정상 GNSS 체크포인트 복귀의 위치 회복 대기·새 route·제어 재개**와 LAN gate를
+판단팀/운영측과 확인해야 한다. 명시적 무GNSS 복귀 prior는 별도 개발 예외 실험이다.
+20ms의환경검증·route interaction은 후속연구이며 기본0을 유지한다.
+복귀 실험은 무객체·짧은 원래목적지이며 공식 remaining-checkpoint 미션 복구가 아니다.
+실제 배우/BEVFusion이 있는 복귀에는 tracker/prediction history와 오래된 trajectory/command
+무효화·공식 route 진행 상태의 별도 통합 확인이 필요하다.
+
+### 9월 19일 무카메라·무LiDAR 조건 복원과 실제 풀주행
+
+사용자가 9/19 경량 센서의 실제 배치 OFF 조건을 재확인했다. 과거 비교 입력은 현장
+LAN bag이 아니라 `260919_231906_q0005_r010_gt_object_lightweight_no_traffic.bag`이다.
+`configs/sensors/Sensor_localization_gt_lightweight.json`은 생성 commit `37b209d4`부터
+bytes가 같고 SHA256은 `4a7c8eb9f9f5a5c5a99a313472ffc8d6b71df20f1ed26a7f05c4fef9b5576c74`다.
+cameraList/Lidar3DList/Lidar2DList가 모두 비어 있으며 GPSList/IMUList는 현재
+`Sensor_competition_local.json`과 구조적으로 완전히 같다. 센서 pose·rate·noise 변경 없이
+카메라·LiDAR 생성 부하를 분리할 수 있다.
+
+새 개인 입력은 `full_course/workspace/loc_fullcourse_true_lightweight.yaml`이다.
+기존 soft_production의 무객체 코스·목적지·최신 soft/Smooth·실제 planning/PP·PI·od_gt·
+신호등OFF·RViz/영상10fps split·측위bag/safety를 유지하고 sensor 경로만 바꿨다.
+종방향 보상은 기존 기본값인0초를 명시했다. 설정 검사와 dry-run은1장면×1회,
+기존600초 주행 상한으로 통과했고 source/installed runner·UDP launch·GNSS converter·
+Smooth publisher도 일치했다. 과거9/19의 필터/제어기 구현을 되돌리는 시험이 아니다.
+
+Validator YAML은 ROS 수신/TF 구성을 바꾸지만 MORAI Sensor 배치를 자동 Load하지 않는다.
+사용자가 MR에서 경량 Sensor Load 완료를 확인한 뒤 새 실행
+`loc_fullcourse_true_lightweight_261015_112304`로 실제 풀주행했다. 기존 master만 남은
+graph에서 시작했고 live XMLRPC에서도 카메라4개/LiDAR/Velodyne 발행자가 없었다.
+`/ctrl_cmd`는 stock longi_pi 하나, planning state는 GNSS EKF publisher,
+controller state는 Smooth publisher 하나였다. Ego GT pose provider로 대체하지 않았다.
+센서 snapshot과 실제 명령의 `enable_lidar=false`, camera/lidar TF=false를 함께 대조했다.
+`include_sensors=false`만으로 센서 생성OFF를 선언한 것이 아니다.
+
+| 실제 폐루프 확인 | 결과 |
+|---|---:|
+| validator 주행 / controller header 평가창 | 153.71 / 154.557초 |
+| 주행·충돌·종료 | PASS/SUCCESS, 충돌0, 실제 정지/P VERIFIED |
+| 실제 GPS invalid / 정상 재획득 | 7.276초 / 복귀 확인 |
+| GPS / IMU / Competition·Ego | 29.99 / 49.95 / 49.98Hz |
+| Global·Smooth / 최대 header gap | 50.00Hz / 24.45ms |
+| trajectory / ctrl_cmd | 10.01 / 50.00Hz |
+| 독립 입력·중간 state·후단·제어 녹화 | localization replay/assessment audit 모두 true |
+
+모두 **보정하지 않은 원래 header/pose**로 평가했다. 아래는 정상 GNSS 이동
+(`|speed|>0.5m/s`, 음영과 재획득 첫1초 제외)의 절대 종오차다. Global/Smooth는 각
+실제 주행에서 기록한 출력이며 과거 same-input20ms 후보 표와 모집단을 혼용하지 않는다.
+
+| 상태 | 기존 로컬 `044421` mean/p50/p95(cm) | 새 무센서배치 `112304` mean/p50/p95(cm) |
+|---|---:|---:|
+| raw GPS | 28.70 / 26.51 / 60.26 | 4.49 / 4.23 / 9.19 |
+| Global | 27.70 / 26.51 / 60.14 | 1.46 / 1.09 / 3.71 |
+| Smooth | 27.33 / 26.08 / 59.60 | 1.46 / 1.10 / 3.67 |
+| raw GPS 상대epoch 최적lag | 20ms | 0ms (2ms 검색격자) |
+
+기존 로컬 반복 `045214`도 raw GPS lag18ms였으며, 9/19 진짜 경량 raw는0ms,
+종mean/p50/p95=4.91/4.53/10.54cm였다. 후자는 구형 software와 전체bag 기반 정상 이동
+창이므로 현재 controller 창과 완전히 같은 주행으로 취급하지 않는다.
+새 입력 raw→GNSS converter 동시각 좌표 차이는5,244개에서0이었다.
+종오차의 속도 회귀계수는 새 raw−0.0000393초 대 기존 raw−0.019595초였다.
+
+새 전체 이동 구간(음영·재획득 포함)의 Smooth 결과는 다음과 같다.
+
+| 지표 | mean / p50 / p95(cm) |
+|---|---:|
+| XY | 2.18 / 1.75 / 4.87 |
+| 종 | 1.47 / 1.10 / 3.71 |
+| 횡 | 1.24 / 0.78 / 4.01 |
+
+새 실제 최고속도34.714m/s,25m/s 초과 Smooth 종mean/p95=2.39/7.13cm였다.
+단순히 저속 주행만 했기 때문에 오차가 작아졌다고 설명할 수 없다. 실제 음영 중
+Smooth 횡p95=4.42cm, 재획득 첫1초5.16cm였고 state 중단 없이 복귀했다.
+정상/음영 phase 전체 표본 표와 실제 Ego 경로 추종 오차는 별도 분석에 보존했다.
+
+**판단:** 센서 배치·생성 부하와 GPS↔Ego 상대epoch의 관계를 강하게 지지한다.
+EKF나 Smooth를 바꾸지 않아도 최신 로컬의 큰 종편차가 사라졌다. 다만 서로 다른
+시점 주행이므로 camera/LiDAR 중 어느 구성·부하·스케줄링이 원인인지는 확정하지 않았다.
+동일 코드/코스/RViz·영상 조건에서 실제 Sensor ON 재주행이 다음 인과 대조다.
+raw 상대lag를 물리적 UDP 전송지연·RTF로 단정하지 않는다. 주행153.71초와 전체
+case lifecycle203.25초의 비율도 RTF가 아니다. 대회4090/LAN 기본값을 이 결과로 변경하지 않는다.
+**20ms 보상은 계속0초, Q/R·soft/Smooth·heading·UDP 정책과 planning/control 정책도 그대로다.**
+
+원본은 `planner_logs/validation/loc_fullcourse_true_lightweight_261015_112304/success/`의
+case bag/snapshot/events/receipt다. 분석과 새 wrapper는 Git 제외
+`planner_logs/analysis/261015_true_lightweight_comparison/run112304/`의
+`comparison.json`, `README.md`, `phase_analysis.json`, `PHASE_REPORT.md`, `timeline.png`에 있다.
+완료 후 validator 소유 노드는 모두 종료되어 원래 master와 rosout만 남겼다.
+
+### 9월 15일 LAN 현장 bag 상대 epoch 역산 — 직접GPS 미녹화의 한계 보완
+
+사용자 요청으로 현장 localization1/2/3과 직접GT 대조의 원본4개 bag를 전수 추출했다.
+모든 bag은33토픽이며 다른 이름/type의GPS·IMU·Competition·GNSSodom·내부EKF도 없었다.
+독립 bag TF의 map→morai_map은 translation(131.55913022,545.911338186),yaw0이었다.
+fusion oracle heading−1.347°,직접GT0°를 분리했다. 이분석은 offline이며 주행·source/
+config·시간 정책·원본bag를 변경하지 않았다.
+
+| 현장bag, 실제 receipt 평균Hz | Ego | 전방camera | LiDAR | 최종state | tracking | trajectory | ctrl_cmd |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| localization1 | 48.415 | 29.981 | 12.811 | 50.000 | 29.842 | 10.006 | 50.000 |
+| localization2 | 47.992 | 29.976 | 12.592 | 50.005 | 29.807 | 9.996 | 50.000 |
+| localization3 | 47.909 | 29.939 | 12.592 | 50.000 | 29.798 | 9.995 | 50.000 |
+
+平均Hz는count/span이다. 잘 들어오는Hz만으로GPSepoch가0이라고 판단하지 않는다.
+최종state를 독립Ego와 비교해 종오차와 속도/방향/가감속/회전의 관계를 역산했다.
+positive lag는state(t)가Ego(t−lag)에 더 가깝다는 뜻이다. speed>2m/s,유효oracle,
+같은 lag비교표본,2ms검색격자와5/10초블록bootstrap각300회를 사용했다.
+
+| 최종state header기준 | MAE최적lag | 공간·가감속 nuisance 포함 robust회귀lag | 10초block 최적lag 2.5–97.5% |
+|---|---:|---:|---:|
+| 현장1 | 4ms | 5.66ms | 4–6ms |
+| 현장2 | 4ms | 5.79ms | 4–6ms |
+| 현장3 | 4ms | 5.40ms | 4–6ms |
+| 현장 직접GT | 0ms | 0ms | 0ms |
+
+이구간은 표본재추출 정밀도이며 미관측입력·모델체계오차의 신뢰구간이 아니다.
+방향별best는2–6ms였다. 정상covariance trace<0.02m² proxy와 직선 대조도 대체로4–6ms를
+지지했다. 제한된 정속subset 회귀는 조건수가 나빠 넓은구간을 보여 단일숫자를 강조하지 않는다.
+현장3의15–20m/s 구간은 평균16.71m/s에서 median종오차 약−6.9cm였고,
+20ms 지속지연이면 약−33.4cm가 예상돼 기록과 맞지 않았다.
+0ms/최적4ms/20ms 가정의 현장3 종오차MAE는5.52/3.72/16.53cm였다.
+이는 oracle시각이동 진단이며 runtimeGPS보상실험이 아니다.
+
+방법은rawGPS가 있는5개 bag로 교차검증했다. raw→최종Global lag가
+일반센서20→20,18→18,새경량0→0,9/19경량0→0,현장구형sigma.05/Qxy.05계열0→0ms로
+일치했다. 필터출력이 숨은GPSepoch의 유용한proxy라는 근거이지만 raw없는 현장의
+GPS 지연을 직접 측정한 것은 아니다. 당시predictcurrenttrue 소스와 일치하며 그옵션이
+receipt stamp에 숨은미지의 관측지연까지 자동 제거하지는 않는다.
+
+추가로 최종XYcovariance 정상영역 수축 빈도는현장1/2/3에서28.79/29.11/29.22회/s였다.
+약30Hz 절대위치갱신 패턴과 정합적이며 정확한GPSHz는 아니다. 현장3에서120ms보다긴
+보정빈구간은7.58초 한 번으로 covariance증가 구간과 겹쳤다. 음영외장기보정단절은
+이proxy에서 관측되지 않았다. 전체15-state cross-cov/update순서가 없어GPS값을정확복원하지 않는다.
+
+최종state header→bag age p50/p95는현장1 .886/1.132ms,현장2 4.038/28.214ms,
+현장3 .965/1.206ms였다. 2번은receipt기준lag약10ms로 늘어GPS와별개인하류지연이있다.
+직접GT조차header기준0ms지만receipt기준최적6ms가된다. 작은headerage는stamp전부하/
+물리센서지연을 제한하지 않는다. LiDAR age약90ms는scan누적을포함해GPS의대용지표가아니다.
+
+**판단:** 현장은로컬일반센서18–20ms보다작은수ms상대차이와정합적이다.
+"정확히0ms"라기보다"큰고정20ms급지연은지지되지않음,추가보상0초유지"가맞다.
+MORAI PC분리가유리했다는가설을지지하나CPU사용률·stamp전queue가없어원인을확정하지않는다.
+당시source기본과실제runtime를구분하고현재production의LAN검증완료로세지않는다.
+
+세부보고서·숫자cache·재현script·원시입력5개calibration·독립검토는Git제외
+`planner_logs/analysis/261015_field_gps_epoch_inverse/`에있다.
+기존필드bag등급은FIELD_RESULT_ONLY를유지한다. 새로운추정으로원시입력이나현재필터
+재실행권한을복원한것은아니다.
+
+### 제공 Spawn 프로그램 실제 시험 — 번호·원시 패킷·측위 복귀
+
+2026-10-15 사용자가 제공한 `MORAI_Spawn_Linux`를 Music에서 Git 밖
+`~/Applications/MORAI_Spawn_Linux`로 이동했다. 프로그램 SHA256은
+`5ecc827f5fcbd1cbe00aabb5b01aa01e6d1f87293345d61c20ba5d139210a2f6`이다.
+Python3.8 PyInstaller 단일 실행 파일이며 `숫자+Enter`/`q+Enter`를 받는다.
+`127.0.0.1:7789` gRPC의 Ego SetTransform을 호출하고 주소 CLI 옵션은 없다.
+시작만 해서는 차량을 옮기지 않으며, CLI의 Success 문자열은 측위 복구 증거가 아니다.
+
+**수정안 확인 후 번호 계약:** 0=START, 1–14=현행 CP1–14이며 좌표·yaw가 모두 일치한다.
+사용자가 후속 제공한 그림은 `image-20261007-064744.png`다. 최초 비교에 사용한 구표·구그림은
+START+1–15였으므로 차이를 프로그램 불일치로 본 판단은 철회하고, 번호 관련 문의는 삭제한다.
+현행11은 수정된 좌표이며 현행12/13/14=구CP13/14/15다.
+[수정안 CURRENT와 구표 HISTORICAL](../competition/261015_공식_체크포인트_안내_보관.md)을 따른다.
+원본 bag·JSON·실행명의 CP13/15 및 UNMATCHED 라벨은 당시 구표 기준이며 고치지 않는다.
+아래 본문은 현행 번호를 우선하고 구번호는 명시한다. 프로그램/좌표를 바꿔 재시험한 것이 아니라
+같은 실측 좌표의 공식 번호가 확정된 것이다. runtime rule monitor의 구15점 설정은 별도 동기화 대기다.
+‘체크포인트는 음영 밖’은 그림을 보고 한 시각적 판단이었다고 사용자가 후속 확인했다.
+복귀 직후 유효 GNSS가 제공된다는 대회측 보장으로 사용하지 않는다.
+
+#### 시험 조건과 안전
+
+현재 production soft/Smooth·GNSS시간보상0·heading−1.347°·Q/R·receipt-time을 고정했다.
+실제 MORAI Sensor 배치는 카메라/LiDAR 없는 경량 GPS/IMU이며 무객체 scene,
+od_gt→tracking/Map-CV→ROS1 planning→기존 PP/PI·UDP를 사용했다.
+RViz/영상10fps split·localization_analysis bag·safety ON,신호등OFF다.
+초기 장면 준비에만 stock ScenarioLoad를 사용하고 **각 checkpoint 이동은 전달받은
+원본 실행 파일**로 수행했다. 추가 initialpose 주입은0회, relocation guard는OFF다.
+
+스폰 전 제어기를 중단하고 brake=1/accel=0·P 송신을 유지했다. 원시 Ego로 새 위치와
+header를 확인하고, 스폰 후 3D실속도≤0.05m/s/P/ExternalCtrl의1초 안정화를 요구했다.
+P·fresh 입력·GPS·Global/Smooth XY≤25cm의0.5초 유지가 확인되기 전 다음 단계로 가지 않았다.
+초기 시도의 즉시 P 검사 실패와 후속 정상 시험은 새 execution으로 분리했다.
+
+**실제 관측:** SetTransform 직후 raw gear가D로14.56–49.45ms 바뀌었다가 P로 돌아온다.
+높이의 접지 settling도 있어 최초 작은0.42m 스폰의3D속도최대0.0927m/s,
+XY속도최대0.0292m/s였다. CLI가 brake·gear·velocity reset을 명시적으로 보내지 않는 것과
+MORAI 내부에서 D/물리 상태가 잠깐 변하는 것을 구분한다. 통신·실제 정지를 확인 못하면
+다음 자동 이동/주행은 차단하며, 이 transient를 무시해도 된다는 production 변경은 하지 않았다.
+
+#### 0–14 정차 시험
+
+실행 `loc_official_spawn_probe_261015_131944`는 각 지점에서 정차·회복을 관측했다.
+원본 bag의 static TF를 읽고 실제 Ego teleport15개에서 보간을 분할했다.
+아래 회복 시간은 실제 Ego 위치 변화부터 측정하며 정상 주행 오차와 구분한다.
+
+| 항목 | 실측 결과 |
+|---|---|
+| GNSS 유효·정차 자연 복구 | 툴0–13의14지점 |
+| Smooth XY≤25cm 최초 진입 / 0.5초 유지 확인 | 2.28–6.53초 / 2.78–7.03초 |
+| 정상14지점의 마지막2초 Smooth XY mean | 2.48–12.05cm |
+| Global/Smooth 발행 | 약50Hz, 주요9개 stamped topic header역행0 |
+| Local XY 최대 frame step | 0.600mm, map 절대위치 오차와 구분 |
+| 스폰 후 추가 initialpose | 0개; GNSS 자연 보정과 Smooth 정렬 반영 |
+| 툴14/수정안CP14(구CP15) | GPS340개 모두zero, 새GNSS odometry0개, 위치 미복구 |
+| 툴14의 Global/Smooth XY | 이전 툴13/현행CP13(구CP14)에 남아 약136.77m 오차, heading은 새 방향 반영 |
+| 미복구 후 종료 | 자동 재출발 금지, 실제 정지/P VERIFIED |
+
+GPS가 없어도 현재 state는50Hz로 계속 나오므로 state freshness만으로 절대위치 복구를
+인증하면 안 된다. soft vy/ZUPT/더 큰 Q가 관측되지 않은136m 순간이동을 알아낼 수는 없다.
+기존 SceneLoad 구CP15(현행14)의zero가 툴 차이만으로 사라지는 현상은 아니었다.
+
+#### 원시 패킷 대조 — 0→14→0
+
+별도 **정차 원시 패킷 진단** `packet_probe_20261015_132719_550832`는 scene load·
+localization·planning·주행 controller 없이, stock brake/P sender와 소유 receiver만 사용했다.
+GPSzero인 툴14에서 시작해0→14→0을 옮겨 마지막은 정상GPS·정지/P로 종료했다.
+tcpdump 권한이 없어 소유 receiver의 recvfrom만strace로 관찰했다. 관찰 부하가 있으므로
+기존 수ms latency 평가와 혼용하지 않는다. 첫recvmsg 계측 시작 오류는 별도 원본 보존했다.
+
+- GPS GGA1125개 중470개가 원본 bytes부터lat/lon0이며 fix quality는모두1이었다.
+  RMC도동일470개가zero인데 validity는A였다. **status만 보지 않고 좌표zero를 거부하는
+  기존 adapter 계약을 유지**한다. bridge/ROS가 정상GPS를0으로 만든 것이 아니다.
+- 초기14zero→0valid→14zero→0valid를 반복했다. 실제 지역/scene 조건에 묶인 현상이다.
+- Ego/Competition/IMU native sec/nsec와 GPS UTC는 역행/리셋하지 않았다.
+  기존 ROS receipt-time 정책·source/설치본/프로그램hash도 변하지 않았다.
+- 평균Hz는 Ego49.97,Competition50.00,IMU49.95,GPS29.96이었다.
+  최대수신gap은 각각59.66/46.06/51.68/80.20ms로100ms이상 단절은없었다.
+- Competition 원본position은항상0이고heading은새방향으로바뀐다.
+  rawgear의짧은D도원본에있다. 프로그램이별도ROS reset이벤트를발행하지는않는다.
+
+현재 로컬 scene의 shadedArea는 중심(-23.668,-519.240),긴폭117.959/짧은폭7.419m다.
+기존 dataset 검증기의yaw−90° 축 가정으로 현행CP14(구15) 중심은측면경계밖약1.09m다.
+차량collider·실제volume좌표축·경계판정에민감한위치라는단서이지, 원인이확정된것은아니다.
+그림의파란영역만보고 유효GNSS를보장하거나 이를실대회volume의직접측정으로쓰지않는다.
+
+#### 판단과 산출물
+
+정상GNSS복귀도 즉시정확해지는것은아니며, 수초동안큰중간오차가남는다.
+따라서 **정지유지→위치/yaw복구확인→새route/trajectory→제어재개** 계약이필요하다.
+zero-GPS 복귀에는 신뢰할 수 있는 복귀번호/좌표 등의새절대위치입력이필요하지만,
+이번에 자동초기화·가드기본값·판단/제어정책을변경하지않았다.
+배우없는정차실험으로tracker history무효화나충돌후공식미션상태복구를검증한것도아니다.
+
+Git 제외 `planner_logs/analysis/261015_official_spawn_probe/`에
+`batch_analysis.json`, `compact_summary.json/md`, 첫중단분석, private실행/평가기와
+raw probe의`raw_summary_v2.json`·원시trace·bag·metadata를모았다.
+`raw_summary.json`의invalid좌표거리계산오류는v2에서결측전이로수정했고원본은보존했다.
+재출발 actual drive의 별도 결과는 후속 절과 원본execution을 따른다.
+
+#### 실제 유효GNSS checkpoint 재출발 — stock planning/PP·PI PASS
+
+별도 실행 `loc_official_spawn_remaining_route_261015_132923`는 툴12(수정안CP12, 구CP13)로
+약211m 이동하고, 원래START로돌아가지않은채 그지점에서 재출발했다.
+브레이크/P에서 Global/Smooth XY≤25cm 및 보정된Competition대비yaw≤1°를0.5초
+확인한뒤, 기존 전체코스의후반2waypoint와목적지로 fresh route를요청했다.
+추가initialpose/GT위치fusion없이 기존PP/PI→MORAI UDP로실제이동했다.
+분석시구간은 `OFFICIAL_SPAWN_STOCK_CONTROLLER_RESUMED`부터`RUN_FINISHED`다.
+전체monitor변위에teleport가포함되므로이를주행거리로사용하지않았다.
+
+| 실제 재출발 구간 | 결과 |
+|---|---:|
+| 시간 / rawEgo 이동거리 / vx적분 | 34.115초 / 416.044m / 416.007m |
+| 실제 최고속도 | 16.366m/s |
+| 실제Ego 최종목적지XY거리 | 0.159m |
+| 실제주행중 GPSzero | 7.267초,정상재획득 |
+| 이동>1m/s Global XY mean/p50/p95 | 2.91/1.99/6.42cm |
+| 같은창 Smooth XY mean/p50/p95 | 3.01/2.08/6.84cm |
+| 실제주행 음영중 Smooth XY mean/p95 | 5.97/7.39cm |
+| 충돌 / post-spawn initialpose | 0 / 0 |
+| recording replay/assessment audit | 둘다true |
+| 최종 raw gear/mode/정지 | P(1),ExternalCtrl(2),VERIFIED |
+
+최종Ego yaw는설정goal yaw와약6.87°다르지만Global/Smooth와Ego의yaw는일치한다.
+이를측위yaw오차로세지않는다. TF closure XY p95약0.233mm도내부정합지표이지GT정확도가아니다.
+
+이결과는 **유효GNSS에서스폰→명시적정합대기→새경로→실제재출발→연속주행음영통과**의
+성공이다. **GPSinvalid 상태로 현행CP14(구CP15)에 직접 스폰**한 문제를 해결한 것은 아니다.
+무객체·현재경량로컬·개발용remaining경로이며공식미션진행상태/배우history초기화는남는다.
+`planner_logs/analysis/261015_official_spawn_probe/resume_analysis.json`과
+`resume_summary.md`, 원본execution의frozen helper/계약/receipt를따른다.
+종료후실제graph는`/rosout`만남았으며,사용자roscore/MORAI/idleGUI는보존했다.
+
+#### 운영측 후속 답변 — CP14 유지, GPS 음영 범위 조정 예정
+
+2026-10-15 사용자가 전달한 MORAI 박영후 담당자 답변(14:33 후속 설명)에 따르면,
+**CP14 좌표와 차량 소환 위치를 그대로 유지하고 GPS 음영구역 범위를 조정**해 여유거리를 둔다.
+spawn을 전진시키는 방안이 아니며, 앞선5m 이동 제안은 운영측 방안으로 대체됐다.
+규정집 v1.2 링크는 이미 갱신됐으나 정보창고 채널 링크는 미갱신이었다는 설명도 받았다.
+현재 공식 링크·수정 좌표표·구번호 대응과 답변은
+[체크포인트 안내 보관](../competition/261015_공식_체크포인트_안내_보관.md)에 모았다.
+
+상태는 **운영측 반영 예정 / 새 환경 재검증 대기**다. 위 raw GPSzero·136.77m 미복구와
+유효GNSS 재출발 PASS는 모두 변경 전 로컬 환경의 EVIDENCE이며 원본을 보존한다.
+이번 답변으로 production 측위·좌표·guard를 변경하지 않는다. 새 환경 적용 후 별도 실행에서
+툴14 스폰→유효 raw GPS→Global/Smooth 위치·yaw 정합→새 경로→기존 제어 재개를 확인해야 한다.
+아직 해당 변경본으로 실행하지 않았으므로 CP14 문제를 검증 완료로 표시하지 않는다.
