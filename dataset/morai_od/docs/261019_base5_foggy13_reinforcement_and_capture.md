@@ -1526,3 +1526,120 @@ Foggy15 manifest·새 보충 출력·누적 4,939+1을 확인하고 브라우저
 Foggy11이 정규 Sunny11/13/15·Foggy11/13/15의 마지막 본수집이다. 양쪽 부족분까지 채워야
 native 30K가 완료된다. Sunny 추가 보강은 별도 선택 계획이며, JPEG 학습 입력 변환·선택
 분할·회수 완료 여부도 native 장면 수와 구분한다.
+
+<a id="foggy15-terminal-two-and-jpeg-retrieval-261021"></a>
+
+## 10/21 Foggy15 마지막 두 장의 실제 완료와 JPEG 회수
+
+앞 절의 유연 보충은 10/20 21:36:23 KST에 **승인 4,998 / 부족 2**로 중단됐다.
+상위 오류는 `Native safety/communication/Park child failed; no next load`였지만 실제
+원인은 `00217`의 준비 payload가 이미 관측된 SHA와 같아 재촬영을 막은 가드였다.
+`00008`은 기존 목적을 유지하는 donor 탐색을 소진했다. 마지막 두 준비 세션의
+정지/P·CollisionData는 정상이었으며 MORAI 재부팅이 필요한 통신 장애의 증거는 없었다.
+기존 halted 상태·부족분·시도 이력을 정상으로 고쳐 쓰지 않았다.
+
+사용자가 마지막 두 장의 쉬운 대체와 JPEG 회수를 승인해 새 별도 출력
+`~/ajounice_base5_capture/collections/foggy15_5k_terminal_v1`을 사용했다. 앞선 4,998개
+선택 행을 문자 그대로 보존하고, 두 slot의 기존 ordinal 1~3 이력과 알려진 payload를
+상속한 뒤 새 ordinal 4에서 각각 다른 native 장면을 촬영했다. 두 장에 한해
+family·동작·의미군·거리 목적을 정적 차량 5~30m로 완화했으며 split과 실제 native QA·
+중복 재촬영 차단·최종 정지/P는 유지했다. 재시도 횟수를 0으로 되돌린 것이 아니다.
+
+새 `00008`은 truck 약 11.41m·LiDAR 510점, `00217`은 OBJ truck 약 22.22m·214점이었다.
+둘 다 실제 native 승인·raw complete·충돌 검증·최종 P gear 1/errors `[]`를 확인했다.
+10/21 00:16경 실제 status와 정상 run exit 0에서 **승인 5,000 / 부족 0 / 실패 0 /
+error null·complete·selected_not_certified=false**를 확인했다. 기존 4,998행은 동일하고
+source slot·실제 ID·raw 경로·payload는 각각 5,000개 고유했다.
+
+원격 native 완료 근거는
+`work/foggy15-terminal-finalize-v1/NATIVE_COMPLETE.json`이다. 새 운영 helper·과거 준비 실패
+근거는 `work/foggy15-terminal-two-v1`~`v4`에 보존한다. 시작 전 스키마 검사 실패와 FD 한도
+실패는 native 촬영 0회였으며, 완료된 59개 보충은 저장된 원형 인증의 작은 evidence SHA로
+연결했다. 원본 4,939장 native QA나 완료된 새 59장의 원본 전체 QA를 다시 실행하지 않았다.
+작업자만 umask `0077`·FD soft limit 65,536을 사용했고 시스템 한도는 변경하지 않았다.
+
+이 native 완료와 최종 분할·JPEG 변환·회수 완료는 별도 단계다. 원격 RGB PNG·native GT·
+실패 원본은 삭제하지 않으며, 로컬 Foggy11 수집도 중단하거나 변경하지 않는다.
+
+이후 선택 기반 최종화가 **4분 42.7초·exit 0 / train 4,250 / val 750**으로 완료됐다.
+원래 capture split은 보존하고 실제 선택 geometry 261행을 파생 overlay에 연결했다.
+변환 입력은 최종 선택 아래 `layout_split_final/{manifest.json,derived_selected_ledger.jsonl,
+split_overlay.json}`이며 manifest SHA는
+`e0dcac0f664d89328ceadef705a8f015c7ac7f71fb2b94730192a3ba41c673a0`,
+derived ledger는 `eff0242ffb898b8f9e3c6b900bc0b049e4d8f14e85a1860abd49230860db3f96`이다.
+로컬 `artifacts/evaluation/base5_foggy15_completion_261021/LAYOUT_JPEG_HANDOFF.json`의
+9개 제어 SHA와 native 완료 receipt를 확인한 뒤에만 JPEG 변환에 넘겼다.
+
+기존 웹 서버만 종료하고 별도 최종 관측기로 바꿨다. **빌린 PC 8086 / 로컬 8087**의
+실제 JSON이 `foggy15_5k_terminal_v1`·complete·5,000/0/0·error null·stale false임을
+독립 확인했다. 이전 4,998장 중단 출력은 수정하지 않았다.
+
+### JPEG 변환의 저장 방식만 보완
+
+원격 남은 공간은 약 33.6GiB였다. 원형의 원본 RO namespace에서는 초기 PNG portable
+23.6GB를 별도 복사하므로 JPEG·압축본과 10GiB 안전 여유까지 유지할 수 없었다.
+PNG 삭제 대신 새 export 내부에 원본과 같은 inode를 가리키는 alias를 준비하고,
+원형 portable builder의 첫 hardlink 입력만 그 alias로 연결했다. native RGB·auxiliary
+187,826개 파일의 SHA·device/inode·크기와 최종 5,000개 선택 identity를 고정했다.
+초기 PNG payload 중복 복사는 실제 0바이트다.
+
+이는 JPEG 인코더·픽셀·GT·가시성·분할 규칙의 변경이 아니다. 기존 Sunny15의 변환 helper
+11개와 센서 SHA가 일치했고, 같은 native 해상도 Q90·upright 7D·Animal→Pedestrian
+3클래스 경로를 사용한다. 별도 저장 adapter의 12개 fixture와 원형 writer의 쓰기 경로를
+검토했다. 원래 함수의 새 빈 export 검사에서 정확히 검증한 alias 디렉터리 하나만 허용하고,
+기존 INTENT·다른 파일·비어 있지 않은 tmp·잘못된 inode·경로 이탈·복사 fallback은 거부한다.
+
+hardlink alias는 물리적인 inode RO 보호와 같지 않다. 새 경로와 원본이 inode를 공유하므로
+동결된 원형 코드가 원본 payload를 덮어쓰지 않는지 확인하고 실행 전후 전체 원본 SHA를
+대조한다. namespace에서 원본 경로가 RO라는 이유만으로 inode 전체가 RO라고 주장하지 않는다.
+향후 RGB 이름만 삭제해도 alias·중간 portable의 link가 남으면 공간은 회수되지 않으므로,
+현재 alias manifest와 원본 보존 증거를 남긴다. 이번 작업의 원격 PNG·alias 삭제는 0개다.
+
+실제 변환은 `work/foggy15-training-export-runtime-v1/`의 별도 CPU service로 실행한다.
+출력은 `work/foggy15-training-export-v1/`이며 원격 전체 디스크 여유 10GiB를 감시한다.
+원본 before-SHA를 통과하고 **모델 crop용 mask 측정·학습 GT frame 검사 5,000/5,000 /
+train 4,250 / val 750 / excluded_review_scenes=[]**를 확인했다. 지원 GT 부족으로 조용히
+장면을 제외한 수는 0이다. 이 시점은 JPEG 생성 중이며 최종 압축·로컬 회수 완료와 구분한다.
+운영 source·fixture·수령 준비는 로컬
+`artifacts/evaluation/base5_foggy15_training_export_261021_v1/`에 보존한다.
+
+원격 qualification은 **약 19분 05초·exit 0**으로 완료됐다. JPEG는 실제 20,000개이며
+전체 5,000장·train 4,250 / val 750를 유지했다. 유효 학습 GT는 Vehicle 4,477 /
+Pedestrian 3,148 / Obstacle 3,996, 합계 **11,621개**다. 원형 Animal→Pedestrian 매핑이며
+새로운 의미 라벨 정책을 추가하지 않았다. 등록 package payload는 187,835개·
+10,057,356,961바이트, manifest는 별도 38,497,998바이트였다.
+`work/foggy15-training-export-v1/QUALIFIED.json`과 `qualified/report.json`이 이 입력 검증의
+근거다. 이 시점은 원격 입력 검증 완료이며 압축·after-SHA·로컬 수령 완료는 별도로 확인한다.
+
+이어 원격 압축·압축 해제 스트림 전수 검증·원본 after-SHA가 모두 정상 종료됐다.
+압축본은 `base5_foggy15_5k_jpeg90_upright3_261021.tar.zst`이며
+**2,836,797,490바이트·내부 파일 187,839개**다. 전체 압축본 SHA는
+`3835b002025ff99071d60fc71be8fc341edc1ae3c2e891644a1d9a9081edc26e`다.
+`archive_receipt/COMPLETE.json`의 `verified_decompressed_members=true`·
+`source_package_unchanged=true`와 runtime `PIPELINE_COMPLETE.json`을 확인했다.
+원본·alias 187,826개 전후 SHA도 같고 원격 PNG 삭제는 0개다. 이 원격 완료 근거를
+로컬 `artifacts/evaluation/base5_foggy15_training_export_261021_v1/export_receipts/`에 수령했다.
+실제 로컬 압축본 전송은 단일 rsync로 진행하며, 로컬 복원 완료는 후속 receipt로 구분한다.
+
+### 로컬 수령·복원 완료
+
+**10/21 01:06:21 KST 원형 복원 COMPLETE, 01:06:22 후속 감사 완료, receive exit 0**을
+확인했다. 단일 압축본의 실제 전송은 14분 34초였으며 전체 archive SHA와 압축 해제된
+187,839개 멤버의 크기·SHA·등록 목록 검사를 통과했다. 실제 학습 입력은 다음과 같다.
+
+- dataset: `artifacts/evaluation/base5_foggy15_training_retrieved_261021_v1/dataset/`
+- 압축본: `artifacts/handoff/base5_foggy15_5k_jpeg90_upright3_261021.tar.zst`
+- 복원 근거: `artifacts/evaluation/base5_foggy15_training_retrieved_261021_v1/COMPLETE.json`
+- 후속 계보·GT 감사: `artifacts/evaluation/base5_foggy15_training_export_261021_v1/received_audit.json`
+
+복원 입력은 **5,000장·train 4,250 / val 750·Q90 JPEG 20,000개·유효 GT 11,621개**이며
+package manifest SHA는 `2a735fea803e91d4d3f92cae84b70452093dd2417d102998fd0d624960dfce75`다.
+최종 derived ledger·split overlay와 원격 qualification의 입력 SHA가 같고, class별 GT도
+Vehicle 4,477 / Pedestrian 3,148 / Obstacle 3,996으로 일치했다. 학습은 시작하지 않았다.
+원격 PNG·native GT·실패 원본의 삭제는 0개다. Q90 JPEG는 손실 변환이고 archive 압축과 구분한다.
+
+복원 전 로컬 Foggy11의 당시 남은 수집 예상 9.35GiB에 여유 5GiB를 더해 예약했고,
+저우선순위로 복원했다. **01:07 KST Foggy11은 승인 3,502 / 검사 3,537 / 검토 35 /
+실패 0 / error null·running·stale false**로 계속 진행했다. 당시 여유는 22.32GiB,
+남은 수집 예상은 9.28GiB였으며 수집·MORAI·ROS·bridge를 변경하거나 재시작하지 않았다.
+이는 Foggy15 전달 완료 기록이며 정규 30K 전체 완료 주장은 아니다.
