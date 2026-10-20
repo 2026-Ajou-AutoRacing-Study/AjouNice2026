@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "obstacle_cruise_module.hpp"
+#include "trajectory_index_mapping.hpp"
 #include "ros1_compat.hpp"
 
 #include "autoware_utils/ros/uuid_helper.hpp"
@@ -26,8 +27,12 @@
 #include <autoware_utils/ros/update_param.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <iomanip>
 #include <map>
 #include <memory>
+#include <sstream>
+#include <std_msgs/String.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -102,6 +107,10 @@ void ObstacleCruiseModule::init(ros::NodeHandle & node, const std::string & modu
   // module publisher
   debug_cruise_planning_info_pub_ =
     node.advertise<Float32MultiArrayStamped>("debug/obstacle_cruise/planning_info", 1);
+  debug_selection_pub_ =
+    node.advertise<std_msgs::String>("debug/obstacle_cruise/selection", 1);
+  debug_input_trajectory_pub_ = node.advertise<autoware_planning_msgs::Trajectory>(
+    "debug/obstacle_cruise/input_trajectory", 1);
   processing_time_detail_pub_ = node.advertise<autoware_utils::ProcessingTimeDetail>(
     "debug/processing_time_detail_ms/obstacle_cruise", 1);
 
@@ -139,6 +148,14 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
 
   // 1. init variables
   debug_data_ptr_ = std::make_shared<ObstacleCruiseDebugData>();
+  filter_trace_.clear();
+  if (debug_input_trajectory_pub_.getNumSubscribers() > 0) {
+    autoware_planning_msgs::Trajectory input;
+    input.header.frame_id = "map";
+    input.header.stamp = ros::Time::now();
+    input.points = raw_trajectory_points;
+    debug_input_trajectory_pub_.publish(input);
+  }
 
   // filter obstacles of predicted objects
   const auto cruise_obstacles = filter_cruise_obstacle_for_predicted_object(
@@ -152,6 +169,76 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
   [[maybe_unused]] const auto cruise_traj_points = cruise_planner_->plan_cruise(
     planner_data, raw_trajectory_points, cruise_obstacles, debug_data_ptr_,
     planning_factor_interface_, result.velocity_limit);
+
+  // Diagnostic only: identify input, accepted candidates and the actual PID target
+  // in one cycle. No additional filtering or control-state updates are performed.
+  if (debug_selection_pub_.getNumSubscribers() > 0) {
+    std::ostringstream stream;
+    stream << std::setprecision(17);
+    const auto number = [&stream](const double value) {
+      if (std::isfinite(value)) stream << value;
+      else stream << "null";
+    };
+    stream << "{\"schema_version\":1,\"stamp\":";
+    number(ros::Time::now().toSec());
+    stream << ",\"objects_stamp\":";
+    number(ros::Time(planner_data->predicted_objects_header.stamp).toSec());
+    stream << ",\"ego_velocity_mps\":";
+    number(planner_data->current_odometry.twist.twist.linear.x);
+    stream << ",\"inputs\":[";
+    bool first = true;
+    for (const auto & object : planner_data->objects) {
+      if (!first) stream << ',';
+      first = false;
+      const auto & predicted = object->predicted_object;
+      const auto & pos = predicted.kinematics.initial_pose_with_covariance.pose.position;
+      const auto accepted = std::any_of(
+        cruise_obstacles.begin(), cruise_obstacles.end(),
+        [&predicted](const auto & candidate) { return candidate.uuid.uuid == predicted.object_id.uuid; });
+      const auto selected = std::any_of(
+        debug_data_ptr_->obstacles_to_cruise.begin(), debug_data_ptr_->obstacles_to_cruise.end(),
+        [&predicted](const auto & candidate) { return candidate.uuid.uuid == predicted.object_id.uuid; });
+      stream << "{\"uuid\":\"" << autoware_utils::to_hex_string(predicted.object_id)
+             << "\",\"x\":";
+      number(pos.x);
+      stream << ",\"y\":";
+      number(pos.y);
+      const auto key = autoware_utils::to_hex_string(predicted.object_id);
+      const auto & trace = filter_trace_[key];
+      stream << ",\"filter_reason\":\"" << trace.reason << "\",\"filter_values\":{";
+      bool first_value = true;
+      for (const auto & value : trace.values) {
+        if (!first_value) stream << ',';
+        first_value = false;
+        stream << '\"' << value.first << "\":";
+        number(value.second);
+      }
+      stream << "},\"candidate\":" << (accepted ? "true" : "false")
+             << ",\"selected\":" << (selected ? "true" : "false") << '}';
+    }
+    stream << "],\"candidate_uuids\":[";
+    first = true;
+    for (const auto & candidate : cruise_obstacles) {
+      if (!first) stream << ',';
+      first = false;
+      stream << '\"' << autoware_utils::to_hex_string(candidate.uuid) << '\"';
+    }
+    stream << "],\"selected_uuids\":[";
+    first = true;
+    for (const auto & selected : debug_data_ptr_->obstacles_to_cruise) {
+      if (!first) stream << ',';
+      first = false;
+      stream << '\"' << autoware_utils::to_hex_string(selected.uuid) << '\"';
+    }
+    stream << "],\"velocity_limit_mps\":";
+    if (result.velocity_limit) number(result.velocity_limit->max_velocity);
+    else stream << "null";
+    stream << ",\"clear_velocity_limit\":"
+           << ((!result.velocity_limit && need_to_clear_velocity_limit_) ? "true" : "false") << '}';
+    std_msgs::String message;
+    message.data = stream.str();
+    debug_selection_pub_.publish(message);
+  }
 
   // clear velocity limit if necessary
   if (result.velocity_limit) {
@@ -210,18 +297,23 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
   // cruise
   std::vector<CruiseObstacle> cruise_obstacles;
   for (const auto & object : objects) {
+    auto & trace = filter_trace_[autoware_utils::to_hex_string(object->predicted_object.object_id)];
     // 1. rough filtering
     // 1.1. Check if the obstacle is in front of the ego.
     const double lon_dist_from_ego_to_obj =
       object->get_dist_from_ego_longitudinal(traj_points, current_pose.position);
+    trace.values["longitudinal_distance_m"] = lon_dist_from_ego_to_obj;
     if (lon_dist_from_ego_to_obj < 0.0) {
+      trace.reason = "behind_ego";
       continue;
     }
 
     // 1.2. Check if the rough lateral distance is smaller than the threshold.
     const double min_lat_dist_to_traj_poly =
       utils::calc_possible_min_dist_from_obj_to_traj_poly(object, traj_points, vehicle_info);
+    trace.values["rough_min_lateral_gap_m"] = min_lat_dist_to_traj_poly;
     if (obstacle_filtering_param_.max_lat_margin < min_lat_dist_to_traj_poly) {
+      trace.reason = "rough_lateral_gap";
       continue;
     }
 
@@ -231,6 +323,8 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
       predicted_objects_stamp, object->get_dist_to_traj_poly(decimated_traj_polys),
       is_driving_forward, vehicle_info, trajectory_polygon_collision_check);
     if (cruise_obstacle) {
+      trace.reason = "accepted_cruise";
+      trace.values["collision_point_count"] = cruise_obstacle->collision_points.size();
       cruise_obstacles.push_back(*cruise_obstacle);
       continue;
     }
@@ -249,6 +343,7 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
 
         // If no matching UUID found, insert yield obstacle into cruise_obstacles
         if (it == cruise_obstacles.end()) {
+          filter_trace_[autoware_utils::to_hex_string(y.uuid)].reason = "accepted_yield";
           cruise_obstacles.push_back(y);
         }
       }
@@ -346,15 +441,22 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   const auto & obj_uuid = object->predicted_object.object_id;
   const auto & obj_uuid_str = autoware_utils::to_hex_string(obj_uuid);
 
+  auto & trace = filter_trace_[obj_uuid_str];
+  trace.reason = "no_collision_points";
+  trace.values["polygon_gap_m"] = dist_from_obj_poly_to_traj_poly;
+  trace.values["lateral_velocity_towards_path_mps"] = object->get_lat_vel_relative_to_traj(traj_points);
+  trace.values["longitudinal_velocity_mps"] = object->get_lon_vel_relative_to_traj(traj_points);
   // NOTE: When driving backward, Stop will be planned instead of cruise.
   //       When the obstacle is crossing the ego's trajectory, cruise can be ignored.
   if (
     !is_cruise_obstacle(object->predicted_object.classification.at(0).label) ||
     !is_driving_forward) {
+    trace.reason = "class_or_reverse";
     return std::nullopt;
   }
 
   if (object->get_lon_vel_relative_to_traj(traj_points) < 0.0) {
+    trace.reason = "opposite_direction";
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore obstacle (%s) since it's driving in opposite direction.",
       obj_uuid_str.substr(0, 4).c_str());
@@ -364,7 +466,9 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   if (obstacle_filtering_param_.max_lat_margin < dist_from_obj_poly_to_traj_poly) {
     const auto time_to_traj = dist_from_obj_poly_to_traj_poly /
                               std::max(1e-6, object->get_lat_vel_relative_to_traj(traj_points));
+    trace.values["time_to_path_sec"] = time_to_traj;
     if (time_to_traj > obstacle_filtering_param_.max_lateral_time_margin) {
+      trace.reason = "lateral_time_gate";
       RCLCPP_DEBUG(
         logger_, "[Cruise] Ignore obstacle (%s) since it's far from trajectory.",
         obj_uuid_str.substr(0, 4).c_str());
@@ -373,6 +477,7 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   }
 
   if (is_obstacle_crossing(traj_points, object)) {
+    trace.reason = "crossing_angle";
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore obstacle (%s) since it's crossing the ego's trajectory..",
       obj_uuid_str.substr(0, 4).c_str());
@@ -382,14 +487,17 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   const auto collision_points = [&]() -> std::optional<std::vector<polygon_utils::PointWithStamp>> {
     constexpr double epsilon = 1e-6;
     if (dist_from_obj_poly_to_traj_poly < epsilon) {
+      trace.values["inside_path"] = 1.0;
       // obstacle is inside the trajectory
       return create_collision_points_for_inside_cruise_obstacle(
         traj_points, decimated_traj_points, decimated_traj_polys, object, predicted_objects_stamp,
         is_driving_forward, vehicle_info, trajectory_polygon_collision_check);
     }
+    trace.values["inside_path"] = 0.0;
     // obstacle is outside the trajectory
     // If the ego is stopping, do not plan cruise for outside obstacles. Stop will be planned.
     if (odometry.twist.twist.linear.x < 0.1) {
+      trace.reason = "ego_stopped_outside";
       return std::nullopt;
     }
     return create_collision_points_for_outside_cruise_obstacle(
@@ -513,8 +621,10 @@ ObstacleCruiseModule::create_collision_points_for_inside_cruise_obstacle(
   const auto & obj_uuid = object->predicted_object.object_id;
   const auto & obj_uuid_str = autoware_utils::to_hex_string(obj_uuid);
 
+  auto & trace = filter_trace_[obj_uuid_str];
   // check label
   if (!is_inside_cruise_obstacle(object->predicted_object.classification.at(0).label)) {
+    trace.reason = "inside_class";
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore inside obstacle (%s) since its type is not designated.",
       obj_uuid_str.substr(0, 4).c_str());
@@ -531,6 +641,7 @@ ObstacleCruiseModule::create_collision_points_for_inside_cruise_obstacle(
       if (
         object->get_lon_vel_relative_to_traj(traj_points) <
         obstacle_filtering_param_.obstacle_velocity_threshold_from_cruise) {
+        trace.reason = "inside_velocity_hysteresis";
         return std::nullopt;
       }
       // NOTE: else is keeping cruise
@@ -539,6 +650,7 @@ ObstacleCruiseModule::create_collision_points_for_inside_cruise_obstacle(
       if (
         object->get_lon_vel_relative_to_traj(traj_points) <
         obstacle_filtering_param_.obstacle_velocity_threshold_to_cruise) {
+        trace.reason = "inside_velocity_hysteresis";
         return std::nullopt;
       }
       // NOTE: else is cruise from stop
@@ -556,6 +668,7 @@ ObstacleCruiseModule::create_collision_points_for_inside_cruise_obstacle(
     predicted_paths, prediction_resampling_time_interval, prediction_resampling_time_horizon, 1);
 
   if (resampled_predicted_paths.empty()) {
+    trace.reason = "inside_no_prediction";
     return std::nullopt;
   }
 
@@ -585,8 +698,10 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
   const auto & obj_uuid = object->predicted_object.object_id;
   const auto & obj_uuid_str = autoware_utils::to_hex_string(obj_uuid);
 
+  auto & trace = filter_trace_[obj_uuid_str];
   // check label
   if (!is_outside_cruise_obstacle(object->predicted_object.classification.at(0).label)) {
+    trace.reason = "outside_class";
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore outside obstacle (%s) since its type is not designated.",
       obj_uuid_str.substr(0, 4).c_str());
@@ -598,6 +713,7 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
       object->predicted_object.kinematics.initial_twist_with_covariance.twist.linear.x,
       object->predicted_object.kinematics.initial_twist_with_covariance.twist.linear.y) <
     obstacle_filtering_param_.outside_obstacle_velocity_threshold) {
+    trace.reason = "outside_low_velocity";
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore outside obstacle (%s) since the obstacle velocity is low.",
       obj_uuid_str.substr(0, 4).c_str());
@@ -638,7 +754,9 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
 
   const auto collision_points = get_collision_points();
 
+  trace.values["outside_collision_point_count"] = collision_points.size();
   if (collision_points.empty()) {
+    trace.reason = "outside_no_collision_points";
     // Ignore vehicle obstacles outside the trajectory without collision
     RCLCPP_DEBUG(
       logger_, "[Cruise] Ignore outside obstacle (%s) since there are no collision points.",
@@ -649,7 +767,9 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
 
   const double overlap_time =
     (collision_points.back().stamp - collision_points.front().stamp).toSec();
+  trace.values["overlap_time_sec"] = overlap_time;
   if (overlap_time < obstacle_filtering_param_.ego_obstacle_overlap_time_threshold) {
+    trace.reason = "outside_short_overlap";
     // Ignore vehicle obstacles outside the trajectory, whose predicted path
     // overlaps the ego trajectory in a certain time.
     RCLCPP_DEBUG(
@@ -663,7 +783,42 @@ ObstacleCruiseModule::create_collision_points_for_outside_cruise_obstacle(
   // Note: Only using isFrontObstacle(), behind obstacles cannot be filtered
   // properly when the trajectory is crossing or overlapping.
   const size_t first_collision_index = collision_index.front();
-  if (!is_front_collide_obstacle(traj_points, object, first_collision_index)) {
+  const auto first_collision_index_in_raw = map_collision_index_to_original(
+    traj_points, decimated_traj_points, first_collision_index);
+  if (!first_collision_index_in_raw) {
+    trace.reason = "collision_index_mapping_failed";
+    RCLCPP_WARN(logger_, "[Cruise] Could not map collision sample to original trajectory.");
+    return std::nullopt;
+  }
+
+  const auto raw_object_index = autoware::motion_utils::findNearestIndex(
+    traj_points, object->predicted_object.kinematics.initial_pose_with_covariance.pose.position);
+  const auto decimated_object_index = autoware::motion_utils::findNearestIndex(
+    decimated_traj_points, object->predicted_object.kinematics.initial_pose_with_covariance.pose.position);
+  trace.values["collision_index_in_decimated"] = first_collision_index;
+  trace.values["collision_index_in_raw"] = *first_collision_index_in_raw;
+  trace.values["object_index_in_raw"] = raw_object_index;
+  trace.values["object_index_in_decimated"] = decimated_object_index;
+  trace.values["raw_point_count"] = traj_points.size();
+  trace.values["decimated_point_count"] = decimated_traj_points.size();
+  // Keep the pre-fix calculation as evidence only, with an explicit bounds check.
+  if (first_collision_index < traj_points.size()) {
+    trace.values["front_distance_before_mapping_m"] = autoware::motion_utils::calcSignedArcLength(
+      traj_points, raw_object_index, first_collision_index);
+  }
+  trace.values["front_distance_using_raw_m"] = autoware::motion_utils::calcSignedArcLength(
+    traj_points, raw_object_index, *first_collision_index_in_raw);
+  trace.values["front_distance_using_decimated_m"] = autoware::motion_utils::calcSignedArcLength(
+    decimated_traj_points, decimated_object_index, first_collision_index);
+  trace.values["front_pass_using_decimated"] =
+    is_front_collide_obstacle(decimated_traj_points, object, first_collision_index) ? 1.0 : 0.0;
+  trace.values["collision_index_mapping_error_m"] = autoware_utils::calc_distance2d(
+    traj_points.at(*first_collision_index_in_raw).pose.position,
+    decimated_traj_points.at(first_collision_index).pose.position);
+  trace.values["object_radius_m"] = utils::calc_object_possible_max_dist_from_center(
+    object->predicted_object.shape);
+  if (!is_front_collide_obstacle(traj_points, object, *first_collision_index_in_raw)) {
+    trace.reason = "outside_collision_behind";
     return std::nullopt;
   }
   return collision_points;

@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -71,6 +72,14 @@ private:
 
   // common publisher
   ros::Publisher debug_cruise_planning_info_pub_;
+  ros::Publisher debug_selection_pub_;
+  ros::Publisher debug_input_trajectory_pub_;
+  // Per-cycle diagnostic state only; never used by obstacle selection.
+  struct FilterTrace {
+    std::string reason{"not_evaluated"};
+    std::map<std::string, double> values;
+  };
+  mutable std::unordered_map<std::string, FilterTrace> filter_trace_;
 
   // module publisher
   std::unique_ptr<autoware::objects_of_interest_marker_interface::ObjectsOfInterestMarkerInterface>

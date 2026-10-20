@@ -207,6 +207,7 @@ catkin_install_python(
   validation/scripts/mission_bpp_bvp_pipeline_validator.py
   validation/scripts/mission_bpp_bvp_live_visualizer.py
   validation/scripts/kcity_dynamic_ego_validator.py
+  validation/scripts/planning_vehicle_overlay.py
   validation/scripts/planning_trajectory_visualizer.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

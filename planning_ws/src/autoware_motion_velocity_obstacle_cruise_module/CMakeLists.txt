@@ -7,7 +7,7 @@ project(autoware_motion_velocity_obstacle_cruise_module)
 find_package(catkin REQUIRED COMPONENTS
   autoware_internal_debug_msgs autoware_internal_planning_msgs
   autoware_perception_msgs autoware_planning_msgs geometry_msgs nav_msgs
-  pluginlib roscpp sensor_msgs tf2 tf2_eigen tf2_ros unique_identifier_msgs
+  pluginlib roscpp sensor_msgs std_msgs tf2 tf2_eigen tf2_ros unique_identifier_msgs
   visualization_msgs)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
@@ -71,6 +71,10 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_trajectory_index_mapping test/test_trajectory_index_mapping.cpp)
+  if(TARGET test_trajectory_index_mapping)
+    target_link_libraries(test_trajectory_index_mapping ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
   catkin_add_gtest(test_ros1_parameter_map test/test_ros1_parameter_map.cpp)
   if(TARGET test_ros1_parameter_map)
     target_link_libraries(test_ros1_parameter_map ${PROJECT_NAME} ${catkin_LIBRARIES})

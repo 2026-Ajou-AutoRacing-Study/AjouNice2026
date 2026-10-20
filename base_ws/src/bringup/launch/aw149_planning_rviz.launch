@@ -87,6 +87,11 @@
     </include>
   </group>
 
+  <node pkg="bringup" type="planning_vehicle_overlay.py"
+        name="planning_vehicle_overlay" output="screen">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
+  </node>
+
   <node pkg="bringup" type="planning_trajectory_visualizer.py"
         name="planning_trajectory_visualizer" output="screen">
     <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
