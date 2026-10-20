@@ -1643,3 +1643,87 @@ Vehicle 4,477 / Pedestrian 3,148 / Obstacle 3,996으로 일치했다. 학습은 
 실패 0 / error null·running·stale false**로 계속 진행했다. 당시 여유는 22.32GiB,
 남은 수집 예상은 9.28GiB였으며 수집·MORAI·ROS·bridge를 변경하거나 재시작하지 않았다.
 이는 Foggy15 전달 완료 기록이며 정규 30K 전체 완료 주장은 아니다.
+
+<a id="sunny-obstacle-supplement-750-261021"></a>
+
+## 10/21 Sunny 장애물 단독 750장 추가 수집
+
+사용자는 원격 추가 수집을 승인한 뒤 혼합 후보를 취소하고 **장애물 단독 750장**을
+최종 선택했다. OBJ 컨테이너의 차량도 제외하라고 별도로 명시했다. Sunny11·13·15시
+각 250장, 환경별 20~30m 125장 / 30~45m 125장이다. 낮고 넓은 CargoBox·Concrete01도
+원래 40m cap 안에서 원거리 후보에 포함한다. 큰 자산은 확대가 아닌 native 원형이다.
+
+`artifacts/evaluation/base5_sunny_supplement_261021/generation/final_v5/`의 실제 750장과
+catalog semantic·native unit raw class를 전수 대조했다. 모두 순수 Obstacle 1개이며
+차량 OBJ·일반 차량·사람·동물·복합체·spawn·이동 경로는 0이다. 12종만 사용하고
+모든 scale XYZ는 (1,1,1)이다. 공통 sampler·geometry·split overlay 검증과 기존 Sunny15K
+대비 exact/near 중복 0을 확인했다. 계획 split은 환경별 212/38, 총 636/114다.
+이는 새 CPU source 검증이며 native 승인 750장을 미리 주장하는 것이 아니다.
+
+환경별 manifest SHA는 다음과 같다.
+
+- Sunny11: `d95f0c4e184d18240f193a332080eb994139bfd247e487456a9160a27ae8e0a1`
+- Sunny13: `bc94af71ed216593b20311fbf154d7c8f48f0e57685a1c483acc2ef2d17aa40d`
+- Sunny15: `d1553288150831671c606ed1b916d4dbb1c98b89378ffc58e855ae53ead23d21`
+
+원격 작업은 `~/ajounice_base5_capture/work/sunny-supplement-261021-v1/`, 별도 본수집은
+`collections/sunny_supplement_750_v1/`이다. 기존 5K source를 250장으로 위장하거나 과거
+32장 자격을 상속하지 않는다. 같은 원형 native 부모의 64/64/64/58 묶음과 청크 8·
+정지/P·CollisionData·QA·strict recovery·sealed worker를 사용한다. 기존 76,262개 입력을
+매번 재검산하는 대신 명시적인 기존 서비스·동결 runtime 재사용 모드를 적용했고,
+새 source·실제 runtime·지도 호환 자료는 시작·재개·종료 경계에서 검사한다.
+별도 실행기 25개와 공통 회귀 237개를 통과했다. global PAUSE의 active block 전달과
+완료 block의 읽기 전용 재검증·선택/부족분 정확 분할·무결성 실패 격리를 확인했다.
+
+전달은 신규 source·설정 계보 2,615개를 담은 **27.70MB delta**만 사용했다. 배포 경계에서
+기존 참조 1,507개의 실제 SHA·신규 파일 전체 SHA·기존 deployment 전후 불변을 확인했다.
+기존 raw PNG·bag을 다시 전송하거나 과거 source를 수정하지 않았다. `SOURCE_INSTALLED.json`이
+실제 설치 근거다. CPU prepare는 **27.108초·exit 0·native 촬영 0장**이었다.
+
+날씨는 공식 도구의 정확한 Tk 앱 버튼 callback을 직접 호출했다. 마우스 좌표 클릭과
+GDK 화면 캡처는 과거 화면을 반환해 환경 증거로 사용하지 않는다. 공식 시각·Sunny 버튼,
+Disconnect→Connect 후 실제 Tk label **13:00 / Sunny**를 확인했다. 자동 순환은 OFF다.
+기존 공식 도구·SDK·네트워크·센서 설정은 수정하지 않았다.
+
+Sunny13 첫 실제 8장은 **8/8 승인·검토/실패 0·error null**, 정상 PAUSE와 최종 P를
+확인했다. 낮은/큰/긴 형상·전후·두 거리 그룹을 포함한다. 실제 native annotation은 모두
+Obstacle 1개, 원형 치수 비교 일치·충돌 확인을 통과했다. 44.75m WoodBox·44.55m Steel과
+36.55m CargoBox는 LiDAR 0점이지만 실제 카메라 instance 근거가 남았다. WoodBox의 실제
+RGB도 원경에 형상이 보임을 확인했다. 이것은 모델 AP나 모든 원거리 GT의 인식 보장이 아니다.
+`operations/pilot_qualification_sunny13_v1.json`이 실제 8장 근거다. 이후 같은 부모에서
+승인분을 보존하고 수집을 재개했으며, 세 환경 완료·실제 부족분·Q90 변환·회수를 각각
+확인할 예정이다. 전체 750장 완료로 표시하지 않는다.
+
+읽기 전용 보강 웹은 **빌린 PC 8088 / 로컬 http://localhost:8089/**다. 12개 부모의 확정
+상태만 한 번씩 합산하며 진행 중 child를 중복 더하지 않는다. 구 8086/8087 Foggy15 완료
+대시보드와 구분한다. 원격 RGB PNG·native GT·이전 실패 원본은 보존한다.
+
+<a id="foggy11-weather-repair-261021"></a>
+
+## 10/21 로컬 Foggy11 부족분과 후반 날씨 복구
+
+본수집은 **승인 4,945 / 부족 55 / 실패 0 / error null**로 정상 종료했다. 보충 준비 중
+공식 도구의 현재 날씨가 Sunny인 것을 발견했고 실제 RGB를 대조했다. 초기·중간 표본은
+안개가 보였지만 후반 51장은 청색 하늘뿐 아니라 같은 도로권 원경 대비가 명확하게 달랐다.
+원형 selected ledger와 native QA는 보존한다. annotation 좌표 오류가 아니라 실제 날씨와
+의도한 환경의 불일치이며, native 합계 5,000만으로 순수 Foggy11 5K라고 인증하지 않는다.
+
+독립 감사는 마지막 256장의 작은 단일 카메라 관측과 전환 양쪽 원본·51장 전체 시각 확인을
+사용했다. 마지막 확인 Foggy `03329` 04:47:27.12와 첫 Sunny `03353` 04:47:35.55 사이
+약 8.428초다. **확정 Sunny 51개와 보수적인 직전 경계 1개, 총 52개**를 별도로 구분했다.
+하늘 B−R은 이 표본의 진단값이지 일반적인 날씨 분류 threshold나 전 프레임 환경 인증이 아니다.
+Player.log에는 장면/연결 이력이 있지만 명시적인 weather 변경 기록이 없어 조작 주체나
+정확한 변경 시각을 그 로그로 확정하지 않는다.
+
+근거는 `artifacts/evaluation/base5_foggy11_weather_audit_261021/`의
+`independent_report.json`, `definite_repair_source_ids.json`(51개),
+`conservative_repair_source_ids.json`(52개)다. 과거 raw·선택·status·판정은 바꾸지 않는다.
+실제 Foggy·11시 복원 후 기존 부족 55장을 별도 출력에서 보충하고, 52개 잘못된/경계 장면은
+파생 Foggy 선택에서만 제외한 뒤 같은 자산·동작·거리·분할의 새 관측으로 채울 계획이다.
+해당 52개는 교차로 실제 이동 계열이며 editor-ready·기존 두 waypoint 높이 lookup을
+유지할 수 있는지 새 geometry에서 확인한다. 원본 payload 반복 차단·실패 예산을 무력화하지 않는다.
+
+사용자는 원격 보강·부족분·JPEG 회수와 로컬 부족분·JPEG 검증·PNG 안전 삭제까지
+끝까지 관측하며 진행하도록 추가 승인했다. 최종 올바른 Foggy 선택·분할·Q90/upright
+입력 전수 검증 뒤에만 선택 RGB PNG를 삭제한다. 제외 날씨·실패 근거·native GT·mask/depth는
+보존한다. 현재 이 절은 복구 진행 근거이며 순수 Foggy11 5K·JPEG·삭제 완료 기록이 아니다.
