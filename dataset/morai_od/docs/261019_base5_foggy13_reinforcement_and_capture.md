@@ -1378,7 +1378,7 @@ review 원문과 복구 계보를 유지하며 5K 완료·모든 원래 geometry
 
 <a id="foggy11-exact32-review-blocker-261020"></a>
 
-## Foggy11 실제 exact32의 일반 센서 review와 본수집 미시작
+## 오전 Foggy11 strict exact32의 일반 센서 review와 당시 본수집 미시작
 
 새 source의 원형 등록은 `adopted_pipeline_v2/01_register_exit.json`에서
 **797.617초·exit 0**으로 끝났다. 첫16장도 실제 승인 16/16·P 통과 후
@@ -1413,3 +1413,57 @@ LiDAR 0점·CAM1 native instance 28pixels로 `primary_no_sensor_evidence`였고
 freeze 본문의 원형 검증과 6 gate 문턱은 바꾸지 않았다. 이 최적화가 일반 review를
 PASS로 바꾸지 않았다는 실제 결과가 위 exit 1이다. 완료 release 재사용 helper와
 그 테스트는 준비 근거일 뿐, 이번 실행의 freeze·공통5·본수집 성공 근거는 아니다.
+
+<a id="foggy11-user-authorized-start-permit-261020"></a>
+
+## 사용자 승인 start permit과 Foggy11 본수집 경계
+
+10/20 사용자는 일반 센서 근거 부족의 review를 review/skip으로 남기고 본수집을
+진행하도록 명시적으로 승인했다. 이에 새 start permit 정책을 분리했다. 오전 원형
+exact32의 **관측 32 / 승인 31 / review 1·exit 1**과 중단 근거는 그대로 보존하며,
+31개 승인을 32개 승인이나 엄격 자격 PASS로 바꾸지 않는다. 이는 완료된 6 gate를
+재사용한 경로가 아니라 사용자가 승인한 별도 시작 권한이다.
+
+근거 루트는 `artifacts/evaluation/base5_foggy11_design_261020/soft_review_start_v1/`다.
+실제 `start_permit.json`의 정책은
+`user-authorized-start-not-strict-six-gate-or-common5-pass-v1`이며,
+`strict_exact32_passed=false`·`strict_six_gate_passed=false`·`common5_completed=false`·
+`gate_evidence={}`를 명시한다. 새 exact32·공통5를 추가 촬영하지 않았고, 과거 시험
+관측을 본수집에 상속·합산한 수는 0이다. 기존 source manifest SHA
+`a60f5c63b0ad2dffb4e73f5736830c1efadd293dc272dc9445d12efa83255d12`도 유지한다.
+
+새 진입점 `soft_review_start_entry_v1.py`의 SHA는
+`46984bb4e990c5df35fa31e2e0831df76759fbe5a2f05741612064bf70112e08`이다.
+source/runtime·원래 raw·P 근거의 전체 입력 SHA를 실제 경계에서 확인한다.
+원형 profile 생성·초기화·parent run·collector·native QA·P·STOP/PAUSE·bounded 복구는
+유지하며 일반 review를 강제 승인으로 바꾸지 않는다. 새 entry의 경로/SHA를 연결하는
+명시적 worker adapter만 사용하고 원형 core의 파일 identity를 alias로 가장하지 않는다.
+
+실제 `operator_ready_v1.json`은 통신·CollisionData 수신·P·중복 collector 없음과
+Foggy·11:00·시간/날씨 자동 순환 OFF·당시 여유 56.89GiB를 기록했다.
+`prepare_v1_exit.json`은 **62.539초·exit 0·native_captures_started=false**다.
+이 prepare 완료 자체는 실제 본수집 시작·첫 묶음 승인·5K 완료를 뜻하지 않는다.
+
+이후 실제 detached 본수집 **PID/SID 3543856·PPID 1299**가 시작됐고 5분 이상 생존을
+확인했다. 출력은 `/home/luv/morai_cap/base5_foggy11_final_v163_261020/collection_5k_v1`이다.
+`bulk_v1_launch.json`·`bulk_started_first_chunks_v1.json`이 실제 시작과 첫 묶음 근거다.
+후자의 permit SHA는 `e0af0445bdd5ca67937b4ccf8c789399b2bc41a631fa40cecc53c819f76a335c`,
+profile SHA는 `b0364b87212129537d8d1aa69139c8236422c8ca66d3a1fc9e81d63851ee7e4a`다.
+limit 5,000 / chunk 16 / stop-after-chunks 0 / 외부 timeout 없음으로 실행한다.
+
+**17:13 KST 실제 부모는 running·승인 32 / finished 32 / review 0 / 실패 0 / error null**이며
+다음 묶음 촬영을 확인했다. 첫 regular 16장은 승인 15 / 검토 1이고, 원래 검토를 보존한
+원형 recovery의 새 승인 `00001_replace`가 해당 slot을 채웠다. 첫 shutdown·복구 마지막
+P는 모두 gear 1·errors `[]`였다. 따라서 최초 geometry 전부의 unchanged 승인이 아니다.
+원래 시험 31장과 새 본수집 성공을 중복 합산하지 않는다.
+이후 최종 실제 부모 관측은 **승인 48 / finished 48 / review 0 / 실패 0 / error null·running**이며
+`chunk_0003` 촬영 중이었다. `bulk_first_two_chunks_park_v1.json`은 첫 묶음의 원래
+15승인/1검토와 recovery 1승인, 둘째 묶음 16/16·최종 P gear 1/errors `[]`를 보존한다.
+**http://localhost:8081/**는 이 실제 profile/출력을 관측하며 `status_stale=false`·
+`diagnostic_warnings=[]`였고 실제 브라우저도 열었다. 8085는 이전 준비 RO 관측기다.
+실제 수집 시작과 첫 묶음 승인을 기록하는 것이며 5K 완료나 엄격 6 gate PASS 주장이 아니다.
+
+동시 확인한 원격 Foggy15의 **http://localhost:8084/**도 **running·승인 4,434 /
+inspected 4,483 / review 49 / 실패 0 / error null·stale false·warnings `[]`**였다.
+기존 source4·수집·안전/P를 유지한 채 계속 실행 중이며 원격 수집 제어는 변경하지 않았다.
+실제 8084 브라우저도 열었고, review 49개를 승인으로 올리거나 완료 5K로 표시하지 않았다.
