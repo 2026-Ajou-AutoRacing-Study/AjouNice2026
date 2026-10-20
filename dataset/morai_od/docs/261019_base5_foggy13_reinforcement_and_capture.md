@@ -1698,6 +1698,93 @@ RGB도 원경에 형상이 보임을 확인했다. 이것은 모델 AP나 모든
 상태만 한 번씩 합산하며 진행 중 child를 중복 더하지 않는다. 구 8086/8087 Foggy15 완료
 대시보드와 구분한다. 원격 RGB PNG·native GT·이전 실패 원본은 보존한다.
 
+후속 Sunny13 본수집은 **249장 승인 / 검토 1 / 실패 0 / 오류 없음**으로 정상 종료했다.
+그 한 셀만 같은 물리 자산·거리·방향·분할의 새 payload로 촬영해 승인했고,
+보충 owner는 **47.837초·exit 0**이었다. 원래 249개 행과 실패 근거는 보존했다.
+`collections/sunny_supplement_completion_v1/sunny13/layout_split_final/`에서
+**실제 250장 / 부족 0·train 212 / val 38**을 최종화했다. 이후 공식 Tk reconnect
+readback **11:00 / Sunny·자동 순환 OFF**를 확인하고 Sunny11 첫 청크를 시작했다.
+기존 8088 관측기의 249/검토 1은 본수집 이력이며 이 최종 보충 선택에 다시 더하지 않는다.
+전체 750장과 JPEG 전달·회수는 아직 후속 단계다.
+
+후속 실제 native·분할 최종화는 세 환경 모두 완료했다.
+
+| 환경 | 본수집 승인 / 검토 | 추가 보충 승인 | 최종 선택 | 실제 train / val |
+|---|---:|---:|---:|---:|
+| Sunny11 | 250 / 0 | 0 | 250 | 212 / 38 |
+| Sunny13 | 249 / 1 | 1 | 250 | 212 / 38 |
+| Sunny15 | 250 / 0 | 0 | 250 | 212 / 38 |
+| 합계 | 749 / 1 | 1 | 750 | 636 / 114 |
+
+원형 QA·충돌·실제 정지/P와 선택 원본을 검사했다. 전역 ID·raw root·payload는 각각
+750개 고유하며 실제 raw class도 Obstacle 750개다. 두 거리 그룹은 실제 annotation 중심으로도
+375/375다. LiDAR 0점인 camera-only 양성은 근거리 29 / 원거리 170개이며, 원형 positive와
+실제 instance 근거를 통과한 행만 유지했다. 이것은 모델 AP 개선의 인증이 아니다.
+각 환경의 실제 선택은 원격 `collections/sunny_supplement_completion_v1/<환경>/layout_split_final/`이다.
+공통 보충 상한 20회 중 1회만 사용했고 과거 실패·본수집 상태는 보존했다.
+
+원격 최종 인계는 `operations/native_final_handoff_1792531701399708389.json`,
+SHA `f8ed14b53095a56d38a4762084e23eb588e2eedc7f0af93a79048fbd8a67df55`다.
+root도 별도로 세 실제 ledger·class·거리·분할·전역 고유성을 읽어 대조했다.
+전역 completion state SHA는 `1c624b1c384923ff600d20afd065207c06f2c7e4c7cf29c53440cf6bdfa40261`이다.
+이 시점부터 native 운영권을 반환하고 별도 CPU 전달 작업자로 인계했다.
+JPEG·압축·회수는 별도 검증 단계이며 원격 PNG 삭제는 허용하지 않는다.
+
+### Q90/upright 전달본 생성 완료와 로컬 수령 준비
+
+세 환경 모두 같은 Q90·native full-RPY upright enclosure·3클래스 규칙으로 변환했다.
+250장 단위 admission만 별도 scope로 명시했으며 기존 11개 변환 helper와 센서 기준은
+유지했다. **750장·JPEG 3,000개·Obstacle GT 750개·train 636 / val 114**가 남았고,
+지원 component 누락/추가 0·원본 전후 SHA 동일·원격 PNG 삭제 0을 확인했다.
+원격 `work/sunny-supplement-training-runtime-261021-v1/PIPELINE_COMPLETE.json` SHA는
+`1acb5a24dc2026ab01da737ca7de8d54710fe26326c0b8672a1edce2e2efbe7e`다.
+
+세 압축본 합계는 **480,708,691바이트**, 내부 파일은 **27,483개**다. 원격에서 압축본 전체
+SHA와 압축 해제된 전 멤버의 크기·SHA를 검증했다. 복원 파일의 논리 크기 합계는
+1,471,850,194바이트이며 파일·디렉터리의 4KiB 단위 할당 추정은 1,555,034,112바이트다.
+로컬 공간이 빠듯하므로 압축본만 새 전용 RAM cache에 수령하고 검증된 dataset은
+디스크에 복원하는 별도 수령기 v2를 준비했다. 이 시점은 원격 전달본 완료이며
+로컬 회수 완료로 해석하지 않는다.
+
+새 수령기는 디스크 전체 할당 추정 + 128MiB + **7GiB 잔여**, 실제 MemAvailable의
+압축본 합계 + 작업 여유 2GiB + 잔여 4GiB를 시작 전에 요구한다. 실행 중에도 자원 하한을
+검사한다. 기존 복원 core의 전체 SHA·전 멤버·750장 최종 감사를 그대로 사용하고,
+모두 통과한 뒤에만 이번 RAM cache의 정확한 세 압축본을 지운다. 과거 archive나 원본을
+삭제하지 않는다. 이 7GiB는 새 수령 scope의 예산이며, 이미 완료한 로컬 52장 batch parent의
+8GiB 기준을 낮추거나 추가 native 촬영을 승인한 것이 아니다.
+
+### 로컬 수령·복원·전체 감사 완료
+
+검토한 수령기 v2 SHA `cf26fe4c71a8cd6fc3a5d92a980f16a86c0d61da090ee5bbc2fc82a05c1bb10b`로
+실제 전송·세 환경 복원·최종 감사를 마쳤고 **exit 0**이다. 원형 복원 core의 archive 전체 SHA,
+27,483개 멤버의 크기·SHA·등록 목록 검사와 portable 입력 전수 검증을 모두 통과했다.
+최종 입력은 다음 경로다.
+
+`artifacts/evaluation/base5_sunny_supplement_training_retrieved_261021_v1/<sunny11|sunny13|sunny15>/dataset/`
+
+각 환경 **250장 / Q90 JPEG 1,000개 / Obstacle GT 250개 / train 212 / val 38**이며
+합계는 **750 / 3,000 / 750 / train 636 / val 114**다. root도 실제 COMPLETE·manifest SHA·
+PKL·JPEG 경로·원 의미 obstacle 750개와 전역 token·group 고유성을 별도로 읽어 확인했다.
+독립 작업자는 recovery alias 12개까지 해석해 원 계획→최종 overlay→실제 PKL group/split이
+750/750 일치하고 환경 간 train/val group 충돌도 0임을 확인했다.
+
+전달 감사 `handoff/received_audit.json` SHA는
+`31100d1fb194a8a1634fa62588dd2ba4e051c5377028aa5a489f999eb091a012`,
+실행 완료 `handoff/receiver_v2_complete.json` SHA는
+`e5cd50aea5afcf3f1b896971874dbe405cad7d1257a252bc534675be2a8c9590`이다.
+전체 감사 성공 후 이번 전용 RAM cache의 세 압축본만 정확한 경로·SHA·소유권·하드링크 검사를
+거쳐 삭제했고 cache 부재도 확인했다. **원격 archive·PNG·native GT는 삭제하지 않았다.**
+완료 시 로컬 디스크 여유는 7,937,249,280바이트로 새 수령기의 7GiB 기준 이상이다.
+이는 향후 두 장의 추가 촬영·5K JPEG 변환 용량을 보장하는 수치가 아니므로 다시 측정해야 한다.
+
+거리 통계의 원점도 구분한다. 원형 annotation을 Ego 원점에서 집계하면 환경별 125/125지만,
+학습 bbox는 LiDAR 원점이다. 기록된 `lidar_to_ego`는 전방 **0.855m**, 높이 1.388m 평행이동이며
+이를 실제 bbox에 적용하면 환경별 20~30m 125 / 30~45m 125가 그대로 복원된다.
+LiDAR 원점 기준 학습 집계는 **20m 미만 19 / 20~30m 357 / 30~40m 288 / 40~50m 86**이다.
+실제 최솟값/최댓값은 약 19.241/45.392m다. 같은 정답의 좌표 원점 차이이며 GT를 옮기거나
+거리 경계에 맞추어 다시 배치하지 않았다. LiDAR 0점·카메라 지원 양성은 총 199개로 유지된다.
+root 독립 확인은 `handoff/root_received_check_v1.json`에 남겼다. 학습은 시작하지 않았다.
+
 <a id="foggy11-weather-repair-261021"></a>
 
 ## 10/21 로컬 Foggy11 부족분과 후반 날씨 복구
@@ -1727,3 +1814,47 @@ Player.log에는 장면/연결 이력이 있지만 명시적인 weather 변경 �
 끝까지 관측하며 진행하도록 추가 승인했다. 최종 올바른 Foggy 선택·분할·Q90/upright
 입력 전수 검증 뒤에만 선택 RGB PNG를 삭제한다. 제외 날씨·실패 근거·native GT·mask/depth는
 보존한다. 현재 이 절은 복구 진행 근거이며 순수 Foggy11 5K·JPEG·삭제 완료 기록이 아니다.
+
+### 실제 부족분 53장 인계와 날씨 52장 완료
+
+55개 일반 부족분 중 53개는 새 관측으로 승인됐다. 마지막 달리는 Pet1·Man4 두 장은 남았고,
+Man4 세 번째 시도는 이전 빈 지면 probe와 동일한 payload를 다시 보내려다 **로드 전에 차단**됐다.
+원형의 포괄 오류 문자열은 `Native safety/communication/Park child failed; no next load`지만,
+실제 품질 report는 `Native payload already observed; no new MORAI load/capture`다.
+해당 시도의 앞선 두 calibration은 실제 촬영됐고 각각 정지/P·충돌 확인을 통과했다.
+차단된 near-probe와 최종 이동 본체는 session·capture가 시작되지 않았다.
+전체 시도의 실제 촬영이 0회였다고 쓰지 않는다.
+
+옛 `flexible_v1`의 `halted / exit 1 / selected_not_certified=true`는 그대로 보존했다.
+별도 `nonrepeat_handoff_v1/QUALIFIED.json`에서 원래 4,945개 행의 내용·투영 순서를
+보존하고 추가 53개만 원형 QA·evidence inventory·실제 child P 54개로 독립 재검증했다.
+현재 source/runtime byte 경계는 실제 검사했지만, 과거 finally에는 별도 영수증이 없으므로
+당시 통과 여부는 실행 흔적에 따른 추론으로만 구분했다. 옛 상태를 정상으로 재라벨하지 않았다.
+인계 SHA는 `b06b8b210cf5b3cc6b56d8d4f939912d130edae75085ab0707a4c840861d2585`다.
+
+이 인계와 최신 실제 P·정지·CollisionData를 확인한 뒤 **새 계약·새 출력**의 52장 scope를 실행했다.
+기존 v1 실행기·미사용 계약은 보존하고 원형 memfd worker·native QA·중복 방지를 유지했다.
+새 source 52개 모두 editor-ready·독립 지면 준비 0이며 walking 32 / running 20,
+총 moving actor 62개다. 첫 8장 정상 PAUSE·검증 뒤 같은 출력에서 나머지를 이어갔다.
+`weather_repair_capture_after_guard_v2`는 **52/52 승인·검토 0·실패 0·error null·exit 0**으로
+완료했다. 실제 7개 세션의 최종 P·62 actor 동작·정확한 51+1 canonical 매핑과 source 경계를
+확인했고, 공식 Tk 실제 텍스트·첫/중간/끝 RGB에서도 Foggy11을 확인했다.
+과거 화면을 반환할 수 있는 GDK 캡처만으로 날씨를 인증하지 않았다.
+
+완료 근거는 `weather_complete52_after_guard_verified_v2.json`,
+SHA `794b5f7bdf7c631b3a7f447f7ed85068aee9e6dd7eabcb14bdf9ebe4ed1dfa11`이다.
+현재 로컬 인계 `LOCAL_HANDOFF_AFTER52_v2.json` SHA는
+`337ee15d51d04da909db33153b47ec18e18d8c05b9260ea75835b91dd1051efb`다.
+원래 Sunny 51장·경계 1장·실패 raw는 보존한다. 날씨 교체는 수량을 52장 더하는 것이 아니므로
+현재 올바른 관측은 **4,998장 / 일반 부족 2장**이다. 두 자산의 동일 동작 새 geometry는
+CPU에서만 준비됐고 별도 추가 시험의 사용자 승인은 아직 없다. 추가 native와 최종 5K 조립·
+분할·JPEG·PNG 삭제는 완료했다고 표현하지 않는다. 승인 검사·fixture와 별개로 실제
+추가 native owner 구현·검토도 후속 단계다. **JPEG 0 / PNG 삭제 0**을 유지한다.
+
+그 뒤 별도 CPU 준비에서 동일 자산·동작의 두 새 geometry와 1회 한정 owner를 구현·검토했다.
+원래 각 3회·총 60회 이력은 보존하며, 실제 사용자 추가 승인과 검토한 owner SHA가 없으면
+새 촬영도 시작할 수 없다. root 독립 owner/authority 검사 23개와 4,998+2 조립 검사 3개를
+통과했지만 실제 추가 native는 0회다. 현재 snapshot을 정상 5K로 고친 것이 아니다.
+`LOCAL_BUDGET_HANDOFF_NOTE_v3.json`에는 완료한 52장 parent의 8GiB와 기존 tail 경로를
+구분했다. 향후 두 장의 촬영·JPEG 용량은 아직 계획 추정이며, 승인 후 실제 디스크 상태로
+다시 판단해야 한다. 기존 계약·owner·과거 snapshot의 해시는 바꾸지 않았다.
