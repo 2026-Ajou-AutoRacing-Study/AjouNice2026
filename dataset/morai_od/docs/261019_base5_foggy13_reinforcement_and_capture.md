@@ -1467,3 +1467,62 @@ P는 모두 gear 1·errors `[]`였다. 따라서 최초 geometry 전부의 uncha
 inspected 4,483 / review 49 / 실패 0 / error null·stale false·warnings `[]`**였다.
 기존 source4·수집·안전/P를 유지한 채 계속 실행 중이며 원격 수집 제어는 변경하지 않았다.
 실제 8084 브라우저도 열었고, review 49개를 승인으로 올리거나 완료 5K로 표시하지 않았다.
+
+<a id="foggy15-completion-and-foggy11-running-261020"></a>
+
+## 10/20 저녁: 원격 Foggy15 부족분 보충과 로컬 Foggy11 유지
+
+사용자는 원격 부족분 수집과 로컬 실행 유지를 요청했다. 원격 Foggy15 본수집은
+**검사 5,000 / 승인 4,939 / review 61 / 실패 0 / error null**의
+`complete_with_deficit` 정상 종료였다. 마지막 실제 shutdown은
+`park_verified=true`·`gear=1`·`errors=[]`였고 종료 고정 입력 경계도 result 0이었다.
+본수집이 도중에 죽은 상태와 구분하며, 원래 승인·검토·raw·native GT는 보존한다.
+
+빌린 PC `~/ajounice_base5_capture/` 기준 새 경로는 다음과 같다.
+
+| 용도 | 경로 |
+|---|---|
+| 보존하는 종료 부모 | `collections/foggy15_5k_v163_v1` |
+| 촬영 0회 선택 seed | `collections/foggy15_5k_completion_seed_v1` |
+| 실제 유연 보충 | `collections/foggy15_5k_flexible_v1` |
+| 별도 실행기 | `work/foggy15-completion-runtime-v1/fresh_completion_borrowed.py` |
+| 실제 run 로그 | `work/foggy15-completion-runtime-v1/run-service-v1.log` |
+
+기존 Sunny11 공통 유연 보충 모듈 4종을 같은 SHA로 사용했다. 강화 source의 helper는
+namespace 내부 logical 경로에 동결돼 있어, 새 wrapper에서 그 원래 helper를 import하도록
+연결만 보완했다. 기존 source·동결 runtime·native QA를 수정한 것이 아니다.
+관련 공통 어댑터 회귀는 36/36 통과했고, 실제 prepare는 177.88초·exit 0이었다.
+기존 4,939장 픽셀·점군·native QA를 재실행하지 않았으며, 준비 중 새 native 촬영도 0회였다.
+새 qualification 32장·공통5 촬영을 추가하지 않았다.
+
+이후 별도 owner PID 3905893·run PID 3906474로 실제 보충을 시작했다.
+**20:53 KST 독립 웹 확인: 승인 4,940 / 부족 60 / 새 승인 1 / attempts 2 /
+error null·running·stale false**였다. 첫 `00211` 부족 slot에는 donor `00494`의 새 장면이
+실제 native 취득 약 9.6157초로 승인됐다. 해당 child는 1승인·검토/실패 0·error null이며
+최종 P도 `park_verified=true`·gear 1·errors `[]`였다. 다음 `00242` 셀 진행까지 확인했다.
+기존 승인에 새 승인만 더한 수치이며, 부족분을 검토 없이 강제 승인한 것이 아니다.
+
+후속 실제 인계 관측은 **새 승인 3 / 누적 4,942 / 부족 58·running·error null**이었다.
+새 3개 세션 모두 최종 P·gear 1·errors `[]`를 확인했고, 본수집 4,939개 선택 행 전부가
+동일하며 전체 source ID도 고유했다. 로컬 근거는
+`artifacts/evaluation/base5_foggy15_completion_261020/actual_supplement_running_receipt_v1.json`이다.
+수집은 셀당 최대 3회·7,200초의 원래 유한 예산으로 계속 실행한다. 별도 watcher PID 3907279는
+run exit 0·실제 5,000장·부족 0·오류 없는 정상 종료 때만 기존 finalize를 한 번 호출하며,
+부족분이 남거나 안전 중단이면 새 촬영·finalize 없이 끝난다. 현재 관측을 완료로 해석하지 않는다.
+상태·로그·정상 PAUSE 이후 재개 명령은 빌린 PC의
+`work/foggy15-completion-runtime-v1/COMMANDS_foggy15_completion_261020.txt`에 남겼다.
+
+현재 보충 웹은 **빌린 PC 8086 / 로컬 http://localhost:8087/**다. 실제 HTTP/JSON의
+Foggy15 manifest·새 보충 출력·누적 4,939+1을 확인하고 브라우저에도 열었다.
+기존 빌린 PC 8083 / 로컬 8084는 종료된 본수집 관측기로 남겼다. 두 화면을 합산하지 않는다.
+이 기록은 보충 시작·첫 승인의 근거이며 부족 0이나 5K 최종 분할 완료 주장은 아니다.
+
+로컬 Foggy11은 수집·MORAI·bridge를 중단하거나 변경하지 않았다. 같은 PID 3543856과
+별도 SID가 3시간 이상 살아 있었고, 일반 review의 bounded 복구 뒤 다음 묶음 진행을
+확인했다. **20:53 KST http://localhost:8081/ 독립 관측은 승인 1,630 / 검사 1,648 /
+검토 18 / 실패 0 / error null·running·stale false·warnings `[]`**였다. 여유는 약
+46.64GiB였다. 이는 실행 중 관측이며 전체 5K 완료 인증은 아니다.
+
+Foggy11이 정규 Sunny11/13/15·Foggy11/13/15의 마지막 본수집이다. 양쪽 부족분까지 채워야
+native 30K가 완료된다. Sunny 추가 보강은 별도 선택 계획이며, JPEG 학습 입력 변환·선택
+분할·회수 완료 여부도 native 장면 수와 구분한다.
