@@ -39,10 +39,16 @@ def load_config(path):
     c=read(path)
     require(c.get('schema')=='base5_full_data_launcher_v1' and c.get('expected_scenes')==EXPECTED_SCENES
         and c.get('variant')=='cosine','Require new explicit full-data scope')
-    for key in ('source','data','work','initializer','remote_script','remote_config','prepare_script'):
+    require(c.get('val_logging_schema')=='base5_val_logging_v1'
+        and isinstance(c.get('val_logging_sha256'),str) and len(c['val_logging_sha256'])==64,
+        'Explicit reviewed validation-logging extension required')
+    for key in ('source','data','work','initializer','remote_script','remote_config','prepare_script',
+                'val_logging_script'):
         require(Path(c[key]).is_absolute() and '..' not in Path(c[key]).parts,'Absolute scoped paths required')
     require(c['source']!=c['work'] and c['epochs']>0 and c.get('compile_camera') is False,
             'Separate work and compile-OFF budget required')
+    require(Path(c['val_logging_script']).parent==Path(c['prepare_script']).parent,
+        'Explicit reviewed validation-logging extension required')
     return c
 
 
@@ -110,6 +116,10 @@ def prepared_manifest(c,resume=False):
     require(c.get('drive_backup_route')==identity.get('drive_backup_route')==BACKUP_ROUTE
         and identity.get('full_data_launcher_sha256')==sha(__file__),
         'Bound direct backup route/launcher differs')
+    require(identity.get('val_logging_schema')==c['val_logging_schema']
+        and identity.get('val_logging_extension_sha256')==c['val_logging_sha256']
+        and sha(c['val_logging_script'])==c['val_logging_sha256'],
+        'Bound validation-logging extension differs')
     for item in identity['dataset_cohorts']:
         for split,checksum in item['info_sha256'].items():
             require(sha(Path(item['root'])/'infos/512x1056'/('morai_base5_infos_'+split+'.pkl'))==checksum,

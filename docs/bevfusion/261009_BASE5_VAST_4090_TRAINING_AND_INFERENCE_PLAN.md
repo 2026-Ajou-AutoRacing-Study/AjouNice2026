@@ -7,6 +7,8 @@
 10/21 새 Foggy13 정상 장면 1장을 추가한 최신 입력은 **30,750장**이다.
 [새 30,750장 계약](#full-data-30750-preparation-261021)을 먼저 읽는다.
 아래 30,749장 절은 추가 촬영 전 준비 이력이며, 당시 계약·데이터·검증 기록은 보존한다.
+같은 날 추가한 [실제 val 로깅 통합](#full-data-val-logging-261021)은 새 runtime v5에 분리한다.
+v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 대신 쓰지 않는다.
 
 ## 점검과 재개 경계
 
@@ -193,9 +195,9 @@ val 0인 singleton을 빈 MMEngine child로 만들지 않는 것이며, 원래 d
 약 520KB인 새 singleton 압축본만 Direct SSH로 전달해 전체 SHA와 51개 내부 멤버·입력을
 검증했다. 새 runtime은 `/workspace/base5_full_data_runtime_261021_v4`, 새 work는
 `/workspace/base5_full30750_e12_261021_v1`이다. 구 runtime v3·30,749장 work·원래 9개 cohort는
-변경하지 않았다. 최신 로컬 설정은
-`artifacts/evaluation/base5_full30750_training_261021_v1/launcher_e12_ready.json`이며 shell 기본값도
-이 경로를 사용한다. 새 index SHA는
+변경하지 않았다. 이 단계의 로컬 설정은
+`artifacts/evaluation/base5_full30750_training_261021_v1/launcher_e12_ready.json`이며 당시 shell 기본값도
+이 경로였다. 이후 기본값은 아래 val 로깅 통합의 새 v5로 변경했다. 새 index SHA는
 `481008024038779fd6eaf8e6bb2676461ccd201081ad0f8cb762718399d42d24`다.
 원형 `--prepare`는 실제 181.76초에 exit 0으로 완료했고 새 계약 SHA는
 `5c5a6db78ddb9d1ee16ecba0e90ea81490de12879d425656c7c5da9eadfcd456`이다.
@@ -230,6 +232,77 @@ prepare/check/start 통신 대기만 1,200초**로 분리했다. 실제 학습 `
 구분한다. 기본 실행과 `--status`는 상태 조회다. 재사용한 상태 이벤트의 이름이 `sunny15_status`여도
 새 설정은 전체 30,750장 계약이다. 조회의 `ready: false`와 `requires_online_preflight: true`는
 조회만으로 새 온라인 사전 검사를 인증하지 않는다는 뜻이며, `data_and_contract_ready`와 구분한다.
+
+<a id="full-data-val-logging-261021"></a>
+
+## 전체 30,750장 val 로깅 통합 — 2026-10-21 후속
+
+사용자는 더미 run의 패널 이름·형식을 유지한 실제 로깅 연결을 승인했다.
+더미 `DUMMY_BASE5_VAL_PANEL_PREVIEW_NOT_A_MODEL`의 3 epoch 값은 전부 합성값이고,
+실제 모델 비교·best 선정에서 제외한다. 아래 지표를 실제 학습 경로에 연결하기 위한 새 모듈은
+`scripts/runtime/base5_val_logging.py`, schema는 `base5_val_logging_v1`이다.
+기존 동결 detector source와 `base5_distance_diagnostics.py`는 수정하지 않는다.
+
+| 계열 | 실제 키와 의미 |
+|---|---|
+| 거리 | `val/range/{0_10m,…,90_100m}/{class}_mean_AP`, 지원될 때 `mAP`. 기존 30–50/50–80/80–100m와 전후방·100m 이상 모서리 지원 수는 유지 |
+| 환경 | `val/environment/{sunny11,sunny13,sunny15,foggy11,foggy13,foggy15}/{mAP,vehicle_mean_AP,pedestrian_mean_AP,obstacle_mean_AP}`. 클래스별 `_GT`와 `frames`도 기록 |
+| 보강 | `val/supplement/sunny_obstacle/obstacle_mean_AP`. Sunny 장애물 단독 val 114장을 따로 집계하고, 단일 클래스 평균을 mAP로 부르지 않음 |
+| 고정 운영점 | `val/fixed/{vehicle,pedestrian,obstacle}/{precision,recall,F1,fp_per_frame,score_threshold}` |
+
+X축은 기존과 같은 `epoch`, AP·P/R·F1은 **0~1**이다. 클래스 AP는 원형과 동일한
+XY 중심거리 0.5/1/2/4m AP의 평균이고, mAP는 3클래스 동일 가중 평균이다.
+새 구간에서 GT 0인 클래스 AP는 생략하고 `_GT`·`_available`·`_small_sample`로 구분한다.
+기존 근거리의 GT 0 관련 scalar까지 임의로 고치지는 않는다.
+
+거리 구간은 XY 반경의 `[하한, 상한)`이다. 경계의 작은 위치 오차에 민감할 수 있어 기존 넓은
+구간도 남긴다. 이미 계산한 0~10/10~20/20~30m AP는 재사용하고, 새 7개 구간만 추가 계산한다.
+GPU 재추론·추가 이미지 로딩·gradient 계산은 없으며 val 예측의 CPU 후처리만 늘어난다.
+
+6환경 비교에는 본수집 **각 750장, 총 4,500장**만 사용한다. 보강 3개 cohort의 val 각 38장은
+별도 114장으로 묶고, **전체 AP에는 원래처럼 4,614장 모두 포함**한다. 토큰 문자열의 앞부분이나
+수신 순서로 날씨를 추정하지 않는다. 원래 infos에서 확인한 token→cohort 매핑을 evaluator 설정에
+명시하며, `sample_idx`와 LiDAR 경로·중복·누락·cohort별 개수를 검사한다.
+
+고정 score는 **V/P/O 0.40/0.10/0.10**이다. 클래스별 score 내림차순·동일 클래스·XY 중심거리
+**<1m**의 greedy 1:1 대응이며, score는 **≥ threshold**를 사용한다. TP/FP/FN의 정수 집계로
+P/R·F1을 계산하고 FP/frame 분모에는 GT가 없는 프레임도 포함한다. 이 고정 threshold는 새
+진단에만 적용한다. AP 예측을 미리 잘라내거나 기존 best-F1 지표를 대체하지 않는다.
+이는 raw val decoded 출력의 score 진단이며 ROS NMS·tracker까지 재현한 실전 지표는 아니다.
+새 모델의 최종 배포 threshold 선정도 별도다.
+
+환경×거리×전후방×threshold의 모든 조합은 만들지 않는다. loss·모델·optimizer·스케줄·train
+pipeline·샘플 순서와 `val/center/mAP` best 기준도 유지한다. 새 schema/module SHA와 val 매핑 SHA는
+새 준비 계약에 묶고, 체크포인트·에폭별 JSON receipt에도 로깅 버전을 기록한다.
+
+새 runtime은 `/workspace/base5_full_data_runtime_261021_v5`, 새 work는
+`/workspace/base5_full30750_e12_val_logging_261021_v1`이다. 이전 v4 준비·데이터·가중치·원본 source는
+그대로 보존한다. 새 전달·설정·검증 근거는
+`artifacts/evaluation/base5_full30750_val_logging_261021_v1/`에서 관리한다.
+기존 데이터·초기화·12 epoch 예산·백업 목적지를 재사용하며 데이터 payload 재전송은 없다.
+**실제 학습은 시작하지 않으며 시작 권한 파일도 만들지 않는다.**
+
+로컬에서는 새 지표·프로토콜·실행기 테스트 **53개가 통과**했다. 실제 MMEngine에 의존하는
+추가 통합 테스트도 Vast에서 **4/4 통과**해 총 57개를 확인했다. 단위 테스트는 threshold의 포함 경계와 1m의 제외 경계,
+중복 FP·빈 프레임 분모·GT 0·legacy scalar 불변·더미 키 대소문자·기존 3구간 AP 재사용을 확인한다.
+원형 새 `--prepare`는 236.14초에 통과했고, 계약은
+`7de3d916b0080074bbdbe62b97f714c398579ad2f9bf638c60719a8b18a0960f`다.
+module SHA는 `658db7bc4a2a28d947f24e9e67955c914c407aab59c1b9cf8aee337d4e088af5`,
+schema SHA는 `d41d49e5a44823e36d4dd0292c6ec2504bc87954ebaed61405b1567f9ea26b69`다.
+
+원형 `--check`는 **238.48초·첫 시도**에 통과했다. W&B 온라인·Drive 쓰기/재읽기와 기존
+백업 자격 재사용을 확인했다. 실제 MMEngine 통합은 4,614개 합성 결과를 원형 평가기에 넣어
+legacy scalar의 정확한 보존, 환경/보강 분리, W&B 키·epoch 축·중복 prefix 방지와 checkpoint
+metadata 보존을 확인했다. GPU 모델 실행이나 실제 모델 AP 측정은 아니다. 기존 identity의
+데이터·모델·초기화·optimizer·scheduler 등 **30개 항목도 모두 동일**했다.
+최종 receipt는 같은 폴더의 `FINAL_PREPARATION.json`, SHA는
+`24111550eec9f8f3dbbb207eb3591ad7a113bc527a4d7d0785c41a433984717b`다.
+기본 shell은 이 폴더의 `launcher_e12_ready.json`을 사용하며 이전 v4와 과거 근거는 남긴다.
+새 진단의 실제 전체 val 추가 시간과 첫 epoch의 full checkpoint 전송은 학습 시작 후 확인한다.
+
+문서 검증기는 새 링크·보존 계약 오류 없이 기존 길이 예산 초과 3건을 보고했다.
+`docs/bevfusion/README.md` 67줄, 모델 CURRENT 150줄, 데이터 CURRENT 209줄은 작업 전 HEAD와
+같다. 이번 로깅 연결 작업에서 범위 밖 문서를 재편하거나 과거 근거를 삭제하지 않았다.
 
 ## 상세 운영과 실측의 보존
 

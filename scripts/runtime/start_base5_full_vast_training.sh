@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONFIG="${BASE5_FULL_TRAINING_CONFIG:-$ROOT/artifacts/evaluation/base5_full30750_training_261021_v1/launcher_e12_ready.json}"
+CONFIG="${BASE5_FULL_TRAINING_CONFIG:-$ROOT/artifacts/evaluation/base5_full30750_val_logging_261021_v1/launcher_e12_ready.json}"
 
 usage() {
   printf '%s\n' \

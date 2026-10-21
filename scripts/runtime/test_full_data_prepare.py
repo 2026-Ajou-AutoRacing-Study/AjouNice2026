@@ -48,9 +48,10 @@ class Tests(unittest.TestCase):
             pipeline=copy.deepcopy(pipe), data_root='/old', filter_empty_gt=False),
             sampler=Attr(type='DefaultSampler', shuffle=s == 'train'))
             for s in ('train', 'val')})
+        cfg.val_evaluator=Attr(type='MoraiBase5MergedCenterMetric')
         state = dict(cohorts=[dict(name=n, root='/dataset/'+n,
             split_counts=dict(train=1, val=0 if n == 'foggy13_completion' else 1))
-            for n in m.EXPECTED])
+            for n in m.EXPECTED],val_token_to_cohort={'native_token':'sunny11'})
         m.attach_concat(cfg, state)
         self.assertEqual(state['train_pipeline'], pipe)
         for split in ('train', 'val'):
@@ -65,12 +66,20 @@ class Tests(unittest.TestCase):
                 self.assertEqual(child.pipeline, pipe)
                 self.assertFalse(child.filter_empty_gt)
                 self.assertTrue(child.ann_file.endswith('_'+split+'.pkl'))
+        self.assertEqual(cfg.val_evaluator['base5_val_logging']['token_to_cohort'],
+                         {'native_token':'sunny11'})
+        self.assertNotIn('foggy13_completion',
+                         cfg.val_evaluator['base5_val_logging']['expected_cohort_frames'])
 
     def test_completion_restores_total_without_changing_update_count(self):
         self.assertEqual(sum(m.EXPECTED.values()), 30750)
         self.assertEqual(m.EXPECTED['foggy13_completion'], 1)
         self.assertEqual(m.EXPECTED_COUNTS, dict(train=26136, val=4614, test=0))
         self.assertEqual((m.EXPECTED_COUNTS['train'] + 3) // 4, 6534)
+
+    def test_validation_extension_is_pinned_to_the_reviewed_file(self):
+        self.assertEqual(m.VAL_LOGGING_SCHEMA, 'base5_val_logging_v1')
+        self.assertEqual(m.sha(HERE/'base5_val_logging.py'), m.VAL_LOGGING_SHA)
 
     def test_incomplete_index_rejected_before_validator(self):
         with tempfile.TemporaryDirectory() as folder:

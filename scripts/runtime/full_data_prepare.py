@@ -20,6 +20,8 @@ CORE_REL = 'perception/detection3d/bevfusion/tools/run_base5_direct_training.py'
 CORE_SHA = '66cf8c5fcaf1ad070b39725be91bee1725cd6ba84defc8176bdd391e66fc60d7'
 DIAGNOSTIC_REL = 'scripts/runtime/base5_distance_diagnostics.py'
 DIAGNOSTIC_SHA = '7248640fccdfb5538a4fa32ccca282b8b5682c9d1761d2914e384e5cb3e93818'
+VAL_LOGGING_SCHEMA = 'base5_val_logging_v1'
+VAL_LOGGING_SHA = '658db7bc4a2a28d947f24e9e67955c914c407aab59c1b9cf8aee337d4e088af5'
 BACKUP_ROUTE = 'vast_to_drive_direct_access_only_v1'
 CLASSES = ('vehicle', 'pedestrian', 'obstacle')
 EXPECTED = {'sunny11':5000,'sunny13':5000,'sunny15':5000,'foggy11':5000,
@@ -61,7 +63,7 @@ def inspect_index(path, validate, *, verify_hashes=False):
     require(len(cohorts)==len(EXPECTED) and {x['name']:x['expected_scenes'] for x in cohorts}==EXPECTED,
             'Exact latest six supported environments, supplement750 and new Foggy13 frame required')
     tokens=set();raws=set();payloads=set();groups={};counts=dict(train=0,val=0,test=0)
-    products=[];reference=None
+    products=[];reference=None;val_tokens={}
     for item in cohorts:
         root=safe(item['root'],True);manifest=root/'manifest.json'
         require(sha(manifest)==item['manifest_sha256'], 'Cohort manifest differs: '+item['name'])
@@ -101,6 +103,11 @@ def inspect_index(path, validate, *, verify_hashes=False):
                         and instance['bbox_label_3d']==(1 if original==3 else original),
                         'Original semantic provenance or Animal mapping changed')
                 tokens.add(token);found.add(token);groups[group]=split;raws.add(raw);payloads.add(payload)
+                if split=='val':
+                    require(row.get('sample_idx')==token
+                        and Path(row['lidar_points']['lidar_path']).parts.count(token)==1,
+                        'Validation sample_idx/LiDAR path must preserve the native token')
+                    val_tokens[token]=item['name']
             split_counts[split]=len(info['data_list']);counts[split]+=split_counts[split]
             info_pins[split]=sha(info_path)
         require(sum(split_counts.values())==item['expected_scenes']
@@ -113,7 +120,8 @@ def inspect_index(path, validate, *, verify_hashes=False):
     require(sha(path)==index_sha, 'Index file changed during inspection')
     return dict(index=str(path),index_sha256=index_sha,cohorts=products,counts=counts,
         train_count=counts['train'],payload_hashes_verified=verify_hashes,
-        global_tokens=len(tokens),group_split_leakage=0,original_payloads_copied=0)
+        global_tokens=len(tokens),group_split_leakage=0,original_payloads_copied=0,
+        val_token_to_cohort=val_tokens)
 
 
 def attach_concat(cfg,state):
@@ -132,6 +140,10 @@ def attach_concat(cfg,state):
             child.ann_file=str(Path(cohort['root'])/'infos/512x1056'/('morai_base5_infos_'+split+'.pkl'))
             children.append(child)
         loader.dataset=dict(type='ConcatDataset',datasets=children,ignore_keys=IGNORE_META)
+    cfg.val_evaluator['base5_val_logging']=dict(
+        token_to_cohort=copy.deepcopy(state['val_token_to_cohort']),
+        expected_cohort_frames={c['name']:c['split_counts']['val'] for c in state['cohorts']
+                                if c['split_counts']['val']})
 
 
 def extend_identity(identity,state):
@@ -144,6 +156,10 @@ def extend_identity(identity,state):
     identity['full_data_scope']='latest6_supported29999_plus_foggy13_completion1_plus_sunny_obstacle750'
     identity['concat_ignore_metainfo_keys']=IGNORE_META
     identity['val_count']=state['counts']['val']
+    identity['val_logging_schema']=VAL_LOGGING_SCHEMA
+    identity['val_logging_extension_sha256']=VAL_LOGGING_SHA
+    identity['val_cohort_mapping_sha256']=hashlib.sha256(json.dumps(
+        state['val_token_to_cohort'],sort_keys=True,separators=(',',':')).encode()).hexdigest()
     return identity
 
 
@@ -205,10 +221,17 @@ def main(argv=None):
     source=safe(args.source,True);core_path=source/CORE_REL
     require(sha(core_path)==CORE_SHA,'Exact qualified direct-training source changed')
     require(sha(source/DIAGNOSTIC_REL)==DIAGNOSTIC_SHA,'Exact distance-logging extension changed')
+    logging_path=safe(Path(__file__).with_name('base5_val_logging.py'))
+    require(sha(logging_path)==VAL_LOGGING_SHA,'Exact validation-logging extension changed')
     sys.path[:0]=[str(source),str(source/'third_party/mmdetection3d'),str(core_path.parent)]
     from mmengine.utils import import_modules_from_strings
     from scripts.runtime import base5_distance_diagnostics as diagnostics
     diagnostics.install()
+    logging_spec=importlib.util.spec_from_file_location('_qualified_base5_val_logging',logging_path)
+    logging_extension=importlib.util.module_from_spec(logging_spec)
+    logging_spec.loader.exec_module(logging_extension)
+    require(logging_extension.VERSION==VAL_LOGGING_SCHEMA,'Validation logging schema differs')
+    logging_extension.install()
     spec=importlib.util.spec_from_file_location('_unchanged_full_data_training_core',core_path)
     core=importlib.util.module_from_spec(spec);spec.loader.exec_module(core)
     args.config=source/'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_next_training.py'
@@ -220,6 +243,7 @@ def main(argv=None):
     require(cfg.model.get('compile_camera') is False and not cfg.get('compile',False),'Compile remains OFF')
     diagnostics.enable_resume_metadata_updates(cfg)
     cfg.custom_hooks.append(dict(type='Base5DistanceDiagnosticReceiptHook'))
+    cfg.custom_hooks.append(dict(type='Base5ValLoggingReceiptHook'))
     cfg.dump(str(args.work_dir/('resolved_resume.py' if args.resume else 'resolved_train.py')))
     print(json.dumps(dict(event='full_data_prepared',contract=manifest['contract_sha256'],
         frames=sum(c['scenes'] for c in manifest['identity']['dataset_cohorts']),

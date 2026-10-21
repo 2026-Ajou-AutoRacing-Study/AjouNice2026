@@ -20,7 +20,9 @@ class Tests(unittest.TestCase):
             initializer='/workspace/init.pth', remote_script='/workspace/new/full_data_oneclick.py',
             remote_config='/workspace/new/config.json', prepare_script='/workspace/new/full_data_prepare.py',
             epochs=8, seed=261015, compile_camera=False, epochs_user_approved=False,
-            start_authority='/workspace/new/USER_START_AUTHORITY.json')
+            start_authority='/workspace/new/USER_START_AUTHORITY.json',
+            val_logging_script='/workspace/new/base5_val_logging.py',
+            val_logging_schema='base5_val_logging_v1',val_logging_sha256='a'*64)
 
     def test_draft_run_rejected(self):
         with self.assertRaisesRegex(ValueError, 'still draft'):
@@ -66,6 +68,17 @@ class Tests(unittest.TestCase):
             path.write_text(json.dumps(c))
             with self.assertRaisesRegex(ValueError, 'explicit full-data'):
                 m.load_config(path)
+
+    def test_unbound_or_external_val_logging_cannot_reuse_this_entry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'config.json'
+            for change in ({'val_logging_schema':'unreviewed'},
+                           {'val_logging_sha256':''},
+                           {'val_logging_script':'/outside/base5_val_logging.py'}):
+                c=self.config();c.update(change)
+                path.write_text(json.dumps(c))
+                with self.assertRaisesRegex(ValueError,'validation-logging'):
+                    m.load_config(path)
 
     def test_direct_backup_prefix_only_changes_proxy_environment(self):
         with patch.dict(os.environ, dict(HTTP_PROXY='proxy', HTTPS_PROXY='proxy', ALL_PROXY='proxy',
