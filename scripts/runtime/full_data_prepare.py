@@ -23,7 +23,10 @@ DIAGNOSTIC_SHA = '7248640fccdfb5538a4fa32ccca282b8b5682c9d1761d2914e384e5cb3e938
 BACKUP_ROUTE = 'vast_to_drive_direct_access_only_v1'
 CLASSES = ('vehicle', 'pedestrian', 'obstacle')
 EXPECTED = {'sunny11':5000,'sunny13':5000,'sunny15':5000,'foggy11':5000,
-            'foggy13':4999,'foggy15':5000,'supp_sunny11':250,'supp_sunny13':250,'supp_sunny15':250}
+            'foggy13':4999,'foggy15':5000,'supp_sunny11':250,'supp_sunny13':250,
+            'supp_sunny15':250,'foggy13_completion':1}
+EXPECTED_COUNTS = dict(train=26136, val=4614, test=0)
+GROUP = 'base5-full30750-261021'
 IGNORE_META = ['layout_split_overlay_sha256']
 
 
@@ -53,10 +56,10 @@ def inspect_index(path, validate, *, verify_hashes=False):
     """Use the unchanged portable validator for every original cohort root."""
     path=safe(path);index_sha=sha(path);doc=read(path)
     require(doc.get('schema')=='base5_full_cohort_index_v1' and doc.get('complete') is True,
-            'Final nine-cohort index is not complete; do not substitute placeholders')
+            'Final ten-cohort index is not complete; do not substitute placeholders')
     cohorts=doc.get('cohorts',[])
-    require(len(cohorts)==9 and {x['name']:x['expected_scenes'] for x in cohorts}==EXPECTED,
-            'Exact latest six supported environments plus supplement750 required')
+    require(len(cohorts)==len(EXPECTED) and {x['name']:x['expected_scenes'] for x in cohorts}==EXPECTED,
+            'Exact latest six supported environments, supplement750 and new Foggy13 frame required')
     tokens=set();raws=set();payloads=set();groups={};counts=dict(train=0,val=0,test=0)
     products=[];reference=None
     for item in cohorts:
@@ -105,7 +108,8 @@ def inspect_index(path, validate, *, verify_hashes=False):
             'Actual info counts differ from original portable manifest')
         products.append(dict(name=item['name'],root=str(root),manifest_sha256=item['manifest_sha256'],
             scenes=item['expected_scenes'],split_counts=split_counts,info_sha256=info_pins))
-    require(len(tokens)==30749 and sum(counts.values())==30749,'Full-data scene count differs')
+    require(len(tokens)==sum(EXPECTED.values()) and counts==EXPECTED_COUNTS,
+            'Full-data scene/split count differs')
     require(sha(path)==index_sha, 'Index file changed during inspection')
     return dict(index=str(path),index_sha256=index_sha,cohorts=products,counts=counts,
         train_count=counts['train'],payload_hashes_verified=verify_hashes,
@@ -119,6 +123,10 @@ def attach_concat(cfg,state):
         loader=cfg[split+'_dataloader'];template=copy.deepcopy(loader.dataset)
         children=[]
         for cohort in state['cohorts']:
+            # The replacement is train-only. Do not instantiate an empty
+            # BaseDataset child (MMEngine cannot serialize an empty list).
+            if cohort['split_counts'][split]==0:
+                continue
             child=copy.deepcopy(template)
             child.data_root=cohort['root'];child.data_prefix=dict(pts='',img='')
             child.ann_file=str(Path(cohort['root'])/'infos/512x1056'/('morai_base5_infos_'+split+'.pkl'))
@@ -133,7 +141,7 @@ def extend_identity(identity,state):
     identity['distance_diagnostic_sha256']=DIAGNOSTIC_SHA
     identity['drive_backup_route']=BACKUP_ROUTE
     identity['full_data_launcher_sha256']=sha(Path(__file__).with_name('full_data_oneclick.py'))
-    identity['full_data_scope']='latest6_supported29999_plus_sunny_obstacle750'
+    identity['full_data_scope']='latest6_supported29999_plus_foggy13_completion1_plus_sunny_obstacle750'
     identity['concat_ignore_metainfo_keys']=IGNORE_META
     identity['val_count']=state['counts']['val']
     return identity
@@ -206,7 +214,7 @@ def main(argv=None):
     args.config=source/'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_next_training.py'
     args.profile='512x1056';args.batch=4;args.accumulate=1;args.workers=4;args.lr=1e-4
     args.warmup_updates=500;args.lr_schedule='cosine';args.disable_val=False
-    args.jpeg_cache=None;args.allow_random_init=False;args.wandb_group='base5-full30749-261021'
+    args.jpeg_cache=None;args.allow_random_init=False;args.wandb_group=GROUP
     prepare=adapted_prepare(core_path.read_text(),vars(core))
     cfg,manifest=prepare(args)
     require(cfg.model.get('compile_camera') is False and not cfg.get('compile',False),'Compile remains OFF')

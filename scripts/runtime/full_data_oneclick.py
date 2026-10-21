@@ -18,6 +18,11 @@ import subprocess
 HERE=Path(__file__).resolve().parent
 BACKUP_ROUTE='vast_to_drive_direct_access_only_v1'
 ACCESS_HELPER_REL='perception/detection3d/bevfusion/tools/backup_base5_vast_access_only.py'
+EXPECTED_SCENES=30750
+EXPECTED_COHORTS=10
+EXPECTED_TRAIN=26136
+EXPECTED_VAL=4614
+GROUP='base5-full30750-261021'
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -32,7 +37,7 @@ def read(path):return json.loads(Path(path).read_text())
 
 def load_config(path):
     c=read(path)
-    require(c.get('schema')=='base5_full_data_launcher_v1' and c.get('expected_scenes')==30749
+    require(c.get('schema')=='base5_full_data_launcher_v1' and c.get('expected_scenes')==EXPECTED_SCENES
         and c.get('variant')=='cosine','Require new explicit full-data scope')
     for key in ('source','data','work','initializer','remote_script','remote_config','prepare_script'):
         require(Path(c[key]).is_absolute() and '..' not in Path(c[key]).parts,'Absolute scoped paths required')
@@ -54,11 +59,29 @@ def command(c,*,resume=False,run=False):
     return result
 
 
+def preparation_timeouts(transport, prepare_script):
+    """Scale only setup deadlines for 30K; training/auth/backup stay unchanged."""
+    original_checked, original_ssh = transport.checked, transport.ssh
+
+    def checked(cmd, **kwargs):
+        if isinstance(cmd, (list, tuple)) and prepare_script in cmd[:3] and '--run' not in cmd:
+            kwargs['timeout'] = max(kwargs.get('timeout') or 0, 900)
+        return original_checked(cmd, **kwargs)
+
+    def ssh(config, cmd, **kwargs):
+        if any(flag in shlex.split(cmd) for flag in
+               ('--remote-prepare', '--remote-check', '--remote-start')):
+            kwargs['timeout'] = max(kwargs.get('timeout') or 0, 1200)
+        return original_ssh(config, cmd, **kwargs)
+
+    transport.checked, transport.ssh = checked, ssh
+
+
 def data_gate(c):
     index=Path(c['data']);require(sha(index)==c['dataset_manifest_sha256'],'Data index SHA differs')
     doc=read(index)
     require(doc.get('complete') is True and doc.get('schema')=='base5_full_cohort_index_v1'
-        and len(doc.get('cohorts',[]))==9,'Nine final supported cohorts not ready')
+        and len(doc.get('cohorts',[]))==EXPECTED_COHORTS,'Ten final supported cohorts not ready')
     for item in doc['cohorts']:
         require(sha(Path(item['root'])/'manifest.json')==item['manifest_sha256'],
                 'Cohort manifest differs: '+item['name'])
@@ -69,7 +92,7 @@ def prepared_manifest(c,resume=False):
     doc=data_gate(c);work=Path(c['work']);manifest=read(work/'run_manifest.json');identity=manifest['identity']
     expected=dict(epochs=c['epochs'],batch=4,workers=4,accumulate=1,lr=1e-4,seed=c['seed'],
         val_enabled=True,profile='512x1056',training_label_policy='animal_to_pedestrian_v1',
-        wandb_group='base5-full30749-261021',dataset_manifest_sha256=c['dataset_manifest_sha256'])
+        wandb_group=GROUP,dataset_manifest_sha256=c['dataset_manifest_sha256'])
     require(all(identity.get(k)==v for k,v in expected.items()),'Full-data prepared settings differ')
     require(list(identity.get('classes',[]))==['vehicle','pedestrian','obstacle']
         and identity['model'].get('compile_camera') is False
@@ -77,7 +100,8 @@ def prepared_manifest(c,resume=False):
     require([s['type'] for s in identity['param_schedulers']]==['LinearLR','CosineAnnealingLR']
         and identity['warmup_iterations']==500,'Plain cosine and original warmup required')
     require(identity['train_count']==sum(x['split_counts']['train'] for x in identity['dataset_cohorts'])
-        and identity['val_count']==4614 and len(identity['dataset_cohorts'])==9,'Actual cohort counts differ')
+        and identity['train_count']==EXPECTED_TRAIN and identity['val_count']==EXPECTED_VAL
+        and len(identity['dataset_cohorts'])==EXPECTED_COHORTS,'Actual cohort counts differ')
     require({x['name']:x['manifest_sha256'] for x in identity['dataset_cohorts']}==
         {x['name']:x['manifest_sha256'] for x in doc['cohorts']},'Prepared cohort identities differ')
     require(identity.get('distance_diagnostic_sha256')==c['diagnostic_sha256']
@@ -147,7 +171,9 @@ def smoke(c):
         require(len(dataset)==state['counts'][split],'Built Concat sample count differs')
         counts[split]=len(dataset)
         offset=0
-        for child,cohort in zip(dataset.datasets,state['cohorts']):
+        active=[cohort for cohort in state['cohorts'] if cohort['split_counts'][split]>0]
+        require(len(dataset.datasets)==len(active),'Built nonempty child count differs')
+        for child,cohort in zip(dataset.datasets,active):
             require(len(child)==cohort['split_counts'][split],'Built child sample count differs')
             first=dataset.get_data_info(offset) if hasattr(dataset,'get_data_info') else child.get_data_info(0)
             require(first['token'],'Built child lost native token')
@@ -168,10 +194,11 @@ def main(argv=None):
     # Use exact original modules from repo locally / frozen sibling copies remotely.
     if not (HERE/'sunny15_vast_training.py').is_file():sys.path.insert(0,c['local_repo']+'/scripts/runtime')
     import sunny15_vast_training as old
+    preparation_timeouts(old.transport, c['prepare_script'])
     old.ROOT=Path(c['source'] if any(k.startswith('remote_') and v for k,v in vars(args).items()) else c['local_repo'])
     old.transport.ROOT=old.ROOT;old.backup_qualification.ROOT=old.ROOT
     old.command=command;old.data_gate=data_gate;old.prepared_manifest=prepared_manifest
-    old.load_config=load_config;old.GROUP='base5-full30749-261021'
+    old.load_config=load_config;old.GROUP=GROUP
     old.backup_once=lambda config:backup_once(config,old)
     original_backup_gate=old.backup_gate
     def route_backup_gate(config):

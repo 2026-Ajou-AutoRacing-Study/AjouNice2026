@@ -4,6 +4,9 @@
 기존 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 새 데이터 대조 학습을 포함한
 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
+10/21 새 Foggy13 정상 장면 1장을 추가한 최신 입력은 **30,750장**이다.
+[새 30,750장 계약](#full-data-30750-preparation-261021)을 먼저 읽는다.
+아래 30,749장 절은 추가 촬영 전 준비 이력이며, 당시 계약·데이터·검증 기록은 보존한다.
 
 ## 점검과 재개 경계
 
@@ -168,6 +171,65 @@ bash scripts/runtime/start_base5_full_vast_training.sh --status
 실제 시작 권한 파일은 만들지 않았고 학습도 시작하지 않았다. 사용자가 별도로 시작을 승인한 뒤
 동일한 data/code/epoch 계약에 시작 권한을 연결한다. 학습 중 로컬 인증 갱신·W&B 중계·백업 확인을
 유지해야 하므로 로컬 PC를 끄거나 해당 watcher를 종료하지 않는다.
+
+<a id="full-data-30750-preparation-261021"></a>
+
+## 새 정상 장면 1장으로 30,750장 마감 — 2026-10-21 후속
+
+사용자 요청으로 Foggy13에서 **새 장면을 실제 1회 촬영**했다. 원래 제외한 Bollard04의
+GT를 임의로 복구하거나 과거 30,749장 계약을 수정하지 않았다. 새 WoodBox는 전방 약
+13.73m, LiDAR 52점·CAM1 Instance 6,750픽셀로 관측됐고 native 승인·충돌 없음·종료 정지/P를
+통과했다. 같은 Q90/upright·3클래스 변환으로 **유효 Obstacle GT 1개·JPEG 4개**를 얻었다.
+새 원본 PNG는 보존하며 촬영을 더 하거나 기존 5K를 재변환하지 않았다.
+[촬영·변환 근거](../../dataset/morai_od/docs/261019_base5_foggy13_reinforcement_and_capture.md#foggy13-terminal-one-30750-261021)를 따른다.
+
+새 `foggy13_completion`을 train 1 / val 0의 독립 cohort로 연결했다. 기존 Foggy13 지원
+4,999장과 합치면 논리적으로 5,000장이지만, 원래 root·infos·제외 근거는 그대로다.
+전체는 **30,750장 / train 26,136 / val 4,614 / test 0**이다. 새 장면의 token·raw·payload·group은
+기존 입력과 충돌하지 않는다. train은 10개, val은 원래 9개 nonempty child를 사용한다.
+val 0인 singleton을 빈 MMEngine child로 만들지 않는 것이며, 원래 dataset 안의 배경 장면이나
+기존 GT를 추가로 걸러내는 변경이 아니다.
+
+약 520KB인 새 singleton 압축본만 Direct SSH로 전달해 전체 SHA와 51개 내부 멤버·입력을
+검증했다. 새 runtime은 `/workspace/base5_full_data_runtime_261021_v4`, 새 work는
+`/workspace/base5_full30750_e12_261021_v1`이다. 구 runtime v3·30,749장 work·원래 9개 cohort는
+변경하지 않았다. 최신 로컬 설정은
+`artifacts/evaluation/base5_full30750_training_261021_v1/launcher_e12_ready.json`이며 shell 기본값도
+이 경로를 사용한다. 새 index SHA는
+`481008024038779fd6eaf8e6bb2676461ccd201081ad0f8cb762718399d42d24`다.
+원형 `--prepare`는 실제 181.76초에 exit 0으로 완료했고 새 계약 SHA는
+`5c5a6db78ddb9d1ee16ecba0e90ea81490de12879d425656c7c5da9eadfcd456`이다.
+원형 `--check`도 동일 계약으로 통과했다. 첫 검사는 W&B SSH relay listener 확인에서
+실패했고 기록을 보존했다. 포트 경합 증거는 없었으며 원인을 확정하거나 해결됐다고
+단정하지 않는다. 코드·포트·loopback 안전 기준 변경 없이 **실제 재검사 1회가 218.95초에
+exit 0**으로 완료됐다. GPU 49,140MiB·W&B 온라인 접근과 새 Drive 목적지의
+쓰기/재읽기·백업 자격 재사용을 확인했다. 실제 학습이나 새 full checkpoint 백업은 아니다.
+준비된 `resolved_train.py`도 실제 설치된 MMEngine/MMDetection3D에서 **CPU로 한 번** 구성했다.
+train 10개·val 9개의 **19개 child / 첫 token 19개 / 원래 입력 경로 95개**가 일치했고
+구성 시간은 약 28.24초였다. 전체 RGB·native QA를 다시 실행하지 않았고 모델 실행도 0이다.
+최종 준비 receipt는 `artifacts/evaluation/base5_full30750_training_261021_v1/FINAL_PREPARATION.json`,
+SHA는 `e803d31694ec80cb2ea0d386f80b8e292463cf02f7c14468a882343c0ac19ac2`다.
+
+**12 epoch·일반 코사인·compile OFF·batch 4·기존 호환 nuScenes 초기화**는 그대로다.
+train 한 장 증가 뒤에도 올림한 epoch당 update는 6,534, 전체는 78,408로 같고 시간 예산도
+기존 로그 기반 약 16~18시간 예상이다. W&B 지표명·거리별/전후방 진단·원형 모델과
+optimizer/scheduler 구현은 변경하지 않았다. 새 run group은 `base5-full30750-261021`이다.
+
+전체 데이터 준비가 구 5K의 제한시간에 걸리지 않도록 **설정 준비 명령만 900초, 원격
+prepare/check/start 통신 대기만 1,200초**로 분리했다. 실제 학습 `--run`의 내부 제한,
+일반 SSH/status·인증·백업의 1,200초 제한은 변경하지 않았다. setup 대기시간을 늘린 것이며
+촬영 품질이나 입력 검사를 줄인 변경이 아니다. CPU 단위 테스트 20개와 shell 문법 검사를 통과했다.
+
+새 Drive 목적지는 `model/bevfusion/base5/full30750_261021/checkpoint_backups`다.
+작은 파일의 실제 쓰기·재읽기와 보존된 full-checkpoint 백업 기계적 자격의 재사용을 확인했다.
+**새 경로의 full checkpoint 전송 속도·시간 내 완료는 첫 실제 epoch에서 확인해야 한다.**
+갱신 가능한 인증정보를 원격에 저장하지 않으며 실제 학습 중 로컬의 인증 갱신·W&B 중계·
+백업 확인 프로세스를 유지해야 한다. Production E24와 과거 run은 변경하지 않는다.
+
+**실제 학습 시작 권한은 만들지 않았으며 학습도 시작하지 않았다.** 준비 승인과 시작 승인을
+구분한다. 기본 실행과 `--status`는 상태 조회다. 재사용한 상태 이벤트의 이름이 `sunny15_status`여도
+새 설정은 전체 30,750장 계약이다. 조회의 `ready: false`와 `requires_online_preflight: true`는
+조회만으로 새 온라인 사전 검사를 인증하지 않는다는 뜻이며, `data_and_contract_ready`와 구분한다.
 
 ## 상세 운영과 실측의 보존
 

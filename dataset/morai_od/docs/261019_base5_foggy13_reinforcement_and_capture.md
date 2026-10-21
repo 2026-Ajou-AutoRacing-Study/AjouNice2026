@@ -2042,3 +2042,64 @@ byte-range·길이·전체 SHA·덮어쓰기 방지는 유지했다. Drive와 Va
 
 이것은 데이터 전달 완료다. 12-epoch 실행 설정과 W&B·Drive 사전 검사, 실제 학습 시작은
 [모델 학습 준비 기록](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-12epoch-preparation-261021)에서 별도로 관리한다.
+
+<a id="foggy13-terminal-one-30750-261021"></a>
+
+## Foggy13 새 정적 장애물 1장으로 지원 입력 30,750장 마감 — 2026-10-21
+
+사용자가 정상 장면 한 장을 새로 촬영해 전체 입력을 30,750장으로 채우도록 승인했다.
+원래 `foggy13_sunny13_sunny11_b5v2_00001` Bollard04의 native 승인·GT·RGB·제외 판정과
+위 30,749장 검증·전달 기록은 그대로 보존했다. 지원 GT가 없던 원래 장면을 양성 GT로
+바꾸거나, 기존 4,999장 전달본을 덮어쓴 것이 아니다.
+
+새 작업 범위는 `artifacts/evaluation/base5_foggy13_terminal_one_261021_v1/` 하나다.
+이미 검증한 공통 `base5_spatial_diversity.build`와 원형 layout split 준비기를 재사용해
+실제로 **count 1인 독립 source**를 만들었다. 5K 전체를 재생성하거나 재수집하지 않았다.
+새 `source/generated_v1/placement/manifest.json`과 `source/CPU_READY.json`은 CPU 준비 근거이고,
+실제 완료 근거는 같은 작업 범위의 `NATIVE_AND_EXPORT_COMPLETE.json`이다.
+
+| 항목 | 실제 확인 결과 |
+|---|---|
+| 새 token / 별도 cohort | `foggy13_terminal261021_00001` / `foggy13_completion` |
+| 원형 자산·배치 | WoodBox, DataID `40100002`, scale `(1,1,1)`, 정적, 전방 약 13.727m |
+| 날씨·안전 | 공식 도구 전후 Foggy 13:00·Connected·자동 순환 OFF, native 승인 1 / 검토·실패 0, 종료 P·gear 1·errors 없음 |
+| 실제 센서·학습 근거 | LiDAR 52점, CAMERA_1 Instance 6,750px, CAMERA_1~4와 LiDAR 5 Instance 저장, 유효 Obstacle GT 1개 |
+| 학습 전달본 | 원형 Q90/upright 3클래스 변환, JPEG 4개, train 1 / val 0 / test 0, retained component 누락·추가 0 |
+| 새 분할 그룹 | `layout:50d080d80ce89fc6af34909b`; 기존 9개 cohort와 token·raw·scenario payload·group 중복 0 |
+| 원본 보존 | 새 RGB PNG 삭제 0개, 기존 native·GT·selected ledger·30,749장 계약 수정 0 |
+
+실제 native 선택은 `native_capture_v1/selected_ledger.jsonl`이며 SHA는
+`ffad255ec9e6e169cfcd1603ffa8ddfef3fc9e1613360608785c7b3225e4a313`이다.
+원형 QA·충돌·정지·P 조건을 완화하지 않았고, 독립 최소 검사에서도 실제 raw audit·source payload·
+종료 P와 최종 infos의 GT 1개를 대조했다. 기존 9개와 공통 metainfo가 일치하며,
+허용한 차이는 원래와 같이 `layout_split_overlay_sha256` 출처 하나뿐이다.
+기존 5K들의 RGB·native QA를 다시 전수 실행한 검사는 아니다.
+
+새 학습 입력은 작업 범위 아래
+`training_export_v1/qualified/foggy13_completion/training3_jpeg_portable/`이다.
+
+- 입력 manifest SHA: `b49241759a2116196da9e247ceea1c55cd9c5403b1b999f0ce5c26a355915b2c`
+- `training_export_v1/qualified/report.json` SHA: `bdc427f01ccf2b00541a1849ac4e9cc33e82e7d5f8feb996d23d4c1dc0415649`
+- `NATIVE_AND_EXPORT_COMPLETE.json` SHA: `a1394ad2858a70ea4564664e5c4f18dbe2f341736c5b0dc0b73c2cc018da91a6`
+
+같은 원형 packer로
+`artifacts/handoff/base5_foggy13_completion_1_jpeg90_upright3_261021.tar.zst`를 만들었다.
+**519,600바이트·51개 전체 멤버 검증·source package 불변**이며 SHA는
+`c7e88a49ee65e2758e60d071bc1d7813d5ef75569dccba85019b601b9e1486fe`다.
+`archive_receipt/COMPLETE.json` SHA는
+`6cd013fd8f7d32b020cf951faa134dbbbf79f5c7209d118535632ff8ae1b3896`이다.
+새 1장만 별도 전달·Vast 복원을 완료했고 기존 9개 입력의 root·infos·GT·분할은 유지했다.
+
+따라서 Foggy13 지원 입력은 **기존 4,999장 + 새 독립 train 1장 = 5,000장 / train 4,250 / val 750**이다.
+전체는 **10개 cohort·30,750장 / train 26,136 / val 4,614 / test 0**이며, 원래 GT 0인 한 장을
+다시 더하거나 원래 5K native 승인분을 중복 합산하지 않는다. 새 target 대조 receipt는
+`artifacts/evaluation/base5_full30750_training_261021_v1/TARGET_READY.json`이고,
+10개 cohort index SHA는 `481008024038779fd6eaf8e6bb2676461ccd201081ad0f8cb762718399d42d24`다.
+
+이는 데이터 완료 기록이지 모델 성능 향상이나 실제 학습 실행의 인증은 아니다.
+**12 epoch 학습 준비만 승인됐고, 실제 학습 시작 승인은 없으며 학습도 시작하지 않았다.**
+Vast의 새 전체 설정 `--prepare`·온라인 `--check`와 실제 Concat CPU 구성도 통과했다.
+train 26,136 / val 4,614·19개 child·원래 경로 95개를 확인했으며 모델 학습은 실행하지 않았다.
+최종 준비 receipt는 `artifacts/evaluation/base5_full30750_training_261021_v1/FINAL_PREPARATION.json`이다.
+준비 계약·실패한 연결 시도 보존·실행 방법은
+[전체 30,750장 학습 준비](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-30750-preparation-261021)에서 별도로 관리한다.
