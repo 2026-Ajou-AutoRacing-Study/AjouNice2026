@@ -9,6 +9,7 @@
 아래 30,749장 절은 추가 촬영 전 준비 이력이며, 당시 계약·데이터·검증 기록은 보존한다.
 같은 날 추가한 [실제 val 로깅 통합](#full-data-val-logging-261021)은 새 runtime v5에 분리한다.
 v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 대신 쓰지 않는다.
+이후 사용자 승인으로 시작한 현재 전체 학습은 [실제 시작 기록](#full-data-live-training-261021)을 따른다.
 
 ## 점검과 재개 경계
 
@@ -303,6 +304,62 @@ metadata 보존을 확인했다. GPU 모델 실행이나 실제 모델 AP 측정
 문서 검증기는 새 링크·보존 계약 오류 없이 기존 길이 예산 초과 3건을 보고했다.
 `docs/bevfusion/README.md` 67줄, 모델 CURRENT 150줄, 데이터 CURRENT 209줄은 작업 전 HEAD와
 같다. 이번 로깅 연결 작업에서 범위 밖 문서를 재편하거나 과거 근거를 삭제하지 않았다.
+
+<a id="full-data-live-training-261021"></a>
+
+## 사용자 승인 후 전체 30,750장 학습 시작 — 2026-10-21
+
+사용자의 **“응 학습 쭉쭉 진행 ㄱㄱ”** 요청으로 준비와 별개인 실제 시작 권한을 기록했다.
+앞선 v4·v5 절의 ‘미시작’은 각각 준비 당시 이력이며 해당 receipt·동결 설정은 수정하지 않았다.
+실제 시작 권한은 데이터 index·adapter SHA·12 epoch와 결합했고, 원격
+`/workspace/base5_full_data_runtime_261021_v5/USER_START_AUTHORITY.json`에 전달했다.
+로컬 `START_APPROVAL.json` SHA는
+`43264e618566b50e6e7f974734771f73371ed839feca0aa6afbd2697d70c9e66`이다.
+
+첫 시작 요청은 SSH relay listener 확인 중 **4.19초에 실패**했으며 학습은 시작하지 않았다.
+그 기록을 보존하고 코드·포트·안전 조건 변경 없이 같은 시작 명령을 재시도했다.
+재시도는 원형 온라인 사전검사를 포함해 **469.47초·exit 0**으로 완료했고 원격 worker를 시작했다.
+이후 실제 시작 시의 입력 payload hash 확인·원형 첫 cohort 확인·데이터 구성 때문에 첫 iter까지
+약 12분이 추가로 걸렸다. 이 준비 시간을 GPU 학습 정지나 완료로 판정하지 않는다.
+
+10/21 **15:59:50 KST의 E1 iter 20**, **16:00:04 KST의 iter 40 / 6,534**를 실제 console에서 확인했다.
+loss는 각각 **18.5036 / 13.5102**였다. iter 20의 `grad_norm: inf`는 초기 관측으로 남기며,
+iter 40은 **485.2875**의 유한값으로 돌아왔다. 초기 두 출력만으로 수렴·정확도를 인증하지 않는다.
+iter 40의 평균 step은 **0.6623초**, data time은 **0.0139초**, console ETA는 **16:02:33**이었다.
+GPU는 총 49,140MiB 중 **30,864MiB·utilization 100%·60°C**로 관측했다. 초기 ETA는 안정화와
+첫 전체 val 비용에 따라 달라지며, 새 CPU 진단의 실제 추가 시간을 아직 확정하지 않았다.
+
+`fresh_start.json`은 **resumed=false / epoch 0 / iteration 0**과 기존 v5 계약
+`7de3d916b0080074bbdbe62b97f714c398579ad2f9bf638c60719a8b18a0960f`를 기록했다.
+초기화는 기존 호환 nuScenes checkpoint이며 E24 resume가 아니다. 초기 load 경고의 누락 키는
+현재 설정에서 구성하는 `view_transform.dx/bx/nx/frustum` 4개였다. 데이터·모델·optimizer·
+일반 코사인·compile OFF·batch 4·12 epoch는 준비 조건 그대로이며 production E24는 교체하지 않는다.
+
+시작·관측 근거는 `artifacts/evaluation/base5_full30750_val_logging_261021_v1/`의
+`START_LAUNCH_1792564701659673358.json`(실패), `START_LAUNCH_1792564758783616997.json`(시작 요청 성공),
+`TRAINING_OBSERVATION_1792566009315070270.json`(실제 iter·GPU·fresh start)이다.
+원격 work의 `console.log`·`oneclick_status.json`과 로컬 `logs/watcher.log`·`logs/status.json`을 구분한다.
+후속 **16:02:03 KST의 E1 iter 220**은 loss **3.7191**, grad norm **244.5065**, step **0.6602초**,
+data time **0.0137초**였다. W&B 읽기 전용 API에서도 같은 run의 **running / epoch 1 / iter 260 /
+loss 3.5307 / grad norm 259.7153**를 실제 수신했다. run은
+[전체 30,750장 실제 학습](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_val_logging_261021_v1-7de3d916b008)이며
+group은 `base5-full30750-261021`이다. 더미 run을 실제 결과로 전환한 것이 아니다.
+`TRAINING_OBSERVATION_1792566126345984457.json`과 `START_VERIFIED.json`에 이 확인을 보존했다.
+거리·환경·고정 운영점 지표의 실제 값은 첫 전체 val 종료 후에 나온다. 첫 CPU val 추가 시간과
+**첫 epoch full checkpoint의 Drive 업로드·전체 SHA readback은 아직
+완료 전**이다. 작은 Drive 사전검사 성공을 새 full 백업 완료로 표현하지 않는다. 로컬 인증 갱신·
+W&B relay·백업 watcher를 유지해야 하므로 학습 중 로컬 PC를 끄거나 해당 프로세스를 종료하지 않는다.
+
+```bash
+# 기본값은 현재 v5 계약이며 인자 없는 실행은 상태 조회다.
+bash scripts/runtime/start_base5_full_vast_training.sh --status
+
+# 중단 후 완료 epoch의 last_checkpoint가 있을 때만 같은 계약으로 재개한다.
+bash scripts/runtime/start_base5_full_vast_training.sh --run --resume
+```
+
+재개는 epoch 경계이며 중간 iteration·worker/prefetch의 정확한 재현을 보장하지 않는다.
+이미 실행 중인 fresh run에 `--run`을 다시 보내거나 과거 5K 실행기로 재개하지 않는다.
 
 ## 상세 운영과 실측의 보존
 
