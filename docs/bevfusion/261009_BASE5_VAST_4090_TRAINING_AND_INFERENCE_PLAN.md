@@ -447,7 +447,8 @@ compile OFF·best `val/center/mAP`·기존 로깅 이름은 유지한다.
 새 Drive 경로는 `backup:model/bevfusion/base5/full30750_speed_v1/checkpoint_backups`다.
 새 목적지의 작은 write/readback, 실제 full payload 백업, 처리량 검증은 각각 구분한다.
 기존 E24 full 백업 기법의 근거를 재사용하더라도 새 full 업로드 성공을 주장하지 않는다.
-첫 child checkpoint 백업은 실제 저장·업로드 뒤 확인할 과제다.
+재개 준비 당시에는 첫 child checkpoint 백업이 미완료였으며, 이후 E2의 실제 완료 근거는
+아래 후속 절에 기록한다.
 
 ### E1 전체 검증 복구 결과
 
@@ -498,6 +499,53 @@ W&B·자격 갱신·Drive watcher를 위해 **로컬 PC를 켜 두어야 한다*
 `heatmap_fixture_gate_1792574188846766369.report.json`에 보존한다.
 원격 운영은 새 `base5_performance_vast_training.py`를 사용한다. 실제 재개 전 준비와
 사용자 승인·W&B·Drive·유휴 GPU·디스크·session lock 검사를 생략하지 않는다.
+
+### E2 검증·첫 child checkpoint 백업 확인 — 2026-10-21 후속
+
+10/21 **20:12 KST(11:12 UTC)** 관측에서 E2 train·val 완료 뒤 **E3 160 step 진행**을
+확인했다. 이 관측 이후의 학습 상태나 12 epoch 완료를 미리 주장하지 않는다.
+E2는 같은 4,614장·batch 1·FP32의 native validation을 완료했으며 AP는 아래와 같다.
+학습 중 scalar는 0~1이고, 표에서는 읽기 쉽게 %로 표시했다.
+
+| E2 native val 지표 | AP(%) |
+|---|---:|
+| `val/center/mAP` | 90.5435 |
+| Vehicle / Pedestrian / Obstacle | 95.7524 / 94.3262 / 81.55194 |
+| Obstacle 20~30m / 30~50m | 80.06359 / 30.0430 |
+| Sunny15 Obstacle | 80.9043 |
+
+정밀 scalar의 원본은 원격 work의 `val_logging/epoch_2.json`이다. 실제 console·E3 160 step·
+첫 child 백업 상태를 읽어 보존한 로컬 receipt는
+`artifacts/evaluation/base5_speed_repair_261021_v1/SUCCESSOR_OBSERVATION_1792581155370848658.json`이다.
+
+첫 child **`epoch_2.pth` 전체 상태**의 실제 Drive 업로드와 로컬 인증 소유 PC의 전체
+재읽기를 완료했다. `epoch=2`, `iteration=13068`, `resume_capable=true`, `errors=[]`다.
+파일은 **522,174,725바이트 / 32MiB 단위 16파트**이며 SHA256은
+`83005296010995b4d9a42dfb09675c1f5400c0ba4aad29582f7f47c7394f8f56`이다.
+계약은 계승 run의 `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`이다.
+
+Drive 위치는 다음 내용 주소형 경로다. 가중치를 받기 위해 학습 호스트에서 추가
+백업·모델 실행을 하거나 현재 학습을 중단할 필요는 없다.
+
+```text
+model/bevfusion/base5/full30750_speed_v1/checkpoint_backups/
+  base5_full30750_e12_speed_261021_v2/
+    83005296010995b4d9a42dfb09675c1f5400c0ba4aad29582f7f47c7394f8f56/
+```
+
+완료 표식·`PARTS.json`·`parts_33554432`와 원래 manifest/resolved config를 함께 보존한다.
+복원은 저장소의 `tools/base5_checkpoint_parts.py`로 각 파트와 전체 SHA를 확인한 뒤
+새 출력 파일에 원자적으로 수행한다. 이 도구 경로는
+`perception/detection3d/bevfusion/` 기준이다. 실제 업로드·readback 근거는
+`artifacts/evaluation/base5_speed_repair_261021_v1/continuation_v2/logs/drive_backup.jsonl`의
+`local_readback_verified`와 완료 status다. 이후 원격의 같은 파일명이 다시 저장되더라도
+이미 검증한 SHA 폴더와 원래 바이트를 변경하지 않는다.
+
+E2 val 상승을 데이터 보강만의 인과 효과로 부르지 않는다. 기존 Sunny13 E24와는 학습 데이터·
+업데이트 수·compile/depth-raster 계약 등 차이가 있으며, 자체 val이 다른 숫자의 단순 차이는
+공정한 비교가 아니다. 같은 실제 센서 입력의 로컬 비교는
+[E2 대 E24 bag 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e2-local-bags-261021)으로
+분리한다. 현재 production 가중치·threshold·tracker 정책은 유지한다.
 
 ## 상세 운영과 실측의 보존
 
