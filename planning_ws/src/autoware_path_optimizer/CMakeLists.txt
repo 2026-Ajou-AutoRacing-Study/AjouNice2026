@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs autoware_utils autoware_utils_debug autoware_utils_geometry
   autoware_utils_math autoware_utils_rclcpp autoware_utils_system autoware_vehicle_info_utils)
 find_package(Eigen3 REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 get_filename_component(AW149_EXPORT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 set(ACADOS_ROOT "${AW149_EXPORT_ROOT}/external/acados/install" CACHE PATH "export-local acados provider")
@@ -43,12 +44,16 @@ add_library(${PROJECT_NAME} SHARED
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} BEFORE PUBLIC include ${CMAKE_CURRENT_SOURCE_DIR}/src/acados_mpc/include ${CMAKE_CURRENT_BINARY_DIR} ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PUBLIC acados_interface ${catkin_LIBRARIES} Eigen3::Eigen)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(path_optimizer_node src/main.cpp)
 target_compile_features(path_optimizer_node PRIVATE cxx_std_17)
 target_link_libraries(path_optimizer_node PRIVATE ${PROJECT_NAME})
 
 if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  add_rostest_gtest(test_mpt_history_reset test/mpt_history_reset.test test/test_mpt_history_reset.cpp)
+  target_link_libraries(test_mpt_history_reset ${PROJECT_NAME} ${catkin_LIBRARIES})
   catkin_add_gtest(test_obstacle_collision test/test_obstacle_collision.cpp)
   if(TARGET test_obstacle_collision)
     target_link_libraries(test_obstacle_collision ${PROJECT_NAME})

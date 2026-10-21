@@ -69,6 +69,10 @@ public:
   void updateParameters(const autoware::motion_velocity_planner::ParameterMap & parameters) override;
 
 private:
+  friend class PIDBasedPlannerTestPeer;
+  void reset_target_state();
+  std::optional<UUID> previous_target_uuid_;
+
   Float32MultiArrayStamped get_cruise_planning_debug_message(
     const ros::Time & current_time) const override
   {

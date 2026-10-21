@@ -1,0 +1,12 @@
+<launch>
+  <!-- Offline route editing: no vehicle control, localization, or route policy. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="save_file" default="$(arg repo_root)/planner_logs/route_editor/competition_routes.yaml"/>
+  <include file="$(find bringup)/launch/aw149_planning_rviz.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="enable_route_editor" value="true"/>
+    <arg name="rviz_config" value="$(arg repo_root)/base_ws/src/bringup/rviz/kcity_route_editor.rviz"/>
+    <arg name="route_editor_save_file" value="$(arg save_file)"/>
+    <arg name="show_morai_gt" value="false"/>
+  </include>
+</launch>

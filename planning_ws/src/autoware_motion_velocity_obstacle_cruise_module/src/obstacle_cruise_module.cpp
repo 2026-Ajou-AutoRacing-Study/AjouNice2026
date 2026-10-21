@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "obstacle_cruise_module.hpp"
+#include "body_longitudinal_filter.hpp"
+#include "lateral_collision_check.hpp"
 #include "trajectory_index_mapping.hpp"
 #include "ros1_compat.hpp"
 
@@ -158,8 +160,12 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
   }
 
   // filter obstacles of predicted objects
+  const lateral_collision::LongitudinalMotion ego_motion{
+    planner_data->current_acceleration.accel.accel.linear.x,
+    common_param_.min_accel, common_param_.max_accel,
+    common_param_.min_jerk, common_param_.max_jerk};
   const auto cruise_obstacles = filter_cruise_obstacle_for_predicted_object(
-    planner_data->current_odometry, planner_data->ego_nearest_dist_threshold,
+    planner_data->current_odometry, ego_motion, planner_data->ego_nearest_dist_threshold,
     planner_data->ego_nearest_yaw_threshold, raw_trajectory_points, planner_data->objects,
     ros::Time(planner_data->predicted_objects_header.stamp), planner_data->is_driving_forward,
     planner_data->vehicle_info_, planner_data->trajectory_polygon_collision_check);
@@ -274,7 +280,8 @@ std::unique_ptr<CruisePlannerInterface> ObstacleCruiseModule::create_cruise_plan
 }
 
 std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_predicted_object(
-  const Odometry & odometry, const double ego_nearest_dist_threshold,
+  const Odometry & odometry, const lateral_collision::LongitudinalMotion & ego_motion,
+  const double ego_nearest_dist_threshold,
   const double ego_nearest_yaw_threshold, const std::vector<TrajectoryPoint> & traj_points,
   const std::vector<std::shared_ptr<PlannerData::Object>> & objects,
   const ros::Time & predicted_objects_stamp, const bool is_driving_forward,
@@ -285,6 +292,10 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
 
   const auto & current_pose = odometry.pose.pose;
 
+  if (traj_points.size() < 2) return {};
+  const auto ego_segment_index =
+    autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+      traj_points, current_pose, ego_nearest_dist_threshold, ego_nearest_yaw_threshold);
   const auto & p = trajectory_polygon_collision_check;
   const auto decimated_traj_points = utils::decimate_trajectory_points_from_ego(
     traj_points, current_pose, ego_nearest_dist_threshold, ego_nearest_yaw_threshold,
@@ -299,13 +310,24 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
   for (const auto & object : objects) {
     auto & trace = filter_trace_[autoware_utils::to_hex_string(object->predicted_object.object_id)];
     // 1. rough filtering
-    // 1.1. Check if the obstacle is in front of the ego.
+    // 1.1. Exclude a rear reference point only after the entire body clears Ego.
     const double lon_dist_from_ego_to_obj =
       object->get_dist_from_ego_longitudinal(traj_points, current_pose.position);
     trace.values["longitudinal_distance_m"] = lon_dist_from_ego_to_obj;
     if (lon_dist_from_ego_to_obj < 0.0) {
-      trace.reason = "behind_ego";
-      continue;
+      const auto bounds = body_longitudinal_bounds(
+        traj_points, current_pose, object->predicted_object, vehicle_info);
+      trace.values["body_longitudinal_bounds_valid"] = bounds.has_value();
+      if (bounds) {
+        trace.values["object_body_max_longitudinal_m"] = bounds->object_max_s;
+        trace.values["ego_body_min_longitudinal_m"] = bounds->ego_min_s;
+        trace.values["body_longitudinal_clearance_m"] = bounds->ego_min_s - bounds->object_max_s;
+        trace.values["body_footprints_overlap"] = bounds->footprints_overlap;
+        if (bounds->fully_behind()) {
+          trace.reason = "behind_ego_body";
+          continue;
+        }
+      }
     }
 
     // 1.2. Check if the rough lateral distance is smaller than the threshold.
@@ -319,7 +341,8 @@ std::vector<CruiseObstacle> ObstacleCruiseModule::filter_cruise_obstacle_for_pre
 
     // 2. precise filtering for cruise
     const auto cruise_obstacle = create_cruise_obstacle(
-      odometry, traj_points, decimated_traj_points, decimated_traj_polys, object,
+      odometry, traj_points, ego_segment_index, ego_motion,
+      decimated_traj_points, decimated_traj_polys, object,
       predicted_objects_stamp, object->get_dist_to_traj_poly(decimated_traj_polys),
       is_driving_forward, vehicle_info, trajectory_polygon_collision_check);
     if (cruise_obstacle) {
@@ -431,6 +454,8 @@ void ObstacleCruiseModule::publish_debug_info()
 
 std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   const Odometry & odometry, const std::vector<TrajectoryPoint> & traj_points,
+  const size_t ego_segment_index,
+  const lateral_collision::LongitudinalMotion & ego_motion,
   const std::vector<TrajectoryPoint> & decimated_traj_points,
   const std::vector<Polygon2d> & decimated_traj_polys,
   const std::shared_ptr<PlannerData::Object> object, const rclcpp::Time & predicted_objects_stamp,
@@ -464,13 +489,48 @@ std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
   }
 
   if (obstacle_filtering_param_.max_lat_margin < dist_from_obj_poly_to_traj_poly) {
-    const auto time_to_traj = dist_from_obj_poly_to_traj_poly /
-                              std::max(1e-6, object->get_lat_vel_relative_to_traj(traj_points));
-    trace.values["time_to_path_sec"] = time_to_traj;
-    if (time_to_traj > obstacle_filtering_param_.max_lateral_time_margin) {
-      trace.reason = "lateral_time_gate";
+    const auto now = ros::Time::now();
+    // Use one reference normal for BOTH velocities and the footprint clearance.
+    // Object-only motion misses a merge caused by ego's own lateral motion.
+    const auto motion = lateral_collision::relative_motion(
+      odometry, object->predicted_object,
+      object->get_predicted_current_pose(now, predicted_objects_stamp), vehicle_info,
+      tf2::getYaw(traj_points.at(ego_segment_index).pose.orientation));
+    trace.values["ego_lateral_velocity_mps"] = motion.ego_lateral_velocity_mps;
+    trace.values["object_lateral_velocity_mps"] = motion.object_lateral_velocity_mps;
+    trace.values["relative_lateral_velocity_mps"] = motion.relative_lateral_velocity_mps;
+    trace.values["relative_lateral_closing_velocity_mps"] = motion.closing_velocity_mps;
+    trace.values["relative_lateral_clearance_m"] = motion.clearance_m;
+    trace.values["relative_lateral_time_sec"] = motion.time_to_contact_sec;
+
+    lateral_collision::PredictionOverlap prediction;
+    const auto max_time = obstacle_filtering_param_.max_lateral_time_margin;
+    const auto margin = obstacle_filtering_param_.max_lat_margin;
+    if (!lateral_collision::passes_time_gate(motion, margin, max_time, prediction)) {
+      // A curved/merging plan can collide even with zero instantaneous relative
+      // lateral speed. Test future footprints at matching times before rejecting.
+      const auto & p = trajectory_polygon_collision_check;
+      prediction = lateral_collision::predicted_overlap(
+        odometry, traj_points, object->predicted_object, predicted_objects_stamp, now, vehicle_info,
+        std::min(max_time, obstacle_filtering_param_.max_prediction_time_for_collision_check),
+        obstacle_filtering_param_.num_of_predicted_paths_for_outside_cruise_obstacle,
+        ego_segment_index, p.enable_to_consider_current_pose ? p.time_to_convergence : 0.0,
+        ego_motion);
+      trace.values["time_aligned_prediction_checked"] = 1.0;
+      trace.values["time_aligned_collision"] = prediction.collision ? 1.0 : 0.0;
+      trace.values["time_aligned_collision_sec"] = prediction.first_time_sec;
+      trace.values["time_aligned_constant_velocity_collision"] =
+        prediction.constant_velocity_collision ? 1.0 : 0.0;
+      trace.values["ego_motion_hypotheses"] = prediction.motion_hypotheses;
+      trace.values["collision_target_acceleration_mps2"] =
+        prediction.collision_target_acceleration_mps2;
+      trace.values["ego_prediction_initial_acceleration_mps2"] =
+        ego_motion.initial_acceleration_mps2;
+    }
+    if (!lateral_collision::passes_time_gate(motion, margin, max_time, prediction)) {
+      trace.reason = "lateral_relative_time_gate";
       RCLCPP_DEBUG(
-        logger_, "[Cruise] Ignore obstacle (%s) since it's far from trajectory.",
+        logger_, "[Cruise] Ignore obstacle (%s): no near lateral contact or timed overlap.",
         obj_uuid_str.substr(0, 4).c_str());
       return std::nullopt;
     }

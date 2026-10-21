@@ -440,6 +440,21 @@ bool check_safety_with_rss(
   const RSSparams & params, const bool use_all_predicted_paths,
   const double hysteresis_factor, const double yaw_difference_threshold)
 {
+  return check_safety_with_rss_diagnostics(
+    planned_path, ego_predicted_path, vehicle_info, objects, debug_map, params,
+    use_all_predicted_paths, hysteresis_factor, yaw_difference_threshold, nullptr,
+    -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+}
+
+bool check_safety_with_rss_diagnostics(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const std::vector<PoseWithVelocityStamped> & ego_predicted_path,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info,
+  const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
+  const RSSparams & params, const bool use_all_predicted_paths,
+  const double hysteresis_factor, const double yaw_difference_threshold,
+  RSSCollisionTrace * trace, const double begin_time, const double end_time)
+{
   if ((params.extended_polygon_policy != "rectangle" &&
        params.extended_polygon_policy != "along_path") || hysteresis_factor < 0.0) return false;
   for (const auto & object : objects) {
@@ -448,11 +463,22 @@ bool check_safety_with_rss(
     debug.extended_object_polygon = object.initial_polygon;
     debug.ego_predicted_path = ego_predicted_path;
     const auto selected_paths = get_object_predicted_paths(object, use_all_predicted_paths);
-    for (const auto & path : selected_paths) {
+    for (size_t path_index = 0; path_index < selected_paths.size(); ++path_index) {
+      const auto & path = selected_paths[path_index];
       debug.object_predicted_path = path.path;
       for (const auto & object_pose : path.path) {
+        if (object_pose.time < begin_time || object_pose.time >= end_time) continue;
         const auto ego = calc_interpolated_pose_with_velocity(ego_predicted_path, object_pose.time);
         if (!ego || is_target_object_oncoming(ego->pose, object_pose.pose, yaw_difference_threshold)) continue;
+
+        if (trace) {
+          *trace = RSSCollisionTrace{};
+          trace->time = object_pose.time;
+          trace->predicted_path_index = path_index;
+          trace->path_confidence = path.confidence;
+          trace->ego_velocity = ego->velocity;
+          trace->object_velocity = object_pose.velocity;
+        }
 
         const auto ego_polygon = create_extended_ego_polygon(ego->pose, vehicle_info, 0.0, 0.0, false);
         if (boost::geometry::intersects(ego_polygon, object_pose.polygon)) {
@@ -474,6 +500,12 @@ bool check_safety_with_rss(
           calc_rss_distance(velocities.first, velocities.second, params),
           calc_minimum_longitudinal_length(velocities.first, velocities.second, params)) * hysteresis_factor;
         const double lateral = params.lateral_distance_max_threshold * hysteresis_factor;
+        if (trace) {
+          trace->rss_distance = calc_rss_distance(velocities.first, velocities.second, params);
+          trace->longitudinal_extension = extension;
+          trace->lateral_margin = lateral;
+          trace->object_is_front = object_is_front;
+        }
         const bool stopped = object_pose.velocity < 0.3;
         const auto extended_ego = !object_is_front ? ego_polygon :
           (params.extended_polygon_policy == "along_path"

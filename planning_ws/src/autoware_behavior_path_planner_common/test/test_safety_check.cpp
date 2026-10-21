@@ -83,6 +83,85 @@ TEST(SafetyCheckSourceAdapter, PreciseFootprintDistanceUsesOffsetPose)
 
 namespace safety = autoware::behavior_path_planner::utils::path_safety_checker;
 
+TEST(SafetyCheckDiagnostics, RecordsMarginCollisionWithoutChangingTheDecision)
+{
+  geometry_msgs::Pose pose;
+  pose.orientation.w = 1.0;
+  autoware::vehicle_info_utils::VehicleInfo vehicle;
+  vehicle.max_longitudinal_offset_m = 2.0;
+  vehicle.rear_overhang_m = 1.0;
+  vehicle.vehicle_width_m = 2.0;
+  vehicle.wheel_base_m = 1.0;
+  vehicle.front_overhang_m = 1.0;
+  vehicle.wheel_tread_m = 2.0;
+  const std::vector<safety::PoseWithVelocityStamped> ego{{0.0, pose, 2.0}, {1.0, pose, 2.0}};
+  safety::ExtendedPredictedObject object;
+  object.uuid.uuid[0] = 7;
+  object.initial_pose = pose;
+  object.initial_pose.position.x = 8.0;
+  safety::PredictedPathWithPolygon prediction;
+  prediction.confidence = 0.7;
+  prediction.path.emplace_back(0.0, object.initial_pose, 2.0,
+    autoware_utils::to_footprint(object.initial_pose, 1.0, 1.0, 1.0));
+  object.predicted_paths.push_back(prediction);
+  safety::RSSparams params;
+  params.front_vehicle_deceleration = params.rear_vehicle_deceleration = -6.0;
+  params.rear_vehicle_reaction_time = 3.0;
+  params.longitudinal_distance_min_threshold = 3.0;
+  safety::CollisionCheckDebugMap baseline, observed;
+  safety::RSSCollisionTrace trace;
+  autoware_internal_planning_msgs::PathWithLaneId planned;
+  const bool old_result = safety::check_safety_with_rss(
+    planned, ego, vehicle, {object}, baseline, params, true, 1.0, 3.1416);
+  const bool observed_result = safety::check_safety_with_rss_diagnostics(
+    planned, ego, vehicle, {object}, observed, params, true, 1.0, 3.1416,
+    &trace, 0.0, std::numeric_limits<double>::infinity());
+  EXPECT_FALSE(old_result);
+  EXPECT_EQ(old_result, observed_result);
+  EXPECT_EQ(observed.at(object.uuid.uuid).unsafe_reason, "overlap_extended_polygon");
+  EXPECT_EQ(baseline.at(object.uuid.uuid).unsafe_reason,
+    observed.at(object.uuid.uuid).unsafe_reason);
+  EXPECT_DOUBLE_EQ(trace.time, 0.0);
+  EXPECT_DOUBLE_EQ(trace.longitudinal_extension, 6.0);
+  EXPECT_DOUBLE_EQ(trace.ego_velocity, 2.0);
+  EXPECT_TRUE(trace.object_is_front);
+  EXPECT_NEAR(trace.path_confidence, 0.7, 1e-6);
+}
+
+TEST(SafetyCheckDiagnostics, PhaseWindowExcludesLaterCollisionAndIncludesBoundary)
+{
+  geometry_msgs::Pose pose;
+  pose.orientation.w = 1.0;
+  autoware::vehicle_info_utils::VehicleInfo vehicle;
+  vehicle.max_longitudinal_offset_m = 2.0;
+  vehicle.rear_overhang_m = 1.0;
+  vehicle.vehicle_width_m = 2.0;
+  vehicle.wheel_base_m = 1.0;
+  vehicle.front_overhang_m = 1.0;
+  vehicle.wheel_tread_m = 2.0;
+  const std::vector<safety::PoseWithVelocityStamped> ego{{0.0, pose, 0.0}, {1.0, pose, 0.0}};
+  safety::ExtendedPredictedObject object;
+  safety::PredictedPathWithPolygon prediction;
+  auto far = pose;
+  far.position.y = 10.0;
+  prediction.path.emplace_back(0.0, far, 0.0, autoware_utils::to_footprint(far, 1.0, 1.0, 1.0));
+  prediction.path.emplace_back(1.0, pose, 0.0, autoware_utils::to_footprint(pose, 1.0, 1.0, 1.0));
+  object.predicted_paths.push_back(prediction);
+  safety::CollisionCheckDebugMap debug;
+  safety::RSSCollisionTrace trace;
+  safety::RSSparams params;
+  const auto check = [&](double begin, double end) {
+    return safety::check_safety_with_rss_diagnostics({}, ego, vehicle, {object}, debug,
+      params, true, 1.0, 3.1416, &trace, begin, end);
+  };
+  EXPECT_FALSE(check(0.0, 2.0));
+  EXPECT_DOUBLE_EQ(trace.time, 1.0);
+  EXPECT_EQ(debug.begin()->second.unsafe_reason, "overlap_polygon");
+  EXPECT_TRUE(check(0.0, 1.0));
+  EXPECT_FALSE(check(1.0, 2.0));
+  EXPECT_TRUE(check(0.0, 0.0));
+}
+
 TEST(SafetyCheckSourceAdapter, PreservesRssAndPathTimeSurface)
 {
   safety::RSSparams params;

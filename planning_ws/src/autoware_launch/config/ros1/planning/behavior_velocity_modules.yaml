@@ -1,5 +1,5 @@
 forward_path_length: 1000.0
-backward_path_length: 5.0
+ㅊ   현backward_path_length: 5.0
 behavior_output_path_interval: 1.0
 planning_factor_console_output:
   enable: false
@@ -317,9 +317,9 @@ roundabout:
     attention_area_angle_threshold: 0.785
     default_stopline_margin: 0.3
     path_interpolation_ds: 0.1
-    enable_pass_judge_before_default_stopline: true
+    enable_pass_judge_before_default_stopline: false
   collision_detection:
-    collision_detection_hold_time: 0.1
+    collision_detection_hold_time: 0.0
     min_predicted_path_confidence: 0.05
     collision_start_margin_time: 0.0
     collision_end_margin_time: 0.0
@@ -340,7 +340,7 @@ roundabout:
       object_time_margin_to_collision_point: 4.0
   debug:
     ttc:
-    - -1
+    - 0
   enable_rtc:
     roundabout: false
 speed_bump:

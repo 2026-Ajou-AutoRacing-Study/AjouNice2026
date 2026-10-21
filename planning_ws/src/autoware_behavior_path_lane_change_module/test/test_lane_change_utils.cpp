@@ -23,6 +23,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <iterator>
+#include <limits>
+
 constexpr double epsilon = 1e-6;
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialSpeedProfileRespectsTransitionsAndDynamics)
@@ -116,10 +120,13 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   auto samples = calc_lon_acceleration_samples(data, 50, 0);
   ASSERT_EQ(samples.size(), 22U);
   EXPECT_DOUBLE_EQ(samples[0], 3.7);
-  EXPECT_DOUBLE_EQ(samples[1], -6.0);
-  std::sort(samples.begin(), samples.end());
+  EXPECT_NEAR(samples[1], 3.215, epsilon);
+  EXPECT_DOUBLE_EQ(samples.back(), -6.0);
   EXPECT_NE(std::find(samples.begin(), samples.end(), 0.0), samples.end());
-  for (size_t i = 1; i < samples.size(); ++i) EXPECT_LE(samples[i] - samples[i-1], 0.485 + epsilon);
+  for (size_t i = 1; i < samples.size(); ++i) {
+    EXPECT_LE(samples[i], samples[i - 1]);
+    EXPECT_LE(samples[i - 1] - samples[i], 0.485 + epsilon);
+  }
   EXPECT_DOUBLE_EQ(calc_lane_changing_acceleration(data, 30, 50, 3, 3.7), 3.7);
   EXPECT_DOUBLE_EQ(calc_lane_changing_acceleration(data, 30, 50, 3, -6), -6);
   EXPECT_NEAR(calc_lane_changing_acceleration(data, 5, 50, 3, -6), (2.78 - 5) / 3, epsilon);
@@ -140,6 +147,44 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
       EXPECT_NEAR(metric.length, 30 * metric.duration + 0.5 * requested * metric.duration * metric.duration, epsilon);
     }
   }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CoastingAndGentleBrakingPrecedeRecordedTenKmhCandidate)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change::calculation;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->twist.twist.linear.x = 16.162283930537324;
+  data->self_odometry_ptr = odometry;
+  auto & p = data->lc_param_ptr->trajectory;
+  p.min_prepare_duration = 0;
+  p.lon_acc_sampling_num = 20;
+  p.min_longitudinal_acc = -8;
+  p.max_longitudinal_acc = 3.7;
+  p.min_lane_changing_velocity = 2.78;
+  data->bpp_param_ptr->min_acc = -6;
+  data->bpp_param_ptr->max_acc = 3.25;
+  data->bpp_param_ptr->max_vel = 38.8889;
+
+  const auto samples = calc_lon_acceleration_samples(data, 38.8889, 0);
+  const auto coast = std::find(samples.begin(), samples.end(), 0.0);
+  ASSERT_NE(coast, samples.end());
+  ASSERT_NE(coast, samples.begin());
+  ASSERT_NE(std::next(coast), samples.end());
+  EXPECT_GT(*std::prev(coast), 0.0);
+  EXPECT_LT(*std::next(coast), 0.0);
+  EXPECT_GT(*std::next(coast), -0.5);
+  double previous = std::numeric_limits<double>::infinity();
+  for (const double sample : samples) {
+    const double acceleration = calc_lane_changing_acceleration(
+      data, odometry->twist.twist.linear.x, 38.8889, 3.981505290093833, sample);
+    EXPECT_LE(acceleration, previous + epsilon);
+    previous = acceleration;
+  }
+  EXPECT_NEAR(previous, -3.3611116790006683, epsilon);
 }
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionPredictionsMatchAccelerationAndStop)

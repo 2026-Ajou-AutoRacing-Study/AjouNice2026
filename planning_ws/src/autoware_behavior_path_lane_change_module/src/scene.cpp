@@ -17,6 +17,7 @@
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/path.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/safety_check.hpp"
 #include "autoware/behavior_path_planner_common/utils/drivable_area_expansion/static_drivable_area.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_safety_checker/objects_filtering.hpp"
 #include "autoware/behavior_path_planner_common/utils/path_safety_checker/safety_check.hpp"
@@ -58,6 +59,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <std_msgs/String.h>
+#include <chrono>
 
 namespace autoware::behavior_path_planner
 {
@@ -74,6 +77,12 @@ NormalLaneChange::NormalLaneChange(
 {
   stop_watch_.tic(getModuleTypeStr());
   stop_watch_.tic("stop_time");
+  if (type == LaneChangeModuleType::NORMAL) {
+    ros::NodeHandle node("~");
+    safety_diagnostics_pub_ = node.advertise<std_msgs::String>(
+      std::string("debug/lane_change_") +
+      (direction == Direction::LEFT ? "left" : "right") + "/safety_checks", 1);
+  }
 }
 
 void NormalLaneChange::update_lanes(const bool is_approved)
@@ -287,7 +296,12 @@ void NormalLaneChange::update_filtered_objects()
 void NormalLaneChange::updateLaneChangeStatus()
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
+  safety_diagnostic_samples_.clear();
+  safety_rejected_pairs_ = 0;
+  const auto search_start = std::chrono::steady_clock::now();
   const auto [found_valid_path, found_safe_path] = getSafePath(status_.lane_change_path);
+  const double search_ms = std::chrono::duration<double, std::milli>(
+    std::chrono::steady_clock::now() - search_start).count();
 
   // Update status
   status_.is_valid_path = found_valid_path;
@@ -311,6 +325,7 @@ void NormalLaneChange::updateLaneChangeStatus()
     status_.lane_change_path.info.duration.lane_changing,
     status_.lane_change_path.info.longitudinal_acceleration.prepare,
     status_.lane_change_path.info.longitudinal_acceleration.lane_changing);
+  publishSafetyDiagnostics(search_ms);
 }
 
 std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) const
@@ -2079,12 +2094,14 @@ bool NormalLaneChange::is_colliding(
 {
   if (lane_change_path.path.points.empty() || ego_predicted_path.empty()) return false;
 
-  // The ROS1 core keeps complete predicted-path interpolation, RSS polygons,
-  // and per-object SafetyFactor debug state.  Upstream chooses the prepare or
-  // lane-changing parameters per timestamp.  Until that timestamp selector
-  // is rendered, require both full-path checks to pass: this is deliberately
-  // fail-closed and cannot turn an upstream collision into a safe result.
-  constexpr double hysteresis_factor{1.0};
+  // Before approval the prediction begins at the candidate's preparation start.
+  // After approval, derive the remaining time separately for each current
+  // motion hypothesis, including a hypothesis that stops before the LC start.
+  const auto split = is_approved
+    ? utils::lane_change::remaining_prepare_time(
+        lane_change_path.path, ego_predicted_path, lane_change_path.info.lane_changing_start)
+    : std::optional<double>{lane_change_path.info.duration.prepare};
+  if (!split) return true;
   const auto yaw_threshold = common_data_ptr_->lc_param_ptr->safety.collision_check.th_yaw_diff;
   const auto & vehicle_info = common_data_ptr_->bpp_param_ptr->vehicle_info;
   const ExtendedPredictedObjects objects{obj};
@@ -2093,15 +2110,18 @@ bool NormalLaneChange::is_colliding(
     (!is_approved && obj.initial_twist.linear.x <= parked_threshold)
       ? lane_change_parameters_->safety.rss_params_for_parked
       : rss_param;
-  const bool prepare_safe = utils::path_safety_checker::check_safety_with_rss(
+  const bool observe = !is_approved && safety_diagnostics_pub_ &&
+    safety_diagnostics_pub_.getNumSubscribers();
+  const auto result = utils::lane_change::check_safety_by_phase(
     lane_change_path.path, ego_predicted_path, vehicle_info, objects, debug_data,
-    common_data_ptr_->lc_param_ptr->safety.rss_params_for_prepare, true,
-    hysteresis_factor, yaw_threshold);
-  if (!prepare_safe) return true;
-  const bool lane_changing_safe = utils::path_safety_checker::check_safety_with_rss(
-    lane_change_path.path, ego_predicted_path, vehicle_info, objects, debug_data,
-    lane_changing_params, true, hysteresis_factor, yaw_threshold);
-  return !lane_changing_safe;
+    common_data_ptr_->lc_param_ptr->safety.rss_params_for_prepare, lane_changing_params,
+    *split, yaw_threshold, observe);
+  const auto debug = debug_data.find(obj.uuid.uuid);
+  if (!result.safe && observe && debug != debug_data.end()) {
+    captureSafetyDiagnostic(result.stage, obj, lane_change_path, ego_predicted_path,
+      lane_changing_params, result.trace, debug->second);
+  }
+  return !result.safe;
 }
 
 double NormalLaneChange::get_max_velocity_for_safety_check() const

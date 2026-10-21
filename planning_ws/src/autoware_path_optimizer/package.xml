@@ -31,9 +31,11 @@
   <depend>nav_msgs</depend>
   <depend>roscpp</depend>
   <depend>std_msgs</depend>
+  <depend>nlohmann_json</depend>
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
 
   <exec_depend>autoware_global_parameter_loader</exec_depend>
 
+  <test_depend>rostest</test_depend>
 </package>

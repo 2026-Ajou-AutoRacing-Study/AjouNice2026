@@ -40,6 +40,7 @@
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
   <depend>unique_identifier_msgs</depend>
+  <test_depend>rostest</test_depend>
 
   <export>
     <build_type>catkin</build_type>

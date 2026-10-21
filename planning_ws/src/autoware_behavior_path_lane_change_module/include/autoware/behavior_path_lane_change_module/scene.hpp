@@ -16,6 +16,7 @@
 
 #include "autoware/behavior_path_lane_change_module/base_class.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include <autoware/behavior_path_planner_common/utils/path_safety_checker/safety_core.hpp>
 
 #include <memory>
 #include <string>
@@ -124,6 +125,27 @@ public:
   bool hasMissedLaneChangePath() const override;
 
 protected:
+  struct SafetyDiagnosticSample
+  {
+    std::string stage;
+    ExtendedPredictedObject object;
+    LaneChangePath candidate;
+    std::vector<PoseWithVelocityStamped> ego_prediction;
+    RSSparams execution_params;
+    utils::path_safety_checker::RSSCollisionTrace trace;
+    CollisionCheckDebug debug;
+  };
+  void captureSafetyDiagnostic(
+    const char * stage, const ExtendedPredictedObject & object,
+    const LaneChangePath & candidate, const std::vector<PoseWithVelocityStamped> & prediction,
+    const RSSparams & execution_params,
+    const utils::path_safety_checker::RSSCollisionTrace & trace,
+    const CollisionCheckDebug & debug) const;
+  void publishSafetyDiagnostics(double search_ms) const;
+  ros::Publisher safety_diagnostics_pub_;
+  mutable std::vector<SafetyDiagnosticSample> safety_diagnostic_samples_;
+  mutable size_t safety_rejected_pairs_{0};
+
   lanelet::ConstLanelets get_lane_change_lanes(const lanelet::ConstLanelets & current_lanes) const;
 
   TurnSignalInfo get_terminal_turn_signal_info() const final;

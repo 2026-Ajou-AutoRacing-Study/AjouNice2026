@@ -59,7 +59,9 @@ include_directories(src ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${PCL_INCL
   ${PLANNING_FACTOR_INTERFACE_INCLUDE_DIR} ${OSQP_INTERFACE_INCLUDE_DIR} ${OSQP_INCLUDE_DIR} ${INTERPOLATION_INCLUDE_DIR}
   ${UNIVERSE_UTILS_INCLUDE_DIR})
 add_library(${PROJECT_NAME} SHARED
+  src/body_longitudinal_filter.cpp
   src/obstacle_cruise_module.cpp
+  src/lateral_collision_check.cpp
   src/ros1_compat.cpp
   src/optimization_based_planner/optimization_based_planner.cpp
   src/optimization_based_planner/velocity_optimizer.cpp
@@ -71,9 +73,22 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  add_rostest_gtest(test_pid_target_switch test/pid_target_switch.test test/test_pid_target_switch.cpp)
+  if(TARGET test_pid_target_switch)
+    target_link_libraries(test_pid_target_switch ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_lateral_collision_check test/test_lateral_collision_check.cpp)
+  if(TARGET test_lateral_collision_check)
+    target_link_libraries(test_lateral_collision_check ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
   catkin_add_gtest(test_trajectory_index_mapping test/test_trajectory_index_mapping.cpp)
   if(TARGET test_trajectory_index_mapping)
     target_link_libraries(test_trajectory_index_mapping ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_body_longitudinal_filter test/test_body_longitudinal_filter.cpp)
+  if(TARGET test_body_longitudinal_filter)
+    target_link_libraries(test_body_longitudinal_filter ${PROJECT_NAME} ${catkin_LIBRARIES})
   endif()
   catkin_add_gtest(test_ros1_parameter_map test/test_ros1_parameter_map.cpp)
   if(TARGET test_ros1_parameter_map)

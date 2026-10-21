@@ -61,6 +61,8 @@ private:
 
   bool isPathAroundEgoChanged(
     const PlannerData & planner_data, const std::vector<TrajectoryPoint> & prev_traj_points) const;
+  bool isPathStartChanged(
+    const PlannerData & planner_data, const std::vector<TrajectoryPoint> & prev_traj_points) const;
   bool isPathForwardChanged(
     const PlannerData & planner_data, const std::vector<TrajectoryPoint> & prev_traj_points) const;
   bool isPathGoalChanged(

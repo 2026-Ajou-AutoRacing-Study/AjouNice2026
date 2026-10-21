@@ -4,6 +4,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import math
 import os
 import shutil
 import shlex
@@ -15,7 +16,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
+from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolve_path
+from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
 from .models import resolve_contract, verify_contract, selected_model, CANONICAL
@@ -513,6 +515,9 @@ def _run_case(cfg, processes, monitor, case, state):
                     "bag_enabled": cfg['recording'].get('bag_enabled', True),
                     "recorded_topics": cfg["recording"]["topics"],
                     "recorded_topic_regex": cfg['recording'].get('topic_regex', [])}
+    if cfg.get('route'):
+        cfg_snapshot['route'] = {'name':cfg['route']['name'],
+            'definition_sha256':cfg['route']['definition_sha256'],'goal_preserved':True}
     atomic_json(folder / "input.json", cfg_snapshot)
     state["current"] = {"scenario": case.name, "phase": "SCENARIO_LOAD", "attempt": attempt,
                         "started_at": now(), "metrics": {}}
@@ -586,8 +591,26 @@ def _run_case(cfg, processes, monitor, case, state):
         state["current"]["phase"] = "ROUTE_REQUEST"
         _write_state(cfg, state)
         monitor.event("ROUTE_REQUEST")
-        route_id = request_route(case, monitor,
-            timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)), process=processes.running['planning'])
+        route_args = {}
+        if cfg.get('route'):
+            geometry = cfg.get('_route_geometry')
+            if geometry is None:
+                geometry = cfg['_route_geometry'] = ProfileGeometry(cfg['route'], resolve_path)
+            odom = monitor.odom
+            if odom is None or odom.header.frame_id != 'map':
+                raise RuntimeFailure('Route B 요청에 map 좌표의 현재 위치가 필요합니다.')
+            p,q = odom.pose.pose.position,odom.pose.pose.orientation
+            yaw = math.degrees(math.atan2(
+                2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z)))
+            route_args['route_plan'] = geometry.plan(dict(x=p.x,y=p.y,z=p.z,yaw_deg=yaw),case.goal)
+            atomic_json(folder / 'route_profile.json',route_args['route_plan'])
+        try:
+            route_id = request_route(case, monitor,
+                timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)),
+                process=processes.running['planning'], **route_args)
+        finally:
+            if 'route_plan' in route_args:
+                atomic_json(folder / 'route_profile.json',route_args['route_plan'])
         if safety['enabled']:
             monitor.wait_stationary(after=loaded_after, timeout=safety['startup_timeout_sec'],
                 hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
@@ -765,6 +788,8 @@ def _run_case(cfg, processes, monitor, case, state):
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
+            "route_profile": (json.loads((folder / 'route_profile.json').read_text())
+                              if (folder / 'route_profile.json').is_file() else None),
             "drive_reason": drive_reason, "safety": safety_receipt, "halt_campaign": halt_campaign,
             "metrics": metrics, "failure_analysis": failure_analysis,
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
@@ -986,6 +1011,8 @@ def main(argv=None):
             print("설정 확인: {} | JSON {}개 × 반복 {}회 = 총 {}회 | 설치 {}".format(
                 cfg["name"], len({case.source for case in cfg["cases"]}),
                 cfg['cases'][0].repeat_total, len(cfg["cases"]), cfg["install"]))
+            if cfg.get('route'):
+                print('경로 정책: {} / 기존 목적지 유지 / 선호 차선 일치 확인 후 주행'.format(cfg['route']['name']))
             if args.dry_run:
                 for index, case in enumerate(cfg["cases"], 1):
                     print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.name,

@@ -221,6 +221,21 @@ Google Drive 공유는 캠페인 YAML의 `upload.enabled`, `upload.profile`, `up
 
 ## 운영 계약
 
+고속 구간에서 대회 Route B의 선호 차선을 사용하되 기존 검증 목적지를 유지하려면
+개인 YAML에 다음을 지정한다. 현재 작업용 설정은 `highway/workspace/highway_125_route_b.yaml`이다.
+
+```yaml
+route:
+  name: route_b
+  definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v85_competition_route.yaml
+```
+
+실행기는 현재 위치부터 `default_case.goal`까지의 B 구간만 선택하고, 해당 차로의 중심점을
+경유점으로 요청한다. 최종 route의 모든 선호 차선이 B 목록과 순서대로 일치하고 새 궤적이
+준비되어야 주행을 시작한다. 후보 차선이 없거나 순서가 다르면 기존 차선을 그대로 사용하는
+대신 실행 오류로 중단한다. `route_profile.json`과 결과 JSON에 요청·확인한 차선 목록을 남기며,
+경로 정의 YAML도 실행 사본에 고정한다. 이 설정이 없는 다른 미션과 과거 실행 사본의 동작은 유지한다.
+
 - 실행 전 ROS graph에 기존 `/ctrl_cmd`, `/planning/trajectory`, localization, detector publisher가 있으면 중복 실행을 막는다. 기존 수동 스택을 종료한 뒤 사용한다.
 - custom goal은 `/planning/set_waypoint_route`로 보낸다. 대회 Route A/B requester는 실행하지 않는다.
 - `pose_source: localization`은 MR `/Competition_topic` + -1.347° 보정을 사용한다. `maptf_morai`는 `/Ego_topic`을 사용한다.

@@ -13,4 +13,10 @@
       Show the currently verified competition route in RViz.
     </description>
   </class>
+  <class name="bringup/RouteEditor" type="bringup::RouteEditorPanel" base_class_type="rviz::Panel">
+    <description>Edit Route A/B waypoints, save drafts and request a planning route.</description>
+  </class>
+  <class name="bringup/RoutePoint" type="bringup::RoutePointTool" base_class_type="rviz::Tool">
+    <description>Click the map to insert a route waypoint (P).</description>
+  </class>
 </library>

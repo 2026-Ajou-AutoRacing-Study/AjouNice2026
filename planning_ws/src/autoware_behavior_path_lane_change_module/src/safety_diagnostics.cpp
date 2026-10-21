@@ -1,0 +1,173 @@
+// Diagnostic observation only: counterfactual checks never approve a maneuver.
+#include "autoware/behavior_path_lane_change_module/scene.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/safety_check.hpp"
+
+#include <nlohmann/json.hpp>
+#include <std_msgs/String.h>
+#include <tf2/utils.h>
+
+#include <chrono>
+#include <iomanip>
+#include <limits>
+#include <sstream>
+
+namespace autoware::behavior_path_planner
+{
+namespace
+{
+using Json = nlohmann::json;
+namespace check = utils::path_safety_checker;
+Json pose_json(const geometry_msgs::Pose & p)
+{
+  return {{"x", p.position.x}, {"y", p.position.y}, {"yaw", tf2::getYaw(p.orientation)}};
+}
+Json polygon_json(const autoware_utils_geometry::Polygon2d & polygon)
+{
+  auto result = Json::array();
+  for (const auto & p : polygon.outer()) result.push_back({p.x(), p.y()});
+  return result;
+}
+Json params_json(const check::RSSparams & p)
+{
+  return {{"front_deceleration", p.front_vehicle_deceleration},
+    {"rear_deceleration", p.rear_vehicle_deceleration},
+    {"reaction_time", p.rear_vehicle_reaction_time},
+    {"safety_time", p.rear_vehicle_safety_time_margin},
+    {"minimum_longitudinal", p.longitudinal_distance_min_threshold},
+    {"lateral_margin", p.lateral_distance_max_threshold}, {"policy", p.extended_polygon_policy}};
+}
+}
+
+void NormalLaneChange::captureSafetyDiagnostic(
+  const char * stage, const ExtendedPredictedObject & object,
+  const LaneChangePath & candidate, const std::vector<PoseWithVelocityStamped> & prediction,
+  const RSSparams & execution_params, const check::RSSCollisionTrace & trace,
+  const CollisionCheckDebug & debug) const
+{
+  ++safety_rejected_pairs_;
+  // First rejected sample for each object/stage, at most four per planning cycle.
+  // Search counts are complete; the snapshots are intentionally bounded.
+  if (safety_diagnostic_samples_.size() >= 4) return;
+  for (const auto & sample : safety_diagnostic_samples_) {
+    if (sample.stage == stage && sample.object.uuid == object.uuid) return;
+  }
+  safety_diagnostic_samples_.push_back(
+    {stage, object, candidate, prediction, execution_params, trace, debug});
+}
+
+void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
+{
+  if (!safety_diagnostics_pub_ || !safety_diagnostics_pub_.getNumSubscribers()) return;
+  const auto started = std::chrono::steady_clock::now();
+  const auto & vehicle = common_data_ptr_->bpp_param_ptr->vehicle_info;
+  const auto & params = *common_data_ptr_->lc_param_ptr;
+  const auto ids = [](const auto & lanes) {
+    auto result = Json::array();
+    for (const auto & lane : lanes) result.push_back(lane.id());
+    return result;
+  };
+  Json document{{"schema_version", 1}, {"stamp", ros::Time::now().toSec()},
+    {"safety_check_mode", "phase_scoped"},
+    {"side", direction_ == Direction::LEFT ? "left" : "right"},
+    {"valid", status_.is_valid_path}, {"safe", status_.is_safe},
+    {"ego_pose", pose_json(getEgoPose())}, {"ego_speed", getEgoVelocity()},
+    {"current_lanes", ids(get_current_lanes())}, {"target_lanes", ids(get_target_lanes())},
+    {"search_ms", search_ms}, {"search_limit_ms", params.time_limit},
+    {"rejected_pairs", safety_rejected_pairs_}, {"snapshot_limit", 4},
+    {"sample_policy", "first_failure_per_object_and_stage"},
+    {"prepare_params", params_json(params.safety.rss_params_for_prepare)},
+    {"execution_params", params_json(params.safety.rss_params)},
+    {"counterfactual_affects_decision", false}, {"samples", Json::array()}};
+
+  if (status_.is_valid_path) {
+    const auto & candidate = status_.lane_change_path;
+    document["selected_candidate"] = {
+      {"prepare_acceleration", candidate.info.longitudinal_acceleration.prepare},
+      {"execution_acceleration", candidate.info.longitudinal_acceleration.lane_changing},
+      {"prepare_velocity", candidate.info.velocity.prepare},
+      {"execution_velocity", candidate.info.velocity.lane_changing},
+      {"prepare_duration", candidate.info.duration.prepare},
+      {"execution_duration", candidate.info.duration.lane_changing}};
+  }
+  if (const auto stop = getStopPose()) {
+    document["stop_pose"] = {{"pose", pose_json(stop->pose)}, {"reason", stop->detail}};
+  }
+
+  for (const auto & sample : safety_diagnostic_samples_) {
+    const auto & trace = sample.trace;
+    const auto & debug = sample.debug;
+    const auto & candidate = sample.candidate;
+    const double split = candidate.info.duration.prepare;
+    std::ostringstream uuid;
+    for (const auto byte : sample.object.uuid.uuid) {
+      uuid << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
+    }
+    const auto scoped_safe = [&](const auto & object, const auto & execution_params) {
+      CollisionCheckDebugMap ignored;
+      return utils::lane_change::check_safety_by_phase(
+        candidate.path, sample.ego_prediction, vehicle, {object}, ignored,
+        params.safety.rss_params_for_prepare, execution_params, split,
+        params.safety.collision_check.th_yaw_diff).safe;
+    };
+    Json record{{"object_uuid", uuid.str()}, {"object_label", sample.object.classification.label},
+      {"object_initial_pose", pose_json(sample.object.initial_pose)},
+      {"object_initial_velocity", {sample.object.initial_twist.linear.x,
+        sample.object.initial_twist.linear.y}},
+      {"checked_stage", sample.stage}, {"unsafe_reason", debug.unsafe_reason},
+      {"collision_time", trace.time}, {"predicted_path_index", trace.predicted_path_index},
+      {"predicted_path_confidence", trace.path_confidence},
+      {"prepare_duration", split}, {"execution_duration", candidate.info.duration.lane_changing},
+      {"predicted_phase", trace.time < split ? "prepare" : "execution"},
+      {"outside_stage_window", sample.stage == "prepare" ? trace.time >= split : trace.time < split},
+      {"ego_velocity", trace.ego_velocity}, {"object_velocity", trace.object_velocity},
+      {"object_is_front", trace.object_is_front}, {"rss_distance", trace.rss_distance},
+      {"longitudinal_extension", trace.longitudinal_extension},
+      {"lateral_margin", trace.lateral_margin},
+      {"expected_ego_pose", pose_json(debug.expected_ego_pose)},
+      {"expected_object_pose", pose_json(debug.expected_object_pose)},
+      {"extended_ego_polygon", polygon_json(debug.extended_ego_polygon)},
+      {"extended_object_polygon", polygon_json(debug.extended_object_polygon)},
+      {"candidate_prepare_acceleration", candidate.info.longitudinal_acceleration.prepare},
+      {"candidate_execution_acceleration", candidate.info.longitudinal_acceleration.lane_changing},
+      {"phase_split_safe_for_object", scoped_safe(sample.object, sample.execution_params)},
+      {"ego_prediction", Json::array()}, {"object_predictions", Json::array()}};
+    for (const auto & point : sample.ego_prediction) {
+      record["ego_prediction"].push_back({point.time, point.pose.position.x,
+        point.pose.position.y, tf2::getYaw(point.pose.orientation), point.velocity});
+    }
+    for (const auto & path : sample.object.predicted_paths) {
+      Json prediction{{"confidence", path.confidence}, {"points", Json::array()}};
+      for (const auto & point : path.path) {
+        prediction["points"].push_back({point.time, point.pose.position.x,
+          point.pose.position.y, tf2::getYaw(point.pose.orientation), point.velocity});
+      }
+      record["object_predictions"].push_back(std::move(prediction));
+    }
+    // For the first snapshot, check every filtered target object with this exact
+    // ego hypothesis. This is evidence about one candidate, not an approval.
+    if (&sample == &safety_diagnostic_samples_.front()) {
+      const auto targets = get_target_objects(filtered_objects_, get_current_lanes());
+      bool all_safe = true;
+      size_t count = 0;
+      for (const auto * objects : {&targets.leading, &targets.trailing}) {
+        for (const auto & object : *objects) {
+          ++count;
+          const auto & execution_params = object.initial_twist.linear.x <=
+            params.safety.th_stopped_object_velocity ? params.safety.rss_params_for_parked :
+            params.safety.rss_params;
+          if (!scoped_safe(object, execution_params)) all_safe = false;
+        }
+      }
+      record["phase_split_safe_all_target_objects"] = all_safe;
+      record["counterfactual_object_count"] = count;
+      record["counterfactual_scope"] = "same_candidate_and_ego_hypothesis_all_filtered_target_objects";
+    }
+    document["samples"].push_back(std::move(record));
+  }
+  document["diagnostic_compute_ms"] = std::chrono::duration<double, std::milli>(
+    std::chrono::steady_clock::now() - started).count();
+  std_msgs::String message;
+  message.data = document.dump();
+  safety_diagnostics_pub_.publish(message);
+}
+}
