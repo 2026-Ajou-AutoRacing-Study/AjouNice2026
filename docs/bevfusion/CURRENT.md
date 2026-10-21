@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-19.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-21.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 구 Sunny13 모델의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -13,6 +13,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 항목 | 현재 선택과 상태 |
 |---|---|
 | 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인과 warm-up restart는 모두 8 epoch 정상 완료하며 각각 마지막 E8이 자체 val best |
+| 다음 전체 데이터 학습 | **6환경 약 30K + 장애물 보강 750장·12 epoch 준비 완료, 학습 미시작**이다. 지원 GT 없는 Foggy13 한 장을 제외한 실제 **30,749장 / train 26,135 / val 4,614**의 Vast 전달·복원과 9개 Concat 실제 CPU 연결 검사를 통과했다. 기존 호환 nuScenes 초기화·새 optimizer/scheduler·일반 코사인·compile OFF·batch 4·epoch당 6,534 update의 별도 계약이며 GPU 49,140MiB·W&B·Drive 온라인 검사도 통과했다. 기존 로그 확장으로 약 **16~18시간 예상**이다. 실제 시작 승인은 별도이며 production E24는 유지한다. 새 Drive 직접 경로의 full checkpoint 전송은 첫 실제 epoch에서 확인해야 한다. 설정·새 실행기·근거는 [전체 데이터 12-epoch 준비](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-12epoch-preparation-261021)를 따른다 |
 | 완료된 데이터 대조 학습 | 새 Sunny13 **v158a 원형 5K**는 기존 E24의 동결 source/init·seed·24 epoch·batch 4·AdamW·cosine·compile ON 조건으로 10/19 04:11:54~08:48:18 KST, 약 **4시간 36분 24초·exit 0**에 완료했다. full E24·자체 val best E20의 Drive 전체 SHA/readback과 W&B 완료를 확인했다. 같은 val의 E24 교차 평가 mAP는 기존 745장에서 **83.47→87.63%**, 신규 750장에서 **89.93→91.00%**다. 근거리 장애물은 두 val에서 개선됐지만 **30~50m 장애물은 미해결**, 원거리 차량도 일관된 개선이 아니다. E20은 교차 평가하지 않았다. Foggy13의 149장 거리 보강 학습 결과가 아니며 일반 새 학습의 compile OFF와 **기존 production E24는 유지**한다. [완료·백업·네 칸 비교와 한계](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019) |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |

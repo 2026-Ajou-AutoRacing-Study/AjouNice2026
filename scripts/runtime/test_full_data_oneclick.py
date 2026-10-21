@@ -1,0 +1,74 @@
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location('oneclick', HERE/'full_data_oneclick.py')
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+
+class Tests(unittest.TestCase):
+    def config(self):
+        return dict(schema='base5_full_data_launcher_v1', expected_scenes=30749, variant='cosine',
+            source='/workspace/oldsource', data='/workspace/new/index.json', work='/workspace/new/run',
+            initializer='/workspace/init.pth', remote_script='/workspace/new/full_data_oneclick.py',
+            remote_config='/workspace/new/config.json', prepare_script='/workspace/new/full_data_prepare.py',
+            epochs=8, seed=261015, compile_camera=False, epochs_user_approved=False,
+            start_authority='/workspace/new/USER_START_AUTHORITY.json')
+
+    def test_draft_run_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'still draft'):
+            m.command(self.config(), run=True)
+
+    def test_epoch_only_not_start_permission(self):
+        c = self.config()
+        c['epochs_user_approved'] = True
+        with self.assertRaisesRegex(ValueError, 'No separate'):
+            m.command(c, run=True)
+
+    def test_prepare_is_never_run(self):
+        self.assertNotIn('--run', m.command(self.config()))
+
+    def test_resume_keeps_original_epoch_boundary_mode(self):
+        self.assertEqual(m.command(self.config(), resume=True)[-2:], ['--resume', 'auto'])
+
+    def test_three_class_supplement_count_only_configuration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'config.json'
+            c = self.config()
+            path.write_text(json.dumps(c))
+            self.assertEqual(m.load_config(path), c)
+            c['expected_scenes'] = 30000
+            path.write_text(json.dumps(c))
+            with self.assertRaisesRegex(ValueError, 'explicit full-data'):
+                m.load_config(path)
+
+    def test_incomplete_data_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'index.json'
+            path.write_text(json.dumps(dict(schema='base5_full_cohort_index_v1', complete=False)))
+            c = self.config()
+            c.update(data=str(path), dataset_manifest_sha256=m.sha(path))
+            with self.assertRaisesRegex(ValueError, 'not ready'):
+                m.data_gate(c)
+
+    def test_direct_backup_prefix_only_changes_proxy_environment(self):
+        with patch.dict(os.environ, dict(HTTP_PROXY='proxy', HTTPS_PROXY='proxy', ALL_PROXY='proxy',
+            http_proxy='proxy', https_proxy='proxy', all_proxy='proxy', UNRELATED='keep')):
+            exec(m.direct_backup_prefix(), {})
+            for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
+                self.assertNotIn(key, os.environ)
+            self.assertEqual(os.environ['UNRELATED'], 'keep')
+
+    def test_direct_backup_requires_explicit_route(self):
+        with self.assertRaisesRegex(ValueError, 'direct backup route'):
+            m.backup_once(dict(drive_backup_route='relay'), None)
+
+
+if __name__ == '__main__':
+    unittest.main()

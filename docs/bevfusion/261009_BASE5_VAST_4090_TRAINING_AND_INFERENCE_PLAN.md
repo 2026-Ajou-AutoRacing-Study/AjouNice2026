@@ -1,6 +1,6 @@
 # Base5 원격 실행과 보존 안내
 
-문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-19.
+문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-21.
 기존 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 새 데이터 대조 학습을 포함한
 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
@@ -57,6 +57,117 @@ bash scripts/runtime/prepare_base5_next_training.sh \
 실제 학습은 대상 GPU에서 초기화 strict load·forward/backward·비용·재개·W&B/Drive 백업을 검증하고
 새 source/data/work 계약을 동결한 뒤 별도로 승인한다. CPU artifact의 컨테이너 경로는 새 호스트에서 다시 준비한다.
 [2026-10-15 CPU 검증 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-next-training-cpu-261015)는 실제 5K·GT 전체와 강도 표본 검사의 범위를 구분한다.
+
+<a id="full-data-12epoch-preparation-261021"></a>
+
+## 6환경 + 장애물 보강 전체 학습 준비 — 2026-10-21
+
+사용자는 정규 6환경 약 30K와 장애물 보강 750장의 전체 학습 준비를 승인했다.
+Foggy11 최종 Q90/upright 5,000장도 검증을 완료했다. Foggy13의 지원 GT 없는 한 장은
+계속 제외하므로 실제 입력은 **30,749장 / train 26,135 / val 4,614**다. 구 production용
+Sunny13 5K를 추가로 중복 합산하지 않는다. 9개 cohort의 실제 infos/manifest 대조에서
+전역 token/raw/payload 중복과 group 분할 충돌은 모두 0이었다. 이는 로컬 입력 준비의
+완료이며, Vast 전달·학습 시작과 구분한다. [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)를 따른다.
+
+### 8에폭과 12에폭 비교·사용자 선택
+
+기존 compile OFF Sunny15 일반 코사인 학습 로그의 평균 iteration은 약 0.667초다.
+전체 데이터의 batch 4에서는 에폭당 6,534 update다. 아래는 그 비용을 단순 확장한 예상이며,
+새 전체 데이터·대상 GPU에서 실측한 총시간이 아니다. 전송 시간은 포함하지 않는다.
+
+| 예산 | 업데이트 | 학습 연산만 | 검증·체크포인트·백업 포함 예상 |
+|---|---:|---:|---:|
+| 8 epoch | 52,272 | 약 9.68시간 | 약 11~12시간 |
+| 12 epoch | 78,408 | 약 14.52시간 | 약 16~18시간 |
+
+참고로 새 Sunny13의 기존 **5K·24 epoch 고정 스케줄** 로그를 보면, 각 지표의 최고값은 다음과 같다.
+
+| 자체 val 지표 | 8 epoch까지 최고 | 12 epoch까지 최고 |
+|---|---:|---:|
+| Center mAP | 89.39% | 89.94% |
+| Obstacle AP | 81.06% | 82.04% |
+| 20~30m Obstacle AP | 76.04% | 77.81% |
+| 80~100m Vehicle AP | 70.50% | 72.94% |
+
+각 지표의 최고 epoch는 서로 다르며 하나의 모델 성적표가 아니다. 8/12 epoch로 처음부터
+코사인을 끝까지 내린 독립 실험도 아니므로 이번 전체 데이터의 예상 개선량으로 쓰지 않는다.
+전체 데이터 8 epoch도 구 5K·24 epoch보다 update는 약 2.05배지만, 각 표본 노출은 8회이고
+새 Foggy 환경도 있으므로 update 수만으로 수렴 완료를 보장할 수 없다.
+
+한 번의 본학습 기회를 충분히 쓰는 방향으로 12 epoch를 제안했고 사용자는 **“12에폭으로 준비”**를
+선택했다. 실제 학습 시작은 아직 승인·실행 전이다. 처음부터 12 epoch 스케줄로 새 계약을 만들며,
+8 epoch 완료 run을 12로 몰래 연장하거나 과거 optimizer를 강제 resume하지 않는다.
+원근거·계산은 `artifacts/evaluation/base5_full_training_budget_review_261021_v1/comparison.json`,
+실제 사용자 응답은 같은 폴더 `USER_APPROVAL.json`에 기록했다.
+
+### 고정할 입력·실행 정책과 전송 범위
+
+- 기존 호환 nuScenes 초기화와 새 optimizer/scheduler, 일반 코사인·500 update 선형 warm-up을 사용한다.
+- compile OFF·batch 4·누적 1·workers 4·AdamW lr 1e-4·512×1056·5cm/20cm·depth 25cm를 유지한다.
+- 기존 W&B 지표명·거리별 AP·front/rear 진단과 full checkpoint Drive 백업·readback 계약을 유지한다.
+- 각 환경의 원래 root/infos/GT/split을 보존한 `ConcatDataset`으로 연결한다. metainfo에서 달라질 수 있는
+  키는 배치 overlay 출처 SHA 하나뿐이며, 장면별 원래 overlay/group binding은 그대로 검증한다.
+- 기존 Vast의 새 Sunny13·Sunny15와 초기 가중치 SHA·설치를 재사용한다. 재대여·Destroy·CUDA 재설치는 하지 않는다.
+- 사용자가 누락 MORAI 합성 데이터 압축본을 본인 Drive `dataset/Base5/full30749_261021/`에
+  업로드하고 현재 Vast로 받는 것을 명시적으로 승인했다. 기존 파일 덮어쓰기·삭제는 하지 않는다.
+- Direct 전송은 약 0.1MB/s라 자체 전송만 중지하고 불완전 파일은 보존했다. Foggy15의 Drive 업로드는
+  약 29.6MiB/s, 이후 Vast 실제 수신은 약 2.7~3.8MB/s로 관측했다. 일반적인 MB/s 진행은 유지하며
+  옛 8MB/s 중단 기준을 새 전송에 적용하지 않는다. 전체 SHA 확인·복원·입력 준비 전에는 완료라고 하지 않는다.
+
+새 cohort index/현장 설정·receipt는 `artifacts/evaluation/base5_full_data_training_draft_261021_v1/`에서
+관리한다. 재사용 가능한 전체 데이터 실행기는 `scripts/runtime/full_data_prepare.py`,
+`full_data_oneclick.py`, `start_base5_full_vast_training.sh`로 분리했다. 모델·optimizer·scheduler는
+원형의 검증된 구현을 재사용하고 전체 데이터 연결·identity·시작 권한만 별도 계약으로 확장한다.
+16개 CPU 단위 테스트가 통과했다. 구 5K 전용 oneclick을 대신 실행하지 않는다.
+
+기본 실행과 `--status`는 상태만 읽는다. `--prepare`는 설정 준비, `--check`는 온라인 사전 검사,
+`--smoke`는 CPU Concat 호환 검사이며 모델 학습을 시작하지 않는다. 최종 전달 후 생성할
+`launcher_e12_ready.json`이 없는 동안에는 기본 실행을 차단한다. `--run`은 epoch 준비 승인과
+별개인 실제 학습 시작 승인이 있어야 한다. Production E24와 완료된 과거 run은 바꾸지 않는다.
+
+백업은 새 전체 데이터 실행기에 한해 **Vast→Drive 직접 전송**으로 준비했다. 기존 경로의
+Vast→로컬 역방향 SSH→Drive 우회는 대용량 전송 병목 가능성이 있었다. W&B 경로와 원형의
+access-only 인증·전체 SHA·분할 전송·COMPLETE/LATEST·로컬 readback·1,200초 제한은 유지한다.
+새 직접 경로의 작은 파일 쓰기/재읽기와 W&B 온라인 연결은 확인했지만, **새 전체 checkpoint의
+전송 속도·제한시간 내 완료는 아직 실측하지 않았다. 첫 epoch의 실제 full 백업을 확인해야 한다.**
+기존 자동 백업 실패나 수동 백업 이력을 성공으로 덮어쓰지 않는다. 갱신 가능한 인증정보는
+원격에 저장하지 않으며, 학습 중 로컬의 인증 갱신·W&B 중계·백업 확인 프로세스는 유지해야 한다.
+
+### 실제 전달·실행 준비 검사 완료
+
+9개 cohort의 실제 Vast 입력 전달을 마쳤고, **원형 `--prepare`와 `--check`가 모두 exit 0**으로
+통과했다. 구 5K 전용 run은 변경하지 않았다. 전체 입력은 30,749장, train 26,135 / val 4,614이며
+12 epoch·batch 4·누적 1·epoch당 6,534 update·checkpoint `max_keep_ckpts=3`·compile OFF를 준비했다.
+일반 코사인·기존 거리별/전후방 지표와 호환 nuScenes 초기화를 유지한다.
+
+최종 계약 SHA는 `0cdd6b587e21147f29cdce5e471cebd24c632d663477330343d9554a8245b7c3`이다.
+원격 설정은 `/workspace/base5_full_data_runtime_261021_v3/config_e12_final.json`, 새 work는
+`/workspace/base5_full30749_e12_261021_v1`이며, 로컬 설정은
+`artifacts/evaluation/base5_full_data_training_draft_261021_v1/launcher_e12_ready.json`이다.
+
+준비된 `resolved_train.py`를 실제 설치된 MMEngine/MMDetection3D에서 CPU로 한 번 구성했다.
+**train 26,135 / val 4,614·18개 child·첫 token 18개·원래 입력 경로 90개**가 일치했고 약 25.61초였다.
+이를 위해 portable 검증기나 전체 payload/GT 검사를 다시 호출하지 않았으며 모델·학습 실행은 0이다.
+별도 16개 단위 테스트와 shell 문법·오류 경로 독립 검토도 통과했다.
+
+GPU 49,140MiB·W&B 온라인 접근·백업 qualification 재사용과 새 직접 경로의 소규모 증거·Drive
+쓰기/재읽기 검사를 확인했다. Vast 여유는 게시 시 약 27.11GiB, 본인 Drive 여유는 조회 시 약
+21.17GiB였다. 새 전체 checkpoint 백업 완료를 뜻하지 않으며 **첫 epoch의 실제 전송·readback은
+학습 시작 뒤 확인해야 한다.** 이번 사전 검사는 원형 제한시간 안에서 통과했고 재시도나 제한 완화는 없었다.
+
+최종 요약은 `artifacts/evaluation/base5_full_data_training_draft_261021_v1/FINAL_PREPARATION.json`,
+SHA는 `bdb96a8fb4ebcbd025ed76c98c12f1b764f090aae7b9c9e7b581948db95bc50b`다.
+이는 실제 준비·온라인 검사·CPU 구성 결과이며 12-epoch 학습이나 새 checkpoint 백업의 완료 기록이 아니다.
+
+준비 상태는 저장소 루트에서 다음 명령으로 읽을 수 있다. **학습을 시작하는 명령이 아니다.**
+
+```bash
+bash scripts/runtime/start_base5_full_vast_training.sh --status
+```
+
+실제 시작 권한 파일은 만들지 않았고 학습도 시작하지 않았다. 사용자가 별도로 시작을 승인한 뒤
+동일한 data/code/epoch 계약에 시작 권한을 연결한다. 학습 중 로컬 인증 갱신·W&B 중계·백업 확인을
+유지해야 하므로 로컬 PC를 끄거나 해당 watcher를 종료하지 않는다.
 
 ## 상세 운영과 실측의 보존
 

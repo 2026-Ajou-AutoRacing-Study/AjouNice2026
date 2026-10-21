@@ -1858,3 +1858,187 @@ CPU에서만 준비됐고 별도 추가 시험의 사용자 승인은 아직 없
 `LOCAL_BUDGET_HANDOFF_NOTE_v3.json`에는 완료한 52장 parent의 8GiB와 기존 tail 경로를
 구분했다. 향후 두 장의 촬영·JPEG 용량은 아직 계획 추정이며, 승인 후 실제 디스크 상태로
 다시 판단해야 한다. 기존 계약·owner·과거 snapshot의 해시는 바꾸지 않았다.
+
+### 사용자 추가 승인과 실제 촬영 전 중복 차단
+
+사용자는 앞서 Sunny13으로 바꾸었다는 말이 **빌린 원격 PC에 대한 설정**이었다고 확인했다.
+이를 로컬 Foggy11의 날씨 변경 원인이나 조작 주체의 증거로 사용하지 않는다.
+정정된 두 장 질문에 **“두 장 모두 같은 조건으로 각 1회 추가 시험”**이라고 답했다.
+실제 응답은 `ACTUAL_USER_REPLY_261021_v1.json` SHA
+`989b833d17fc11f5755ff6a3831990ebc42411dbe734401291cadd68a7f371fa`에 남겼다.
+
+같은 MORAI 프로세스·실제 Tk Foggy11/Connected/auto OFF·새 정지/P·수신을 확인하고,
+disk 약 7.391GiB와 bounded 두 장·기존 변환 시작 4GiB 조건을 대조했다. 원래 총 60회·
+각 3회 기록을 보존한 별도 승인 SHA는
+`505489f6cd063c7d6b72fb81f046929a591a3caca721d44737efdcb0ff86099a`다.
+검토한 e67 실행기로 Pet1 `00062`의 추가 논리 시험 1회를 시작했지만 첫 empty-terrain
+준비에서 **`Native payload already observed`**가 발생했다. Man4 `00124`는 시작하지 않았다.
+
+이번 새 report는 `attempts=[] / selected=[]`, 실제 session contract·native event·capture·
+shutdown receipt도 모두 0이다. 별도 사전 정지/P 호출만 있었다. source 종료 경계 2회도
+통과했다. 포괄 오류 문구가 다시 Park/통신 실패처럼 보이지만, **이번에 물리적인 P 장애나
+통신 장애를 관측한 것은 아니다.** 새 `halted`·소진한 claim을 정상화하거나 자동 재시도하지 않았다.
+
+root와 독립 작업자가 원문 바이트를 대조해 사전 검사의 누락 두 가지를 확인했다.
+
+1. 새 Pet1 본 장면 SHA `79f28bbb…57bc3`는 최초 slot보다 Ego가 32.66m 옮겨졌지만,
+   과거 baseline `replacement_1/proposal_00001/`의 **미촬영 실패 계획과 바이트까지 같았다.**
+   기존 freshness 집합은 최초 deck·ledger·명시적 시도 중심이라 이 과거 계획을 놓쳤다.
+2. 파생 첫 빈 지면 SHA `cb214598…b5251b`는 과거 `round_1/motion_terrain`의 실제
+   accepted ledger·raw·최종 P가 있는 촬영분과 바이트까지 같았다. 본 장면 검사만으로
+   파생 calibration의 신선도를 보장할 수 없는데 촬영 전 CPU 대조에서 이를 빠뜨렸다.
+
+독립 CPU 검사에서 미실행 Man4 v1도 과거 `replacement_1/proposal_00004/`와 같은 본 장면이며,
+첫 empty/static 준비 둘 다 이전 촬영분과 겹쳤다. 두 v1 후보를 그대로 다시 실행하지 않는다.
+이 결함은 CPU 후보 선정·진입 검사의 누락이며, 기존 native 중복 guard는 정확히 차단했다.
+이미 승인된 4,998개 관측과 새 날씨 52개의 판정·GT를 바꾸는 사유가 아니다.
+
+root 독립 진단은 `TAIL_ZERO_LOAD_DIAGNOSIS_v1.json` SHA
+`a87c2798624e3a9072c1171ccb15138191a1b621191e67deebc97b70b9f081e9`다.
+추가 scope의 `TERMINAL.json` SHA는
+`c43354aaa2a220ab9a54e5ebc13ce455a5454956e83d893b5bed47a32086018f`다.
+별도 CPU v2에서는 과거 manifest 계획·ledger 선언·실제 raw 관측을 구분하고, 본 장면과
+원형 empty/static·가능한 near witness를 사전 대조한다. ledger SHA 선언만으로 실제 촬영
+완료라고 단정하지 않으며 보수적 중복 금지 집합은 줄이지 않는다. 이 CPU 준비는 새 촬영
+승인이나 5K 완료가 아니다. 추가 실제 촬영 범위는 사용자에게 다시 확인 중이며 **JPEG 0 / PNG 삭제 0**이다.
+
+### 마감 우선 정책과 마지막 두 장 실제 승인
+
+위 절은 당시 중단 이력이다. 이후 사용자는 검증 실험을 더 늘리기보다 수집을 빨리 마치고
+학습을 준비하도록 우선순위를 바꿨고, **정규 6환경 약 30K + 장애물 보강 750장 전체 학습 준비**를
+명시적으로 승인했다. 마지막 두 장은 어려운 달리기 자산을 계속 재시도하지 않고, 같은 음영
+패밀리·기존 split/group의 일반 정적 보행자 장면으로 마감했다. GT 라벨이나 실패 판정을
+바꾼 것이 아니라 새 장면 두 개를 실제 촬영한 것이다.
+
+`terminal_easy_v2`에서 Woman1과 Woman3가 각각 실제 촬영 1회에 승인됐다. 각 실행의
+검토 0·오류 없음·원형 native QA·최종 정지/P·입력 경계 검사를 확인했다.
+Woman1은 약 28.32m/LiDAR 4점, Woman3는 약 29.85m/LiDAR 6점이다. 옛 Pet1 claim과
+`halted`·실패 예산은 그대로 보존했고, 새 정적 보행자 성공을 동물 달리기 성공으로 집계하지 않는다.
+새 범위의 실제 사용자 지시와 권한은 `USER_FAST_COMPLETION_PLAN_261021_v1.json` 및
+`terminal_easy_v2/user_authority.json`에 남겼다.
+
+`terminal_easy_v2/pre_weather_native_5000_v1`은 **기존 4,998행 + 새 2행 = 실제 5,000행**으로
+조립을 마쳤다. 원래 4,998행의 내용과 순서 투영을 유지했고 ID·source ID·raw 경로·scenario SHA의
+고유성을 독립 확인했다. 조립 receipt SHA는
+`5ac331c6319b2e0b9c0133c53fe82cd3789ac9d2cb7ea7dd60abfb054d837b0b`다.
+이 단계의 선택에는 교체 전 날씨 52행이 있으므로 순수 Foggy11 전달본이라고 인증하지 않는다.
+이미 완료한 올바른 Foggy11 관측 52개를 치환한 최종 split과 기존 Q90/upright 변환을 이어간다.
+추가 배치 연구·재촬영·검사층은 늘리지 않는다.
+
+전체 학습 준비는 새 data/work/run identity로 분리한다. 지원 GT가 없는 Foggy13 한 장은
+제외 상태를 유지하므로 Foggy11 5,000장 전달이 완료되면 실제 학습 입력은 **30,749장**이다.
+일반 코사인·compile OFF·batch 4 및 기존 호환 nuScenes 초기화가 준비 후보이며, 기존 E24나
+완료된 E8 optimizer를 변경된 전체 데이터에 강제로 resume하지 않는다. Epoch 확정과 실제
+학습 시작은 수집·JPEG 완료와 구분한다. Vast 재접속과 기존 설치 보존은 확인했으며 새 GPU 대여나
+CUDA 재설치를 하지 않고 준비한다.
+
+### Foggy11 최종 날씨 치환·분할 완료
+
+`weather_corrected_5000_v2`에서 **순수 Foggy11 5,000장 / 부족 0 / 오류 없음**과 실제 분할
+**train 4,250 / val 750**을 확정했다. 원래 선택 중 4,948행은 내용 그대로 보존하고
+Sunny 확정 51장·경계 1장만 이미 완료된 새 Foggy 관측 52개로 치환했다. 별도 독립 검사에서
+canonical 순서·ID·source ID·raw 경로·scenario SHA의 고유성과 group 분할 충돌 0을 확인했다.
+
+최종 입력은 `weather_corrected_5000_v2/layout_split_final/`의 세 파일이다.
+
+- `manifest.json`: SHA `0016b00b5bb0fffd6108e850fbff5fc259033e29e84ee2e54be93891d547106e`
+- `derived_selected_ledger.jsonl`: SHA `5b398d53a6a100c7367bea05053d3ef84c7f9aec00bc12607892736da9185437`
+- `split_overlay.json`: SHA `8004f699b20a139483a242587b12c4eed8406332b6f610badb933bae815a0ddb`
+
+정리 도중 발견한 두 CPU 경로 문제도 촬영 문제와 구분한다. 완료된 52장을 읽기 전용으로
+검증할 때 새 촬영용 8GiB 공간 예측이 적용되는 경로는, subprocess 금지·기존 `_verification`
+경로·실제 완료 52장에 한정한 별도 adapter로 분리했다. 원형 native 파일·8GiB 기준·옛 계약은
+바꾸지 않았다. 또 정당한 배우 없는 배경 장면에 `runtime_actors[0]`을 읽던 정리 코드 한 곳은
+배우가 없으면 원래 spec의 motion/static을 쓰도록 보완했다. 배경에 객체 GT를 만든 것이 아니다.
+중간 실패 출력 v1은 보존하고 성공한 v2만 최종 전달에 사용한다.
+
+같은 Sunny15 Q90/upright 3클래스 변환을 `export_weather_verified_v2.py`로 시작했다.
+이 wrapper는 원형 변환 정책을 바꾸지 않고 최종 선택 경로만 v2에 연결한다. JPEG 입력 전수
+확인·선택 RGB PNG 정리는 아래 실제 완료 근거가 생기기 전까지 진행 중으로 구분한다.
+
+### Foggy11 Q90/upright 5K 전달본 완료
+
+최종 host 실행은 **exit 0·5,000장·train 4,250 / val 750·GT 11,641개·Q90 JPEG 20,000개**로
+완료했다. 실제 512×1056 resize/crop과 원형 native→upright→3클래스 연결을 전수 확인했고,
+retained component 누락/추가 0·보조파일 무손실 보존·원본 전후 동일을 확인했다.
+원형 파이프라인 수행 시간은 약 1,128.24초(18.8분)다. 배우 없는 정상 배경은 배경으로 유지했다.
+
+최종 학습 입력은
+`artifacts/evaluation/base5_foggy11_training_export_261021_v3/qualified/foggy11/training3_jpeg_portable/`이다.
+manifest SHA는 `f0c7c7bab2b92ba191494f2cf6c92df30073504a5f1c250b8889b4cf5a0510e9`,
+상위 `qualified/report.json` SHA는
+`6d0da443c2483c7be136a26a0b5fb79cb8430d24ac1f655e631cb4cad9f8aed0`이다.
+중간 v1/v2 출력은 실패·실행환경 진단으로 보존하며 학습에 쓰지 않는다.
+
+중간 재실행 사유는 다음과 같다. 둘 다 새 데이터 수집이나 GT를 고치는 사유는 아니었다.
+
+- `01967` WoodBox의 저장 audit 143점과 재검증 142점 차이는 float32→기본 float64로 바뀐
+  연산 경계의 1점 차이였다. 원래 native parser와 같은 center/size dtype으로 재생하자 정확히
+  143점이 됐다. 회전식·1e-5m 허용오차·저장 audit·GT·점수 조건을 바꾸거나 1점 허용을 추가하지 않았다.
+  원형 corner-derived size의 float64 분기도 유지했다. 이 계산 경로는 최종 report에 명시했다.
+- 앞선 실행은 격리된 filesystem에서 외부 raw와 workspace 사이 하드링크가 `EXDEV`로 실패했다.
+  이는 실행환경 선택 오류였다. 실제 host의 같은 filesystem에서 원형 hardlink 방식으로 다시 실행했다.
+  RGB/원본을 새로 복사하거나 저장된 native 판정을 바꾸지 않았다.
+
+이제 정규 지원 29,999장과 별도 장애물 750장의 **전체 30,749장**이 로컬에 준비됐다.
+9개 cohort의 실제 infos/manifest 논리 검사에서 **train 26,135 / val 4,614 / test 0**, 전역
+token/raw/payload 중복 0·group 분할 충돌 0·공통 Q90/upright/Animal 매핑을 확인했다.
+이는 픽셀을 다시 검사하거나 원격 전달까지 완료했다는 뜻이 아니다. 전체 학습은 별도 12-epoch
+준비 계약이며 아직 시작하지 않았다. 선택 RGB PNG 정리는 receipt-bound 계획을 확인한 뒤 수행한다.
+
+### Foggy11 선택 RGB PNG 정리 완료
+
+JPEG 전달본 완료 뒤 사용자 승인 범위의 RGB PNG 이름 **40,000개**를 정리했고, 원형 작업자는
+exit 0으로 종료했다. 20,000개 실제 RGB 파일을 native 원본과 중간 portable 경로의 하드링크
+두 이름에서 지웠으므로, 논리 삭제량 27,314,894,664바이트를 실공간 확보량으로 중복 집계하지 않는다.
+회수 가능한 고유 inode 용량은 **13,657,447,332바이트(약 12.72GiB)**였고, 완료 직후 실제
+파일시스템 여유는 약 **16.91GiB**였다.
+
+정확한 계획 SHA는 `201509fa7860af3a80e2786f1a59e9cd840de77500f3dcc05c2ad33d44a93244`다.
+독립 범위 확인과 원형의 삭제 직전 재검사를 통과한 뒤 삭제했고, **보조 파일 335,705개·Q90 JPEG
+20,000개·native GT·실패 원본·잘못된 날씨 52장 원본은 보존**했다. 과거 계약과 검증 기록은
+수정하지 않았다. Q90은 손실 변환이므로 삭제한 원본 RGB의 무손실 백업이라고 표현하지 않는다.
+PNG를 요구하는 과거 원본 재검사는 삭제 뒤 그대로 재생되지 않을 수 있다. 빌린 PC의 PNG는
+이번 정리 범위가 아니며 보존한다.
+
+완료 receipt는 `base5_foggy11_training_export_261021_v3/rgb_prune_no_archive_receipt_v1/COMPLETE.json`,
+SHA는 `3d9ec48a25d704c8fdf24065ff5f03364df2c51886c83a5d9dfae1c8fafb070b`다.
+이후 같은 JPEG 전달본을 원형 level 6·threads 2 압축기로 묶어 승인된 Drive 경유로 Vast에 전달한다.
+압축·전송 완료는 해당 archive와 원격 복원 receipt가 생긴 뒤 별도로 기록한다.
+
+### Foggy11 압축본·본인 Drive 게시 완료
+
+위 정리 후 `artifacts/handoff/base5_foggy11_5k_jpeg90_upright3_261021.tar.zst`를 만들었다.
+**2,875,912,188바이트·전체 187,865개 멤버 검증·source package 불변·exit 0**이다.
+archive SHA는 `54e232169a1274eb6c1db05c5f9a4a632c2f56c1a83f928f032ebad7e8e91fcd`다.
+기존 packer와 동일한 Q90/upright/3클래스 입력이며 새 native 재검증을 끼워 넣지 않았다.
+
+사용자가 승인한 본인 Drive `dataset/Base5/full30749_261021/foggy11/`에 압축본과
+`COMPLETE.json`·`intent.json`·`archive_manifest.json`·`SHA256SUMS`를 게시했다.
+다섯 파일의 크기·로컬 SHA·Drive 서버 MD5가 일치했고 기존 Drive 파일은 덮어쓰거나 지우지 않았다.
+갱신 가능한 인증정보도 원격에 공유하지 않았다. 게시 후 로컬 실제 여유는 약 14.19GiB다.
+
+최종 Drive receipt는 `base5_full_data_training_delivery_261021_v1/foggy11/DELIVERED.json`,
+SHA는 `168f9d1cd8fe930d5b3da8c02caa95d285d1086182cfd47a969c540e06789b20`이다.
+이 receipt는 Drive 게시 완료의 근거다. Vast 전체 SHA·복원·학습 시작의 완료 근거로 대신 쓰지 않는다.
+
+### 전체 30,749장 Vast 전달·복원 완료
+
+이후 Sunny11·Foggy11/13/15와 Sunny 보강 3개 cohort의 **압축본 전체 SHA·원형 전체 멤버 복원**도
+Vast에서 완료했다. 기존 새 Sunny13·Sunny15 두 cohort는 실제 manifest/infos SHA를 확인해 재사용했다.
+최종 9개 입력은 **30,749장 / train 26,135 / val 4,614 / test 0**이며, 따로 모아 복제한
+aggregate payload는 0개다. 각 원래 root·infos·GT·split을 그대로 연결한다.
+
+`base5_full_data_training_draft_261021_v1/TARGET_READY.json`은 실제 target 9개 manifest/infos와
+새 복원 7개의 COMPLETE·검토된 실행 코드·백업 경로 receipt를 대조한 완료 기록이다.
+cohort index SHA는 `6605a203d440811293a2bc6e468b2bb6b3677617881c277cca8ef77bad81a097`,
+게시 직후 Vast 여유는 **29,112,795,136바이트(약 27.11GiB)**였다.
+
+Foggy13의 첫 HTTP 수신은 socket timeout으로 중단됐으나 실패 파일과 기록을 보존했다.
+기수신 1,241,513,984바이트를 구간 해시로 확인해 재사용하고 빠진 1,646,350,684바이트만 받아
+최종 전체 SHA까지 통과했다. 새 수신 scope의 socket 대기를 30초로 분리했으며 원형의
+byte-range·길이·전체 SHA·덮어쓰기 방지는 유지했다. Drive와 Vast가 완전한 압축본을 보유한 뒤
+자체 Foggy13 RAM 임시 압축본만 정리했고 원본 JPEG·영구 receipt·실패 근거는 보존했다.
+
+이것은 데이터 전달 완료다. 12-epoch 실행 설정과 W&B·Drive 사전 검사, 실제 학습 시작은
+[모델 학습 준비 기록](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-12epoch-preparation-261021)에서 별도로 관리한다.
