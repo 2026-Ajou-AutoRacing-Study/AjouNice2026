@@ -10,6 +10,7 @@
 같은 날 추가한 [실제 val 로깅 통합](#full-data-val-logging-261021)은 새 runtime v5에 분리한다.
 v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 대신 쓰지 않는다.
 이후 사용자 승인으로 시작한 현재 전체 학습은 [실제 시작 기록](#full-data-live-training-261021)을 따른다.
+첫 val의 파일 디스크립터 오류와 별도 계승 준비는 [10/21 병목 수정 기록](#full-data-speed-repair-261021)을 따른다. 시작 당시의 기록을 재개 성공으로 바꾸지 않는다.
 
 ## 점검과 재개 경계
 
@@ -360,6 +361,143 @@ bash scripts/runtime/start_base5_full_vast_training.sh --run --resume
 
 재개는 epoch 경계이며 중간 iteration·worker/prefetch의 정확한 재현을 보장하지 않는다.
 이미 실행 중인 fresh run에 `--run`을 다시 보내거나 과거 5K 실행기로 재개하지 않는다.
+
+<a id="full-data-speed-repair-261021"></a>
+
+## 전체 학습의 val FD 오류 수정과 비용 재측정 — 2026-10-21
+
+사용자는 train·val 병목을 바로잡기 위한 중단과 개선을 승인했다. 실제 상태를 먼저
+확인하니 **중단 명령을 보내기 전에 기존 v5가 이미 exit 1로 종료**돼 있었다.
+E1 train은 끝났고, 첫 val의 **4,220 / 4,614번째** 근처에서 DataLoader가
+`RuntimeError: Too many open files`를 냈다. 느려 보여서 의도적으로 중단한 결과가 아니다.
+당시 GPU는 유휴였고 원본 console·실패 상태·v5 manifest는 그대로 보존했다.
+
+E1 full checkpoint는 정상 저장됐으며 Drive 상태에 전체 SHA readback과
+**epoch 1 / iteration 6,534 / resume_capable=true / errors=[]**가 남아 있다.
+SHA256은 `471e1e9c5a2c2c3a92330dc858570109644286bc3ea15fd74f54382b0274ba36`이다.
+학습한 첫 epoch를 버리거나 E1부터 새로 학습할 필요는 없다. 실패한 첫 전체 val은
+완성된 AP로 간주하지 않으며, E1 weights와 이후 계승 run의 지표를 구분한다.
+
+### 원인과 수정 범위
+
+기존 metric은 CPU에 있는 GT tensor를 `tensor.cpu().numpy()`로 보관했다.
+이 연산은 복사가 아닐 수 있어, NumPy가 DataLoader worker의 공유 메모리 storage와
+파일 디스크립터를 val 끝까지 붙잡았다. 장수가 늘수록 누적될 수 있는 구조였다.
+`base5_metric_owned_storage.py`는 **보관할 작은 GT 배열을 복사하고 CPU 예측 tensor를
+clone**해 입력 batch와 소유권을 분리한다. GT 값·순서·박스 표현·AP 계산·지표명은 바꾸지 않는다.
+고정 source는 수정하지 않고 새 runtime extension의 SHA와 checkpoint receipt로 남긴다.
+
+회귀 검사는 무복사 24행에서 descriptor가 최소 72개 늘어나는 반례와, 복사한
+5,100행에서 증가가 제한되는 조건을 포함한다. 실제 2-worker IPC 및 실제 metric process의
+5,100행 검사도 별도로 제공한다. 작은 회귀 검사·64장 비용 검사와 **전체 4,614장 검증 완료**는
+구분한다. FD 한도만 높여 누적을 숨기는 방식은 채택하지 않는다. 앞선 모든 입력 지연이
+이 FD 문제 때문이었다고 단정하지도 않는다.
+
+### Val: batch 확대는 채택하지 않음
+
+같은 E1 checkpoint·9개 val cohort에 분산한 **64장**·workers 4·prefetch 2·pin memory OFF·
+FP32 조건에서 장당 동기화 wall time을 비교했다. 처음 두 batch는 warm-up으로 제외했다.
+
+| Val batch | 평균 장당 시간 | 판단 |
+|---|---:|---|
+| 1 | **94.25 ms** | 유지 |
+| 2 | 110.46 ms | 더 느림 |
+| 4 | 107.19 ms | 더 느림 |
+
+Batch 1의 입력 대기는 평균 **4.06 ms**, 계산은 **89.80 ms**였다. 무조건 batch를
+늘리는 것이 이 sparse/BEV 구조의 장당 처리량 개선으로 이어지지는 않았다.
+과거 정상 구간의 val 중앙값도 약 93.4 ms였으므로, 이 결과를 FD 수정만으로
+기존 정상 추론이 여러 배 빨라졌다는 근거로 사용하지 않는다. Val AMP도 이번 운영값으로
+승격하지 않으며 **batch 1·FP32를 유지**한다. 부분 표본 비용은 전체 AP·실전 latency 인증이 아니다.
+
+### Train: 입력보다 역전파가 큰 비용
+
+E1 전체 상태를 별도 시험 runner로 복원해 **32 step**을 측정했다. Warm-up 8회와
+계측을 넣은 4회를 제외한 20회 평균은 **전체 671.37 ms / train 655.41 ms /
+입력 대기 15.96 ms**였다. 입력 대기는 약 **2.4%**였다. 계측 구간의 backward stream span은
+약 **331.26 ms**로 가장 컸다. CUDA event의 중첩·host 대기가 있어 각 구간을 단순 합산하지 않는다.
+worker를 무작정 늘리거나 학습 batch·해상도·깊이·정확도를 바꾸는 처방은 선택하지 않았다.
+
+발견한 작은 낭비는 rectangular head가 부모 구현의 dense heatmap target을 만든 뒤 버리고,
+현재 XY 축에 맞는 올바른 target을 다시 만드는 부분이었다. 새 opt-in
+`base5_skip_discarded_heatmap.py`는 **버리는 부모 target 생성만 생략**한다.
+같은 실제 E1 출력 fixture 3묶음에서 사용되는 target·loss·head 출력에 대한 gradient·RNG가
+모두 정확히 같았고, model parameter update와 checkpoint 저장은 하지 않았다.
+이 검증은 이후 전체 학습 궤적의 bitwise 동일성이나 정확도 상승을 인증하는 것이 아니다.
+
+동일 예산의 짧은 비용 대조에서 전체 step은 **671.37→660.19 ms(-1.67%)**, train 부분은
+**655.41→644.99 ms**였다. 작은 이득이며 다른 CUDA 실행의 비결정성과 호스트 부하가
+포함된 단일 짧은 대조다. 두 32-step run의 모든 loss가 완전히 같았다고 표현하지 않는다.
+대형 구조 변경 대신 정확한 fixture 검사와 SHA가 결합된 이 작은 후보만 계승용으로 준비했다.
+
+### 계승 계약과 근거
+
+최종 계승 work는 `/workspace/base5_full30750_e12_speed_261021_v2`, runtime은
+`/workspace/base5_speed_repair_261021_v2/scripts/runtime`이다. v1 준비에서는 원본 tuple과
+저장 JSON list의 표현 차이를 동일성 검사가 거부했다. 실패 기록을 보존하고 v2에서
+manifest의 JSON 표현만 정규화하며 부모 contract SHA 일치 검사는 유지했다.
+원본 config의 삽입 순서로
+모델을 구성하며, 정렬된 resolved config로 재구성하지 않는다. 부모 checkpoint SHA·계약·
+E1/6,534 경계·optimizer parameter 순서·scheduler·AMP scaler·주 프로세스 RNG를 검사한다.
+원본 checkpoint bytes와 30,750장·train 26,136/val 4,614·12 epoch·batch 4·일반 코사인·
+compile OFF·best `val/center/mAP`·기존 로깅 이름은 유지한다.
+실효 loader 정책과 새 extension SHA는 별도 계승 계약에 명시한다.
+
+이후 학습은 E2부터 별도 W&B run에 이어 기록하며, epoch를 1로 다시 번호 매기지 않는다.
+새 Drive 경로는 `backup:model/bevfusion/base5/full30750_speed_v1/checkpoint_backups`다.
+새 목적지의 작은 write/readback, 실제 full payload 백업, 처리량 검증은 각각 구분한다.
+기존 E24 full 백업 기법의 근거를 재사용하더라도 새 full 업로드 성공을 주장하지 않는다.
+첫 child checkpoint 백업은 실제 저장·업로드 뒤 확인할 과제다.
+
+### E1 전체 검증 복구 결과
+
+동일 E1을 **batch 1·FP32·workers 4**로 실제 4,614장 평가해 exit 0으로 완료했다.
+입력·추론·결과 수집은 **436.60초(7분 17초)**, 지표 집계까지는
+**564.26초(9분 24초)**였다. 초기 준비·모델 구성 시간을 포함한 명령 전체는 689.35초다.
+CPU 지표 집계 약 127.66초도 별도 비용이며 단순 GPU 추론 시간과 구분한다.
+100장부터 마지막 4,614장까지 FD는 **62개로 일정**했다. 종료 PSS는 약 1.76GiB였고
+E1 checkpoint SHA도 변하지 않았다. 이전 val의 4,220장·약 27분 반·실패와는 달리
+이번에는 전체 지표를 생성했다. 다만 캐시·호스트 상태도 달라 모든 시간 차이를 FD 수정
+하나에만 귀속하지 않으며, 과거 정상 구간 자체는 약 93ms/장이었다.
+
+실제 `val/center/mAP`는 **0.8643879357**, 환경별 프레임은 각 750장, 보강은 114장이다.
+기존 키를 포함한 834개 scalar를 JSON으로 보존했다. 이 복구 평가는 W&B에 쓰거나
+optimizer를 step하지 않았다. 기존 run에 완성되지 않은 E1 val 이력을 꾸며 넣지 않으며,
+복구한 E1과 E2부터 이어지는 계승 run을 함께 보존한다.
+근거는 `full_e1_recovery_1792574972977419856.report.json`이다.
+
+### 실제 재개 확인 — 2026-10-21 18:50 KST
+
+E1/6,534 경계에서 전체 상태를 복원했으며 optimizer step은 저장된 **6,533** 그대로다.
+첫 epoch의 AMP skip 1회를 임의로 보정하지 않았다. 복원 LR은 `9.854193209435755e-5`,
+AMP scale은 128이며 parameter 이름·순서 검사를 통과했다. 18:50 KST에
+**E2 120/6,534·time 0.6570초·data_time 0.0146초·loss 1.1532·gradient 18.0705**를 확인했다.
+GPU는 100% 사용, peak 메모리 로그는 약 29,132MiB였다.
+[새 W&B run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_speed_261021_v2-97760ca4680d)도
+epoch 2·global train iteration 6,654와 같은 loss/gradient를 실제로 수신했다.
+기존 E1 run을 덮어쓰거나 epoch를 1부터 다시 시작하지 않았다.
+
+계승 contract는 `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`이다.
+`RESUME_VERIFIED_1792576218381343083.json`에 복원 상태·실제 iteration·W&B·백업 watcher를
+기록했다. 백업 오류는 없으며 새 checkpoint는 아직 없어 업로드 성공으로 표시하지 않는다.
+W&B·자격 갱신·Drive watcher를 위해 **로컬 PC를 켜 두어야 한다**.
+
+현재 상태는 `bash scripts/runtime/start_base5_full_vast_training.sh`로 읽기만 확인한다.
+기본 설정은 로컬 `artifacts/evaluation/base5_speed_repair_261021_v1/continuation_v2/launcher_speed_ready.json`이다.
+이번 부모→계승 시작은 이미 실행됐으므로 `--run`을 중복 실행하지 않는다. 이후 child 안에
+완료 checkpoint가 생긴 뒤의 명시적 재개는 `--run --resume`이다. 옛 full-data 설정은
+`--config`로 명시했을 때만 기존 실행기로 분기하고, 알 수 없는 schema는 거부한다.
+로컬 집중 회귀는 **91개 중 90개 통과·MMEngine 미설치 검사 1개 제외**였으며,
+원격 실제 IPC/metric 회귀 13개와 전체 4,614장 검증은 따로 통과했다.
+문서 링크 검사는 새 오류가 없고 기존 README/CURRENT 3파일의 줄 수 예산 초과만 남는다.
+
+로컬 근거는 `artifacts/evaluation/base5_speed_repair_261021_v1/`의
+`LIVE_DIAG_1792572916035005684.json`, `val_b124_fp32_1792573840125155564.report.json`,
+`train_baseline_32_1792574434770362692.report.json`,
+`train_candidate_32_1792574698628927250.report.json`,
+`heatmap_fixture_gate_1792574188846766369.report.json`에 보존한다.
+원격 운영은 새 `base5_performance_vast_training.py`를 사용한다. 실제 재개 전 준비와
+사용자 승인·W&B·Drive·유휴 GPU·디스크·session lock 검사를 생략하지 않는다.
 
 ## 상세 운영과 실측의 보존
 
