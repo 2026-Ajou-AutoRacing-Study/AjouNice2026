@@ -1,6 +1,6 @@
 # Base5 원격 실행과 보존 안내
 
-문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-21.
+문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-22.
 기존 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 새 데이터 대조 학습을 포함한
 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
@@ -10,6 +10,8 @@
 같은 날 추가한 [실제 val 로깅 통합](#full-data-val-logging-261021)은 새 runtime v5에 분리한다.
 v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 대신 쓰지 않는다.
 이후 사용자 승인으로 시작한 현재 전체 학습은 [실제 시작 기록](#full-data-live-training-261021)을 따른다.
+10/22 확인한 중단 상태와 완료 E3 복원·평가는 [후속 기록](#full-data-e3-interrupted-evaluation-261022)을 따른다.
+평가 작업은 학습 재개나 인스턴스 시작 승인이 아니다.
 첫 val의 파일 디스크립터 오류와 별도 계승 준비는 [10/21 병목 수정 기록](#full-data-speed-repair-261021)을 따른다. 시작 당시의 기록을 재개 성공으로 바꾸지 않는다.
 
 ## 점검과 재개 경계
@@ -546,6 +548,44 @@ E2 val 상승을 데이터 보강만의 인과 효과로 부르지 않는다. �
 공정한 비교가 아니다. 같은 실제 센서 입력의 로컬 비교는
 [E2 대 E24 bag 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e2-local-bags-261021)으로
 분리한다. 현재 production 가중치·threshold·tracker 정책은 유지한다.
+
+<a id="full-data-e3-interrupted-evaluation-261022"></a>
+
+### 학습 중단 뒤 완료 E3 복원·평가 — 2026-10-22 후속
+
+사용자가 결제 누락으로 중단됐다고 알리고 E3 가중치 회수·val·bag 비교를 요청했다.
+기존 direct SSH는 연결 거부였고, 인스턴스를 켜거나 학습을 재개하지 않았다.
+기존 Drive 경로의 내용 주소형 폴더에서 **완료 E3 full checkpoint**를 복원했다.
+
+```text
+model/bevfusion/base5/full30750_speed_v1/checkpoint_backups/
+  base5_full30750_e12_speed_261021_v2/
+    96b31da0f475c2f081d133ccf26f219ffae16e9eb203f43d859f5ca8eb41f5f4/
+```
+
+16파트·전체 SHA와 **523,673,221바이트 / epoch 3 / iteration 19,602 / 계승 contract
+`97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`**를 확인했다.
+로컬 파일은 `artifacts/evaluation/bevfusion/full30750_e3_rosbag_261022_v1/E3_full.pth`다.
+Optimizer·scheduler·RNG를 포함한 원형 full이며, 실제 추론은 model state만 strict load했다.
+
+W&B 읽기 전용 조회에서 **E3 native val 4,614장 완료**와 다음 E4 일부의 기록을 확인했다.
+Val E3 행 `_step=655` 바로 앞 `_step=654`의 epoch-boundary는 train iteration 19,602다.
+6환경 각 750장·보강 114장, GT V/P/O 3,972/2,850/3,685는 E2와 같다.
+W&B summary의 마지막 epoch 4 / train iteration 22,642와 `crashed`는 완료 E3와 구분한다.
+현재 종료 원인을 W&B만으로 확정하거나 E4 부분 진행을 E4 checkpoint 완료로 부르지 않는다.
+
+같은 native val mAP는 **E2 90.5435→E3 89.4464%**,
+V/P/O는 **95.7524/94.3262/81.5519→95.8955/93.3124/79.1312%**다.
+E3의 보행자 40~50m AP 84.5401%, 차량 80~100m AP 73.9784%는 E2보다 높지만
+전체 mAP best는 E2다. E3를 자동 best·production으로 승격하지 않는다.
+Full checkpoint는 val 전에 저장돼 내부 `message_hub`의 마지막 val은 **E2**다.
+Native E3 지표의 원본은 명시적인 W&B epoch 3 history 행이며, 내부 E2 값을 E3로 오독하지 않는다.
+
+정밀 지표·분모·원본 행·조회 시각은 같은 로컬 root의 `native_val_wandb.json`에 보존했다.
+Native val은 이미 완료된 결과를 회수한 것이며, bag 1,570프레임은 로컬에서 새로 추론했다.
+동일 1,413평가 프레임의 E24/E2/E3 AP·고정 threshold·raw score·연속 누락과 한계는
+[E3 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e3-local-bags-261022)를 따른다.
+Production·운영 threshold·W&B run·기존 학습 source·가중치는 변경하지 않았다.
 
 ## 상세 운영과 실측의 보존
 

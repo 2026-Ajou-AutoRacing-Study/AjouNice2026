@@ -6490,3 +6490,117 @@ E2는 아직 중간 checkpoint이며 두 학습의 데이터·총 업데이트 �
 E24(주황)·E2(초록)·카탈로그 GT 문맥(청록)을 투영했고, 원본 JPEG는 수정하지 않았다.
 장면 전체의 평균이나 최악 사례를 대표한다고 부르지 않으며, source JPEG와 결과의 SHA는
 `visuals/receipt.json`에 남겼다. 이 시험 때문에 가중치·기존 입력·production·원격 학습을 변경하지 않았다.
+
+<a id="full30750-e3-local-bags-261022"></a>
+
+## 53. 중단 뒤 보존된 E3의 native val·동일 bag 비교 — 2026-10-22
+
+사용자가 결제 누락으로 학습이 중단됐다고 알리고 E3 복원·val·bag 비교를 요청했다.
+기존 Vast direct SSH는 연결 거부였으므로 인스턴스를 시작하거나 학습을 재개하지 않았다.
+Drive에 완료된 E3 full 백업이 있어 16파트·전체 SHA를 확인해 새 로컬 경로로 복원했다.
+파일은 **523,673,221바이트**, SHA256은
+`96b31da0f475c2f081d133ccf26f219ffae16e9eb203f43d859f5ca8eb41f5f4`다.
+CPU load로 **epoch 3 / iteration 19,602 / contract `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`**를 확인했다.
+원본 checkpoint·optimizer 상태를 수정하지 않았으며 production은 E24다.
+
+### Native val: 이미 완료된 같은 4,614장 기록 확보
+
+W&B를 읽기 전용으로 조회해 E2·E3의 완료된 val 행과 공통 scalar 836개씩을 보존했다.
+두 epoch 모두 6환경 각 750장과 보강 114장, GT V/P/O **3,972 / 2,850 / 3,685**가 같다.
+기존 batch 1·FP32·compile OFF validation 결과이며 로컬에서 native val을 새로 재추론한 것은 아니다.
+epoch 3 val의 W&B `_step=655`, 바로 앞 epoch-boundary 행 `_step=654`의 train global iteration은
+19,602다. Val 행의 `global_step=3`은 epoch 축이지 train iteration 3이라는 뜻이 아니다.
+
+E3 full checkpoint는 E3 val 전에 저장돼 내부 `message_hub`의 마지막 val은 **E2**다.
+이를 E3 지표로 읽지 않으며 아래 수치는 W&B의 명시적인 epoch 3 history 행에서 가져왔다.
+
+| 같은 native val AP(%) | E2 | E3 |
+|---|---:|---:|
+| mAP | 90.54 | 89.45 |
+| Vehicle | 95.75 | 95.90 |
+| Pedestrian | 94.33 | 93.31 |
+| Obstacle | 81.55 | 79.13 |
+| Pedestrian 40~50m | 82.62 | 84.54 |
+| Vehicle 80~100m | 69.84 | 73.98 |
+| Obstacle 20~30m | 80.06 | 77.43 |
+| Obstacle 30~50m | 30.04 | 26.60 |
+
+전체 native mAP 기준으로 E3는 E2보다 1.10pp 낮아 새 best가 아니다. 두 원거리 지표의 상승을
+전체 모델의 일방적인 개선으로 해석하지 않는다. 기존 E24 자체 val 745장과 이 표를 직접 비교하지 않는다.
+W&B는 `crashed`지만 E3 train·val 완료와 뒤따른 **E4 일부 / 마지막 기록 train iteration 22,642**는
+별도로 확인됐다. 따라서 완료 E3까지 유실됐다고 보지 않는다. 결제 원인은 사용자 설명이며,
+W&B 상태만으로 프로세스 종료 원인이나 현재 인스턴스 상태를 독립 인증하지 않는다.
+
+### Rosbag: 같은 입력을 로컬에서 새로 추론
+
+52절의 고정 입력·config·GT·후처리·AMP/병렬 ON·compile OFF·강도 한 번 ÷255를 유지했다.
+E3를 strict load해 같은 **1,570프레임**을 로컬 5060 Ti에서 새로 추론했고,
+같은 미확정 구간을 제외한 **1,413프레임**으로 E24/E3와 E2/E3 두 쌍을 평가했다.
+공통 `gt_identity`는 `6759d2010372fc3fff11034183325e1caf993eb9d0853a8cb08538c062d1a446`이며,
+기존 두 모델의 저장 예측과 runtime·source·input SHA가 모두 일치했다.
+
+| 같은 bag AP(%) | E24 | E2 | E3 |
+|---|---:|---:|---:|
+| 전체 ROI mAP | 53.65 | 51.30 | 51.73 |
+| 전체 ROI Vehicle | 69.34 | 69.29 | 67.91 |
+| 전체 ROI Pedestrian | 57.15 | 46.58 | 47.41 |
+| 전체 ROI Obstacle | 34.45 | 38.03 | 39.85 |
+| Vehicle 50~80m | 51.27 | 54.49 | 55.75 |
+| Vehicle 80~100m | 9.84 | 0.00 | 1.61 |
+| Pedestrian 0~30m | 79.98 | 83.03 | 81.72 |
+| Pedestrian 30~40m | 54.35 | 68.14 | 74.41 |
+| Pedestrian 40~50m | 65.46 | 8.52 | 18.59 |
+| Obstacle 0~30m | 81.34 | 84.81 | 82.64 |
+| Obstacle 20~30m | 79.21 | 80.99 | 79.03 |
+| Obstacle 30~50m | 13.91 | 12.79 | 15.90 |
+| Obstacle 50~80m | 11.06 | 20.12 | 26.63 |
+
+Native val과 bag은 정답·입력·정밀도·server floor/NMS 계약이 다르며 숫자의 직접 차이를 개선량으로
+사용하지 않는다. AP는 중심 XY gate 0.5/1/2/4m 평균이고 고정 threshold recall과도 구분한다.
+이전과 같은 카탈로그·Ego 보간 근사 GT, 연속된 소수 actor 반복 관측이라는 한계도 유지한다.
+
+### 취약 구간의 score 회복과 운영점
+
+같은 보행자 40~50m 80관측과 차량 80~100m 91관측을 고정하고,
+저장된 raw 선택 query의 낮은 score와 server floor/NMS 뒤 결과를 따로 분석했다.
+낮은 raw 후보가 정답 근처에 있다는 것 자체를 운영 TP로 세지 않는다.
+
+| 고정 2m 매칭 조건 | E24 | E2 | E3 |
+|---|---:|---:|---:|
+| Pedestrian 40~50m, score≥0.1 | 58/80 | 20/80 | 33/80 |
+| 그중 전방 | 50/66 | 9/66 | 20/66 |
+| 그중 후방 | 8/14 | 11/14 | 13/14 |
+| 초기 약 44m 전방 50관측 | 40/50 | 0/50 | 10/50 |
+| Vehicle 80~100m, score≥0.1 | 26/91 | 10/91 | 14/91 |
+| Vehicle 80~100m, 현행 score≥0.4 | 12/91 | 4/91 | 4/91 |
+
+보행자 80관측의 정답 2m 이내 최고 raw score 중앙값은 **E2 0.0388→E3 0.0826**으로 올랐다.
+E2에서 놓쳤던 관측 14회가 회복되고 1회가 새로 탈락해 순증 13회다. 이 band의 최대 연속
+누락은 4.43→1.13초이며, 예측 중심이 이 band에 있는 catalog-relative 미대응은 13→13회다.
+단일 Man1의 반복 관측이며 대부분 0~2 LiDAR 점이라는 조건을 전 거리 보행자로 일반화하지 않는다.
+
+차량은 score≥0.1에서 5회 회복·1회 탈락으로 순증 4회지만,
+현행 score≥0.4의 동일 4관측은 그대로다. 낮은 후보의 일부 상승이 운영 원거리 recall
+회복까지 도달하지 못했다. K5의 score≥0.1 대응은 22→8→9/66, Niro는 4→2→5/18,
+Nexo는 세 모델 모두 0/7이다. 서로 다른 독립 차량 91대나 모든 도로의 성능이라고 부르지 않는다.
+
+전체 ROI의 고정 1m 운영 결과에서도 E2→E3 Vehicle recall은 **68.39→64.11%**,
+Pedestrian은 **62.83→66.91%**, Obstacle은 **48.05→49.18%**다.
+미대응 출력은 각각 **72→73 / 64→76 / 167→158**회다. 보행자의 특정 band 회복과
+전체 ROI 미대응 증가는 동시에 존재하므로, 한 지표로 안전성·tracker 안정성을 인증하지 않는다.
+
+현재 결정은 **production E24 유지, native best E2와 마지막 완료 E3를 모두 보존**이다.
+이번 요청으로 학습·인스턴스·W&B run을 재개하거나 threshold·tracker를 바꾸지 않았다.
+E3가 일부 취약 구간에서 회복된 사실은 확인했지만, E12 성능이나 향후 회복을 보장하지 않는다.
+
+### 산출물과 검증
+
+새 root는 `artifacts/evaluation/bevfusion/full30750_e3_rosbag_261022_v1/`다.
+`checkpoint_parts/`·`E3_full.pth`에 SHA 복원한 원형 전체 상태를 보존하고,
+`native_val_wandb.json`에 E2/E3 원본 val 행·정밀 scalar·분모·epoch/step 연결·조회 시각을 남겼다.
+해당 W&B receipt SHA는 `6a987a45ba2bdbf78030949e470d731a5bd41444abf45db32878eff1d38d7b8d`다.
+`e3_fresh/receipt.json`과 `predictions.json.gz`, `comparison_E2_E3.json`,
+`comparison_E24_E3.json`, `focused_scores.py`·`focused_scores.json`이 새 bag 근거다.
+입력·E3 checkpoint·과거 예측의 SHA 전후 불변, 동일 제외 분모와 이전 실패 집합 46/17개를 확인했다.
+기존 비교·거리·quick CPU 회귀 25개와 `git diff --check`를 통과했다.
+실제 ROS queue·tracker·planner·대회 4090 전용 latency를 이번 평가로 인증하지 않는다.
