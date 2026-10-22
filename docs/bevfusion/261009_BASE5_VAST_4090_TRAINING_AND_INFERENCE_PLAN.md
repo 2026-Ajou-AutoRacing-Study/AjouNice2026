@@ -867,6 +867,79 @@ E6 scalar iteration **32,790→32,870**, 실제 Logs **`[120]→[160]`**으로 �
 운영 가드·신규 권한·전수 storage 대조와 독립 API readback은
 `artifacts/evaluation/base5_vast_migration_261022_v1/e5_resume{,_v2}/`와 `wandb_observation/`에 보존한다.
 
+<a id="full-data-e7-return-original-host-261023"></a>
+
+### 검증 후 E7에서 복구된 기존 48GB 호스트로 복귀 — 2026-10-23
+
+사용자가 비용이 더 낮은 기존 `root@175.155.64.164:19463`이 복구됐다고 알리고,
+E7 val 완료 뒤 같은 학습을 이어가도록 요청했다. proxy는 `root@ssh2.vast.ai:39102`다.
+기존 실행 호스트 `99.9.4.202:33964`의 학습은 새 환경·데이터·온라인 검사 준비 동안 유지했다.
+
+- 대상도 RTX 4090 **49,140MiB**다. 원래 30,750장·10개 cohort의 index와 manifest/infos SHA,
+  train 26,136 / val 4,614, 동결 source 및 runtime·부모 E1 checkpoint를 대조했다.
+  데이터는 다시 보내거나 분할하지 않았다. 기존 입력 자격 이력·metadata·payload 50개 표본을
+  연결한 것이며 이번에 이미지·native 본문 전수를 재검사했다고 표현하지 않는다.
+- Python/Torch/CUDA와 패키지 버전은 같았지만 BEV 연산 두 개와 MMCV `_ext`의 빌드 SHA가 달랐다.
+  현재 호스트와 동일한 세 바이너리와 validation helper 56개를 새 scope에 두고 launch 전용
+  `sitecustomize`/`PYTHONPATH`로 연결했다. 원래 바이너리·전역 `.pth`·동결 source는 보존했다.
+  CUDA NMS·voxelization·BEVPool forward/backward·spconv 소량 검사가 통과했다.
+- E7 val 최종 summary는 **03:33:22 KST**, 두 val receipt와 다음 E8 진입도 확인했다.
+  **train-end E7** SHA `2e600e30…fae778` / 528,520,389바이트 뒤에 val metadata를 포함한
+  **after-val E7**이 다시 저장됐다. 호스트 이전 권한에는 후자의 **528,696,389바이트·SHA
+  `5706e47d370ff0c1f5a2ee0a4afae957b6a4cdc861fbad39af07917a53dda881`**만 묶었다.
+  epoch 7 / iteration **45,738**, 원래 계약 `97760c…f5998`, optimizer·AMP scaler·두 scheduler·
+  message hub·RNG, ZIP CRC·CPU load와 읽는 동안 stat 불변을 확인했다. summary 출력만 보고
+  train-end 파일을 최종 resume로 선택하지 않는다. 초기에 읽은 SHA 불일치 검사는 신호 전에 중단됐다.
+- 자체 val E7 center mAP는 **93.5288%**(V 97.0672 / P 96.3244 / O 87.1947)다.
+  best E7은 **209,528,511바이트·SHA
+  `48269901f5e4dbe78356162a763fcb0afc2fd4fde8174b462683f8e34c59b879`**이며 weights-only다.
+  E6 fallback과 최종 E7 full·best를 기존 Drive의 COMPLETE/parts 및 전체 SHA로 검증해 복원했다.
+  최종 full 수신은 약 **53.9초**, best는 약 **31.6초**였다. 구 train-end E7은 이력으로만 보존한다.
+- 기존 target work 전체를 `_pre_return_preserved_261023_v1`에 no-overwrite rename으로 보존했다.
+  같은 canonical work 경로에 원래 manifest·설정·로그·val receipt와 검증한 E6/E7/best를 게시하고
+  상태·`last_checkpoint`의 atomic replace도 확인했다. 원래 ordered prepare·source/data/parent
+  identity와 실제 W&B 읽기·작은 Drive 쓰기/재읽기 검사를 통과한 뒤 원래 실행 소유권을 종료했다.
+  E8 부분 계산은 E7 경계부터 다시 수행하며 worker/prefetch의 정확한 중간 재생을 주장하지 않는다.
+- **03:49:11 KST** 실제 `resumed epoch: 7, iter: 45738`, 새 PID **5886**의 live identity와
+  세 resume/guard receipt를 확인했다. 첫 CUDA cache 준비 뒤 **03:55 KST E8 460/6,534**,
+  약 **0.657초/step**·유한 loss·GPU 약 31,188MiB를 관측했다. 총 12 epoch이며 12개를 더 도는 것이 아니다.
+  batch·LR·cosine·compile OFF·훈련/val pipeline·평가지표·초기화·production은 바꾸지 않았다.
+  외부 guard는 정확한 E6 retention 한 번만 추가 보존하며 다른 저장·삭제·오류 처리는 원형이다.
+- 기존 W&B run에서 **03:50:37→03:51:16 KST**, 새 E8 scalar iteration
+  **45,778→45,838**, `_step` **2,459→2,462** 증가를 API로 독립 확인했다.
+  구 호스트의 E8 부분 history는 삭제하지 않는다. 숫자와 텍스트 Logs의 전달 검증은 구분한다.
+- 기존 로컬 uploader PID 1964915의 종료 뒤 새 단일 세션
+  `base5-full30750-e7-host175-backup`을 연결했다. 갱신 자격증명은 로컬, 원격 access token은 RAM이다.
+  첫 poll의 재개 설정 파일 readback 오류는 보존했고 자동 재시도 뒤 full·best E7의 검증 기록과
+  **uploaded 11 / pending 0 / errors 0**을 확인했다. **자동 Drive 백업에는 로컬 PC가 계속 필요하다.**
+  E8에서 새로 생성될 checkpoint의 저장·백업이나 E12 완료를 확인한 것은 아니다.
+
+원격 새 훈련 콘솔은
+`/workspace/base5_full30750_e12_speed_261021_v2/console_resume_1792694774.log`,
+private tmux는 `TMUX_TMPDIR=/dev/shm/base5_return_e7_261023_v1`, 세션은
+`base5-full30750-e7-host175-training`이다. 로컬 운영·자격·전달 근거는
+`artifacts/evaluation/base5_vast_return_261023_v1/{environment,control,data,start,console}/`에 보존한다.
+원래 호스트의 학습·files-only console·로컬 backup writer는 종료했지만, 인스턴스 Stop/Destroy는
+수행하지 않았다. 정상 재개 확인 뒤 사용자가 기존 유료 인스턴스를 Stop해도 된다고 안내했다.
+저장소 비용 때문에 Destroy 가능 여부도 추가로 물었으며, 이번 학습에 필요한 입력·코드·설정·
+E7 full/best의 독립 보존과 새 서버 E8 진행을 근거로 **구 `99.9.4.202:33964`는 Destroy해도
+현재 학습을 이어갈 수 있다**고 안내했다. 구 디스크의 별도 개인 파일까지 전부 백업했다는 뜻은
+아니며 실제 사용자의 Destroy 실행 여부는 확인하지 않았다. 새 `175.155.64.164:19463`은 유지한다.
+기존 호스트에 다시 접속하지 않고 W&B에 보존된 텍스트 12,603행을 snapshot으로 저장하고,
+호스트 전환 경계 한 줄 뒤에 새 stdout을 연결했다. 이 snapshot을 구 호스트 native 로그의
+독립 재검증으로 표현하지 않는다. **04:27:07 KST**의 독립 API 읽기에서 같은 원래 run의
+실제 새 학습 텍스트 **E8 2,560→2,600 / 행 번호 20,717→20,719**를 확인했다.
+본문 시각은 **04:18:15→04:18:41 KST**, 당시 scalar는 global iteration **49,038**이었다.
+새 호스트의 텍스트 전달을 확인한 것이며 두 번의 poll 사이 실시간 tail 증가를 인증한 것은 아니다.
+원래 run의 init/finish·숫자 지표를 sidecar에서 쓰지 않는다.
+새 stdout의 첫 학습 진행행은 7,984행이었다. 초기 설정 dump를 1,000행씩 보내며 매번
+전체 Logs를 전·후 대조하는 비용이 커서 외부 console wrapper의 새 묶음 한도만
+10,000행으로 늘렸다. 기존 pending의 원래 한도·timestamp·SHA·offset과 동일
+authority/state/lock/guard를 보존했다. files-only writer만 인계하고 훈련 PID는 유지했다.
+10,000행을 채울 때까지 기다리는 방식은 아니며 숫자 로깅과 달리 텍스트는 API 재검산·재시도로
+몇 분 늦을 수 있다. 20초 실시간 전달이나 엄밀한 최대 지연을 보장하지 않는다.
+이전·retention guard·콘솔 복구 관련 로컬 회귀 테스트는 **53개 통과**했다.
+
 ## 상세 운영과 실측의 보존
 
 ## Sunny15 스케줄 대조 준비 — 2026-10-18
