@@ -662,7 +662,7 @@ Production·운영 threshold·W&B run·기존 학습 source·가중치는 변경
   완료 후 디스크 여유는 약 109GB였으며 전체 데이터 본문을 로컬로 재전송하지 않았다.
 
 새 설정은 `artifacts/evaluation/base5_vast_migration_261022_v1/preflight/launcher_new_host_ready_v2.json`이다.
-원래 동결 launcher와 과거 증거는 덮어쓰지 않았다. 현재 새 설정은
+원래 동결 launcher와 과거 증거는 덮어쓰지 않았다. 위 준비 설정은
 **`actual_training_start_approved=False`**이며 준비·복원 승인을 실제 학습 시작 승인으로 바꾸지 않는다.
 기존 인자 없는 `start_base5_vast_training.sh --resume`가 이 새 설정을 자동 선택한다고
 가정하지 않는다. 실제 재개 시에는 새 endpoint·이 설정·별도 시작 승인·RAM 인증 전달을 연결한다.
@@ -678,6 +678,56 @@ W&B health·백업 gate가 통과했고 원래 계약
 `control/`, `preflight/`, `qualification/`, `review/`다. 데이터 전송 실행기의 독립 CPU 회귀는
 **18/18**, 캐시를 제거한 전체 SHA 복구 경로의 회귀는 **5/5 통과**했다.
 기각된 캐시 후보의 실패 테스트를 이 통과 수에 섞지 않는다.
+
+<a id="full-data-e3-resumed-new-host-261022"></a>
+
+### E3에서 E4 실제 재개와 백업 확인 — 2026-10-22
+
+위 준비 완료 뒤 사용자가 **“응 학습 돌려줘”**라고 별도로 시작을 승인했다.
+기존 준비 설정·영수증은 그대로 보존하고, 새 `start/authorized_config.json`과
+`start/start_authority.json`에 총 12 epoch·원래 부모 계보·데이터·runtime 정책 및 실제
+재개점 E3 SHA/epoch 3/iteration 19,602를 연결했다. 원래 계약 `97760c…f5998`을 유지한다.
+모델·학습/검증 파이프라인·optimizer/scheduler·source·초기화·production은 바꾸지 않았다.
+
+- 원격 승인 scope는 `/workspace/base5_migration_start_261022_v1`이다. 실제 원형
+  `remote_start`의 중복 실행/온라인 검사, GPU lock, `remote_worker`, ordered prepare와
+  full-state resume를 그대로 사용한다. 외부 bootstrap이 정확히 한 번의 tmux worker 명령만
+  연결하며, 새 private `TMUX_TMPDIR=/dev/shm/base5_e3_resume_261022_v1`을 0700으로 만들었다.
+  원격 세션은 `base5-full30750-e3-host99-training`이다.
+- W&B 키는 SSH stdin→프로세스/새 tmux 서버의 RAM 환경으로만 전달한다. worker 진입에서
+  키 존재와 config/bootstrap/E3 pin을 검사하며 argv·설정 파일·원격 `.netrc`에 쓰지 않는다.
+  새 호스트에서 검증한 **직접 HTTPS**를 사용한다. 동결 코드를 고치지 않고 외부 transport의
+  proxy 환경만 비운다. 모든 로컬 SSH 경로는 기존 migration host-key pin을 사용한다.
+- Drive는 원래 access-only uploader·32MiB parts·16 transfers·로컬 readback을 유지한다.
+  로컬 새 세션 `base5-full30750-e3-host99-backup`이 갱신 가능한 인증을 소유하고, 원격에는
+  단기 access token만 RAM으로 전달한다. 이전 terminal 상태만 보고 watcher가 끝나지 않도록
+  이번 worker 진입 관측을 요구한다. **Drive 자동 백업을 계속하려면 로컬 PC를 켜 둬야 한다.**
+  GPU 학습과 이번 직접 HTTPS W&B logging 자체는 로컬 relay를 사용하지 않는다.
+- 실제 원격 콘솔에서 **07:44:58 UTC / 16:44:58 KST**에 trusted `epoch_3.pth`를 읽고
+  `resumed epoch: 3, iter: 19602`를 확인했다. 16:46:54 KST에 E4 80/6,534까지 진행했고
+  loss 0.8483·grad norm 10.7802, GPU 31,194MiB/92%가 관측됐다. OOM·Traceback·CUDA 오류는 없었다.
+  준비 event의 `parent_epoch=1`은 기존 성능 개선 successor의 계보이며 실제 복원 경계가 아니다.
+  후속 **16:50:27 KST** 관측에서는 E4 **400/6,534**, 약 0.6648초/step·loss 0.7418까지 진행했다.
+- **16:47:22 KST**의 읽기 전용 API에서 기존 같은
+  [W&B run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_speed_261021_v2-97760ca4680d)이
+  `running`이며 오늘 새 history 5행을 확인했다. epoch 4 / global iteration
+  **19,622→19,702**, LR **8.60006e-5→8.58892e-5**, loss 약 **0.83~0.91**다.
+  워밍업 뒤 **0.662~0.668초/step**, data time 약 **0.015~0.016초**였고 첫 20 step 평균
+  3.77초는 cold 준비 비용을 포함한다. 학습 compile OFF는 유지한다.
+  과거 중단된 E4 부분 history(iteration 22,642~22,682)는 어제 timestamp로 남아 있다.
+  `_step`은 계속 증가하지만 논리 train iteration은 E3 경계에서 다시 시작하며, 과거 행을 삭제하지 않는다.
+- 이번 새 호스트에서 **E3 full 523,673,221바이트·16 parts**를 실제 Drive 업로드하고
+  로컬에서 전체 재다운로드·SHA `96b31d…1f5f4`를 대조했다. 약 **107.33초**, COMPLETE/LATEST
+  재읽기까지 완료했고 이후 poll은 pending/errors가 없다. 기존 backup 상태의 E2/best E2 기록을
+  이번 새 업로드로 세지 않는다. **E4 이후 새 checkpoint의 백업 완료는 아직 확인한 것이 아니다.**
+
+원격 콘솔은 `/workspace/base5_full30750_e12_speed_261021_v2/console_resume_1792654915.log`,
+로컬 백업 로그는 `start/logs/watcher.log`와 `start/logs/drive_backup.jsonl`이다.
+근거는 같은 migration root의 `start/`와
+`wandb_observation/observation_1792655242889963716.json`에 보존했다.
+현재 실행 요약은 `start/TRAINING_RUNNING.json`, 원격 실제 관측은
+`start/remote_observation_261022_e4_running_v1.json`을 따른다.
+이 절은 실제 재개 확인이며, 위 `MIGRATION_PREPARED.json`의 학습 미시작 상태는 당시 이력으로 유지한다.
 
 ## 상세 운영과 실측의 보존
 
