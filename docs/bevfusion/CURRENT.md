@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-문서 상태: CURRENT. 최종 근거 확인: 2026-10-22.
+문서 상태: CURRENT. 최종 근거 확인: 2026-10-23.
 2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
 validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
 구 Sunny13 모델의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
@@ -13,7 +13,7 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 항목 | 현재 선택과 상태 |
 |---|---|
 | 학습 완료 | 구 Sunny13 5K는 24 epoch 완료: native val best E9, production E24. 새 Sunny15 5K 일반 코사인과 warm-up restart는 모두 8 epoch 정상 완료하며 각각 마지막 E8이 자체 val best |
-| 전체 데이터 학습 | **2026-10-22 16:47 KST, 새 48GB 호스트에서 E3→E4 실제 학습 재개와 동일 W&B run의 새 로그를 확인했다.** 30,750장 / train 26,136 / val 4,614·총 12 epoch·batch 4·일반 코사인·compile OFF·val batch 1/FP32·[기존 지표 계약](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-val-logging-261021)을 유지한다. E3 경계 iteration 19,602에서 다시 시작해 E4 100/6,534, global iteration 19,702까지 새 로그가 확인됐다. 워밍업 뒤 약 0.66~0.67초/step·유한 loss이며, OOM/CUDA 오류는 관측되지 않았다. 새 호스트의 E3 full Drive 업로드·로컬 전체 SHA readback도 완료했고 백업 watcher가 동작한다. [실제 재개·인증·로그·백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-e3-resumed-new-host-261022)를 따른다. 중단된 E4 중간 지점을 정확히 재생하는 것은 아니며 12 epoch 완료·E4 checkpoint 완료를 주장하지 않는다. **Production E24·native best E2·마지막 완료 E3는 구분해 보존하며 자동 승격하지 않는다.** [복원·준비 이력](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-new-host-migration-261022), [E3 native val·중단 이력](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-e3-interrupted-evaluation-261022), [동일 bag 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e3-local-bags-261022)는 별도 근거다 |
+| 전체 데이터 학습 | **2026-10-23 00:48 KST, 저장소 복구 후 E5 full→E6 실제 재개를 확인했다.** 30,750장 / train 26,136 / val 4,614·총 12 epoch·batch 4·일반 코사인·compile OFF·val batch 1/FP32·[지표 계약](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-val-logging-261021)은 유지한다. 10/22 20:43 KST E6 저장 전 old E3 정리에서 `ESTALE`로 중단됐고, E5 full의 전체 SHA·ZIP·CPU load·optimizer/scheduler 보존을 검증했다. 기존 work를 통째로 보존한 뒤 파일·링크 54개의 exact clone을 같은 canonical 경로에 게시하고 상태/포인터 교체도 확인했다. E5 epoch 5 / iteration 32,670에서 E6 처음부터 다시 수행하며 워밍업 뒤 약 0.66초/step이다. **E6 새 checkpoint 저장·백업 및 12 epoch 완료는 아직 미확인**이다. 마지막 완료 E5 자체 val mAP 92.53%이며 full/best E5의 Drive 백업 기록이 있다. 기존 단일 backup watcher를 재사용한다. **Production E24와 신규 자체 best E5는 구분하고 자동 승격하지 않는다.** [복구·재개 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-e5-estale-resume-261023), [이전 E3 재개](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-e3-resumed-new-host-261022), [마이그레이션 이력](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-new-host-migration-261022)을 따른다 |
 | 완료된 데이터 대조 학습 | 새 Sunny13 **v158a 원형 5K**는 기존 E24의 동결 source/init·seed·24 epoch·batch 4·AdamW·cosine·compile ON 조건으로 10/19 04:11:54~08:48:18 KST, 약 **4시간 36분 24초·exit 0**에 완료했다. full E24·자체 val best E20의 Drive 전체 SHA/readback과 W&B 완료를 확인했다. 같은 val의 E24 교차 평가 mAP는 기존 745장에서 **83.47→87.63%**, 신규 750장에서 **89.93→91.00%**다. 근거리 장애물은 두 val에서 개선됐지만 **30~50m 장애물은 미해결**, 원거리 차량도 일관된 개선이 아니다. E20은 교차 평가하지 않았다. Foggy13의 149장 거리 보강 학습 결과가 아니며 일반 새 학습의 compile OFF와 **기존 production E24는 유지**한다. [완료·백업·네 칸 비교와 한계](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019) |
 | 클래스 | vehicle / pedestrian / obstacle. Animal은 학습 라벨만 Pedestrian에 통합하고 원래 의미·asset·BBox는 보존 |
 | 시간 모델 | single-frame 7D. temporal modeling·OD velocity supervision은 OFF |
@@ -24,11 +24,10 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 두 후보는 compile OFF·nearest·batch 4이며 각각 약 1시간 47분에 완료했다. 두 run identity 차이는 scheduler뿐이며 restart는 cosine E8 resume가 아니다. 동일 val의 center mAP는 cosine 88.49% / restart 88.05%다. 단일 seed의 결과로 일반적인 우열을 단정하지 않으며 짧은 학습 예산의 우선 후보는 일반 코사인으로 유지한다. [대조 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-restarts-e8-result-backup-261019)를 따른다 |
 | 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine은 10/19 00:10 KST, restart는 03:31 KST에 각각 best E8·full E8 수동 Drive 백업·전체 SHA readback·metadata·COMPLETE·full용 LATEST 검증을 완료했다. full은 학습 상태를 포함하며 best는 weights-only다. 원격 원본은 보존한다. 자동 전송의 속도·1,200초 제한 문제를 해결했다는 뜻은 아니다. [cosine 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-e8-manual-drive-backup-261019)와 아래 restart 백업 근거를 따른다. rosbag val은 train에 혼합하지 않음 |
 
-W&B 숫자 지표는 기존 학습 run에 계속 기록한다. 2026-10-22 새 호스트 재개에서 SDK 0.22.3의
-콘솔 offset 버그를 확인하여, 학습을 중단하거나 SDK를 교체하지 않고
-[콘솔 전용 보조 run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_console_261022_v1/logs)에
-과거·현재 텍스트를 복구하고 실시간 전송한다. 이 보조 run은 AP·학습 결과 비교 대상이 아니다.
-원래 Logs 탭의 종료 후 복원과 다음 환경의 SDK 수정 검증은 [복구 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#wandb-console-recovery-261022)를 따른다.
+W&B 숫자 지표와 텍스트는 현재 **기존 학습 run**에서 확인한다. E5 재개에서는 SDK 콘솔을
+외부 환경으로만 끄고 검증된 실제 PID에 연결한 files-only writer가 원래 Logs를 복구·전송한다.
+기존 [콘솔 보조 run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_console_261022_v1/logs)은 과거 이력이며 AP 비교 대상이 아니다.
+SDK 0.22.3 자체는 교체하지 않았다. [이전 버그 진단](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#wandb-console-recovery-261022)과 위 E5 복구 근거를 구분한다.
 
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.

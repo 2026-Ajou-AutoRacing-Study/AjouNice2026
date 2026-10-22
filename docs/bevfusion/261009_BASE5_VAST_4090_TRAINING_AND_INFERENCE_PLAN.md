@@ -786,6 +786,87 @@ v0.28.2 소스를 대조했다. **현재 학습의 설치 SDK·동결 source·�
 원래 SDK writer가 종료된 뒤에만 보존된 두 원본으로 기존 콘솔을 재구성할지 별도 검토한다.
 실행 중 콘솔에 직접 overwrite하거나 일반 W&B init/finish로 기존 run 상태를 바꾸지 않는다.
 
+<a id="full-data-e5-estale-resume-261023"></a>
+
+### E6 체크포인트 정리 실패·저장소 복구·E5 재개 — 2026-10-23
+
+10/22 **20:43:17 KST**, E6의 train loop를 마치고 체크포인트를 저장하기 전에 실패했다.
+원형 `CheckpointHook`은 `max_keep_ckpts=3`에 따라 오래된 `epoch_3.pth`부터 삭제한 뒤
+E6를 저장한다. `LocalBackend.remove → os.remove`가 **errno 116 / Stale file handle**을
+발생시켜 E6 저장·val 전에 종료됐다. 학습 프로세스·GPU 사용이 사라졌고 W&B 원본도 `failed`였다.
+이는 OOM·loss 발산이나 atomic checkpoint save 안쪽의 실패가 아니다.
+
+- 마지막 완료는 **E5**, 자체 val center mAP **92.5304%**(V 96.7630 / P 95.8293 / O 84.9989)다.
+  E5 full **526,186,885바이트·SHA
+  `9f4f97ebc5fe307bba5efa0642ddc5ec842748bc34e703f0680d1946c3ca4c6f`**를 다시 계산해
+  Drive backup 기록과 일치시켰고 ZIP CRC·CPU `torch.load`도 통과했다. meta epoch 5 /
+  iteration 32,670, state_dict·optimizer·param_schedulers·message_hub를 확인했다.
+  weights-only best E5를 resume에 사용하지 않는다. E6의 미저장 계산은 다시 수행한다.
+- `oneclick_status.json`은 이전 `running`으로 남아 있었다. 첫 복구 시도에서도 이 파일의
+  원자적 교체가 실패했고, 별도 유지보수 검사에서 **같은 바이트의 임시 파일 → 기존 상태 파일
+  `os.replace`도 errno 116**임을 확인했다. 같은 폴더의 새 파일 쓰기·읽기·삭제는 통과했다.
+  따라서 E3 retention 한 곳만 보완하는 것으로 충분하다고 판단하지 않았다.
+
+사용자가 원인 수정·E5 재개를 승인한 뒤 다음을 수행했다.
+
+1. 이미 유휴인 단일 로컬 Drive watcher PID 1964915의 start identity·자식 없음·lock을 확인하고
+   저장소 게시 동안만 잠시 STOP했다. `finally`에서 CONT했고 중복 uploader를 만들지 않았다.
+2. 기존 work의 **파일·링크 54개**를 전수 inventory하고, 별도 inode의 fresh sibling으로
+   바이트 복사·fsync·전체 SHA와 symlink target을 대조했다. hardlink나 copy-delete 이동은 하지 않았다.
+   fresh `oneclick_status.json`과 `last_checkpoint`의 동일 내용 `os.replace`도 먼저 검사했다.
+3. `renameat2(RENAME_NOREPLACE)`로 old work 전체를
+   `/workspace/base5_full30750_e12_speed_261021_v2_estale_preserved_261023_v1`에 보존하고
+   검증한 fresh tree를 **원래 canonical work 경로**에 게시했다. 게시 후에도 전체 대조와
+   상태/포인터 교체 검사를 통과했다. 원본 삭제·체크포인트 metadata 변경·데이터셋 재전송은 없다.
+4. 별도 외부 [retention guard](../../scripts/runtime/base5_checkpoint_retention_recovery.py)를
+   기존 `--prepare-runtime --resume --execute` 앞에 연결했다. 정확한 E3 경로·SHA 한 곳의
+   retention 삭제만 한 번 추가 보존하고 durable receipt를 남긴다. max_keep 값·새 저장·다른
+   삭제·오류 처리는 원형 그대로다. 이는 추가 old 파일 1개 보존 정책이며 수치 학습 변경이 아니다.
+   원본 ordered builder·parameter 순서·모델·optimizer/scheduler·데이터·총 12 epoch는 유지한다.
+5. 첫 실패 scope `.../e5_resume`와 remote `/workspace/base5_e5_storage_resume_261023_v1`은
+   보존하고, 새 `.../e5_resume_v2` / remote `/workspace/base5_e5_storage_resume_261023_v2`에
+   E5 SHA/epoch/iteration·config/bootstrap/guard authority를 새로 묶었다. 이전 parent E1 계보와
+   수치 계약 `97760c…f5998`은 바꾸지 않았다. private tmux는
+   `TMUX_TMPDIR=/dev/shm/base5_e5_resume_261023_v2`, 세션은
+   `base5-full30750-e5-host99-training-v2`다.
+
+**실제 재개 확인:** 10/23 **00:48:32 KST**에 `resumed epoch: 5, iter: 32670`,
+`performance_resume_start.json`과 `resume_start.json`에서 같은 contract·epoch·iteration을 확인했다.
+00:49:27 KST에는 **E6 `[80/6534]`**, 약 **0.6601초/step**·유한 loss,
+GPU **31,194MiB / 100%**를 관측했다. 첫 20 step은 cold 초기화가 포함됐다.
+원격 새 콘솔은 `/workspace/base5_full30750_e12_speed_261021_v2/console_resume_1792683941.log`다.
+이것은 E6 재시작 확인이며 **새 E6 체크포인트 저장·검증·Drive 백업 완료 증거는 아니다.**
+다음 epoch boundary의 실제 저장·backup readback을 계속 구분해서 확인한다.
+
+#### 기존 W&B run의 콘솔 단독 writer
+
+현재 [원래 학습 run의 Logs](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_speed_261021_v2-97760ca4680d/logs)를 사용한다.
+이번에는 이미 중단된 상태에서 외부 환경 `WANDB_CONSOLE=off`를 설정했고, 실제 PID 33510의
+환경과 새 SDK debug **`run resumed` / `redirect: off`**를 확인했다. SDK·frozen source를
+업데이트하지 않고 console writer만 끈 것이다. 숫자 지표는 동일 run에 원형으로 계속 기록한다.
+
+[기존 run 전용 실행기](../../scripts/runtime/base5_wandb_existing_console.py)는 기존 run의
+계약과 실제 훈련 PID/start ticks·console OFF·storage authority receipt를 매 전송 전에 검사한다.
+구 콘솔 snapshot을 별도 보존하고 두 이전 원본과 호스트 경계 **3,402행**을 복원한 뒤,
+새 file-backed stdout을 이어 보낸다. source SHA/inode·완결 행·pending cursor를 검증하며
+`output.log` files-only POST 외에 config·history·summary·heartbeat·run 종료 상태를 쓰지 않는다.
+원래 run의 `init/finish`를 sidecar에서 호출하지 않으므로 동일 run의 학습/val을 중복 생성하지 않는다.
+Backfill에는 수신 시각이 붙지만 본문에 원래 MMEngine 출력 시각을 보존한다.
+
+독립 세션은 `base5-original-console-261023-v2`, 원격 권한은 `console_authority.json`,
+상태는 `console_state/`, 운영 로그는 `console_forwarder.log`다. 예전 보조 run은 이력으로 유지한다.
+새 실행기는 로컬 relay 없이 원격 RAM 인증을 사용한다. 단 **Drive 백업은 여전히 로컬 PC가
+갱신 가능한 자격증명 소유자**이므로 기존 backup watcher를 계속 켜 둬야 한다.
+
+회귀는 retention 15개·기존 run 전용 콘솔 10개·재사용 콘솔 helper 18개를 통과했다.
+기존 watcher의 후속 poll도 새 console 경로·`running`·backup pending/errors 없음으로 갱신됐다.
+독립 W&B API 두 조회 **00:50:09→00:50:53 KST**에서 같은 원본 run이 `running`을 유지하고,
+E6 scalar iteration **32,790→32,870**, 실제 Logs **`[120]→[160]`**으로 증가했다.
+원래 콘솔 첫 3줄 본문도 보존 파일과 SHA가 정확히 일치했다. 위 보조 run만 복구한 것이 아니라
+**기존 학습 run의 Logs 탭 복구**까지 확인한 것이다. 이전 E6 partial history는 삭제하지 않았다.
+운영 가드·신규 권한·전수 storage 대조와 독립 API readback은
+`artifacts/evaluation/base5_vast_migration_261022_v1/e5_resume{,_v2}/`와 `wandb_observation/`에 보존한다.
+
 ## 상세 운영과 실측의 보존
 
 ## Sunny15 스케줄 대조 준비 — 2026-10-18
