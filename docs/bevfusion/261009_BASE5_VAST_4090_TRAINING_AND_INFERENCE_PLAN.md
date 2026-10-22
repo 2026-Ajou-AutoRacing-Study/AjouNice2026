@@ -587,6 +587,98 @@ Native val은 이미 완료된 결과를 회수한 것이며, bag 1,570프레임
 [E3 비교 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e3-local-bags-261022)를 따른다.
 Production·운영 threshold·W&B run·기존 학습 source·가중치는 변경하지 않았다.
 
+<a id="full-data-new-host-migration-261022"></a>
+
+### 새 48GB 호스트로 최소 입력 복원 — 2026-10-22
+
+사용자가 기존 GPU 재할당 불가와 인스턴스 간 복사 중단을 알리고 최소 입력 복원을 승인했다.
+현재 대상은 **`root@99.9.4.202:33964` / proxy `root@ssh8.vast.ai:16748`**이며,
+실제 GPU는 RTX 4090 **49,140MiB**다. 앞서 잠시 확인한 24GB 인스턴스와 구분한다.
+이 주소를 향후에도 유효하다고 가정하지 않으며 기존 인스턴스를 Stop·Destroy하지 않았다.
+
+새 호스트는 기본 Torch 2.7.1/CUDA 12.8 이미지였으며 MMCV·spconv 등은 없었다.
+`/workspace` 복사는 설치 환경 복제가 아니다. 중단 직후 디스크 여유는 약 193GB여서
+당시 용량 부족은 아니었고, 복사 중단의 원인을 데이터 개수만으로 확정하지 않았다.
+전체 복사에는 과거 실험·중복·미완성 archive가 섞여 있어 현재 학습에 필요한 파일만 복원했다.
+
+- 원래 10개 cohort 압축본은 **19,158,484,002바이트**다. 도착한 Sunny15
+  **3,315,767,472바이트**의 전체 SHA가 일치해 재사용했다. 추가 입력은 약 **15.84GB**다.
+  이미 Drive에 있는 8개 누락 archive를 file ID로 직접 수신하고, 마지막 1장 압축본
+  519,600바이트는 로컬에서 보냈다. Sunny 보강은 동명 Drive 폴더 이력이 있어 ID를 사용한다.
+  각 archive 크기·전체 SHA를 확인했으며 몇 MB/s 변동을 옛 8MB/s 기준으로 중단하지 않았다.
+  최초 보강 162MB 시험은 수신·SHA 확인까지 약 3.4초, 이후 Sunny11·13은 각각 약 42초였다.
+  이는 이번 호스트의 관측이며 다른 호스트나 이후 전송 속도의 보증이 아니다.
+- 원래 index SHA **`481008024038779fd6eaf8e6bb2676461ccd201081ad0f8cb762718399d42d24`**와
+  cohort별 manifest·infos·Q90/upright·3클래스·split을 유지한다. 새 데이터 생성이나 재분할이 아니다.
+  최종 준비에서 누락됐던 2,724바이트 index도 같은 경로에 원문 그대로 배타적 복원·재읽기 검증했다.
+- 동결 source **1,098개를 포함한 control/runtime 총 1,117개**, 부모 E1·manifest·E3 full을
+  원래 SHA와 대조해 복원했다. 새 `last_checkpoint`는 원래 work의 `epoch_3.pth`를 가리킨다.
+  E3는 epoch 3 / iteration 19,602다. 중단된 E4의 임의 지점부터 재생한다는 뜻이 아니다.
+- 초기 가중치의 원래 경로에는 복사 실패 뒤 **읽기 ENOENT·생성 ESTALE**인 깨진 항목이 남았다.
+  유효 파일을 지우거나 OS 마운트를 바꾸지 않고, 동일 **159,952,011바이트·SHA `a786…b977`**를
+  `/workspace/base5_migration_control_261022_v1/initializer_original.pth`에 보존해 새 transport 설정만 연결했다.
+  학습 identity는 이 파일의 SHA를 묶으며, 최종 ordered prepare의 부모 identity 일치도 통과했다.
+- 데이터의 원래 `base5_full_data_delivery_261021_v1/cohorts`도 같은 잔존 항목 때문에
+  mkdir가 ESTALE로 실패했다. 컨테이너 내 활성 writer가 없고 정상 cohort가 그 아래 게시되지 않았음을
+  확인한 뒤 상위 실디렉터리 전체를 `.pre_migration_ghost_261022`에 no-overwrite rename으로
+  보존하고, 동일 canonical 경로를 정상 directory로 다시 만들었다. 과거 partial·ghost를
+  삭제하거나 마운트를 바꾸지 않았으며 index와 데이터 경로 계약도 변경하지 않았다.
+- 원래 source tree에도 읽히지 않는 `__pycache__` 등 ghost 52개가 남아, ordered prepare의
+  재귀 탐색이 실패했다. 기존 tree 전체를 동결 source 영역 밖인
+  `/workspace/base5_migration_control_261022_v1/source_pre_migration_ghost_261022`에 보존하고,
+  원래 canonical source 경로에
+  동일 SHA의 동결 1,098개와 원래 pin의 diagnostic 지원 파일 1개만 깨끗하게 복원했다.
+  원형 core의 세 폴더 재귀 수집 알고리즘으로도 1,098개 SHA 사전이 정확히 일치했다.
+  기존 추가 파일 810개도 이전 tree에 그대로 남겼으며 개별 ghost 삭제나 코드 내용 수정은 없었다.
+- 동일 Python/Torch/CUDA ABI의 검증 이미지에서 MMCV·BEVFusion CUDA ops만 재사용하고 필요한
+  의존성을 설치했다. `/opt/conda` 전체 복제·Torch/CUDA 재설치는 하지 않았다. 두 BEV binary는
+  외부 경로의 정확한 module-name hook으로 연결해 동결 source를 수정하지 않았다.
+  원래 config import와 실제 CUDA rotated NMS·voxel·BEVPool forward/backward·sparse 소량 검사는 통과했다.
+  선택적 open3d·plyfile·scikit-image·tensorboard가 없는 `pip check` 결과를 오류 0이라고 표현하지 않는다.
+- 새 endpoint의 작은 Drive 쓰기·재읽기와 W&B 기존 health/run 읽기 검사는 통과했다.
+  새 호스트용 백업 증거는 과거 전체 백업 구현과 **새 endpoint 검사**를 명시적으로 연결했다.
+  새 전체 checkpoint 업로드나 처리량을 이미 검증했다는 뜻이 아니다. 갱신 가능한 Drive 인증은
+  로컬에 유지하고 원격에는 RAM 단기 token만 전달했다. W&B 키도 stdin/RAM으로만 사용했다.
+- E3 모델 574개 state tensor와 optimizer 394개 parameter의 이름·순서가 일치했다.
+  Adam moment 780개·AMP scaler·두 scheduler·Python/NumPy/Torch/CUDA RNG를 실제 RAM에
+  복원해 대조했다. checkpoint epoch 3 / iteration 19,602와 optimizer update 19,597은
+  AMP의 건너뛴 update 때문에 구분하며, 검사 중 optimizer step·학습·checkpoint 저장은 없었다.
+  이어 실제 Sunny13 val 1장·원래 model/pipeline·FP32/B1 forward에서 raw 후보 200개의
+  7D BBox·score가 모두 유한값이었다. E3·모델 state·입력·동결 source 전후 SHA도 일치했다.
+  첫 호출 약 60.8초는 cold 준비 비용을 포함하므로 실시간 latency나 전체 AP의 근거가 아니다.
+  첫 진단기의 numeric `sample_idx`와 문자열 token 비교 오류는 실패 로그를 보존하고,
+  원래 동결 로깅의 `_sample_token`으로만 정정했다. 데이터나 pipeline을 수정하지 않았다.
+- 최초 압축 전개 뒤 검증 보조 모듈 누락으로 4개 cohort의 게시가 중단됐다. 이미 전개한 파일과
+  실패 기록을 보존하고, 동결 source 밖에 원래 검증 Python 54개와 catalog 2개를 SHA 고정해 추가했다.
+  원래 ordered prepare에서도 이를 찾도록 새 전용 `.pth` 하나로 외부 경로를 기존 경로 끝에
+  추가했다. 새 Python import·catalog 146개 로드와 기존 `.pth` 6개·source/helper SHA 불변을 확인했다.
+  중복 SHA 읽기를 줄이는 stat 캐시 후보는 파일시스템의 timestamp 해상도 예외로 변경 감지를
+  놓쳐 기각했다. 실패 근거를 보존하며 원래 전체 바이트 SHA·package/native 검증을 사용한다.
+  이는 데이터 손상·GT 변경이나 검증 기준 완화가 아니다.
+- 최종 데이터 복원은 **10개 cohort·30,750장 / train 26,136·val 4,614**로 완료했다.
+  원래 archive/member SHA·package/native 검사, Q90·3클래스·분할·원래 경로를 유지했다.
+  기존 4개 전개물과 그중 먼저 완료된 2개 성공 증거는 재사용했고, 나머지 6개만 처음 전개했다.
+  전체 실패 이력·ghost 격리 전후·10개 결과는 `data/receipts_261022_v1/`에 회수했다.
+  완료 후 디스크 여유는 약 109GB였으며 전체 데이터 본문을 로컬로 재전송하지 않았다.
+
+새 설정은 `artifacts/evaluation/base5_vast_migration_261022_v1/preflight/launcher_new_host_ready_v2.json`이다.
+원래 동결 launcher와 과거 증거는 덮어쓰지 않았다. 현재 새 설정은
+**`actual_training_start_approved=False`**이며 준비·복원 승인을 실제 학습 시작 승인으로 바꾸지 않는다.
+기존 인자 없는 `start_base5_vast_training.sh --resume`가 이 새 설정을 자동 선택한다고
+가정하지 않는다. 실제 재개 시에는 새 endpoint·이 설정·별도 시작 승인·RAM 인증 전달을 연결한다.
+최종 원형 `remote_check(resume=True)`도 **75.96초·exit 0**으로 통과했다.
+데이터·source·초기화·원래 순서의 config 재구성과 부모 identity, E3 resume binding,
+W&B health·백업 gate가 통과했고 원래 계약
+**`97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`**를 유지했다.
+최종 영수증은 `preflight/prepared_resume_1792651142824148689.json`이며,
+`training_started=False`, `optimizer_steps_performed=0`이다.
+별도 시작 승인 뒤 E4 처음부터 남은 9 epoch를 이어갈 준비이며, 12 epoch 완료나 실제 재개를
+이미 했다는 뜻이 아니다. 초기 누락 index·helper import·source ghost로 실패한 검사 기록도 보존했다.
+근거 root는 `artifacts/evaluation/base5_vast_migration_261022_v1/`의 `data/`, `environment/`,
+`control/`, `preflight/`, `qualification/`, `review/`다. 데이터 전송 실행기의 독립 CPU 회귀는
+**18/18**, 캐시를 제거한 전체 SHA 복구 경로의 회귀는 **5/5 통과**했다.
+기각된 캐시 후보의 실패 테스트를 이 통과 수에 섞지 않는다.
+
 ## 상세 운영과 실측의 보존
 
 ## Sunny15 스케줄 대조 준비 — 2026-10-18
