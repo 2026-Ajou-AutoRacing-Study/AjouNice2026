@@ -42,7 +42,7 @@ void NormalLaneChange::captureSafetyDiagnostic(
   const char * stage, const ExtendedPredictedObject & object,
   const LaneChangePath & candidate, const std::vector<PoseWithVelocityStamped> & prediction,
   const RSSparams & execution_params, const check::RSSCollisionTrace & trace,
-  const CollisionCheckDebug & debug) const
+  const CollisionCheckDebug & debug, const double prepare_end_time) const
 {
   ++safety_rejected_pairs_;
   // First rejected sample for each object/stage, at most four per planning cycle.
@@ -52,10 +52,16 @@ void NormalLaneChange::captureSafetyDiagnostic(
     if (sample.stage == stage && sample.object.uuid == object.uuid) return;
   }
   safety_diagnostic_samples_.push_back(
-    {stage, object, candidate, prediction, execution_params, trace, debug});
+    {stage, object, candidate, prediction, execution_params, trace, debug, prepare_end_time});
 }
 
-void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
+void NormalLaneChange::publishApprovedSafetyDiagnostics(const bool safe, const bool trailing) const
+{
+  publishSafetyDiagnostics(0.0, true, safe, trailing);
+}
+
+void NormalLaneChange::publishSafetyDiagnostics(
+  const double search_ms, const bool approved, const bool safe, const bool trailing) const
 {
   if (!safety_diagnostics_pub_ || !safety_diagnostics_pub_.getNumSubscribers()) return;
   const auto started = std::chrono::steady_clock::now();
@@ -66,10 +72,17 @@ void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
     for (const auto & lane : lanes) result.push_back(lane.id());
     return result;
   };
-  Json document{{"schema_version", 1}, {"stamp", ros::Time::now().toSec()},
+  const auto uuid_text = [](const auto & id) {
+    std::ostringstream text;
+    for (auto byte : id.uuid) text << std::hex << std::setw(2) << std::setfill('0') << int(byte);
+    return text.str();
+  };
+  Json document{{"schema_version", 2}, {"stamp", ros::Time::now().toSec()},
+    {"check_context", approved ? (isAbortState() ? "approved_abort" : "approved_lane_change") : "candidate_search"},
     {"safety_check_mode", "phase_scoped"},
     {"side", direction_ == Direction::LEFT ? "left" : "right"},
-    {"valid", status_.is_valid_path}, {"safe", status_.is_safe},
+    {"valid", status_.is_valid_path}, {"safe", approved ? safe : status_.is_safe},
+    {"unsafe_trailing", trailing},
     {"ego_pose", pose_json(getEgoPose())}, {"ego_speed", getEgoVelocity()},
     {"current_lanes", ids(get_current_lanes())}, {"target_lanes", ids(get_target_lanes())},
     {"search_ms", search_ms}, {"search_limit_ms", params.time_limit},
@@ -78,9 +91,17 @@ void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
     {"prepare_params", params_json(params.safety.rss_params_for_prepare)},
     {"execution_params", params_json(params.safety.rss_params)},
     {"counterfactual_affects_decision", false}, {"samples", Json::array()}};
+  document["overtake"] = {{"enabled", params.overtake.enable},
+    {"assume_cooperative_npc", params.overtake.assume_cooperative_npc},
+    {"phase", overtakePhaseName()}, {"reason", overtake_.reason},
+    {"target_uuid", overtake_.target ? Json(uuid_text(*overtake_.target)) : Json(nullptr)},
+    {"measured_rear_body_gap_m", overtake_.gap}, {"minimum_gap_m", params.overtake.minimum_gap},
+    {"npc_reaction_time", params.overtake.npc_reaction_time},
+    {"npc_max_deceleration", params.overtake.npc_max_deceleration},
+    {"downstream_feedback", overtake_feedback_reason_}};
 
   if (status_.is_valid_path) {
-    const auto & candidate = status_.lane_change_path;
+    const auto & candidate = approved ? activeSafetyPath() : status_.lane_change_path;
     document["selected_candidate"] = {
       {"prepare_acceleration", candidate.info.longitudinal_acceleration.prepare},
       {"execution_acceleration", candidate.info.longitudinal_acceleration.lane_changing},
@@ -97,7 +118,7 @@ void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
     const auto & trace = sample.trace;
     const auto & debug = sample.debug;
     const auto & candidate = sample.candidate;
-    const double split = candidate.info.duration.prepare;
+    const double split = sample.prepare_end_time;
     std::ostringstream uuid;
     for (const auto byte : sample.object.uuid.uuid) {
       uuid << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
@@ -114,6 +135,7 @@ void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
       {"object_initial_velocity", {sample.object.initial_twist.linear.x,
         sample.object.initial_twist.linear.y}},
       {"checked_stage", sample.stage}, {"unsafe_reason", debug.unsafe_reason},
+      {"distance_policy", sample.stage == "cooperative_rear" ? "cooperative_rear" : "rss"},
       {"collision_time", trace.time}, {"predicted_path_index", trace.predicted_path_index},
       {"predicted_path_confidence", trace.path_confidence},
       {"prepare_duration", split}, {"execution_duration", candidate.info.duration.lane_changing},
@@ -145,7 +167,7 @@ void NormalLaneChange::publishSafetyDiagnostics(const double search_ms) const
     }
     // For the first snapshot, check every filtered target object with this exact
     // ego hypothesis. This is evidence about one candidate, not an approval.
-    if (&sample == &safety_diagnostic_samples_.front()) {
+    if (!approved && &sample == &safety_diagnostic_samples_.front()) {
       const auto targets = get_target_objects(filtered_objects_, get_current_lanes());
       bool all_safe = true;
       size_t count = 0;

@@ -13,6 +13,7 @@
   <depend>autoware_lanelet2_utils</depend>
   <depend>sensor_msgs</depend>
   <depend>pcl_conversions</depend>
+  <depend>libssl-dev</depend>
   <test_depend>rostest</test_depend>
 <depend>autoware_utils_rclcpp</depend><depend>fmt</depend>
 </package>

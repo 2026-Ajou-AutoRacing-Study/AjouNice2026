@@ -106,7 +106,7 @@ void LaneChangeInterface::updateData()
   module_type_->update_transient_data(getCurrentStatus() == ModuleStatus::RUNNING);
   module_type_->updateSpecialData();
 
-  if (isWaitingApproval() || module_type_->isAbortState()) {
+  if (isWaitingApproval()) {
     module_type_->updateLaneChangeStatus();
   }
 
@@ -345,7 +345,8 @@ std::pair<LaneChangeStates, std::string_view> LaneChangeInterface::check_transit
     if (module_type_->hasFinishedAbort()) {
       return {LaneChangeStates::Cancel, "Aborted"};
     }
-    return {LaneChangeStates::Abort, "Aborting"};
+    return {LaneChangeStates::Abort,
+      post_process_safety_status_.is_safe ? "Aborting" : "AbortingUnsafe"};
   }
 
   if (!module_type_->is_ego_in_current_or_target_lanes()) {

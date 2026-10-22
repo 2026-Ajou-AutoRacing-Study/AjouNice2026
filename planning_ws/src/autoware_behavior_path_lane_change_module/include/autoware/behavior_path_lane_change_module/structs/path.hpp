@@ -24,6 +24,7 @@
 #include <autoware_internal_planning_msgs/PathWithLaneId.h>
 
 #include <utility>
+#include <optional>
 #include <vector>
 
 namespace autoware::behavior_path_planner::lane_change
@@ -63,6 +64,9 @@ struct TrajectoryGroup
 
 struct Path
 {
+  // Travels with the approved maneuver, so execution cannot silently switch
+  // its selected rear vehicle or revert to a different RSS policy.
+  std::optional<unique_identifier_msgs::UUID> cooperative_overtake_target;
   Info info;
   PathWithLaneId path;
   ShiftedPath shifted_path;

@@ -22,6 +22,9 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <stdexcept>
+#include <type_traits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,6 +55,36 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
   LaneChangeParameters p{};
 
   const auto parameter = [](std::string && name) { return "lane_change." + name; };
+
+  // Optional additions preserve older complete parameter documents. The
+  // cooperative assumption must be explicitly enabled by the simulator profile.
+  const auto optional = [&](const std::string & key, auto & value) {
+    std::string name = "lane_change/overtake/" + key;
+    if (node->hasParam(name)) {
+      using T = std::decay_t<decltype(value)>;
+      value = get_or_declare_parameter<T>(*node, name);
+    }
+  };
+  optional("enable", p.overtake.enable);
+  optional("assume_cooperative_npc", p.overtake.assume_cooperative_npc);
+  optional("minimum_gap", p.overtake.minimum_gap);
+  optional("activation_distance", p.overtake.activation_distance);
+  optional("minimum_ego_speed", p.overtake.minimum_ego_speed);
+  optional("maximum_prepare_time", p.overtake.maximum_prepare_time);
+  optional("npc_reaction_time", p.overtake.npc_reaction_time);
+  optional("npc_max_deceleration", p.overtake.npc_max_deceleration);
+  optional("feedback_timeout", p.overtake.feedback_timeout);
+  optional("cooldown", p.overtake.cooldown);
+  for (double value : {p.overtake.minimum_gap, p.overtake.activation_distance,
+      p.overtake.minimum_ego_speed, p.overtake.maximum_prepare_time,
+      p.overtake.npc_max_deceleration, p.overtake.feedback_timeout, p.overtake.cooldown}) {
+    if (!std::isfinite(value) || value <= 0.0) {
+      throw std::invalid_argument("lane_change/overtake parameters must be finite and positive");
+    }
+  }
+  if (!std::isfinite(p.overtake.npc_reaction_time) || p.overtake.npc_reaction_time < 0.0) {
+    throw std::invalid_argument("lane_change/overtake/npc_reaction_time must be nonnegative");
+  }
 
   // trajectory generation
   {

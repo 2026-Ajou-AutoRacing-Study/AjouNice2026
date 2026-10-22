@@ -153,6 +153,22 @@ struct TerminalPathParameters
   bool stop_at_boundary{false};
 };
 
+// Cooperative-NPC policy is opt-in. It applies only to the tracked vehicle
+// that ego has passed, never to an arbitrary front/rear object.
+struct OvertakeParameters
+{
+  bool enable{false};
+  bool assume_cooperative_npc{false};
+  double minimum_gap{10.0};
+  double activation_distance{15.0};
+  double minimum_ego_speed{10.0};
+  double maximum_prepare_time{8.0};
+  double npc_reaction_time{1.0};
+  double npc_max_deceleration{3.0};
+  double feedback_timeout{0.5};
+  double cooldown{3.0};
+};
+
 struct Parameters
 {
   TrajectoryParameters trajectory{};
@@ -161,6 +177,7 @@ struct Parameters
   DelayParameters delay{};
   TerminalPathParameters terminal_path{};
   FrenetPlannerParameters frenet{};
+  OvertakeParameters overtake{};
 
   // lane change parameters
   double time_limit{50.0};

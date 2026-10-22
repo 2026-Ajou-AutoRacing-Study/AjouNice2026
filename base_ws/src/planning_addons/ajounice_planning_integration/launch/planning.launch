@@ -47,9 +47,11 @@
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
     <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
     <arg name="start_parking" value="false"/>
-    <!-- Keep object/map based modules; remove cloud/grid consumers. -->
+    <!-- External-request lane changes require an explicit request/approval.
+         Exclude them from this autonomous profile so reaching the preferred
+         lane cannot start an unsolicited lane change away from it. -->
     <arg name="behavior_path_launch_modules"
-         value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeRightModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
+         value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
     <arg name="behavior_velocity_launch_modules"
          value="$(arg behavior_velocity_launch_modules)"/>
     <arg name="motion_velocity_launch_modules"
@@ -58,6 +60,9 @@
          value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
   </include>
   <!-- Base-owned runtime override; keep the ported Autoware source/config unchanged. -->
+  <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/slot2">
+    [side_shift, avoidance_by_lane_change, static_obstacle_avoidance, lane_change_left, lane_change_right, bidirectional_traffic]
+  </rosparam>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/forward_path_length"
          value="$(arg behavior_path_forward_length)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection/common/attention_area_length"

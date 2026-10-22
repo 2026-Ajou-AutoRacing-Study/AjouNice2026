@@ -81,6 +81,8 @@ add_library(${PROJECT_NAME} SHARED
   src/manager.cpp
   src/scene.cpp
   src/safety_diagnostics.cpp
+  src/overtake.cpp
+  src/utils/overtake.cpp
   src/utils/calculation.cpp
   src/utils/markers.cpp
   src/utils/utils.cpp
@@ -92,6 +94,12 @@ target_link_libraries(${PROJECT_NAME} nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} ${BPP_COMMON_LIBRARY} ${FRENET_PLANNER_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${LANELET2_EXTENSION_LIBRARY} ${MOTION_UTILS_LIBRARY} ${INTERPOLATION_LIBRARY} ${GEOMETRY_UTILS_LIBRARY} ${DEBUG_UTILS_LIBRARY} ${PLANNING_FACTOR_INTERFACE_LIBRARY} ${TRAFFIC_LIGHT_UTILS_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${SAMPLER_COMMON_LIBRARY} ${OBJECTS_OF_INTEREST_LIBRARY} ${OBJECT_RECOGNITION_UTILS_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_UTILS_LIBRARY} fmt::fmt ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  add_executable(lane_change_overtake_bag_replay test/replay_overtake.cpp)
+  target_link_libraries(lane_change_overtake_bag_replay ${PROJECT_NAME} nlohmann_json::nlohmann_json)
+  catkin_add_gtest(test_lane_change_overtake test/test_overtake.cpp)
+  if(TARGET test_lane_change_overtake)
+    target_link_libraries(test_lane_change_overtake ${PROJECT_NAME} gtest)
+  endif()
   add_executable(lane_change_safety_phase_replay test/replay_safety_phases.cpp)
   target_link_libraries(lane_change_safety_phase_replay ${PROJECT_NAME} nlohmann_json::nlohmann_json)
   catkin_add_gtest(test_lane_change_safety_phases test/test_safety_phases.cpp)

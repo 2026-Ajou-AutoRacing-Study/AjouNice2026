@@ -1,4 +1,15 @@
 lane_change/time_limit: 50.0
+# Cooperative simulator NPCs only; other object RSS checks remain unchanged.
+lane_change/overtake/enable: true
+lane_change/overtake/assume_cooperative_npc: true
+lane_change/overtake/minimum_gap: 10.0
+lane_change/overtake/activation_distance: 15.0
+lane_change/overtake/minimum_ego_speed: 10.0
+lane_change/overtake/maximum_prepare_time: 8.0
+lane_change/overtake/npc_reaction_time: 1.0
+lane_change/overtake/npc_max_deceleration: 3.0
+lane_change/overtake/feedback_timeout: 0.5
+lane_change/overtake/cooldown: 3.0
 lane_change/backward_lane_length: 200.0
 lane_change/backward_length_buffer_for_end_of_lane: 3.0
 lane_change/backward_length_buffer_for_blocking_object: 3.0
@@ -46,7 +57,7 @@ lane_change/safety_check/execution/expected_front_deceleration: -6.0
 lane_change/safety_check/execution/expected_rear_deceleration: -6.0
 lane_change/safety_check/execution/rear_vehicle_reaction_time: 2.0
 lane_change/safety_check/execution/rear_vehicle_safety_time_margin: 0.0
-lane_change/safety_check/execution/lateral_distance_max_threshold: 0.5
+lane_change/safety_check/execution/lateral_distance_max_threshold: 1.0
 lane_change/safety_check/execution/longitudinal_distance_min_threshold: 3.0
 lane_change/safety_check/execution/longitudinal_velocity_delta_time: 0.0
 lane_change/safety_check/execution/extended_polygon_policy: rectangle
@@ -62,7 +73,7 @@ lane_change/safety_check/cancel/expected_front_deceleration: -6.0
 lane_change/safety_check/cancel/expected_rear_deceleration: -6.0
 lane_change/safety_check/cancel/rear_vehicle_reaction_time: 1.5
 lane_change/safety_check/cancel/rear_vehicle_safety_time_margin: 0.8
-lane_change/safety_check/cancel/lateral_distance_max_threshold: 0.5
+lane_change/safety_check/cancel/lateral_distance_max_threshold: 1.0
 lane_change/safety_check/cancel/longitudinal_distance_min_threshold: 2.5
 lane_change/safety_check/cancel/longitudinal_velocity_delta_time: 0.0
 lane_change/safety_check/cancel/extended_polygon_policy: rectangle
