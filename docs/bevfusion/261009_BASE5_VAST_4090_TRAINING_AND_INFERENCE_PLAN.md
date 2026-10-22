@@ -729,6 +729,63 @@ W&B health·백업 gate가 통과했고 원래 계약
 `start/remote_observation_261022_e4_running_v1.json`을 따른다.
 이 절은 실제 재개 확인이며, 위 `MIGRATION_PREPARED.json`의 학습 미시작 상태는 당시 이력으로 유지한다.
 
+<a id="wandb-console-recovery-261022"></a>
+
+### W&B 콘솔 재개 위치 오류와 무중단 복구 — 2026-10-22
+
+사용자가 Logs 탭의 어제 E4 `[3080/6534]` 이후 정지를 제보했다. 처음에는 최신 scalar와
+heartbeat만 보고 콘솔도 정상이라고 판단했지만, 두 경로는 별개였다. 서버의 실제 콘솔을
+`logLines(..., useImprovedPagination:true)`로 조회하니 맨 앞 0~2번은 오늘 07:44:01 UTC,
+마지막 1,593~1,595번은 어제 13:06:09~35 UTC였다. **전송이 전부 중단된 것이 아니라
+오늘 로그가 기존 콘솔의 앞부분을 덮고, 어제 꼬리가 남아 있었다.**
+기본 pagination의 `first`나 DB의 `logLineCount`만으로 live 콘솔을 판정하지 않는다.
+실제 새 보조 run에서도 metadata count가 0인데 live console 200행이 조회되는 지연을 확인했다.
+
+원인은 설치된 W&B **0.22.3 Go core**다. `runbranch/resume.go`가 복원한 콘솔·system event
+offset을 `runupserter.go`의 `lockedUpdateFromUpsert`가 HistoryChunk-only 새 맵으로 교체하여
+콘솔 offset이 0으로 돌아간다. scalar history는 유지되므로 학습 지표 정상과 모순되지 않는다.
+같은 원인을 고친 [공식 commit](https://github.com/wandb/wandb/commit/f9db5f9d84a739982893d787f980faca66451a7e)과
+v0.28.2 소스를 대조했다. **현재 학습의 설치 SDK·동결 source·모델·optimizer·학습 계약은
+변경하지 않았다.** 차기 환경에서 수정 포함 버전을 별도로 고정하고 재개 회귀를 검증해야 한다.
+
+사용자는 원인 해결과 로깅 복구를 요청하면서 **학습 중단을 금지**했다. 원래 SDK writer가
+계속 같은 콘솔에 쓰므로, 그 콘솔 뒤에 별도 writer를 붙이거나 실행 중 SDK를 교체하지 않았다.
+대신 다음의 독립된 콘솔 전용 run을 사용한다.
+
+- [실시간 콘솔](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_console_261022_v1/logs):
+  `jobType=console_recovery`. Notes/config에 기존 학습 run을 연결한다. **숫자 지표는 기존 run에만
+  남으며, 보조 run에는 train/val/AP를 새로 로깅하지 않는다.** backfill의 수신 시각과 본문에
+  보존된 원래 MMEngine 출력 시각을 구분한다. 호스트 복구 경계에 안내 행을 넣는다.
+- 이전 원본 `output.log`는 **303,206바이트·SHA256
+  `587c73bdc4e2fc0e584d71fe2f0ff2a0ede3005602b4940d398fcad21a3e63f0`**로 고정한다.
+  새 `20261022_074312/vis_data/wandb/.../files/output.log`는 읽기만 한다. 이전 1,597행과
+  오늘 로그를 순서대로 보내고, 완결되지 않은 마지막 줄은 다음 poll까지 보류한다.
+- 실행기는 [base5_wandb_console_mirror.py](../../scripts/runtime/base5_wandb_console_mirror.py)다.
+  W&B SDK를 import하지 않는 표준 라이브러리 전용 CPU 프로세스이며, 독립 보조 ID만 쓰도록
+  제한한다. 기존 private tmux 서버의 RAM 인증을 상속하며 키를 argv·설정·파일에 저장하지 않는다.
+  API origin은 고정 HTTPS이며 redirect·ambient proxy는 사용하지 않는다.
+- 원격 scope는 `/workspace/base5_console_recovery_261022_v1`, 독립 세션은
+  `TMUX_TMPDIR=/dev/shm/base5_e3_resume_261022_v1`의 `base5-console-mirror-261022-v1`이다.
+  승인된 설정은 그 scope의 `console_mirror_config.json`, 상태는
+  `state/console_mirror_state.json`, 운영 로그는 `live.log`다. 로컬 PC relay에 의존하지 않는다.
+- 200행별 전송 후 실제 페이지 내용과 연속 행 번호를 다시 읽어 검증한다. 보조 ID 단독 lock,
+  source inode·불변 SHA·소비한 prefix 검사, 비밀값 탐지와 pending cursor를 사용한다.
+  HTTP 응답 유실·일시적 반영 지연은 기존 청크를 검증한 뒤 재개하며, 예상 밖 writer나 본문
+  불일치는 학습에 신호를 보내지 않고 **보조 프로세스만** 실패한다. backlog는 대기 없이 처리하고
+  따라잡은 뒤 20초 간격으로 확인한다. 원래 학습의 terminal 상태 뒤 두 quiet poll에 보조 run만 마감한다.
+- CPU mock 회귀 **18개**를 통과했다. 첫 실제 전송에서 200행의 live 저장과 metadata 지연을
+  구분했고, 후속 실행에서 **2,523행**까지 복구했다. 동시에 원래 학습 세션의
+  **E5 `[1040/6534]`, 약 0.659초/step**을 확인했다. 원래 run의 콘솔 완전 복원은 주장하지 않는다.
+- 독립 API readback 두 번에서 **18:20:43→18:21:22 KST**, 실제 콘솔의
+  **E5 `[1100]→[1140]`** 증가를 확인했다. 같은 동안 기존 학습 run도 `running`과 ID를
+  유지하며 scalar iteration **27,216→27,256**으로 진행했다. 새 AP·거리·환경 지표를
+  보조 run으로 옮기거나 중복 로깅한 것이 아니다.
+
+진단·승인 설정과 독립 readback은
+`artifacts/evaluation/base5_vast_migration_261022_v1/wandb_observation/`에 보존한다.
+원래 SDK writer가 종료된 뒤에만 보존된 두 원본으로 기존 콘솔을 재구성할지 별도 검토한다.
+실행 중 콘솔에 직접 overwrite하거나 일반 W&B init/finish로 기존 run 상태를 바꾸지 않는다.
+
 ## 상세 운영과 실측의 보존
 
 ## Sunny15 스케줄 대조 준비 — 2026-10-18

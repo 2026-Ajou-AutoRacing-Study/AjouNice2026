@@ -24,6 +24,12 @@ validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복�
 | 학습 실행 계약 | 완료 E24의 compile ON은 보존한다. 새 Sunny15 두 후보는 compile OFF·nearest·batch 4이며 각각 약 1시간 47분에 완료했다. 두 run identity 차이는 scheduler뿐이며 restart는 cosine E8 resume가 아니다. 동일 val의 center mAP는 cosine 88.49% / restart 88.05%다. 단일 seed의 결과로 일반적인 우열을 단정하지 않으며 짧은 학습 예산의 우선 후보는 일반 코사인으로 유지한다. [대조 결과](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-restarts-e8-result-backup-261019)를 따른다 |
 | 검증과 보존 | 구 Sunny13 train 4,255 / val 745, 새 Sunny15 train 4,250 / val 750. E9/E24 Drive 백업·readback은 완료했다. 새 Sunny15 cosine은 10/19 00:10 KST, restart는 03:31 KST에 각각 best E8·full E8 수동 Drive 백업·전체 SHA readback·metadata·COMPLETE·full용 LATEST 검증을 완료했다. full은 학습 상태를 포함하며 best는 weights-only다. 원격 원본은 보존한다. 자동 전송의 속도·1,200초 제한 문제를 해결했다는 뜻은 아니다. [cosine 백업 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny15-e8-manual-drive-backup-261019)와 아래 restart 백업 근거를 따른다. rosbag val은 train에 혼합하지 않음 |
 
+W&B 숫자 지표는 기존 학습 run에 계속 기록한다. 2026-10-22 새 호스트 재개에서 SDK 0.22.3의
+콘솔 offset 버그를 확인하여, 학습을 중단하거나 SDK를 교체하지 않고
+[콘솔 전용 보조 run](https://wandb.ai/AjouNice2026/morai-3d-object-detection/runs/base5_full30750_e12_console_261022_v1/logs)에
+과거·현재 텍스트를 복구하고 실시간 전송한다. 이 보조 run은 AP·학습 결과 비교 대상이 아니다.
+원래 Logs 탭의 종료 후 복원과 다음 환경의 SDK 수정 검증은 [복구 근거](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#wandb-console-recovery-261022)를 따른다.
+
 데이터 원본·파생 infos·환경 준비는 [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md)에서 관리한다. [본수집 전 입력 검사](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md)의 CPU 전처리 통과는 새 모델 AP 검증이 아니다.
 새 Sunny15 5K의 Q90/upright·3클래스 전달본 전수 검증과 Drive 저장을 완료했다.
 E24의 실제 입력 계약과 대조했고 같은 JPEG·GT·보정 규칙을 사용한다. Vast 첫 수신의 8MB/s
