@@ -8223,3 +8223,125 @@ LiDAR TF는 원래 측정 header 시각에 생성하고 `/e12_view/tf`만 `/tf`�
 네 카메라 영상은 모두 표시됐지만 공용 compressed image 플러그인의 중복 `set_parameters` service
 광고 ERROR 로그 3건은 남았다. 다른 노드 실패나 재생 중단은 없었다. 실시간 성능 인증은 아니다.
 새 좌표 테스트 5개, 뷰어 회귀 8개, 기존 export 테스트 5개를 합쳐 18개가 통과했다.
+
+<a id="e12-map-motion-ablation-261023"></a>
+
+## 65. E12 동일 트랙의 CV·CTRV·Map-CV와 종·횡 오차 분리 — 2026-10-23
+
+사용자가 64절의 후속 원인 분리 실험을 승인했다. 진행 중 고주로·로터리 등 이동 차량은
+centerline을 따라 움직인다는 운영 조건을 전달했다. 이는 이번 대화에서 전달된 전제이며
+별도 공식 공지 원문을 새로 확인한 것은 아니다. **Centerline 기반 구조를 유지**하며 CV/CTRV는
+대체 배포 후보가 아닌 지도 보정의 효과를 분리하는 대조군으로 사용한다. Centerline 추종과
+등속 이동은 다른 가정이다. 운영 tracker·horizon·분기 순위·planner·가중치는 변경하지 않았다.
+
+### 입력·표본·비교 조건
+
+- 64절과 같은 E12 eager 검출 기반 실제 EKF 코어 pack을 사용했다. 전체 14장면의 5,986입력을
+  유지하고 frozen scoring 5,822프레임에서 현재 2m 이내 차량 대응을 먼저 동결했다.
+- 현재 차량 대응 4,920관측 중 원래 index 연속·최대 0.15초 보간으로 3초 미래 GT가 지원되는
+  **3,983관측**이 주 비교 대상이다. 차량 예측 유효 장면은 6개이며 case-scoped GT actor 35개,
+  track ID 46개, 연속 대응 episode 50개다. 14개 모두에 차량 정확도 표본이 있다는 뜻은 아니다.
+- 세 방식과 1/2/3초 지표에 같은 3초 GT 코호트를 사용했다. 미검출·현재 미대응·미래 GT 부족은
+  별도 coverage로 남기며 ADE/FDE에 0오차로 넣지 않는다. 관측은 반복 상관 표본이다.
+- Cartesian CV는 tracker의 전체 world XY 속도를 사용한다. 실제 production CTRV와 Map-CV는
+  signed body-x를 사용하며 body-y는 차량 예측에 쓰지 않는다. 따라서 Map↔CTRV가 지도 효과를
+  더 직접적으로 비교하며 Map↔Cartesian CV의 차이를 모두 지도 효과로 해석하지 않는다.
+- Map-CV의 pose·yaw/body canonicalization·지도 정합·Top-1 순서는 기존 실제 구현을 따른다.
+  1/2/3초 baseline ADE/FDE·endpoint·map 적용 여부·lanelet 순서를 frozen v4와 대조했다.
+  3초 코호트는 정확히 같고 baseline 최대 차이는 0이었다.
+
+### 1. Centerline 지도 보정은 평균적으로 유효했다
+
+FDE는 해당 미래 시점의 XY 끝점 오차다. 단위는 m이며 아래 모든 열은 같은 3,983관측이다.
+
+| 방식 | 1초 평균 | 2초 평균 | 3초 평균 | 3초 중앙값 | 3초 p95 |
+|---|---:|---:|---:|---:|---:|
+| Cartesian CV | 1.081 | 2.945 | 5.658 | 6.040 | 11.156 |
+| 실제 CTRV | 1.101 | 2.800 | 5.133 | 3.694 | 12.072 |
+| 실제 Map-CV Top-1 | **0.845** | **2.134** | **3.929** | **2.076** | 11.231 |
+
+Map-CV는 CTRV 대비 평균 23.5%, CV 대비 30.6% 낮았다. CTRV→Map의 1m 초과 개선은
+1,131/3,983(28.40%), 악화는 122/3,983(3.06%)였다. 여섯 차량 장면과 35개 case-scoped
+GT actor의 개별 평균에서는 모두 개선됐지만 독립 시험 35개로 해석하지 않는다.
+
+| 장면 | n | CV 평균 FDE@3 | CTRV 평균 FDE@3 | Map 평균 FDE@3 |
+|---|---:|---:|---:|---:|
+| H03 | 129 | 3.279 | 3.801 | 2.169 |
+| H04 | 1,000 | 2.778 | 3.153 | 2.227 |
+| R01 | 570 | 8.664 | 7.665 | 4.301 |
+| 독립 고주로 launch | 1,012 | 5.335 | 5.576 | 5.316 |
+| 독립 고주로 stream | 489 | 4.808 | 4.983 | 4.746 |
+| 독립 곡선 | 783 | 8.486 | 5.562 | 3.819 |
+
+Map이 모든 tail에서도 우세한 것은 아니다. 독립 곡선의 p95는 CTRV 11.880→Map 14.042m로
+악화됐다. 1m 초과 악화 122관측 중 118개가 R01·독립 곡선에 있었다. 대표 곡선 관측은
+Map−CTRV 추가 오차가 19.654m인 반면 같은 Map 후보 중 min-K FDE는 0.127m였다.
+이 예외는 후보 자체의 부재보다 **Top-1 분기 선택**의 문제를 보여 준다. min-K는 미래 정답을
+본 평가용 oracle이며 실제 순위 정책이나 planner가 쓸 확률이 아니다.
+
+### 2. 큰 이득은 횡방향, 남은 평균 오차는 주로 종방향
+
+곡선에서도 진행 방향이 유지되도록 각 미래 GT 시점의 접선을 평가 축으로 사용했다.
+미래 GT는 평가에만 쓰며 predictor 입력에 주지 않았다. 접선 속도가 0.5m/s 미만인 표본은
+축을 임의 생성하지 않고 성분 지표에서 제외하되 원래 XY 지표에는 유지했다.
+양의 종방향은 앞, 양의 횡방향은 GT 진행 방향의 왼쪽이다.
+
+| 3초 끝점 절대 성분 오차 평균 | CTRV | Map-CV |
+|---|---:|---:|
+| 종방향 | 4.152m | 3.810m |
+| 횡방향 | 1.974m | **0.459m** |
+
+Map 종방향 signed 평균은 −2.540m로 뒤처지는 편향이 있었다. 다만 횡오차가 항상 작은 것은
+아니다. R01의 Map 횡오차 평균/p95는 1.445/8.148m, 독립 곡선은 1.106/8.052m였다.
+전체 평균으로 소수 잘못된 분기 선택을 숨기지 않는다. 성분 평균을 더해서 FDE로 계산하지 않는다.
+
+### 3. 속도만 바꾸는 진단: 초기·재취득에서 개선 여지
+
+정답 속도는 원래 eligible·native 연속인 **과거 0.1~0.25초 BBox 중심 secant**로 계산했다.
+center·yaw·yaw rate·body-y·원래 map/fallback 결정·Top-1 route를 모두 고정하고 body-x만
+GT 속도의 tracker heading 방향 투영값으로 교체했다. 경로를 다시 찾거나 순위를 바꾸지 않았다.
+기존 route 길이를 벗어나면 끝점에 고정하거나 가짜 연장하지 않고 지원 불가로 남겼다.
+이는 GT 기반 진단이며 배포 정책·속도 개선의 상한·완벽한 미래 예측이 아니다.
+
+과거 GT가 없는 13관측과 고정 route 길이가 부족한 20관측을 제외한 **동일 3,950관측**에서
+Map FDE@3 평균은 **3.891→3.330m(14.4% 감소)**였다. 1m 초과 개선은 1,111관측,
+악화는 295관측(7.47%)이었다. 전체 3,983 baseline 3.929와 분모를 섞어 개선율을 계산하지 않는다.
+
+| 진단 층·지원되는 같은 표본 | n | 원래 Map FDE@3 | 종속도만 교체 |
+|---|---:|---:|---:|
+| 생성 후 1초 미만 | 439 | 6.462m | 4.869m |
+| 같은 ID 재취득 후 1초 미만 | 546 | 3.860m | 2.898m |
+| 성숙·현재 관측 연결·최근 재취득 없음 | 2,982 | 3.542m | 3.189m |
+
+재취득은 이미 관측 연결된 confirmed ID가 연속 입력에서 coasting→관측 연결로 돌아온 경우다.
+새 ID·입력 공백·tentative 최초 연결을 재취득으로 부르지 않는다. 관측이 없는 coasting 출력을
+새 독립 센서 근거로 사용하지 않았다. 층은 서로 중첩될 수 있고 합산 분모가 아니다.
+현재 속도·현재 위치가 정확해져도 미래 가감속·분기 의도·heading·지도의 정합 등이 남으므로
+강한 smoothing이나 과속 외삽을 이번 진단만으로 적용하지 않는다.
+
+### 결론·검증·재현
+
+Centerline Map-CV와 기본 3초는 유지한다. 다음 우선순위는 초기/재취득의 종속도·진행량 오차,
+그리고 회전 구간의 소수 큰 Top-1 분기 오류다. 단순 전구간 5/6초 확대·최고점 분기 고정 우대·
+coasting 일괄 확대는 승격하지 않았다. 기존 첫 3초/분기를 보존하는 고주로 5초는 별도 후속이다.
+
+새 분석 테스트 8개와 독립 QA 테스트 4개가 통과했다. 독립 QA는 새 analyzer 함수를 사용하지 않고
+CV/CTRV를 수식으로 다시 계산했으며 원래 helper로 association/미래 GT를 대조했다.
+3,983코호트·모든 reference·Map endpoint/metric·과거 GT 속도·종/횡 지표가 일치했고,
+CTRV 최대 XY 차이는 약 3.4e-12m였다. 직교 성분 항등식은 358,095개 표본에서 확인했다.
+기존 E12 후단·뷰어를 포함한 전체 회귀는 51개 통과했다. 문서 링크·anchor 검사는 통과했고,
+기존 CURRENT/index 길이 예산 초과 3건은 그대로 남았다.
+새 GPU 추론·ROS master·MORAI·Vast·빌린 PC·실제 planner를 실행하지 않았다.
+
+산출물은 `e12_postprocessing_261023_v1/motion_ablation_v1/{report.json,rows.json.gz,COMPLETE.json}`과
+`MOTION_ABLATION_INDEPENDENT_QA.json`이다. report SHA는
+`9fa615623db0c018442cac7f65a6bf8e42d9c4e4e71344acbe07bf3f6b0f9c41`이다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 scripts/evaluation/analyze_e12_motion_ablation.py \
+  --output artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/motion_ablation_new
+python3 scripts/evaluation/qa_e12_motion_ablation.py \
+  --input artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/motion_ablation_new \
+  --output artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/MOTION_ABLATION_NEW_QA.json
+```

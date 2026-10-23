@@ -46,6 +46,12 @@ native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 
 실행 전 `source scripts/workspace/source_aw149.sh`를 사용한다.
 [E12 후단 결과와 명령](../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)을 따른다.
 
+`analyze_e12_motion_ablation.py`는 같은 E12 트랙의 Cartesian CV·실제 CTRV·Map-CV를 동일한
+3초 GT 코호트로 비교하고, 종/횡 오차와 초기/재취득 층을 분리한다. GT 종속도만 교체하는 고정
+분기 진단은 평가용이며 운영 입력이나 새 정책이 아니다. `qa_e12_motion_ablation.py`가 별도 수식으로
+코호트·예측·원래 frozen Map 지표·GT 속도의 과거 창·성분 지표를 교차 확인한다.
+[65절의 조건·재현 명령](../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-map-motion-ablation-261023)을 따른다.
+
 동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의
