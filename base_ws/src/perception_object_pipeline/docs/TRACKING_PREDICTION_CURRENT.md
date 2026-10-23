@@ -1,9 +1,9 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 문서·launch 대조: 2026-10-14. 아래 9월 bag 실측은 당시 이력이다.
+마지막 문서·launch 대조: 2026-10-23. 아래 9~10월 bag 실측은 각각 당시 이력이다.
 현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
-E24 현재 detection pose는 2026-10-14부터 geometric/gravity center다.
+현재 E12 및 명시적 E24의 detection pose는 geometric/gravity center다(2026-10-14 전환).
 원래 tensor의 bottom center와 혼합하지 않으며 detector·tracker·planner를 정지한 뒤
 새 stack으로 시작한다. [실제 ROS 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
 Map-CV 차량 future의 기존 road-Z 수렴은 별도 정책이며 새 중심의 높이 offset을 끝까지
@@ -13,7 +13,7 @@ Map-CV 차량 future의 기존 road-Z 수렴은 별도 정책이며 새 중심�
 ## Production 계약
 
 ```text
-BEVFusion Base5 E24 DetectedObjects
+BEVFusion production E12 DetectedObjects (explicit E24/E25 rollback preserved)
   -> EKF tracker
   -> UNKNOWN stationary policy
   -> Lanelet2 Map-CV predictor
@@ -65,7 +65,7 @@ BEVFusion Base5 E24 DetectedObjects
 
 - motion model: CTRV(`prediction_model=1`).
 - detector position measurement noise: `0.40 m`.
-- detector velocity fusion: `off`; production E24도 7D detector다.
+- detector velocity fusion: `off`; E12/E24 모두 7D detector다.
 - detector measurement timestamp state를 current time으로 강제 보상하지 않는다.
 - EKF 내부 scheduler가 30 Hz로 prediction copy를 발행한다.
 - production `tracking` alias의 maximum measurement age는 `0.50 s`다. generic
@@ -121,6 +121,17 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 [오프라인 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)의
 계산 최적화는 소스·이 PC의 설치본에 반영했다. 별도 private ROS의 30Hz 600개 입력은
 진단 OFF/ON 모두 누락 없이 기준 wire를 유지했다. 팀장님 배포·실제 폐루프는 미검증이다.
+
+## E12 원거리 유지·속도·장기 예측 후속 (2026-10-23)
+
+[64절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)의
+14장면·5,986입력/5,822평가에서 현재 코어의 0점 차량 대응 이득을 확인했다. 검출이 일시적으로
+끊긴 기존 track과 최초 취득 실패는 구분한다. 이 결과는 cached eager E12의 측정 시각 코어
+재생이며 새 TRT ROS 30Hz·LAN·planner 폐루프 검증이 아니다.
+0.75초 coasting과 성숙 차량 전용 후보는 일부 AP 이득에도 미대응 잔류·H03 악화로 운영 미적용이다.
+실제 Map-CV의 3/5/6초를 각각 재생했다. 고주로의 기존 3초 prefix는 유지됐지만 로터리는 분기
+순위가 바뀌었다. 기존 분기 보존 연장 후보도 일부 악화가 남아 **기본 3초·moving coast 0.5초**를
+유지한다. 다음은 새 track/재취득 속도 안정화와 기존 분기를 보존하는 5초 후보의 검증이다.
 
 ## 최신 팀장님 풀주행 확인 (2026-10-14)
 
@@ -220,7 +231,7 @@ LiDAR 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유�
 현재 Map-CV는 검출 삭제 필터가 아니며, 현재 Lane Change의 최고 confidence 동점 처리를 실제 실행값과 대조한다.
 현재 코어의 association은 cost 정렬 후 greedy matching이다. Hungarian으로 설명하지 않는다.
 
-- 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
+- 위 3/5/6초 후속 근거를 따른 기본 5초·구간/track 품질별 horizon 선택(운영 미적용).
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.
 - detector 9D velocity를 tracker update에 fusion.
 - Planning의 추월 gap 판단을 위한 track-age/confidence gate.

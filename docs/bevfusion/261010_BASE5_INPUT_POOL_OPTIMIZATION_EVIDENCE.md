@@ -8004,3 +8004,172 @@ Drive API로 다시 확인하고 다음 **11개 ID, 4,121,614,919 bytes**만 영
 같은 이름의 `supp750` 두 폴더는 환경별 파일이 달라 모두 필요했다. 이름만으로 삭제하지 않는다.
 별도 Foggy13 1장 보충 archive는 로컬에 있지만 조사한 Drive dataset scope에서는 찾지 못했으므로,
 폴더명 `full30749`만으로 30,750장 전체의 Drive 보존이 완료됐다고 단정하지 않는다.
+
+<a id="e12-tracking-map-horizon-261023"></a>
+
+## 64. E12의 일시 LiDAR 0점·tracking 중심 AP/속도와 Map-CV 3/5/6초 — 2026-10-23
+
+사용자는 개선한 OD 이후 tracker의 기억·속도·미래 궤적으로 원거리 성능을 최대한 보완하고,
+Map-CV의 5~6초 확대 가능성을 검토하도록 요청했다. 이 절은 **후단 후보의 오프라인 검증**이다.
+앞선 60.34ms E12 TRT/head 배포는 유지하며, 이번에 tracker·prediction의 운영 기본값을 바꾸지 않았다.
+
+### 입력·시간·GT와 평가 정의
+
+- 기존 E24/E12 frozen export의 같은 **14장면·5,986개 입력**을 사용했다. tracker에는 평가 제외
+  164개도 모두 넣고, 정확도 지표만 기존 frozen eligibility의 **5,822개**로 제한했다.
+  H04는 723개 연속 입력이다. H03의 최대 10.32초와 독립 stream/curve의 1.59/1.41초 공백은
+  보존했다. 원래 index 연속·0<dt≤0.25초가 아닌 구간을 연속 관측으로 부르지 않는다.
+- source/weights/input SHA를 확인한 E12 원형 eager AMP·병렬화·nearest 캐시를 사용했다.
+  새 60ms TensorRT/head 조합을 이번 5,986개에 다시 실행한 것이 아니다. 서버 floor0.1→top100→
+  class-aware NMS0.5→V/P/O0.40/0.10/0.10을 고정했다. 연구용 낮은 score를 core에 추가하지 않았다.
+- 실제 현재 EKF cpp/hpp와 명시적 production 설정을 독립 C++ 실행기로 재생했다. 매 장면마다
+  fresh core이며 같은 입력의 재실행이 정확히 같았다. ROS 30Hz scheduler·TF/큐·LAN·planner를
+  실행하지 않았다. 학습·MORAI·Vast·빌린 PC도 건드리지 않았다.
+- detector bottom→gravity를 한 번 적용했다. GT는 기존 gravity center다. recorded Ego의
+  heading −1.347°를 한 번 적용하고, Map-CV에는 기존 map rigid TF만 추가했다.
+- AP는 기존 **XY 중심 0.5/1/2/4m 평균 AP**를 운영 cutoff 이후 검출/confirmed track에 동일 적용한
+  catalog-relative proxy다. **AMOTA·IDF1·native val AP가 아니며**, score는 보존한 detector score이지
+  calibrated track 확률이 아니다. 0점 GT를 삭제하지 않았다. catalog 미대응을 실제 ghost로 확정하지 않는다.
+- 0점은 기존 finite/nonzero 원본 포인트를 catalog OBB+3cm로 센 값이다. 80~100m 차량 GT704관측을
+  독립 재계수해 불일치 0이었다. raw1점이나 모델 ROI 이후0점인 H03 한 관측은 존재하므로
+  모델에 실제 남은 점 수와 원본 support의 정의를 혼동하지 않는다.
+- 모두 이미 사용했던 개발 bag이다. 후보를 새 미사용 시험셋에서 검증했다고 주장하지 않는다.
+- 속도 GT는 **유효 BBox 중심의 XY finite difference**다. 원래 인접 index·최대0.25초를 요구하고,
+  평가 제외 이웃·긴 공백을 건너뛰지 않는다. UDP rear-axle 순간 속도와 같은 지표가 아니다.
+- 미래 GT 역시 원래 eligibility·index 연속·최대0.15초 bracket을 요구하며 외삽하지 않는다.
+  초기 Map v1/v2의 미래 GT 마스크 부족과 v3의 index 경계 부족을 바로잡은 **Map v4만 최종**이다.
+  tracker v1의 초기 parser/범위 평가 실패와 과거 결과도 덮어쓰지 않았다. 최종 tracker 지표는 v4다.
+
+### 1. 현재 tracker가 보완하는 범위
+
+같은 전체 평가의 중심 AP(%)는 다음과 같다. 반복 관측은 상관돼 있으며 독립 표본 수가 아니다.
+
+| 클래스 | E24 검출→track | E12 검출→track |
+|---|---:|---:|
+| Vehicle | 70.30→75.52 | **72.43→77.04** |
+| Pedestrian | 87.90→92.20 | **90.90→92.55** |
+| Obstacle | 37.24→42.01 | **42.79→44.77** |
+
+E12 차량의 2m 대응 recall은 **80.26→85.86%**, catalog precision은 **98.14→96.88%**다.
+Obstacle recall은 **51.76→61.44%**지만 precision은 **94.58→80.61%**다. 기억을 더 길게 하는 것이
+일괄 개선은 아니다. 근거리 차량 중심 AP도 95.92→94.19%로 낮아지는 등 위치 smoothing 비용이 있다.
+재구성 GT 대응의 인접 ID 변경 후보는 차량 장면에서 0이지만 O02/O01은32/38, 두 사람 장면은
+각1이었다. 이를 simulator의 확정 ID switch나 모든 장애물의 물리적 중복으로 해석하지 않는다.
+
+라이다 0점 차량 **665관측**에서 2m 적중은 **검출120→track226**이다. 검출 없이 복구한115관측과
+검출은 적중했지만 track에서 놓친9관측의 순이득이다. 이전 연속 구간에서 이미 track을 취득한
+0점549관측으로 제한하면 **110→224**다. 이 조건은 평가 분류에만 쓰고 EKF 입력에는 GT를 주지 않았다.
+
+| 0점 차량 거리 | 관측 수 | 검출 적중 | track 적중 |
+|---|---:|---:|---:|
+| 30~50m | 107 | 65 | 82 |
+| 50~80m | 216 | 20 | 63 |
+| 80~90m | 168 | 0 | 27 |
+| 90~100m | 165 | 34 | 53 |
+
+전방만 보면 80~90m는 **0→12/130**, 90~100m는 **1→3/84**다. 후방 90~100m는33→50/81로
+더 잘 이어진다. 따라서 ‘간헐적 무점은 기억으로 보완한다’는 가설은 지지하지만,
+**처음부터 충분히 검출하지 못한 전방 차량까지 해결했다는 뜻은 아니다.** 평가 가능한 always-zero
+차량 track의 대표 표본은 없다. 전체 평균에선 E24의 0점 적중235가 E12의226보다 높았으므로,
+E12가 모든 support subset에서 우월하다는 결론도 내리지 않는다.
+
+### 2. 속도와 긴 미래 궤적의 연결
+
+E12 대응 차량4,907관측의 XY 속도 벡터 오차는 mean/중앙값/p90/p95 **0.616/0.418/1.244/1.870m/s**,
+속력 절댓값 오차는 평균 **0.497m/s**다. 생성1초 미만은 평균1.317/p95 4.039m/s,
+1초 이상은 평균0.523/p95 1.440m/s다. 최대13.98m/s도 숨기지 않는다.
+두 모델에 모두 대응된 같은 actor·시각4,724관측에선 E24→E12 평균0.599→0.583,
+p95 1.816→1.739m/s지만, **80~90m 공통77관측은 평균1.436→1.600/p95 2.975→5.929m/s**로 악화됐다.
+OD AP 상승이 곧 안정적인 원거리 속도·장기 예측 상승은 아니다.
+
+Map의 약70m FDE 예외는 H04의95.7m 차량에서 생성 후0.329초·관측 age0.172초였고,
+GT 중심 속력20.32m/s 대비 tracker8.27m/s였다. 이례적인 미래 오차는 지도 분기 외에
+**초기/재취득 속도 추정이 덜 안정된 상태를 길게 외삽하는 문제**로도 분리해야 한다.
+
+### 3. 기억0.75초 후보도 실제 비교
+
+현재 moving0.50초·정적/저속1.00초를 기준으로, 별도 진단 사본에서 moving0.75초와
+**생성1초 이상 CAR/TRUCK만0.75초**를 비교했다. GT·미래값으로 coasting을 선택하지 않았다.
+
+| 설정 | 차량 track AP | 0점 차량 적중/665 | 차량2m recall / precision |
+|---|---:|---:|---:|
+| 현재0.50초 | 77.04% | 226 | 85.86 / 96.88% |
+| moving 전체0.75초 | 78.46% | 279 | 88.24 / 95.42% |
+| 성숙 차량만0.75초 | 78.19% | 269 | 87.66 / 95.43% |
+
+성숙 차량 후보는 P/O AP를 유지했지만 H03 AP가 **62.09→59.30%**로 악화됐다. 차량 catalog
+미대응 관측도158→240으로 늘었다. 일부 실제 차량이2m를 벗어난 것과 semantic ghost를
+분리하지 못한 지표이므로 무조건 FP라 부르지 않는다. **두 후보 모두 production 미적용**이다.
+실행 가능한1초 후보 옵션은 구현만 있고 이번에는 실행하지 않았으며 검증 완료로 표시하지 않는다.
+
+### 4. Map-CV는 3/5/6초를 따로 재생해야 한다
+
+실제 node의 메시지 생성·kinematic adapter·지도 코어를 import해 horizon별로 각각 호출했다.
+3초 경로 뒤에 점만 붙인 것이 아니다. 긴 horizon은 route length·잘린 route 제거·중복 clustering·
+confidence 정규화까지 바꾸므로 **기존1~3초 Top1도 바뀔 수 있다.** minK는 GT oracle 하한이며
+실제 planner가 그 최선 경로를 선택한다는 뜻이 아니다.
+
+아래는 각 장면에서 **동일한6초 미래 GT가 연속 지원되는 시작점**의 Top1 FDE 평균(m)이다.
+N은 actor×시각이다. 시간 길이와 장면별 객체 구성이 달라 행/열을 단순 성능 순위로 읽지 않는다.
+
+| 장면 | N | 3초 설정의 FDE@3 | 5초 설정의 FDE@3 / @5 | 6초 설정의 FDE@6 |
+|---|---:|---:|---:|---:|
+| H03 | 52 | 3.12 | 3.12 / 5.20 | 6.23 |
+| H04 | 857 | 2.15 | 2.15 / 4.11 | 5.28 |
+| 독립 launch | 715 | 5.31 | 5.31 / 12.59 | 16.85 |
+| 독립 stream | 319 | 4.27 | 4.27 / 9.47 | 12.40 |
+| R01 로터리 | 404 | 4.61 | **5.94** / 12.13 | 18.06 |
+| 독립 curve | 621 | 3.83 | **5.08** / 11.81 | 18.52 |
+
+고주로 네 장면의 첫3초 좌표는 길이를 늘려도 정확히 같았다. 반면 3→6초 직접 좌표 비교에서
+R01의314/736·curve의459/975 track관측은 기존 prefix가 달라졌다. 공통6초 GT 코호트에서
+R01 FDE@3은4.61→6.24m, curve는3.83→5.37m다. minK가 같아도 Top1·planner 입력은 달라진다.
+
+별도 ‘기존3초 분기 보존’ 후보는 원래 lanelet prefix와 첫3초 XY 최대차0.75m 이내인 **기존 긴
+경로 중 첫 후보**만 택했다. 미래 GT로 고르거나 새 경로/가짜 외삽을 만들지 않았다. 없으면 연장
+불가로 남긴다. R01의 같은380/404 지원 subset에서 FDE@5는11.17→7.77m,
+curve의619/621 subset은11.76→8.73m로 개선됐다. 그러나 개별1m 초과 악화도 남아
+분모를 줄인 조건부 평균을 전체 개선으로 보고하지 않는다. **이 후보도 production 미적용**이다.
+
+계산 비용은 로컬 offline node-math 평균에서 H04 **0.79→1.41ms**, curve **1.31→3.38ms**
+(3→6초)다. GC ON이며 ROS publish/직렬화·스케줄러·실제 팀 PC 수신 지연은 포함하지 않는다.
+비용만으로5초를 포기할 상황은 아니지만, 경로 순위·속도 오차가 먼저 해결할 과제다.
+
+### 5. planner 소비와 현재 결정
+
+현재 통합 launch와 별도 tracking_prediction 모두3초다. LC는 최고 confidence 동점 경로를
+0.5초로 resample하고, 활성 cooperative 추월은 **자차 기동 전체를 덮지 못하는 상대 경로를 거부**한다.
+따라서 긴 궤적은 추월 허용 여부도 바꿀 수 있다. Cruise의 횡합류 시간 gate는5초지만 일반
+충돌점 검사는10초까지 읽으므로 ‘6초는 모두 무시한다’고 설명하지 않는다. 로터리는0.05 이상
+분기 중 하나라도 unsafe면 막을 수 있어 길이 확대가 보수적 정체도 늘릴 수 있다.
+DynamicObstacleStop은 자체 twist 외삽을 쓰므로 Map-CV 길이만 바꾸는 효과와 구분한다.
+
+결론은 **OD 이후 후단 보완을 계속하되 전구간6초/기억 일괄 확대는 승격하지 않는다**다.
+다음 우선순위는 초기1초·재취득 속도/관측 품질 진단, 그 뒤 성숙 차량·고주로에 대한
+기존 분기 보존5초 후보와 planner 입력의 비교다. 더 긴 미래를 발행하는 것과 더 정확한 예측,
+입력 공백 중 track을 더 오래 살리는 것은 서로 다른 변경이다. 팀 4090 실주행은 후속이다.
+
+### 재현·검증 산출물
+
+`artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/`에 원본·실패·중간 결과를 보존했다.
+최종은 `tracker_v1/replay_pack.json.gz`, `tracker_metrics_v4/TRACKING_SUPPORT_REPORT.json`,
+`e24_tracker_metrics_v2/`, `coast075_metrics_v2/`, `coast075_mature_metrics_v2/`,
+`map_horizon/map_horizon_v4/report.json`이다. `map_horizon/TRACKER_INDEPENDENT_QA.json`은
+11,644개 stage-row의 index/좌표·far raw support를 독립 대조했고,
+`MAP_HORIZON_FINAL_QA.json`은19,190개 GT window·FDE·minK·동일 코호트와 SHA를 검산했다.
+새 CPU 테스트는 tracker10개·Map11개, 기존 adapter6개를 합쳐27개 통과다. 문서 검사는 링크·anchor
+문제 없이 기존 CURRENT/index 길이 예산3건만 남았다. 실제 dataset/weights/production source는 미변경이다.
+최종 tracker 보고서 SHA는 `f58c0cb5c508922d39bc8d2e7c6afd741af67ed59e57f8650fe0d71afab15fc0`,
+Map v4는 `fbc55ce120f081c477ed10e655279e2e86b8011704920636d74ccf2ca3fedfd0`다.
+coasting 후보는 provenance에 원형 설정과 진단 사본을 구분한 뒤 재생을 반복했고,
+초기 후보와 최종 후보의 모든 장면/pooled 수치가 정확히 같음을 확인했다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+python3 scripts/evaluation/prepare_e12_postprocessing.py --model E12 --output "$NEW_TRACKER_DIR"
+python3 scripts/evaluation/analyze_e12_tracking_support.py \
+  --pack "$NEW_TRACKER_DIR/replay_pack.json.gz" --output "$NEW_METRICS_DIR"
+python3 scripts/evaluation/analyze_e12_map_horizon.py \
+  --pack "$NEW_TRACKER_DIR/replay_pack.json.gz" \
+  --output artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/map_horizon/new_run
+```

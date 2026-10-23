@@ -36,6 +36,16 @@
 
 ## 후단과 노드 지연 분석
 
+`prepare_e12_postprocessing.py`는 이미 동결한 E12/E24 bag 검출의 **모든** 입력을 실제 C++ EKF
+코어로 재생하고, 평가 eligibility·GT 원래 index·0점 근거를 별도 보존한다. `analyze_e12_tracking_support.py`는
+동일 중심 AP를 검출/track 출력에 적용한 proxy와 일시 0점·속도·잔류를 계산한다. AMOTA/IDF1이나
+native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 3/5/6초로 각각 호출하며
+미래 GT도 eligible·연속 index·bounded interpolation을 요구한다. `probe_e12_coasting.py`는 별도
+진단 사본의 0.75/1초 및 성숙 차량 후보만 시험한다. 새 검출·ROS master·생산 설정은 변경하지 않는다.
+모든 도구는 이전 output을 덮어쓰지 않으며, 로컬 동결 자료가 있는 분석 PC용이지 팀 설치기가 아니다.
+실행 전 `source scripts/workspace/source_aw149.sh`를 사용한다.
+[E12 후단 결과와 명령](../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)을 따른다.
+
 `scripts/evaluation/audit_fullstack_recording.py`는 validator의 bag·결과 JSON·events·
 `ros_parameters.yaml`이 있는 한 run 폴더를 읽는다. 제어 시작부터 종료까지의 토픽 주기,
 수신/header 차이, 충돌 메시지, 궤적 검사와 실제 planner 설정을 분리한다. 새 ROS master,

@@ -90,6 +90,7 @@ Base5 ROS 입력은 원본 JPEG를 재압축하지 않고 원본 XYZI 0–255를
 E25의 원래 강도 계약과 혼용하지 않는다. Launch만 실행해서 GPU 서버·checkpoint가 자동 준비된다고 가정하지 않는다.
 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)의
 topic·coasting·motion policy는 detector 선택과 별도다.
+E12의 tracker 중심 AP·일시 0점 유지·속도와 실제 Map-CV 3/5/6초 비교는 [64절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)을 따른다. 원형 코어/예측 재생을 마쳤지만 coasting·horizon 운영 기본값은 변경하지 않았다.
 
 평가 pose는 [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md)을 따른다. 운영 localization/TF와 독립 raw Ego GT를 구분하고 MR −1.347°를 중복 적용하지 않는다.
 2026-10-15 PR #38·#39·#40으로 LiDAR 50을 포함한 전체 코드를 planning·develop·main에 반영했다. E24 ZIP `261015_lidar50`도 현재 센서 launch 해시에 맞춰 재동결했다. 가중치·추론 설정은 유지하며 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의 설치·검증 기준을 따른다.
