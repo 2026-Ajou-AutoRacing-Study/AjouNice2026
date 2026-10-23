@@ -4,7 +4,7 @@ traffic_light/stop_time_hysteresis: 0.1
 traffic_light/yellow_lamp_period: 2.75
 traffic_light/yellow_light_stop_velocity: 1.0
 traffic_light/enable_pass_judge: true
-traffic_light/yellow_light_is_go: true
+traffic_light/yellow_light_is_go: false
 traffic_light/competition_fail_open: true
 traffic_light/ignored_regulatory_ids: [201397]
 traffic_light/enable_arrow_aware_yellow_passing: false

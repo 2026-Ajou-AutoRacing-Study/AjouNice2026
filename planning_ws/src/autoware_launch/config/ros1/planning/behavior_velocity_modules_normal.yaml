@@ -364,7 +364,7 @@ traffic_light:
   yellow_lamp_period: 2.75
   yellow_light_stop_velocity: 1.0
   enable_pass_judge: true
-  yellow_light_is_go: true
+  yellow_light_is_go: false
   competition_fail_open: true
   ignored_regulatory_ids: [201397]
   enable_arrow_aware_yellow_passing: false
