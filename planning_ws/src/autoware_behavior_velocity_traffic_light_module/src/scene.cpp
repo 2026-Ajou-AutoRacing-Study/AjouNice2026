@@ -212,7 +212,12 @@ bool TrafficLightModule::isStopSignal()
 
   // Stop if the traffic signal information has timed out
   if (isTrafficSignalTimedOut()) {
-    return !planner_param_.competition_fail_open;
+    if (planner_param_.competition_fail_open) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *clock_, 5000, "[traffic_light] timed-out signal: competition fail-open GO");
+      return false;
+    }
+    return true;
   }
 
   const bool has_known_lamp = std::any_of(
@@ -459,6 +464,13 @@ autoware_internal_planning_msgs::PathWithLaneId TrafficLightModule::insertStopPo
 void TrafficLightModule::updateStopLine(const lanelet::ConstLineString3d & stop_line)
 {
   stop_line_ = stop_line;
+}
+
+void TrafficLightModule::updateDecisionLane(
+  const lanelet::ConstLanelet & lane, const bool is_turn_lane)
+{
+  lane_ = lane;
+  is_turn_lane_ = is_turn_lane;
 }
 
 }  // namespace autoware::behavior_velocity_planner

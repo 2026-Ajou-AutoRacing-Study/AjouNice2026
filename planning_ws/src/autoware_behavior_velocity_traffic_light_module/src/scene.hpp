@@ -111,6 +111,10 @@ public:
 
   void updateStopLine(const lanelet::ConstLineString3d & stop_line);
 
+  // 경로가 교차로 너머까지 뻗기 전에 모듈이 등록되면 decision_lane이
+  // 신호 차선으로 폴백된다. 매 주기 다시 받아 경로 전환에도 대응한다.
+  void updateDecisionLane(const lanelet::ConstLanelet & lane, bool is_turn_lane);
+
 private:
   std::string logger_;
   std::shared_ptr<TrafficLightRos1Clock> clock_{std::make_shared<TrafficLightRos1Clock>()};
@@ -152,7 +156,7 @@ private:
 
   // Map based information
   // Whether the current lane is a left or right turn lane.
-  const bool is_turn_lane_;
+  bool is_turn_lane_;
   // Whether the traffic light has a static arrow bulb defined in the map.
   const bool has_static_arrow_;
 

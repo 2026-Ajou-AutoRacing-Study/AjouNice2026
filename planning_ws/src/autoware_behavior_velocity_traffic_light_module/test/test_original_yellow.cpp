@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "../src/experimental/scene.hpp"
 #include "../src/scene.hpp"
 
 #include <autoware/behavior_velocity_traffic_light_module/ros1_support.hpp>
@@ -20,6 +21,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace autoware::behavior_velocity_planner
 {
@@ -413,5 +416,258 @@ TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnUnknownSignal)
 }
 
 }  // namespace autoware::behavior_velocity_planner
+
+// Production BVP runs the experimental plugin (behavior_planning.launch,
+// bvp_experimental:=true). The cases below pin its decision for the planner
+// inputs that traffic_signal_profiles.yaml can deliver per competition section.
+namespace autoware::behavior_velocity_planner::experimental
+{
+using Element = autoware_perception_msgs::TrafficLightElement;
+
+enum class Lamp { RC, YC, GC, GLA };
+
+class TrafficLightModuleTest : public ::testing::Test
+{
+protected:
+  static constexpr lanelet::Id kRegId = 201326;
+
+  void SetUp() override
+  {
+    ros::NodeHandle node("/experimental_traffic_light_test");
+    node.setParam("wheel_radius", 0.3);
+    node.setParam("wheel_width", 0.2);
+    node.setParam("wheel_base", 2.7);
+    node.setParam("wheel_tread", 1.5);
+    node.setParam("front_overhang", 1.0);
+    node.setParam("rear_overhang", 1.0);
+    node.setParam("left_overhang", 0.5);
+    node.setParam("right_overhang", 0.5);
+    node.setParam("vehicle_height", 1.5);
+    node.setParam("max_steer_angle", 0.5);
+    // behavior_velocity_modules.yaml
+    node.setParam("max_accel", -6.0);
+    node.setParam("max_jerk", -10.0);
+    node.setParam("delay_response_time", 0.5);
+    planner_data_ = std::make_unique<PlannerData>(node);
+    planner_data_->current_odometry = std::make_shared<geometry_msgs::PoseStamped>();
+    planner_data_->current_velocity = std::make_shared<geometry_msgs::TwistStamped>();
+    planner_data_->current_acceleration =
+      std::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
+    planner_data_->is_simulation = false;
+
+    // traffic_light section of behavior_velocity_modules.yaml
+    param_.stop_margin = 0.0;
+    param_.tl_state_timeout = 1.0;
+    param_.stop_time_hysteresis = 0.1;
+    param_.yellow_lamp_period = 2.75;
+    param_.yellow_light_stop_velocity = 1.0;
+    param_.enable_pass_judge = true;
+    param_.yellow_light_is_go = true;
+    param_.competition_fail_open = true;
+    param_.enable_arrow_aware_yellow_passing = false;
+    param_.min_behind_dist_to_stop_for_restart_suppression = 0.5;
+    param_.max_behind_dist_to_stop_for_restart_suppression = 1.0;
+    param_.v2i_use_remaining_time = false;
+    param_.v2i_last_time_allowed_to_pass = 2.0;
+    param_.v2i_velocity_threshold = 0.5;
+    param_.v2i_required_time_to_departure = 3.0;
+  }
+
+  // turn_direction of the decision lane: "straight" for A/B/C, "left" for D-2.
+  void makeModule(const std::string & turn_direction)
+  {
+    lanelet::Points3d points{
+      lanelet::Point3d(lanelet::utils::getId(), 0, 0, 0),
+      lanelet::Point3d(lanelet::utils::getId(), 1, 0, 0)};
+    lanelet::LineString3d light(lanelet::utils::getId(), points);
+    reg_elem_ = lanelet::TrafficLight::make(kRegId, {}, {light});
+    lanelet::Lanelet lane(lanelet::utils::getId());
+    lane.setAttribute("turn_direction", turn_direction);
+    module_ = std::make_shared<TrafficLightModule>(
+      lane.id(), *reg_elem_, lane, lanelet::LineString3d(lanelet::utils::getId()),
+      turn_direction == "left" || turn_direction == "right", false, param_, node_, "test",
+      std::make_shared<TrafficLightRos1Clock>(), nullptr, nullptr);
+  }
+
+  static Element element(const uint8_t color, const uint8_t shape)
+  {
+    Element e;
+    e.color = color;
+    e.shape = shape;
+    e.status = Element::SOLID_ON;
+    e.confidence = 1.0;
+    return e;
+  }
+
+  // Mirrors traffic_light_node.py: one group per message, map cleared per message.
+  void publish(const std::vector<Element> & elements, const lanelet::Id id = kRegId, double age = 0.0)
+  {
+    TrafficSignalStamped signal;
+    signal.stamp = ros::Time::now() - ros::Duration(age);
+    signal.signal.traffic_light_group_id = id;
+    signal.signal.elements = elements;
+    planner_data_->traffic_light_id_map_raw_.clear();
+    planner_data_->traffic_light_id_map_raw_[id] = signal;
+  }
+
+  void publish(const std::vector<Lamp> & lamps)
+  {
+    std::vector<Element> elements;
+    for (const auto lamp : lamps) {
+      switch (lamp) {
+        case Lamp::RC: elements.push_back(element(Element::RED, Element::CIRCLE)); break;
+        case Lamp::YC: elements.push_back(element(Element::AMBER, Element::CIRCLE)); break;
+        case Lamp::GC: elements.push_back(element(Element::GREEN, Element::CIRCLE)); break;
+        case Lamp::GLA: elements.push_back(element(Element::GREEN, Element::LEFT_ARROW)); break;
+      }
+    }
+    publish(elements);
+  }
+
+  bool isStop() { return module_->isStopSignal(*planner_data_); }
+
+  bool passthrough(const double distance, const double velocity)
+  {
+    auto twist = std::make_shared<geometry_msgs::TwistStamped>();
+    twist->twist.linear.x = velocity;
+    planner_data_->current_velocity = twist;
+    return module_->isPassthrough(distance, *planner_data_);
+  }
+
+  double judgeLine(const double velocity) const
+  {
+    return planning_utils::calcJudgeLineDistWithJerkLimit(
+      velocity, 0.0, planner_data_->max_stop_acceleration_threshold,
+      planner_data_->max_stop_jerk_threshold, planner_data_->delay_response_time);
+  }
+
+  ros::NodeHandle node_{"/experimental_traffic_light_test"};
+  std::unique_ptr<PlannerData> planner_data_;
+  TrafficLightModule::PlannerParam param_;
+  lanelet::TrafficLight::Ptr reg_elem_;
+  std::shared_ptr<TrafficLightModule> module_;
+};
+
+// gtest needs a suite name distinct from the original-module fixture above.
+class ExperimentalTrafficLightTest : public TrafficLightModuleTest
+{
+};
+
+struct PhaseCase
+{
+  std::string section;
+  std::string turn_direction;
+  std::vector<Lamp> lamps;
+  bool stop_with_yellow_go;     // yellow_light_is_go: true (current)
+  bool stop_without_yellow_go;  // yellow_light_is_go: false
+};
+
+TEST_F(ExperimentalTrafficLightTest, SectionPhaseDecisions)
+{
+  using L = Lamp;
+  const std::vector<PhaseCase> cases{
+    // A/B simple_3color, C straight_left_combined; route goes straight at all three.
+    {"A/B/C", "straight", {L::RC}, true, true},
+    {"A/B/C", "straight", {L::YC}, false, true},
+    {"A/B/C", "straight", {L::GC}, false, false},
+    {"C", "straight", {L::GC, L::GLA}, false, false},
+    // D-2 straight_or_protected_left; route turns left.
+    {"D-2", "left", {L::RC}, true, true},
+    {"D-2", "left", {L::GC}, true, true},
+    {"D-2", "left", {L::RC, L::GLA}, false, false},
+    {"D-2", "left", {L::RC, L::YC}, false, true},
+    // Not deliverable after profile correction (YC->RC, GC+GLA->GC at D-2), kept as guards.
+    {"D-2", "left", {L::YC}, false, true},
+    {"D-2", "left", {L::GC, L::GLA}, false, false},
+  };
+  for (const bool yellow_light_is_go : {true, false}) {
+    param_.yellow_light_is_go = yellow_light_is_go;
+    for (const auto & c : cases) {
+      makeModule(c.turn_direction);
+      publish(c.lamps);
+      EXPECT_EQ(isStop(), yellow_light_is_go ? c.stop_with_yellow_go : c.stop_without_yellow_go)
+        << c.section << " turn=" << c.turn_direction << " lamps=" << c.lamps.size()
+        << " yellow_light_is_go=" << yellow_light_is_go;
+    }
+  }
+}
+
+TEST_F(ExperimentalTrafficLightTest, FailOpenPaths)
+{
+  for (const bool fail_open : {true, false}) {
+    param_.competition_fail_open = fail_open;
+    const bool stop = !fail_open;
+
+    // 1. Never received for this regulatory element.
+    makeModule("straight");
+    planner_data_->traffic_light_id_map_raw_.clear();
+    EXPECT_EQ(isStop(), stop) << "missing, fail_open=" << fail_open;
+
+    // 2. Last message containing this id is older than tl_state_timeout (1.0 s).
+    makeModule("straight");
+    publish({element(Element::RED, Element::CIRCLE)}, kRegId, 0.9);
+    EXPECT_TRUE(isStop()) << "0.9 s old red is still red";
+    publish({element(Element::RED, Element::CIRCLE)}, kRegId, 1.1);
+    EXPECT_EQ(isStop(), stop) << "timeout, fail_open=" << fail_open;
+
+    // 3a. Received once, then messages carry another group id (route matcher
+    // moved on or fell back to 0). The previous stamp survives, the lamps do not.
+    makeModule("straight");
+    publish({element(Element::RED, Element::CIRCLE)});
+    EXPECT_TRUE(isStop());
+    publish({element(Element::RED, Element::CIRCLE)}, 0);
+    EXPECT_EQ(isStop(), stop) << "group id switched, fail_open=" << fail_open;
+
+    // 3b. All lamps UNKNOWN, and 3c. no lamps.
+    makeModule("straight");
+    publish({element(Element::UNKNOWN, Element::UNKNOWN)});
+    EXPECT_EQ(isStop(), stop) << "unknown, fail_open=" << fail_open;
+    publish(std::vector<Element>{});
+    EXPECT_EQ(isStop(), stop) << "empty, fail_open=" << fail_open;
+  }
+}
+
+TEST_F(ExperimentalTrafficLightTest, DilemmaPassIgnoresLampColor)
+{
+  // isPassthrough() never looks at the lamp: inside the judge line and within
+  // v * yellow_lamp_period it passes, whether the stop came from yellow or red.
+  makeModule("straight");
+  publish({Lamp::RC});
+  ASSERT_TRUE(isStop());
+  const double v = 50.0 / 3.6;
+  const double judge = judgeLine(v);
+  EXPECT_NEAR(judge, 27.1, 0.1);
+  EXPECT_TRUE(passthrough(judge - 1.0, v));
+  EXPECT_FALSE(passthrough(judge + 1.0, v));
+  EXPECT_FALSE(passthrough(v * param_.yellow_lamp_period + 1.0, v));
+}
+
+TEST_F(ExperimentalTrafficLightTest, YellowGoDefersFirstStopDecisionToRed)
+{
+  // Yellow seen 50 m before the line at 50 km/h, yellow lasts 3 s.
+  const double v = 50.0 / 3.6;
+  const double distance_at_yellow = 50.0;
+  const double distance_at_red = distance_at_yellow - 3.0 * v;
+  ASSERT_LT(distance_at_red, judgeLine(v));
+  ASSERT_GT(distance_at_red, 0.0);
+
+  // Current: no stop at yellow, red arrives inside the judge line -> passes on red.
+  param_.yellow_light_is_go = true;
+  makeModule("straight");
+  publish({Lamp::YC});
+  EXPECT_FALSE(isStop());
+  publish({Lamp::RC});
+  EXPECT_TRUE(isStop());
+  EXPECT_TRUE(passthrough(distance_at_red, v));
+
+  // yellow_light_is_go: false -> stop decided at yellow, outside the judge line.
+  param_.yellow_light_is_go = false;
+  makeModule("straight");
+  publish({Lamp::YC});
+  EXPECT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(distance_at_yellow, v));
+}
+
+}  // namespace autoware::behavior_velocity_planner::experimental
 
 int main(int argc, char ** argv) { ros::init(argc, argv, "full_traffic_light_original"); ros::NodeHandle owner; testing::InitGoogleTest(&argc, argv); return RUN_ALL_TESTS(); }
