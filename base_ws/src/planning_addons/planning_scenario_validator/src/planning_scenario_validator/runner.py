@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolve_path,
-                     prediction_mixed_horizon_enabled)
+                     prediction_horizon, prediction_mixed_horizon_enabled)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
@@ -163,6 +163,7 @@ def _start_case_stack(cfg, processes, monitor):
         processes.start("detector", _launch("perception_object_pipeline", "morai_gt_detection.launch"))
     processes.start("tracking", _launch("perception_object_pipeline", "object_pipeline.launch",
         start_detector=False, prediction_model="map_based",
+        prediction_horizon=prediction_horizon(stack),
         prediction_mixed_horizon_enabled=prediction_mixed_horizon_enabled(stack),
         publish_processing_diagnostics=diagnostics_enabled(cfg.get('recording', {})),
         maximum_tracking_internal_prediction_age_sec=0.5))

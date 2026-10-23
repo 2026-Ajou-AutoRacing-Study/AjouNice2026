@@ -102,6 +102,24 @@ bash base_ws/src/planning_addons/planning_scenario_validator/install.sh --gui
 
 상단 왼쪽 세 버튼은 YAML 저장·불러오기/새로고침·새 실험 시작입니다. 설정 검사·실험 기록·결과 폴더는 오른쪽 보조 기능 메뉴에서 선택합니다. 중단·모니터 모드는 바로 누를 수 있습니다.
 
+### 예측 길이 A/B 시험 (2026-10-24)
+
+개인 workspace YAML의 `stack.prediction_horizon`으로 native 전역 예측 길이를 지정합니다.
+생략 시 기존 **3.0초**, 허용값은 **0.1~10.0초의 유한한 숫자·0.1초 단위**입니다.
+예를 들어 아래는 로터리·고주로 모두 native 6초를 시험하며, 지도 구역별로 기존 3초 경로를
+연장하는 `prediction_mixed_horizon_enabled`와는 다른 조건입니다.
+
+```yaml
+stack:
+  prediction_horizon: 6.0
+  prediction_mixed_horizon_enabled: false
+```
+
+기존 `stack`에 위 두 키만 추가하고 나머지 항목은 유지하세요. GUI 신규 옵션이 아닌 고급 YAML 시험 설정이며,
+production 기본값이나 특정 시나리오를 새 운영값으로 승격한 것이 아닙니다.
+값을 바꾼 비교는 **새 실험 시작**으로 분리합니다. 재개는 당시 snapshot의 값을 사용하며,
+기존 실행 사본을 수정하거나 계약 검사를 우회해 다른 조건으로 resume하지 마세요.
+
 일부 JSON은 YAML의 scenarios.include에 파일명을 적습니다. include가 없으면 glob과 일치한 모든 파일을 실행합니다. 빈 목록·없는 파일·하위경로는 오류이며 전체로 대체하지 않습니다.
 
 고주로 반복용 **highway/base/random_example.yaml**은 기존 JSON 2개 × repeat 10 = 총 20회입니다. NPC 목표 속도 50–60km/h, path offset −10–10%를 회차별 추출하며 Ego/객체 배치·경로·차종 조건은 바꾸지 않습니다. 공식 본선 범위가 아니라 시작용 값입니다. randomization.enabled=false면 원본 그대로 반복하고 seed 변경은 다른 추출 조합입니다. 같은 seed/JSON/회차는 재시도해도 같은 파라미터지만 MORAI의 native 차종/physics는 seed로 고정되지 않습니다. 각 회차의 input.json/결과 JSON에 추출값, scenario.json에 실제 로드 입력을 남깁니다.

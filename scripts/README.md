@@ -60,6 +60,13 @@ native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 
 기존 validator의 정지/P·녹화·정리를 그대로 사용한다. production 기본값은 바꾸지 않는다.
 [혼합 horizon 동작·복귀와 근거](../base_ws/src/perception_object_pipeline/docs/MIXED_PREDICTION_HORIZON.md)를 따른다.
 
+`analyze_native_horizon_live.py --execution DIR [--execution DIR ...] --output DIR`는
+닫힌 validator bag의 동일 TrackedObjects를 native 3초/6초로 각각 계산한다. 혼합 연장과 달리
+Top-K·순위·confidence·첫 3초 변경을 허용하고 양방향 prefix 대응을 보고한다. 실제 31/61 pose,
+입력 불변·기록 출력 정합과 주행 중 정지/제동·출력 공백·callback 비용을 구분한다.
+`--output`은 새 `planner_logs/analysis/` 하위 경로를 사용한다. 별도 주행 간 차이는 NPC 생성 시점과
+부하도 포함하므로 horizon만의 인과 효과나 예측 정확도 개선으로 해석하지 않는다.
+
 동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의

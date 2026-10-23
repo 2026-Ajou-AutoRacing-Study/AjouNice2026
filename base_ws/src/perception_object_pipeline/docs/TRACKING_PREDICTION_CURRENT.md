@@ -97,6 +97,7 @@ prediction coverage를 함께 감시한다.
 - [고주로 6초 / 나머지 3초 후보](MIXED_PREDICTION_HORIZON.md)는 구현·시험용 opt-in이며
   `prediction_mixed_horizon_enabled=false`가 운영 기본이다. 기존 첫 3초와 Top-K를 보존하고
   연장 불가능한 객체는 3초를 유지한다. 지도/선택기 오류를 새 production 시작 차단 조건으로 만들지 않는다.
+  로터리까지 native 6초로 재계산하는 별도 시험도 같은 문서에 구분한다. 두 후보 모두 운영 미승격이다.
 - minimum map-following speed: `0.5 m/s`.
 - lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.
 - centerline lateral convergence: `1.5 s`.

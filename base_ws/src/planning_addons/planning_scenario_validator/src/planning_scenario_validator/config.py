@@ -112,6 +112,23 @@ def prediction_mixed_horizon_enabled(stack):
     return value
 
 
+def prediction_horizon(stack):
+    """Bound the explicit native prediction horizon on the existing 0.1 s grid."""
+    value = stack.get('prediction_horizon', 3.0)
+    label = 'stack.prediction_horizon'
+    if type(value) not in (int, float):
+        raise ConfigError('{}은 0.1~10초의 숫자여야 합니다'.format(label))
+    try:
+        horizon = float(value)
+    except OverflowError as error:
+        raise ConfigError('{}은 0.1~10초의 유한한 숫자여야 합니다'.format(label)) from error
+    if not math.isfinite(horizon) or not 0.1 <= horizon <= 10.0:
+        raise ConfigError('{}은 0.1~10초의 유한한 숫자여야 합니다'.format(label))
+    if not math.isclose(horizon * 10.0, round(horizon * 10.0), rel_tol=0.0, abs_tol=1e-8):
+        raise ConfigError('{}은 0.1초 단위여야 합니다'.format(label))
+    return horizon
+
+
 def validate_campaign_document(document, *, allow_legacy=False):
     """Structural checks for GUI opening too; no ROS/filesystem prerequisites."""
     if not isinstance(document, dict):
@@ -130,6 +147,7 @@ def validate_campaign_document(document, *, allow_legacy=False):
         if not isinstance(document[key], dict):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
     prediction_mixed_horizon_enabled(document['stack'])
+    prediction_horizon(document['stack'])
     try:
         selected_model(document['stack'])
         normalize_localization_launch_args(document['stack'], check_paths=False)
