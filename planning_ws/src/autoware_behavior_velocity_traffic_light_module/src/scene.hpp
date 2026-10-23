@@ -142,6 +142,8 @@ private:
 
   bool isTrafficSignalYellow() const;
 
+  bool isCompetitionFailOpenStop(const char * reason) const;
+
   void updateYellowState(const bool is_yellow_now);
 
   // Lane id

@@ -152,6 +152,12 @@ protected:
     module_->planner_param_.competition_fail_open = enabled;
   }
 
+  void setEnablePassJudge(const bool enabled) { module_->planner_param_.enable_pass_judge = enabled; }
+
+  bool callIsPassthrough(const double distance) { return module_->isPassthrough(distance); }
+
+  void markStopped() { module_->is_prev_state_stop_ = true; }
+
   void verifyTransition(
     const autoware_perception_msgs::TrafficLightGroup & first_signal,
     const autoware_perception_msgs::TrafficLightGroup & second_signal,
@@ -415,6 +421,41 @@ TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnUnknownSignal)
   EXPECT_FALSE(callIsStopSignal());
 }
 
+// Same C1/C2 guards as the experimental plugin (bvp_experimental:=false path).
+TEST_F(TrafficLightModuleTest, CompetitionFailOpenKeepsStopAndRedIsNotPassed)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  setCompetitionFailOpen(true);
+  setEnablePassJudge(true);
+  planner_data_->max_stop_acceleration_threshold = -6.0;
+  planner_data_->max_stop_jerk_threshold = -10.0;
+  planner_data_->delay_response_time = 0.5;
+  auto twist = std::make_shared<geometry_msgs::TwistStamped>();
+  twist->twist.linear.x = 50.0 / 3.6;
+  planner_data_->current_velocity = twist;
+
+  autoware_perception_msgs::TrafficLightGroup red;
+  red.elements.push_back(createElement(Element::RED, Element::CIRCLE, Element::SOLID_ON));
+  autoware_perception_msgs::TrafficLightGroup yellow;
+  yellow.elements.push_back(createElement(Element::AMBER, Element::CIRCLE, Element::SOLID_ON));
+  autoware_perception_msgs::TrafficLightGroup unknown;
+  unknown.elements.push_back(createElement(Element::UNKNOWN, Element::UNKNOWN, Element::UNKNOWN));
+
+  // C2: inside the judge line (27.1 m at 50 km/h) only yellow is passed.
+  setTrafficSignal(red);
+  ASSERT_TRUE(callIsStopSignal());
+  EXPECT_FALSE(callIsPassthrough(10.0));
+  setTrafficSignal(yellow);
+  ASSERT_TRUE(callIsStopSignal());
+  EXPECT_TRUE(callIsPassthrough(10.0));
+
+  // C1: fail-open GO while approaching, but not once a stop was decided.
+  setTrafficSignal(unknown);
+  EXPECT_FALSE(callIsStopSignal());
+  markStopped();
+  EXPECT_TRUE(callIsStopSignal());
+}
+
 }  // namespace autoware::behavior_velocity_planner
 
 // Production BVP runs the experimental plugin (behavior_planning.launch,
@@ -462,7 +503,7 @@ protected:
     param_.yellow_lamp_period = 2.75;
     param_.yellow_light_stop_velocity = 1.0;
     param_.enable_pass_judge = true;
-    param_.yellow_light_is_go = true;
+    param_.yellow_light_is_go = false;
     param_.competition_fail_open = true;
     param_.enable_arrow_aware_yellow_passing = false;
     param_.min_behind_dist_to_stop_for_restart_suppression = 0.5;
@@ -525,6 +566,9 @@ protected:
   }
 
   bool isStop() { return module_->isStopSignal(*planner_data_); }
+
+  // State after modifyPathVelocity() inserted a stop (ego stopped or braking for it).
+  void markStopped() { module_->is_prev_state_stop_ = true; }
 
   bool passthrough(const double distance, const double velocity)
   {
@@ -627,19 +671,22 @@ TEST_F(ExperimentalTrafficLightTest, FailOpenPaths)
   }
 }
 
-TEST_F(ExperimentalTrafficLightTest, DilemmaPassIgnoresLampColor)
+TEST_F(ExperimentalTrafficLightTest, DilemmaPassJudgeLine)
 {
-  // isPassthrough() never looks at the lamp: inside the judge line and within
-  // v * yellow_lamp_period it passes, whether the stop came from yellow or red.
+  // Inside the judge line and within v * yellow_lamp_period ego passes, but only
+  // while a yellow lamp is on (before C2 a red was passed the same way).
   makeModule("straight");
-  publish({Lamp::RC});
-  ASSERT_TRUE(isStop());
   const double v = 50.0 / 3.6;
   const double judge = judgeLine(v);
   EXPECT_NEAR(judge, 27.1, 0.1);
+  publish({Lamp::YC});
+  ASSERT_TRUE(isStop());
   EXPECT_TRUE(passthrough(judge - 1.0, v));
   EXPECT_FALSE(passthrough(judge + 1.0, v));
   EXPECT_FALSE(passthrough(v * param_.yellow_lamp_period + 1.0, v));
+  publish({Lamp::RC});
+  ASSERT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(judge - 1.0, v));
 }
 
 TEST_F(ExperimentalTrafficLightTest, YellowGoDefersFirstStopDecisionToRed)
@@ -651,14 +698,15 @@ TEST_F(ExperimentalTrafficLightTest, YellowGoDefersFirstStopDecisionToRed)
   ASSERT_LT(distance_at_red, judgeLine(v));
   ASSERT_GT(distance_at_red, 0.0);
 
-  // Current: no stop at yellow, red arrives inside the judge line -> passes on red.
+  // yellow_light_is_go: true -> no stop at yellow, red arrives inside the judge
+  // line. Before C2 this passed on red; now the stop is kept (overshoot).
   param_.yellow_light_is_go = true;
   makeModule("straight");
   publish({Lamp::YC});
   EXPECT_FALSE(isStop());
   publish({Lamp::RC});
   EXPECT_TRUE(isStop());
-  EXPECT_TRUE(passthrough(distance_at_red, v));
+  EXPECT_FALSE(passthrough(distance_at_red, v));
 
   // yellow_light_is_go: false -> stop decided at yellow, outside the judge line.
   param_.yellow_light_is_go = false;
@@ -666,6 +714,113 @@ TEST_F(ExperimentalTrafficLightTest, YellowGoDefersFirstStopDecisionToRed)
   publish({Lamp::YC});
   EXPECT_TRUE(isStop());
   EXPECT_FALSE(passthrough(distance_at_yellow, v));
+}
+
+// Competition rule (261015 v1.2, l.604-608): only green / left-arrow may be crossed,
+// judged when the front wheels cross the stop line. The cases below run with the
+// production parameters (yellow_light_is_go: false, competition_fail_open: true).
+TEST_F(ExperimentalTrafficLightTest, FailOpenKeepsExistingStop)
+{
+  // C1 (M4): stopped at red, then one of the three fail-open paths fires.
+  const auto stopped_at_red = [this]() {
+    makeModule("straight");
+    publish({Lamp::RC});
+    EXPECT_TRUE(isStop());
+    markStopped();
+  };
+  stopped_at_red();
+  publish({element(Element::RED, Element::CIRCLE)}, kRegId, 1.1);
+  EXPECT_TRUE(isStop()) << "timeout keeps stop";
+  stopped_at_red();
+  publish({element(Element::RED, Element::CIRCLE)}, 0);
+  EXPECT_TRUE(isStop()) << "group id switched keeps stop";
+  stopped_at_red();
+  publish({element(Element::UNKNOWN, Element::UNKNOWN)});
+  EXPECT_TRUE(isStop()) << "unknown keeps stop";
+  stopped_at_red();
+  publish(std::vector<Element>{});
+  EXPECT_TRUE(isStop()) << "empty keeps stop";
+  makeModule("straight");
+  markStopped();
+  planner_data_->traffic_light_id_map_raw_.clear();
+  EXPECT_TRUE(isStop()) << "missing keeps stop";
+
+  // Approaching without a stop decision: fail-open still lets ego go.
+  makeModule("straight");
+  publish({Lamp::GC});
+  EXPECT_FALSE(isStop());
+  publish({element(Element::GREEN, Element::CIRCLE)}, kRegId, 1.1);
+  EXPECT_FALSE(isStop()) << "timeout while approaching";
+  publish({element(Element::UNKNOWN, Element::UNKNOWN)});
+  EXPECT_FALSE(isStop()) << "unknown while approaching";
+
+  // A real green still releases the stop.
+  stopped_at_red();
+  publish({Lamp::GC});
+  EXPECT_FALSE(isStop());
+}
+
+TEST_F(ExperimentalTrafficLightTest, DilemmaPassOnlyOnYellow)
+{
+  // C2 (M3): inside the judge line the stop is kept unless a yellow lamp is on.
+  const double v = 50.0 / 3.6;
+  const double inside = judgeLine(v) - 1.0;
+  ASSERT_LT(inside, v * param_.yellow_lamp_period);
+
+  makeModule("straight");
+  publish({Lamp::YC});
+  ASSERT_TRUE(isStop());
+  EXPECT_TRUE(passthrough(inside, v)) << "yellow inside judge line passes";
+  EXPECT_FALSE(passthrough(judgeLine(v) + 1.0, v)) << "yellow outside judge line stops";
+  publish({Lamp::RC});
+  ASSERT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(inside, v)) << "red inside judge line stops";
+
+  makeModule("left");  // D-2
+  publish({Lamp::RC, Lamp::YC});
+  ASSERT_TRUE(isStop());
+  EXPECT_TRUE(passthrough(inside, v)) << "D-2 R+Y inside judge line passes";
+  publish({Lamp::GC});
+  ASSERT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(inside, v)) << "D-2 green circle on left lane inside judge line stops";
+}
+
+TEST_F(ExperimentalTrafficLightTest, CompetitionViolationsClosed)
+{
+  ASSERT_FALSE(param_.yellow_light_is_go);
+  const double v = 50.0 / 3.6;
+  const double judge = judgeLine(v);
+
+  // M1: A/B/C yellow outside the judge line stops.
+  makeModule("straight");
+  publish({Lamp::YC});
+  EXPECT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(judge + 1.0, v));
+
+  // M2: D-2 red+yellow on the left lane stops.
+  makeModule("left");
+  publish({Lamp::RC, Lamp::YC});
+  EXPECT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(judge + 1.0, v));
+
+  // M3: yellow seen 50 m out, 3 s later red at 8.3 m. Stop decided at yellow;
+  // even without that decision the red is not passed.
+  const double distance_at_red = 50.0 - 3.0 * v;
+  makeModule("straight");
+  publish({Lamp::YC});
+  EXPECT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(50.0, v));
+  publish({Lamp::RC});
+  EXPECT_TRUE(isStop());
+  EXPECT_FALSE(passthrough(distance_at_red, v));
+
+  // M4: stopped at red, perception drops out -> stays stopped.
+  makeModule("straight");
+  publish({Lamp::RC});
+  EXPECT_TRUE(isStop());
+  markStopped();
+  publish({element(Element::RED, Element::CIRCLE)}, 0);
+  EXPECT_TRUE(isStop());
 }
 
 }  // namespace autoware::behavior_velocity_planner::experimental

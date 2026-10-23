@@ -192,9 +192,7 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
   //   recognition is not working properly or the map is incorrect.
   if (!traffic_signal_stamp_) {
     if (planner_param_.competition_fail_open) {
-      RCLCPP_WARN_THROTTLE(
-        logger_, *clock_, 5000, "[traffic_light] missing signal: competition fail-open GO");
-      return false;
+      return isCompetitionFailOpenStop("missing");
     }
     return !planner_data.is_simulation;
   }
@@ -202,9 +200,7 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
   // Stop if the traffic signal information has timed out
   if (isTrafficSignalTimedOut()) {
     if (planner_param_.competition_fail_open) {
-      RCLCPP_WARN_THROTTLE(
-        logger_, *clock_, 5000, "[traffic_light] timed-out signal: competition fail-open GO");
-      return false;
+      return isCompetitionFailOpenStop("timed-out");
     }
     return true;
   }
@@ -215,9 +211,7 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
              element.shape != TrafficSignalElement::UNKNOWN;
     });
   if (planner_param_.competition_fail_open && !has_known_lamp) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *clock_, 5000, "[traffic_light] unknown signal: competition fail-open GO");
-    return false;
+    return isCompetitionFailOpenStop("unknown");
   }
 
   // Check if current state is yellow
@@ -241,6 +235,21 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
 
   // Check if the current traffic signal state requires stopping
   return autoware::traffic_light_utils::isTrafficSignalStop(lane_, looking_tl_state_);
+}
+
+// competition_fail_open lets ego go through a signal it cannot read, but never
+// releases a stop already decided (e.g. waiting at red when perception drops out).
+bool TrafficLightModule::isCompetitionFailOpenStop(const char * reason) const
+{
+  if (is_prev_state_stop_) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] %s signal: competition fail-open keeps stop",
+      reason);
+    return true;
+  }
+  RCLCPP_WARN_THROTTLE(
+    logger_, *clock_, 5000, "[traffic_light] %s signal: competition fail-open GO", reason);
+  return false;
 }
 
 bool TrafficLightModule::isTrafficSignalYellow() const
@@ -375,6 +384,13 @@ bool TrafficLightModule::isPassthrough(
     // Cannot stop under acceleration and jerk limits.
     // However, ego vehicle can't enter the intersection while the light is yellow.
     // It is called dilemma zone. Make a stop decision to be safe.
+    // Only a yellow lamp may be run; on red keep the stop even past the line
+    // (competition rule penalises crossing on red, not overshooting the line).
+    if (!isTrafficSignalYellow()) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *clock_, 1000, "[traffic_light] stop signal is not yellow: keep stop");
+      return false;
+    }
     if (!reachable) {
       // dilemma zone: emergency stop
       RCLCPP_WARN_THROTTLE(
