@@ -8199,3 +8199,27 @@ CPU로 재호출한 차량 경로이며 원래 저장 평가 endpoint 12,347개�
 뷰어/좌표 CPU 테스트12개 통과, 독립 master의 화면 없는 H04 1초 재생·종료도 통과했다.
 GUI는 사용자가 위 명령으로 연다. 저장된 EKF-core/CPU 경로를 보는 것이며 live GPU 지연,
 native 30Hz scheduler나 전체 폐루프를 인증하는 시험은 아니다.
+
+### 공용 RViz 양식 복구 (같은 날 후속)
+
+위 최초 간이 뷰어는 `lidar1` fixed frame과 별도 생성 레이아웃 때문에 공용 Lanelet 지도·차량·
+카메라 dock 양식을 잃었다. 사용자의 확인 후 같은 실행 명령을 **공용 인지 RViz 기반**으로 수정했다.
+현재는 `base_ws/src/perception_object_pipeline/rviz/object_pipeline_live.rviz`를 읽어 marker 토픽만
+연결한다. `map` fixed frame, `base_link` 추종 시점·zoom·저장 시점, Lanelet display, IONIQ 5와
+4개 카메라 dock 배치를 보존한다. 공용 원본 파일이나 production 설정은 변경하지 않았다.
+5초·prefix5·속도·설명은 `E12 comparison (optional)` 그룹에 넣고 기본 숨김이다.
+
+`prepare_e12_common_rviz.py`가 기존 결과에서 `rviz_common_v1/{H04,H03,R01}`을 파생했다.
+측정 시각의 저장 Ego·센서 장착·지도 정합을 사용해 marker pose만 `map`으로 변환했다.
+local points·크기·색상·ID·lifetime은 그대로이며 역변환 최대 오차는 약 `2.84e-13`이다.
+저장 yaw의 −1.347° 보정을 다시 적용하거나 box 높이를 재가산하지 않는다.
+LiDAR TF는 원래 측정 header 시각에 생성하고 `/e12_view/tf`만 `/tf`로 remap한다.
+원본 bag의 TF·Ego·제어 토픽은 재생하지 않는다. 공용 지도/차량 launch와 현재 설정의 static TF만
+독립 master에서 시작하며 live localization·추론·planner·제어는 실행하지 않는다.
+
+가상 X11·software OpenGL에서 H04 8초를 실제 RViz로 재생해 **Lanelet 지도·IONIQ 5·LiDAR·4개
+카메라·Global Status OK**를 화면으로 확인했다. 지도는 공용 발행기에서 7개 Marker를 수신했다.
+화면 근거는 `common_gui_smoke/20261023_213133_735631/common_rviz.png`에 보존했다.
+네 카메라 영상은 모두 표시됐지만 공용 compressed image 플러그인의 중복 `set_parameters` service
+광고 ERROR 로그 3건은 남았다. 다른 노드 실패나 재생 중단은 없었다. 실시간 성능 인증은 아니다.
+새 좌표 테스트 5개, 뷰어 회귀 8개, 기존 export 테스트 5개를 합쳐 18개가 통과했다.

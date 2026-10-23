@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Private-master, sensor-only RViz playback of frozen E12 offline results.
+"""Shared perception RViz layout with frozen E12 results and Lanelet map.
 
-No inference, tracking, control, TF, UDP, or MORAI nodes are launched. The raw
-bag is strictly topic-whitelisted so existing live ROS sessions are untouched.
+Only offline visualization support is started. No inference, tracking, control,
+UDP, live localization, or MORAI. Raw bags are strictly topic-whitelisted.
 """
 import argparse
 import datetime
@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -30,6 +31,8 @@ SENSOR_TOPICS = (
 MARKER_NAMES = ('gt', 'detections', 'tracks', 'velocity', 'prediction3',
                 'prediction5', 'prefix5', 'gt_future', 'hud')
 MARKER_TOPICS = tuple('/e12_view/' + name for name in MARKER_NAMES)
+FROZEN_TF = '/e12_view/tf'
+COMMON_RVIZ = ROOT / 'base_ws/src/perception_object_pipeline/rviz/object_pipeline_live.rviz'
 
 
 def positive(value):
@@ -40,20 +43,20 @@ def positive(value):
 
 
 def scene_paths(case):
-    return OUTPUT / 'rviz_exports_v1' / case
+    return OUTPUT / 'rviz_common_v1' / case
 
 
 def read_scene(path):
     scene = json.loads(path.read_text())
-    if scene.get('schema') != 'e12_postprocessing_rviz_scene_v1' or scene.get('complete') is not True:
+    if scene.get('schema') != 'e12_postprocessing_common_rviz_scene_v1' or scene.get('complete') is not True:
         raise ValueError('A completed E12 viewer export is required')
     for key in ('raw_bag', 'marker_bag'):
         value = Path(scene[key])
         if not value.is_absolute() or not value.is_file():
             raise ValueError(f'{key} is not an existing absolute file: {value}')
-    if scene['fixed_frame'] != 'lidar1':
-        raise ValueError('Only the audited current lidar1 coordinate view is supported')
-    if set(scene['topics']) != set(MARKER_TOPICS):
+    if scene['fixed_frame'] != 'map':
+        raise ValueError('The common RViz requires the audited map-coordinate export')
+    if set(scene['topics']) != set(MARKER_TOPICS + (FROZEN_TF,)):
         raise ValueError('Unexpected marker topic contract')
     for key in ('start_offset_sec', 'duration_sec'):
         value = float(scene[key])
@@ -66,6 +69,13 @@ def read_scene(path):
                 digest.update(block)
         if digest.hexdigest() != scene['marker_bag_sha256']:
             raise ValueError('Marker export changed; use a fresh export rather than the frozen receipt')
+    # This is an offline view check, not a production model startup gate.
+    for relative in ('configs/sensors/Sensor_competition_lan.json',
+                     'configs/tf/morai_lanelet_static_tf.yaml'):
+        path = ROOT / relative
+        expected = scene.get('source_sha256', {}).get(str(path))
+        if expected and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise ValueError('Offline overlay/static-TF configuration differs: ' + relative)
     return scene
 
 
@@ -81,45 +91,83 @@ def play_command(scene, rate, autoplay=False, duration=None):
         command.append('--pause')
     if duration is None:
         command.append('--keep-alive')
-    command += [scene['raw_bag'], scene['marker_bag'], '--topics']
-    return command + list(SENSOR_TOPICS) + list(MARKER_TOPICS)
+    # Remap ONLY the derived frozen TF; never replay /tf from the raw bag.
+    command += [scene['raw_bag'], scene['marker_bag'], FROZEN_TF + ':=/tf', '--topics']
+    return command + list(SENSOR_TOPICS) + list(MARKER_TOPICS) + [FROZEN_TF]
 
 
-def rviz_configuration(frame):
-    displays = [dict(Class='rviz/Grid', Name='10m grid', Enabled=True,
-        **{'Cell Size': 10, 'Plane Cell Count': 20, 'Reference Frame': frame,
-           'Color': '90; 90; 90', 'Alpha': .4, 'Value': True}),
-        dict(Class='rviz/PointCloud2', Name='Original LiDAR', Enabled=True,
-             Topic='/sensor/lidar1', **{'Queue Size': 2, 'Decay Time': .12,
-             'Position Transformer': 'XYZ', 'Color Transformer': 'Intensity',
-             'Size (Pixels)': 2, 'Style': 'Points', 'Alpha': .5, 'Value': True})]
-    titles = ('GT (magenta)', 'E12 detections (green)', 'Tracks (cyan / coast orange)',
-              'Track velocity', 'Current 3s (yellow)', 'Candidate 5s (orange)',
-              'Prefix-stable 5s RESEARCH (blue)', 'Valid GT future (white)', 'Scene notes')
-    for name, topic, title in zip(MARKER_NAMES, MARKER_TOPICS, titles):
-        displays.append(dict(Class='rviz/MarkerArray', Name=title,
-            Enabled=name != 'prefix5', **{'Marker Topic': topic,
-            'Queue Size': 2, 'Value': name != 'prefix5'}))
-    for camera in ('front', 'back', 'front_left', 'front_right'):
-        displays.append(dict(Class='rviz/Image', Name='Camera ' + camera,
-            Enabled=camera == 'front', **{'Image Topic': '/sensor/camera/' + camera,
-            'Transport Hint': 'compressed', 'Queue Size': 2, 'Normalize Range': True,
-            'Min Value': 0, 'Max Value': 1, 'Median window': 5,
-            'Value': camera == 'front'}))
-    return {'Panels': [{'Class': 'rviz/Displays', 'Name': 'Displays'},
-                       {'Class': 'rviz/Views', 'Name': 'Views'}],
-        'Preferences': {'PromptSaveOnExit': False},
-        'Visualization Manager': {'Class': '', 'Name': 'root', 'Enabled': True,
-            'Displays': displays,
-            'Global Options': {'Fixed Frame': frame, 'Frame Rate': 30,
-                               'Background Color': '35; 35; 35'},
-            'Tools': [{'Class': 'rviz/Interact'}, {'Class': 'rviz/MoveCamera'},
-                      {'Class': 'rviz/Select'}, {'Class': 'rviz/FocusCamera'}],
-            'Views': {'Current': {'Class': 'rviz/Orbit', 'Name': 'Current View',
-                'Target Frame': frame, 'Distance': 180, 'Pitch': 1.25, 'Yaw': 3.14159,
-                'Focal Point': {'X': 0, 'Y': 0, 'Z': 0}, 'Near Clip Distance': .05}},
-            'Value': True},
-        'Window Geometry': {'Width': 1600, 'Height': 950, 'X': 40, 'Y': 30}}
+def rviz_configuration(frame='map'):
+    if frame != 'map':
+        raise ValueError('Common view uses map, not a sensor-fixed camera')
+    config = yaml.safe_load(COMMON_RVIZ.read_text())
+    topics = {
+        '/perception/object_recognition/visualization/detections': 'detections',
+        '/perception/object_recognition/visualization/tracks': 'tracks',
+        '/perception/object_recognition/visualization/predictions': 'prediction3',
+        '/evaluation/visualization/gt_boxes': 'gt',
+        '/evaluation/visualization/gt_paths': 'gt_future',
+    }
+
+    def remap(displays):
+        for display in displays:
+            name = topics.get(display.get('Marker Topic'))
+            if name:
+                display['Marker Topic'] = '/e12_view/' + name
+                display['Namespaces'] = {'e12_' + name: True}
+                if name == 'tracks':
+                    display['Name'] = 'Tracks (cyan / coast orange)'
+                elif name == 'gt_future':
+                    display['Name'] = 'Matched GT Future Paths (white)'
+            remap(display.get('Displays', []))
+
+    manager = config['Visualization Manager']
+    remap(manager['Displays'])
+    # Preserve shared camera docks, map, vehicle, follower, zoom and layout.
+    optional = [('velocity', 'Velocity arrows'), ('prediction5', 'Candidate 5s (orange)'),
+                ('prefix5', 'Prefix-stable 5s RESEARCH (blue)'), ('hud', 'Replay notes')]
+    manager['Displays'].append(dict(Class='rviz/Group', Name='E12 comparison (optional)',
+        Enabled=False, Displays=[dict(Class='rviz/MarkerArray', Name=title, Enabled=True,
+            **{'Marker Topic': '/e12_view/' + name, 'Namespaces': {'e12_' + name: True},
+               'Queue Size': 5, 'Value': True}) for name, title in optional]))
+    config['Preferences']['PromptSaveOnExit'] = False
+    return config
+
+
+def support_launch():
+    """Reuse shared map/vehicle launch files, with numeric TF from config."""
+    launch = ET.Element('launch')
+    lanelet = ET.SubElement(launch, 'include', file='$(find lanelet_map_visualizer)/launch/kcity_lanelet_map.launch')
+    ET.SubElement(lanelet, 'arg', name='publish_vector_map', value='false')
+    vehicle = ET.SubElement(launch, 'include', file='$(find ioniq5)/launch/display_ioniq5.launch')
+    ET.SubElement(vehicle, 'arg', name='start_rviz', value='false')
+
+    def static(name, parent, child, xyz, rpy):
+        args = ' '.join(str(value) for value in [*xyz, *reversed(rpy), parent, child])
+        ET.SubElement(launch, 'node', pkg='tf2_ros', type='static_transform_publisher',
+            name=name, args=args, output='screen')
+
+    alignment = yaml.safe_load((ROOT / 'configs/tf/morai_lanelet_static_tf.yaml').read_text())['map_to_morai_map']
+    static('e12_map_to_morai', alignment['parent'], alignment['child'], alignment['xyz'], alignment['rpy'])
+    sensor = json.loads((ROOT / 'configs/sensors/Sensor_competition_lan.json').read_text())
+    for item in sensor['cameraList'] + sensor['Lidar3DList']:
+        cfg = item.get('cc', item.get('lc'))
+        child = cfg['rosConfig']['frameID']
+        static('e12_base_to_' + child, 'base_link', child,
+            [item['pos'][axis] for axis in ('x', 'y', 'z')],
+            [math.radians(float(item['rot'][axis])) for axis in ('roll', 'pitch', 'yaw')])
+    return ET.tostring(launch, encoding='unicode')
+
+
+BOOTSTRAP_CLOCK = '''
+import sys, time, rospy
+from rosgraph_msgs.msg import Clock
+rospy.init_node('e12_rviz_bootstrap_clock', disable_signals=True)
+publisher = rospy.Publisher('/clock', Clock, queue_size=1, latch=True)
+start = time.monotonic()
+while time.monotonic()-start < 30 and not rospy.is_shutdown():
+    publisher.publish(Clock(clock=rospy.Time.from_sec(float(sys.argv[1])+time.monotonic()-start)))
+    time.sleep(.025)
+'''
 
 
 def private_environment(directory, port):
@@ -149,7 +197,7 @@ def stop_owned(process, group=False):
 
 
 def run(scene, case, rate, headless=False, autoplay=False, duration=None):
-    for executable in ('roscore', 'rosbag', 'rosparam') + (() if headless else ('rviz',)):
+    for executable in ('roscore', 'rosbag', 'rosparam', 'roslaunch') + (() if headless else ('rviz',)):
         if not shutil.which(executable):
             raise RuntimeError(f'{executable} not found; use the .sh wrapper to source ROS')
     if not headless and not os.environ.get('DISPLAY'):
@@ -159,6 +207,8 @@ def run(scene, case, rate, headless=False, autoplay=False, duration=None):
     directory.mkdir(parents=True, exist_ok=False)
     config = directory / 'view.rviz'
     config.write_text(yaml.safe_dump(rviz_configuration(scene['fixed_frame']), sort_keys=False))
+    launch = directory / 'support.launch'
+    launch.write_text(support_launch())
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
@@ -166,8 +216,9 @@ def run(scene, case, rate, headless=False, autoplay=False, duration=None):
     command = play_command(scene, rate, autoplay, duration)
     (directory / 'session.json').write_text(json.dumps(dict(
         case=case, rate=rate, scene=scene, command=command,
-        master=env['ROS_MASTER_URI'], live_stack_started=False), indent=2))
-    core = rviz = player = None
+        master=env['ROS_MASTER_URI'], common_rviz_source=str(COMMON_RVIZ),
+        live_stack_started=False), indent=2))
+    core = rviz = player = support = bootstrap = None
     try:
         with (directory / 'roscore.log').open('w') as log:
             core = subprocess.Popen(['roscore', '-p', str(port)], env=env,
@@ -188,10 +239,32 @@ def run(scene, case, rate, headless=False, autoplay=False, duration=None):
         if not ready:
             raise RuntimeError('Private roscore readiness timed out')
         subprocess.run(['rosparam', 'set', '/use_sim_time', 'true'], env=env, check=True, timeout=5)
+        # The shared map publisher sleeps in ROS time before latching its map.
+        # Seed this private clock well BEFORE the recording, then hand it to
+        # rosbag. This avoids its startup sleep hanging while replay is paused.
+        with (directory / 'bootstrap.log').open('w') as log:
+            bootstrap = subprocess.Popen([sys.executable, '-c', BOOTSTRAP_CLOCK,
+                str(scene['first_receipt'] - 60)], env=env, stdout=log,
+                stderr=subprocess.STDOUT, start_new_session=True)
+        with (directory / 'support.log').open('w') as log:
+            support = subprocess.Popen(['roslaunch', str(launch)], env=env,
+                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        probe_code = ("import rospy; from visualization_msgs.msg import MarkerArray; "
+            "rospy.init_node('e12_map_ready', disable_signals=True); "
+            "m=rospy.wait_for_message('/map/lanelet_map', MarkerArray, timeout=15); "
+            "assert m.markers and all(x.header.frame_id=='map' for x in m.markers); "
+            "print(len(m.markers))")
+        ready = subprocess.run([sys.executable, '-c', probe_code], env=env,
+            capture_output=True, text=True, timeout=20)
+        if ready.returncode or support.poll() is not None:
+            raise RuntimeError(f'Lanelet map support failed; see {directory}/support.log\n{ready.stderr}')
+        print('Common Lanelet map ready: ' + ready.stdout.strip() + ' markers.', flush=True)
         if not headless:
             with (directory / 'rviz.log').open('w') as log:
                 rviz = subprocess.Popen(['rviz', '-d', str(config)], env=env,
                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            time.sleep(.5)
+        stop_owned(bootstrap, group=True)
         print(f'\n{case} | {rate:g}x | private ROS {port} | {directory}', flush=True)
         print('Space: play/pause. Ctrl+C or close RViz: close this replay only.', flush=True)
         # Keep the player in the terminal foreground group: rosbag reads Space
@@ -200,6 +273,8 @@ def run(scene, case, rate, headless=False, autoplay=False, duration=None):
         while player.poll() is None:
             if core.poll() is not None:
                 raise RuntimeError('Private ROS master exited')
+            if support.poll() is not None:
+                raise RuntimeError(f'Common visualization support exited; see {directory}/support.log')
             if rviz is not None and rviz.poll() is not None:
                 if rviz.returncode:
                     raise RuntimeError(f'RViz exited with {rviz.returncode}; see {directory}/rviz.log')
@@ -213,6 +288,8 @@ def run(scene, case, rate, headless=False, autoplay=False, duration=None):
         # No pkill/killall, no existing master/parameter changes.
         stop_owned(player)
         stop_owned(rviz, group=True)
+        stop_owned(support, group=True)
+        stop_owned(bootstrap, group=True)
         stop_owned(core, group=True)
 
 
@@ -228,7 +305,7 @@ def main():
     scene_file = scene_paths(args.case) / 'scene.json'
     if not scene_file.is_file():
         raise SystemExit(f'Missing local export: {scene_file}\n'
-            f'Prepare: /usr/bin/python3 scripts/evaluation/export_e12_postprocessing_view.py '
+            f'Prepare: /usr/bin/python3 scripts/evaluation/prepare_e12_common_rviz.py '
             f'--case {args.case} --output {scene_file.parent}')
     scene = read_scene(scene_file)
     if args.check_only:

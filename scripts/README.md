@@ -50,9 +50,12 @@ native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의
 Space**로 재생/정지, Ctrl+C 또는 RViz 창 닫기로 종료한다. GT 자홍·검출 초록·트랙 청록(관측 누락 중
-주황), 현행 3초 노랑·비운영 5초 후보 주황이다. 연구용 prefix5 파랑은 기본 숨김이다.
-원본 센서와 저장 marker만 별도 localhost master에서 재생하며 MORAI·GPU·제어를 켜지 않는다.
-팀 설치기가 아니며 로컬 `rviz_exports_v1/<case>/scene.json`과 원본 bag이 필요하다.
+주황), 현행 3초 노랑이다. 기존 `object_pipeline_live.rviz`의 Lanelet 지도·IONIQ 5·4개 카메라 dock과
+차량 추종 시점을 그대로 사용한다. 5초 후보 주황·연구용 prefix5 파랑·속도·설명은
+`E12 comparison (optional)` 그룹을 켜서 본다. 기본은 이 그룹을 숨긴다.
+별도 localhost master에서 원본 센서·저장 marker·기록된 Ego 기반 TF를 재생하고 공용 지도·차량
+표시만 실행한다. MORAI·BEVFusion 추론·live 측위·제어는 켜지 않는다.
+팀 설치기가 아니며 로컬 `rviz_common_v1/<case>/scene.json`과 원본 bag이 필요하다.
 
 `scripts/evaluation/audit_fullstack_recording.py`는 validator의 bag·결과 JSON·events·
 `ros_parameters.yaml`이 있는 한 run 폴더를 읽는다. 제어 시작부터 종료까지의 토픽 주기,
