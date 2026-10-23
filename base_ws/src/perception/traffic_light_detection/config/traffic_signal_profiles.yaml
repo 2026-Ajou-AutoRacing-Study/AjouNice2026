@@ -62,7 +62,10 @@ profiles:
       RED_CIRCLE+GREEN_CIRCLE: [RED_CIRCLE]
       GREEN_CIRCLE+GREEN_LEFT_ARROW: [GREEN_CIRCLE]
       YELLOW_CIRCLE: [RED_CIRCLE]
-    # Simulation-only bounded hold; never interpret fallback red as observation.
+    # Bounded hold, active in every run (no simulation check in the node).
+    # Missing detections abstain instead of voting red; with no valid frame for
+    # max_observation_gap_sec, or yellow held for max_yellow_sec, output falls
+    # back to fallback_phase (red).
     observation_guard:
       max_observation_gap_sec: 1.5
       max_yellow_sec: 4.0

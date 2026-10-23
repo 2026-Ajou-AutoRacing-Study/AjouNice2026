@@ -33,23 +33,30 @@ def test_observation_guard_d2_missing_red_and_yellow_lifetime():
                                            201326, time, 1.0, smoother)
         return _tokens(result)
     left = ["RED_CIRCLE", "GREEN_LEFT_ARROW"]
+    # D-2 delivers its yellow as RED+YELLOW; a lone YELLOW is corrected to red upstream.
+    yellow = ["RED_CIRCLE", "YELLOW_CIRCLE"]
     assert step(left, 0) == set(left)
-    assert step(["YELLOW_CIRCLE"], .1) == {"YELLOW_CIRCLE"}
-    assert step(["RED_CIRCLE"], .5, True) == {"YELLOW_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], .8) == {"YELLOW_CIRCLE"}
+    assert step(yellow, .1) == set(yellow)
+    # A missing frame abstains and the observed yellow is held within the gap.
+    assert step(["RED_CIRCLE"], .5, True) == set(yellow)
+    assert step(yellow, .8) == set(yellow)
     assert step(["RED_CIRCLE"], .9) == {"RED_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
+    assert step(yellow, 1) == set(yellow)
     step(left, 2)
+    # No valid observation for more than max_observation_gap_sec (1.5 s).
     assert step(["RED_CIRCLE"], 3.6, True) == {"RED_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], 3.7) == {"RED_CIRCLE"}
+    assert step(yellow, 3.7) == set(yellow)
     step(left, 4)
     for t in [4.1, 5, 6, 7, 8]:
-        assert step(["YELLOW_CIRCLE"], t) == {"YELLOW_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], 8.2) == {"RED_CIRCLE"}
+        assert step(yellow, t) == set(yellow)
+    # Yellow older than max_yellow_sec (4.0 s) falls back to red.
+    assert step(yellow, 8.2) == {"RED_CIRCLE"}
     p.reset_transition()
-    assert step(["YELLOW_CIRCLE"], 9) == {"RED_CIRCLE"}
+    assert step(yellow, 9) == set(yellow)
     step(left, 10)
-    assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
+    # A clock that runs backwards resets the guard instead of extending a lease.
+    assert step(yellow, 1) == set(yellow)
+    assert step(["RED_CIRCLE"], 2.6, True) == {"RED_CIRCLE"}
 
 
 def test_guard_seven_frame_vote_abstains_on_missing_observations():
@@ -87,11 +94,15 @@ def test_assigned_group_ids_exist_in_route_matcher_table():
     assert set(POLICY.assignments).issubset(table_ids)
 
 
-def test_ab_red_green_prefers_go():
-    observed = [("red", "circle", None), ("green", "circle", None)]
-    normalized, reason = POLICY.apply(observed, 201351)
-    assert _tokens(normalized) == {"GREEN_CIRCLE"}
-    assert reason.endswith(":corrected")
+def test_ab_impossible_red_green_and_red_yellow_prefer_red():
+    for observed in (
+        [("red", "circle", None), ("green", "circle", None)],
+        [("red", "circle", None), ("yellow", "circle", None)],
+    ):
+        for group_id in (201351, 201365):
+            normalized, reason = POLICY.apply(observed, group_id)
+            assert _tokens(normalized) == {"RED_CIRCLE"}
+            assert reason.endswith(":corrected")
 
 
 def test_c_partial_green_is_completed_as_straight_left():
@@ -113,18 +124,24 @@ def test_c_impossible_red_green_prefers_red_and_missing_is_red():
         assert _tokens(normalized) == {"RED_CIRCLE"}
 
 
-def test_d2_red_green_circle_becomes_protected_left():
-    observed = [("red", "circle", None), ("green", "circle", None)]
-    normalized, _reason = POLICY.apply(observed, 201326)
-    assert _tokens(normalized) == {"RED_CIRCLE", "GREEN_LEFT_ARROW"}
+def test_d2_impossible_combinations_prefer_the_safe_phase():
+    cases = (
+        ([("red", "circle", None), ("green", "circle", None)], {"RED_CIRCLE"}),
+        ([("green", "circle", None), ("green", "arrow", True)], {"GREEN_CIRCLE"}),
+        ([("green", "arrow", True)], {"RED_CIRCLE", "GREEN_LEFT_ARROW"}),
+    )
+    for observed, expected in cases:
+        normalized, _reason = POLICY.apply(observed, 201326)
+        assert _tokens(normalized) == expected
 
 
-def test_profiles_fail_open_with_route_compatible_phase():
-    assert _tokens(POLICY.apply([], 201351)[0]) == {"GREEN_CIRCLE"}
-    assert _tokens(POLICY.apply([], 201290)[0]) == {"RED_CIRCLE"}
-    assert _tokens(POLICY.apply([], 201326)[0]) == {"RED_CIRCLE"}
+def test_profiles_fall_back_to_red_without_a_detection():
+    for group_id in (201351, 201365, 201290, 201326):
+        normalized, reason = POLICY.apply([], group_id)
+        assert _tokens(normalized) == {"RED_CIRCLE"}
+        assert reason.endswith(":fail_open")
     unsupported = [("green", "arrow", True)]
-    assert _tokens(POLICY.apply(unsupported, 201351)[0]) == {"GREEN_CIRCLE"}
+    assert _tokens(POLICY.apply(unsupported, 201351)[0]) == {"RED_CIRCLE"}
 
 
 def test_d1_is_passthrough_because_planner_ignores_it():
@@ -141,24 +158,19 @@ def test_unsupported_arrow_does_not_override_valid_ab_red():
     assert reason.endswith(":filtered")
 
 
-def test_d2_yellow_permission_depends_on_previous_stable_phase():
-    green = [("green", "circle", None)]
-    yellow = [("yellow", "circle", None)]
-    protected_left = [("red", "circle", None), ("green", "arrow", True)]
-
-    POLICY.reset_transition()
-    normalized, _ = POLICY.apply_transition(green, 201326)
-    assert _tokens(normalized) == {"GREEN_CIRCLE"}
-    normalized, reason = POLICY.apply_transition(yellow, 201326)
-    assert _tokens(normalized) == {"RED_CIRCLE"}
-    assert reason.endswith(":yellow_stop_after_disallowed_phase")
-
-    POLICY.reset_transition()
-    normalized, _ = POLICY.apply_transition(protected_left, 201326)
-    assert _tokens(normalized) == {"RED_CIRCLE", "GREEN_LEFT_ARROW"}
-    normalized, reason = POLICY.apply_transition(yellow, 201326)
-    assert _tokens(normalized) == {"YELLOW_CIRCLE"}
-    assert reason.endswith(":yellow_go_after_allowed_phase")
+def test_d2_yellow_is_decided_by_lamp_combination_alone():
+    straight_yellow = [("yellow", "circle", None)]
+    left_yellow = [("red", "circle", None), ("yellow", "circle", None)]
+    for previous in ([("green", "circle", None)], [("red", "circle", None), ("green", "arrow", True)]):
+        POLICY.reset_transition()
+        POLICY.apply_transition(POLICY.apply(previous, 201326)[0], 201326)
+        normalized, reason = POLICY.apply(straight_yellow, 201326)
+        assert _tokens(normalized) == {"RED_CIRCLE"}
+        assert reason.endswith(":corrected")
+        normalized, reason = POLICY.apply(left_yellow, 201326)
+        assert _tokens(normalized) == {"RED_CIRCLE", "YELLOW_CIRCLE"}
+        assert reason.endswith(":valid")
+        assert POLICY.apply_transition(normalized, 201326)[0] == normalized
 
 
 def test_b_and_c_yellow_remain_go_phases_without_conditional_rewrite():
@@ -173,12 +185,13 @@ def test_d2_full_sequence_with_smoothing_has_only_protected_left_yellow_as_go():
     green = [("green", "circle", None)]
     yellow = [("yellow", "circle", None)]
     protected_left = [("red", "circle", None), ("green", "arrow", True)]
+    left_yellow = [("red", "circle", None), ("yellow", "circle", None)]
     red = [("red", "circle", None)]
     smoother = SignalSmoother(window_size=7, majority_count=4)
     POLICY.reset_transition()
 
     stable_outputs = []
-    for phase in (green, yellow, protected_left, yellow, red, green):
+    for phase in (green, yellow, red, protected_left, left_yellow, red, green):
         output = None
         for _ in range(7):
             normalized, _ = POLICY.apply(phase, 201326)
@@ -189,8 +202,9 @@ def test_d2_full_sequence_with_smoothing_has_only_protected_left_yellow_as_go():
     assert stable_outputs == [
         {"GREEN_CIRCLE"},
         {"RED_CIRCLE"},
+        {"RED_CIRCLE"},
         {"RED_CIRCLE", "GREEN_LEFT_ARROW"},
-        {"YELLOW_CIRCLE"},
+        {"RED_CIRCLE", "YELLOW_CIRCLE"},
         {"RED_CIRCLE"},
         {"GREEN_CIRCLE"},
     ]
