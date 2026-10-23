@@ -29,7 +29,7 @@
 
 | 주제 | 근거 |
 |---|---|
-| E12/E24 동일 bag·native 초장거리, LiDAR 0점의 80~90/90~100m score·threshold와 연구 검토 | [57절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023), [58절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-zero-lidar-threshold-research-261023) |
+| E12/E24 동일 bag·native 초장거리, LiDAR 0점 score·연구와 1점 이상 GT 보조 평가 | [57절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023), [58절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-zero-lidar-threshold-research-261023), [59절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-positive-lidar-evaluation-261023) |
 | 512/576 높이·근접 상단 잘림·원거리 픽셀·실제 crop/homography CPU 대조 | [세로 crop 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) |
 | 다음 학습 compile OFF·nearest 공통·실제 5K CPU 입력/GT 검사 | [51절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-next-training-cpu-261015) |
 | 새 차량 장면의 방향·재취득 복구와 실제 고속/회전 50/51·준비 Park·로드 경계 | [독립 장면과 패킷 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md) |

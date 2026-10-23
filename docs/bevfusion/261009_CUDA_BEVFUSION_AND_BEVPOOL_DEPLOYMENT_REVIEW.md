@@ -1,7 +1,9 @@
 # CUDA-BEVFusion과 BEVPool 배포 방식 검토
 
-2026-10-09 KST 조사. 코드 확인과 기존 실측을 바탕으로 한 CURRENT 추천이며,
-이번에 kernel·TensorRT·모델을 구현하거나 GPU 시험을 실행한 것은 아니다.
+2026-10-09 KST 조사. 아래 초기 본문은 **당시의 코드·상태·추천**을 보존한다.
+현재 geometry cache·분리 pooling·병렬화는 이미 적용돼 있으며, 다음 순서는
+[2026-10-23 후속 검토](#e12-partial-tensorrt-priority-261023)를 따른다.
+초기 조사에서 kernel·TensorRT·모델을 구현하거나 GPU 시험을 실행한 것은 아니다.
 Sunny13 수집, raw/GT, production E25 및 tracker 계약은 유지한다.
 
 로컬 참조 코드는 `third_party/lidar_ai_solution/CUDA-BEVFusion`에 있다.
@@ -143,3 +145,122 @@ pooling이 같은 수학 연산과 입출력 계약을 보존하면 기존 학�
 가능하며 재학습이 필수는 아니다. 다만 dtype/합산 순서에 따른 수치 차이는 회귀 검사한다.
 crop·grid·depth·모델 구조 변경 및 quantization은 이 보장과 별개다.
 세부 초기화/검증 계획은 [실행 계획](261009_BASE5_INITIALIZATION_AND_RUNTIME_OPTIMIZATION_PLAN.md)을 따른다.
+
+<a id="e12-partial-tensorrt-priority-261023"></a>
+
+## 2026-10-23 후속: E12의 경량화·후처리·부분 TensorRT 우선순위
+
+사용자는 모델 경량화·후처리 중 어디부터 볼지, TensorRT를 시도할 시점인지 검토하도록 요청했다.
+현재는 **재학습 없는 실행 최적화부터 검토할 시점**이다. 구조 축소·해상도/ROI 변경·INT8을
+동시에 도입하지 않는다. 이번에는 코드·기존 실측·공식 문서를 읽고 기록 출력의 CPU 후처리만
+측정했으며 TensorRT 설치·export·engine build·production 교체는 실행하지 않았다.
+
+### 지금 확인된 비용과 확인하지 않은 비용
+
+- [학습된 E24 4090 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-learned-runtime-vast-261012)의
+  localhost AMP 병렬화 RTT는 평균 72.22/p95 73.30ms였다. 전처리·모델·반환 비용은
+  baseline에서 약 18.50/58.65/0.19ms였다. 같은 가중치의 당시 결과이지 새 E12·실제 LAN/ROS
+  풀스택 계측은 아니다. 별도 CUDA-event stage는 중첩·호스트 idle을 포함하므로 단순 합산하지 않는다.
+- 새 E12의 저장 bag 출력 **5,986프레임**에 현재 floor 0.1/top100·class threshold·회전 NMS를
+  3회 적용했다. 현재 V/P/O 0.4/0.1/0.1에서 CPU 선택+원형 NMS는 평균 **0.0495ms**, p50
+  **0.0442ms**, p95 **0.0937ms**, p99 **0.1194ms**였다. AP용 세 class 0.1에서도 평균
+  0.0500ms였다. 반복 결과의 출력 index는 정확히 같았다.
+- 위 CPU 측정은 GPU→CPU 전송·JPEG/PointCloud 준비·직렬화·ROS 메시지·tracker/planner를
+  제외한다. 다른 native FP32 평가가 동시에 실행 중인 로컬 replay이며 대회 PC의 지연 인증이 아니다.
+  그럼에도 **현재 표본의 NMS 자체를 먼저 GPU/C++로 바꿔 큰 이득을 기대할 근거는 약하다.**
+- 이번 전체 native val의 느린 FP32 offline export 시간을 AMP 병렬화 ROS runtime 시간으로
+  전용하지 않는다. 최신 E12의 실제 단계별 비용은 다음 별도 측정에서 확인해야 한다.
+
+### 추천 순서 — 아직 구현 계획
+
+1. E12·현재 Q90/512×1056/5cm·20cm/depth0.25m·nearest·AMP·병렬화·compile OFF를
+   고정하고 decode/resize·입력 전송·camera·depth/pool·sparse·dense/head·출력/ROS를 측정한다.
+   stage CUDA event와 실제 wall/입력 age·p95를 함께 보되 GPU 부하를 겹쳐 비용을 측정하지 않는다.
+2. 출력이 같은 범위에서 불필요한 host/device 동기화·작은 전송·반복 준비·메모리 할당을 찾는다.
+   GPU에서 score/topK 뒤 CPU로 전달하는 후보도 동점 순서·NMS 결과·원점을 보존할 때만 채택한다.
+   latest-only 큐를 순서형 backlog로 바꾸거나 센서 header 지연을 GPU 속도로 해결했다고 쓰지 않는다.
+3. **첫 TensorRT 후보는 고정 shape의 camera backbone+neck**, 이후 측정 결과에 따라 depthnet이나
+   dense fusion/head를 추가한다. 현재 custom pooling·voxelization·spconv는 처음에는 유지한다.
+   Torch-TensorRT 부분 변환 또는 ONNX+TensorRT 중 현재 Torch/CUDA와 맞는 경로를 사전검사한다.
+   직접 CUDA tensor/stream 연결 비용까지 포함하고 CPU 왕복·과도한 graph partition이 생기면 기각한다.
+4. 후보별 원형 tensor·최종 BBox/score/yaw·전체 AP·거리/class·0점/sparse·근거리/후방과
+   연속 bag의 중복·ID/잔류를 비교한다. 과거 compile에서 작은 수치 차이가 query 선택과 추적 차이로
+   이어졌으므로 평균 mAP가 같다는 이유만으로 통과시키지 않는다. 기존 eager OFF 복귀를 남긴다.
+5. 실제 목표 4090 환경에서 engine 생성·입력 준비 포함 비용·동시 신호등/스택·24GB 메모리를
+   검증한 뒤 배포한다. 기본 engine을 로컬 5060 Ti에서 만들면 4090에서 그대로 동작한다고 가정하지 않는다.
+   compatibility mode는 별도 성능/호환 trade-off이므로 목표 GPU 빌드가 우선이다.
+
+모델 채널/해상도 축소·pruning/distillation은 성능 손실 또는 재학습이 필요한 별도 후보이며,
+초장거리 저신뢰도 문제가 남은 현재 첫 선택은 아니다. INT8/FP8도 대표 calibration/정확도
+검증이 필요해 뒤로 둔다. TensorRT는 실행 최적화이고 LiDAR 0점의 관측 단서를 새로 만들지 않는다.
+운영 threshold/NMS 의미 정책 개선은 latency 최적화와 별도 축으로 평가한다.
+
+공식 근거: [NVIDIA import 경로](https://github.com/NVIDIA/TensorRT/blob/main/documents/import_workflows.md),
+[Torch-TensorRT 미지원 연산·부분 fallback](https://docs.pytorch.org/TensorRT/user_guide/compilation/unsupported_ops.html),
+[engine GPU/버전 호환](https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/engine-compatibility.html),
+[CUDA-BEVFusion](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-BEVFusion).
+현재 버전·호환성을 확인한 뒤 고정하며 기존 학습/실행 이미지를 최신 패키지로 즉시 업그레이드하지 않는다.
+
+기록 후처리 산출물은 `artifacts/evaluation/bevfusion/e12_runtime_optimization_review_261023_v1/`의
+`profile_recorded_postprocess.py`, `RECORDED_POSTPROCESS.json`이다. 원형 NMS source·예측 SHA
+전후 불변과 반복 출력 동일성을 확인했다. 실제 TensorRT 속도 향상률은 아직 측정하지 않았다.
+
+### 외부 AI의 TensorRT 주장과 실제 공개 근거 대조
+
+사용자가 전달한 Gemini 답변은 검토 출발점이지 성능 근거로 채택하지 않았다.
+
+| 주장 | 공식 자료에서 확인한 사실 | 현재 Base5에 대한 판단 |
+|---|---|---|
+| Orin에서 25 FPS 이상 | NVIDIA README의 ResNet50 FP16은 18 FPS, FP16+INT8은 25 FPS다. PyTorch 8.4 FPS는 SwinTiny·RTX 3090 조건이다 | 25 FPS는 실제 공개 수치지만 같은 모델·GPU의 8.4→25 가속 대조가 아니다. 우리 4090의 예상 FPS로 전용하지 않는다 |
+| 양자화해도 정확도 하락이 거의 없다 | 해당 nuScenes ResNet50 mAP는 PyTorch 67.93, FP16 67.89, PTQ 67.66이다 | 해당 조건의 작은 하락은 확인된다. 우리 obstacle·0점/희소·원거리 score·yaw·추적의 보존은 따로 검증해야 한다 |
+| pooling 수십 배 가속 | 2026 NVIDIA 글의 Blackwell V2 FP16 274µs→V3 FP16 17.3µs는 약 15.8배다. 이미 depth-outer가 들어간 V2+DO 37.8µs와 비교하면 약 2.18배다 | kernel·baseline·GPU에 따라 이득이 다르다. 우리 geometry cache·분리 pooling의 기존 이득을 다시 더하거나 전체 모델 가속률로 쓰지 않는다 |
+| sparse convolution도 가속 가능 | NVIDIA에는 별도 `libspconv` 추론 엔진이 있고, Autoware에는 sparse backend·custom plugin 연동 경로가 있다 | 가능성이 있는 실제 후보이며 단순 ONNX export로 자동 변환되는 것은 아니다. 현재 spconv와 같은 입출력·가중치·좌표/stride를 검증해야 한다 |
+| 실시간 배포에는 TensorRT가 필수 | 이런 보편적 필수 조건은 공개 결과에서 도출되지 않는다 | 현재 PyTorch AMP 병렬화도 과거 4090에서 약 72ms였다. 필요한 것은 목표 주기·p95·age·동시 스택 검증이며 제품명 자체가 아니다 |
+
+근거는 [CUDA-BEVFusion README](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/master/CUDA-BEVFusion/README.md),
+[NVIDIA pooling 글](https://developer.nvidia.com/blog/accelerating-bev-pooling-on-nvidia-gpus-for-physical-ai-applications/),
+[Autoware 모델 설명](https://huggingface.co/AutowareFoundation/bevfusion/blob/main/README.md)이다.
+pooling 글의 Blackwell·A6000 측정은 RTX 4090 실측이 아니며 FP8 경로도 별도 후보로 둔다.
+
+### 공개 구현을 그대로 이식할 수 없는 이유와 재사용 후보
+
+로컬 NVIDIA 참조 revision `7c1623f234d5a9794fd862c9456f68f87ae7b900`의 camera/head export,
+`bevfusion.cpp`, `lidar-scn.cpp`, `camera-bevpool.cu`와 sparse library 설명을 대조했다.
+
+- export는 구 MIT `encoders.camera` API와 nuScenes head 계약을 사용한다. 현재 MMEngine
+  모듈·3 class·7D box·4 camera·512×1056·depth396bin을 그대로 처리하는 export가 아니다.
+  공개 예제의 6 camera·256×704·118bin·velocity 포함 head를 우리 모델로 바꾸어야 한다.
+- camera depth 호출에는 point feature 수 5가 고정되어 있다. 우리 XYZI 4열 입력을 5열로
+  오독하지 않도록 바꾸어야 한다. voxel 좌표 순서·sparse weight layout·BN folding도 대조 대상이다.
+- camera normalization의 보간·카메라별 입력 크기와 crop 행렬도 우리 CPU cubic 전처리와
+  동등하다고 가정하지 않는다. 공개 기본 입력 크기나 grid에 맞추려고 재학습 조건을 바꾸지 않는다.
+- 참조 forward는 LiDAR와 camera를 같은 전달 stream에서 순서대로 호출한다. 현재의
+  두 branch 병렬화를 유지하지 못하면 개별 kernel이 빨라도 전체 이득이 줄 수 있다.
+- 참조 timer의 `Total`은 CopyLidar와 ImageNorm을 합산하지 않는다. 입력 준비·반환을 포함한
+  우리 RTT나 실제 센서 header→ROS 수신 age와 직접 비교하지 않는다. 기존 localhost RTT도
+  실제 LAN/ROS 수신·tracker/planner를 포함한 측정은 아니다.
+- 재사용 후보는 feature/depth 분리 pooling·packed/vectorized load·FP32 누적,
+  GPU voxelization·재사용 buffer·sparse 추론 backend·부분 engine export다. 이미 구현한
+  cache/분리 pooling을 신규 성과로 세지 않고 동일 입력의 추가 이득만 측정한다.
+
+우리 `morai_pool_optimization.py`와 `separated_bev_pool.cu`에도 구체적 대조 지점이 남아 있다.
+현재 forward는 depth/feature를 FP32로 변환하고 scalar channel별 interval 합산을 수행한다.
+따라서 FP16 load+FP32 누적·channel vectorization은 새 inference 전용 후보가 될 수 있다.
+하지만 현 빌드는 `--fmad=false`이며 원형의 곱·합 순서를 지키려는 계약이 있다. half2 누적이나
+FMA 활성화를 출력 동일 개선이라고 부르지 않는다. 또한 calibration signature는 cache hit에서도
+작은 GPU→CPU 값 복사를 수행하므로, 값 변경·카메라별 crop·stream 무효화 보호를 유지하면서
+동기화 비용을 줄일 여지가 있는지 계측한다. 현재 코드가 틀렸다고 판정하거나 즉시 생략하지 않는다.
+
+[Autoware 구현](https://github.com/autowarefoundation/autoware_universe/tree/main/perception/autoware_bevfusion)은
+별도 image-backbone engine·사전 geometry·GPU buffer·sparse/custom plugin 경로의 참고가 된다.
+하지만 ROS2·6 camera·17cm voxel·500 proposals·다른 class/센서 계약이므로 노드/가중치를
+통째로 교체하지 않는다. 모델 카드의 plugin 명칭만 믿지 않고 CMake의 cumm/spconv 연결과
+실제 engine plugin 경로를 함께 확인한다. 최신
+[spconv_cpp](https://github.com/autowarefoundation/spconv_cpp)는 CUDA 13 기준이므로 기존
+Torch 2.7.1/CUDA 12.8 환경에 그대로 덮어쓰지 않는다.
+
+따라서 위 추천 순서의 **camera FP16 부분 TRT는 첫 구현 후보**로 유지하되 sparse/CUDA를
+검토 대상에서 제외하지 않는다. E12 단계 측정에서 sparse 또는 view transform이 임계 경로에
+남으면 같은 저장 activation으로 해당 backend/kernel만 A/B한다. custom backend가 필요한
+전체 이주는 첫 부분 후보의 이득·이식 비용·정확도 검증 후 판단한다. 아직 새 engine의 성능,
+전체 이식 성공, 기존 checkpoint의 자동 호환을 확인한 상태는 아니다.
