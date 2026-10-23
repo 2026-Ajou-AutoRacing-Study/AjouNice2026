@@ -88,7 +88,7 @@ class BundleTests(unittest.TestCase):
                     bundle.install(SimpleNamespace(archive=None, check_only=True))
                 network.assert_not_called()
 
-    def test_check_only_rejects_stale_sources_even_when_weights_exist(self):
+    def test_check_only_accepts_identical_weights_after_checkout_update(self):
         with tempfile.TemporaryDirectory() as t:
             root = Path(t)
             _, descriptor, doc = self.fixture(root)
@@ -99,7 +99,7 @@ class BundleTests(unittest.TestCase):
                 name: bundle.digest(bundle.ROOT / name) for name in names
             }
             changed = 'base_ws/src/sensor_interface/launch/lidar.launch'
-            doc['source_files_sha256'][changed] = 'stale source hash'
+            doc['source_files_sha256'][changed] = '0' * 64
             descriptor.write_text(json.dumps(doc))
             p = dict(bundle.profile('e24'), checkpoint_path=str(destination),
                      sha256=doc['checkpoint_sha256'])
@@ -107,8 +107,7 @@ class BundleTests(unittest.TestCase):
                     patch.object(bundle, 'profile', return_value=p), \
                     patch.object(bundle.subprocess, 'run') as network, \
                     patch.object(bundle, 'prepare') as prepare:
-                with self.assertRaisesRegex(ValueError, changed):
-                    bundle.install(SimpleNamespace(archive=None, check_only=True))
+                bundle.install(SimpleNamespace(archive=None, check_only=True))
                 network.assert_not_called()
                 prepare.assert_not_called()
             self.assertEqual(destination.read_bytes(), b'known inference weights')
@@ -120,13 +119,28 @@ class BundleTests(unittest.TestCase):
         doc = dict(schema=bundle.SCHEMA, model='e24', checkpoint_sha256=bundle.profile('e24')['sha256'],
                    source_files_sha256={name: bundle.digest(bundle.ROOT / name) for name in names})
         bundle.validate_descriptor(doc)
-        doc['source_files_sha256'][names[0]] = 'wrong'
+        doc['source_files_sha256'][names[0]] = '0' * 64
         with self.assertRaises(ValueError): bundle.validate_descriptor(doc)
+        bundle.validate_descriptor(doc, require_matching_sources=False)
 
-    def test_pinned_release_descriptor_matches_actual_checkout(self):
-        # A fresh synthetic descriptor cannot catch a stale production ZIP
-        # after an otherwise compatible launcher/telemetry source update.
-        bundle.validate_descriptor(json.loads(bundle.DESCRIPTOR.read_text()))
+    def test_pinned_release_stays_installable_without_repacking_unchanged_weights(self):
+        # Snapshot drift is an optional historical audit, not a reason to
+        # re-upload exactly the same E24 checkpoint on each code update.
+        bundle.validate_descriptor(json.loads(bundle.DESCRIPTOR.read_text()), require_matching_sources=False)
+
+    def test_install_descriptor_still_rejects_unsafe_or_malformed_source_pins(self):
+        doc = json.loads(bundle.DESCRIPTOR.read_text())
+        for name, value in (('../escape.py', '0' * 64), ('/absolute.py', '0' * 64),
+                            ('bad\\path.py', '0' * 64), ('fine.py', 'not-sha256')):
+            with self.subTest(name=name):
+                bad = dict(doc, source_files_sha256={name: value})
+                with self.assertRaises(ValueError):
+                    bundle.validate_descriptor(bad, require_matching_sources=False)
+
+    def test_install_descriptor_never_permits_a_different_checkpoint_identity(self):
+        doc = json.loads(bundle.DESCRIPTOR.read_text())
+        with self.assertRaises(ValueError):
+            bundle.validate_descriptor(dict(doc, checkpoint_sha256='0' * 64), require_matching_sources=False)
 
 
 if __name__ == '__main__':

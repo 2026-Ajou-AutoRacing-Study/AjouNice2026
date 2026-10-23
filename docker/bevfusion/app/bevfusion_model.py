@@ -65,8 +65,45 @@ class BevFusionModel:
         compile_reference_layout=False,
         parallel_camera=False,
         point_intensity_source='native',
+        camera_tensorrt_engine=None,
+        camera_tensorrt_metadata=None,
+        pool_fused_layout=False,
     ):
-        config = Config.fromfile(config_path)
+        from app.camera_tensorrt import (
+            load_camera_metadata, sha256_file, validate_camera_tensorrt_options)
+        from app.acceleration_startup import AccelerationUnavailableError
+        self._closed = False
+        self.camera_tensorrt = None
+        self.pool_runtime_layout = None
+        self.inference_optimization = None
+        self.preprocessor = None
+        if pool_fused_layout and not base5_runtime:
+            raise ValueError("Fused pool layout is an explicit Base5-only eval optimization")
+        try:
+            requested_trt = validate_camera_tensorrt_options(
+                camera_tensorrt_engine, camera_tensorrt_metadata,
+                base5_runtime=base5_runtime, use_amp=use_amp, parallel_camera=parallel_camera,
+                compile_parts=compile_parts, fuse_dense_bn=fuse_dense_bn,
+                camera_cuda_graph=camera_cuda_graph, eager_camera_numerics=eager_camera_numerics,
+                compile_reference_layout=compile_reference_layout,
+                temporal_feature_cache=temporal_feature_cache, device=device,
+                warmup_iterations=warmup_iterations)
+        except ValueError as error:
+            raise AccelerationUnavailableError("engine_runtime_incompatible", str(error)) from error
+        trt_contract = None
+        if requested_trt:
+            # Match the selected local checkpoint/config before GPU allocation.
+            # E12 engine + production E24 checkpoint must fail, never auto-switch.
+            trt_contract = dict(checkpoint_sha256=sha256_file(checkpoint_path),
+                                config_sha256=sha256_file(config_path))
+            try:
+                load_camera_metadata(camera_tensorrt_metadata, trt_contract)
+            except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+                raise AccelerationUnavailableError("engine_metadata_unavailable",
+                    "Camera engine metadata is missing, invalid or incompatible: " + str(error)) from error
+        # Runtime configs use legacy _base_ inheritance/deepcopy; do not let
+        # MMEngine version-dependent automatic lazy classification change it.
+        config = Config.fromfile(config_path, lazy_import=False)
         config.model.img_backbone.init_cfg = None
         bbox_head_type = str(config.model.bbox_head.get("type", ""))
         self.requires_query_memory_context = (
@@ -107,12 +144,23 @@ class BevFusionModel:
             self.model = init_model(config, checkpoint_path, device=device)
         restore_view_geometry(self.model.view_transform)
         self.model.eval()
-        self.inference_optimization = None
-        if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout or parallel_camera:
-            self.inference_optimization = InferenceOptimization(
-                self.model, compile_parts, fuse_dense_bn, camera_cuda_graph=camera_cuda_graph,
-                eager_camera_numerics=eager_camera_numerics, reference_layout=compile_reference_layout,
-                parallel_camera=parallel_camera)
+        try:
+            if pool_fused_layout:
+                from app.pool_runtime_layout import install_fused_pool_layout
+                self.pool_runtime_layout = install_fused_pool_layout(self.model.view_transform)
+            if requested_trt:
+                from app.camera_tensorrt import install_camera_tensorrt
+                self.camera_tensorrt = install_camera_tensorrt(
+                    self.model, camera_tensorrt_engine, camera_tensorrt_metadata,
+                    expected_contract=trt_contract, device=device)
+            if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout or parallel_camera:
+                self.inference_optimization = InferenceOptimization(
+                    self.model, compile_parts, fuse_dense_bn, camera_cuda_graph=camera_cuda_graph,
+                    eager_camera_numerics=eager_camera_numerics, reference_layout=compile_reference_layout,
+                    parallel_camera=parallel_camera)
+        except Exception:
+            self.close()
+            raise
         # Adapted legacy checkpoints may not carry MMDetection3D 1.x
         # dataset_meta. The explicitly validated runtime config is the
         # authoritative label contract; merged Base5 already learned animals as
@@ -138,14 +186,18 @@ class BevFusionModel:
             enable_cache(point_cloud_range, self.temporal_maximum_age_sec)
         self.use_amp = bool(use_amp)
         self.device_type = torch.device(device).type
-        self.preprocessor = Base3OnlinePreprocessor(
-            calibration,
-            camera_workers=preprocess_workers,
-            point_dim=self.point_dim,
-            rgb_after_crop=rgb_after_crop,
-            point_intensity_source=(point_intensity_source if base5_runtime else 'native'),
-            **preprocessing_options_from_config(config),
-        )
+        try:
+            self.preprocessor = Base3OnlinePreprocessor(
+                calibration,
+                camera_workers=preprocess_workers,
+                point_dim=self.point_dim,
+                rgb_after_crop=rgb_after_crop,
+                point_intensity_source=(point_intensity_source if base5_runtime else 'native'),
+                **preprocessing_options_from_config(config),
+            )
+        except Exception:
+            self.close()
+            raise
         self.warmup_iterations = max(0, int(warmup_iterations))
         self.warmed_up = False
         self.last_query_memory_diagnostics = {}
@@ -153,7 +205,38 @@ class BevFusionModel:
         if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
             torch.backends.cuda.matmul.allow_tf32 = True
-        self._warm_up_before_ready()
+        try:
+            self._warm_up_before_ready()
+        except Exception:
+            self.close()
+            raise
+
+    def execution_status(self):
+        return dict(camera_tensorrt=(self.camera_tensorrt.adapter.status()
+                    if self.camera_tensorrt is not None else dict(enabled=False)),
+                    pool_fused_layout=(dict(self.pool_runtime_layout.report)
+                    if self.pool_runtime_layout is not None else dict(enabled=False)),
+                    closed=self._closed)
+
+    def close(self):
+        """Drain TRT before releasing its parents and restore opt-in hooks."""
+        if getattr(self, '_closed', False):
+            return
+        first_error = None
+        for resource, method in ((getattr(self, 'inference_optimization', None), 'disable'),
+                                 (getattr(self, 'camera_tensorrt', None), 'disable'),
+                                 (getattr(self, 'pool_runtime_layout', None), 'close'),
+                                 (getattr(self, 'preprocessor', None), 'close')):
+            if resource is None:
+                continue
+            try:
+                getattr(resource, method)()
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+        self._closed = True
+        if first_error is not None:
+            raise first_error
 
     def infer(
         self,
@@ -166,6 +249,8 @@ class BevFusionModel:
         timestamp_sec=None,
         lidar_pose_world=None,
     ):
+        if self._closed:
+            raise RuntimeError("BEVFusion model is closed")
         preprocess_start = time.perf_counter()
         batch = self.preprocessor.prepare(
             points,

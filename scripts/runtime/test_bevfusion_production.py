@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -9,6 +10,8 @@ import xml.etree.ElementTree as ET
 
 from bevfusion_production_profile import profile,digest,ROOT,resolve_checkpoint
 from prepare_bevfusion_production import prepare
+
+sys.path.insert(0,str(ROOT/'docker/bevfusion'))
 
 
 class ProductionTests(unittest.TestCase):
@@ -92,6 +95,67 @@ class ProductionTests(unittest.TestCase):
         for key in ('box_center_origin','depth_raster_policy'):
             bad=copy.deepcopy(metadata);del bad['runtime_identity'][key]
             with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
+
+    def test_readiness_checks_intrinsic_source_and_camera_order(self):
+        spec=importlib.util.spec_from_file_location('calibration_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        order=['camera_front','camera_front_left','camera_front_right','camera_back']
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_intrinsic_source='horizontal_fov',expected_camera_order=order)
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[]),
+            calibration=dict(config_sha256='sensor',intrinsic_source='horizontal_fov',
+                cameras=[dict(frame_id=name) for name in order]),
+            point_intensity_source='ros255',image_final_dim=[512,1056],classes=['vehicle','pedestrian','obstacle'])
+        module.validate_production_identity(metadata,args)
+        bad=copy.deepcopy(metadata);bad['calibration']['intrinsic_source']='focal_length_pixel'
+        with self.assertRaisesRegex(ValueError,'intrinsic-source'):module.validate_production_identity(bad,args)
+        bad=copy.deepcopy(metadata);bad['calibration']['cameras'].reverse()
+        with self.assertRaisesRegex(ValueError,'camera order'):module.validate_production_identity(bad,args)
+
+    def test_safe_backend_requires_actual_eager_not_a_claimed_fallback_label(self):
+        spec=importlib.util.spec_from_file_location('backend_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_camera_backend='eager')
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[]),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',
+            image_final_dim=[512,1056],classes=['vehicle','pedestrian','obstacle'])
+        # Existing no-engine identities remain valid without any new fields.
+        module.validate_production_identity(metadata,args)
+        metadata['runtime_identity']['execution_optimization']=dict(
+            camera_tensorrt=dict(enabled=False),
+            camera_tensorrt_startup=dict(policy='prefer',fallback=True,active_backend='eager'))
+        module.validate_production_identity(metadata,args)
+        for camera in (dict(enabled=True,loaded=True,healthy=True),
+                       dict(enabled=True,loaded=False,healthy=False)):
+            bad=copy.deepcopy(metadata)
+            bad['runtime_identity']['execution_optimization']['camera_tensorrt']=camera
+            with self.assertRaisesRegex(ValueError,'does not use a TensorRT camera'):
+                module.validate_production_identity(bad,args)
+        # Optional fallback status must never waive the selected weight/config.
+        for key in ('checkpoint_sha256','config_sha256'):
+            bad=copy.deepcopy(metadata);bad['runtime_identity'][key]='unselected-model'
+            with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
+
+    def test_safe_pool_identity_rejects_preexisting_optional_fused_pool(self):
+        spec=importlib.util.spec_from_file_location('safe_pool_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_camera_backend='eager',expected_pool_fused_layout='false')
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[]),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',
+            image_final_dim=[512,1056],classes=['vehicle','pedestrian','obstacle'])
+        # No new optimization fields on a legacy baseline still means disabled.
+        module.validate_production_identity(metadata,args)
+        metadata['runtime_identity']['execution_optimization']=dict(
+            camera_tensorrt=dict(enabled=False),pool_fused_layout=dict(enabled=False))
+        module.validate_production_identity(metadata,args)
+        bad=copy.deepcopy(metadata)
+        bad['runtime_identity']['execution_optimization']['pool_fused_layout']['enabled']=True
+        with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
 
 
 if __name__=='__main__':unittest.main()

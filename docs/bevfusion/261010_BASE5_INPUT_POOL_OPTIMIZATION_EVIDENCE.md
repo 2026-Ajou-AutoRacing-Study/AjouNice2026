@@ -7605,3 +7605,183 @@ Vast는 SHA가 확인된 완료 archive가 따로 있는 3,020,423,168바이트 
 relative third-party 경로 실패와 native infos 전송 완료 전 시작 실패도 덮어쓰지 않았다.
 전체 native val A/B는 원래 GT·0점·빈 프레임을 모두 보존하고 같은 AMP/TF32/병렬화로
 비교한다. 과거 59절의 FP32/TF32 OFF 94.07%와 새 AMP 결과의 차이를 TRT 효과로 쓰지 않는다.
+
+<a id="continuous-trt-competition-startup-261023"></a>
+
+## 61. 연속 bag의 부분 TRT·head 비용과 실대회 시작 거부 경로 감사 — 2026-10-23
+
+60절 이후의 추가 결과다. 사용자는 작은 수치 차이와 속도 이득을 함께 판단하고, 선택 가속기의
+자격 검사 때문에 현장에서 detector 전체가 시작하지 못하는 위험을 우선 검토하도록 요청했다.
+**Production은 E24이며 E12로 자동 승격하지 않았다.** 학습·GT·센서·threshold·후단 정책은 바꾸지 않았다.
+빌린 PC·MORAI·주행 제어는 사용하지 않았다. 다음 결과는 대회 4090/24GB 풀스택 인증과 다르다.
+
+### 연속 원본 ROS 입력 480장과 실제 EKF 코어
+
+학습된 동일 E12·4090/48GB·AMP/TF32·parallel ON·compile OFF에서 eager→camera TRT→eager
+복원을 비교했다. O02 정적 장애물·P01 보행자·H03 고주로에서 각 160개 **연속 원본 입력**을
+모델 출력이나 GT 정답 여부로 고르지 않고 선택했다. 구간 길이는 각각 14.20/13.57/13.67초다.
+원본 JPEG는 재압축하지 않았으며 XYZI 0–255→한 번 ÷255·calibration·시간 순서를 보존했다.
+조건별 처음 프레임을 포함하고 빈 출력도 삭제하지 않았다. sparse 원형/첫 사용 비용도 남겼다.
+
+| 480장 서비스 비용 | 기존 eager | Camera backbone+neck TRT |
+|---|---:|---:|
+| 평균 | 75.25ms | 65.68ms |
+| p95 | 75.68ms | 65.85ms |
+| 실제 전달 박스 | 903개 | 903개 |
+
+원래 V/P/O 0.40/0.10/0.10·상위 100·class-aware rotated NMS 0.5 경계의 전달 박스는
+Vehicle 64 / Pedestrian 167 / Obstacle 672개이며 추가·누락 없이 모두 대응했다.
+대응 검출 XY 차이의 최대는 약 1.13mm다. 원형 복원 후 raw 예측은 480장 모두 정확히 같았다.
+다만 저점수 raw query의 완전 동일성은 통과하지 않았으며 이것만으로 실용 후보를 기각하지 않았다.
+
+같은 전달 결과를 수정하지 않은 C++ EKF 코어에 조건·장면별 새 프로세스로 재생했다.
+현재 pipeline의 CTRV·association 5m·XY noise 0.4m·coast 0.5/1초·보행자 Gaussian 순위·
+기존 duplicate-birth guard를 명시했다. 임의 detector velocity fusion은 넣지 않았다.
+
+| 장면 | 대응된 confirmed 상태 XY 차이 p95 / 최대 | confirmed 집합 차이 | 교차 실행 ID 대응 교체 |
+|---|---:|---:|---:|
+| O02 | 0.93 / 6.17cm | 0 | 0 |
+| P01 | 0.045 / 0.133cm | 0 | 0 |
+| H03 | 0.456 / 0.718cm | 0 | 0 |
+
+위치는 작아도 모든 형상 차이가 작았다고 요약하지 않는다. P01의 약 19m 보행자 1관측에서
+score 약 0.912의 검출 yaw가 약 64° 달라져 박스 모서리 최대 약 29cm·BEV IoU 0.632의
+예외가 있었다. 이 관측의 실제 코어는 같은 ID를 유지했고 차이가 yaw 3.164°·모서리 2.083cm·
+중심 0.492mm로 작아졌다. 보행자 코어 전체 yaw p95/최대는 2.024/3.164°다.
+O02에서 근접 겹침 진단 33관측·coasting 367관측은 양쪽이 같았다. 기존 중복 문제를 TRT가
+해결했다고도, 이 수만으로 모든 박스를 오검출이라고도 해석하지 않는다.
+
+실제 ROS 노드의 TF·yaw canonicalizer·30Hz 출력·UNKNOWN stationary policy·Map-CV·planner는
+이 코어 시험에서 실행하지 않았다. 준비된 Ego yaw에는 기존 −1.347° 보정이 있어 재적용하지 않았다.
+ID 대응 차이 0은 GT IDF1이나 대회 주행 안전의 인증이 아니다. 제한된 세 개발 장면의 결과다.
+
+### 추가 head 후보: 불필요한 attention weight와 좌표 복사
+
+실제 E12의 head는 Q1이 아니라 `MoraiRectangularTransFusionHead`가 상속한 TransFusionHead다.
+같은 입력에서 뜬 실제 activation을 사용해 제안 선택 full argsort→topk, MMCV attention의
+미사용 weight 반환 제거(`need_weights=False`/SDPA), 고정 BEV 위치의 device 복사 cache를 나눠 비교했다.
+레이어·가중치·학습 코드를 바꾸거나 전역 torch 함수를 교체하지 않는 eval 인스턴스 hook이다.
+
+2개 activation·조건별 20회 국소 head 비용은 원형 **7.80ms**, topk **7.79ms**, SDPA **5.08ms**,
+topk+SDPA **5.10ms**, 둘+위치 cache **4.25ms**, 복원 **7.89ms**였다.
+**topk는 이득이 없어 채택하지 않는다.** 작동한다는 이유로 모든 부분을 TRT로 이식하지 않는다.
+국소 7.8→4.3ms를 곧바로 전체 서비스 이득이라고 계산하지 않았다.
+
+이어 같은 480장을 camera TRT 고정→**SDPA+위치 cache만** ON→복원으로 추가 비교했다.
+topk는 OFF다. 평균 서비스는 **65.97→60.34→65.53ms**, p95는 **66.01→60.88→65.46ms**,
+모델 구간 평균은 **44.31→39.72→44.63ms**였다. 최대 서비스 332/340/379ms 예외도 보존했다.
+반복 원형끼리의 호스트 변동을 인정하며 평균뿐 아니라 중앙값·p95를 함께 본다.
+전달 903박스는 추가·누락 없이 대응했고 최대 XY 차이는 0.222mm다. 보행자 1관측에서 yaw
+최대 약 6.53° 예외가 남았다. 작은 중심 오차로 yaw도 동일하다고 결론내리지 않았다.
+
+이 추가 비교의 새 실제 EKF 코어에서도 confirmed 집합·교차 실행 ID 대응 교체는 0이었다.
+XY 차이 p95/최대는 O02 **0.728/2.848cm**, P01 **0.010/0.019cm**, H03 **0.226/0.356cm**다.
+O02의 최대 모서리 차이는 3.399cm·속도 벡터 차이는 0.097m/s였으며 원형 복원은 정확히 같았다.
+위와 같은 ROS 노드/후단 제한이 그대로 있다. **이 head 후보는 4,614장 전체 native AP를 아직
+비교하지 않았으므로 기본 실행에 연결하지 않았다.** 부분 camera TRT의 앞선 전체 AP 통과를
+새 SDPA 후보의 AP 인증으로 전용하지 않는다. 성능과 비용상 유망한 후속 후보다.
+
+### CPU 준비: CPU 사용량을 두 배로 늘리는 작은 이득은 선택하지 않음
+
+6환경×4개 원본 native 입력을 순·역방향으로 비교했다. 실제 픽셀 51,904,512개·pointcloud·
+투영 값은 해당 표본에서 같았다. 고정 Docker CPU에서 원형 camera worker 4/OpenCV 1의
+프레임 준비 평균 8.398ms·CPU 15.165ms/frame에 비해 RGB 변환을 crop 뒤로 옮기기는 8.427ms로
+이득이 없었다. OpenCV 12스레드는 7.913ms로 약 0.486ms 빨랐지만 CPU 32.439ms/frame으로
+약 2.14배를 사용했다. ROS 풀스택 경쟁을 고려해 둘 다 기본 채택하지 않았다. 현재 4/1을 유지한다.
+이 CPU 표본은 앞의 GPU 서비스 전처리 시간을 대체하지 않으며 모든 이미지의 bitwise 동일성을 보증하지 않는다.
+
+### 실제로 시작을 막을 수 있었던 경로와 변경
+
+연구용 비교의 수치 gate와 실제 production 시작 조건을 분리해 코드 전반을 확인했다.
+raw query 완전 동일·W&B·Drive·학습 계약 파일·실험 AP 보고서는 기본 production 시작의 필수 입력이 아니다.
+설정하지 않은 TensorRT/compile/head 연구 후보도 기본 eager 실행을 거부하지 않는다.
+
+| 발견·조건 | 현재 처리 |
+|---|---|
+| 선택 engine의 가중치·GPU·TRT·binding 불일치가 전체 시작 실패로 전파 | engine 미지정 기본 `off`; 지정 시 기본 `prefer`, 첫 enqueue 전의 분류된 가속기 준비 실패만 같은 모델 eager로 한 번 복귀 |
+| 가속기 강제 시험 | 명시적 `require`만 계속 엄격 거부. 미준비 현장 기본값으로 쓰지 않음 |
+| 선택 가속기를 완전히 배제하고 시작 | `bevfusion --safe --model e24`: 같은 모델·threshold·센서, 원래 AMP/parallel·nearest, TRT/pool OFF, baseline 이미지 |
+| 과거 `INTRINSIC_SOURCE` 환경변수 때문에 server ready 이후 모든 bridge 요청 거절 가능 | production 실행기가 bridge와 동일한 `horizontal_fov`를 명시하고 health에서도 camera order와 함께 확인 |
+| Docker 자동 재시작으로 같은 서버가 이미 실행 중이거나 warmup 중 | 제한된 준비 대기 후 정확히 같은 eager·선택 계약일 때 재사용. 새 세션은 해당 컨테이너를 stop하지 않음 |
+| 이전 ZIP 참고 코드와 현재 checkout 바이트 차이 때문에 weights 설치도 거부 | 설치는 동결 ZIP/참고 파일·weights SHA·경로 안전성을 검증. 과거 snapshot 정확 비교는 별도 `audit-runtime-snapshot`으로 분리 |
+| 정상 이미지·가중치가 이미 설치됐는데 cloud 연결 요구 | 기본 추론과 읽기 전용 preflight에 인터넷·W&B·Drive·registry 로그인을 요구하지 않음 |
+| 매 컨테이너 시작 시 JIT cache 소실 | Compose에 torch extension cache volume 추가. GPU/소스가 달라지면 재컴파일은 여전히 필요 |
+
+가속기 복귀 시 checkpoint/config·class·입력·AMP·병렬화·threshold를 바꾸지 않는다. E12 engine을
+E24에 쓸 수 없다는 이유로 E12 가중치를 자동 선택하지 않는다. 실패한 생성자의 CUDA 참조는
+traceback 밖에서 정리하고 CUDA health 확인 후 한 번만 eager를 생성한다. 직접 adapter API는 엄격하다.
+선택 engine의 source hash는 이력이며 모든 Python 구현의 의미 호환성을 자동 인증하지 않는다.
+따라서 engine은 실제 검증한 소스 snapshot/receipt와 관리하고 camera 구현 변경 시 재검증한다.
+
+**유지하는 필수 거부:** weights 누락·SHA/클래스/shape 오류, 잘못된 sensor/config·camera 순서·
+강도·crop 계약, CUDA/driver 자체 실패, 실제 다른 canonical detector publisher다. 이를 무시하고
+준비 완료로 보고하면 다른 모델·좌표·입력을 정상 detector처럼 사용하게 될 수 있다.
+잘못된 필수 입력을 임의 교체하거나 다른 사람이 켠 노드/컨테이너를 자동 kill하지 않는다.
+
+**기동과 프레임 누락은 별도다.** 원래 bridge의 카메라 누락·LiDAR와 50ms 이상 차이·잘못된 JPEG/
+pointcloud는 해당 프레임을 사용하지 않는다. single-frame production의 deskew·temporal·query
+memory는 OFF이므로 정상 실행이 localization pose coverage를 새로 요구하지 않는다.
+센서·TF/LAN 입력과 실제 토픽 발행의 확인은 여전히 필요하다. 동기화 기준을 이번에 완화하지 않았다.
+
+Validator 경로도 별도로 읽었다. Base5 E24의 새 계약 생성→검증→실행 명령 구성은 현재 소스로
+통과했고 checkpoint 확인·config graph `11740c4549…`·참조 325파일을 확인했다. 명령은 구성만
+했으며 GUI/주행을 실행하지 않았다. 현재 Base5 trial은 engine 인자를 전달하지 않아 eager다.
+**이전 실행에 대한 resume의 source/config 변경 차단은 유지한다.** 새 코드로는 새 실험 계약을
+생성해야 하며, 이 재현성 보호를 대회 production의 매번 과거 ZIP 코드 대조와 혼동하지 않는다.
+`--safe`는 production shell 옵션이지 validator GUI에 새 기능을 배포한 것이 아니다.
+
+CUDA enqueue 이후 실패·illegal memory access·device-side assert는 runtime hot fallback으로
+덮지 않는다. readiness를 계속 true로 둔 채 예외만 반환하던 서버 catch도 수정해 해당 프로세스를
+끝내고 새 프로세스 복구를 요구한다. 주행을 안전하게 중단한 뒤 담당 세션에서 `--safe`로 복구한다.
+하드웨어/driver 고장이나 물리 비상정지를 이 코드로 해결했다고 보고하지 않는다.
+
+### 실제 오프라인 GPU 기동과 회귀 시험
+
+로컬 RTX 5060Ti/16GB·기존 팀 image `sha256:13488ccac149f41b070e618db5db91bfa3bf2d3d1a6de3dac80aa2e2c948ec46`
+에서 `--network none`·source/weights/sensor read-only·ROS/TCP listen 없이 시험했다.
+E24 SHA `84c7a849…`·nearest config SHA `b963b785…`·실제 LAN sensor를 사용했다.
+
+1. E12 engine metadata를 E24에 제공한 `require`는 의도대로 거부했다.
+2. 같은 잘못된 engine을 `prefer`로 주면 **같은 E24 eager 모델로 복귀하고 GPU warmup에 성공**했다.
+   cold 약 78.87초였으며 weights/config 미변경을 identity에서 확인했다.
+3. `off`는 잘못된 engine을 무시하고 같은 E24 warmup에 성공했다. 1.30초는 같은 프로세스의
+   후속 cache 조건이므로 cold 기동 시간이라고 보고하지 않는다.
+4. checkpoint·config 누락은 `prefer`에서도 각각 정상 거부했다. 필수 오류를 가속기 fallback으로 숨기지 않았다.
+5. 새로운 competition preflight의 실제 GPU smoke도 통과했다. 마지막 시험은 **실제 InferenceServer
+   생성→warmup→local socketpair PING/PONG→production health identity→close**를 약 81.81초에
+   완료했다. TCP listen·실제 ROS publisher·주행은 시작하지 않았다.
+
+정적 preflight는 **blocker 0 / warning 2**였다. 두 warning은 실제 ROS/LAN 상태와 대회용 GPU/
+풀스택 미인증이다. 별도 자격증명이나 cloud 조회 없이 준비된 모델을 확인했다.
+기존 가중치의 `base5_production_bundle.py install --check-only`도 다운로드·덮어쓰기 없이 통과했다.
+ZIP 재생성·Drive 업로드·팀 PC 배포는 하지 않았다. TRT image recipe도 여전히 미빌드·미푸시다.
+
+최초 고정 Docker CPU 회귀는 180개 통과했고, 최종 확장은 **Docker CPU 212 passed / CUDA 전용
+4 skipped·20 subtests passed**, 호스트 packaging 4개·명시 sensor 인자를 준 단독 calibration 1개
+통과로 총 **217개**다. 단독 CLI용 sensor 시험을 일반 pytest로 호출하고 컨테이너에서 호스트
+Git 소유권을 대조한 첫 전체 검사에는 3개 실패가 있었으며, 올바른 실행 위치·명시 인자로
+구분해 재검증했다. 시험을 통과시키려고 센서 검사나 Git 보안 기본값을 완화하지 않았다.
+기존 서버 cold warmup 후 재사용과 영구 불일치의 제한 대기·종료 소유권도 모사했다. 실제 GPU
+시험 결과와 CPU 모사 결과를 구분한다. 문서 검사에서 기존 CURRENT/README/데이터 CURRENT의 세 길이 예산
+초과는 남아 있으므로 전체 문서 검사 통과라고 하지 않는다.
+
+### 근거 파일과 다음 확인
+
+근거 루트는 앞 절과 같은 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+
+- 원래 연속 비교: `continuous_ros_v1/results/summary.json`, `tracking_v4/report.json`.
+  실제 코어 보고서 SHA `78ce57e68d739a5111ca0e52f4174875b3794dc15ec07dfa6bbbf670cd2fabe7`.
+- Head 국소/480장: `continuous_ros_v1/head_primitives_v1/`, `head_results_v1/`, `head_tracking_v2/`.
+  전체 비교 report SHA `42268fa728bd9aa799c0cc871058d144b46f319cbb9e65d467a252cb9b8f56c4`,
+  코어 SHA `8ece9c643db1fac6ed868b836ec0ce437ec2ede3af2a39e8f5c106cf385b232d`.
+  초기 `head_tracking_v1`의 sensor 경로 오류는 실제 코어 실행 전에 실패했고 v2로 구분했다.
+- CPU 입력: `cpu_jpeg_prepare_24_v1/RESULT.json`.
+- 기동: `E24_OFFLINE_STARTUP_v1.json`, `E24_STARTUP_POLICIES_GPU_v2.json`,
+  `E24_COMPETITION_SERVER_PREFLIGHT_GPU_v2.json`.
+  마지막 receipt SHA `c7d733913dad1be21cfdfc34c551ebf9ae18fb83853e309758c88a5d33114628`.
+
+다음 필수 단계는 최신 코드를 전달한 **팀장님 대회용 4090 PC에서** 오프라인 preflight→실제
+eager 기동→원래 LAN 센서의 연속 발행→YOLO/전체 ROS 동시 부하를 확인하는 것이다. 가속기는
+그 다음 별도 선택한다. E12 production 승격과 4090용 engine 생성·배포는 자동 수행하지 않았다.
+Orin 25 FPS의 입력·정밀도·timer 차이와 Swin 유지 근거는
+[배포 추가 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023)를 따른다.

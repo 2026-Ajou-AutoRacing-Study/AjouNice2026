@@ -4,6 +4,8 @@
 import argparse
 import hashlib
 import logging
+import os
+import signal
 import socket
 import time
 
@@ -37,9 +39,20 @@ def file_sha256(path):
 class InferenceServer:
     def __init__(self, args):
         self.args = args
+        self._closed = False
         self.fp32_reference = bool(getattr(args, 'fp32_reference', False))
         if self.fp32_reference and args.amp:
             raise ValueError('FP32 reference does not enable AMP')
+        if getattr(args, 'pool_fused_layout', False) and not getattr(args, 'base5_runtime', False):
+            raise ValueError('Fused pool layout is Base5-only')
+        from app.acceleration_startup import construct_camera_runtime, resolve_camera_startup_policy
+        self.camera_startup_policy = resolve_camera_startup_policy(
+            getattr(args, 'camera_tensorrt_policy', None),
+            getattr(args, 'camera_tensorrt_engine', None),
+            getattr(args, 'camera_tensorrt_metadata', None))
+        self.camera_startup_report = None
+        if args.projection_only and self.camera_startup_policy == 'require':
+            raise ValueError('Projection-only mode cannot require a camera TensorRT engine')
         self.calibration = load_sensor4_calibration(
             args.sensor_config, args.camera_order, args.intrinsic_source
         )
@@ -55,11 +68,11 @@ class InferenceServer:
             from app.bevfusion_model import BevFusionModel
 
             LOGGER.info("Loading BEVFusion model from %s", args.checkpoint)
-            self.model = BevFusionModel(
-                args.config,
-                args.checkpoint,
-                self.calibration,
-                args.device,
+            factory_kwargs = dict(
+                config_path=args.config,
+                checkpoint_path=args.checkpoint,
+                calibration=self.calibration,
+                device=args.device,
                 use_amp=args.amp,
                 preprocess_workers=args.preprocess_workers,
                 warmup_iterations=args.warmup_iterations,
@@ -74,7 +87,13 @@ class InferenceServer:
                 compile_reference_layout=getattr(args, "compile_reference_layout", False),
                 parallel_camera=getattr(args, "parallel_camera", False),
                 point_intensity_source=getattr(args, "point_intensity_source", "native"),
+                pool_fused_layout=getattr(args, "pool_fused_layout", False),
             )
+            self.model, self.camera_startup_report = construct_camera_runtime(
+                BevFusionModel, factory_kwargs, policy=self.camera_startup_policy,
+                engine=getattr(args, "camera_tensorrt_engine", None),
+                metadata=getattr(args, "camera_tensorrt_metadata", None))
+            LOGGER.info("Camera acceleration startup selection: %s", self.camera_startup_report)
             LOGGER.info("BEVFusion model is ready")
             self.runtime_identity['box_center_origin'] = self.model.box_center_origin
             self.runtime_identity['depth_raster_policy'] = getattr(
@@ -84,6 +103,24 @@ class InferenceServer:
                 torch.backends.cuda.matmul.allow_tf32 = False
                 torch.backends.cudnn.allow_tf32 = False
                 torch.backends.cudnn.benchmark = False
+
+    def current_runtime_identity(self):
+        identity = dict(self.runtime_identity) if self.runtime_identity is not None else None
+        status = getattr(self.model, 'execution_status', None)
+        if identity is not None and callable(status):
+            identity['execution_optimization'] = status()
+        startup = getattr(self, 'camera_startup_report', None)
+        if identity is not None and startup is not None:
+            identity.setdefault('execution_optimization', {})['camera_tensorrt_startup'] = dict(startup)
+        return identity
+
+    def close(self):
+        if self._closed:
+            return
+        close = getattr(self.model, 'close', None)
+        if callable(close):
+            close()
+        self._closed = True
 
     def serve_forever(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -110,12 +147,18 @@ class InferenceServer:
                 return
             try:
                 if message_type == TYPE_PING:
+                    identity = self.current_runtime_identity()
+                    execution = (identity or {}).get('execution_optimization', {})
+                    camera = execution.get('camera_tensorrt', {})
+                    ready = not self._closed and not execution.get('closed', False)
+                    if camera.get('enabled'):
+                        ready = ready and camera.get('healthy', False) and camera.get('loaded', False)
                     send_message(
                         connection,
                         TYPE_PONG,
                         {
-                            "ready": True,
-                            "runtime_identity": self.runtime_identity,
+                            "ready": bool(ready),
+                            "runtime_identity": identity,
                             "model_loaded": self.model is not None,
                             "classes": list(getattr(self.model, "classes", ())),
                             "point_intensity_source": getattr(getattr(self.model, "preprocessor", None), "point_intensity_source", None),
@@ -128,7 +171,17 @@ class InferenceServer:
                     self._handle_request(connection, metadata, blobs)
                 else:
                     raise ValueError("unsupported message type {}".format(message_type))
-            except Exception as error:  # Keep the server alive for the next request.
+            except Exception as error:  # Bad input frames may be retried; CUDA poison may not.
+                from app.acceleration_startup import AccelerationExecutionError, is_nonrecoverable_cuda_error
+                if isinstance(error, AccelerationExecutionError) or is_nonrecoverable_cuda_error(error):
+                    LOGGER.critical("Nonrecoverable camera execution failure; ending this process: %s", error)
+                    try:
+                        send_message(connection, TYPE_ERROR, {"error": str(error), "restart_required": True})
+                    except (OSError, ConnectionError):
+                        pass
+                    if isinstance(error, AccelerationExecutionError):
+                        raise
+                    raise AccelerationExecutionError('cuda_context_unhealthy', str(error)) from error
                 LOGGER.exception("Request failed")
                 send_message(connection, TYPE_ERROR, {"error": str(error)})
 
@@ -247,7 +300,7 @@ class InferenceServer:
         return outputs
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=29500)
@@ -275,6 +328,17 @@ def parse_args():
     parser.add_argument("--compile-parts", nargs="+", choices=("camera", "neck", "bev"), default=())
     parser.add_argument("--parallel-camera", action="store_true",
                         help="Experimental Base5-only camera side stream; sparse encoder stays on default stream")
+    parser.add_argument("--camera-tensorrt-engine",
+                        default=os.environ.get('BEVFUSION_CAMERA_TENSORRT_ENGINE') or None,
+                        help="Explicit Base5 camera-only TensorRT engine; requires matching metadata/checkpoint/config, AMP and parallel camera")
+    parser.add_argument("--camera-tensorrt-metadata",
+                        default=os.environ.get('BEVFUSION_CAMERA_TENSORRT_METADATA') or None,
+                        help="Explicit engine metadata; never inferred or selected from newest checkpoint")
+    parser.add_argument("--camera-tensorrt-policy", choices=('off', 'prefer', 'require'),
+                        default=os.environ.get('BEVFUSION_CAMERA_TENSORRT_POLICY') or None,
+                        help="Startup only: off ignores the engine; prefer retries the SAME model eagerly only for named pre-enqueue accelerator failures; require is strict. Default prefer if configured, otherwise off")
+    parser.add_argument("--pool-fused-layout", action="store_true",
+                        help="Explicit Base5 separated-pool output layout fusion; original CUDA arithmetic/geometry, no new kernel")
     parser.add_argument("--fuse-dense-bn", action="store_true",
                         help="Experimental eval-only dense Conv/BN folding")
     parser.add_argument("--camera-cuda-graph", action="store_true",
@@ -288,7 +352,7 @@ def parse_args():
     parser.add_argument("--cpu-threads", type=int, default=None)
     parser.add_argument("--opencv-threads", type=int, default=None)
     parser.add_argument("--log-level", default="INFO")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def parse_points(metadata, blobs):
@@ -328,7 +392,19 @@ def main():
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    InferenceServer(args).serve_forever()
+    server = InferenceServer(args)
+    def terminate(_signum, _frame):
+        # Docker stop sends SIGTERM. Convert it into normal Python unwinding
+        # so the engine contexts/stream events are closed before process exit.
+        raise SystemExit(0)
+    previous_sigterm = signal.signal(signal.SIGTERM, terminate)
+    try:
+        server.serve_forever()
+    finally:
+        try:
+            server.close()
+        finally:
+            signal.signal(signal.SIGTERM, previous_sigterm)
 
 
 if __name__ == "__main__":

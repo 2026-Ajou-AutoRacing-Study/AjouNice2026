@@ -99,14 +99,32 @@ def build(checkpoint, output, remote_directory='model/bevfusion/production/base5
     return descriptor
 
 
-def validate_descriptor(doc, root=ROOT):
+def validate_descriptor(doc, root=ROOT, *, require_matching_sources=True):
+    """Verify the pinned archive; exact checkout matching is an audit option.
+
+    A reference snapshot authenticates what was shipped, not every future
+    compatible checkout. Installing identical E24 weights must not require a
+    new 429MiB ZIP after a launcher, diagnostic or opt-in accelerator update.
+    Actual current-model/bridge/runtime compatibility belongs to startup and
+    preflight, never to a silent source overwrite from the archive.
+    """
     if doc['schema'] != SCHEMA or doc['model'] != 'e24' or doc['checkpoint_sha256'] != profile('e24')['sha256']:
         raise ValueError('Pinned E24 bundle descriptor required')
-    if set(doc['source_files_sha256']) != set(required_sources(root)):
-        raise ValueError('Bundle runtime source coverage differs from this checkout')
-    for name, expected in doc['source_files_sha256'].items():
+    sources = doc['source_files_sha256']
+    if not isinstance(sources, dict) or not sources:
+        raise ValueError('Bundle source snapshot is missing')
+    for name, expected in sources.items():
         path = PurePosixPath(name)
-        if path.is_absolute() or '..' in path.parts or digest(root / name) != expected:
+        if (path.is_absolute() or '..' in path.parts or '\\' in name
+                or not isinstance(expected, str) or len(expected) != 64
+                or any(c not in '0123456789abcdef' for c in expected)):
+            raise ValueError('Invalid bundle source identity: ' + name)
+    if not require_matching_sources:
+        return
+    if set(sources) != set(required_sources(root)):
+        raise ValueError('Bundle runtime source coverage differs from this checkout')
+    for name, expected in sources.items():
+        if digest(root / name) != expected:
             raise ValueError('Runtime differs from the release; pull the matching branch: ' + name)
 
 
@@ -142,14 +160,16 @@ def validate_archive(path, doc):
 
 def install(args):
     doc = json.loads(DESCRIPTOR.read_text())
-    validate_descriptor(doc)
+    validate_descriptor(doc, require_matching_sources=False)
     destination = Path(profile('e24')['checkpoint_path'])
     if destination.exists():
         if digest(destination) != doc['checkpoint_sha256']:
             raise ValueError('Different existing weights; preserve them before installing')
         if args.archive:
             validate_archive(args.archive, doc)
-        print(json.dumps(dict(event='base5_e24_ready', checkpoint=str(destination), downloaded=False)))
+        print(json.dumps(dict(event='base5_e24_ready', checkpoint=str(destination), downloaded=False,
+                             runtime_snapshot_enforced=False, runtime_certified=False,
+                             next_check='python3 scripts/runtime/preflight_bevfusion_competition.py --safe')))
         return
     if args.check_only:
         raise FileNotFoundError('E24 not installed: ' + str(destination))
@@ -180,7 +200,9 @@ def install(args):
     print(json.dumps(dict(event='base5_e24_installed', checkpoint=str(destination),
                           checkpoint_sha256=receipt['checkpoint_sha256'],
                           archive_sha256=receipt['archive_sha256'],
-                          verified_source_files=len(receipt['source_files_sha256']))))
+                          verified_source_files=len(receipt['source_files_sha256']),
+                          runtime_snapshot_enforced=False, runtime_certified=False,
+                          next_check='python3 scripts/runtime/preflight_bevfusion_competition.py --safe')))
 
 
 if __name__ == '__main__':
@@ -194,5 +216,11 @@ if __name__ == '__main__':
     deploy.add_argument('--archive', type=Path)
     deploy.add_argument('--remote', default='ajou_drive')
     deploy.add_argument('--check-only', action='store_true')
+    sub.add_parser('audit-runtime-snapshot', help='Strict historical release/checkout byte comparison; not required to install the same weights')
     args = parser.parse_args()
-    build(args.checkpoint, args.output,args.remote_directory) if args.action == 'build' else install(args)
+    if args.action == 'build':
+        build(args.checkpoint, args.output,args.remote_directory)
+    elif args.action == 'audit-runtime-snapshot':
+        validate_descriptor(json.loads(DESCRIPTOR.read_text()))
+    else:
+        install(args)

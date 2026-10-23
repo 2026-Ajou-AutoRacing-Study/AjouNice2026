@@ -7,7 +7,13 @@ LABEL ai.ajounice.runtime-purpose="opt-in-camera-tensorrt-experiment" \
 COPY docker/bevfusion/requirements/tensorrt-inference-experiment.txt /opt/requirements/tensorrt-inference-experiment.txt
 RUN python -m pip install --no-cache-dir --no-deps -r /opt/requirements/tensorrt-inference-experiment.txt \
     && python -c "import torch,onnx,tensorrt; assert torch.__version__.split('+')[0]=='2.7.1'; assert torch.version.cuda=='12.8'; assert onnx.__version__=='1.16.0'; assert tensorrt.__version__=='10.13.3.9'"
-COPY docker/bevfusion/app/camera_tensorrt.py /opt/ajounice/docker/bevfusion/app/camera_tensorrt.py
+COPY docker/bevfusion/app/camera_tensorrt.py \
+     docker/bevfusion/app/acceleration_startup.py \
+     docker/bevfusion/app/pool_runtime_layout.py \
+     docker/bevfusion/app/head_runtime_optimization.py \
+     docker/bevfusion/app/bevfusion_model.py \
+     docker/bevfusion/app/inference_server.py \
+     /opt/ajounice/docker/bevfusion/app/
 COPY perception/detection3d/bevfusion/scripts/export_base5_camera_tensorrt.py \
      perception/detection3d/bevfusion/scripts/qualify_base5_camera_tensorrt.py \
      perception/detection3d/bevfusion/scripts/profile_base5_e12_execution.py \
@@ -15,6 +21,8 @@ COPY perception/detection3d/bevfusion/scripts/export_base5_camera_tensorrt.py \
      perception/detection3d/bevfusion/scripts/score_base5_execution_pair.py \
      perception/detection3d/bevfusion/scripts/benchmark_base5_pool_variants.py \
      perception/detection3d/bevfusion/scripts/base5_pool_pack4_candidate.py \
+     perception/detection3d/bevfusion/scripts/qualify_base5_continuous_tensorrt.py \
+     perception/detection3d/bevfusion/scripts/benchmark_base5_head_runtime.py \
      /opt/ajounice/perception/detection3d/bevfusion/scripts/
 COPY perception/detection3d/bevfusion/plugin/experimental_pool_pack4.cu /opt/ajounice/perception/detection3d/bevfusion/plugin/experimental_pool_pack4.cu
 # No weights/data/engines/authentication are embedded. Engines are target-GPU

@@ -30,7 +30,9 @@ validator 분석 녹화/공유를 planning 브랜치용 코드에 함께 반영�
 `bevfusion_production_profile.py`가 checkpoint·모델 config·bridge config·launch를 함께 선택한다.
 서버 health는 weights·모델 config·센서 SHA와 Base5·AMP·병렬화·compile·클래스·입력 계약,
 명시적인 바닥 원점 태그와 nearest policy를 검사한다.
-기존 서비스나 canonical detector publisher가 있으면 실행을 거부한다. launch만으로 GPU 서버가 준비되는 것은 아니다.
+다른 canonical detector publisher가 있으면 실행을 거부한다. 이미 켜진 eager 서버는 준비를 기다리고
+선택 weights/config·센서·입력 계약까지 같을 때만 재사용하며 해당 컨테이너의 종료 소유권을 가져오지 않는다.
+다른 계약의 서버를 자동 종료하거나 실행 중 모델을 교체하지 않는다. launch만으로 GPU 서버가 준비되는 것은 아니다.
 인자 없는 역사적 Compose 명령은 E25 호환 기본값을 유지한다. E24는 `bevfusion` 실행기로
 weights·서버 옵션·센서·bridge를 함께 선택하며 Compose만 따로 켜서 두 계약을 섞지 않는다.
 
@@ -53,7 +55,7 @@ bash scripts/runtime/install_base5_production.sh
 이 PC의 예는 `--remote ajou_drive_private`이며 다른 사람의 token을 공유하는 방법이 아니다.
 
 1. 필요한 tracker와 MMDetection3D submodule을 현재 Git revision에 맞춘다. 개인 수정이 있으면 중단한다.
-2. Drive ZIP을 다운로드하고 크기·SHA256·압축 내부 파일·현재 runtime 소스를 검사한다.
+2. Drive ZIP의 크기·SHA256·내부 파일·당시 참고 소스의 무결성을 검사한다. 현재 checkout을 옛 참고 소스에 맞춰 되돌리지 않는다.
 3. 가중치만 `~/bevfusion_artifacts/checkpoints/base5_e24_inference.pth`에 원자적으로 설치한다.
 4. 기존 Docker의 모듈 import와 작은 CUDA 연산을 확인한다.
 5. `autoware_launch`, `sensor_interface`, `perception_object_pipeline`, `ekf_multi_object_tracking`, `bevfusion_ros`,
@@ -86,10 +88,74 @@ bash scripts/runtime/install_base5_production.sh --archive /전달받은/ajounic
 bash scripts/runtime/install_base5_production.sh --check-only
 ```
 
+2026-10-23에는 가중치 설치와 과거 코드 snapshot 감사를 분리했다. 현재 checkout에 새 진단·
+가속기 코드가 추가됐다는 이유로 정상 E24 가중치의 설치를 거부하지 않는다. 동결 ZIP·가중치
+SHA, 안전한 압축 경로, 기존 다른 weights 보존은 유지한다. 기존 ZIP·가중치의 재업로드는 필요 없다.
+이 설치 결과는 최신 코드의 실행 인증이 아니며 아래 preflight와 팀 PC 기동 시험으로 구분한다.
+과거 코드의 정확한 byte 대조가 목적일 때만 `base5_production_bundle.py audit-runtime-snapshot`을 사용한다.
+
 초기 ROS workspace나 Docker가 없는 PC는 기존 설치 절차로 의존성을 준비한 뒤 위 E24 준비를 수행한다.
 기존 `setup_bevfusion_inference.sh`는 E25 archive도 준비하는 호환 설치기이며 E24 설치 완료로 해석하지 않는다.
 
 ## 실행과 복귀
+
+<a id="competition-startup"></a>
+
+### 대회 전 오프라인 기동 확인과 안전 실행
+
+**10/23 로컬 구현·검증이며 팀 PC 배포·실제 4090 LAN 풀스택 검증 완료라는 뜻은 아니다.**
+정상 준비된 이미지·가중치로 추론할 때 W&B·Drive·Docker Hub 로그인이나 인터넷은 필요 없다.
+다음 첫 명령은 읽기 전용 검사다. 두 번째는 자체 임시 컨테이너에서 실제 모델 warmup과
+실제 서버 health PONG을 확인하며 TCP listen·ROS publisher·주행은 시작하지 않는다.
+
+```bash
+cd "$HOME/AjouNice2026"
+python3 scripts/runtime/preflight_bevfusion_competition.py --safe
+python3 scripts/runtime/preflight_bevfusion_competition.py --safe --offline-smoke
+```
+
+그 뒤 센서/TF/localization과 기존 풀스택 순서에 맞춰 실행한다. alias가 없으면 shell 경로를 사용한다.
+
+```bash
+bevfusion --safe --model e24
+# 또는
+bash scripts/runtime/run_bevfusion.sh --safe --model e24
+```
+
+`--safe`는 같은 E24 checkpoint/config·threshold·AMP·camera 병렬화·nearest·센서 계약을
+유지하고, 선택 TensorRT/시험용 pooling을 끈다. E25로 바꾸는 옵션이 아니다. 선택 E25 복귀는
+`bevfusion --safe --model e25`이며 그 가중치도 미리 준비해야 한다.
+안전 모드가 GPU driver 고장, 누락 weights, 잘못된 센서, 중복 detector publisher까지 무시하지는 않는다.
+
+기본은 선택 engine이 없으면 eager이며, engine을 명시하고 정책을 생략하면 `prefer`다.
+이때 engine 파일·GPU/TRT·가중치 호환 불일치는 **첫 engine enqueue 이전의 시작 단계에서만**
+같은 선택 모델의 eager로 복귀한다. 실제 backend·복귀 이유를 서버 status에 기록한다.
+`BEVFUSION_CAMERA_TENSORRT_POLICY=require`는 엄격한 가속기 자격 시험용이며 미준비 팀 PC의
+대회 기본값으로 쓰지 않는다. raw 수치 동일성/AP/실험 receipt gate를 매번 production 시작 전에
+재평가하거나 최신 W&B/Drive에 접속해야 하는 구조는 아니다.
+Validator의 새 E24 실행 계약도 현재 소스로 생성·검증했으며 engine을 전달하지 않는다.
+코드를 바꾼 뒤 **옛 실행 결과에 resume**하는 보호 검사는 유지하므로 새 실험으로 시작한다.
+이 shell의 `--safe`가 validator GUI에도 새로 연결됐다는 뜻은 아니다.
+
+첫 시작에는 CUDA extension 컴파일·모델 warmup 때문에 수십 초가 걸릴 수 있다. 로컬 5060Ti의
+네트워크 차단 cold smoke는 약 82초에 실제 ready PONG까지 통과했다. persistent JIT cache를
+추가했지만 GPU/소스별 재컴파일이 필요할 수 있으므로 출발 직전에 처음 켜지 말고 사전 warmup한다.
+cache volume이 아직 없으면 smoke는 임시 cache를 사용하므로 실제 서버의 첫 시작은 따로 준비한다.
+실행기는 이미 켜진 서버가 warmup 중인 경우에도 제한된 준비 대기를 적용한다.
+
+센서가 안 들어오거나 카메라와 LiDAR 차이가 50ms를 넘는 프레임은 기존 동기화 정책상 사용하지
+않는다. single-frame production은 deskew·temporal sweep·pose coverage를 요구하지 않는다.
+준비 완료와 검출 토픽의 실제 연속 발행은 다르므로 팀 PC에서 다음 확인까지 수행한다.
+
+```bash
+rostopic echo -n 1 /perception/bevfusion/status
+rostopic hz /perception/object_recognition/detection/objects
+```
+
+illegal memory access/device-side assert 같은 CUDA 손상은 같은 프로세스에서 무리하게 원형으로
+전환하지 않는다. 주행을 안전하게 중단한 뒤 담당 세션에서 새 프로세스의 `--safe`로 복구한다.
+다른 노드/컨테이너를 자동 kill하지 않으며 물리 비상정지나 무중단 주행을 보장하는 기능이 아니다.
+구현·GPU 시험·남은 검증은 [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따른다.
 
 ### LiDAR 50 적용과 51 복귀
 

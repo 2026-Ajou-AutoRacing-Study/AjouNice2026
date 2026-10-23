@@ -57,3 +57,5 @@ echo "[READY] Base5 E24 준비 완료. 새로운 터미널에서 기존 풀스�
 echo "[DETECTOR] bevfusion 또는 bash scripts/runtime/run_bevfusion.sh"
 echo "[VALIDATOR] Base5 E24 production; E25 복귀는 명시적으로 e25 선택."
 echo "[ROLLBACK] bevfusion --model e25"
+echo "[PREFLIGHT] python3 scripts/runtime/preflight_bevfusion_competition.py --safe"
+echo "[SAFE START] bevfusion --safe (same selected weights; optional accelerators disabled)"

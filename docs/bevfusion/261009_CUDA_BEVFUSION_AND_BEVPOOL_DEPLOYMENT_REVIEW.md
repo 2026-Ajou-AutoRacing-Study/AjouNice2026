@@ -324,3 +324,124 @@ CUDA pooling은 `benchmark_base5_pool_variants.py`로 실제 저장 activation�
 이번 새 pack4 kernel은 exact지만 기존 kernel보다 빠르지 않았으므로 기본 채택하지 않는다.
 반복 layout 복사를 한 번으로 줄이는 후보와 새 kernel의 효과도 분리한다. backward·재학습이나
 새 sparse backend 이식은 이번 시험의 완료 범위가 아니다.
+
+<a id="e12-orin-scope-safe-startup-261023"></a>
+
+## 10/23 추가 검토: Orin 25 FPS의 비교 범위와 실대회 시작 안전성
+
+이 절은 앞선 구현·실험 기록 이후의 설명이다. 과거 수치나 당시 미구현 상태를 수정하지 않는다.
+현재 production 선택은 [CURRENT](CURRENT.md#runtime)를 따르며 **E24를 유지한다.**
+E12의 TensorRT 시험 결과가 좋아도 E12를 자동 선택하거나 E24용 engine으로 간주하지 않는다.
+연속 bag·후속 최적화·시작 시험의 실제 결과는 [근거 문서](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md)에 별도로 남긴다.
+
+### Orin의 25 FPS를 우리 서비스 시간에 그대로 대입할 수 없는 이유
+
+NVIDIA 공식 README의 25 FPS는 **ResNet50·FP16+INT8** 조건이며 FP16-only는 18 FPS다.
+Swin-Tiny PyTorch의 8.4 FPS는 RTX 3090 측정이므로 같은 모델·같은 GPU의 전후 대조가 아니다.
+공개 예제와 현재 E12의 크기를 비교하면 다음과 같다.
+
+| 항목 | NVIDIA CUDA-BEVFusion 공개 예제 | 현재 E12 입력·격자 |
+|---|---|---|
+| Camera backbone | ResNet50의 Orin 결과 | Swin-Tiny |
+| 카메라 입력 H×W | 6×256×704 | 4×512×1056, 총 입력 픽셀 2배 |
+| Depth 구간·간격 | 1–60m / 0.5m, 118 bin | 1–100m / 0.25m, 396 bin |
+| 투영 후보 수 N×D×Hf×Wf | 1,993,728 | 13,381,632, 약 6.71배 |
+| Camera BEV 격자 X×Y | 360×360, 30cm | 1008×336, 20cm, cell 수 약 2.61배 |
+| 검출 head의 격자 X×Y | 180×180 | 504×168, cell 수 약 2.61배 |
+| LiDAR XY voxel | 7.5cm | 5cm |
+| 배포 경로 | Camera/depth·BEV downsample·fusion/decoder/head engine과 별도 sparse 추론 엔진 | 먼저 camera backbone+neck만 부분 TensorRT로 교체 |
+
+배수는 배열·후보 수의 비교이며 전체 latency 예측 배수가 아니다. 현재 경로는 이미 geometry
+cache와 분리 pooling으로 큰 중간 tensor 생성을 줄였다. Sparse convolution 비용도 전체 grid
+크기뿐 아니라 실제 활성 voxel·포인트 분포·kernel·호스트 제출에 좌우된다. 전방 범위가 길다는
+이유만으로 전체 BEV 면적도 같은 비율로 커졌다고 해석하지 않는다. 직사각형 ROI와 내부 padding을 구분한다.
+
+NVIDIA의 공개 `Total` timer는 모델 단계의 합이며 CopyLidar와 ImageNorm을 합산하지 않는다.
+JPEG decode는 예제의 forward 바깥에서 수행하고 ROS·통신도 포함하지 않는다. 우리
+`service_ms`는 CPU 준비·모델·결과 변환을 포함한다. 따라서 같은 파일에 기록된 `model_ms`와
+`service_ms`를 먼저 구분해야 하며, 모델 구간의 역수를 ROS 처리 Hz나 센서 age로 부르지 않는다.
+공개 결과와 우리 모델은 조건이 달라 **‘Orin도 25 FPS인데 4090은 더 느리니 최적화가 끝났다’나
+‘같은 코드를 가져오면 곧바로 25 FPS 이상이다’라는 결론은 모두 성립하지 않는다.**
+
+공식 근거는 고정 revision의 [성능 표](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/README.md),
+[입력·voxel·depth 설정](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/src/main.cpp#L132),
+[실제 timer](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/src/bevfusion/bevfusion.cpp#L121),
+[camera/depth exporter](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/qat/export-camera.py#L47),
+[fusion/head exporter](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/qat/export-transfuser.py#L207)다.
+
+### 지금 Swin을 다른 backbone으로 바꾸지 않는 이유
+
+MIT의 공개 detection checkpoint·학습 예시는 Swin과 그 사전학습 가중치를 사용한다.
+현재 E12도 해당 계열의 backbone·neck feature 채널과 호환되는 가중치를 재사용했다.
+ResNet50으로 바꾸는 것은 TensorRT export 옵션 변경이 아니라 backbone과 neck 입력 채널·특징
+분포를 바꾸는 작업이다. 기존 E12의 카메라 가중치를 그대로 적용할 수 없으며 재학습·재정합 평가가 필요하다.
+[MIT 학습·사전학습 경로](https://github.com/mit-han-lab/bevfusion/blob/main/README.md#training)를 따른다.
+
+부분 TRT 뒤 카메라 특징 추출은 이미 약 5ms대다. 카메라 구간을 완전히 없애는 비현실적 가정조차
+그 구간 이상의 절감을 보장하지 못하고, 병렬 실행에서는 임계 경로 때문에 실제 이득이 더 작을 수 있다.
+현재는 backbone 교체보다 CPU 입력 준비와 검출 head의 불필요한 정렬·attention weight 계산을
+먼저 조사한다. `topk`와 SDPA 후보는 재학습 없이 비교할 수 있지만 동점 후보·수치 차이가 생길 수 있으므로
+전체 검출·거리별 AP·연속 tracker와 실제 지연을 함께 판단한다. 작은 수치 차이 자체를 실패로 취급하지도,
+전체 mAP가 비슷하다는 이유만으로 근거리 누락·ID 변화까지 통과시켰다고 쓰지도 않는다.
+공개 head의 [topk 선택](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/blob/7c1623f234d5a9794fd862c9456f68f87ae7b900/CUDA-BEVFusion/qat/export-transfuser.py#L99)과
+[PyTorch의 need_weights=False·SDPA 안내](https://docs.pytorch.org/docs/2.7/generated/torch.nn.MultiheadAttention.html)를 참고했다.
+
+### 선택 가속기 때문에 원형 실행까지 거부하지 않는 시작 정책
+
+선택 가속기 설치 조건과 필수 모델·센서 계약을 분리했다. 실제 구현은
+[startup policy](../../docker/bevfusion/app/acceleration_startup.py)와
+[서버](../../docker/bevfusion/app/inference_server.py)를 따른다.
+
+| 시작 정책 | 동작 | 허용하지 않는 우회 |
+|---|---|---|
+| `off` | 명시한 동일 checkpoint/config의 기존 eager·AMP 경로를 사용한다 | 다른 가중치·다른 detector·GT로 교체하지 않는다 |
+| `prefer` | 선택 engine을 요청했으면 먼저 준비한다. 준비 단계에서 분류된 선택 가속기 가용성 오류만 같은 모델의 eager 경로로 한 번 복귀한다 | checkpoint·센서·클래스·입력 오류나 일반 모델 load 실패를 가속기 오류로 숨기지 않는다 |
+| `require` | 선택 engine을 반드시 사용해야 하는 명시적인 자격 시험이다. 준비에 실패하면 시작을 거부한다 | 원형 복귀를 성공적인 TRT 실행으로 보고하지 않는다 |
+
+engine/metadata를 지정하지 않은 기본은 `off`이며, 지정하고 정책을 생략하면 `prefer`다.
+복귀 여부·이유 코드·실제 backend를 logging/status에 구분한다. 복귀 시에도 사용자가 선택한
+checkpoint/config·AMP·병렬화·threshold는 유지한다. E12 engine과 E24 가중치가 맞지 않는다고
+E12를 자동 선택하는 구조가 아니다. 직접 model/adapter API의 엄격한 검사도 이 정책 때문에 완화하지 않는다.
+
+`run_bevfusion.sh --safe`는 선택한 E24 또는 명시적인 E25를 그대로 유지하면서 기존 팀 CUDA
+12.8 이미지와 eager 경로를 선택하고, 선택 TRT와 시험용 pool layout을 끈다. 정확한 production
+시작·설치 명령은 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)와
+[E25 복귀 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+`--safe`는 checkpoint SHA 불일치, 필수 sensor/config 누락, bridge의 camera order·horizontal FOV·
+강도 계약 불일치, 이미 canonical topic을 소유한 다른 detector를 무시하는 옵션이 아니다.
+
+이 복귀는 **시작 시점에만** 적용한다. engine enqueue 이후 실행 오류, illegal memory access,
+device-side assert, context 손상·GPU 소실 같은 CUDA 오류는 같은 프로세스에서 eager 재시도로
+덮지 않는다. 해당 실행의 readiness를 유지한 채 결과를 계속 내보내는 방식도 허용하지 않는다.
+새 프로세스로 원형 경로를 다시 시작하고 GPU/driver 상태를 확인해야 한다. 하드웨어·driver 자체가
+정상 CUDA 실행을 못 하는 상황은 `--safe`도 해결하지 못한다. 이 처리는 제어기의 물리 비상정지 보장이 아니다.
+
+### 오프라인 시작 점검과 이미지 배포 범위
+
+[competition preflight](../../scripts/runtime/preflight_bevfusion_competition.py)의 기본 동작은 읽기 전용이다.
+선택 production profile의 가중치 SHA·config 상속·sensor/bridge 계약·ROS 설치본·로컬 Docker
+이미지·GPU/driver를 확인하며, W&B·Drive·registry 로그인이나 인터넷 연결을 요구하지 않는다.
+호스트 Python과 컨테이너 Python 버전이 다르거나 GPU가 4090이 아니라는 이유만으로 정상적인
+원형 실행을 막지 않는다. 정적 통과, 모델 warmup, 실제 ROS/LAN 입력, 24GB 풀스택 검증은 구분한다.
+
+`--offline-smoke`만 명시적으로 요청하면 도구가 소유한 임시 `--rm --network none` 컨테이너에서
+작은 CUDA 연산과 선택 모델 warmup·종료를 확인한다. source·가중치·sensor는 read-only이며 서버·
+ROS publisher·주행 제어를 시작하지 않는다. timeout 정리도 고유 owner label이 일치하는 자체
+컨테이너만 대상으로 한다. 실제 실행 결과와 제한은 근거 문서에 남기며 이 문서의 구현 설명을
+실대회 시작·전체 스택 성능 인증으로 사용하지 않는다.
+
+`Dockerfile.tensorrt-experiment`는 여전히 **미빌드·미푸시 recipe**다. 실제 부분 TRT 검증에 사용한
+원격 venv와 구분한다. Docker Hub에 새 팀 배포 이미지가 올라갔거나 팀원이 `git pull`만으로
+TensorRT engine을 자동 확보했다고 간주하지 않는다. 필요한 경우 image build·목표 GPU engine
+생성·동일 가중치 검증을 별도로 수행한다. 선택 TRT가 준비되지 않은 팀 PC에도 기존 이미지와
+E24 가중치가 있으면 원형 경로를 사용할 수 있도록 유지한다.
+
+같은 시작 감사에서 기존 production ZIP 설치기가 **가중치 archive 검증과 현재 checkout의
+코드 바이트 정합을 결합**한 문제도 확인했다. 10/15에 동결한 ZIP의 `reference/`는 당시 코드
+감사본인데, 새 app 파일을 추가한 현재 checkout까지 그 목록·SHA와 같아야 한다고 검사하면
+가중치가 정상이어도 install/check-only가 거부될 수 있었다. 현재 설치기는 동결 archive·
+checkpoint SHA와 경로 안전성 검사를 유지하면서, 가중치 설치와 과거 코드 snapshot 감사를
+분리하도록 수정했다. `reference/`를 현재 checkout 위에 자동 덮어쓰거나 현재 코드를 옛 ZIP에
+맞추어 되돌리는 방식으로 해결하지 않는다. **코드가 바뀌었다는 이유만으로 기존 E24 가중치·ZIP을
+다시 Drive에 업로드할 필요는 없다.** 설치기·실제 GPU 기동·회귀 결과는 [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따르며,
+최신 코드로 시작하기 전에는 위 preflight로 현재 설정·설치본을 검사한다.

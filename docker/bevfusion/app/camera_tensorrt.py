@@ -11,6 +11,9 @@ import json
 from pathlib import Path
 import threading
 
+from app.acceleration_startup import (
+    AccelerationExecutionError, AccelerationUnavailableError, is_nonrecoverable_cuda_error)
+
 
 SCHEMA = "base5_camera_tensorrt_v1"
 INPUT_NAME = "images"
@@ -109,6 +112,34 @@ def load_camera_metadata(path, expected_contract=None):
     return validate_camera_metadata(json.loads(Path(path).read_text()), expected_contract)
 
 
+def validate_camera_tensorrt_options(engine=None, metadata=None, *, base5_runtime=False,
+                                   use_amp=False, parallel_camera=False, compile_parts=(),
+                                   fuse_dense_bn=False, camera_cuda_graph=False,
+                                   eager_camera_numerics=False, compile_reference_layout=False,
+                                   temporal_feature_cache=False, device="cuda:0",
+                                   warmup_iterations=2, projection_only=False,
+                                   fp32_reference=False):
+    """Fail closed before model allocation; an absent engine changes nothing."""
+    requested = bool(engine) or bool(metadata)
+    if not requested:
+        return False
+    if not engine or not metadata:
+        raise ValueError("Camera TensorRT requires both explicit engine and metadata paths")
+    if projection_only:
+        raise ValueError("Projection-only mode does not load a camera TensorRT engine")
+    if not base5_runtime or not use_amp or not parallel_camera or fp32_reference:
+        raise ValueError("Camera TensorRT requires explicit Base5 eval, AMP and parallel camera; not FP32 reference")
+    if (compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or
+            compile_reference_layout or temporal_feature_cache):
+        raise ValueError("Camera TensorRT cannot combine with compile, Conv/BN folding, CUDA Graph or temporal candidates")
+    value = str(device)
+    if not value.startswith("cuda:") or not value[5:].isdigit():
+        raise ValueError("Camera TensorRT requires an explicit CUDA device index")
+    if int(warmup_iterations) < 1:
+        raise ValueError("Camera TensorRT requires startup warmup before reporting ready")
+    return True
+
+
 def validate_engine_bindings(engine, metadata, trt):
     """Check the TRT 10 name API and exact static DEVICE/LINEAR bindings."""
     validate_camera_metadata(metadata)
@@ -164,16 +195,26 @@ class CameraTensorRTAdapter:
     """
     def __init__(self, engine_path, metadata_path=None, expected_contract=None,
                  device="cuda:0"):
+        self._ever_enqueued = False
         self.engine_path = Path(engine_path)
         self.metadata_path = (Path(metadata_path) if metadata_path else
                               Path(str(engine_path) + ".json"))
-        self.metadata = load_camera_metadata(self.metadata_path, expected_contract)
+        try:
+            self.metadata = load_camera_metadata(self.metadata_path, expected_contract)
+            self.metadata_sha256 = sha256_file(self.metadata_path)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            raise AccelerationUnavailableError("engine_metadata_unavailable",
+                "Camera engine metadata is missing, invalid or incompatible: " + str(error)) from error
         if self.metadata["stage"] != "engine":
-            raise ValueError("An engine metadata artifact is required")
+            raise AccelerationUnavailableError("engine_metadata_unavailable", "An engine metadata artifact is required")
         if not self.engine_path.is_file():
-            raise FileNotFoundError(self.engine_path)
-        if sha256_file(self.engine_path) != self.metadata["engine"]["sha256"]:
-            raise ValueError("TensorRT engine SHA256 differs from metadata")
+            raise AccelerationUnavailableError("engine_file_unavailable", "Camera engine file is missing: " + str(self.engine_path))
+        try:
+            engine_sha = sha256_file(self.engine_path)
+        except OSError as error:
+            raise AccelerationUnavailableError("engine_file_unavailable", "Cannot read camera engine: " + str(error)) from error
+        if engine_sha != self.metadata["engine"]["sha256"]:
+            raise AccelerationUnavailableError("engine_hash_mismatch", "TensorRT engine SHA256 differs from metadata")
         self.device_spec = str(device)
         self._lock = threading.RLock()
         self._contexts = {}
@@ -184,88 +225,129 @@ class CameraTensorRTAdapter:
     def _load(self, torch, device):
         if self._engine is not None:
             return
-        trt = importlib.import_module("tensorrt")
+        try:
+            trt = importlib.import_module("tensorrt")
+        except (ImportError, OSError) as error:
+            raise AccelerationUnavailableError("tensorrt_import_unavailable",
+                "TensorRT package/native libraries are unavailable: " + str(error)) from error
         version = str(trt.__version__)
         if version.split(".")[0] != "10":
-            raise RuntimeError("This opt-in adapter is qualified for TensorRT 10.x only")
+            raise AccelerationUnavailableError("tensorrt_version_mismatch", "This opt-in adapter is qualified for TensorRT 10.x only")
         identity = self.metadata["engine"]
         if version != identity["tensorrt_version"]:
-            raise ValueError("TensorRT runtime version differs from engine build")
+            raise AccelerationUnavailableError("tensorrt_version_mismatch", "TensorRT runtime version differs from engine build")
         if (torch.cuda.get_device_name(device) != identity["gpu_name"] or
                 list(torch.cuda.get_device_capability(device)) != identity["compute_capability"]):
-            raise ValueError("Engine GPU/compute capability differs; rebuild on the target GPU")
+            raise AccelerationUnavailableError("engine_gpu_mismatch", "Engine GPU/compute capability differs; rebuild on the target GPU")
         # Keep logger/runtime/engine alive in this order for every context.
-        payload = self.engine_path.read_bytes()
-        if hashlib.sha256(payload).hexdigest() != identity["sha256"]:
-            raise ValueError("TensorRT engine changed before lazy deserialization")
-        logger = trt.Logger(trt.Logger.WARNING)
-        runtime = trt.Runtime(logger)
-        engine = runtime.deserialize_cuda_engine(payload)
-        if engine is None:
-            raise RuntimeError("TensorRT engine deserialization failed")
         try:
-            validate_engine_bindings(engine, self.metadata, trt)
-        except Exception:
+            payload = self.engine_path.read_bytes()
+        except OSError as error:
+            raise AccelerationUnavailableError("engine_file_unavailable", "Cannot read camera engine: " + str(error)) from error
+        if hashlib.sha256(payload).hexdigest() != identity["sha256"]:
+            raise AccelerationUnavailableError("engine_hash_mismatch", "TensorRT engine changed before lazy deserialization")
+        engine = runtime = None
+        try:
+            logger = trt.Logger(trt.Logger.WARNING)
+            runtime = trt.Runtime(logger)
+            engine = runtime.deserialize_cuda_engine(payload)
+        except (RuntimeError, ValueError, OSError, AttributeError) as error:
             engine = None
             runtime = None
-            raise
+            if is_nonrecoverable_cuda_error(error):
+                raise AccelerationExecutionError("cuda_context_unhealthy", str(error)) from error
+            raise AccelerationUnavailableError("engine_deserialization_unavailable",
+                "TensorRT engine deserialization failed before enqueue: " + str(error)) from error
+        if engine is None:
+            runtime = None
+            raise AccelerationUnavailableError("engine_deserialization_unavailable", "TensorRT engine deserialization failed")
+        try:
+            validate_engine_bindings(engine, self.metadata, trt)
+        except (ValueError, RuntimeError, AttributeError) as error:
+            engine = None
+            runtime = None
+            raise AccelerationUnavailableError("engine_bindings_incompatible",
+                "TensorRT engine bindings are incompatible: " + str(error)) from error
         self._trt, self._logger, self._runtime, self._engine = trt, logger, runtime, engine
+
+    def _unavailable(self, code, message):
+        if self._ever_enqueued:
+            self._poisoned = True
+            raise AccelerationExecutionError(code, message)
+        raise AccelerationUnavailableError(code, message)
 
     def __call__(self, images):
         torch = importlib.import_module("torch")
         if torch.is_grad_enabled():
             raise RuntimeError("TensorRT camera inference requires inference_mode/no_grad")
         if not torch.is_tensor(images) or not images.is_cuda:
-            raise ValueError("TensorRT camera input must be a CUDA tensor")
+            self._unavailable("engine_input_incompatible", "TensorRT camera input must be a CUDA tensor")
         device = torch.device(self.device_spec)
         if device.type != "cuda" or device.index is None:
-            raise ValueError("An explicit CUDA device index is required")
+            self._unavailable("engine_input_incompatible", "An explicit CUDA device index is required")
         contract = self.metadata["contract"]
         if images.device != device:
-            raise ValueError("TensorRT camera input is on a different CUDA device")
+            self._unavailable("engine_input_incompatible", "TensorRT camera input is on a different CUDA device")
         if tuple(images.shape) != tuple(contract["input_shape"]):
-            raise ValueError("TensorRT camera input shape differs")
+            self._unavailable("engine_input_incompatible", "TensorRT camera input shape differs")
         if images.dtype != getattr(torch, contract["input_dtype"]):
-            raise ValueError("TensorRT camera input dtype differs; implicit casting is disabled")
+            self._unavailable("engine_input_incompatible", "TensorRT camera input dtype differs; implicit casting is disabled")
         if not images.is_contiguous():
-            raise ValueError("TensorRT camera input must be contiguous NCHW")
+            self._unavailable("engine_input_incompatible", "TensorRT camera input must be contiguous NCHW")
         with self._lock, torch.cuda.device(device):
             if self._closed:
                 raise RuntimeError("TensorRT camera adapter is closed")
             if self._poisoned:
-                raise RuntimeError("TensorRT camera adapter failed; close it and use an explicit eager run")
+                raise AccelerationExecutionError("camera_execution_failed", "TensorRT camera adapter failed")
             self._load(torch, device)
             stream = torch.cuda.current_stream(device)
             key = int(stream.cuda_stream)
             if key not in self._contexts:
                 if len(self._contexts) >= 2:
-                    raise RuntimeError("Camera engine supports at most two explicitly reused CUDA streams")
-                context = self._engine.create_execution_context()
+                    self._unavailable("engine_stream_contract_incompatible", "Camera engine supports at most two explicitly reused CUDA streams")
+                try:
+                    context = self._engine.create_execution_context()
+                except RuntimeError as error:
+                    self._unavailable("engine_context_unavailable", "TensorRT execution context allocation failed: " + str(error))
                 if context is None:
-                    raise RuntimeError("TensorRT execution context allocation failed")
+                    self._unavailable("engine_context_unavailable", "TensorRT execution context allocation failed")
                 self._contexts[key] = dict(context=context, stream=stream, event=None)
             entry = self._contexts[key]
             context = entry["context"]
-            outputs = [torch.empty(tuple(item["shape"]), dtype=getattr(torch, item["dtype"]),
-                                   device=device) for item in contract["outputs"]]
+            try:
+                outputs = [torch.empty(tuple(item["shape"]), dtype=getattr(torch, item["dtype"]),
+                                       device=device) for item in contract["outputs"]]
+            except getattr(torch, 'OutOfMemoryError', MemoryError) as error:
+                self._unavailable("engine_output_memory_unavailable", "TensorRT output buffer allocation failed: " + str(error))
             images.record_stream(stream)
             bindings = [(INPUT_NAME, images)] + [(item["name"], output)
                          for item, output in zip(contract["outputs"], outputs)]
             try:
                 for name, tensor in bindings:
                     if not context.set_tensor_address(name, int(tensor.data_ptr())):
-                        raise RuntimeError(f"TensorRT rejected CUDA tensor address: {name}")
+                        self._unavailable("engine_bindings_incompatible", f"TensorRT rejected CUDA tensor address: {name}")
+                # Once an enqueue is attempted, this process must never switch
+                # to an eager model after any accelerator execution failure.
+                self._ever_enqueued = True
                 if not context.execute_async_v3(stream_handle=key):
-                    raise RuntimeError("TensorRT execute_async_v3 failed")
+                    raise AccelerationExecutionError("camera_enqueue_failed", "TensorRT execute_async_v3 failed")
                 event = torch.cuda.Event()
                 event.record(stream)
                 entry["event"] = event
-            except Exception:
+            except AccelerationUnavailableError:
+                raise
+            except Exception as error:
                 self._poisoned = True
                 # An enqueue failure may have submitted some GPU work. Do not
                 # free CUDA bindings or destroy a partially active context.
-                torch.cuda.synchronize(device)
-                raise
+                try:
+                    torch.cuda.synchronize(device)
+                except Exception:
+                    pass
+                if isinstance(error, AccelerationExecutionError):
+                    raise
+                raise AccelerationExecutionError("camera_execution_failed",
+                    "TensorRT CUDA execution failed: " + str(error)) from error
             kind = contract["output_kind"]
             return outputs[0] if kind == "tensor" else tuple(outputs) if kind == "tuple" else outputs
 
@@ -285,6 +367,27 @@ class CameraTensorRTAdapter:
             self._logger = None
             self._trt = None
             self._closed = True
+
+    def status(self):
+        """Serializable health identity; never performs CUDA work or fallback."""
+        with self._lock:
+            engine = self.metadata["engine"]
+            contract = self.metadata["contract"]
+            return dict(enabled=not self._closed, loaded=self._engine is not None,
+                healthy=not self._closed and not self._poisoned,
+                state=("closed" if self._closed else "failed" if self._poisoned else
+                       "loaded" if self._engine is not None else "not_loaded"),
+                engine_sha256=engine["sha256"], metadata_sha256=self.metadata_sha256,
+                checkpoint_sha256=contract["checkpoint_sha256"],
+                config_sha256=contract["config_sha256"],
+                camera_state_sha256=contract["camera_state_sha256"],
+                tensorrt_version=engine["tensorrt_version"], gpu_name=engine["gpu_name"],
+                compute_capability=engine["compute_capability"], precision=engine["precision"],
+                input_dtype=contract["input_dtype"],
+                output_dtypes=[item["dtype"] for item in contract["outputs"]],
+                output_cast_policy=contract.get("output_cast_policy", "preserve"),
+                cuda_device=self.device_spec, scope="camera backbone+neck only",
+                eager_fallback=False, production_promoted=False)
 
     def __enter__(self):
         if self._closed:
@@ -355,7 +458,7 @@ def install_camera_tensorrt(model, engine_path, metadata_path=None,
     contract = dict(expected_contract or {})
     state_hash = camera_state_sha256(model.img_backbone, model.img_neck)
     if "camera_state_sha256" in contract and contract["camera_state_sha256"] != state_hash:
-        raise ValueError("Caller camera identity differs from current model")
+        raise AccelerationUnavailableError("engine_camera_state_mismatch", "Caller camera identity differs from current model")
     contract["camera_state_sha256"] = state_hash
     adapter = CameraTensorRTAdapter(engine_path, metadata_path, contract, device)
     return _InstalledCameraTensorRT(model, adapter)

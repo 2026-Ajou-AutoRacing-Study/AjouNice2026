@@ -26,6 +26,26 @@ def validate_production_identity(metadata,args):
         raise ValueError('Server model configuration differs')
     if args.expected_sensor and (metadata.get('calibration') or {}).get('config_sha256') != args.expected_sensor:
         raise ValueError('Server sensor configuration differs')
+    calibration = metadata.get('calibration') or {}
+    expected_intrinsic = getattr(args, 'expected_intrinsic_source', None)
+    if expected_intrinsic and calibration.get('intrinsic_source') != expected_intrinsic:
+        raise ValueError('Server intrinsic-source differs from the ROS bridge')
+    expected_order = getattr(args, 'expected_camera_order', None)
+    if expected_order and [camera.get('frame_id') for camera in calibration.get('cameras', [])] != list(expected_order):
+        raise ValueError('Server camera order differs from the ROS bridge')
+    expected_backend = getattr(args, 'expected_camera_backend', None)
+    if expected_backend:
+        camera = (identity.get('execution_optimization') or {}).get('camera_tensorrt') or {}
+        if expected_backend == 'eager' and camera.get('enabled', False):
+            raise ValueError('Selected safe/baseline profile does not use a TensorRT camera')
+        if expected_backend == 'camera_tensorrt' and not (
+                camera.get('enabled') and camera.get('loaded') and camera.get('healthy')):
+            raise ValueError('Selected TensorRT camera is not loaded and healthy')
+    expected_pool = getattr(args, 'expected_pool_fused_layout', None)
+    if expected_pool is not None:
+        pool = (identity.get('execution_optimization') or {}).get('pool_fused_layout') or {}
+        if bool(pool.get('enabled', False)) != (expected_pool == 'true'):
+            raise ValueError('Server pool layout differs from the selected execution profile')
     if expected_base5 and (metadata.get('point_intensity_source') != 'ros255'
             or metadata.get('image_final_dim') != [512,1056]
             or metadata.get('classes') != ['vehicle','pedestrian','obstacle']):
@@ -43,6 +63,10 @@ def main():
     parser.add_argument("--expected-sensor")
     parser.add_argument('--require-box-origin-tag',action='store_true')
     parser.add_argument('--expected-depth-raster-policy',choices=('nearest_positive',))
+    parser.add_argument('--expected-intrinsic-source',choices=('horizontal_fov','focal_length_pixel'))
+    parser.add_argument('--expected-camera-order',nargs=4)
+    parser.add_argument('--expected-camera-backend',choices=('eager','camera_tensorrt'))
+    parser.add_argument('--expected-pool-fused-layout', choices=('true', 'false'))
     args = parser.parse_args()
     with socket.create_connection((args.host, args.port), args.timeout) as connection:
         send_message(connection, TYPE_PING, {"client": "healthcheck"})
