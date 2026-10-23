@@ -41,6 +41,8 @@ public:
 
   void initialize(const bool enable_debug_info, const CommonParam & common_param);
   void resetPreviousData();
+  bool requiresHistoryReset(
+    const std::vector<TrajectoryPoint> & traj_points, const geometry_msgs::Pose & ego_pose) const;
   void onParam(const std::vector<rclcpp::Parameter> & parameters);
 
 private:

@@ -29,6 +29,12 @@ add_executable(elastic_band_smoother_node src/main.cpp)
 target_compile_features(elastic_band_smoother_node PUBLIC cxx_std_17)
 target_link_libraries(elastic_band_smoother_node PRIVATE ${PROJECT_NAME} ${catkin_LIBRARIES})
 
+if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  add_rostest_gtest(test_eb_history_reset test/eb_history_reset.test test/test_eb_history_reset.cpp)
+  target_link_libraries(test_eb_history_reset ${PROJECT_NAME} ${catkin_LIBRARIES})
+endif()
+
 install(TARGETS ${PROJECT_NAME} elastic_band_smoother_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

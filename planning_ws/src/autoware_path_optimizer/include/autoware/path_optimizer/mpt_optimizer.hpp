@@ -45,6 +45,8 @@ namespace autoware::path_optimizer
 {
 namespace detail
 {
+size_t boundInterpolationStartIndex(size_t offset_index, size_t reference_count);
+
 void assignHardConstraintStateBlock(
   Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
   size_t reference_count, size_t state_count);

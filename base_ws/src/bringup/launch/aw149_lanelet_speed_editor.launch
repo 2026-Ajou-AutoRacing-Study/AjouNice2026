@@ -1,0 +1,15 @@
+<launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="save_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet_speed_limits.yaml"/>
+  <include file="$(find bringup)/launch/aw149_planning_rviz.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="rviz_config" value="$(find bringup)/rviz/kcity_lanelet_speed_editor.rviz"/>
+    <arg name="show_morai_gt" value="false"/>
+  </include>
+  <node pkg="bringup" type="lanelet_speed_editor.py" name="lanelet_speed_editor" output="screen" required="true">
+    <param name="repo_root" value="$(arg repo_root)"/>
+    <param name="route_definition_file" value="$(find competition_route_requester)/config/kcity_v85_competition_route.yaml"/>
+    <param name="save_file" value="$(arg save_file)"/>
+    <param name="speed_kmh" value="50.0" type="double"/>
+  </node>
+</launch>

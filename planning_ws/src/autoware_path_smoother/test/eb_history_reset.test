@@ -1,0 +1,23 @@
+<launch>
+  <test test-name="eb_history_reset" pkg="autoware_path_smoother"
+        type="test_eb_history_reset" time-limit="60">
+    <rosparam>
+      ego_nearest_dist_threshold: 3.0
+      ego_nearest_yaw_threshold: 1.046
+      common:
+        output_backward_traj_length: 5.0
+        output_delta_arc_length: 0.2
+      elastic_band:
+        common: {delta_arc_length: 0.5, num_points: 120}
+        option: {enable_warm_start: true, enable_optimization_validation: true}
+        clearance:
+          num_joint_points: 3
+          clearance_for_fix: 0.0
+          clearance_for_joint: 0.1
+          clearance_for_smooth: 0.1
+        weight: {lat_error_weight: 0.001, smooth_weight: 1.0}
+        qp: {max_iteration: 10000, eps_abs: 0.0000001, eps_rel: 0.0000001}
+        validation: {max_error: 3.0}
+    </rosparam>
+  </test>
+</launch>

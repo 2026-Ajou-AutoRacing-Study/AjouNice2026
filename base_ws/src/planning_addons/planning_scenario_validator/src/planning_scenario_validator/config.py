@@ -11,6 +11,7 @@ from .layout import normalize_bar_setting
 from .traffic_light import runtime_settings
 from .repetitions import repetition_settings
 from .models import selected_model
+from .route_profile import normalize as normalize_route
 from .localization_contract import (normalize_localization_launch_args,
                                     normalize_gt_pose_launch_args,
                                     normalize_localization_safety)
@@ -243,6 +244,10 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError(".case.yaml은 폐기된 보조 설정입니다. base/example.yaml 또는 본인의 캠페인 YAML을 선택하세요")
     document = _yaml(path)
     validate_campaign_document(document)
+    try:
+        route = normalize_route(document, resolve_path)
+    except (ValueError, KeyError, OSError, TypeError, yaml.YAMLError) as error:
+        raise ConfigError('route 설정: {}'.format(error)) from error
     name = str(document.get("campaign_name", ""))
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}", name):
         raise ConfigError("campaign_name은 영문/숫자로 시작하는 2~60자 ASCII 이름이어야 합니다")
@@ -352,7 +357,7 @@ def load_campaign(path, *, check_install=True):
     output = resolve_path(document.get("output_root", "planner_logs/validation")) / name
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
-            "network": network, "stack": stack, "recording": recording,
+            "network": network, "stack": stack, "recording": recording, "route": route,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,
             "gt_pose_launch_args": gt_pose_launch_args,

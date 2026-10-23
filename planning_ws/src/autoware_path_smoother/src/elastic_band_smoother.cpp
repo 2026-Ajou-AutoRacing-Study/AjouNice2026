@@ -186,7 +186,9 @@ void ElasticBandSmoother::onPath(const PathConstPtr path_ptr)
   PlannerData planner_data(
     input_traj_points, ego_state_ptr->pose.pose, ego_state_ptr->twist.twist.linear.x);
   const bool is_replan_required = [&]() {
-    if (replan_checker_ptr_->isResetRequired(planner_data)) {
+    if (eb_path_smoother_ptr_->requiresHistoryReset(
+          input_traj_points, ego_state_ptr->pose.pose) ||
+        replan_checker_ptr_->isResetRequired(planner_data)) {
       // NOTE: always replan when resetting previous optimization
       resetPreviousData();
       return true;

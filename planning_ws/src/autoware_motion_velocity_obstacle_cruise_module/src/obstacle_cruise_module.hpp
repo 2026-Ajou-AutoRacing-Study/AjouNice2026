@@ -20,6 +20,7 @@
 #include "autoware_utils/system/stop_watch.hpp"
 #include "autoware_utils/system/time_keeper.hpp"
 #include "cruise_planner_interface.hpp"
+#include "lateral_collision_check.hpp"
 #include "optimization_based_planner/optimization_based_planner.hpp"
 #include "parameters.hpp"
 #include "ros1_compat.hpp"
@@ -35,6 +36,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -71,6 +73,14 @@ private:
 
   // common publisher
   ros::Publisher debug_cruise_planning_info_pub_;
+  ros::Publisher debug_selection_pub_;
+  ros::Publisher debug_input_trajectory_pub_;
+  // Per-cycle diagnostic state only; never used by obstacle selection.
+  struct FilterTrace {
+    std::string reason{"not_evaluated"};
+    std::map<std::string, double> values;
+  };
+  mutable std::unordered_map<std::string, FilterTrace> filter_trace_;
 
   // module publisher
   std::unique_ptr<autoware::objects_of_interest_marker_interface::ObjectsOfInterestMarkerInterface>
@@ -92,7 +102,8 @@ private:
 
   std::unique_ptr<CruisePlannerInterface> create_cruise_planner(ros::NodeHandle & node) const;
   std::vector<CruiseObstacle> filter_cruise_obstacle_for_predicted_object(
-    const Odometry & odometry, const double ego_nearest_dist_threshold,
+    const Odometry & odometry, const lateral_collision::LongitudinalMotion & ego_motion,
+    const double ego_nearest_dist_threshold,
     const double ego_nearest_yaw_threshold, const std::vector<TrajectoryPoint> & traj_points,
     const std::vector<std::shared_ptr<PlannerData::Object>> & objects,
     const ros::Time & predicted_objects_stamp, const bool is_driving_forward,
@@ -101,6 +112,8 @@ private:
   void publish_debug_info();
   std::optional<CruiseObstacle> create_cruise_obstacle(
     const Odometry & odometry, const std::vector<TrajectoryPoint> & traj_points,
+    const size_t ego_segment_index,
+    const lateral_collision::LongitudinalMotion & ego_motion,
     const std::vector<TrajectoryPoint> & decimated_traj_points,
     const std::vector<Polygon2d> & decimated_traj_polys,
     const std::shared_ptr<PlannerData::Object> object, const ros::Time & predicted_objects_stamp,

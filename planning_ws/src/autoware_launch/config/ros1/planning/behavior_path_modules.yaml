@@ -731,6 +731,19 @@ goal_planner:
   enable_simultaneous_execution_as_approved_module: true
   enable_simultaneous_execution_as_candidate_module: false
 lane_change:
+  overtake:
+    # Simulator NPCs yield to a merging lead vehicle. Applies only after ego
+    # has passed the tracked NPC and measured a complete body-to-body gap.
+    enable: true
+    assume_cooperative_npc: true
+    minimum_gap: 10.0
+    activation_distance: 15.0
+    minimum_ego_speed: 10.0
+    maximum_prepare_time: 8.0
+    npc_reaction_time: 1.0
+    npc_max_deceleration: 3.0
+    feedback_timeout: 0.5
+    cooldown: 3.0
   time_limit: 50.0
   backward_lane_length: 200.0
   backward_length_buffer_for_end_of_lane: 3.0
@@ -771,8 +784,8 @@ lane_change:
     enable_target_lane_bound_check: true
     stopped_object_velocity_threshold: 0.3
     prepare:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
       rear_vehicle_reaction_time: 1.0
       rear_vehicle_safety_time_margin: 0.8
       lateral_distance_max_threshold: 0.5
@@ -780,26 +793,26 @@ lane_change:
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: along_path
     execution:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
       rear_vehicle_reaction_time: 2.0
-      rear_vehicle_safety_time_margin: 1.0
-      lateral_distance_max_threshold: 2.0
-      longitudinal_distance_min_threshold: 3.0
-      longitudinal_velocity_delta_time: 0.0
-      extended_polygon_policy: rectangle
-    parked:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -2.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.8
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 1.0
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
+    parked:
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
+      rear_vehicle_reaction_time: 1.0
+      rear_vehicle_safety_time_margin: 0.8
+      lateral_distance_max_threshold: 0.5
+      longitudinal_distance_min_threshold: 3.0
+      longitudinal_velocity_delta_time: 0.0
+      extended_polygon_policy: rectangle
     cancel:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -2.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
       rear_vehicle_reaction_time: 1.5
       rear_vehicle_safety_time_margin: 0.8
       lateral_distance_max_threshold: 1.0
@@ -807,11 +820,11 @@ lane_change:
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
     stuck:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
       rear_vehicle_reaction_time: 2.0
       rear_vehicle_safety_time_margin: 1.0
-      lateral_distance_max_threshold: 2.0
+      lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle

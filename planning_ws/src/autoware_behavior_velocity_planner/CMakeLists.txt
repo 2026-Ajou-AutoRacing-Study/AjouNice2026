@@ -18,10 +18,12 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   roscpp
   sensor_msgs
+  std_msgs
   tf2_eigen
   tf2_ros
 )
 find_package(PCL REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -30,7 +32,7 @@ catkin_package(
     autoware_map_msgs autoware_motion_utils autoware_perception_msgs autoware_planning_msgs autoware_route_handler
     autoware_vehicle_info_utils
     autoware_velocity_smoother
-    diagnostic_msgs geometry_msgs nav_msgs pluginlib pcl_conversions pcl_ros roscpp sensor_msgs tf2_ros
+    diagnostic_msgs geometry_msgs nav_msgs pluginlib pcl_conversions pcl_ros roscpp sensor_msgs std_msgs tf2_ros
   DEPENDS PCL
 )
 
@@ -74,7 +76,7 @@ add_library(autoware_behavior_velocity_planner_manager SHARED
 target_include_directories(autoware_behavior_velocity_planner_manager PUBLIC
   include ${BVPC_COMMON_INCLUDE_DIR} ${AUTOWARE_TRAJECTORY_INCLUDE_DIR} ${catkin_INCLUDE_DIRS})
 target_link_libraries(autoware_behavior_velocity_planner_manager PUBLIC
-  "${AUTOWARE_TRAJECTORY_LIBRARY}" ${catkin_LIBRARIES})
+  "${AUTOWARE_TRAJECTORY_LIBRARY}" ${catkin_LIBRARIES} PRIVATE nlohmann_json::nlohmann_json)
 target_compile_features(autoware_behavior_velocity_planner_manager PUBLIC cxx_std_17)
 
 add_library(autoware_behavior_velocity_planner_node SHARED

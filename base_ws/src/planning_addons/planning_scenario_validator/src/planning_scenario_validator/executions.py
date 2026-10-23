@@ -78,6 +78,11 @@ def prepare_execution(source, *, check_install=True):
         document['scenarios'].pop('include', None)
         for key in ('sensor_json', 'ego_network_json'):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
+        if cfg.get('route'):
+            document['route']['definition_file'] = copy_input(
+                cfg['route']['definition_file'], 'routes/definition.yaml')
+            if files['routes/definition.yaml'] != cfg['route']['definition_sha256']:
+                raise ValueError('사본 준비 중 Route B 정의가 변경됐습니다.')
         if not cfg['recording'].get('bag_enabled', True) or 'selected_topics' in cfg['recording']:
             # A disabled/custom bag does not depend on a mutable external profile.
             destination = directory / 'topic_profile.json'
@@ -176,6 +181,9 @@ def load_execution(directory, *, check_install=True):
         if directory not in path.parents or not path.is_file() or sha256(path) != digest:
             raise ValueError('실험 사본이 변경되거나 사라졌습니다: {}'.format(relative))
     cfg = load_campaign(directory / manifest['snapshot'], check_install=check_install)
+    if cfg.get('route') and (cfg['route']['definition_file'] != directory / 'routes/definition.yaml'
+                            or 'routes/definition.yaml' not in manifest['files']):
+        raise ValueError('Route B 정의의 실행 사본이 없습니다.')
     if 'model_contract.json' in manifest['files']:
         model = json.loads((directory / 'model_contract.json').read_text())
         if check_install:

@@ -83,4 +83,27 @@ bool check_safety_with_rss(
   const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
   const RSSparams & params, bool use_all_predicted_paths, double hysteresis_factor,
   double yaw_difference_threshold);
+
+// Optional observation surface. The existing entry point and debug-map ABI stay
+// unchanged. Time windows select phases for runtime and diagnostic callers.
+struct RSSCollisionTrace
+{
+  double time{0.0};
+  size_t predicted_path_index{0};
+  double path_confidence{0.0};
+  double ego_velocity{0.0};
+  double object_velocity{0.0};
+  double rss_distance{0.0};
+  double longitudinal_extension{0.0};
+  double lateral_margin{0.0};
+  bool object_is_front{false};
+};
+bool check_safety_with_rss_diagnostics(
+  const autoware_internal_planning_msgs::PathWithLaneId & planned_path,
+  const std::vector<PoseWithVelocityStamped> & ego_predicted_path,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle_info,
+  const ExtendedPredictedObjects & objects, CollisionCheckDebugMap & debug_map,
+  const RSSparams & params, bool use_all_predicted_paths, double hysteresis_factor,
+  double yaw_difference_threshold, RSSCollisionTrace * trace,
+  double begin_time, double end_time);
 }

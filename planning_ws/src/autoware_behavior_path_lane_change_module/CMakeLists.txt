@@ -4,6 +4,7 @@ project(autoware_behavior_path_lane_change_module)
 find_package(catkin REQUIRED COMPONENTS geometry_msgs pluginlib roscpp std_msgs visualization_msgs)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
+find_package(nlohmann_json REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(lanelet2_routing REQUIRED)
 find_package(lanelet2_core REQUIRED)
@@ -79,15 +80,32 @@ add_library(${PROJECT_NAME} SHARED
   src/interface.cpp
   src/manager.cpp
   src/scene.cpp
+  src/safety_diagnostics.cpp
+  src/overtake.cpp
+  src/utils/overtake.cpp
   src/utils/calculation.cpp
   src/utils/markers.cpp
   src/utils/utils.cpp
   src/utils/path.cpp
+  src/utils/safety_check.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+target_link_libraries(${PROJECT_NAME} nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} ${BPP_COMMON_LIBRARY} ${FRENET_PLANNER_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${LANELET2_EXTENSION_LIBRARY} ${MOTION_UTILS_LIBRARY} ${INTERPOLATION_LIBRARY} ${GEOMETRY_UTILS_LIBRARY} ${DEBUG_UTILS_LIBRARY} ${PLANNING_FACTOR_INTERFACE_LIBRARY} ${TRAFFIC_LIGHT_UTILS_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${SAMPLER_COMMON_LIBRARY} ${OBJECTS_OF_INTEREST_LIBRARY} ${OBJECT_RECOGNITION_UTILS_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_UTILS_LIBRARY} fmt::fmt ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  add_executable(lane_change_overtake_bag_replay test/replay_overtake.cpp)
+  target_link_libraries(lane_change_overtake_bag_replay ${PROJECT_NAME} nlohmann_json::nlohmann_json)
+  catkin_add_gtest(test_lane_change_overtake test/test_overtake.cpp)
+  if(TARGET test_lane_change_overtake)
+    target_link_libraries(test_lane_change_overtake ${PROJECT_NAME} gtest)
+  endif()
+  add_executable(lane_change_safety_phase_replay test/replay_safety_phases.cpp)
+  target_link_libraries(lane_change_safety_phase_replay ${PROJECT_NAME} nlohmann_json::nlohmann_json)
+  catkin_add_gtest(test_lane_change_safety_phases test/test_safety_phases.cpp)
+  if(TARGET test_lane_change_safety_phases)
+    target_link_libraries(test_lane_change_safety_phases ${PROJECT_NAME} gtest_main)
+  endif()
   # Keep the upstream aggregate target intact.  The ROS2 BPP node harness it
   # includes is a separate porting gate; build the source tests that have no
   # such harness dependency as an additional ROS1 oracle instead of dropping

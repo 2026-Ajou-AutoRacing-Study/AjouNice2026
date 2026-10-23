@@ -194,6 +194,22 @@ std::vector<TrajectoryPoint> PIDBasedPlanner::plan_cruise(
   return cruise_traj_points;
 }
 
+void PIDBasedPlanner::reset_target_state()
+{
+  previous_target_uuid_.reset();
+  prev_target_acc_.reset();
+  lpf_dist_to_obstacle_ptr_->reset();
+  lpf_obstacle_vel_ptr_->reset();
+  lpf_error_cruise_dist_ptr_->reset();
+  lpf_normalized_error_cruise_dist_ptr_->reset();
+  lpf_output_vel_ptr_->reset();
+  lpf_output_acc_ptr_->reset();
+  lpf_output_jerk_ptr_->reset();
+  velocity_limit_based_planner_param_.pid_vel_controller->reset();
+  velocity_insertion_based_planner_param_.pid_acc_controller->reset();
+  velocity_insertion_based_planner_param_.pid_jerk_controller->reset();
+}
+
 std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacle_to_cruise(
   const std::vector<TrajectoryPoint> & stop_traj_points,
   const std::shared_ptr<const PlannerData> planner_data,
@@ -242,10 +258,16 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
   }
 
   if (!cruise_obstacle_info) {  // if obstacle to cruise was not found
-    lpf_dist_to_obstacle_ptr_->reset();
-    lpf_obstacle_vel_ptr_->reset();
-    lpf_error_cruise_dist_ptr_->reset();
+    reset_target_state();
     return {};
+  }
+
+  // Filters and PID history belong to the selected UUID. In particular, a
+  // distant lead's positive error must not mask a newly selected near obstacle.
+  if (!previous_target_uuid_ ||
+      previous_target_uuid_->uuid != cruise_obstacle_info->obstacle.uuid.uuid) {
+    reset_target_state();
+    previous_target_uuid_ = cruise_obstacle_info->obstacle.uuid;
   }
 
   // if obstacle to cruise was found
@@ -383,12 +405,7 @@ std::vector<TrajectoryPoint> PIDBasedPlanner::plan_cruise_trajectory(
     return stop_traj_points;
   }
 
-  // reset previous cruise data if adaptive cruise is not enabled
-  prev_target_acc_ = {};
-  lpf_normalized_error_cruise_dist_ptr_->reset();
-  lpf_output_acc_ptr_->reset();
-  lpf_output_vel_ptr_->reset();
-  lpf_output_jerk_ptr_->reset();
+  // calc_obstacle_to_cruise already clears all target state when no target remains.
 
   // delete marker
   const auto markers =

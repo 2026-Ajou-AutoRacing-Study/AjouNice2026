@@ -21,6 +21,7 @@
 #include "autoware_utils/ros/update_param.hpp"
 
 #include <memory>
+#include <cmath>
 #include <vector>
 
 namespace autoware::path_optimizer
@@ -60,10 +61,19 @@ bool ReplanChecker::isResetRequired(const PlannerData & planner_data) const
 
   const bool reset_required = [&]() {
     // guard for invalid variables
-    if (!prev_traj_points_ptr_ || !prev_ego_pose_ptr_) {
+    if (!prev_traj_points_ptr_ || !prev_ego_pose_ptr_ ||
+        prev_traj_points_ptr_->size() < 2 || p.traj_points.size() < 2) {
       return true;
     }
     const auto & prev_traj_points = *prev_traj_points_ptr_;
+
+    // The smoother's input starts in the backward buffer. A switched path can
+    // move this anchor substantially while the error at Ego remains below the
+    // generic reset threshold. Do not stitch old MPT fixed points to that path.
+    if (isPathStartChanged(planner_data, prev_traj_points)) {
+      RCLCPP_DEBUG(logger_, "Reset optimization since the input path start changed.");
+      return true;
+    }
 
     // path shape changes
     if (isPathAroundEgoChanged(planner_data, prev_traj_points)) {
@@ -136,6 +146,18 @@ void ReplanChecker::updateData(
   if (is_replan_required) {
     prev_replanned_time_ptr_ = std::make_shared<rclcpp::Time>(current_time);
   }
+}
+
+bool ReplanChecker::isPathStartChanged(
+  const PlannerData & planner_data, const std::vector<TrajectoryPoint> & prev_traj_points) const
+{
+  const auto & current_start = planner_data.traj_points.front().pose;
+  const auto previous_segment =
+    trajectory_utils::findEgoSegmentIndex(prev_traj_points, current_start, ego_nearest_param_);
+  const double lateral_jump = std::abs(autoware::motion_utils::calcLateralOffset(
+    prev_traj_points, current_start.position, previous_segment));
+  return !std::isfinite(lateral_jump) ||
+         lateral_jump > max_path_shape_forward_lat_dist_ + 1e-6;
 }
 
 bool ReplanChecker::isPathAroundEgoChanged(

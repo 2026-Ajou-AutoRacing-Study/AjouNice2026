@@ -459,17 +459,11 @@ std::vector<double> calc_lon_acceleration_samples(
   const auto & min_accel = min_max_accel.first;
   const auto & max_accel = min_max_accel.second;
 
-  // Competition mode explores front and rear gaps even far from a lane end.
+  // Explore front and rear gaps even far from a lane end, in descending
+  // acceleration order. The search accepts the first safe candidate, so
+  // stronger braking must not precede coasting or gentler braking samples.
   if (common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= eps) {
-    const auto values = calc_acceleration_values(min_accel, max_accel, sampling_num);
-    std::vector<double> ordered;
-    // Cover both extremes before refining, so a time budget does not spend all
-    // its work on the accelerating half of the grid.
-    for (size_t i = 0; i < (values.size() + 1) / 2; ++i) {
-      ordered.push_back(values[i]);
-      if (values.size() - 1 - i != i) ordered.push_back(values[values.size() - 1 - i]);
-    }
-    return ordered;
+    return calc_acceleration_values(min_accel, max_accel, sampling_num);
   }
   const auto & current_pose = common_data_ptr->get_ego_pose();
   const auto & target_lanes = common_data_ptr->lanes_ptr->target;

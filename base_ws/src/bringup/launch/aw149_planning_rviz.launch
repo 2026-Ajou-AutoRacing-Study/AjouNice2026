@@ -1,5 +1,5 @@
 <launch>
-  <!-- Visualization only: it does not launch or modify any planning node. -->
+  <!-- Visualization only by default. The standalone route editor is opt-in. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="planning_python_path"
        default="$(arg repo_root)/planning_ws/install_isolated/lib/python3/dist-packages:$(optenv PYTHONPATH)"/>
@@ -9,6 +9,9 @@
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="trajectory_topic" default="/planning/trajectory"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="enable_route_editor" default="false"/>
+  <arg name="route_definition_file" default="$(find competition_route_requester)/config/kcity_v85_competition_route.yaml"/>
+  <arg name="route_editor_save_file" default="$(arg repo_root)/planner_logs/route_editor/competition_routes.yaml"/>
   <!-- Load the tracked source config so Ctrl+S persists operator RViz edits. -->
   <arg name="rviz_config"
        default="$(arg repo_root)/base_ws/src/bringup/rviz/kcity_aw149_planning.rviz"/>
@@ -86,6 +89,19 @@
       <arg name="publish_lanelet_fill" value="false"/>
     </include>
   </group>
+
+  <node pkg="bringup" type="planning_vehicle_overlay.py"
+        name="planning_vehicle_overlay" output="screen">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
+  </node>
+
+  <node if="$(arg enable_route_editor)" pkg="bringup" type="planning_route_editor.py"
+        name="planning_route_editor" output="screen">
+    <env name="PYTHONPATH" value="$(arg planning_python_path)"/>
+    <param name="repo_root" value="$(arg repo_root)"/>
+    <param name="route_definition_file" value="$(arg route_definition_file)"/>
+    <param name="save_file" value="$(arg route_editor_save_file)"/>
+  </node>
 
   <node pkg="bringup" type="planning_trajectory_visualizer.py"
         name="planning_trajectory_visualizer" output="screen">

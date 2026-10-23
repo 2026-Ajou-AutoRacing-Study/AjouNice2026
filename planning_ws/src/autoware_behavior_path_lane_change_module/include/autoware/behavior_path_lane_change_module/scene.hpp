@@ -16,8 +16,11 @@
 
 #include "autoware/behavior_path_lane_change_module/base_class.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include <autoware/behavior_path_planner_common/utils/path_safety_checker/safety_core.hpp>
+#include <autoware_planning_msgs/Trajectory.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -124,6 +127,59 @@ public:
   bool hasMissedLaneChangePath() const override;
 
 protected:
+  enum class OvertakePhase { Idle, Accelerating, Ready, Changing, Blocked };
+  struct OvertakeState
+  {
+    OvertakePhase phase{OvertakePhase::Idle};
+    std::optional<unique_identifier_msgs::UUID> target;
+    ros::Time started;
+    ros::Time cooldown_until;
+    double gap{0.0};
+    std::string reason{"idle"};
+  };
+  OvertakeState overtake_;
+  std::optional<PathWithLaneId> overtake_prepare_path_;
+  ros::Subscriber final_trajectory_sub_;
+  mutable std::mutex final_trajectory_mutex_;
+  autoware_planning_msgs::TrajectoryConstPtr final_trajectory_;
+  ros::Time final_trajectory_received_;
+  mutable std::string overtake_feedback_reason_{"unavailable"};
+  mutable bool hard_collision_detected_{false};
+  void receiveFinalTrajectory(const autoware_planning_msgs::TrajectoryConstPtr & message);
+  void updateOvertake(bool is_approved);
+  bool buildOvertakePreparation(const ExtendedPredictedObject & object);
+  const ExtendedPredictedObject * findOvertakeTarget() const;
+  lane_change::TargetObjects allOvertakeObjects() const;
+  std::optional<std::vector<PoseWithVelocityStamped>> finalVelocityPrediction(
+    const LaneChangePath & candidate) const;
+  bool usesCooperativePolicy(const ExtendedPredictedObject & object) const;
+  const LaneChangePath & activeSafetyPath() const;
+  const char * overtakePhaseName() const;
+  void publishApprovedSafetyDiagnostics(bool safe, bool trailing) const;
+
+  struct SafetyDiagnosticSample
+  {
+    std::string stage;
+    ExtendedPredictedObject object;
+    LaneChangePath candidate;
+    std::vector<PoseWithVelocityStamped> ego_prediction;
+    RSSparams execution_params;
+    utils::path_safety_checker::RSSCollisionTrace trace;
+    CollisionCheckDebug debug;
+    double prepare_end_time{0.0};
+  };
+  void captureSafetyDiagnostic(
+    const char * stage, const ExtendedPredictedObject & object,
+    const LaneChangePath & candidate, const std::vector<PoseWithVelocityStamped> & prediction,
+    const RSSparams & execution_params,
+    const utils::path_safety_checker::RSSCollisionTrace & trace,
+    const CollisionCheckDebug & debug, double prepare_end_time = 0.0) const;
+  void publishSafetyDiagnostics(
+    double search_ms, bool approved = false, bool safe = false, bool trailing = false) const;
+  ros::Publisher safety_diagnostics_pub_;
+  mutable std::vector<SafetyDiagnosticSample> safety_diagnostic_samples_;
+  mutable size_t safety_rejected_pairs_{0};
+
   lanelet::ConstLanelets get_lane_change_lanes(const lanelet::ConstLanelets & current_lanes) const;
 
   TurnSignalInfo get_terminal_turn_signal_info() const final;

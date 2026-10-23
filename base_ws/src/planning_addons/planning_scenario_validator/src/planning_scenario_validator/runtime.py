@@ -712,7 +712,7 @@ def _pose_message(value):
     return pose
 
 
-def request_route(case, monitor, *, timeout, process=None):
+def request_route(case, monitor, *, timeout, process=None, route_plan=None):
     import rospy
     from autoware_internal_planning_msgs.srv import SetWaypointRoute, SetWaypointRouteRequest
     rospy.wait_for_service("/planning/set_waypoint_route", timeout=timeout)
@@ -720,7 +720,8 @@ def request_route(case, monitor, *, timeout, process=None):
     request.header.frame_id = "map"
     request.header.stamp = rospy.Time.now()
     request.goal_pose = _pose_message(case.goal)
-    request.waypoints = [_pose_message(p) for p in case.waypoints]
+    request.waypoints = [_pose_message(p) for p in
+                         (route_plan['waypoints'] if route_plan is not None else case.waypoints)]
     route_id = uuid.uuid4().bytes
     request.uuid.uuid = list(route_id)
     request.allow_modification = False
@@ -734,6 +735,9 @@ def request_route(case, monitor, *, timeout, process=None):
         if process is not None and process.poll() is not None:
             raise RuntimeFailure(str(error)) from error
         raise ScenarioFailure("NO_TRAJECTORY", str(error)) from error
+    if route_plan is not None:
+        from .route_profile import apply_and_verify
+        apply_and_verify(route_plan,monitor,route_id,timeout=timeout,process=process)
     monitor.event("ROUTE_READY", uuid=str(uuid.UUID(bytes=route_id)))
     return str(uuid.UUID(bytes=route_id))
 
