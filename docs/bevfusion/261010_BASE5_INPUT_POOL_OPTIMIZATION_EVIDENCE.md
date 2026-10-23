@@ -8173,3 +8173,29 @@ python3 scripts/evaluation/analyze_e12_map_horizon.py \
   --pack "$NEW_TRACKER_DIR/replay_pack.json.gz" \
   --output artifacts/evaluation/bevfusion/e12_postprocessing_261023_v1/map_horizon/new_run
 ```
+
+### 저장 결과의 1배속 RViz 확인 (같은 날 후속)
+
+```bash
+cd ~/AjouNice2026
+bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0
+# H03: 다른 고주로, R01: 로터리. 위 H04 인자만 교체한다.
+```
+
+처음은 일시정지이며 **명령을 실행한 터미널에서 Space**로 재생/정지한다. Ctrl+C 또는 RViz를 닫으면
+이 실행이 소유한 player·RViz·임시 master만 종료한다. 기존 ROS master·파라미터는 건드리지 않는다.
+별도 UDP·MORAI·GPU·planner·제어 노드는 실행하지 않는다. 원본 bag에서도 센서만 whitelist하며,
+기존 `/tf`, Ego, control, detector/prediction 토픽을 중복 발행하지 않는다.
+
+GT=자홍, E12 검출=초록, 트랙=청록(미연결 coasting=주황), 속도 화살표=0.5초 이동량,
+현행 3초=노랑, 단순 5초 후보=주황, 유효 연속 GT 미래=흰색이다. 연구용 prefix-stable 5초=파랑은
+기본 숨김이며 Displays에서 켤 수 있다. 5초 표시가 운영 승격을 의미하지 않는다. 실제 Map-CV를
+CPU로 재호출한 차량 경로이며 원래 저장 평가 endpoint 12,347개와 최대 XY 차이 0m였다.
+
+`rviz_exports_v1/{H04,H03,R01}`은 각각723/512/326프레임이다. 원본 LiDAR header를 pack stamp에
+유일하게 연결하고, marker 기록·시각화 header만 원본 bag receipt에 맞췄다. geometry는 측정 시각의
+현재 `lidar1` 좌표이며 gravity center의 높이를 다시 더하지 않는다. 원본 센서 timestamp는 미변경이다.
+모든 marker bag의9개 토픽 개수·receipt·frame·수명·유한 좌표와 해시를 전수 확인했다.
+뷰어/좌표 CPU 테스트12개 통과, 독립 master의 화면 없는 H04 1초 재생·종료도 통과했다.
+GUI는 사용자가 위 명령으로 연다. 저장된 EKF-core/CPU 경로를 보는 것이며 live GPU 지연,
+native 30Hz scheduler나 전체 폐루프를 인증하는 시험은 아니다.

@@ -46,6 +46,14 @@ native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 
 실행 전 `source scripts/workspace/source_aw149.sh`를 사용한다.
 [E12 후단 결과와 명령](../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)을 따른다.
 
+동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
+`bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
+H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의
+Space**로 재생/정지, Ctrl+C 또는 RViz 창 닫기로 종료한다. GT 자홍·검출 초록·트랙 청록(관측 누락 중
+주황), 현행 3초 노랑·비운영 5초 후보 주황이다. 연구용 prefix5 파랑은 기본 숨김이다.
+원본 센서와 저장 marker만 별도 localhost master에서 재생하며 MORAI·GPU·제어를 켜지 않는다.
+팀 설치기가 아니며 로컬 `rviz_exports_v1/<case>/scene.json`과 원본 bag이 필요하다.
+
 `scripts/evaluation/audit_fullstack_recording.py`는 validator의 bag·결과 JSON·events·
 `ros_parameters.yaml`이 있는 한 run 폴더를 읽는다. 제어 시작부터 종료까지의 토픽 주기,
 수신/header 차이, 충돌 메시지, 궤적 검사와 실제 planner 설정을 분리한다. 새 ROS master,
