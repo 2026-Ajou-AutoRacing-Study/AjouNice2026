@@ -7442,3 +7442,166 @@ production·threshold·센서·tracker·원래 W&B 이력은 변경하지 않았
 문서 검사는 링크 595개·원문 보존 13개에 새 오류가 없었다. 기존 README/CURRENT와 데이터
 CURRENT의 길이 예산 초과 3건은 그대로 남았으며, 문서 회귀 8개 중 해당 예산 검사 1개는
 실패하고 나머지 7개가 통과했다. 문서 검사 전체 통과로 보고하지 않는다.
+
+<a id="e12-partial-trt-cuda-experiment-261023"></a>
+
+## 60. E12 부분 TensorRT·CUDA 비용 실험과 저장 공간 정리 — 2026-10-23
+
+사용자는 재학습 없이 부분 TensorRT/CUDA 후보의 구현·실험을 승인했고, 작은 수치 차이만으로
+기각하지 말고 실제 정확도·안정성 손실과 속도 이득을 함께 판단하도록 요청했다. 따라서 아래의
+엄격 tensor/box gate는 **진단 기록이지 production 채택의 절대 조건이 아니다.** 과거 실패를
+통과로 바꾸거나 허용치를 사후 완화하지 않으며 실제 AP·전달 검출·연속 tracking을 구분한다.
+
+### 고정 조건과 구현 범위
+
+- E12 SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`,
+  Q90·512×1056·4 camera·5cm/20cm·depth 1–100m/0.25m·nearest를 유지했다.
+  AMP·camera 병렬화 ON, compile OFF다. 새 학습·센서/GT/ROI/threshold 변경은 없다.
+- 실제 RTX 4090 48GB의 별도 venv에서 Torch 2.7.1+cu128을 재사용하고 ONNX 1.16.0,
+  TensorRT-cu12/bindings/libs 10.13.3.9만 `--no-deps`로 설치했다. 기존 학습 환경은 덮어쓰지 않았다.
+  CUDA 기본 stream으로 우회하거나 CPU로 feature를 왕복하지 않고 현재 PyTorch stream의
+  CUDA tensor를 engine에 직접 연결한다. shape·dtype·engine SHA·GPU·TRT 버전·camera
+  parameter hash를 확인하며 명시적으로 원래 backbone/neck으로 복귀할 수 있다.
+- camera backbone+neck만 고정 shape ONNX/FP16 engine으로 만들었다. FP32 입력,
+  FP16 neck 출력 경계를 맞추고 normalization/softmax는 FP32 precision constraint를 적용했다.
+  LiDAR sparse·depthnet/view transform·fusion·head는 기존 PyTorch다. 다른 GPU에서 engine을
+  그대로 쓸 수 있다고 가정하지 않으며 5060 Ti와 4090의 engine은 공유하지 않는다.
+- 구현은 `docker/bevfusion/app/camera_tensorrt.py`와 BEVFusion `scripts/`의 export/qualify/
+  profile/native-export CLI다. 운영 server/launch 기본값에 연결하지 않았다. 별도 Dockerfile은
+  고정 학습 이미지의 **추론 실험 overlay recipe**이며 실제 이미지 build/push 성공을 뜻하지 않는다.
+  data·weights·engine·인증정보를 이미지에 넣지 않는다.
+
+### 카메라 부분 TRT: 64장·192회 서비스 비용과 검출 차이
+
+6환경에서 SHA 순서로 고른 48장과 별도 원거리 양성 16장이다. 출력 차이를 보고 표본을 고르지
+않았지만 전체 val의 대표 AP 표본도 아니다. 같은 입력을 eager→TRT→eager 복귀 순서로 재생했다.
+비용은 CPU JPEG decode/resize·GPU 전달·모델·decoded CPU 반환을 포함하며 파일 읽기·TCP·ROS·
+tracker/planner는 제외한다. 10ms 감소를 센서 header→planner 지연 10ms 감소로 바로 단정하지 않는다.
+
+| 실행 | 서비스 평균 / p50 / p95 / p99 | Camera CUDA event 평균 |
+|---|---:|---:|
+| AMP eager | 74.546 / 74.511 / 76.297 / 76.815ms | 15.783ms |
+| Camera FP16 TRT | 64.589 / 64.511 / 66.360 / 67.266ms | 5.399ms |
+| Eager 복귀 | 75.898 / 74.509 / 75.825ms / 별도 원본 참조 | 별도 원본 참조 |
+
+평균 약 **9.96ms·13.4% 감소**다. 복귀 실행에 330.233ms의 단발 예외가 있어 평균이 올라갔으며
+이를 지우거나 75.9ms를 유일한 정상 baseline으로 선택하지 않았다. camera event는 backbone
+진입부터 neck 뒤 view-transform 진입까지로, kernel self-time만은 아니다.
+
+기존 floor 0.1→top100→class-aware rotated NMS 0.5→V/P/O 0.4/0.1/0.1을 CPU에서 동일하게
+적용한 최종 전달 130박스(V54/P32/O44)는 전부 대응했다. class별 XY 차이 평균은
+0.150/0.087/0.087mm, 최대는 0.411/0.218/0.343mm다. yaw 최대는
+0.000519/0.019531/0.009766rad, score 최대 차이는 0.000595/0.001149/0.001632다.
+이 작은 표본의 최종 전달·AP용 후보 gate는 통과했고 eager 복귀는 exact였다.
+
+반면 decoded 최대 200개 전체에는 낮은 score query의 class/위치 차이가 있어 raw strict gate는
+실패했다. 이를 실제 검출 성능 악화나 무해함으로 곧바로 결론내리지 않는다. 첫 FP32 출력 경계
+engine의 12장 시험도 보행자 yaw 최대 0.021484rad로 0.02 gate를 넘었으며 기록을 보존했다.
+현재 후보는 학습 AMP의 neck FP16 경계를 맞춘 별도 v4다. 48GB 카드에서 20GiB allocator cap을
+사용했지만 실제 24GB ROS 풀스택 인증은 아니다. PyTorch allocated만 보면 TRT가 작아져도
+device free는 약 332MiB 줄어 engine의 별도 CUDA 메모리가 있다.
+
+### CUDA pooling: 실제 이득은 kernel보다 layout 복사 감소
+
+12장에서 baseline→layout 한 번 복사→pack4+layout→baseline 복귀를 비교했다.
+모든 raw decoded 출력은 exact였다. 서비스 p50은 73.788→73.394→72.696→73.897ms이며
+기준 실행의 단발 284.227ms 때문에 mean 79.689→72.692ms를 지속 이득으로 쓰지 않는다.
+계측 구간은 중첩·병렬 실행이 있어 개별 stage 시간을 더해 전체 시간으로 계산하지 않는다.
+
+실제 AMP view-transform activation은 depth/feature 모두 **FP32**였다. 이를 FP16으로 바꾸는
+것은 이미 half인 값을 읽는 최적화가 아니라 새 양자화이므로 이번 후보에 넣지 않았다.
+저장 activation은 5,889,322 rays·223,131 intervals·80 channels이며 output은 약 108MB다.
+같은 activation 50회 CUDA event 측정은 다음과 같다.
+
+| 분리 측정 | 평균 |
+|---|---:|
+| 기존 kernel+zeroing | 0.599ms |
+| 기존 layout 복사만 | 1.135ms |
+| 한 번 복사 layout만 | 0.756ms |
+| 기존 kernel+기존 layout | 1.689ms |
+| 기존 kernel+한 번 복사 layout | 1.295ms |
+| Pack4 kernel+한 번 복사 layout | 1.298ms |
+
+새 pack4는 FP32 scalar 누적·ray 순서·`--fmad=false`·현재 stream을 보존하고 27,095,040개
+activation 원소가 exact였지만 **기존 kernel보다 추가 속도 이득은 확인되지 않았다.** 따라서
+새 kernel을 빠른 후보로 권하지 않는다. layout 후보는 Z-major/C 순서와 XY transpose를
+보존하는 수학적 동일 변환이고 독립 CPU 18개 shape 조합에서도 exact였다. 이득은 국소적으로
+약 0.39ms이며 전체 10ms 이득과 중복 합산하지 않는다. calibration signature host 구간은
+평균 약 0.342ms였다. cache 무효화 보호를 제거해 큰 이득을 얻었다고 보고하지 않는다.
+
+### 전체 native val 4,614장: 실제 AP 손실은 매우 작음
+
+같은 E12·AMP·parallel·TF32 ON·cuDNN benchmark ON에서 두 backend를 순차 실행했다.
+원래 Runner validation pipeline·GT bottom 표현·native intensity 0..1·decoded 최대 200개를
+유지했다. ROS floor/top100/NMS를 넣지 않았고 GT 0점 601개, 빈 GT 232프레임도 남겼다.
+원격에서 이미 검증된 센서 경로만 재연결한 infos SHA는
+`073feab03770853fd2b4c56b392bf65f2fffa07f83b6b7e171670a8e2f9dcc40`,
+두 export의 GT identity는 모두 `7f6b5b9ff7c3c981a4261bba035eae388c57a9827cefefa5685e02c084a1bbf2`다.
+고유 sensor 23,070파일을 시작/끝에 SHA 확인하고 실행 source·weights·engine도 검산했다.
+
+| Class | GT | AMP eager AP | Camera TRT AP | 후보−기준 |
+|---|---:|---:|---:|---:|
+| Vehicle | 3,972 | 97.2743% | 97.2726% | −0.0017%p |
+| Pedestrian | 2,850 | 96.5265% | 96.5252% | −0.0014%p |
+| Obstacle | 3,685 | 88.3626% | 88.4004% | +0.0378%p |
+| 세 class mAP | 10,507 | **94.0545%** | **94.0661%** | **+0.0116%p** |
+
+지표는 기존 XY center AP@0.5/1/2/4m 평균·min recall/precision 0.1이다. 작은 상승을
+모델 능력 향상으로 해석하지 않는다. 전체 mAP만으로 일부 구간의 손실을 가리지도 않는다.
+20~30m Pedestrian/Obstacle은 각각 95.7293→95.7247%, 86.7782→86.7714%다.
+10m class 구간의 가장 큰 하락은 50~60m Obstacle **−0.0764%p/49 GT**였고,
+40~50m Obstacle은 −0.0585%p/71 GT다. 근거리 장애물·보행자의 큰 퇴보는 이 val에서
+확인되지 않았다. 80m 이상 보행자/장애물의 작은 분모는 원거리 능력 보존의 강한 증거가 아니다.
+
+| 원거리 Vehicle | GT | AMP eager→TRT AP |
+|---|---:|---:|
+| 전방 80~90m | 77 | 64.8485→64.8517% |
+| 전방 90~100m | 57 | 44.5510→44.5469% |
+| 후방 80~90m | 73 | 95.3701→95.3701% |
+| 후방 90~100m | 61 | 95.9852→95.9852% |
+
+같은 전체 export의 Runner `test_step`+decoded CPU 반환 비용은 첫 10장을 제외한
+각 4,604회에서 평균 **55.096→45.168ms**, p95 **56.166→46.962ms**였다.
+이는 파일 decode/loader를 제외하므로 위 74.55→64.59ms 서비스 비용과 범위를 섞지 않는다.
+양쪽에 574/580ms 최대 예외가 있었고 삭제하지 않았다. 실제 ROS/LAN 입력 age는 측정하지 않았다.
+
+**판단:** raw 저점수 query의 완전 동일성을 못 맞췄다는 이유로 후보를 기각할 근거는 약하다.
+이 전체 val의 class/거리 AP 변화는 약 10ms·13.4% 서비스 이득에 비해 매우 작아 부분 TRT는
+후속 배포 검증에 올릴 합리적인 후보다. 다만 이 결과가 continuous bag의 threshold 경계·ID
+교체·coasting이나 24GB 동시 풀스택까지 보증하지는 않는다. 다음은 같은 learned E12의 연속
+bag·원래 threshold에서 검출/추적 차이를 확인하고 팀장님 4090에서 engine을 빌드해 시험하는
+순서다. production E24·운영 TRT OFF는 유지하며 자동 승격하지 않았다.
+
+`FULL_NATIVE_AP_PAIR_v2.json` SHA는
+`360fcfcde69fc313926c4e75e37f634643c78675f4d69be2a601895f2c411600`이다.
+완료 raw export 두 개는 Vast `/workspace/base5_trt_probe_261023_v1/full_native_*_v2/`에 보존했다.
+큰 raw 파일의 느린 SSH 회수는 중단하고 **동일 소스 CPU scorer를 원격 실행해** 먼저 결과를
+회수했다. 로컬에 일부만 받은 폴더를 완료 export로 사용하지 않는다. scorer는 COMPLETE/
+receipt/payload SHA·ordered GT·class/precision/config/infos 동일성을 확인하고 기존 공개
+evaluator의 ROI/거리 연산과 대조한다. production inference나 GPU 작업을 다시 실행하지 않았다.
+
+CPU 회귀는 카메라 adapter 32개·AP scorer 5개·기존 packaging 4개 **41개 통과**다.
+고정 Docker의 adapter/parallel/기존 inference 회귀도 40개 통과·CUDA 전용 4개 skip였다.
+AP scorer는 실제 infos에 넣은 합성 정답 예측의 33개 class/group 결과가 public canonical
+evaluator와 정확히 같았다. 이는 scorer QA이지 실제 모델 AP가 아니다. 문서 링크·과거 원문은
+보존했고 기존 세 문서의 길이 예산 초과는 남아 있어 문서 검사 전체 통과라고 보고하지 않는다.
+
+### 저장 공간 정리와 재현 자료
+
+사용자가 승인한 RGB PNG→Q90 JPEG 보존 정책에 따라 20,000개 원본의 대응 JPEG SHA·decode·
+크기를 확인했다. 정확히 2개 hardlink가 확인된 17,012 inode의 RGB PNG 34,024경로와,
+원래 native GT/pointcloud/TXT 및 infos가 보존된 옛 PNG tar.zst를 삭제했다. 로컬 회수량은
+약 **32.26GiB**, 직후 여유는 약 **43GiB**다. 추가 hardlink가 있는 2,988개는 보존했다.
+JPEG는 승인한 lossy 입력이고 삭제된 PNG의 bitwise 원상복구를 보장하는 백업은 아니다.
+Instance/semantic/depth annotation·JPEG·pointcloud·weights·rosbag은 삭제하지 않았다.
+
+Vast는 SHA가 확인된 완료 archive가 따로 있는 3,020,423,168바이트 partial만 삭제했다.
+대체 archive·복원 데이터·학습 원본은 보존했다. 약 2.81GiB 회수했고 TRT 설치 후 저장 공간은
+실제 시점에 따라 달라진다. 빌린 PC는 이번 작업에서 접속·정리하지 않았다.
+
+근거 루트는 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+`qualify_fp16_boundary_64_v1/report.json`, `profile_pool_12_v1/report.json`,
+`pool_isolated_v1.json`, cleanup receipt와 삭제 경로 목록을 보존한다. 초기 config lazy-import·
+relative third-party 경로 실패와 native infos 전송 완료 전 시작 실패도 덮어쓰지 않았다.
+전체 native val A/B는 원래 GT·0점·빈 프레임을 모두 보존하고 같은 AMP/TF32/병렬화로
+비교한다. 과거 59절의 FP32/TF32 OFF 94.07%와 새 AMP 결과의 차이를 TRT 효과로 쓰지 않는다.

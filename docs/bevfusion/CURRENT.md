@@ -105,8 +105,8 @@ Validator 분석은 [현재 런북](../planning/SCENARIO_VALIDATOR_RUNBOOK.md#5-
 48GB 카드의 20GiB 제한 시험은 실제 대회 24GB 카드의 ROS/LAN·풀스택 인증이 아니다.
 비용용 빈 출력·query 고정 통제를 완성 모델의 정확도/배포 근거로 사용하지 않는다.
 
-BEVPool/CUDA 경로 개선은 적용된 구현을 따른다. CUDA-BEVFusion은 참고 구현이며
-TensorRT나 새 프레임워크로 실제 배포를 마친 상태가 아니다. [10/23 후속 우선순위](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-partial-tensorrt-priority-261023)는 E12 단계별 재측정·출력 동일 준비/전송 개선 후 camera backbone+neck의 부분 FP16 TensorRT와 남는 임계 경로의 sparse/CUDA kernel A/B를 제안한다. 공개 Orin 25 FPS·pooling 가속률은 모델/GPU·기존 kernel 조건이 달라 우리 전체 속도로 전용하지 않는다. 기록 E12 5,986프레임 CPU 선택+NMS는 평균 0.0495ms여서 우선 큰 병목으로 보지 않는다. full-stack 인증·TRT 구현 완료나 구조 축소/INT8 채택을 뜻하지 않는다.
+BEVPool/CUDA 경로 개선은 적용된 구현을 따른다. CUDA-BEVFusion은 참고 구현이며 새 프레임워크로 전체 이주한 상태가 아니다.
+[부분 TensorRT 실험](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-partial-trt-implementation-261023)을 E12·4090에서 구현했다. camera backbone+neck FP16 후보는 64장·192회에서 서비스 평균 **74.55→64.59ms**, p95 **76.30→66.36ms**다. [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)의 전체 val 4,614장 동일 AMP 비교 mAP는 **94.0545→94.0661%**, V/P/O 변화는 −0.0017/−0.0014/+0.0378%p다. 작은 수치 차이에 비해 약 13.4% 서비스 이득이 있어 후속 배포 검증 후보로 유지한다. raw 저점수 query는 달라도 엄격 동일 gate만으로 기각하지 않는다. 연속 bag·실제 24GB 풀스택은 아직 미검증이며 운영 TRT/compile은 OFF다. pooling 한 번 복사는 국소 약 0.39ms 이득이나 새 pack4 kernel 자체의 추가 이득은 없어 시험용이다. 공개 Orin FPS를 우리 속도로 전용하지 않으며 구조 축소·INT8·새 sparse backend·재학습은 이번 완료 범위가 아니다.
 
 <a id="next"></a>
 

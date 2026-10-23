@@ -1,0 +1,22 @@
+# Experimental dependency/source overlay; not the production/training image.
+# Repository-specific .dockerignore admits only the explicit files below.
+ARG BASE_IMAGE=fluffyluv/ajounice2026-bevfusion-train@sha256:85185232c0a53fb2640c411b04002fa3a98631408d3cdb5f668d5c15a40fd959
+FROM ${BASE_IMAGE}
+LABEL ai.ajounice.runtime-purpose="opt-in-camera-tensorrt-experiment" \
+      ai.ajounice.production-qualified="false"
+COPY docker/bevfusion/requirements/tensorrt-inference-experiment.txt /opt/requirements/tensorrt-inference-experiment.txt
+RUN python -m pip install --no-cache-dir --no-deps -r /opt/requirements/tensorrt-inference-experiment.txt \
+    && python -c "import torch,onnx,tensorrt; assert torch.__version__.split('+')[0]=='2.7.1'; assert torch.version.cuda=='12.8'; assert onnx.__version__=='1.16.0'; assert tensorrt.__version__=='10.13.3.9'"
+COPY docker/bevfusion/app/camera_tensorrt.py /opt/ajounice/docker/bevfusion/app/camera_tensorrt.py
+COPY perception/detection3d/bevfusion/scripts/export_base5_camera_tensorrt.py \
+     perception/detection3d/bevfusion/scripts/qualify_base5_camera_tensorrt.py \
+     perception/detection3d/bevfusion/scripts/profile_base5_e12_execution.py \
+     perception/detection3d/bevfusion/scripts/infer_base5_execution_candidate.py \
+     perception/detection3d/bevfusion/scripts/score_base5_execution_pair.py \
+     perception/detection3d/bevfusion/scripts/benchmark_base5_pool_variants.py \
+     perception/detection3d/bevfusion/scripts/base5_pool_pack4_candidate.py \
+     /opt/ajounice/perception/detection3d/bevfusion/scripts/
+COPY perception/detection3d/bevfusion/plugin/experimental_pool_pack4.cu /opt/ajounice/perception/detection3d/bevfusion/plugin/experimental_pool_pack4.cu
+# No weights/data/engines/authentication are embedded. Engines are target-GPU
+# artifacts built explicitly after image creation; no training starts on boot.
+CMD ["bash"]

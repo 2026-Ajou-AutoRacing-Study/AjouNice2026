@@ -264,3 +264,63 @@ Torch 2.7.1/CUDA 12.8 환경에 그대로 덮어쓰지 않는다.
 남으면 같은 저장 activation으로 해당 backend/kernel만 A/B한다. custom backend가 필요한
 전체 이주는 첫 부분 후보의 이득·이식 비용·정확도 검증 후 판단한다. 아직 새 engine의 성능,
 전체 이식 성공, 기존 checkpoint의 자동 호환을 확인한 상태는 아니다.
+
+<a id="e12-partial-trt-implementation-261023"></a>
+
+## 10/23 후속: E12 camera 부분 TRT 시험 구현
+
+앞 절의 ‘아직 구현 계획’은 작성 당시 상태다. 이후 실제 4090에서 camera backbone+neck
+FP16 engine·현재 stream의 zero-copy adapter·원형 복귀·비용/출력 비교·전체 native val
+export/scorer를 구현했다. [실측과 한계는 60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)을 따른다.
+운영 서버·launch를 바꾸거나 E12를 자동 production 승격한 것은 아니다. 작은 raw query 차이의
+엄격 gate와 실제 정확도 손실은 구분하며, 측정한 AP/검출/추적 손실을 지연 이득과 함께 판단한다.
+
+### 환경과 실행 방법
+
+실측은 기존 고정 학습 환경 위 별도 venv의 `--system-site-packages`와
+`docker/bevfusion/requirements/tensorrt-inference-experiment.txt`를 사용했다.
+`--no-deps`로 ONNX/TRT만 추가하고 Torch·CUDA·기존 model dependency를 업그레이드하지 않는다.
+`Dockerfile.tensorrt-experiment`는 같은 의존성을 담는 **미빌드 recipe**다. 필요할 때 저장소
+루트에서 다음과 같이 build하며 실제 build/pull·팀장님 PC 시험은 별도다.
+
+```bash
+docker build -f docker/bevfusion/Dockerfile.tensorrt-experiment \
+  -t ajounice-bevfusion-trt-experiment:10.13.3 .
+```
+
+아래는 필요한 Python dependency·custom op·repo import 경로가 준비된 목표 GPU 환경의 예시다.
+`E12_CHECKPOINT`, `INPUT_MANIFEST`, `RUN_ROOT`는 실제 파일과 **새 출력 디렉터리**로 지정한다.
+manifest는 `base5_camera_trt_inputs_v1` 형식이며 원본 JPEG/XYZI 파일·SHA·강도 출처를 명시한다.
+경로만 다른 학습 가중치나 임의 이미지를 첫 자격 시험에 대신 넣지 않는다.
+
+```bash
+CONFIG=perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py
+SCRIPTS=perception/detection3d/bevfusion/scripts
+python "$SCRIPTS/export_base5_camera_tensorrt.py" \
+  --config "$CONFIG" --checkpoint "$E12_CHECKPOINT" \
+  --output-dir "$RUN_ROOT/engine" --precision fp16 --output-dtype float16 \
+  --fp32-layer-types NORMALIZATION SOFTMAX --build-engine
+python "$SCRIPTS/qualify_base5_camera_tensorrt.py" \
+  --inputs-manifest "$INPUT_MANIFEST" --config "$CONFIG" \
+  --checkpoint "$E12_CHECKPOINT" --sensor-config configs/sensors/Sensor.json \
+  --engine "$RUN_ROOT/engine/camera.engine" \
+  --metadata "$RUN_ROOT/engine/camera.engine.json" \
+  --output "$RUN_ROOT/qualify" --samples 64 --timing-repeats 3
+```
+
+engine은 build한 GPU·compute capability·TRT 버전·고정 shape와 camera parameter에 묶인다.
+4090 48GB에서 통과한 비용 시험을 24GB 카드·ROS/TCP·다른 GPU의 검증으로 대체하지 않는다.
+adapter는 `install_camera_tensorrt(model, ...)`의 반환 handle을 `close()`하면 원래
+backbone/neck으로 복귀한다. 학습 모델에 설치하지 않으며 암묵적 CPU fallback도 하지 않는다.
+
+전체 val은 `infer_base5_execution_candidate.py --backend eager`와
+`--backend camera_trt`를 같은 infos·가중치·AMP/TF32에서 각각 새 폴더로 실행한다.
+`score_base5_execution_pair.py --reference EAGER_DIR --candidate TRT_DIR --info INFOS.pkl
+--output FRESH_RESULT.json`으로 class/10m/전후방 원거리 AP를 계산한다. 센서·source·GT
+정합을 확인한 COMPLETE/receipt/STARTED/predictions가 모두 필요하며 GT 0점·빈 프레임도 남긴다.
+과거 FP32 평가와 새 AMP 평가를 비교해 TRT 차이라고 부르지 않는다.
+
+CUDA pooling은 `benchmark_base5_pool_variants.py`로 실제 저장 activation을 재사용한다.
+이번 새 pack4 kernel은 exact지만 기존 kernel보다 빠르지 않았으므로 기본 채택하지 않는다.
+반복 layout 복사를 한 번으로 줄이는 후보와 새 kernel의 효과도 분리한다. backward·재학습이나
+새 sparse backend 이식은 이번 시험의 완료 범위가 아니다.

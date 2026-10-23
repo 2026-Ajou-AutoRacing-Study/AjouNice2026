@@ -58,7 +58,7 @@
 | 실제 학습 compile OFF/ON·메모리 경계 | [25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011), [26절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | JPEG 전환·정답 heatmap 축·upright BBox | [12절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011), [15절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011), [16절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | 격자·depth·Z 설정 비교 | [17절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011), [19절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |
-| CUDA-BEVFusion·BEVPool·TensorRT 검토 | [배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md) |
+| CUDA-BEVFusion·BEVPool·부분 TensorRT 구현/비용·출력/AP 비교 | [배포 검토·실행법](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-partial-trt-implementation-261023), [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023) |
 | 차량 velocity 기준과 bag GT | [GT 기준 조사](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md) |
 
 ## 과거 재현

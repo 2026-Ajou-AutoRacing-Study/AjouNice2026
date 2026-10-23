@@ -1,0 +1,8 @@
+# Add only to the frozen Torch 2.7.1 / CUDA 12.8 inference experiment base.
+# Install with --no-deps: do not replace Torch/CUDA/numpy/protobuf implicitly.
+# These exact packages were exercised in a separate Vast venv, not installed
+# into the training environment. Package installation alone is not qualification.
+onnx==1.16.0
+tensorrt-cu12==10.13.3.9
+tensorrt-cu12-bindings==10.13.3.9
+tensorrt-cu12-libs==10.13.3.9
