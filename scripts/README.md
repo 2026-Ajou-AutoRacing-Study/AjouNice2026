@@ -36,6 +36,32 @@
 
 ## 후단과 노드 지연 분석
 
+### 팀 공유용 개발 녹화 (raw 센서 포함)
+
+기존 풀스택을 켜고 별도 터미널에서 아래 명령을 실행한다. 이 도구는 노드를 기동하거나
+차량·스택을 정지하지 않는다. `recorder.log`에 `Recording`이 나온 뒤 주행하고 Ctrl-C로 마감한다.
+
+```bash
+source scripts/workspace/source_aw149.sh
+bash scripts/rosbag/record/rosbag_for_development.sh
+# 선택: 5분 자동 마감
+bash scripts/rosbag/record/rosbag_for_development.sh --duration 300
+```
+
+`rosbags/eval/development/dev_날짜_고유번호/`에 bag·recorder.log·metadata.json·recording_audit.json을
+함께 저장한다. 공유할 때 **폴더 전체**를 전달한다. 카메라는 실제 ROS 입력의 원본 CompressedImage
+바이트를 그대로 담으며 재인코딩하지 않는다. LiDAR PointCloud와 원본 패킷·GPS·IMU,
+GT·인지·측위·TF·단계별 계획 경로·제어·LC 안전 검사·Cruise 선택/입력 궤적도 요청한다.
+이미지와 LiDAR 재추론에 필요한 원본을 기록하므로 용량·디스크 I/O 부담이 크다.
+비압축 Image까지 필요할 때만 `--include-decoded-images`를 추가한다(중복 기록 가능).
+
+기본 시작 여유는 10GiB이며 장시간 용량을 보장하는 수치는 아니다. 여유 2GiB 미만이면
+녹화만 SIGINT로 마감하고 차량은 직접 정지해야 한다. 제한시간 생략 시 Ctrl-C까지 녹화한다.
+`--output-dir /큰디스크/경로`로 저장 위치를 바꿀 수 있다. `--list`는 ROS/파일 변경 없이 목록만 출력한다.
+종료 검사는 실제 메시지 수와 빠진 core/진단 토픽을 보고할 뿐 안전 주행·시간 동기화를 인증하지 않는다.
+구버전 노드·미활성 기능의 진단은 없을 수 있다. 최신 빌드가 필요하며, advertise만 있고 발행하지 않는
+Cruise `debug/obstacle_cruise/trajectory`는 필수 토픽으로 취급하지 않는다.
+
 `prepare_e12_postprocessing.py`는 이미 동결한 E12/E24 bag 검출의 **모든** 입력을 실제 C++ EKF
 코어로 재생하고, 평가 eligibility·GT 원래 index·0점 근거를 별도 보존한다. `analyze_e12_tracking_support.py`는
 동일 중심 AP를 검출/track 출력에 적용한 proxy와 일시 0점·속도·잔류를 계산한다. AMOTA/IDF1이나
