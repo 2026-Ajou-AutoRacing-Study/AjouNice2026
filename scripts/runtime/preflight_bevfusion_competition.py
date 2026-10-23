@@ -30,7 +30,8 @@ CAMERAS = ['camera_front', 'camera_front_left', 'camera_front_right', 'camera_ba
 ENV_KEYS = {'BEVFUSION_CHECKPOINT', 'BEVFUSION_INFERENCE_CHECKPOINT', 'BEVFUSION_SENSOR_CONFIG',
             'BEVFUSION_IMAGE', 'BEVFUSION_PRODUCTION_MODEL', 'BEVFUSION_CAMERA_TENSORRT_POLICY',
             'BEVFUSION_CAMERA_TENSORRT_ENGINE', 'BEVFUSION_CAMERA_TENSORRT_METADATA',
-            'BEVFUSION_SAFE_MODE', 'BEVFUSION_POOL_FUSED_LAYOUT'}
+            'BEVFUSION_SAFE_MODE', 'BEVFUSION_POOL_FUSED_LAYOUT',
+            'BEVFUSION_HEAD_ATTENTION_SDPA', 'BEVFUSION_HEAD_CACHE_BEV_POS'}
 
 
 def sha256(path):
@@ -329,6 +330,14 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
         add('acceleration_static_contract', 'blocker' if problem and policy == 'require' else 'warning' if problem else 'pass',
             problem or 'Local engine identity matches; TensorRT library/runtime eligibility still belongs to startup',
             fallback_to_eager_allowed=policy == 'prefer')
+    head_flags = {}
+    for key in ('BEVFUSION_HEAD_ATTENTION_SDPA', 'BEVFUSION_HEAD_CACHE_BEV_POS'):
+        value = 'false' if safe else environment.get(key) or 'false'
+        if value not in ('true', 'false'):
+            add('head_optimization_option', 'blocker', key+' must be true or false')
+        head_flags[key] = value == 'true'
+    if any(head_flags.values()):
+        add('head_optimization', 'warning', 'Explicit inference-only head candidate; startup source eligibility may retain the SAME original head. --safe disables both options', flags=head_flags)
     if policy != 'off' or environment.get('BEVFUSION_POOL_FUSED_LAYOUT') == 'true':
         add('acceleration', 'warning', 'Optional engine/layout eligibility is checked separately by runtime; --safe disables both without changing selected weights', policy=policy)
     command = ['env', 'BEVFUSION_CHECKPOINT='+str(checkpoint), 'bash',

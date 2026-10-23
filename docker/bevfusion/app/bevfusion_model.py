@@ -1,5 +1,6 @@
 """Load production Base3 or explicit Base5 and run in-memory inference."""
 
+import logging
 import time
 
 import numpy as np
@@ -17,6 +18,7 @@ from app.inference_optimization import (
 
 DEFAULT_CLASSES = ["vehicle", "pedestrian", "obstacle"]
 BOX_CENTER_ORIGIN = 'lidar_bottom_v1'
+LOGGER = logging.getLogger('bevfusion_server')
 
 
 def build_warmup_points(point_dim, temporal_num_sweeps, point_count=8192):
@@ -68,6 +70,8 @@ class BevFusionModel:
         camera_tensorrt_engine=None,
         camera_tensorrt_metadata=None,
         pool_fused_layout=False,
+        head_attention_sdpa=False,
+        head_cache_bev_pos=False,
     ):
         from app.camera_tensorrt import (
             load_camera_metadata, sha256_file, validate_camera_tensorrt_options)
@@ -75,6 +79,8 @@ class BevFusionModel:
         self._closed = False
         self.camera_tensorrt = None
         self.pool_runtime_layout = None
+        self.head_runtime_optimization = None
+        self.head_runtime_report = None
         self.inference_optimization = None
         self.preprocessor = None
         if pool_fused_layout and not base5_runtime:
@@ -153,6 +159,7 @@ class BevFusionModel:
                 self.camera_tensorrt = install_camera_tensorrt(
                     self.model, camera_tensorrt_engine, camera_tensorrt_metadata,
                     expected_contract=trt_contract, device=device)
+            self._configure_head_runtime(head_attention_sdpa, head_cache_bev_pos, base5_runtime)
             if compile_parts or fuse_dense_bn or camera_cuda_graph or eager_camera_numerics or compile_reference_layout or parallel_camera:
                 self.inference_optimization = InferenceOptimization(
                     self.model, compile_parts, fuse_dense_bn, camera_cuda_graph=camera_cuda_graph,
@@ -211,11 +218,57 @@ class BevFusionModel:
             self.close()
             raise
 
+    def _configure_head_runtime(self, attention_sdpa=False, cache_bev_pos=False, base5_runtime=False):
+        """Install optional head wrappers only before warmup; never hot-fallback.
+
+        Named source/AST eligibility failures leave the SAME loaded head intact.
+        No execution, weight, class or general model-loading exception is caught.
+        """
+        if getattr(self, 'head_runtime_optimization', None) is not None:
+            raise RuntimeError('Head runtime configuration is startup-only; rebuild instead of hot reconfiguration')
+        requested = dict(attention_sdpa=bool(attention_sdpa), cache_bev_pos=bool(cache_bev_pos),
+                         proposal_topk=False)
+        self.head_runtime_report = dict(schema='base5_head_runtime_startup_v1',
+            requested=requested, enabled=False,
+            active_flags=dict(attention_sdpa=False, cache_bev_pos=False, proposal_topk=False),
+            fallback=False, reason_code='not_requested', reason=None, startup_only=True,
+            original_head_preserved=True, checkpoint_changed=False, config_changed=False)
+        if not attention_sdpa and not cache_bev_pos:
+            return
+        if not base5_runtime:
+            self.head_runtime_report.update(fallback=True, reason_code='head_runtime_incompatible',
+                reason='Optional head optimization is only audited for single-frame Base5')
+            LOGGER.warning('Head optimization unavailable at startup; keeping the SAME original head: %s',
+                           self.head_runtime_report['reason'])
+            return
+        try:
+            from app.head_runtime_optimization import (
+                HeadOptimizationUnavailableError, install_head_runtime_optimization)
+        except (ImportError, OSError) as error:
+            self.head_runtime_report.update(fallback=True, reason_code='head_helper_unavailable', reason=str(error))
+            LOGGER.warning('Head optimization unavailable at startup; keeping the SAME original head: %s', error)
+            return
+        try:
+            handle = install_head_runtime_optimization(self.model.bbox_head, proposal_topk=False,
+                attention_sdpa=bool(attention_sdpa), cache_bev_pos=bool(cache_bev_pos))
+        except HeadOptimizationUnavailableError as error:
+            self.head_runtime_report.update(fallback=True, reason_code='head_source_incompatible', reason=str(error))
+            LOGGER.warning('Head optimization source/AST guard declined at startup; keeping the SAME original head: %s', error)
+            return
+        self.head_runtime_optimization = handle
+        self.head_runtime_report.update(enabled=True, active_flags=dict(requested),
+            reason_code=None, original_head_preserved=False, helper_report=dict(handle.report))
+        LOGGER.info('Optional head optimization installed: %s', self.head_runtime_report)
+
     def execution_status(self):
+        head = dict(getattr(self, 'head_runtime_report', None) or dict(enabled=False))
+        if self._closed:
+            head['enabled'] = False
         return dict(camera_tensorrt=(self.camera_tensorrt.adapter.status()
                     if self.camera_tensorrt is not None else dict(enabled=False)),
                     pool_fused_layout=(dict(self.pool_runtime_layout.report)
                     if self.pool_runtime_layout is not None else dict(enabled=False)),
+                    head_runtime=head,
                     closed=self._closed)
 
     def close(self):
@@ -224,6 +277,7 @@ class BevFusionModel:
             return
         first_error = None
         for resource, method in ((getattr(self, 'inference_optimization', None), 'disable'),
+                                 (getattr(self, 'head_runtime_optimization', None), 'close'),
                                  (getattr(self, 'camera_tensorrt', None), 'disable'),
                                  (getattr(self, 'pool_runtime_layout', None), 'close'),
                                  (getattr(self, 'preprocessor', None), 'close')):

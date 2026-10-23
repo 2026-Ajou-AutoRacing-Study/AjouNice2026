@@ -72,7 +72,8 @@ def main():
     for name in ('data', 'info', 'config', 'checkpoint', 'output'):
         p.add_argument('--'+name, type=Path, required=True)
     p.add_argument('--expected-frames', type=int, required=True)
-    p.add_argument('--backend', choices=['eager', 'camera_trt', 'pool_fused_layout', 'pool_pack4_fused'], required=True)
+    p.add_argument('--backend', choices=['eager', 'camera_trt', 'camera_trt_head_sdpa_position',
+                                        'pool_fused_layout', 'pool_pack4_fused'], required=True)
     p.add_argument('--engine', type=Path)
     p.add_argument('--metadata', type=Path)
     p.add_argument('--tf32-off', action='store_true')
@@ -82,9 +83,11 @@ def main():
     a = p.parse_args()
     if a.output.exists(): p.error('Fresh output required; prior evidence is immutable')
     if not 1 <= a.expected_frames <= 5000: p.error('Explicit bounded 1..5000 frame count required')
-    if (a.backend == 'camera_trt') != bool(a.engine and a.metadata):
+    camera_backend = a.backend in ('camera_trt', 'camera_trt_head_sdpa_position')
+    head_candidate = a.backend == 'camera_trt_head_sdpa_position'
+    if camera_backend != bool(a.engine and a.metadata):
         p.error('camera_trt requires both --engine and --metadata; other backends accept neither')
-    if a.backend != 'camera_trt' and (a.engine or a.metadata): p.error('Unused engine arguments are forbidden')
+    if not camera_backend and (a.engine or a.metadata): p.error('Unused engine arguments are forbidden')
     for name in ('data', 'info', 'config', 'checkpoint'):
         setattr(a, name, getattr(a, name).resolve(strict=True))
     if sha256(a.checkpoint) != E12_SHA256: p.error('Frozen full-data E12 checkpoint SHA required')
@@ -96,7 +99,7 @@ def main():
         p.error('Authored frame/token/class contract differs')
     aliases, payload_paths = sensor_paths(authored, a.data)
     sensor_before = sensor_snapshot(payload_paths, a.sensor_integrity)
-    if a.backend == 'camera_trt':
+    if camera_backend:
         from app.camera_tensorrt import CameraTensorRTAdapter
         expected_engine = dict(checkpoint_sha256=E12_SHA256, config_sha256=controls[str(a.config)])
         adapter = CameraTensorRTAdapter(a.engine, a.metadata, expected_engine)
@@ -159,9 +162,11 @@ def main():
             tf32=not a.tf32_off, cudnn_benchmark=True, raw_proposals=200,
             ros_score_floor=False, ros_top100=False, ros_rotated_nms=False,
             gt_support_filter=False, empty_gt_frames_preserved=True),
-        engine_identity=engine_identity, production_changed=False)
+        engine_identity=engine_identity,
+        mode_head_runtime=dict(proposal_topk=False, attention_sdpa=head_candidate, cache_bev_pos=head_candidate),
+        production_changed=False)
     write_new(a.output/'STARTED.json', start_receipt)
-    model = optimization = trt_handle = original_pool = None
+    model = optimization = trt_handle = head_handle = original_pool = None
     try:
         checkpoint = torch.load(a.checkpoint, map_location='cpu', weights_only=False)
         saved_classes = checkpoint.get('meta', {}).get('dataset_meta', {}).get('classes')
@@ -184,10 +189,16 @@ def main():
         # Prove pre-model pinned files did not change during model loading.
         if any(actual_source_pins[path] != digest for path,digest in initial_source_pins.items()):
             raise RuntimeError('Source changed during model initialization')
-        if a.backend == 'camera_trt':
+        if camera_backend:
             from app.camera_tensorrt import install_camera_tensorrt
             trt_handle = install_camera_tensorrt(model, a.engine, a.metadata, expected_engine)
         optimization = InferenceOptimization(model, (), parallel_camera=True)
+        if head_candidate:
+            from app.head_runtime_optimization import install_head_runtime_optimization
+            # Research export is deliberately strict: unavailable hooks must
+            # not silently produce a second reference and claim a speedup.
+            head_handle = install_head_runtime_optimization(model.bbox_head,
+                proposal_topk=False, attention_sdpa=True, cache_bev_pos=True)
         if a.backend.startswith('pool_'):
             from perception.detection3d.bevfusion.plugin import morai_pool_optimization as pool_module
             view = model.view_transform
@@ -249,7 +260,8 @@ def main():
             gt_identity=gt_identity(rows),frames=len(rows),classes=CLASSES,
             gpu=torch.cuda.get_device_name(),torch_version=str(torch.__version__),torch_cuda=torch.version.cuda,
             strict_state_load=True,inference_precision='AMP; TF32 '+('OFF' if a.tf32_off else 'ON')+'; cuDNN benchmark ON',
-            inference_optimization=dict(optimization.report, backend=a.backend),
+            inference_optimization=dict(optimization.report, backend=a.backend,
+                head_runtime=deepcopy(head_handle.report) if head_handle is not None else None),
             input_pipeline=loader_cfg.dataset.pipeline,point_intensity_scale=1.,
             point_intensity_adapter='Identity native 0..1; no ROS255 conversion',
             inference_ms=distribution(elapsed[10:] if len(elapsed)>10 else elapsed),
@@ -286,6 +298,7 @@ def main():
     finally:
         if model is not None and original_pool is not None: model.view_transform.bev_pool = original_pool
         if optimization is not None: optimization.disable()
+        if head_handle is not None: head_handle.close()
         if trt_handle is not None: trt_handle.close()
 
 

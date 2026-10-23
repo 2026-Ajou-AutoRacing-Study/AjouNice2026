@@ -404,7 +404,7 @@ checkpoint/config·AMP·병렬화·threshold는 유지한다. E12 engine과 E24 
 E12를 자동 선택하는 구조가 아니다. 직접 model/adapter API의 엄격한 검사도 이 정책 때문에 완화하지 않는다.
 
 `run_bevfusion.sh --safe`는 선택한 E24 또는 명시적인 E25를 그대로 유지하면서 기존 팀 CUDA
-12.8 이미지와 eager 경로를 선택하고, 선택 TRT와 시험용 pool layout을 끈다. 정확한 production
+12.8 이미지와 eager 경로를 선택하고, 선택 TRT·시험용 pool layout·head SDPA/좌표 cache를 끈다. 정확한 production
 시작·설치 명령은 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)와
 [E25 복귀 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
 `--safe`는 checkpoint SHA 불일치, 필수 sensor/config 누락, bridge의 camera order·horizontal FOV·
@@ -445,3 +445,17 @@ checkpoint SHA와 경로 안전성 검사를 유지하면서, 가중치 설치�
 맞추어 되돌리는 방식으로 해결하지 않는다. **코드가 바뀌었다는 이유만으로 기존 E24 가중치·ZIP을
 다시 Drive에 업로드할 필요는 없다.** 설치기·실제 GPU 기동·회귀 결과는 [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따르며,
 최신 코드로 시작하기 전에는 위 preflight로 현재 설정·설치본을 검사한다.
+
+### Head 후속: 전체 AP 확인 뒤 선택 runtime으로 연결
+
+[62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)의 새 paired export는
+camera TRT를 고정하고 SDPA+BEV 위치 cache만 바꿨다. E12 native val 전체 4,614장 mAP는
+94.066058→94.065589%, 장애물 AP 변화는 −0.001278%p다. 장애물 20~30/30~40m도 각각
+−0.00198/−0.00433%p였다. 작은 수치 차이보다 앞선 연속 입력의 서비스 약 5.63ms 절감이
+실용적이라고 판단했다. 원형↔후보의 byte 동일성을 배포 조건으로 삼지 않았다.
+
+실제 model/server·Compose·shell·health에 두 opt-in을 연결했다. `topk`는 계속 OFF다.
+소스/AST 미지원은 첫 실행 전 같은 head로 복귀하며, GPU 실행 이후 오류는 hot fallback하지 않는다.
+`--safe`는 두 옵션을 모두 끈다. E24 전체 AP 또는 팀 4090 24GB 풀스택을 인증한 것은 아니므로
+production 기본 OFF와 기존 E24를 유지한다. 재학습은 필요 없으며 이 변경은 새 TRT head engine이나
+새 backbone의 도입이 아니다. 실행 방법은 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup)를 따른다.

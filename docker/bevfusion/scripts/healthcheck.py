@@ -46,6 +46,23 @@ def validate_production_identity(metadata,args):
         pool = (identity.get('execution_optimization') or {}).get('pool_fused_layout') or {}
         if bool(pool.get('enabled', False)) != (expected_pool == 'true'):
             raise ValueError('Server pool layout differs from the selected execution profile')
+    head = (identity.get('execution_optimization') or {}).get('head_runtime') or {}
+    requested = head.get('requested') or {}
+    expected_head = {}
+    for field, argument in (('attention_sdpa', 'expected_head_attention_sdpa'),
+                            ('cache_bev_pos', 'expected_head_cache_bev_pos')):
+        value = getattr(args, argument, None)
+        if value is not None:
+            expected_head[field] = value == 'true'
+    if len(expected_head) == 2 and not any(expected_head.values()):
+        # A previous optional startup decline already left the ORIGINAL head
+        # active. Its requested=True history must not block safe eager reuse.
+        if head.get('enabled', False):
+            raise ValueError('Safe/baseline profile does not use an optimized head')
+    else:
+        for field, value in expected_head.items():
+            if bool(requested.get(field, False)) != value:
+                raise ValueError('Server head optimization request differs from the selected profile')
     if expected_base5 and (metadata.get('point_intensity_source') != 'ros255'
             or metadata.get('image_final_dim') != [512,1056]
             or metadata.get('classes') != ['vehicle','pedestrian','obstacle']):
@@ -67,6 +84,8 @@ def main():
     parser.add_argument('--expected-camera-order',nargs=4)
     parser.add_argument('--expected-camera-backend',choices=('eager','camera_tensorrt'))
     parser.add_argument('--expected-pool-fused-layout', choices=('true', 'false'))
+    parser.add_argument('--expected-head-attention-sdpa', choices=('true', 'false'))
+    parser.add_argument('--expected-head-cache-bev-pos', choices=('true', 'false'))
     args = parser.parse_args()
     with socket.create_connection((args.host, args.port), args.timeout) as connection:
         send_message(connection, TYPE_PING, {"client": "healthcheck"})

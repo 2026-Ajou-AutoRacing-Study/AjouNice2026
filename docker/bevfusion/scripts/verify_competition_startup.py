@@ -78,6 +78,7 @@ def main():
                 expected_config=digest(config_path), expected_sensor=digest(a.sensor_config),
                 expected_intrinsic_source='horizontal_fov', expected_camera_order=server.args.camera_order,
                 expected_camera_backend='eager', expected_pool_fused_layout='false',
+                expected_head_attention_sdpa='false', expected_head_cache_bev_pos='false',
                 require_box_origin_tag=selected['base5'],
                 expected_depth_raster_policy='nearest_positive' if selected['base5'] else None))
         finally:

@@ -7785,3 +7785,118 @@ eager 기동→원래 LAN 센서의 연속 발행→YOLO/전체 ROS 동시 부�
 그 다음 별도 선택한다. E12 production 승격과 4090용 engine 생성·배포는 자동 수행하지 않았다.
 Orin 25 FPS의 입력·정밀도·timer 차이와 Swin 유지 근거는
 [배포 추가 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023)를 따른다.
+
+<a id="head-native-ap-runtime-261023"></a>
+
+## 62. Head SDPA·고정 좌표 cache의 전체 native AP와 실제 서버 연결 — 2026-10-23
+
+사용자의 다음 진행 요청으로 61절에서 남긴 전체 AP 확인과 실제 실행 옵션 연결을 진행했다.
+**E12·camera TRT 고정에서 head SDPA+BEV 위치 cache의 AP 변화는 매우 작았고, 선택 가능한
+runtime 후보로 연결했다.** 재학습·모델 구조 축소·E12 production 승격은 하지 않았다.
+E24·TRT/compile/head 기본 OFF는 유지한다. 61절의 당시 ‘head 전체 AP 미검증’은 이 절로 후속했다.
+
+### 새 paired export: 원형 camera TRT 대 추가 head 최적화
+
+과거 camera TRT 예측에 새 label만 붙이지 않고 양쪽을 같은 새 exporter로 다시 실행했다.
+Vast의 분리 source `source_head_native_v1`을 동결하고, 두 export 사이 source·weights·센서 원본을
+변경하지 않았다. 별도 `score_source_head_native_v1`에서 AP를 계산해 실험 source를 보존했다.
+
+- E12 best SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`.
+  nearest config SHA `b963b78565699b62e3570081c75330db7cf1e27dba5d49fbcb2b71d27545d978`.
+- infos 4,614장 SHA `073feab03770853fd2b4c56b392bf65f2fffa07f83b6b7e171670a8e2f9dcc40`.
+  공통 GT identity `7f6b5b9ff7c3c981a4261bba035eae388c57a9827cefefa5685e02c084a1bbf2`.
+- 같은 camera engine SHA `3ef14dd0ebfe9f7f6e5c35d2fe8b8f0990fa8efa47cd09f819054876ede93a0f`.
+  engine metadata 전체·binary SHA, GPU/Torch·AMP/TF32·병렬화·nearest·실효 pipeline을 대조했다.
+- 비어 있는 GT 프레임 **232개**, LiDAR 0점 GT도 보존했다. 전체 GT는 V/P/O
+  **3,972/2,850/3,685개**, 그중 0점 **85/98/418개**다. 23,070개 센서 파일의 시작·종료 SHA를 확인했다.
+- ROS floor·top100·NMS·class cutoff를 적용하지 않은 원래 native 평가를 사용했다.
+  예측 최대 200개·낮은 score도 보존하며 GT 지원점으로 예측이나 프레임을 삭제하지 않았다.
+- reference backend는 `camera_trt`, candidate는 `camera_trt_head_sdpa_position`이다.
+  topk OFF, attention 두 곳의 SDPA·고정 위치 cache만 ON이다. 나머지 공통 계약의 불일치는
+  scorer가 거부한다. absent-GT는 null이며 10m 구간·전후방 80~90/90~100m를 별도로 산출했다.
+
+| 지표 | Camera TRT | + SDPA·좌표 cache | 변화(%p) |
+|---|---:|---:|---:|
+| 전체 mAP | 94.066058% | 94.065589% | −0.000469 |
+| Vehicle AP | 97.272621% | 97.272661% | +0.000040 |
+| Pedestrian AP | 96.525156% | 96.524988% | −0.000169 |
+| Obstacle AP | 88.400396% | 88.399118% | −0.001278 |
+
+장애물 20~30m(GT 844개)와 30~40m(188개)의 변화는 각각 **−0.00198/−0.00433%p**다.
+10m class 구간의 최대 감소는 보행자 80~90m **−0.05787%p**이나 GT가 2개뿐이며 둘 다
+LiDAR 0점이다. 이를 충분한 초장거리 보행자 성능 인증으로 해석하지 않는다.
+전방 차량 80~90m(GT 77개)는 −0.00113%p, 90~100m(57개)는 변화 0이다.
+후방 해당 두 구간도 변화 0이다. 전방 80~100m를 pooling한 AP는 −0.00501%p이며
+각 10m AP 평균과는 다른 지표다.
+
+원시 예측 수는 V 66,305/P 282,390으로 같고 O는 **559,466→559,463**이다.
+이 3개 감소를 GT 3개 미검출이라고 환산하지 않는다. 모든 raw query가 bitwise 같다는
+시험도 아니며 개별 감소의 원인을 이 보고서만으로 확정하지 않았다.
+
+### 비용의 범위를 구분한 판단
+
+같은 native export에서 첫 10장을 뺀 4,604장의 실행 구간은 다음과 같다. 이미지 loader/JPEG
+decode와 ROS/TCP 후단을 포함하지 않아 앞선 480장 `service_ms`와 직접 합치지 않는다.
+큰 예외를 삭제하지 않았으며 첫 reference→candidate 순서·호스트 변동 한계가 있다.
+
+| native 실행 구간 | Camera TRT | + SDPA·좌표 cache |
+|---|---:|---:|
+| 평균 | 45.32ms | 41.87ms |
+| 중앙값 | 44.45ms | 40.90ms |
+| p95 | 47.43ms | 43.84ms |
+| 최대 | 613.43ms | 719.51ms |
+
+61절의 별도 원본 연속 480장 A/B/복원은 서비스 **65.97→60.34→65.53ms**였다.
+이 전체 AP와 연속 검출·실제 EKF 코어 결과를 함께 보면 작은 수치 손해에 비해 비용 이득이
+실용적이라고 판단했다. 다만 드문 raw yaw 차이와 실제 ROS/Map-CV/planner 미실행 한계는 남는다.
+‘항상 60ms’, 센서 age 60ms, 실제 풀스택 16.6Hz 인증으로 쓰지 않는다.
+
+### 실제 model/server·실행기 연결과 시작 복귀
+
+`BevFusionModel`과 서버 CLI·Compose·shell에 `head_attention_sdpa`/`head_cache_bev_pos`를 연결했다.
+환경변수는 `BEVFUSION_HEAD_ATTENTION_SDPA`/`BEVFUSION_HEAD_CACHE_BEV_POS`, 기본은 둘 다 false다.
+topk는 외부 실행 옵션으로 제공하지 않는다. `--safe`는 두 변수를 false로 고정한다.
+OFF이면 선택 helper를 import하거나 원형 head를 수정하지 않는다.
+
+head/MMCV의 미지원 소스·AST 등 **부착 전의 이름 있는 선택 최적화 오류**만 경고와 함께
+같은 원형 head로 복귀한다. source hash가 다르다는 이유로 기본 추론 전체를 거부하지 않는다.
+일반 모델 ValueError·CUDA 실행 실패는 선택 기능 오류로 위장하지 않는다. 실행 중 hook 재설정은
+거부하며 close 시 소유 wrapper를 복원한다. 요청/활성/fallback/사유를 실제 health identity에
+분리한다. 이미 원형으로 복귀한 서버의 과거 요청 true만으로 safe 재사용을 막지 않는다.
+checkpoint/config/class·입력·threshold의 필수 health 대조는 유지한다.
+
+1. **E24 로컬 실제 GPU/RPC:** 5060Ti 16GB·기존 baseline image·네트워크 차단·source/weights
+   read-only에서 실제 InferenceServer 생성→PING/PONG·health→원본 ROS JPEG/XYZI255 3입력
+   protocol 요청→close를 원형/ON/safe 세 조건으로 확인했다. 각각 반환 수는 **1/0/1개**다.
+   ON은 실제 helper enabled·fallback false였고 safe는 명시 ON 인자보다 우선해 OFF였다.
+   safe 출력은 원형과 정확히 같았다. 이 3장으로 E24 전체 AP를 인증하지 않는다.
+2. **E12 4090 실제 결합:** 별도 `runtime_source_head_integrated_v1`에서 실제 서버 생성으로
+   camera TRT `require`+head ON을 확인했다. 원본 연속 480장 중 세 입력은 앞선 수동 hook
+   시험과 **2/0/1개**, 위치·크기·yaw·score까지 정확히 같았다. 서버 생성 후 model API를
+   직접 호출한 시험이므로 이 경우 실제 TCP/ROS handshake까지 실행했다고 쓰지 않는다.
+3. 첫 4090 probe v1은 `compare_detections`의 빈 미대응 **목록**을 숫자 0과 비교해 항상
+   실패하는 시험 코드 오류였다. 원본 v1을 보존하고 v2에서 목록 검사를 고쳐 재실행했다.
+   모델·threshold를 바꾸거나 허용 오차를 넓혀 통과시킨 것이 아니다. v2는 양성 관측을 포함한다.
+
+최종 회귀는 고정 Docker CPU **247 passed / CUDA 전용 4 skipped / 63 subtests passed**,
+호스트 packaging 4개와 명시 sensor calibration 1개가 통과해 합계 **252개**다.
+건너뛴 CUDA 단위 시험과 위 실제 GPU smoke를 구분한다. 읽기 전용 safe preflight는
+blocker 0 / warning 2(실제 ROS/LAN·대회 GPU 풀스택 미인증)다. 문서의 기존 세 길이 예산
+초과는 남으므로 전체 문서 QA 통과라고 쓰지 않는다.
+
+### 근거와 남은 순서
+
+근거 루트는 같은 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+
+- `full_head_native_v1/FULL_HEAD_NATIVE_AP_PAIR_v1.json`
+  SHA `ab112e0db0ff1279fc8d90edafd576d1b1e60a71b0dbf55e8c35a12883f306fe`.
+  양쪽 export receipt/COMPLETE를 로컬에 회수했다. 큰 원시 prediction은 원격에 보존했다.
+- `E24_HEAD_RUNTIME_GPU_SMOKE_v1.json`
+  SHA `5eb9146be28f7bec1675314c85686ef94a3a3b8b2e36386eff5edf580c99967e`.
+- `E12_INTEGRATED_HEAD_SERVER_4090_v2.json`
+  SHA `1d16f196b098b702bbde4095e18f4e21d470c8c1078f4592188e477366f83d50`.
+
+다음은 **실제 대회용 4090 24GB PC의 원형 eager 기동·LAN/ROS/YOLO 풀스택** 확인이다.
+가속기 선택과 E12 승격은 별도 결정이다. E24용 전체 AP를 E12 결과로 대신하지 않으며,
+TRT image build/push·팀 PC engine 배포도 아직 하지 않았다. 이번 시험 완료 후 자체 GPU 작업은
+종료했고 Vast Stop/Destroy나 MORAI·빌린 PC·planning 노드 조작은 하지 않았다.

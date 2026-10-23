@@ -157,5 +157,55 @@ class ProductionTests(unittest.TestCase):
         bad['runtime_identity']['execution_optimization']['pool_fused_layout']['enabled']=True
         with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
 
+    def test_head_readiness_allows_legacy_baseline_and_rejects_enabled_safe_head(self):
+        spec=importlib.util.spec_from_file_location('head_safe_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_head_attention_sdpa='false',expected_head_cache_bev_pos='false')
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[]),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',
+            image_final_dim=[512,1056],classes=['vehicle','pedestrian','obstacle'])
+        module.validate_production_identity(metadata,args)
+        metadata['runtime_identity']['execution_optimization']=dict(head_runtime=dict(
+            requested=dict(attention_sdpa=False,cache_bev_pos=False),enabled=False))
+        module.validate_production_identity(metadata,args)
+        bad=copy.deepcopy(metadata)
+        bad['runtime_identity']['execution_optimization']['head_runtime']['enabled']=True
+        with self.assertRaisesRegex(ValueError,'does not use an optimized head'):
+            module.validate_production_identity(bad,args)
+        bad=copy.deepcopy(metadata)
+        bad['runtime_identity']['execution_optimization']['head_runtime']['requested']['attention_sdpa']=True
+        bad['runtime_identity']['execution_optimization']['head_runtime'].update(
+            fallback=True,original_head_preserved=True)
+        # A previously declined request already left the original head in
+        # place. Safe startup must not reject its historical requested=True.
+        module.validate_production_identity(bad,args)
+
+    def test_matching_head_fallback_is_accepted_but_different_requests_are_not(self):
+        spec=importlib.util.spec_from_file_location('head_request_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_head_attention_sdpa='true',expected_head_cache_bev_pos='true')
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[],execution_optimization=dict(
+                head_runtime=dict(requested=dict(attention_sdpa=True,cache_bev_pos=True),enabled=False,
+                    fallback=True,reason_code='head_source_incompatible',original_head_preserved=True))),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',
+            image_final_dim=[512,1056],classes=['vehicle','pedestrian','obstacle'])
+        # Startup decline preserves the exact requested flags but keeps the
+        # original head. Requiring active=True here would defeat safe fallback.
+        module.validate_production_identity(metadata,args)
+        active=copy.deepcopy(metadata)
+        active['runtime_identity']['execution_optimization']['head_runtime'].update(enabled=True,fallback=False)
+        module.validate_production_identity(active,args)
+        for field in ('attention_sdpa','cache_bev_pos'):
+            bad=copy.deepcopy(metadata)
+            bad['runtime_identity']['execution_optimization']['head_runtime']['requested'][field]=False
+            with self.assertRaisesRegex(ValueError,'request differs'):
+                module.validate_production_identity(bad,args)
+        bad=copy.deepcopy(metadata);bad['runtime_identity']['checkpoint_sha256']='unselected-model'
+        with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
+
 
 if __name__=='__main__':unittest.main()

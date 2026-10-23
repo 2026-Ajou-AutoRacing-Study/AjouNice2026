@@ -24,8 +24,16 @@ MMCV_MODULE = 'mmcv.cnn.bricks.transformer'
 _MISSING = object()
 
 
+class HeadOptimizationUnavailableError(ValueError):
+    """Audited startup/source conditions failed before any wrapper is attached."""
+
+
 def _tree(function):
-    return ast.parse(textwrap.dedent(inspect.getsource(function)))
+    try:
+        return ast.parse(textwrap.dedent(inspect.getsource(function)))
+    except (OSError, TypeError, SyntaxError) as error:
+        raise HeadOptimizationUnavailableError(
+            'Cannot inspect the audited head source: ' + str(error)) from error
 
 
 def _dump(node):
@@ -43,18 +51,18 @@ def _validate_head(head):
             getattr(head, 'query_memory', None) is not None or
             getattr(head, 'num_classes', None) != 3 or
             getattr(head, 'num_proposals', None) != 200):
-        raise ValueError('Only the audited three-class single-frame Base5 head is supported')
+        raise HeadOptimizationUnavailableError('Only the audited three-class single-frame Base5 head is supported')
     if head.training:
-        raise ValueError('Head runtime optimization requires eval')
+        raise HeadOptimizationUnavailableError('Head runtime optimization requires eval')
     original = head.forward_single
     function = getattr(original, '__func__', None)
     if (function is None or function.__module__ != UPSTREAM_MODULE or
             function.__qualname__ != 'TransFusionHead.forward_single'):
-        raise ValueError('Head forward_single is not the audited inherited upstream binding')
+        raise HeadOptimizationUnavailableError('Head forward_single is not the audited inherited upstream binding')
     tree = _tree(function)
     digest = hashlib.sha256(_dump(tree.body[0]).encode()).hexdigest()
     if digest != FORWARD_AST_SHA256:
-        raise ValueError('Upstream head forward AST changed; qualify the new source explicitly')
+        raise HeadOptimizationUnavailableError('Upstream head forward AST changed; qualify the new source explicitly')
     return original, tree, digest
 
 
@@ -85,27 +93,27 @@ def _validate_attention_wrapper(wrapper):
     if (type(wrapper).__module__ != MMCV_MODULE or type(wrapper).__name__ != 'MultiheadAttention' or
             type(wrapper.attn) is not nn.MultiheadAttention or
             getattr(wrapper.attn.forward, '__func__', None) is not nn.MultiheadAttention.forward):
-        raise ValueError('Attention must be an unmodified MMCV wrapper of torch MultiheadAttention')
+        raise HeadOptimizationUnavailableError('Attention must be an unmodified MMCV wrapper of torch MultiheadAttention')
     # Only qualify wrappers which discard weights. Do not silently change a
     # caller that consumes attention weights for another purpose.
     tree = _tree(wrapper.forward)
     if hashlib.sha256(_dump(tree.body[0]).encode()).hexdigest() != MMCV_FORWARD_AST_SHA256:
-        raise ValueError('MMCV attention wrapper AST changed; qualify the new source explicitly')
+        raise HeadOptimizationUnavailableError('MMCV attention wrapper AST changed; qualify the new source explicitly')
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and
              isinstance(node.func, ast.Attribute) and node.func.attr == 'attn' and
              isinstance(node.func.value, ast.Name) and node.func.value.id == 'self']
     uses = [node for node in ast.walk(tree) if isinstance(node, ast.Subscript) and
             node.value in calls and isinstance(node.slice, ast.Constant) and node.slice.value == 0]
     if len(calls) != 1 or len(uses) != 1 or any(k.arg == 'need_weights' for k in calls[0].keywords):
-        raise ValueError('MMCV wrapper must exclusively use attention output [0]')
+        raise HeadOptimizationUnavailableError('MMCV wrapper must exclusively use attention output [0]')
 
 
 class HeadRuntimeOptimization:
     def __init__(self, head, proposal_topk=False, attention_sdpa=False, cache_bev_pos=False):
         if not any((proposal_topk, attention_sdpa, cache_bev_pos)):
-            raise ValueError('Select at least one explicit head optimization')
+            raise HeadOptimizationUnavailableError('Select at least one explicit head optimization')
         if hasattr(head, '_base5_head_runtime_optimization'):
-            raise ValueError('Head runtime optimization is already installed')
+            raise RuntimeError('Head runtime optimization is already installed; preserve its owner')
         original, tree, digest = _validate_head(head)
         self.head, self.original = head, original
         self.original_local = head.__dict__.get('forward_single', _MISSING)
@@ -114,13 +122,16 @@ class HeadRuntimeOptimization:
         self.closed = False
         self.flags = dict(proposal_topk=bool(proposal_topk), attention_sdpa=bool(attention_sdpa),
                           cache_bev_pos=bool(cache_bev_pos))
+        if cache_bev_pos and not torch.is_tensor(getattr(head, 'bev_pos', None)):
+            raise HeadOptimizationUnavailableError('Cached BEV position requires the original head position tensor')
         wrappers = []
         if attention_sdpa:
-            if len(head.decoder) != 1:
-                raise ValueError('Only the audited single decoder layer is supported')
-            for layer in head.decoder:
+            decoder = getattr(head, 'decoder', None)
+            if not isinstance(decoder, (list, tuple, nn.ModuleList)) or len(decoder) != 1:
+                raise HeadOptimizationUnavailableError('Only the audited single decoder layer is supported')
+            for layer in decoder:
                 for name in ('self_attn', 'cross_attn'):
-                    wrapper = getattr(layer, name)
+                    wrapper = getattr(layer, name, None)
                     _validate_attention_wrapper(wrapper)
                     wrappers.append(wrapper)
         rewrite = _Rewrite(proposal_topk, cache_bev_pos)
@@ -128,10 +139,14 @@ class HeadRuntimeOptimization:
             tree = rewrite.visit(tree)
             for key, enabled in (('topk', proposal_topk), ('position', cache_bev_pos)):
                 if enabled and rewrite.counts[key] != 1:
-                    raise ValueError('Audited head AST assignment not found exactly once: ' + key)
+                    raise HeadOptimizationUnavailableError('Audited head AST assignment not found exactly once: ' + key)
             ast.fix_missing_locations(tree)
             namespace = dict(original.__func__.__globals__, _base5_cached_position=self._position)
-            exec(compile(tree, inspect.getsourcefile(original), 'exec'), namespace)
+            try:
+                exec(compile(tree, inspect.getsourcefile(original), 'exec'), namespace)
+            except (SyntaxError, TypeError, ValueError) as error:
+                raise HeadOptimizationUnavailableError(
+                    'Cannot compile the audited head source: ' + str(error)) from error
             selected = types.MethodType(namespace['forward_single'], head)
         else:
             selected = original

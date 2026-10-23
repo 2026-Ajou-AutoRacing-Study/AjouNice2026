@@ -147,7 +147,7 @@ def test_duplicate_changed_binding_class_and_training_rejected_before_mutation()
         install_head_runtime_optimization(value, proposal_topk=True)
     value.eval()
     installed = install_head_runtime_optimization(value, proposal_topk=True)
-    with pytest.raises(ValueError, match='already installed'):
+    with pytest.raises(RuntimeError, match='already installed'):
         install_head_runtime_optimization(value, proposal_topk=True)
     installed.close()
     value.forward_single = lambda *_: None

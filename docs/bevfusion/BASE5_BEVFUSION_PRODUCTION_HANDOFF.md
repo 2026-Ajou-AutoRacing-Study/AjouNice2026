@@ -123,7 +123,7 @@ bash scripts/runtime/run_bevfusion.sh --safe --model e24
 ```
 
 `--safe`는 같은 E24 checkpoint/config·threshold·AMP·camera 병렬화·nearest·센서 계약을
-유지하고, 선택 TensorRT/시험용 pooling을 끈다. E25로 바꾸는 옵션이 아니다. 선택 E25 복귀는
+유지하고, 선택 TensorRT/시험용 pooling/head SDPA·좌표 cache를 끈다. E25로 바꾸는 옵션이 아니다. 선택 E25 복귀는
 `bevfusion --safe --model e25`이며 그 가중치도 미리 준비해야 한다.
 안전 모드가 GPU driver 고장, 누락 weights, 잘못된 센서, 중복 detector publisher까지 무시하지는 않는다.
 
@@ -156,6 +156,31 @@ illegal memory access/device-side assert 같은 CUDA 손상은 같은 프로세�
 전환하지 않는다. 주행을 안전하게 중단한 뒤 담당 세션에서 새 프로세스의 `--safe`로 복구한다.
 다른 노드/컨테이너를 자동 kill하지 않으며 물리 비상정지나 무중단 주행을 보장하는 기능이 아니다.
 구현·GPU 시험·남은 검증은 [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따른다.
+
+### 선택 head 최적화: 기본 OFF, 재학습 불필요
+
+10/23 [62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)에서
+**E12의** camera TRT 고정·head SDPA+고정 BEV 좌표 cache를 전체 native val 4,614장으로 비교했다.
+mAP 차이 −0.00047%p와 앞선 연속 480장 서비스 약 66→60ms를 근거로 runtime 선택 옵션을 연결했다.
+새 layer·가중치·격자·학습을 추가하지 않는다. 제안 선택 `topk`는 이득이 없어 연결하지 않았다.
+
+```bash
+# 기존에 선택한 모델/이미지는 유지하는 명시적 시험 옵션. E24 전체 AP 인증 명령은 아님.
+BEVFUSION_HEAD_ATTENTION_SDPA=true BEVFUSION_HEAD_CACHE_BEV_POS=true \
+  bash scripts/runtime/run_bevfusion.sh --model e24
+```
+
+두 변수의 기본값은 모두 `false`다. OFF로 재시작하거나 위 `--safe`로 원형 head를 선택한다.
+시작 시 미지원 head/MMCV 소스·AST 또는 선택 helper 부재는 경고와 함께 **같은 원형 head**를
+유지하며 전체 모델 시작을 막지 않는다. 일반 모델 오류나 GPU 실행 오류는 이 복귀로 숨기지 않는다.
+실행 중 hook 교체·자동 hot fallback은 하지 않는다. 실제 활성 여부와 복귀 사유는 서버
+`runtime_identity.execution_optimization.head_runtime`에 요청·활성·fallback을 구분해 기록한다.
+health/reuse는 이 상태를 확인하고, 원형으로 복귀한 서버의 과거 요청 이력만으로 safe 기동을 막지 않는다.
+
+E24는 로컬 5060Ti에서 원형/ON/safe의 실제 서버 생성·PING/PONG·3입력 RPC만 확인했다.
+이는 E24 전체 AP·4090 24GB ROS 풀스택 인증이 아니므로 **production 기본은 계속 OFF**다.
+E12의 실제 4090 서버 생성+TRT+head 출력도 별도 3입력으로 확인했지만 팀 PC 배포는 하지 않았다.
+TRT image는 여전히 미빌드·미푸시이며 이 head 옵션만으로 camera engine이 설치되지는 않는다.
 
 ### LiDAR 50 적용과 51 복귀
 

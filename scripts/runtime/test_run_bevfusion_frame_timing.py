@@ -15,7 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 class FrameTimingRunnerTests(unittest.TestCase):
     def run_fixture(self, value=None, *, defined=True, local_value=None, model="e24",
                     extra_environment=None, extra_args=(), server_running=False, health_matches=True,
-                    server_backend="eager", server_pool_fused_layout=False, health_fail_first=0):
+                    server_backend="eager", server_pool_fused_layout=False, health_fail_first=0,
+                    server_head_attention_sdpa=False, server_head_cache_bev_pos=False,
+                    server_head_enabled=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             runtime = root / "scripts/runtime"
@@ -50,6 +52,8 @@ elif [[ "$1" == *healthcheck.py ]]; then
   health_count=$((health_count + 1))
   printf '%s\\n' "$health_count" > "$AJOUNICE_FIXTURE_ROOT/health.count"
   if (( health_count <= AJOUNICE_FIXTURE_HEALTH_FAIL_FIRST )); then exit 1; fi
+  expected_head_sdpa=unset
+  expected_head_cache=unset
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --expected-camera-backend)
@@ -58,9 +62,21 @@ elif [[ "$1" == *healthcheck.py ]]; then
       --expected-pool-fused-layout)
         [[ "$2" == "$AJOUNICE_FIXTURE_SERVER_POOL" ]] || exit 1
         shift 2 ;;
+      --expected-head-attention-sdpa)
+        expected_head_sdpa="$2"
+        shift 2 ;;
+      --expected-head-cache-bev-pos)
+        expected_head_cache="$2"
+        shift 2 ;;
       *) shift ;;
     esac
   done
+  if [[ "$expected_head_sdpa" == false && "$expected_head_cache" == false ]]; then
+    [[ "$AJOUNICE_FIXTURE_SERVER_HEAD_ENABLED" != true ]] || exit 1
+  else
+    [[ "$expected_head_sdpa" == "$AJOUNICE_FIXTURE_SERVER_HEAD_SDPA" ]] || exit 1
+    [[ "$expected_head_cache" == "$AJOUNICE_FIXTURE_SERVER_HEAD_CACHE" ]] || exit 1
+  fi
   exit "$AJOUNICE_FIXTURE_HEALTH_EXIT"
 fi
 ''',
@@ -70,6 +86,7 @@ printf " <%s>" "$@" >> "$AJOUNICE_FIXTURE_LOG"
 printf "\\n" >> "$AJOUNICE_FIXTURE_LOG"
 printf "runtime intrinsic=%s image=%s engine=%s policy=%s pool=%s\\n" "${INTRINSIC_SOURCE-unset}" "${BEVFUSION_IMAGE-unset}" "${BEVFUSION_CAMERA_TENSORRT_ENGINE-unset}" "${BEVFUSION_CAMERA_TENSORRT_POLICY-unset}" "${BEVFUSION_POOL_FUSED_LAYOUT-unset}" >> "$AJOUNICE_FIXTURE_LOG"
 printf "runtime_limits cpu=%s opencv=%s workers=%s warmup=%s\\n" "${BEVFUSION_CPU_THREADS-unset}" "${BEVFUSION_OPENCV_THREADS-unset}" "${BEVFUSION_PREPROCESS_WORKERS-unset}" "${BEVFUSION_WARMUP_ITERATIONS-unset}" >> "$AJOUNICE_FIXTURE_LOG"
+printf "runtime_heads safe=%s sdpa=%s cache=%s\\n" "${BEVFUSION_SAFE_MODE-unset}" "${BEVFUSION_HEAD_ATTENTION_SDPA-unset}" "${BEVFUSION_HEAD_CACHE_BEV_POS-unset}" >> "$AJOUNICE_FIXTURE_LOG"
 for argument in "$@"; do
   if [[ "$argument" == ps && "$AJOUNICE_FIXTURE_SERVER_RUNNING" == true ]]; then
     printf "fixture-preexisting-container\\n"
@@ -99,7 +116,10 @@ done
                                AJOUNICE_FIXTURE_HEALTH_EXIT="0" if health_matches else "1",
                                AJOUNICE_FIXTURE_HEALTH_FAIL_FIRST=str(health_fail_first),
                                AJOUNICE_FIXTURE_SERVER_BACKEND=server_backend,
-                               AJOUNICE_FIXTURE_SERVER_POOL=str(server_pool_fused_layout).lower())
+                               AJOUNICE_FIXTURE_SERVER_POOL=str(server_pool_fused_layout).lower(),
+                               AJOUNICE_FIXTURE_SERVER_HEAD_SDPA=str(server_head_attention_sdpa).lower(),
+                               AJOUNICE_FIXTURE_SERVER_HEAD_CACHE=str(server_head_cache_bev_pos).lower(),
+                               AJOUNICE_FIXTURE_SERVER_HEAD_ENABLED=str(server_head_enabled).lower())
             if defined and value is not None:
                 environment["BEVFUSION_PUBLISH_FRAME_TIMING"] = value
             environment.update(extra_environment or {})
@@ -264,6 +284,83 @@ done
         self.assertNotIn("<up>", log)
         self.assertNotIn("<stop>", log)
         self.assertNotIn("roslaunch", log)
+
+    def test_explicit_head_requests_reach_health_and_matching_server_is_reused(self):
+        for sdpa, cache in ((True, False), (False, True), (True, True)):
+            with self.subTest(sdpa=sdpa, cache=cache):
+                result, log = self.run_fixture(server_running=True,
+                    server_head_attention_sdpa=sdpa, server_head_cache_bev_pos=cache,
+                    server_head_enabled=True, extra_environment={
+                        "BEVFUSION_HEAD_ATTENTION_SDPA": str(sdpa).lower(),
+                        "BEVFUSION_HEAD_CACHE_BEV_POS": str(cache).lower()})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"<--expected-head-attention-sdpa> <{str(sdpa).lower()}>", log)
+                self.assertIn(f"<--expected-head-cache-bev-pos> <{str(cache).lower()}>", log)
+                self.assertNotIn("<up>", log)
+                self.assertNotIn("<stop>", log)
+                self.assertEqual(log.count("roslaunch"), 1)
+
+    def test_matching_head_request_with_original_fallback_is_reusable(self):
+        result, log = self.run_fixture(server_running=True,
+            server_head_attention_sdpa=True, server_head_cache_bev_pos=True,
+            server_head_enabled=False, extra_environment={
+                "BEVFUSION_HEAD_ATTENTION_SDPA": "true", "BEVFUSION_HEAD_CACHE_BEV_POS": "true"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Reusing the already-ready matching eager server", result.stdout)
+        self.assertNotIn("<up>", log)
+        self.assertNotIn("<stop>", log)
+        self.assertEqual(log.count("roslaunch"), 1)
+
+    def test_different_head_request_is_not_silently_reused(self):
+        result, log = self.run_fixture(server_running=True, server_head_attention_sdpa=False,
+            extra_environment={"BEVFUSION_HEAD_ATTENTION_SDPA": "true"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("did not become ready with the selected profile", result.stderr)
+        self.assertNotIn("<up>", log)
+        self.assertNotIn("<stop>", log)
+        self.assertNotIn("roslaunch", log)
+
+    def test_safe_pins_heads_off_and_keeps_selected_model_for_flag_and_environment(self):
+        for safe_args, safe_env in ((("--safe",), {}), ((), {"BEVFUSION_SAFE_MODE": "true"})):
+            with self.subTest(safe_args=safe_args, safe_env=safe_env):
+                environment={"BEVFUSION_HEAD_ATTENTION_SDPA": "true", "BEVFUSION_HEAD_CACHE_BEV_POS": "true"}
+                environment.update(safe_env)
+                result, log = self.run_fixture(extra_args=safe_args, extra_environment=environment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("runtime_heads safe=true sdpa=false cache=false", log)
+                self.assertIn("<--expected-head-attention-sdpa> <false>", log)
+                self.assertIn("<--expected-head-cache-bev-pos> <false>", log)
+                self.assertIn("Production e24", result.stdout)
+                self.assertIn("<base5_production.launch>", log)
+
+    def test_safe_refuses_preexisting_enabled_head_without_stopping_it(self):
+        result, log = self.run_fixture(server_running=True, server_head_enabled=True,
+                                       extra_args=("--safe",))
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("<up>", log)
+        self.assertNotIn("<stop>", log)
+        self.assertNotIn("roslaunch", log)
+
+    def test_safe_reuses_original_head_after_a_previous_optional_startup_decline(self):
+        result, log = self.run_fixture(server_running=True, server_head_attention_sdpa=True,
+            server_head_cache_bev_pos=True, server_head_enabled=False, extra_args=("--safe",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("<up>", log)
+        self.assertNotIn("<stop>", log)
+        self.assertEqual(log.count("roslaunch"), 1)
+
+    def test_invalid_head_booleans_fail_before_docker_unless_safe_pins_them_off(self):
+        for variable in ("BEVFUSION_HEAD_ATTENTION_SDPA", "BEVFUSION_HEAD_CACHE_BEV_POS"):
+            for value in ("yes", "1", "TRUE", "true false"):
+                with self.subTest(variable=variable, value=value):
+                    result, log = self.run_fixture(extra_environment={variable: value})
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn(f"{variable} must be true or false", result.stderr)
+                    self.assertEqual(log, "")
+                    result, log = self.run_fixture(extra_environment={variable: value}, extra_args=("--safe",))
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("runtime_heads safe=true sdpa=false cache=false", log)
+                    self.assertIn("Production e24", result.stdout)
 
 
 if __name__ == "__main__":

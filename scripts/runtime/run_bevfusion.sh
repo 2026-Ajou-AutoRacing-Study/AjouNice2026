@@ -44,7 +44,15 @@ if [[ "$SAFE_MODE" == true ]]; then
   export BEVFUSION_POOL_FUSED_LAYOUT=false
   export BEVFUSION_CPU_THREADS=4 BEVFUSION_OPENCV_THREADS=1
   export BEVFUSION_PREPROCESS_WORKERS=4 BEVFUSION_WARMUP_ITERATIONS=2
+  export BEVFUSION_HEAD_ATTENTION_SDPA=false BEVFUSION_HEAD_CACHE_BEV_POS=false
 fi
+export BEVFUSION_SAFE_MODE="$SAFE_MODE"
+for variable in BEVFUSION_HEAD_ATTENTION_SDPA BEVFUSION_HEAD_CACHE_BEV_POS; do
+  case "${!variable:-false}" in
+    true|false) ;;
+    *) echo "[ERROR] $variable must be true or false." >&2; exit 2 ;;
+  esac
+done
 resolved="$(python3 "$ROOT/scripts/runtime/bevfusion_production_profile.py" --model "$MODEL" --fields)"
 mapfile -t profile <<<"$resolved"
 SENSOR_CONFIG="${1:-${BEVFUSION_SENSOR_CONFIG:-$ROOT/${profile[7]}}}"
@@ -97,6 +105,8 @@ check_server_identity() {
     --expected-sensor "$(sha256sum "$SENSOR_CONFIG" | awk '{print $1}')" \
     --expected-intrinsic-source horizontal_fov \
     --expected-camera-order camera_front camera_front_left camera_front_right camera_back \
+    --expected-head-attention-sdpa "${BEVFUSION_HEAD_ATTENTION_SDPA:-false}" \
+    --expected-head-cache-bev-pos "${BEVFUSION_HEAD_CACHE_BEV_POS:-false}" \
     "${health_policy_args[@]}"
 }
 

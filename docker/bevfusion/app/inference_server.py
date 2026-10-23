@@ -28,6 +28,16 @@ from app.sensor4_calibration import load_sensor4_calibration, serializable_calib
 LOGGER = logging.getLogger("bevfusion_server")
 
 
+def _optional_head_environment(name):
+    value = os.environ.get(name, '').strip().lower()
+    if value in ('', 'false'):
+        return False
+    if value == 'true':
+        return True
+    LOGGER.warning('%s is not true/false; optional head optimization stays OFF', name)
+    return False
+
+
 def file_sha256(path):
     digest = hashlib.sha256()
     with open(path, 'rb') as stream:
@@ -51,6 +61,12 @@ class InferenceServer:
             getattr(args, 'camera_tensorrt_engine', None),
             getattr(args, 'camera_tensorrt_metadata', None))
         self.camera_startup_report = None
+        head_flags = dict(head_attention_sdpa=bool(getattr(args, 'head_attention_sdpa', False)),
+                          head_cache_bev_pos=bool(getattr(args, 'head_cache_bev_pos', False)))
+        if os.environ.get('BEVFUSION_SAFE_MODE', '').lower() == 'true':
+            if any(head_flags.values()):
+                LOGGER.warning('Safe mode keeps all optional head optimizations OFF; selected model is unchanged')
+            head_flags = dict(head_attention_sdpa=False, head_cache_bev_pos=False)
         if args.projection_only and self.camera_startup_policy == 'require':
             raise ValueError('Projection-only mode cannot require a camera TensorRT engine')
         self.calibration = load_sensor4_calibration(
@@ -88,6 +104,7 @@ class InferenceServer:
                 parallel_camera=getattr(args, "parallel_camera", False),
                 point_intensity_source=getattr(args, "point_intensity_source", "native"),
                 pool_fused_layout=getattr(args, "pool_fused_layout", False),
+                **head_flags,
             )
             self.model, self.camera_startup_report = construct_camera_runtime(
                 BevFusionModel, factory_kwargs, policy=self.camera_startup_policy,
@@ -339,6 +356,12 @@ def parse_args(argv=None):
                         help="Startup only: off ignores the engine; prefer retries the SAME model eagerly only for named pre-enqueue accelerator failures; require is strict. Default prefer if configured, otherwise off")
     parser.add_argument("--pool-fused-layout", action="store_true",
                         help="Explicit Base5 separated-pool output layout fusion; original CUDA arithmetic/geometry, no new kernel")
+    parser.add_argument('--head-attention-sdpa', action='store_true',
+                        default=_optional_head_environment('BEVFUSION_HEAD_ATTENTION_SDPA'),
+                        help='Opt-in Base5 eval head SDPA; source/AST incompatibility keeps the original head, never enables proposal topk')
+    parser.add_argument('--head-cache-bev-pos', action='store_true',
+                        default=_optional_head_environment('BEVFUSION_HEAD_CACHE_BEV_POS'),
+                        help='Opt-in fixed batch-one BEV position cache; no checkpoint or grid change')
     parser.add_argument("--fuse-dense-bn", action="store_true",
                         help="Experimental eval-only dense Conv/BN folding")
     parser.add_argument("--camera-cuda-graph", action="store_true",
