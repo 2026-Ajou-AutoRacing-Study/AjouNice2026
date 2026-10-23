@@ -10,6 +10,15 @@ services:
       BASE5_RUNTIME: ${BEVFUSION_BASE5_RUNTIME:-false}
       POINT_INTENSITY_SOURCE: ${BEVFUSION_POINT_INTENSITY_SOURCE:-native}
       PARALLEL_CAMERA: ${BEVFUSION_PARALLEL_CAMERA:-false}
+      BEVFUSION_CAMERA_TENSORRT_ENGINE: ${BEVFUSION_CAMERA_TENSORRT_ENGINE:-}
+      BEVFUSION_CAMERA_TENSORRT_METADATA: ${BEVFUSION_CAMERA_TENSORRT_METADATA:-}
+      BEVFUSION_CAMERA_TENSORRT_POLICY: ${BEVFUSION_CAMERA_TENSORRT_POLICY:-}
+      BEVFUSION_HEAD_ATTENTION_SDPA: ${BEVFUSION_HEAD_ATTENTION_SDPA:-false}
+      BEVFUSION_HEAD_CACHE_BEV_POS: ${BEVFUSION_HEAD_CACHE_BEV_POS:-false}
+      BEVFUSION_SAFE_MODE: ${BEVFUSION_SAFE_MODE:-false}
+      POOL_FUSED_LAYOUT: ${BEVFUSION_POOL_FUSED_LAYOUT:-false}
+      CPU_THREADS: ${BEVFUSION_CPU_THREADS:-}
+      OPENCV_THREADS: ${BEVFUSION_OPENCV_THREADS:-}
       USE_AMP: ${BEVFUSION_USE_AMP:-true}
       PREPROCESS_WORKERS: ${BEVFUSION_PREPROCESS_WORKERS:-4}
       WARMUP_ITERATIONS: ${BEVFUSION_WARMUP_ITERATIONS:-2}
@@ -23,6 +32,11 @@ services:
       - ${AJOUNICE_ROOT}:/workspace/AjouNice2026:ro
       - ${BEVFUSION_SENSOR_CONFIG:-${AJOUNICE_ROOT}/configs/sensors/Sensor.json}:/config/Sensor.json:ro
       - ${BEVFUSION_CHECKPOINT}:/opt/checkpoints/bevfusion_base3.pth:ro
+      - ${BEVFUSION_TENSORRT_ARTIFACTS:-${HOME}/bevfusion_artifacts/tensorrt}:/opt/bevfusion_tensorrt:ro
+      - bevfusion_torch_extensions:/root/.cache/torch_extensions
     shm_size: "4gb"
     gpus: all
     restart: unless-stopped
+
+volumes:
+  bevfusion_torch_extensions:

@@ -48,7 +48,9 @@ class ArrivalTest(unittest.TestCase):
             def poll(self):return 0
         with tempfile.TemporaryDirectory() as d:
             p=Path(d);source=p/'manifest.json';row=safe_miss()
-            loop.atomic_json(source,dict(config=dict(capture=dict(natural_setup_budget_sec=6)),scenes=[dict(id='a',scenario_sha256='hash')]))
+            metadata=p/'metadata.json'
+            loop.atomic_json(metadata,dict(calibration_only=False,runtime_actors=[]))
+            loop.atomic_json(source,dict(config=dict(capture=dict(natural_setup_budget_sec=6)),scenes=[dict(id='a',metadata=str(metadata),scenario_sha256='hash')]))
             def prepare(source,indices,out,budget):
                 self.assertEqual(budget,9);out.mkdir();deck=loop.gen.geo.load_json(source)
                 deck['config']['capture']['natural_setup_budget_sec']=9
@@ -56,7 +58,9 @@ class ArrivalTest(unittest.TestCase):
             def capture(command,**kwargs):
                 out=Path(command[command.index('--output')+1]);out.mkdir(exist_ok=True)
                 loop.atomic_json(out/'shutdown_safety.json',dict(park_verified=True))
-                (out/'ledger.jsonl').write_text(json.dumps(dict(id='a',status='accepted_candidate'))+'\n')
+                raw=out/'captures'/'a';raw.mkdir(parents=True)
+                loop.atomic_json(raw/'metadata.json',loop.gen.geo.load_json(metadata))
+                (out/'ledger.jsonl').write_text(json.dumps(dict(id='a',status='accepted_candidate',capture_root=str(raw)))+'\n')
                 return Child()
             with patch.object(loop,'validate_seed',return_value=(row,p/'batch',dict(park_verified=True))),patch.object(loop,'budget_retry',side_effect=prepare),patch.object(loop.subprocess,'Popen',side_effect=capture) as child:
                 self.assertEqual(loop.execute(source,[0],p/'out',seed_capture=p/'seed.json'),0)

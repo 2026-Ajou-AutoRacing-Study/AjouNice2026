@@ -19,6 +19,16 @@ def meta():
 
 
 class CompletionTests(unittest.TestCase):
+    def test_unit_reference_is_explicitly_preserved_and_loaded_before_recovery(self):
+        import base5_unit_geometry_contract as unit
+        source=meta();reference=dict(path='/pinned/unit.json',sha256='frozen')
+        source[unit.KEY]=reference;proposed=meta()
+        with patch.object(unit,'load') as load:
+            c.preserve_native_unit_reference(source,proposed,{unit.KEY:reference})
+        load.assert_called_once_with(reference)
+        self.assertEqual(proposed[unit.KEY],reference)
+        self.assertIsNot(proposed[unit.KEY],reference)
+        with self.assertRaises(unit.UnitGeometryContractError):c.preserve_native_unit_reference(source,meta(),{})
     def test_native_selected_row_without_scenario_uses_verified_raw(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);c.atomic_json(root/'scenario.json',{'recovered':True});c.atomic_json(root/'metadata.json',meta())

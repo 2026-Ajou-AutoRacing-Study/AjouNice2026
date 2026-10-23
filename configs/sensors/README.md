@@ -10,7 +10,11 @@
 - 새 버전을 만들 때는 `Sensor_n.json`을 먼저 확정한 뒤 위 두 실행 파일을 같은
   내용으로 갱신함.
 - 기존 YAML의 `source_sensor_config: Sensor.json`은 호환성을 위해 유지함.
-- 260916 기준 `Sensor_competition_local.json`, `Sensor.json`, `Sensor_6.json`은 동일함.
+- 261016 기준 `Sensor_competition_local.json`, `Sensor.json`, `Sensor_6.json`은 동일함.
+- 30 Hz `sensorPeriod`는 현장 MORAI가 저장한 float32 표현
+  `0.03333333507180214`로 통일함. `Sensor_competition_lan.json`은 현장 원본
+  `morai_field_reference/AjouNice_sensor.json`과 JSON 값이 완전히 동일하고,
+  local profile은 그 원본에서 UDP IP만 `127.0.0.1`로 바꾼 형태를 유지함.
 - 현재 `Sensor_6.json`에는 카메라 고정 3대 + 후방 자유 1대, VLP-16 LiDAR 1대, GPS 1대, IMU 1대가 배치되어 있음.
 - `Sensor_6.json`은 `Sensor_5.json`과 동일한 센서 구성·extrinsic을 유지하고 카메라 4대의 주기만 20 Hz에서 30 Hz로 변경함.
 - 현재 센서 주기는 Camera 30 Hz, VLP-16 15 Hz, GPS 30 Hz, IMU 50 Hz임.

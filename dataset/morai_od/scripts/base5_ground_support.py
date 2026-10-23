@@ -2,6 +2,118 @@
 import numpy as np
 
 
+SURFACE_ASSOCIATION_POLICY = 'far-static-sparse-multilevel-surface-association-v157'
+
+
+def plane_observation(patch, plane, corners):
+    """Retain support-level evidence without changing the fitted plane or gap."""
+    patch, corners = np.asarray(patch, float), np.asarray(corners, float)
+    coef = np.asarray(plane['coefficients'], float)
+    residual = patch[:, 2] - np.c_[patch[:, :2], np.ones(len(patch))] @ coef
+    return dict(patch_point_count=len(patch), actor_center_ego_xy_m=corners[:, :2].mean(0).tolist(),
+        native_parent_component_count=len(corners)//8 if len(corners) % 8 == 0 else None,
+        native_lowest_corner_ego_z_m=float(corners[:, 2].min()),
+        patch_ego_z_range_m=[float(patch[:, 2].min()), float(patch[:, 2].max())],
+        lower_by_one_m_count=int((residual <= -1.).sum()),
+        minimum_signed_plane_residual_m=float(residual.min()),
+        limitation='Raw surrounding returns after Ego/actor footprint exclusion; lower returns do not certify a road plane.')
+
+
+def static_surface_association(row, ground, metadata):
+    """A narrow uncertainty classification, never replacement ground/contact GT.
+
+    Only a far, sparse, upward competing level can be ambiguous here. Genuine
+    above-ground gaps and below-ground gaps on a road-associated plane retain
+    their old severe result. Missing/untrusted inputs never grant a waiver.
+    """
+    from base5_static_ground_policy import lightweight_static
+    if (not metadata or not lightweight_static(metadata)
+            or metadata.get('ground_probe_references') or metadata.get('static_ground_references')
+            or row.get('reason') != 'actor_annotation_deep_below_ground'
+            or row.get('reference') or row.get('used_independent_reference')):
+        return None
+    try:
+        finite = lambda x: type(x) in (int, float) and np.isfinite(x)
+        observation, plane = row['surface_observation'], row['plane']
+        xy = np.asarray(observation['actor_center_ego_xy_m'], float)
+        coef = np.asarray(plane['coefficients'], float)
+        maximum = ground['max_range_m']
+        count, lower = observation['patch_point_count'], observation['lower_by_one_m_count']
+        if (xy.shape != (2,) or coef.shape != (3,) or not np.isfinite(np.r_[xy, coef]).all()
+                or type(observation.get('native_parent_component_count')) is not int
+                or observation['native_parent_component_count'] != 1
+                or not finite(maximum) or maximum <= 0 or np.linalg.norm(xy) <= maximum
+                or type(count) is not int or not 18 <= count <= 64
+                or type(lower) is not int or not 2 <= lower <= count
+                or row.get('verified') is not False
+                or not finite(row.get('minimum_annotation_ground_gap_m'))
+                or row['minimum_annotation_ground_gap_m'] >= -.40
+                or not finite(observation['minimum_signed_plane_residual_m'])
+                or observation['minimum_signed_plane_residual_m'] > -1.
+                or type(plane.get('inliers')) is not int or not 18 <= plane['inliers'] <= count
+                or not finite(plane.get('residual_rms_m')) or not 0 <= plane['residual_rms_m'] <= .025):
+            return None
+        matches = [actor for actor in metadata['runtime_actors'] if actor.get('unique_id') == row['uid']]
+        if len(matches) != 1:
+            return None
+        actor = matches[0]
+        if (actor.get('source_list') != 'objectList' or actor.get('is_compound') or actor.get('compound')
+                or actor.get('component_count', 1) != 1 or actor.get('annotation_component_count', 1) != 1):
+            return None
+        road = actor['map_ground_initializer'];footprint = road['footprint']
+        height, planned_z = road['height_m'], actor['position']['z']
+        if (road.get('policy') != 'mgeo-segment-associated-boundary-v1'
+                or road.get('usable') is not True or road.get('confidence') != 'road_strip'
+                or road.get('reason') is not None or not finite(height) or not finite(planned_z)
+                or not finite(road['nearest_road_distance_m']) or not 0 <= road['nearest_road_distance_m'] <= 2.
+                or abs(planned_z-height) > .25 or footprint.get('all_supported') is not True
+                or not finite(footprint['map_height_span_m']) or not 0 <= footprint['map_height_span_m'] <= .15
+                or not isinstance(footprint.get('samples'), list) or len(footprint['samples']) < 3
+                or any(sample.get('usable') is not True or sample.get('confidence') != 'road_strip'
+                    or not finite(sample.get('height_m')) or abs(sample['height_m']-height) > .15
+                    for sample in footprint['samples'])
+                or any(not isinstance(road.get(key), str) or len(road[key]) != 64
+                    or any(c not in '0123456789abcdef' for c in road[key])
+                    for key in ('source_map_link_sha256', 'source_map_boundary_sha256'))):
+            return None
+        ego = metadata['capture_runtime_ego']
+        if not all(finite(ego.get(key)) for key in ('x', 'y', 'z', 'heading')):
+            return None
+        planned_xy = np.asarray([actor['position'][key] for key in ('x', 'y')], float)
+        query_xy = np.asarray(road['query_xy_m'], float)
+        expected_center = np.asarray(actor['geometric_center_estimate'][:2], float)
+        from base5_ground_probe import ego_to_world
+        actual_center = ego_to_world([np.r_[xy, 0.]], ego)[0, :2]
+        if (query_xy.shape != (2,) or expected_center.shape != (2,)
+                or not np.isfinite(np.r_[planned_xy, query_xy, expected_center, actual_center]).all()
+                or np.linalg.norm(query_xy-planned_xy) > .05
+                or np.linalg.norm(actual_center-expected_center) > .50):
+            return None
+        low = observation['native_lowest_corner_ego_z_m']
+        if not finite(low):
+            return None
+        # Z is unchanged by the existing Ego->world yaw transform. MGeo is
+        # corroborating level evidence only; never promote it to mesh contact.
+        fitted_world_z = float(np.r_[xy, 1.] @ coef + ego['z'])
+        native_world_low = low + ego['z']
+        if fitted_world_z-height < 2. or abs(native_world_low-height) > .30:
+            return None
+        return dict(policy=SURFACE_ASSOCIATION_POLICY, status='unverified_multilevel_surface_association',
+            original_reason=row['reason'], original_gap_m=row['minimum_annotation_ground_gap_m'],
+            actor_range_ego_xy_m=float(np.linalg.norm(xy)), max_local_probe_range_m=maximum,
+            fitted_surface_world_z_m=fitted_world_z, road_initializer_world_z_m=height,
+            fitted_minus_road_level_m=fitted_world_z-height,
+            native_lowest_corner_minus_road_level_m=native_world_low-height,
+            native_to_planned_center_xy_delta_m=float(np.linalg.norm(actual_center-expected_center)),
+            patch_point_count=count, lower_by_one_m_count=lower,
+            native_parent_component_count=observation['native_parent_component_count'],
+            map_source_sha256={key:road[key] for key in ('source_map_link_sha256','source_map_boundary_sha256')},
+            raw_plane_gap_and_native_preserved=True, mesh_ground_or_contact_certified=False,
+            limitation='Far sparse competing surface level is not a verified supporting road; original measurement remains evidence.')
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+
+
 def height_response_review(ground, metadata):
     """Detect measured input-Z changes that did not fix the observed height gap."""
     changes={}
@@ -82,6 +194,8 @@ def ground_review(points,boxes,transform,max_range=20.,maximum_gap=.15,reference
             if candidate is not None and all(Polygon(candidate['support_polygon_xy']).distance(Point(p))<=.75 for p in cs[:,:2]):
                 plane=candidate;break
         row=dict(uid=uid,required=True,verified=False,plane=plane,patch_radius_m=patch_radius)
+        if plane is not None:
+            row['surface_observation'] = plane_observation(patch, plane, cs)
         reference=next((r for r in (references or []) if r['uid']==uid),None)
         if reference and runtime_ego:
             from base5_ground_probe import ego_to_world,plane_height,supported

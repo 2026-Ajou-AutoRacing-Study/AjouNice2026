@@ -3,10 +3,11 @@
 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)에서 production과 시험 모델을 먼저 선택한다.
 이 패키지는 호스트 ROS 입력/후처리를 담당하며 GPU 서버·checkpoint는 별도로 준비한다.
 
-## Production E24와 E25 복귀
+## Production E12와 E24/E25 복귀
 
-[E24 production handoff](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
-`bevfusion`은 E24 고정 weights·Base5 transport·AMP·병렬화와 canonical `base5_production.launch`를 사용한다.
+[production handoff](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+`bevfusion`은 E12 고정 weights·Base5 transport·AMP·병렬화·PC별 camera TRT·head SDPA/cache와 canonical `base5_production.launch`를 사용한다.
+선택 가속기 준비에 실패하면 같은 E12 eager로 복귀한다. `bevfusion --model e24`는 기존 E24로 명시적으로 복귀한다.
 `bevfusion --model e25`는 [E25 복귀 계약](../../../../docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md)을 선택한다.
 `base3_online.launch`는 canonical detection topic을 사용하며 class threshold와 rotated BEV NMS를 적용한다.
 기존 `bevfusion` 실행기는 서버 준비와 중복 canonical publisher를 검사한다.

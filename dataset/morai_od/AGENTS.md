@@ -11,6 +11,7 @@ Base3-Online·Base4 rosbag 수집은 명시적인 재현 요청에서만 해당 
 
 - 완료 원본·native GT·실패 근거·selected ledger·source/runtime 해시를 보존한다.
 - 구 output에 변경된 코드나 다른 manifest를 강제로 resume하지 않는다.
+- 수집 중인 동결 runtime이 디렉터리의 파일 목록까지 검사할 수 있다. 새 생성·수집 진입점은 공통 portable 경로에 추가하고, 기존 동결 scripts에 파일을 끼워 넣지 않는다. 현재 공통 운영 기준은 CURRENT의 통합 실행 문서를 따른다.
 - 새 후보·보충은 새 경로와 명시적인 계보를 사용한다. 이미 포함된 부모 성공분을 다시 합산하지 않는다.
 - 배치 수·승인 장면 수·가시 component GT 수·학습 클래스 수를 구분한다.
 - 객체의 원래 의미·asset·parent/component 관계를 보존한다. 학습 클래스 변경은 파생 라벨 정책이다.

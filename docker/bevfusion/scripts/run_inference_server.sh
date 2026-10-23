@@ -29,6 +29,33 @@ if [[ "${PARALLEL_CAMERA:-false}" == "true" ]]; then
   args+=(--parallel-camera)
 fi
 
+if [[ -n "${BEVFUSION_CAMERA_TENSORRT_POLICY:-}" ]]; then
+  args+=(--camera-tensorrt-policy "$BEVFUSION_CAMERA_TENSORRT_POLICY")
+fi
+if [[ -n "${BEVFUSION_CAMERA_TENSORRT_ENGINE:-}" ]]; then
+  args+=(--camera-tensorrt-engine "$BEVFUSION_CAMERA_TENSORRT_ENGINE")
+fi
+if [[ -n "${BEVFUSION_CAMERA_TENSORRT_METADATA:-}" ]]; then
+  args+=(--camera-tensorrt-metadata "$BEVFUSION_CAMERA_TENSORRT_METADATA")
+fi
+case "${BEVFUSION_HEAD_ATTENTION_SDPA:-false}" in
+  true) args+=(--head-attention-sdpa) ;;
+  false) ;;
+  *) echo '[ERROR] BEVFUSION_HEAD_ATTENTION_SDPA must be true or false.' >&2; exit 2 ;;
+esac
+case "${BEVFUSION_HEAD_CACHE_BEV_POS:-false}" in
+  true) args+=(--head-cache-bev-pos) ;;
+  false) ;;
+  *) echo '[ERROR] BEVFUSION_HEAD_CACHE_BEV_POS must be true or false.' >&2; exit 2 ;;
+esac
+case "${POOL_FUSED_LAYOUT:-false}" in
+  true) args+=(--pool-fused-layout) ;;
+  false) ;;
+  *) echo '[ERROR] POOL_FUSED_LAYOUT must be true or false.' >&2; exit 2 ;;
+esac
+if [[ -n "${CPU_THREADS:-}" ]]; then args+=(--cpu-threads "$CPU_THREADS"); fi
+if [[ -n "${OPENCV_THREADS:-}" ]]; then args+=(--opencv-threads "$OPENCV_THREADS"); fi
+
 if [[ "${PROJECTION_ONLY:-false}" == "true" ]]; then
   args+=(--projection-only)
 fi

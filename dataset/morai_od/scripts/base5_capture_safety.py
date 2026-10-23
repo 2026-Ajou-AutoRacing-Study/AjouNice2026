@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import time
 import math
+import uuid
 
 
 def vertical_motion_review(actor,samples,window_start,reference_z=None,step_limit_m=.10,height_limit_m=.05,ground_support_verified=False):
@@ -59,8 +60,32 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def verified_shutdown(path):
+    """Missing, malformed or merely truthy Park evidence is not a safe exit."""
+    try:
+        record=json.loads(Path(path).read_text())
+        return isinstance(record,dict) and record.get('park_verified') is True
+    except (OSError,ValueError,TypeError):
+        return False
+
+
 class SceneCollisionError(RuntimeError):
     """Confirmed per-scene contact, not a transport or exit-safety failure."""
+
+
+class ScenePoseUnverifiedError(RuntimeError):
+    """Keep raw mismatch evidence without weakening the collision epoch gate."""
+    def __init__(self, evidence):
+        super().__init__('Collision stream new-scene Ego pose unverified; no capture')
+        self.evidence = evidence
+
+
+def write_scene_pose_failure(output, ident, scenario_hash, evidence, ego_history):
+    """Append immutable evidence even if the same failed cell is attempted again."""
+    path=Path(output)/'failures'/(ident+'_collision_pose_'+uuid.uuid4().hex+'.json')
+    atomic_json(path,dict(evidence,scenario_sha256=scenario_hash,ego_load_samples=ego_history))
+    return dict(failure_kind='collision_scene_pose_unverified',
+        failure_evidence=str(path.resolve()),failure_evidence_sha256=sha256(path))
 
 
 def is_stationary_failure(row):
@@ -187,19 +212,52 @@ def load_ledger(path):
 def prepare_session(output,manifest,network,sensor,runner_options=None):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scripts=Path(__file__).parent
+    deck=json.loads(Path(manifest).read_text())
+    from base5_layout_split import validate_manifest_overlay,overlay_for_metadata,resolve as resolve_split
+    validate_manifest_overlay(deck,allow_subset=True)
+    scale_policy=None
+    if deck.get('config',{}).get('asset_scale_policy'):
+        from base5_asset_scale import bind_config
+        deck['config']=bind_config(deck['config'])
+        scale_policy=deck['config']['asset_scale_policy']
+    from base5_far_vehicle_native import validate_manifest as validate_far_manifest
+    far_source_pins=validate_far_manifest(deck)
+    from base5_shadow_ground_reuse import validate_manifest as validate_shadow_reuse
+    shadow_source_pins=validate_shadow_reuse(deck,sensor)
     from generate_dynamic_object_capture_set import DEFAULT_MGEO
     map_sources={name:sha256(DEFAULT_MGEO/name) if (DEFAULT_MGEO/name).exists() else None
         for name in ('link_set.json','lane_boundary_set.json')}
     contract=dict(schema_version=7,manifest_sha256=sha256(manifest),
         ego_support_map_sha256=map_sources,
         network_sha256=sha256(network),sensor_sha256=sha256(sensor),
-        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
+        safety_code_sha256={name:sha256(scripts/name) for name in ('base5_capture_safety.py','base5_capture_audit.py','base5_far_vehicle_native.py','base5_population_budget.py','base5_ground_support.py','base5_static_ground_policy.py','base5_ground_probe.py','run_base5_capture.py','base5_capture_timing.py','base5_event_cmd.py','base5_motion_ground.py','base5_static_ground_reference.py','base5_map_surface.py','base5_intersection_ground.py','base5_intersection_placement.py','base5_shadow_observation.py','base5_region_contract.py','base5_placement_geometry.py')},
         safety_policy='collision-history-v1; missing-runtime-actors; AI-standing-visible-annotation-v1; local-ground-plane-v1; all-actor-motion-endpoint-window-v1; vertical-step-window-v1; final-ego-road-footprint-v114; post-park-stationary-v114')
-    reference=json.loads(Path(manifest).read_text()).get('config',{}).get('static_placement_geometry')
-    if json.loads(Path(manifest).read_text()).get('config',{}).get('obstacle_support_policy'):
+    reference=deck.get('config',{}).get('static_placement_geometry')
+    for name in ('base5_scale_capture_contract.py','base5_asset_scale.py','base5_native_box_corners.py','base5_export_readiness.py','base5_layout_split.py','base5_unit_geometry_contract.py','base5_unit_capture_provenance.py','base5_close_primary_observation.py'):
+        contract['safety_code_sha256'][name]=sha256(scripts/name)
+    if deck.get('config',{}).get('static_mission_extent'):
+        contract['safety_code_sha256']['base5_static_mission_extent.py']=sha256(scripts/'base5_static_mission_extent.py')
+    if deck.get('config',{}).get('obstacle_support_policy'):
         contract['safety_code_sha256']['base5_obstacle_support_policy.py']=sha256(scripts/'base5_obstacle_support_policy.py')
         contract['safety_code_sha256']['base5_obstacle_rich_floor.py']=sha256(scripts/'base5_obstacle_rich_floor.py')
-    if json.loads(Path(manifest).read_text()).get('config',{}).get('parked_npc_placement'):
+    if deck.get('config',{}).get('obstacle_front_support_policy'):
+        contract['safety_code_sha256']['base5_obstacle_front_support.py']=sha256(scripts/'base5_obstacle_front_support.py')
+    if deck.get('config',{}).get('secondary_far_vehicle_policy'):
+        for name in ('base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
+                     'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'):
+            contract['safety_code_sha256'][name]=sha256(scripts/name)
+        contract['secondary_far_vehicle_source_files']=far_source_pins
+    if shadow_source_pins:
+        contract['safety_code_sha256']['base5_shadow_ground_reuse.py']=sha256(scripts/'base5_shadow_ground_reuse.py')
+        contract['shadow_ground_reuse_source_files']=shadow_source_pins
+    range_policy=deck.get('config',{}).get('primary_obstacle_range_policy')
+    if range_policy:
+        contract['safety_code_sha256']['base5_primary_obstacle_range.py']=sha256(scripts/'base5_primary_obstacle_range.py')
+        range_reference=range_policy['reference']
+        if sha256(range_reference['path'])!=range_reference['sha256']:
+            raise ValueError('Primary obstacle range reference changed')
+        contract['primary_obstacle_range_reference']=range_reference
+    if deck.get('config',{}).get('parked_npc_placement'):
         for name in ('base5_parked_npc_placement.py','base5_static_yaw.py'):
             contract['safety_code_sha256'][name]=sha256(scripts/name)
     if reference:
@@ -207,6 +265,12 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
             raise ValueError('Placement geometry reference changed')
         contract['static_placement_geometry']=reference
     if runner_options is not None:contract['runner_options']=runner_options
+    if deck.get('split_overlay') is not None:contract['training_split_overlay']=deck['split_overlay']
+    if deck.get('config',{}).get('native_unit_geometry_reference') is not None:
+        from base5_unit_geometry_contract import load as load_unit_geometry
+        unit_reference=deck['config']['native_unit_geometry_reference']
+        load_unit_geometry(unit_reference)
+        contract['native_unit_geometry_reference']=unit_reference
     path=output/'session_contract.json'
     if path.exists():
         if json.loads(path.read_text())!=contract:raise ValueError('Resume session contract mismatch')
@@ -223,11 +287,33 @@ def prepare_session(output,manifest,network,sensor,runner_options=None):
             raise ValueError('Completed ledger has incomplete provenance: '+ident)
         if sha256(capture/'scenario.json')!=row['scenario_sha256']:
             raise ValueError('Completed capture checksum mismatch: '+ident)
+        source_entry=next((e for e in deck.get('scenes',[]) if e['id']==ident),None)
+        captured_metadata=json.loads((capture/'metadata.json').read_text())
+        if source_entry is not None:
+            planned_metadata=json.loads(Path(source_entry['metadata']).read_text())
+            if captured_metadata.get('training_split_overlay')!=planned_metadata.get('training_split_overlay'):
+                raise ValueError('Completed capture changed or removed training split overlay: '+ident)
+            if captured_metadata.get('native_unit_geometry_reference')!=planned_metadata.get('native_unit_geometry_reference'):
+                raise ValueError('Completed capture changed or removed native unit geometry reference: '+ident)
+        overlay=overlay_for_metadata(captured_metadata)
+        if overlay is not None:
+            resolve_split(overlay,ident,row,captured_metadata)
+        from base5_far_vehicle_native import verify_capture as verify_far_capture
+        verify_far_capture(source_entry,capture)
+        from base5_shadow_ground_reuse import verify_capture as verify_shadow_capture
+        verify_shadow_capture(source_entry,capture,deck)
+        from base5_scale_capture_contract import verify_capture as verify_scale_capture
+        verify_scale_capture(source_entry,capture,deck)
+        from base5_unit_capture_provenance import verify_capture as verify_unit_capture
+        verify_unit_capture(source_entry,capture,deck,row)
         cameras=list(capture.glob('CAMERA_*/*_Intensity.png'))
         lidar=list(capture.glob('LIDAR_*/*_Intensity.bin'))
         labels=list(capture.glob('LIDAR_*/*_Instance.txt'))
         if len(cameras)!=4 or len(lidar)!=1 or len(labels)!=1 or any(p.stat().st_size==0 for p in cameras+lidar):
             raise ValueError('Completed ledger has missing/empty sensor files: '+ident)
+    if scale_policy is not None:
+        from base5_asset_scale import verify_frozen_policy
+        verify_frozen_policy(scale_policy)
     return previous,completed
 
 
@@ -266,4 +352,19 @@ def scene_collision_epoch(samples,load_time,expected,max_pose_error=.35):
             if abs(yaw)<=1.:
                 return rows[i:],dict(matched=True,start_monotonic=row['t'],excluded_transition_messages=i,
                     contract='Trim only pre-new-pose prefix; never discard later collision-induced drift')
-    raise RuntimeError('Collision stream new-scene Ego pose unverified; no capture')
+    observations=[]
+    for row in rows:
+        for key in ('collision_object','collision_objecta'):
+            for ego in row['message'].get(key,[]):
+                if int(ego['unique_id'])!=0:continue
+                raw_delta=(float(ego['heading'])-expected['yaw']+180)%360-180
+                observations.append(dict(t=row['t'],array=key,position=ego['position'],
+                    heading_raw_deg=ego['heading'],
+                    position_error_m=math.hypot(ego['position']['x']-expected['x'],ego['position']['y']-expected['y']),
+                    raw_heading_minus_requested_deg=raw_delta,
+                    corrected_heading_error_deg=(raw_delta-1.347+180)%360-180))
+    raise ScenePoseUnverifiedError(dict(reason='collision_scene_pose_unverified',expected=expected,
+        load_time_monotonic=load_time,max_xy_error_m=max_pose_error,max_yaw_error_deg=1.,
+        heading_correction_deg=-1.347,ego_observations=observations,collision_samples=rows,
+        no_capture_requested=True,acceptance_unchanged=True,
+        limitation='Diagnostic evidence only. Do not infer a new heading correction or erase contacts from a mismatch.'))

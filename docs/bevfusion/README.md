@@ -1,6 +1,6 @@
 # BEVFusion 작업별 문서 인덱스
 
-문서 상태: ROUTER. 정리 기준: 2026-10-14.
+문서 상태: ROUTER. 정리 기준: 2026-10-16.
 현재 모델·실행 선택·남은 과제는 [CURRENT](CURRENT.md)에서 한 번만 관리한다.
 이 문서는 필요한 근거를 고르는 안내이며 날짜별 진행 결과를 복사하지 않는다.
 
@@ -10,12 +10,15 @@
 |---|---|
 | 현재 모델·checkpoint·옵션 선택 | [CURRENT](CURRENT.md) |
 | 원거리 차량·후단·다음 수집과 최종 학습의 진행 순서 | [개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md) |
-| Production E24 배포와 E25 복귀 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
+| 80~100m의 실제 센서·E24 누락 원인과 보조 차량 보강 | [v153 데이터·검증 근거](../../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md) |
+| Production E12 TRT/head 배포·PC별 engine·실대회 기동 점검·E24/E25 복귀 | [production handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Base5 ROS 시험 | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md) |
 | 운영 localization과 독립 평가 GT의 heading·pose 기준 | [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md) |
 | Validator 녹화 프리셋·로그·공유 묶음의 누락과 담당자 전달 | [분석 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md) |
 | 원격 학습·재개·백업 | [원격 실행 안내](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md) |
+| 다음 학습 compile OFF·nearest·GT/입력 CPU 준비 | [새 학습 사전검사](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu) |
 | 생성·수집·GT 변환 | [Base5 데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md) |
+| 새 5K 수집 전 native→JPEG→upright→실제 CPU 학습 입력 점검 | [v154 최종 검토](../../dataset/morai_od/docs/261016_base5_precollection_final_review.md) |
 | Tracker·motion policy·prediction | [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md) |
 
 <a id="evaluation"></a>
@@ -26,6 +29,9 @@
 
 | 주제 | 근거 |
 |---|---|
+| E12/E24 동일 bag·native 초장거리, LiDAR 0점 score·연구와 1점 이상 GT 보조 평가 | [57절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023), [58절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-zero-lidar-threshold-research-261023), [59절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-positive-lidar-evaluation-261023) |
+| 512/576 높이·근접 상단 잘림·원거리 픽셀·실제 crop/homography CPU 대조 | [세로 crop 진단](261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md) |
+| 다음 학습 compile OFF·nearest 공통·실제 5K CPU 입력/GT 검사 | [51절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-next-training-cpu-261015) |
 | 새 차량 장면의 방향·재취득 복구와 실제 고속/회전 50/51·준비 Park·로드 경계 | [독립 장면과 패킷 검증](261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md) |
 | 차량 초기 속도 반전·재취득 구 ID 잔류·측정과 출력 시계·실제 코어와 격리 ROS 비교 | [차량 방향과 재취득 검증](261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md) |
 | 원시 패킷 시간축·보행자 ID 분절·출력 동일 CPU 개선·C++ 전환 gate | [오프라인 검토](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |
@@ -52,7 +58,7 @@
 | 실제 학습 compile OFF/ON·메모리 경계 | [25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011), [26절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | JPEG 전환·정답 heatmap 축·upright BBox | [12절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011), [15절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011), [16절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | 격자·depth·Z 설정 비교 | [17절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011), [19절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |
-| CUDA-BEVFusion·BEVPool·TensorRT 검토 | [배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md) |
+| CUDA·부분 TRT·head AP/연속 tracker·Orin 비교·E12 production 배포와 Drive 정리 | [배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023), [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023), [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023), [62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023), [63절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023) |
 | 차량 velocity 기준과 bag GT | [GT 기준 조사](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md) |
 
 ## 과거 재현

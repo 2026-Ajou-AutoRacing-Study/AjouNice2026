@@ -21,7 +21,7 @@ def rotation_matrix(rpy):
         [sy*cp,sy*sp*sr+cy*cr,sy*sp*cr-cy*sr],[-sp,cp*sr,cp*cr]])
 
 
-def camera_evidence(root, uid, raw_class, pixels_cache=None):
+def camera_evidence(root, uid, raw_class, pixels_cache=None, model512=False):
     evidence = []
     for folder in sorted(Path(root).glob('CAMERA_*')):
         images = list(folder.glob('*_Instance.png'))
@@ -65,6 +65,23 @@ def camera_evidence(root, uid, raw_class, pixels_cache=None):
                     model_extent_px=[max(0,xmax-xmin)*scale,
                         max(0,min(ymax,height)-max(ymin,top))*scale],
                     matching='parent+raw_class; same-class components may be ambiguous'))
+                if model512:
+                    # Current deterministic 512x1056 / resize .825 input. Keep
+                    # the historical 320 evidence and all existing gates intact.
+                    scale512 = 1056. / width
+                    import cv2
+                    resized_height = int(height * scale512)
+                    if resized_height < 512:
+                        raise ValueError('Current model crop exceeds resized camera height')
+                    resized512 = cv2.resize(mask.astype(np.uint8),
+                        (int(width * scale512), resized_height), interpolation=cv2.INTER_NEAREST)
+                    top512 = resized_height - 512
+                    x1, x2 = max(0., xmin), min(float(width), xmax)
+                    y1, y2 = max(0., ymin), min(float(height), ymax)
+                    evidence[-1].update(
+                        crop_512x1056_instance_pixels=int(resized512[top512:top512 + 512].sum()),
+                        model512_extent_px=[max(0., min(1056., x2 * scale512) - max(0., x1 * scale512)),
+                            max(0., min(top512 + 512., y2 * scale512) - max(top512, y1 * scale512))])
     return evidence
 
 
@@ -84,6 +101,12 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     points=points[(points[:,:3]!=0).any(axis=1)]
     actors = {int(a['unique_id']):a for a in metadata['runtime_actors']}
     boxes = parse_instances(annotation_files[0])
+    from base5_scale_capture_contract import registered_variants
+    variants=registered_variants(root,metadata)
+    native_corners=None
+    if variants:
+        from base5_native_box_corners import load_matching_corners,derive_geometry
+        native_corners=load_matching_corners(annotation_files[0])
     # parse_instances is permissive historically; here malformed records are fatal.
     if len(boxes) != len([s for s in annotation_files[0].read_text().splitlines() if s.strip()]):
         raise ValueError('Malformed GT record')
@@ -96,12 +119,25 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             raise ValueError('Unmapped captured UID '+str(uid))
         actor = actors[uid]
         center, size = box['center'], box['size']
+        native_summary_size=size.copy()
+        native_corner_proof=None
+        if uid in variants:
+            # Summary size can be stale at scale 1. The companion native eight
+            # corners already carry the actual box; never multiply GT by scale.
+            key=(uid,box['raw_class'],ordinals.get((uid,box['raw_class']),0))
+            derived=derive_geometry(box,native_corners[key],allow_dimension_change=True)
+            size=np.asarray(derived['size'])
+            native_corner_proof=derived['evidence']
+            # All downstream geometry consumers (plane exclusion, contact-gap
+            # proxy and actor clearance) must use the same native-corner box.
+            box['size']=size
         if not np.isfinite(np.r_[center,size,box['rotation_rpy']]).all() or (size<=0).any():
             raise ValueError('Invalid GT geometry')
         rot = rotation_matrix(box['rotation_rpy'])
         local = (points[:,:3]-center) @ rot
         count = int((np.abs(local)<=size/2+1e-5).all(axis=1).sum())
-        cameras = camera_evidence(root,uid,box['raw_class'],pixels_cache)
+        cameras = camera_evidence(root,uid,box['raw_class'],pixels_cache,
+            model512='secondary_far_vehicle' in metadata.get('spec',{}))
         ambiguous=sum(b['unique_id']==uid and b['raw_class']==box['raw_class'] for b in boxes)>1
         visible = not ambiguous and any(c['crop_320x896_instance_pixels']>=16 and min(c['model_extent_px'])>=4 for c in cameras)
         key = (uid,box['raw_class']); ordinal = ordinals.get(key,0); ordinals[key]=ordinal+1
@@ -118,6 +154,9 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
             positive_lidar5=count>=5,positive_lidar1=count>=1,
             positive_lidar1_camera0=count>=1 or visible,
             ignore_reason=None if count>=1 or visible else 'no_visible_sensor_evidence'))
+        if native_corner_proof is not None:
+            results[-1]['native_summary_size_m']=native_summary_size.tolist()
+            results[-1]['native_corner_geometry']=native_corner_proof
         if metadata.get('lidar_to_ego') is not None:
             center_ego=np.asarray(metadata['lidar_to_ego'])@np.r_[center,1.]
             results[-1]['center_ego_m']=center_ego[:3].tolist()
@@ -154,7 +193,7 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 ground['manual_policy_decision']=ground_decision(ground)
                 reasons.extend(ground['manual_policy_decision']['review_reasons'])
             elif light_static:
-                ground['static_policy_decision']=static_decision(ground)
+                ground['static_policy_decision']=static_decision(ground,metadata)
                 reasons.extend(ground['static_policy_decision']['review_reasons'])
             else:
                 reasons.extend(ground['review_reasons'])
@@ -206,7 +245,11 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
                 reasons.append('actual_GT_actor_footprint_overlap')
             footprints.append((box['unique_id'],poly))
     from base5_population_budget import visibility_summary,visibility_review
-    population_visibility=visibility_summary(metadata['runtime_actors'],results)
+    population_results=results
+    if 'secondary_far_vehicle' in metadata.get('spec',{}):
+        from base5_far_vehicle_native import population_components
+        population_results=population_components(metadata,results)
+    population_visibility=visibility_summary(metadata['runtime_actors'],population_results)
     reasons.extend(visibility_review(metadata,population_visibility))
     from base5_roundabout_mission import visibility_review as roundabout_visibility_review
     pair_reasons,roundabout_visibility=roundabout_visibility_review(metadata,results,clearances)
@@ -217,6 +260,16 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     from base5_static_vehicle import runtime_review as static_vehicle_review
     static_vehicle_reasons,static_vehicle_evidence=static_vehicle_review(metadata)
     reasons.extend(static_vehicle_reasons)
+    far_evidence=None
+    if 'secondary_far_vehicle' in metadata.get('spec',{}):
+        from base5_far_vehicle_native import review as far_vehicle_review
+        far_reasons,far_evidence=far_vehicle_review(metadata,results)
+        reasons.extend(far_reasons)
+    unit_review=None
+    if metadata.get('native_unit_geometry_reference') is not None:
+        from base5_unit_geometry_contract import review as review_unit_geometry
+        unit_review=review_unit_geometry(metadata,dict(components=results))
+        reasons.extend(unit_review['review_reasons'])
     result=dict(components=results,missing_uids=missing,raw_complete=True,ground_support=ground,
         ground_warnings=(ground or {}).get('static_policy_decision',{}).get('warnings',[]),
         population_visibility=population_visibility,
@@ -231,7 +284,9 @@ def audit_capture(root, metadata, cache_camera_pixels=True):
     # overlay. Keep the original observed safety proof available to selectors
     # and dashboard summaries; never synthesize a successful collision check.
     if live is not None:result['capture_safety']=copy.deepcopy(live)
+    if unit_review is not None:result['native_unit_geometry_review']=unit_review
     if roundabout_visibility is not None:result['roundabout_visibility']=roundabout_visibility
     if shadow_visibility is not None:result['shadow_observation_visibility']=shadow_visibility
     if static_vehicle_evidence is not None:result['stationary_vehicle_runtime']=static_vehicle_evidence
+    if far_evidence is not None:result['far_vehicle_native']=far_evidence
     return result

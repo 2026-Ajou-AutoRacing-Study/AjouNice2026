@@ -26,6 +26,53 @@ def validate_production_identity(metadata,args):
         raise ValueError('Server model configuration differs')
     if args.expected_sensor and (metadata.get('calibration') or {}).get('config_sha256') != args.expected_sensor:
         raise ValueError('Server sensor configuration differs')
+    calibration = metadata.get('calibration') or {}
+    expected_intrinsic = getattr(args, 'expected_intrinsic_source', None)
+    if expected_intrinsic and calibration.get('intrinsic_source') != expected_intrinsic:
+        raise ValueError('Server intrinsic-source differs from the ROS bridge')
+    expected_order = getattr(args, 'expected_camera_order', None)
+    if expected_order and [camera.get('frame_id') for camera in calibration.get('cameras', [])] != list(expected_order):
+        raise ValueError('Server camera order differs from the ROS bridge')
+    expected_backend = getattr(args, 'expected_camera_backend', None)
+    if expected_backend:
+        camera = (identity.get('execution_optimization') or {}).get('camera_tensorrt') or {}
+        if expected_backend == 'eager' and camera.get('enabled', False):
+            raise ValueError('Selected safe/baseline profile does not use a TensorRT camera')
+        if expected_backend == 'camera_tensorrt' and not (
+                camera.get('enabled') and camera.get('loaded') and camera.get('healthy')):
+            raise ValueError('Selected TensorRT camera is not loaded and healthy')
+    expected_pool = getattr(args, 'expected_pool_fused_layout', None)
+    expected_engine = getattr(args, 'expected_camera_engine_sha256', None)
+    if expected_engine:
+        execution = identity.get('execution_optimization') or {}
+        camera = execution.get('camera_tensorrt') or {}
+        startup = execution.get('camera_tensorrt_startup') or {}
+        if camera.get('enabled'):
+            if not (camera.get('loaded') and camera.get('healthy') and camera.get('engine_sha256') == expected_engine):
+                raise ValueError('Server camera engine differs from the prepared local production engine')
+        elif not startup.get('fallback'):
+            raise ValueError('Existing eager server did not attempt the requested prepared camera engine')
+    if expected_pool is not None:
+        pool = (identity.get('execution_optimization') or {}).get('pool_fused_layout') or {}
+        if bool(pool.get('enabled', False)) != (expected_pool == 'true'):
+            raise ValueError('Server pool layout differs from the selected execution profile')
+    head = (identity.get('execution_optimization') or {}).get('head_runtime') or {}
+    requested = head.get('requested') or {}
+    expected_head = {}
+    for field, argument in (('attention_sdpa', 'expected_head_attention_sdpa'),
+                            ('cache_bev_pos', 'expected_head_cache_bev_pos')):
+        value = getattr(args, argument, None)
+        if value is not None:
+            expected_head[field] = value == 'true'
+    if len(expected_head) == 2 and not any(expected_head.values()):
+        # A previous optional startup decline already left the ORIGINAL head
+        # active. Its requested=True history must not block safe eager reuse.
+        if head.get('enabled', False):
+            raise ValueError('Safe/baseline profile does not use an optimized head')
+    else:
+        for field, value in expected_head.items():
+            if bool(requested.get(field, False)) != value:
+                raise ValueError('Server head optimization request differs from the selected profile')
     if expected_base5 and (metadata.get('point_intensity_source') != 'ros255'
             or metadata.get('image_final_dim') != [512,1056]
             or metadata.get('classes') != ['vehicle','pedestrian','obstacle']):
@@ -43,6 +90,13 @@ def main():
     parser.add_argument("--expected-sensor")
     parser.add_argument('--require-box-origin-tag',action='store_true')
     parser.add_argument('--expected-depth-raster-policy',choices=('nearest_positive',))
+    parser.add_argument('--expected-intrinsic-source',choices=('horizontal_fov','focal_length_pixel'))
+    parser.add_argument('--expected-camera-order',nargs=4)
+    parser.add_argument('--expected-camera-backend',choices=('eager','camera_tensorrt'))
+    parser.add_argument('--expected-camera-engine-sha256')
+    parser.add_argument('--expected-pool-fused-layout', choices=('true', 'false'))
+    parser.add_argument('--expected-head-attention-sdpa', choices=('true', 'false'))
+    parser.add_argument('--expected-head-cache-bev-pos', choices=('true', 'false'))
     args = parser.parse_args()
     with socket.create_connection((args.host, args.port), args.timeout) as connection:
         send_message(connection, TYPE_PING, {"client": "healthcheck"})

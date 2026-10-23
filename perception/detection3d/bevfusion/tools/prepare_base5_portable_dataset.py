@@ -14,6 +14,7 @@ from pathlib import Path
 import pickle
 import re
 import shutil
+import sys
 
 
 def sha256(path):
@@ -44,6 +45,24 @@ def rewrite_record(record, capture_root, destination):
             raise ValueError('Input is not a file: ' + str(source))
         owner[key] = str(destination / relative)
     return record
+
+
+def validate_scaled_native_capture(root, *, original_capture_root=None):
+    """Scaled packages retain and verify native proof across explicit relocation."""
+    root=Path(root).resolve(strict=True)
+    if not (root/'scenario.json').is_file() and not (root/'metadata.json').is_file():return False
+    scripts=Path(__file__).resolve().parents[4]/'dataset/morai_od/scripts'
+    if str(scripts) not in sys.path:sys.path.insert(0,str(scripts))
+    from base5_scale_capture_contract import registered_variants
+    metadata=json.loads((root/'metadata.json').read_text()) if (root/'metadata.json').is_file() else {}
+    variants=registered_variants(root,metadata)
+    audit_path=root/'audit.json'
+    audit=json.loads(audit_path.read_text()) if audit_path.is_file() else {}
+    marked=any('native_corner_geometry' in c or 'native_summary_size_m' in c for c in audit.get('components',[]))
+    if not variants and not marked:return False
+    from report_base5_compound_evidence import _validate_native_geometry
+    _validate_native_geometry(root,audit['components'],original_capture_root=original_capture_root)
+    return True
 
 
 def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
@@ -111,6 +130,7 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
             shutil.copy2(source, target)
         inventory[str(relative)] = dict(bytes=target.stat().st_size, sha256=sha256(target))
     for index, (token, root) in enumerate(roots.items(), 1):
+        native_proof=validate_scaled_native_capture(root)
         count = 0
         for source in sorted(root.rglob('*')):
             if source.is_symlink():
@@ -120,6 +140,8 @@ def build(ledger, profiles, output, expected_scenes=5000, copy_mode='copy'):
         if not count:
             raise ValueError('Empty capture root')
         provenance[token] = dict(original_capture_root=str(root), files=count)
+        if native_proof:
+            provenance[token]['native_corner_relocation_policy']='exact-source-root-prefix; unchanged relative sensor paths/SHA/bytes/UID/geometry'
         if index % 250 == 0:
             print('Exported %d/%d captures' % (index, expected_scenes), flush=True)
     transfer(ledger, Path('provenance') / 'original_selected_ledger.jsonl')
@@ -163,6 +185,9 @@ def validate(root, verify_hashes=False):
             raise ValueError('Missing/changed payload: ' + relative)
         if verify_hashes and sha256(path) != item['sha256']:
             raise ValueError('Payload checksum mismatch: ' + relative)
+    for token,source in manifest.get('provenance',{}).items():
+        capture=root/'data'/safe_relative(token)
+        validate_scaled_native_capture(capture,original_capture_root=source['original_capture_root'])
     for profile in manifest['profiles']:
         for split in ('train', 'val', 'test'):
             info = pickle.loads((root / 'infos' / profile / ('morai_base5_infos_' + split + '.pkl')).read_bytes())

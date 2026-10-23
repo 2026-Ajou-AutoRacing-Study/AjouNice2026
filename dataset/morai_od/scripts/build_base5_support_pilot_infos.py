@@ -9,7 +9,7 @@ from base5_capture_safety import atomic_json,sha256
 from build_base5_bevfusion_infos import convert
 
 
-def build(ledger,measurement,output,sensor):
+def build(ledger,measurement,output,sensor,split_overlay=None):
     if output.exists():raise FileExistsError('New derived pilot output required')
     report=json.loads(measurement.read_text())
     if report['ledger_sha256']!=sha256(ledger) or report['errors']:
@@ -37,7 +37,7 @@ def build(ledger,measurement,output,sensor):
         for row in rows:stream.write(json.dumps(row,ensure_ascii=False)+'\n')
     # Portable packing resolves each info token against the capture ledger ID;
     # group identity stays separate and is preserved in scene_group_id.
-    result=convert(derived,output/'infos',sensor)
+    result=convert(derived,output/'infos',sensor,split_overlay=split_overlay)
     result.update(source_ledger_sha256=sha256(ledger),measurement_sha256=sha256(measurement),
                   profile='512x1056',pilot_only=True,raw_preserved=True)
     atomic_json(output/'conversion_report.json',result)
@@ -47,4 +47,5 @@ def build(ledger,measurement,output,sensor):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('ledger','measurement','output','sensor'):p.add_argument('--'+name,type=Path,required=True)
-    a=p.parse_args();print(json.dumps(build(a.ledger,a.measurement,a.output,a.sensor),indent=2))
+    p.add_argument('--split-overlay',type=Path)
+    a=p.parse_args();print(json.dumps(build(a.ledger,a.measurement,a.output,a.sensor,a.split_overlay),indent=2))

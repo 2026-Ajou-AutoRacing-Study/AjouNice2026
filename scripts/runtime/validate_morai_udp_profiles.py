@@ -20,6 +20,7 @@ PAIRS = (
 )
 LEGACY_LOCAL_MIRRORS = (
     (ROOT / "configs/sensors/Sensor.json", PAIRS[0][0]),
+    (ROOT / "configs/sensors/Sensor_6.json", PAIRS[0][0]),
     (ROOT / "configs/network/ego_network_1.json", PAIRS[1][0]),
 )
 FIELD_SENSOR = FIELD_REFERENCE_ROOT / "AjouNice_sensor.json"
@@ -73,44 +74,6 @@ def normalize_and_check(value, profile, path=()):
 def load(path):
     with path.open(encoding="utf-8") as stream:
         return json.load(stream)
-
-
-def assert_approximately_equal(left, right, path=()):
-    """Compare JSON trees while tolerating float32 serialization noise."""
-    if (
-        isinstance(left, (int, float))
-        and not isinstance(left, bool)
-        and isinstance(right, (int, float))
-        and not isinstance(right, bool)
-    ):
-        if abs(float(left) - float(right)) > 1e-7:
-            raise ValueError(
-                f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
-            )
-        return
-    if type(left) is not type(right):
-        raise ValueError(
-            f"field sensor type differs at {'/'.join(path)}: "
-            f"{type(left).__name__} != {type(right).__name__}"
-        )
-    if isinstance(left, dict):
-        if set(left) != set(right):
-            raise ValueError(f"field sensor keys differ at {'/'.join(path)}")
-        for key in left:
-            assert_approximately_equal(left[key], right[key], path + (str(key),))
-        return
-    if isinstance(left, list):
-        if len(left) != len(right):
-            raise ValueError(f"field sensor length differs at {'/'.join(path)}")
-        for index, (left_item, right_item) in enumerate(zip(left, right)):
-            assert_approximately_equal(
-                left_item, right_item, path + (str(index),)
-            )
-        return
-    if left != right:
-        raise ValueError(
-            f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
-        )
 
 
 def network_entries_by_type(network):
@@ -196,8 +159,12 @@ def main():
 
     field_sensor = load(FIELD_SENSOR)
     competition_sensor = load(PAIRS[0][1])
-    assert_approximately_equal(field_sensor, competition_sensor)
-    print("PASS: field MORAI sensor <-> algorithm LAN sensor contract")
+    if field_sensor != competition_sensor:
+        raise ValueError(
+            f"field MORAI sensor differs from algorithm LAN sensor: "
+            f"{FIELD_SENSOR} vs {PAIRS[0][1]}"
+        )
+    print("PASS: field MORAI sensor == algorithm LAN sensor (exact JSON values)")
 
     validate_field_network_contract(load(FIELD_NETWORK), load(PAIRS[1][1]))
     print(

@@ -1,8 +1,8 @@
 # AjouNice BEVFusion runtime
 
-현재 production은 E24이며 선택·입력·가중치·최적화의 단일 기준은
+현재 production은 전체 30,750장 E12 + camera TRT + head SDPA·좌표 cache이며 선택·입력·가중치·최적화의 단일 기준은
 [모델 CURRENT](../../docs/bevfusion/CURRENT.md)다. 실행은
-[E24 handoff](../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의
+[production handoff](../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의
 `scripts/runtime/run_bevfusion.sh`를 따른다. 이 디렉터리는 Base3 호환 환경과 Base5
 학습·추론 서버를 함께 관리한다. 파일명에 Base3가 있어도 현재 실행값이라고 가정하지 않는다.
 팀 CUDA 12.8 이미지의 하드웨어 지원과 새 호스트 qualification은 구분한다.
@@ -14,6 +14,54 @@ the current default. The older `260720_*zero_shot*` documents are history only.
 
 Team training and artifact installation are documented in
 `docs/bevfusion/TEAM_DOCKER_TRAINING_HANDOFF.md`.
+
+## Vast 오프라인 학습 이미지 — 2026-10-18
+
+대상 private 저장소는 `fluffyluv/ajounice2026-bevfusion-train`이다.
+태그는 `base5-cu128-261018-v1`이며 기존 production 서버 이미지를 교체하지 않는다.
+업로드를 완료했으며 고정 registry 참조는 다음과 같다.
+
+```text
+fluffyluv/ajounice2026-bevfusion-train@sha256:85185232c0a53fb2640c411b04002fa3a98631408d3cdb5f668d5c15a40fd959
+```
+
+- 로컬에서 확인한 팀 base image ID는
+  `sha256:13488ccac149f41b070e618db5db91bfa3bf2d3d1a6de3dac80aa2e2c948ec46`이다.
+- 기존 CUDA 확장을 재사용하고 현재 fork의 추적 소스를 overlay한다. W&B는 원격 정상
+  환경과 같은 `0.22.3`으로 고정한다. 설치된 모든 패키지가 원격과 완전히 같다는 뜻은 아니다.
+- 빌드 context는 명시적으로 허용한 추적 소스만 포함한다. 데이터·가중치·Git 이력·
+  Docker 로그인·Drive/W&B/SSH 인증정보는 포함하지 않는다.
+- 이미지 안의 `/opt/ajounice/source_inventory.json`에 1,792개 source SHA를 기록한다.
+- 다음 학습의 compile OFF·3클래스·512×1056 config 및 CUDA 확장 CPU import를 확인했다.
+  GPU forward/backward·실제 checkpoint load·저장/재개·온라인 백업 인증은 별도로 수행한다.
+- 재시작형 코사인은 아직 연결하지 않았다. 이 이미지를 선택해도 학습은 자동 시작하지 않는다.
+
+기존에 검증한 base image가 있는 로컬에서 아래로 준비한다. context는 새 경로여야 한다.
+
+```bash
+python3 docker/bevfusion/scripts/build_vast_training_image.py \
+  --context /tmp/ajounice_base5_vast_training_NEW --build
+```
+
+위 명령은 push하지 않는다. 이미지 검증 후 `docker push`를 별도로 실행한다.
+처음부터 base를 빌드하려면 기존 `build_team_image.sh`를 사용하고 ID가 달라지면
+새 환경을 검증한 뒤 새 base pin·태그로 준비한다. 기존 pin 검사를 우회하지 않는다.
+
+Vast의 새 template에서 Image Path:Tag에
+`fluffyluv/ajounice2026-bevfusion-train:base5-cu128-261018-v1`을 넣고 SSH launch mode를 선택한다.
+Private repository 인증은 Docker Hub 사용자 `fluffyluv`와 읽기 권한 token을 UI의
+Repository Authentication에 직접 입력한다. token을 Git·이미지·채팅에 넣지 않는다.
+기존 Vast 인스턴스의 이미지가 자동으로 바뀌는 것은 아니다.
+
+SSH 접속 후 `/opt/ajounice`에서 아래를 먼저 확인한다. Vast 내부에서 Docker를 중첩 실행하지 않는다.
+
+```bash
+python /opt/ajounice/verify_vast_training_image.py
+python perception/detection3d/bevfusion/tools/run_base5_direct_training.py --help
+```
+
+데이터와 초기화 파일은 `/workspace` 아래 별도로 준비한다. 기존 완료 run의 실행 명령으로
+새 데이터를 강제 resume하지 않으며 새 계약·work-dir를 만든 뒤 학습을 승인한다.
 
 ```bash
 bash docker/bevfusion/scripts/build_team_image.sh

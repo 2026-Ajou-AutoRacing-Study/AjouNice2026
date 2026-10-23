@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 
 from .config import ROOT, load_campaign
 from .traffic_light import runtime_settings, runtime_mode
-from .models import resolve_contract, selected_model, E25_SHA
+from .models import resolve_contract, selected_model, runtime_image_selection, E25_SHA
 
 
 def command(args, timeout=8):
@@ -96,7 +96,11 @@ def inspect_environment(cfg, *, live=False, gpu=False):
                 image, checkpoint, expected = bev_settings()
             else:
                 model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
-                image, checkpoint, expected = model['image'], Path(model['checkpoint_path']), model['checkpoint_sha256']
+                image_selection = runtime_image_selection(model)
+                image, checkpoint, expected = image_selection['image'], Path(model['checkpoint_path']), model['checkpoint_sha256']
+                if image_selection['fallback']:
+                    add('선택적 TensorRT 이미지', 'WARN', image_selection['reason'],
+                        '같은 E12 eager 사용; 로컬 engine 준비 후 새 실험에서 가속 여부 확인')
                 checkpoint_label = model['label'] + ' 가중치·config'
             probe('BEVFusion Docker 이미지', ['docker', 'image', 'inspect', image, '--format', '{{.Id}}'],
                   '설치 가이드의 공용 이미지 다운로드·docker load 및 Docker 권한 확인')
@@ -116,7 +120,7 @@ def inspect_environment(cfg, *, live=False, gpu=False):
                     'NVIDIA Container Toolkit·Docker GPU 권한 확인', timeout=40)
             else:
                 add('컨테이너 실제 GPU 연산', 'WARN', 'GPU·컨테이너를 새로 띄우지 않았습니다', '원하면 GPU 검사 버튼 사용; 실제 모델 준비는 실행기에서 확인')
-        except (ValueError, OSError) as error:
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
             add('BEVFusion 설정', 'FAIL', error, '로컬 .env와 기존 실행기 설정 확인')
     if cfg['stack'].get('traffic_light'):
         try:

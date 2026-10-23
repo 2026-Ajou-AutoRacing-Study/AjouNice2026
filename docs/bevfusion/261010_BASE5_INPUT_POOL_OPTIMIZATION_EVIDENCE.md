@@ -6309,3 +6309,1698 @@ callback 처리/입력 age 효과는 팀장님 환경에서 별도로 확인한�
   신규 cut-in/진출/재획득 bag 또는 팀장님 실제 planner 기록으로 영향과 불확실성을 확인한다.
 - 다음 생성 분포 검토로 넘어갈 수 있다. Map-CV의 새로운 순위 정책·planner 안전거리·
   detector threshold·tracker lifecycle 변경은 이번 계산 최적화에 포함되지 않는다.
+
+<a id="base5-next-training-cpu-261015"></a>
+
+## 51. 다음 학습 compile OFF·nearest 공통 CPU 준비 — 2026-10-15
+
+사용자가 새 학습의 사전 준비만 승인했다. 완료 E24의 compiled 학습 config·동결 Vast 실행기와
+resume 계약·가중치·원본 데이터·production 소스는 변경하지 않았다. 새 `bevfusion_base5_fine_512_depth25_next_training.py` 설정과
+`prepare_base5_next_training.sh`를 분리했다. train/val은 같은 nearest_positive/sorted view-transform을
+사용하고 compile OFF·현재 3클래스·upright 7D·JPEG·의미 ROI·공간 격자·depth 간격을 유지한다.
+이 선택은 compile OFF의 정확도 우위를 입증한 결과가 아니라 다음 실험의 명시적인 기준이다.
+
+검증 환경은 기존 팀 Docker `ajounice/bevfusion:team-cu128-v1`, Torch 2.7.1+cu128,
+MMEngine 0.10.7이다. GPU 장치를 전달하지 않고 CUDA_VISIBLE_DEVICES를 비웠으며 network none,
+CPU 4개·RAM 8GiB 제한과 저장소/데이터 read-only mount를 사용했다. 결과만 별도 경로에 저장했다.
+
+- 신규 config 8개·준비 실행기 15개, 기존 depth raster 16개·direct runner 5개,
+  동결 oneclick 19개·배포 bundle 8개 등 서로 다른 71개 검사가 통과했다.
+- 처음 기존 모델 등록 회귀는 호스트의 미빌드 submodule이 Docker 설치본을 가려 extension import가
+  실패했다. PYTHONPATH에서 해당 경로를 제거해 기존 빌드본을 사용하자 16+5개가 통과했다.
+  CUDA 설치·재컴파일·GPU forward는 수행하지 않았다.
+- 입력은 `artifacts/handoff/base5_sunny13_jpeg90_pedestrian_merged_v1_261011`이다.
+  train 4,255장/9,350 GT, val 745장/1,702 GT, test 0장을 대조했다. 모든 payload 해시를 확인하고
+  전체 11,052 GT의 7D·유한값·양수 크기·원래 클래스/animal 매핑·장면/group split 계약을 검사했다.
+- 강도 검사는 train/val에서 고르게 16개씩 뽑은 32개 cloud 표본이다. 유효 return 강도 min/max는
+  0.0/1.0이었다. 학습 입력에 ROS용 ÷255를 적용하지 않았으며 invalid-return 판정도 정확한 XYZ-zero
+  및 nonfinite 필터와 맞췄다. 모든 cloud의 강도 분포를 전수 인증한 결과는 아니다.
+- 기존 호환 초기화 `base5_nuscenes_full_xy_metric_v1_261011.pth`의 SHA256은
+  `a786b70ec7e639587da9c075fa7db9d3e96bf522b56590162c3134be7197b977`로 기록했다.
+  CPU 단계에서는 checkpoint shape/성능을 새로 인증하지 않는다.
+
+산출물은 `artifacts/evaluation/bevfusion/base5_next_training_cpu_261015/plan_v3/`의
+`checked_model_config.py`, `next_training_preflight.json`이다. 최종 plan SHA256은
+`988377cc55a746ec7fd8cf17ef5ec7fda123154760fb785d1307f64893b1aabc`다.
+실제 direct runner의 run_manifest나 GPU 자격 검증을 대체하지 않으며
+직접 학습을 시작하지 않는다. 기록한 후속 prepare 명령은 원거리 AP/W&B 진단 확장을 유지하고
+`--run`은 포함하지 않는다. 재사용·실행 경계는 [새 학습 준비 런북](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#next-training-cpu)을 따른다.
+GPU 초기화 strict load·forward/backward 비용·재개·W&B/Drive 백업과 최종 학습 예산 확정은 별도다.
+
+<a id="full30750-e2-local-bags-261021"></a>
+
+## 52. 전체 30,750장 E2와 production E24의 로컬 bag 비교 완료 — 2026-10-21
+
+사용자는 전체 데이터 학습의 E2를 로컬로 가져와 기존 rosbag으로 비교하도록 승인했다.
+두 모델 모두 새로 추론하고 동일 입력·실행 계약을 확인한 뒤 비교했다. 과거 E24 저장
+추론값과 새 E2 실행값을 무조건 직접 섞지 않는다. 아래에 준비 조건과 실제 결과를 함께 남긴다.
+원격 학습은 계속 유지하고 로컬의 새로운 출력 디렉터리에 E24·E2를 각각 추론한다.
+이번 비교를 위해 MORAI·ROS master·detector/tracker/planner 노드를 추가로 실행하지 않는다.
+
+### 가중치와 복원 계보
+
+- 비교 후보: 전체 30,750장 E2 full checkpoint, **522,174,725바이트**,
+  SHA256 `83005296010995b4d9a42dfb09675c1f5400c0ba4aad29582f7f47c7394f8f56`.
+  계승 contract는 `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`,
+  epoch 2 / iteration 13,068이다. 학습 재개 가능한 optimizer·scheduler 등의 상태가 포함돼
+  있어도 추론에서는 `state_dict`만 strict load한다. full 파일을 단순 모델 파일로 착각하지 않는다.
+- 기준 후보: 기존 Sunny13 production E24,
+  SHA256 `84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746`.
+- E2는 Drive의 내용 주소형 16파트를 받아 파트별·전체 SHA로 복원한다. 기존 full 백업의
+  실제 readback 근거는 [학습 런북의 E2 후속](261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-speed-repair-261021)과
+  `artifacts/evaluation/base5_speed_repair_261021_v1/continuation_v2/logs/drive_backup.jsonl`이다.
+  원격 학습 디렉터리나 production alias를 덮어쓰지 않는다.
+
+### 같은 입력·같은 추론 조건
+
+기존 O02_164012 장애물, P01_163434 보행자, H03_162301 고주로 추월,
+R01_163034 로터리 **네 dev bag에서 고정해 둔 연속 구간 1,570프레임 전부**를 두 모델에 넣는다.
+정확도는 기존 미확정 GT 제외 규칙에 따라 **1,413프레임**만 집계한다.
+분모는 O02 463 / P01 269 / H03 355 / R01 326이며, H03의 미확정 차량으로 제외한
+157프레임을 모델 score에 따라 다시 선택하지 않는다.
+
+같은 현재 nearest runtime config·512×1056·5cm/20cm·depth 0.25m와 strict full-model
+loading을 사용한다. **AMP·camera 병렬화 ON / 추론 compile OFF**로 통일하며,
+원본 JPEG bytes와 ROS XYZI를 유지한다. `ros255` 입력 강도는 모델 입력 복사본에서
+정확히 한 번 ÷255한다. 학습 config의 compile 값으로 추론 compile을 자동 켜지 않는다.
+초기화 가중치만 불러오는 비교가 아니며, 학습 optimizer를 step하거나 checkpoint를 수정하지 않는다.
+
+팀 Docker image ID는 `13488ccac149f41b070e618db5db91bfa3bf2d3d1a6de3dac80aa2e2c948ec46`이다.
+저장소는 read-only, 새 산출물 폴더만 writable로 연결하고 container network는 끈다.
+로컬 MORAI가 별도로 이미 실행 중이므로 GPU/CPU 경합이 포함될 수 있다. 이번 실행 시간은
+실제 대회 전용 PC의 추론 latency나 ROS 전체 입력 age를 인증하는 값이 아니다.
+
+GT는 기록된 Ego/Object status의 보간과 감사된 asset catalog·BBox offset으로 만든
+**근사 GT**다. SaveSensorData의 동기 native annotation 평가가 아니며, 기존 heading·ROI·
+미확정 actor 제외 계약을 그대로 따른다. 이미 여러 개발 분석에 사용한 bag으로서 untouched
+test나 실제 대회 4090 24GB 풀스택 성능 인증으로 부르지 않는다. E2 native val의 AP와
+이 AMP·ROS 후처리 bag AP도 서로 다른 평가 계약으로 구분한다.
+
+공통 입력은 유지하고 모델만 바꾸는 비교이나, 두 모델의 학습 데이터·업데이트 수·학습
+compile/depth-raster 조건이 모두 같은 단일 변수 실험은 아니다. 결과를 보강 데이터 하나의
+효과나 최종 E12 성능으로 해석하지 않는다. 후속 결과에서 거리별·클래스별 검출 이득과
+오검출/누락을 함께 확인한 뒤 threshold·tracker 비교 여부를 결정한다.
+**현재 production E24·alias·운영 threshold는 승격 또는 변경하지 않는다.**
+
+산출물 root는 `artifacts/evaluation/bevfusion/full30750_e2_rosbag_261021_v1/`이다.
+`checkpoint_parts/`에 Drive metadata·원본 계보를, `E2_full.pth`에 복원한 전체 상태를 보존한다.
+새 기준 출력은 `e24_fresh_v2/`, E2 출력은 `e2_fresh/`로 분리한다. 초기 상대경로 구성 실패로
+생긴 빈 출력 디렉터리는 성공 결과로 세지 않고 보존한다.
+### 실제 결과와 해석
+
+10/21 **20:37 KST**까지 두 모델의 1,570프레임 strict-load 추론과 1,413프레임 공통
+평가를 완료했다. `comparison.json`의 `complete=true`와 동일 `gt_identity`를 확인했다.
+ROI 안 GT 관측 수는 V/P/O **1,028 / 269 / 2,489**다. 이는 연속 영상에서 반복된 관측 수이며
+서로 독립적인 객체 수가 아니다. 거리 구간은 원점으로부터 XY 방사 거리이며 전체 ROI는
+직사각형이므로 모서리의 방사 거리 100m 이상 관측까지 포함할 수 있다.
+
+아래 AP는 동일한 중심 XY 거리 gate **0.5/1/2/4m의 평균**이다. 현행 고정 threshold의
+recall이나 native val의 AP와 혼동하지 않는다. 클래스 GT가 없는 구간은 `null`로 보존한다.
+
+| 비교 항목 | GT 관측 수 | E24 AP(%) | 전체 데이터 E2 AP(%) |
+|---|---:|---:|---:|
+| 전체 ROI mAP | V/P/O 위 분모 | 53.65 | 51.30 |
+| 전체 ROI Vehicle | 1,028 | 69.34 | 69.29 |
+| 전체 ROI Pedestrian | 269 | 57.15 | 46.58 |
+| 전체 ROI Obstacle | 2,489 | 34.45 | 38.03 |
+| Vehicle 0~30m | 350 | 91.35 | 92.35 |
+| Vehicle 50~80m | 276 | 51.27 | 54.49 |
+| Vehicle 80~100m | 91 | 9.84 | 0.00 |
+| Pedestrian 0~30m | 113 | 79.98 | 83.03 |
+| Pedestrian 30~40m | 29 | 54.35 | 68.14 |
+| Pedestrian 40~50m | 80 | 65.46 | 8.52 |
+| Obstacle 0~10m | 292 | 76.27 | 79.17 |
+| Obstacle 10~20m | 303 | 82.61 | 86.54 |
+| Obstacle 20~30m | 302 | 79.21 | 80.99 |
+| Obstacle 0~30m | 897 | 81.34 | 84.81 |
+| Obstacle 30~50m | 590 | 13.91 | 12.79 |
+| Obstacle 50~80m | 702 | 11.06 | 20.12 |
+
+**근거리 세 클래스의 AP는 개선됐지만 E2가 전반적으로 production보다 낫다는 결과는 아니다.**
+장애물의 센서 지원이 상대적으로 충분한 GT(5점 이상, 745회)에서는 현행 score 0.1·1m 매칭
+recall이 **84.56%(630/745)→95.17%(709/745)**로 올랐다. 5점 미만 1,744회에서는
+27.18→27.92%여서 희소한 원거리 객체까지 해결했다고 볼 수 없다. 30~50m 장애물도 미개선이다.
+
+현행 V/P/O **0.40/0.10/0.10**을 유지한 전체 ROI의 고정 1m 매칭 결과는 다음과 같다.
+`unmatched`는 카탈로그 GT와 대응하지 못한 출력 수이지 의미적으로 확정한 유령 객체 수가 아니다.
+
+| 클래스 | Precision E24→E2(%) | Recall E24→E2(%) | Unmatched E24→E2 |
+|---|---:|---:|---:|
+| Vehicle | 88.26→90.71 | 71.69→68.39 | 98→72 |
+| Pedestrian | 91.51→72.53 | 72.12→62.83 | 18→64 |
+| Obstacle | 88.89→87.75 | 44.36→48.05 | 138→167 |
+
+근거리 장애물도 recall만 보면 90.08→93.31%지만 unmatched는 84→134로 늘었다.
+보행자의 추가 unmatched 46회 중 O02 장애물 장면이 27회(10→37), P01 장면이 16회(4→20)다.
+따라서 보행자 문제를 원거리 누락 하나로만 설명하지 않는다. 배경 누락·클래스 혼동·중복 후보는
+서로 다른 원인이며 이 수치만으로 모두 확정하지 않는다.
+
+80~100m 차량의 E2 AP=0은 **검출 출력 0개라는 뜻이 아니다.** score floor 0.1에서
+해당 band의 2m·4m 매칭은 각각 10/91회다. 최대 recall 10.989%가 현행 AP의
+첫 집계 recall 격자 11%에 조금 못 미쳐 AP가 0이 된다. 동일 ROI 선매칭에서도 같은 계수여서
+이번 0은 거리 경계 유실 때문이 아니다. 현행 차량 score 0.4에서는 1m 매칭이 **9→3회**,
+2m 매칭이 **12→4회**다. 단순히 AP 표기만 나쁜 것이 아니라 이 구간의 검출량도 적다.
+50~80m 차량은 AP가 올라도 현행 score 0.4·2m recall은 **69.57→58.33%**로 낮아졌다.
+낮은 score까지 포함하는 AP와 고정 운영점은 다르며, 이 결과로 운영 threshold를 바로 낮추지 않는다.
+
+연속 누락은 case별 실제 센서 주기와 원래 frame index로 계산했다. P01의 40~50m 구간은
+score 0.1·1m 검출 **58/80→20/80회**다. 별도로 저장된 30~50m·2m 매칭 기준 최대
+연속 누락은 **0.85→4.43초**다. 이 보행자 구간은 LiDAR 지원이 모두 5점 미만인 동일 actor의
+반복 관측이므로, 80명의 독립 보행자나 모든 40~50m 장면의 성능으로 일반화하지 않는다.
+근거리 장애물도 2m 기준 최대 누락이 0.71→1.26초여서 AP 상승만으로 안정성이 좋아졌다고
+단정하지 않는다. 전체 case를 합친 단일 주기의 누락 시간은 잘못 해석하지 않도록 `null`로 둔다.
+이 누락은 detector 관측의 누락이며 tracker coasting이나 planner 동작을 재현한 값은 아니다.
+
+현재 판단은 **E24 유지, 예정된 전체 학습 지속, 후기 checkpoint에서 동일 bag 재평가**다.
+E2는 아직 중간 checkpoint이며 두 학습의 데이터·총 업데이트 수 등도 다르므로 이 한 번으로
+새 데이터가 실패했다거나 추가 수집이 즉시 필요하다고 결론 내리지 않는다. 반대로 native val
+상승만으로 bag의 40~50m 보행자·80~100m 차량 문제를 해결했다고 주장하지 않는다.
+
+### 재현 산출물과 검증
+
+공통 비교기는 `perception/detection3d/bevfusion/tools/summarize_base5_frozen_bag_comparison.py`다.
+동일 infos·GT·config·AMP·강도 adapter·최적화·GPU·추론 source hash를 검사하고, 모델별
+고정 제외 규칙·GT 지원점 수·자산을 대조한 뒤 AP와 고정 운영점을 계산한다. 25개 CPU 회귀 검사는
+통과했다. `git diff --check`도 통과했다. context 검사에서는 기존 세 current/index 문서의
+줄 수 초과만 남았고, 이번 링크·anchor·과거 snapshot 변경 오류는 없었다.
+
+산출물 root 아래 `comparison.json`에 수치·분모·runtime receipt·SHA를,
+`e24_fresh_v2/receipt.json`과 `e2_fresh/receipt.json`에 strict-load 결과를 보존했다.
+`visuals/`의 네 비교 화면은 **모델 출력 전에 GT 조건으로 고른 네 시점**이다. 4카메라 원본에
+E24(주황)·E2(초록)·카탈로그 GT 문맥(청록)을 투영했고, 원본 JPEG는 수정하지 않았다.
+장면 전체의 평균이나 최악 사례를 대표한다고 부르지 않으며, source JPEG와 결과의 SHA는
+`visuals/receipt.json`에 남겼다. 이 시험 때문에 가중치·기존 입력·production·원격 학습을 변경하지 않았다.
+
+<a id="full30750-e3-local-bags-261022"></a>
+
+## 53. 중단 뒤 보존된 E3의 native val·동일 bag 비교 — 2026-10-22
+
+사용자가 결제 누락으로 학습이 중단됐다고 알리고 E3 복원·val·bag 비교를 요청했다.
+기존 Vast direct SSH는 연결 거부였으므로 인스턴스를 시작하거나 학습을 재개하지 않았다.
+Drive에 완료된 E3 full 백업이 있어 16파트·전체 SHA를 확인해 새 로컬 경로로 복원했다.
+파일은 **523,673,221바이트**, SHA256은
+`96b31da0f475c2f081d133ccf26f219ffae16e9eb203f43d859f5ca8eb41f5f4`다.
+CPU load로 **epoch 3 / iteration 19,602 / contract `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`**를 확인했다.
+원본 checkpoint·optimizer 상태를 수정하지 않았으며 production은 E24다.
+
+### Native val: 이미 완료된 같은 4,614장 기록 확보
+
+W&B를 읽기 전용으로 조회해 E2·E3의 완료된 val 행과 공통 scalar 836개씩을 보존했다.
+두 epoch 모두 6환경 각 750장과 보강 114장, GT V/P/O **3,972 / 2,850 / 3,685**가 같다.
+기존 batch 1·FP32·compile OFF validation 결과이며 로컬에서 native val을 새로 재추론한 것은 아니다.
+epoch 3 val의 W&B `_step=655`, 바로 앞 epoch-boundary 행 `_step=654`의 train global iteration은
+19,602다. Val 행의 `global_step=3`은 epoch 축이지 train iteration 3이라는 뜻이 아니다.
+
+E3 full checkpoint는 E3 val 전에 저장돼 내부 `message_hub`의 마지막 val은 **E2**다.
+이를 E3 지표로 읽지 않으며 아래 수치는 W&B의 명시적인 epoch 3 history 행에서 가져왔다.
+
+| 같은 native val AP(%) | E2 | E3 |
+|---|---:|---:|
+| mAP | 90.54 | 89.45 |
+| Vehicle | 95.75 | 95.90 |
+| Pedestrian | 94.33 | 93.31 |
+| Obstacle | 81.55 | 79.13 |
+| Pedestrian 40~50m | 82.62 | 84.54 |
+| Vehicle 80~100m | 69.84 | 73.98 |
+| Obstacle 20~30m | 80.06 | 77.43 |
+| Obstacle 30~50m | 30.04 | 26.60 |
+
+전체 native mAP 기준으로 E3는 E2보다 1.10pp 낮아 새 best가 아니다. 두 원거리 지표의 상승을
+전체 모델의 일방적인 개선으로 해석하지 않는다. 기존 E24 자체 val 745장과 이 표를 직접 비교하지 않는다.
+W&B는 `crashed`지만 E3 train·val 완료와 뒤따른 **E4 일부 / 마지막 기록 train iteration 22,642**는
+별도로 확인됐다. 따라서 완료 E3까지 유실됐다고 보지 않는다. 결제 원인은 사용자 설명이며,
+W&B 상태만으로 프로세스 종료 원인이나 현재 인스턴스 상태를 독립 인증하지 않는다.
+
+### Rosbag: 같은 입력을 로컬에서 새로 추론
+
+52절의 고정 입력·config·GT·후처리·AMP/병렬 ON·compile OFF·강도 한 번 ÷255를 유지했다.
+E3를 strict load해 같은 **1,570프레임**을 로컬 5060 Ti에서 새로 추론했고,
+같은 미확정 구간을 제외한 **1,413프레임**으로 E24/E3와 E2/E3 두 쌍을 평가했다.
+공통 `gt_identity`는 `6759d2010372fc3fff11034183325e1caf993eb9d0853a8cb08538c062d1a446`이며,
+기존 두 모델의 저장 예측과 runtime·source·input SHA가 모두 일치했다.
+
+| 같은 bag AP(%) | E24 | E2 | E3 |
+|---|---:|---:|---:|
+| 전체 ROI mAP | 53.65 | 51.30 | 51.73 |
+| 전체 ROI Vehicle | 69.34 | 69.29 | 67.91 |
+| 전체 ROI Pedestrian | 57.15 | 46.58 | 47.41 |
+| 전체 ROI Obstacle | 34.45 | 38.03 | 39.85 |
+| Vehicle 50~80m | 51.27 | 54.49 | 55.75 |
+| Vehicle 80~100m | 9.84 | 0.00 | 1.61 |
+| Pedestrian 0~30m | 79.98 | 83.03 | 81.72 |
+| Pedestrian 30~40m | 54.35 | 68.14 | 74.41 |
+| Pedestrian 40~50m | 65.46 | 8.52 | 18.59 |
+| Obstacle 0~30m | 81.34 | 84.81 | 82.64 |
+| Obstacle 20~30m | 79.21 | 80.99 | 79.03 |
+| Obstacle 30~50m | 13.91 | 12.79 | 15.90 |
+| Obstacle 50~80m | 11.06 | 20.12 | 26.63 |
+
+Native val과 bag은 정답·입력·정밀도·server floor/NMS 계약이 다르며 숫자의 직접 차이를 개선량으로
+사용하지 않는다. AP는 중심 XY gate 0.5/1/2/4m 평균이고 고정 threshold recall과도 구분한다.
+이전과 같은 카탈로그·Ego 보간 근사 GT, 연속된 소수 actor 반복 관측이라는 한계도 유지한다.
+
+### 취약 구간의 score 회복과 운영점
+
+같은 보행자 40~50m 80관측과 차량 80~100m 91관측을 고정하고,
+저장된 raw 선택 query의 낮은 score와 server floor/NMS 뒤 결과를 따로 분석했다.
+낮은 raw 후보가 정답 근처에 있다는 것 자체를 운영 TP로 세지 않는다.
+
+| 고정 2m 매칭 조건 | E24 | E2 | E3 |
+|---|---:|---:|---:|
+| Pedestrian 40~50m, score≥0.1 | 58/80 | 20/80 | 33/80 |
+| 그중 전방 | 50/66 | 9/66 | 20/66 |
+| 그중 후방 | 8/14 | 11/14 | 13/14 |
+| 초기 약 44m 전방 50관측 | 40/50 | 0/50 | 10/50 |
+| Vehicle 80~100m, score≥0.1 | 26/91 | 10/91 | 14/91 |
+| Vehicle 80~100m, 현행 score≥0.4 | 12/91 | 4/91 | 4/91 |
+
+보행자 80관측의 정답 2m 이내 최고 raw score 중앙값은 **E2 0.0388→E3 0.0826**으로 올랐다.
+E2에서 놓쳤던 관측 14회가 회복되고 1회가 새로 탈락해 순증 13회다. 이 band의 최대 연속
+누락은 4.43→1.13초이며, 예측 중심이 이 band에 있는 catalog-relative 미대응은 13→13회다.
+단일 Man1의 반복 관측이며 대부분 0~2 LiDAR 점이라는 조건을 전 거리 보행자로 일반화하지 않는다.
+
+차량은 score≥0.1에서 5회 회복·1회 탈락으로 순증 4회지만,
+현행 score≥0.4의 동일 4관측은 그대로다. 낮은 후보의 일부 상승이 운영 원거리 recall
+회복까지 도달하지 못했다. K5의 score≥0.1 대응은 22→8→9/66, Niro는 4→2→5/18,
+Nexo는 세 모델 모두 0/7이다. 서로 다른 독립 차량 91대나 모든 도로의 성능이라고 부르지 않는다.
+
+전체 ROI의 고정 1m 운영 결과에서도 E2→E3 Vehicle recall은 **68.39→64.11%**,
+Pedestrian은 **62.83→66.91%**, Obstacle은 **48.05→49.18%**다.
+미대응 출력은 각각 **72→73 / 64→76 / 167→158**회다. 보행자의 특정 band 회복과
+전체 ROI 미대응 증가는 동시에 존재하므로, 한 지표로 안전성·tracker 안정성을 인증하지 않는다.
+
+현재 결정은 **production E24 유지, native best E2와 마지막 완료 E3를 모두 보존**이다.
+이번 요청으로 학습·인스턴스·W&B run을 재개하거나 threshold·tracker를 바꾸지 않았다.
+E3가 일부 취약 구간에서 회복된 사실은 확인했지만, E12 성능이나 향후 회복을 보장하지 않는다.
+
+### 산출물과 검증
+
+새 root는 `artifacts/evaluation/bevfusion/full30750_e3_rosbag_261022_v1/`다.
+`checkpoint_parts/`·`E3_full.pth`에 SHA 복원한 원형 전체 상태를 보존하고,
+`native_val_wandb.json`에 E2/E3 원본 val 행·정밀 scalar·분모·epoch/step 연결·조회 시각을 남겼다.
+해당 W&B receipt SHA는 `6a987a45ba2bdbf78030949e470d731a5bd41444abf45db32878eff1d38d7b8d`다.
+`e3_fresh/receipt.json`과 `predictions.json.gz`, `comparison_E2_E3.json`,
+`comparison_E24_E3.json`, `focused_scores.py`·`focused_scores.json`이 새 bag 근거다.
+입력·E3 checkpoint·과거 예측의 SHA 전후 불변, 동일 제외 분모와 이전 실패 집합 46/17개를 확인했다.
+기존 비교·거리·quick CPU 회귀 25개와 `git diff --check`를 통과했다.
+실제 ROS queue·tracker·planner·대회 4090 전용 latency를 이번 평가로 인증하지 않는다.
+
+<a id="full30750-e10-local-bags-261023"></a>
+
+## 54. 전체 데이터 E10 회수와 동일 bag 재비교 — 2026-10-23
+
+사용자가 후기 가중치를 다시 가져와 비교하도록 요청했다. 선택 시각인 **08:47 KST**에
+원격은 E11 학습 중이었고, 최신 완료·native 전체 best가 E10이었다. 따라서 이번 비교는
+E10으로 고정했다. E11 이후를 추가 선택하거나 학습·threshold·production을 바꾸지 않았다.
+
+### 가중치와 고정 실행 계약
+
+- `best_val_center_mAP_epoch_10.pth`는 **213,315,455바이트**, SHA256
+  `6e489870f59ad42b940b20ec7be2e0b0712406c78588f24cb1abf7af28eecae7`다.
+  원격에서 stat 전후 불변·전체 SHA와 완료된 epoch 10 val receipt를 확인했다.
+  Drive 7개 part·PARTS manifest·전체 SHA·ZIP CRC를 확인해 로컬 `E10_best.pth`로 복원했다.
+  수령·결합 검증은 약 14.3초였다. CPU load에서 **epoch 10 / iteration 65,340**,
+  574개 state tensor와 optimizer 미포함을 확인했다. **Weights-only이며 resume용 full이 아니다.**
+- 원형과 같은 Docker image·5060 Ti·Torch 2.7.1+cu128·runtime config·추론 script·input SHA,
+  AMP/병렬 ON·compile OFF·TF32 OFF·강도 정확히 한 번 ÷255를 유지했다. 52·53절의
+  고정 4개 bag **1,570프레임**에 strict-load 추론하고 같은 **1,413프레임**을 평가했다.
+  GT identity `6759d201…a446`, 제외 H03 157프레임과 V/P/O 1,028/269/2,489관측은 동일하다.
+  기존 E24/E2/E3 저장 예측은 runtime·GT·source/hash gate를 통과한 뒤 재사용했다.
+- 이미 3클래스로 작성한 bag infos에는 원형 `MoraiBase3Dataset` adapter를 명시했다.
+  학습용 animal provenance가 없는 bag에 merged-native adapter를 강제로 적용하지 않았다.
+  모듈 경로·adapter·JIT 임시 경로 준비 중 발생한 세 실패와 빈 출력은 별도 보존하고
+  완료 추론으로 세지 않았다. 최종 추론의 전후 입력·가중치·기존 예측 SHA는 불변이다.
+
+### 같은 native val 4,614장: 학습 진행에 따른 회복
+
+원래 W&B run의 완료 E2~E10 val 행을 읽기 전용으로 수령했다. 프레임/GT 관련 76개 계수는
+전 epoch에서 같았고, 아래는 FP32·compile OFF 학습 validation의 원래 기록이다.
+로컬에서 native val을 재추론하거나 구 E24의 다른 745장 val과 직접 비교하지 않았다.
+
+| Native val AP(%) | E2 | E3 | E10 |
+|---|---:|---:|---:|
+| mAP | 90.54 | 89.45 | 93.83 |
+| Vehicle | 95.75 | 95.90 | 97.29 |
+| Pedestrian | 94.33 | 93.31 | 96.49 |
+| Obstacle | 81.55 | 79.13 | 87.72 |
+| Obstacle 20~30m | 80.06 | 77.43 | 86.14 |
+| Pedestrian 40~50m | 82.62 | 84.54 | 88.27 |
+| Vehicle 80~100m | 69.84 | 73.98 | 79.22 |
+
+E10 전체 mAP는 E8보다 약 **0.019pp** 높아 후기 전체 개선 폭은 작아졌다.
+개별 클래스/구간 best epoch는 서로 다르다. 6환경 E10 mAP는 93.51~94.45%이며
+각 환경 모두 E3보다 높지만 배치 차이가 있어 날씨만의 인과 효과로 부르지 않는다.
+전방 80~100m 차량은 **56.17%**, 후방은 **96.11%**(각 GT 134개)로 격차가 남았다.
+
+### 같은 개발 bag의 정확도와 운영점
+
+아래 AP는 이전과 같은 중심 XY gate 0.5/1/2/4m 평균이다. Native val·검출 확률·tracker
+성능과 혼용하지 않는다. 전체 ROI와 거리별 GT는 52·53절의 원형 근사 GT다.
+
+| 동일 bag AP(%) | 기존 E24 | E2 | E3 | E10 |
+|---|---:|---:|---:|---:|
+| 전체 ROI mAP | 53.65 | 51.30 | 51.73 | 60.53 |
+| Vehicle | 69.34 | 69.29 | 67.91 | 72.32 |
+| Pedestrian | 57.15 | 46.58 | 47.41 | 66.93 |
+| Obstacle | 34.45 | 38.03 | 39.85 | 42.35 |
+| Obstacle 0~30m | 81.34 | 84.81 | 82.64 | 87.68 |
+| Obstacle 20~30m | 79.21 | 80.99 | 79.03 | 82.44 |
+| Obstacle 30~50m | 13.91 | 12.79 | 15.90 | 18.20 |
+| Pedestrian 40~50m | 65.46 | 8.52 | 18.59 | 74.41 |
+| Vehicle 50~80m | 51.27 | 54.49 | 55.75 | 57.56 |
+| Vehicle 80~100m | 9.84 | 0.00 | 1.61 | 16.74 |
+
+공통 운영 threshold V/P/O **0.40/0.10/0.10**·1m 매칭에서도 E24→E10 recall은
+V 71.69→75.68 / P 72.12→82.53 / O 44.36→50.58%다.
+카탈로그 상대 미대응 출력은 V **98→104**, P **18→19**, O **138→105**회다.
+이를 의미적으로 확정한 유령 객체 수로 부르지 않는다. 현재 운영점을 바꾸지 않아도
+전반적인 회복이 확인됐지만 모든 클래스의 미대응이 감소한 것은 아니다.
+
+40~50m 보행자 80관측에서 score≥0.1·2m 대응은 **E24/E3/E10 58/33/71회**다.
+전방 66관측에서는 50/20/59회, 초기 전방 50관측은 40/10/49회이며 raw 최고 score 중앙값은
+0.291/0.083/0.377이다. 최대 연속 누락도 **0.854/1.134/0.266초**로 줄었다.
+E24 대비 18관측을 복구하고 5관측을 잃었다. 단일 Man1의 반복 관측이며 LiDAR 0~2점인
+이 한 장면의 회복을 모든 원거리 보행자로 일반화하지 않는다.
+
+80~100m 차량은 score≥0.4·2m 대응이 **91관측 중 E24/E3/E10 12/4/23회**다.
+그러나 후방 K5 66관측은 **9/4/22회**, 전방 Niro/Nexo 25관측은 **3/0/1회**다.
+전방 E10은 score≥0.1에서도 3/25라 전방 초장거리를 해결했다고 판단하지 않는다.
+두 취약 band의 후보가 NMS에서 사라진 관측은 0회였고, 가까운 raw 후보의 score가
+운영 기준을 넘는지가 주된 관측 차이였다. 후보 존재를 운영 TP로 바꾸어 세지 않는다.
+
+근거리 장애물도 평균 AP 상승이 모든 누락 꼬리의 개선을 뜻하지 않는다. O02 0~30m에서
+같은 score≥0.1·2m 매칭과 원형 gap 처리를 적용해 누락 구간 전체를 다시 계산했다.
+
+| 근거리 장애물 누락 구간 | 개수 | 평균(초) | p50 | p90 | p95 | 최대 |
+|---|---:|---:|---:|---:|---:|---:|
+| E24 | 35 | 0.220 | 0.159 | 0.500 | 0.618 | 0.708 |
+| E10 | 21 | 0.223 | 0.094 | 0.518 | 0.521 | 0.979 |
+
+누락 관측은 85/897→51/897로 줄었지만 평균·p90까지 단조 개선된 것은 아니다.
+가장 긴 E10 누락은 **후방 CargoBox, 23.04→26.63m, LiDAR 0점인 11프레임**이다.
+그 구간의 E24는 6/11회, E2/E3/E10은 0/11회 대응했다. E10은 모든 프레임에 2m 안의
+동일 클래스 raw 후보가 있었으나 score가 **0.0485~0.099666**으로 floor 0.1 미만이었다.
+NMS 손실이나 후보 부재로 설명하지 않으며, 한 사례만으로 threshold를 낮추지 않는다.
+이 분석은 tracker coasting·ID·planner를 실행한 결과가 아니다.
+
+### 보존·검증과 현재 판단
+
+산출물 root는 `artifacts/evaluation/bevfusion/full30750_latest_compare_261023_v1/`다.
+`E10_REMOTE_PIN.json`, `checkpoint_parts/RETRIEVED.json`, `E10_STATE_IDENTITY.json`,
+`INFERENCE_COMPLETE.json`, `e10_fresh/`, `comparison_E{24,2,3}_E10.json`,
+`focused_scores_four_models.json`, `near_obstacle_misses.json`과 `native_history/`에
+입력·출력·분모·계보를 보존한다.
+Focus 분석에서 기존 세 모델의 group/운영 계수는 저장된 원형과 정확히 일치했다.
+CPU 회귀는 비교기·quick·거리·새 focus 합계 **39개 통과**했다.
+
+Drive E10 best 폴더는 payload를 복원할 수 있었지만 **COMPLETE가 없고 일부 part 및
+`resolved_resume.py` 이름이 중복**돼 자동 백업의 ValueError/pending 기록이 남았다.
+이번 SHA 회수 성공을 정식 백업 완료로 덮어쓰거나 Drive 항목을 삭제하지 않았다.
+가중치 비교와 별도로 백업 metadata 정리가 필요하다.
+
+현재 판단은 **E10이 E2/E3의 초기 약점을 상당 부분 회복했고, 이 개발 bag에서는 E24보다
+전반적으로 유망한 교체 후보**라는 것이다. 데이터·학습 업데이트 수 등이 달라 단일 수집
+보강의 인과 효과로 단정하지 않는다. 전방 초장거리·중거리 장애물·개별 누락 꼬리는 남았다.
+예정된 E12 학습은 유지하며 production E24·alias·threshold·tracker는 변경하지 않았다.
+
+<a id="full30750-e10-additional-bags-261023"></a>
+
+## 55. E24/E10 추가 bag 대조와 입력 품질 분리 — 2026-10-23
+
+사용자는 CPU 과부하·네트워크·GT 대응 문제가 있을 수 있음을 감안하더라도 다른 bag에서
+E24와 후기 가중치를 비교하도록 승인했다. 후보는 54절에서 이미 회수한 **전체 데이터 E10**으로
+고정했다. 이후 epoch를 재선택하지 않았고, 원격 학습·MORAI·ROS master·production을 변경하지 않았다.
+이번 산출물은 `artifacts/evaluation/bevfusion/e24_e10_additional_bags_261023_v1/`에 보존한다.
+
+### 먼저 고정한 입력·좌표·품질 기준
+
+- 9/23 **H04_162616 / P02_163648 / O01_163859**는 원형 준비 함수와 자산 catalog v2,
+  기존 case 계약을 그대로 사용했다. raw Ego/Object의 heading −1.347°를 한 번 적용하고,
+  GT geometric center→bottom은 기존 loader에서만 변환했다. 네 카메라 header 차이 ≤50ms,
+  Ego/객체 보간 bracket ≤150ms, Object freshness ≤75ms와 원형 unknown-actor guard를 유지했다.
+  센서·GT 기준으로 고른 **723/430/320 = 1,473프레임**을 두 모델에 모두 입력·평가했다.
+  각 bag 최초 LiDAR 1개만 Ego 보간 경계로 제외했다. 내부 선택 누락·unknown GT 제외는 없었다.
+- 입력 infos SHA는 `cad21062d43d0ddb06d403e571793dfaa9b06b806572f5ddea1c0f7ded771e25`다.
+  독립 agent가 모델 출력을 보지 않고 `quality_audit/ELIGIBILITY_FROZEN.json`으로 분모를 동결했다.
+  전체 bag 수신 index·전체 준비 GT/카메라 차이·topic별 고정 header 표본 15개를 추가 검사했다.
+  최대 카메라 차이는 33.31ms, 준비 cloud 간격 최대는 H04/P02/O01 **143/136/150ms**였다.
+  수신 index 역행·중복과 준비 GT track 내부 구멍은 0이었다. 과거 전수 header 감사도
+  경로·topic 계수·시간 통계가 맞는 보조 근거로 연결하되, 과거 감사 자체에 bag SHA가 없는 한계를 남겼다.
+- 표본 LiDAR header→bag 수신 평균은 **84.1/87.7/94.5ms**, p95는 **98.6/105.2/111.9ms**다.
+  UDP wire 시각·CPU 이용률·패킷 카운터·노드별 timing이 없으므로 CPU나 네트워크를 원인으로
+  단정하지 않는다. 같은 저장 입력의 모델 대조와 live 입력 누적·지연 인증을 구분한다.
+- H04에서 raw UID가 다른 차종에 재사용된 이력이 있다. 기존 위치 이력으로 재구성한 actor key를
+  사용하고 이를 simulator의 영구 ID나 tracker ID로 부르지 않는다. O01의 raw size가 0인
+  `concrete-barrier`는 기존 scenario+catalog 복구를 그대로 사용한다. 지원 LiDAR 0점 GT도 삭제하지 않았다.
+- 두 모델 모두 54절과 같은 image·5060 Ti·config·script·AMP/병렬 ON·compile/TF32/benchmark OFF,
+  원본 JPEG·원본 XYZI→정확히 한 번 ÷255·strict state load다. 기존 source/raw와 입력은 읽기 전용으로
+  mount하고 새 prediction/cache만 쓸 수 있게 분리했다. 고정 운영점 V/P/O **0.40/0.10/0.10**,
+  floor 0.1·top100·class-aware rotated NMS 0.5·의미 ROI X±100/Y±30/bottom-Z[−3,2]를 유지했다.
+
+GT는 status 보간과 catalog에 의한 근사치이지 동기 native/visibility 정답이 아니다.
+미대응은 catalog 상대 진단이며 모두 의미적 오검출이라고 단정하지 않는다. 이 bag들은 기존 개발에
+사용한 같은 맵·자산의 장면이다. 이번 E24/E10 비교를 새로 했다는 사실과 미사용 독립 test라는 주장은 다르다.
+`evaluation_locked` 원본 role은 바꾸지 않았다. 수집량·업데이트 수·데이터 분포 등이 달라
+오직 한 생성기 보강의 인과 효과로 해석하지 않는다.
+
+### 9/23 추가 세 bag: 전반 상승과 거리별 예외
+
+다음 AP는 세 bag을 합친 중심 XY 0.5/1/2/4m 평균이다. 단일 미션 안에서 계산한 AP와는
+다른 미션의 같은 클래스 미대응 출력 포함 여부가 다르다. AP를 독립 검출 확률로 읽지 않는다.
+
+| 같은 입력의 pooled AP(%) | 구 Sunny13 E24 | 전체 데이터 E10 |
+|---|---:|---:|
+| 전체 mAP | 55.89 | 59.24 |
+| Vehicle | 70.58 | 72.46 |
+| Pedestrian | 63.79 | 66.21 |
+| Obstacle | 33.32 | 39.04 |
+| Obstacle 0~30m | 78.72 | 84.31 |
+| Obstacle 20~30m | 74.81 | 73.78 |
+| Obstacle 30~50m | 15.99 | 19.51 |
+| Pedestrian 40~50m | 82.04 | 81.52 |
+| Vehicle 50~80m | 57.81 | 56.63 |
+| Vehicle 80~100m | 26.90 | 33.74 |
+
+단일 H04 Vehicle AP는 **70.76→72.75%**, P02 Pedestrian은 **63.84→66.55%**,
+O01 Obstacle은 **33.50→39.06%**다. P02 단독 40~50m는 82.17→83.13%로,
+위 pooled band의 소폭 하락을 그 장면의 recall 하락으로 해석하지 않는다.
+고정 threshold·1m 운영점의 전체 V/P/O recall은 **73.46→76.11 / 76.40→78.47 / 44.19→48.90%**,
+GT 미대응 출력은 **50→48 / 11→22 / 105→69**회다. 모든 미대응 클래스가 감소한 것은 아니다.
+
+| 전체 ROI에서 먼저 매칭한 고정 threshold·XY 2m 대응 | E24 | E10 |
+|---|---:|---:|
+| 차량 80~100m | 93/285 | 108/285 |
+| └ 전방 | 26/136 | 22/136 |
+| └ 후방 | 67/149 | 86/149 |
+| 보행자 40~50m | 129/144 | 134/144 |
+| 장애물 0~30m | 576/640 | 604/640 |
+| 장애물 20~30m | 190/216 | 188/216 |
+| 장애물 30~50m | 117/404 | 130/404 |
+
+전방 차량 감소는 G80 **7→3/29관측**이 주요 차이다. 해당 4개 상실의 LiDAR 지원은 0/1/3/4점이며
+E10 raw score 0.146~0.387이 차량 기준 0.4 아래였다. 후방 GenesisDH는 53→70/127,
+Soul은 14→16/22였다. 같은 차의 반복 관측이지 수백 대의 독립 차량 시험은 아니다.
+**초장거리 개선이 후방 위주이고 전방을 해결하지 못했다는 54절의 한계가 다른 bag에서도 남았다.**
+
+장애물 20~30m에서는 후방 CargoBox가 **18→13/30**으로 줄었다. 새 상실 5개는
+22.0~25.6m·LiDAR 0점이며 E24 score 0.128~0.212에 비해 E10은 0.058~0.096으로 floor 미만이었다.
+다른 자산의 복구와 합쳐 band 전체는 4개 회복·6개 상실이다. 이 사례들은 가까운 raw 후보가
+NMS에서 사라진 문제가 아니다. 전체 band의 score 중앙값 상승이 특정 자산의 score 하락을 숨길 수 있다.
+이번 관측을 근거로 threshold를 낮추거나 sparse GT를 제거하지 않았다.
+
+### 누락의 개수와 남은 꼬리
+
+원래 cloud index와 GT key를 유지하고 case/ROI/GT 경계·비연속 index·250ms 초과 간격에서
+누락 구간을 끊었다. 시간은 마지막−첫 sensor stamp+case 중앙 cadence의 표본 노출 추정이다.
+기록되지 않은 센서 구간을 모델 누락으로 채우거나 여러 case에 가짜 공통 주기를 적용하지 않았다.
+
+| O01 장애물 0~30m 누락 | 구간 수 | 평균(초) | p50 | p90 | p95 | 최대 |
+|---|---:|---:|---:|---:|---:|---:|
+| E24 | 33 | 0.178 | 0.094 | 0.329 | 0.507 | 0.519 |
+| E10 | 15 | 0.215 | 0.159 | 0.430 | 0.565 | 0.719 |
+
+누락 관측은 64→36개, 총 표본 누락 시간은 5.89→3.22초로 줄었지만 남은 구간의 모든 분포가
+개선된 것은 아니다. E10 최장 구간은 위 CargoBox다. 반대로 P02 40~50m의 누락은
+7→5구간, 평균 0.183→0.166초·p95 0.522→0.309초·최대 0.673→0.325초였다.
+차량 80~100m도 평균/최대는 줄었지만 p90과 구간 수는 늘었다. detector 연속성을
+tracker coasting·ID switching·planner 궤적의 직접 결과로 바꾸어 말하지 않는다.
+
+### 추가로 드러난 근접 사람의 V/P 동시 출력
+
+P02의 같은 Man1 근처에 운영 차량 출력이 남는 관측은 E24 **5회→E10 15회**였다.
+모든 경우 같은 프레임의 정상 pedestrian 출력도 score≥0.1·전체 GT 2m 매칭에서 적중했다.
+사람을 검출하지 못하고 차량으로만 대체한 사례가 아니라 **cross-class 중복 후보**다.
+같은 token의 5회는 공통이고 E10에서 10회 추가됐다. E10 차량 score는 0.423~0.824,
+사람 GT까지 XY 차이는 중앙 5.9cm·최대 63.5cm다. 15개 중 14개는 전방 10m 이내이며
+GT LiDAR 지원 38~103점이라 전부 원거리 희소 입력으로 설명할 수 없다.
+
+대표 `P02_163648_00201`의 네 원본 카메라를 직접 열어 확인했다. 앞왼쪽에 달리는 사람이 보이고
+다른 NPC 차량은 보이지 않는다. 해당 E10 차량 score는 0.625, 사람 GT 중심까지 약 1.34cm이며
+정상 pedestrian도 함께 남았다. 이 프레임은 실제 추가 class 박스 해석을 지지하지만,
+영상 전수 판독 없이 모든 미대응 출력을 유령으로 확정하지 않는다. 원본 JPEG를 편집·재압축하지 않았다.
+class-aware NMS는 서로 다른 클래스의 추가 박스를 자동 제거하지 않는다. 무조건적인
+class-agnostic 삭제도 사람 옆 실제 차량을 지울 수 있어 적용하지 않았다.
+실제 tracker 생성·ID·planner 제동으로 증폭되는지는 별도 후속이며 이번 작업에서 실행하지 않았다.
+
+원래 index가 연속인 동시 출력만 묶으면 E24 4구간·E10 11구간이며, **양쪽 모두 최장 2프레임**,
+3프레임 이상 연속은 0회다. 최대 표본 노출은 약 0.183초다. 이 조건만으로 떨어진 관측 사이의
+tracker 유지·확정까지 배제할 수는 없지만, 15명의 사람이나 15개의 지속 차량 track으로 부풀리지 않는다.
+
+### 10/14 추가 여섯 장면: 실제 50 주행과 보행자 대조
+
+기존 준비 입력을 참조하여 차량 actual fixed50 세 장면, 일반 두 사람 두 장면, near-Cargo 한 장면을
+추가했다. 센서 payload를 다시 복사하지 않았고 기존 **12,855개 파일 SHA**와 JPEG 해상도를 확인했다.
+당시 archived sensor SHA `35615d2a…45dd`를 사용했다. 현재 canonical JSON의 SHA가 달라졌다는
+이유로 과거 calibration을 바꾸지 않았다. bottom GT를 infos의 geometric 표현으로 바꾼 뒤
+기존 loader와 float32 왕복 오차를 검증했다. 물리 좌표·라벨·강도·이미지는 바꾸지 않았다.
+
+`supplemental_inputs_v1`은 infos SHA `156139fe…b7213`, manifest SHA `ac6d26e6…907b6`이다.
+입력 **2,571개**, 평가 **2,564개**이며 원래 ScenarioLoad 이전 7개는 입력에 보존하되 평가 제외했다.
+차량 1,709 / 일반 보행자 705 / near-Cargo 150프레임이다. component GT가 불명확한 pet 353개는
+정량 평가에 넣지 않았다. 이 선택은 예측을 읽기 전에 동결했다. 의심 GT 구멍 295프레임은
+원형 full trajectory를 대조하여 모두 원래 ROI 밖으로 확인했고 추가 GT 삭제는 하지 않았다.
+큰 입력 간격 두 개도 원래 preload 안에만 있었다.
+
+| 같은 장면의 해당 클래스 AP(%) | 평가 프레임 | E24 | E10 |
+|---|---:|---:|---:|
+| 실제50 고주로 출발 · Vehicle | 590 | 78.00 | 79.38 |
+| 실제50 고주로 흐름 · Vehicle | 551 | 67.10 | 68.29 |
+| 실제50 로터리 회전 · Vehicle | 568 | 83.26 | 86.66 |
+| 같은 방향 두 사람 · Pedestrian | 351 | 95.54 | 98.89 |
+| 반대 방향 두 사람 · Pedestrian | 354 | 98.87 | 99.72 |
+| `near_cargo` 명명 고정 5자산 · Obstacle | 150 | 55.56 | 55.56 |
+
+없는 클래스의 AP는 null이다. 보행자 AP 상승이 그 장면의 차량 추가 출력을 무시해도 좋다는 뜻은 아니다.
+두 사람 장면에서도 정상 P와 동시인 사람 근처 V가 **10→21관측**으로 늘었다.
+같은 방향 6→14, 반대 방향 4→7이며 모두 Man1이다. 연속 구간은 8→17개지만 양쪽 최장 2프레임,
+3프레임 이상은 0회다. Sep와 같은 추가 class 박스 위험을 다른 장면에서도 확인했지만 tracker는 실행하지 않았다.
+
+`near_cargo`라는 이름만 보고 초근접 시험으로 해석하지 않았다. 원래 companion에는 benchmark 장애물
+6개가 있고, 이 입력의 ROI 안에는 **15.1/33.2/50.8/68.8/86.4m의 5개**가 고정되어 150회 반복된다.
+두 모델의 450/750 대응이 같아도 잡은 객체는 다르다. CargoBox 15.1m와 TrafficBarrel 50.8m는
+모두 대응하고 PE_Drum 33.2m는 모두 미대응했다. E24가 잡던 Concrete_Barricade01 86.4m는
+E10에서 사라졌고, 반대로 concrete-barrier 68.8m는 E10에서 회복돼 합계가 상쇄됐다.
+모든 GT에 LiDAR 지원 2점 이상이 있어 이를 0점 사각이라고 설명하지 않았다. 카메라 visibility annotation은
+없으므로 물리적으로 보였는지까지 확정하지 않는다. 이 750관측을 근거리 장애물 전체의 성능으로 부르지 않는다.
+시나리오 메타와 원형 생성 코드도 확인했다. 9/23 O01의 benchmark 객체 6개를 그대로 두고
+Ego 위치만 바꾼 장면이며 여섯 번째 PE_Firewall_Orange는 ROI 밖이다. 다른 시각의 녹화이지만
+새로운 자산·독립 배치 시험으로 간주하지 않는다.
+
+차량 원본에는 정차 준비 시간이 길다. 결과를 본 뒤 유리한 시점을 고르는 대신 raw Ego XY의
+중앙차분 속도로 **moving ≥1m/s / stationary ≤0.1m/s / 그 외·경계 unknown**을 미리 동결했다.
+양옆 raw index 연속·각 간격 ≤250ms·세 행 모두 평가 가능일 때만 속도를 계산했다.
+주 평가 2,564개는 그대로 두고 차량 장면 안에서 이동 **590개**, 정지 **1,085개**, 평가 경계 **34개**를 나눴다.
+정차는 Ego 정차이며 NPC까지 정지한다는 뜻은 아니다.
+
+| 실제50 차량의 고정 구간 | AP E24→E10(%) | score≥0.4·1m recall(%) | GT 미대응 출력 |
+|---|---:|---:|---:|
+| Ego 이동 중 | 75.39→77.64 | 78.16→80.01 | 18→14 |
+| Ego 정지 중 | 77.32→79.13 | 78.29→79.17 | 10→4 |
+
+이동 30~50m AP는 80.16→86.21%, 50~80m는 55.46→59.05%지만 **80~100m는 2.70→2.05%**로
+매우 낮다(GT 144관측). 정지 80~100m는 2.74→12.16%(GT 143관측)라 전체 평균만 보면 이동 중
+초장거리 성능을 과장할 수 있다. visibility-qualified native GT가 아닌 한계도 함께 남긴다.
+고주로 흐름의 고정 1m 적중은 628→625/878로 조금 낮아져 모든 장면·운영점이 상승한 것은 아니다.
+이동 중 로터리 최대 누락도 2.99→3.47초라 AP 상승을 모든 연속성 지표의 개선으로 부르지 않는다.
+
+### GT 시간축 민감도: 원래 header를 바꾸지 않은 보조 검사
+
+당시 보존한 actual50 source-footer GT를 재사용했다. 이 값은 가까운 UTC hour로 풀어낸
+실험 source-batch anchor이지 정확한 LAN/ray clock이나 운영 보정값이 아니다.
+센서·모델 timestamp·카메라 선택·예측은 그대로 두고 GT만 두 시각에서 대조했다.
+원형 header 기준을 주 평가로 유지했다. 실험 anchor−header 평균은 39.19ms, p95 49.65ms다.
+
+양쪽 시각에서 같은 reconstructed key·class이고 ROI에 동시에 있는 **3,398관측**을 미리 고정했다.
+Ego 이동 중 공통 분모는 1,509관측이다. 각 시각에서는 **그 시각의 전체 ROI GT를 먼저 매칭**한 뒤
+공통 관측에 귀속했다. ROI 출입과 trajectory 관측 생애 경계의 다른 15관측을 별도로 보존하고
+그 생애 경계를 물리 spawn/despawn으로 단정하지 않았다.
+
+같은 운영점의 2m recall은 header에서 E24 **78.899→E10 80.047%**,
+footer에서는 **78.958→80.135%**다. 이동 중 두 기준 모두 E10−E24 **+1.789pp**여서
+이 시간축 선택이 모델 간 recall 방향을 뒤집지는 않았다.
+반면 절대 위치 오차는 시간축에 민감했다. 양 모델·양 시각 모두 매칭된 동일 2,618관측에서
+전체 mean은 header E24/E10 **0.239/0.244m**, footer **0.205/0.207m**였다.
+이동 중 동일 1,184관측은 반대로 header **0.203/0.195m**, footer **0.251/0.246m**였다.
+같은 이동 표본의 header p95는 0.526/0.485m다. 따라서 footer를 더 정확한 정답 시계로
+승격하거나 모든 상황에 약 40ms 보상을 넣는 근거로 쓰지 않는다. GT·runtime·tracker 시계는 미변경이다.
+
+### 후속 확인: 실제50 Man1 372프레임
+
+위 보행자 bag들이 역사적 51 입력이라는 점 때문에, V/P 현상을 무조건 패킷 묶음 탓으로
+돌리지 않도록 기존 `physical_v4`의 **04_man1_fixed50**을 별도 후속으로 선택했다.
+결과를 본 뒤 유리한 frame을 고른 것이 아니라 이 case 전체 372개와 원래 edge 제외 27개를 유지했다.
+실제 원본 scan 399개가 모두 50패킷이고, archived calibration·물리 GT·heading·support·원본 JPEG/XYZI
+및 원점 왕복을 검증했다. `man1_actual50_inputs_v1` info SHA는 `695940dd…ce8bc`,
+manifest SHA는 `6d370622…80111`이다. 모델 출력을 읽기 전 독립 quality freeze를 추가했다.
+
+같은 고정 실행에서 Pedestrian AP는 **96.66→98.89%**, 운영 score≥0.1·1m 대응은
+**364→371/372**, 미대응 P 출력은 **3→6**이었다. 동시에 사람 근처 V/P 출력은 **0→2관측**이다.
+두 E10 후보는 서로 비연속인 각 1프레임이며, Man1 약 19.1~19.3m·LiDAR 8/9점에서
+차량 score 0.652/0.480과 정상 보행자 score 0.726/0.705가 함께 남았다.
+따라서 **실제 50 입력에서도 나타날 수 있는 현상**이지만 지속 ghost나 tracker birth를 확인한 것은 아니다.
+이 case에는 10m 이내 GT가 없고 다른 주행이므로, 51의 15회와 50의 2회를 나눠 패킷 변경의
+인과 효과나 근거리 안전성을 주장하지 않는다.
+
+### 최종 검증·산출물·현재 판단
+
+전체 추가 **10개 장면**, 모델당 **4,416입력 / 4,409평가 프레임**으로 마감했다.
+같은 맵·반복 actor의 관측이므로 독립 샘플 수로 부풀리지 않는다.
+`integrity_v1/FINAL_INTEGRITY.json`에서 3개 infos/manifest/독립 freeze, E24/E10 6개
+COMPLETE·receipt·prediction·가중치 SHA와 ordered GT identity·runtime 일치를 재검사했다.
+원형 source 46개와 raw를 확인하고, point **4,416개**·JPEG **17,664개**의 전체 SHA도 다시 통과했다.
+기존 원본·평가·가중치·production은 변경하지 않았다. 9/23 센서 payload만 새 artifact에
+848,652,550바이트 추출했고, 10/14·Man1 어댑터는 기존 센서를 참조하여 중복 복사하지 않았다.
+
+재현 근거는 `september_comparison.json`, `focused_additional_analysis.json`,
+`september_cross_class_runs.json`, `MANUAL_RGB_REVIEW.json`, `october_comparison.json`,
+`october_cross_class_runs.json`, `near_cargo_asset_check.json`, `motion_summary_v1/results_v1/`,
+`footer_sensitivity/result_v1.json`, `man1_actual50_comparison.json`,
+`man1_actual50_cross_class_runs.json`과 `quality_audit/`에 둔다.
+주 평가 원형 비교/quick/거리 회귀 28개, 새 CPU 분석·입력 검사 35개, 이동 분할 5개로
+**총 68개를 재실행해 통과**했다. 기존 receipt를 보존하는 motion 테스트를 직접 실행했을 때
+5개 검사 후 exclusive 결과 파일 쓰기에서 멈춘 기록은 남겼고, unittest import 방식으로 정상 재검증했다.
+문서 검증기의 링크·계약 오류는 없지만 작업 전부터 있던 README/CURRENT/데이터 CURRENT
+세 파일의 길이 예산 초과는 남아 있다. 이를 전체 문서 검사 통과로 보고하지 않는다.
+
+현재 판단은 **E10의 전반적인 개선이 추가 장면에서도 확인되어 교체 후보로 유망하되,
+모든 거리·자산·후단 안전성에서 E24보다 낫다고 인증할 수는 없다**는 것이다.
+전방 초장거리, 후방 중거리 CargoBox score, 일부 장애물 자산 교환, 짧은 V/P 추가 박스가 남았다.
+다음은 최종 배포 가중치를 정한 뒤 그 모델의 threshold와 이 동시 출력의 실제 tracker 전달을
+따로 검증하는 것이다. production E24·threshold·tracker·학습·시간 보정은 이번 요청으로 바꾸지 않았다.
+
+<a id="full30750-e12-completion-261023"></a>
+
+## 56. 전체 30,750장 12 epoch 완료 관제와 최종 native 결과 — 2026-10-23
+
+사용자는 남은 시간 확인과 실제 종료까지의 관제·결과 보고를 요청했다. 기존
+`175.155.64.164:19463` 학습을 읽기 전용으로 관측했으며 source·학습 설정·프로세스·
+백업 워처·production을 변경하지 않았다. 마지막 학습 계산은 약 **10:29:29 KST**에 끝났고,
+val 4,614장과 CPU 지표 집계 뒤 최종 summary는 **10:39:10 KST**에 나왔다.
+**10:40:01 KST worker exit 0**, `oneclick_status=finished/0`, 원래 훈련 PID 종료와
+`last_checkpoint=epoch_12.pth`를 확인했다. W&B 원래 run도 `finished`다.
+
+동결 계약은 `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`다.
+train 26,136 / val 4,614, batch 4, epoch당 6,534 iteration, 최종 iteration **78,408**이며
+일반 코사인·compile OFF·기존 이미지/공간/depth·평가지표를 유지했다. 원래 W&B history
+**4,098/4,098행**을 구간별로 읽고 non-null val만 선택했다. 마지막 run summary의 null을
+0점이나 미수신으로 해석하지 않았다. 확인 가능한 E2~E12의 **123개 분모 키는 불변**이고,
+6환경 각각 750장 + 장애물 보강 114장 = **4,614장**이다. E1 history 복원을 새로 주장하지 않는다.
+
+### 같은 native val의 후기 변화
+
+아래 값은 중심 거리 기반 AP(%)이며 이전 단일 Sunny13 E24와 같은 검증셋이 아니다.
+
+| 지표 | E3 | E10 | E11 | E12 |
+|---|---:|---:|---:|---:|
+| 전체 mAP | 89.45 | 93.83 | 93.93 | **94.07** |
+| Vehicle AP | 95.90 | 97.29 | 97.26 | 97.27 |
+| Pedestrian AP | 93.31 | 96.49 | 96.55 | 96.53 |
+| Obstacle AP | 79.13 | 87.72 | 87.98 | **88.41** |
+| Obstacle 20~30m AP, GT 844 | 77.43 | 86.14 | 86.16 | **86.84** |
+| Pedestrian 40~50m AP, GT 143 | 84.54 | 88.27 | 88.40 | 88.21 |
+| Vehicle 80~100m AP, GT 268 | 73.98 | 79.22 | 79.49 | 79.26 |
+
+전체 best는 **E12, 정확한 mAP 94.067949%**다. E10 대비 +0.236947pp,
+E11 대비 +0.137788pp이며, E3 대비 +4.621577pp다. 장애물은 E3 대비 +9.274507pp로
+후기까지 상승했다. 클래스별 자체 best는 Vehicle E10 / Pedestrian E8 / Obstacle E12이므로
+E12가 모든 세부 지표에서 최고라는 뜻은 아니다. 단일 seed·소폭 후기 상승을 추가 학습의
+확정 이득이나 계속 epoch를 늘릴 근거로 삼지 않는다.
+
+| 환경 | E12 mAP(%) | val 장수 |
+|---|---:|---:|
+| Sunny11 | 94.18 | 750 |
+| Sunny13 | 94.41 | 750 |
+| Sunny15 | 94.09 | 750 |
+| Foggy11 | 94.63 | 750 |
+| Foggy13 | 94.24 | 750 |
+| Foggy15 | 93.65 | 750 |
+
+6환경 각각의 전체 mAP도 E12가 자체 최고다. 환경마다 배치가 달라 이 표를 순수 날씨·시간의
+인과 효과로 읽지 않는다. 남은 약점은 전방 80~100m Vehicle **57.39%** 대 후방 **95.99%**
+(각 GT 134), Obstacle 30~40m **45.56%**(GT 188) / 40~50m **25.45%**(GT 71)다.
+80~100m Pedestrian·Obstacle의 10m 구간 GT는 각각 2+2 / 5+5뿐이라 극소 표본 한계를 남긴다.
+
+### 최종 파일 저장 검증과 백업 경계
+
+작업 경로는 `/workspace/base5_full30750_e12_speed_261021_v2`다. 10:42 KST 원격 CPU 검사에서
+아래 두 파일의 전체 SHA·ZIP 전체 member CRC·CPU load·epoch 12 / iteration 78,408·
+계약·모델 state 574개 유한성 및 검사 전후 파일 불변을 확인했다. GPU 계산이나 복원은 하지 않았다.
+
+| 파일 | 바이트 | SHA256 |
+|---|---:|---|
+| `epoch_12.pth`, after-val full | 535,008,709 | `f18fc72681e64ed965b57c4a2035c6085453d7ff7173d0f5bada73ca414ab04f` |
+| `best_val_center_mAP_epoch_12.pth`, native best | 215,840,895 | `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8` |
+
+full은 optimizer 순서 394개, 390개 Adam 상태와 780개 유한 moment, AMP scaler,
+두 scheduler와 Python/NumPy/Torch/CUDA main RNG를 포함한다. scheduler global step은
+78,408이고 최종 LR은 약 1e-6다. Adam step 78,379는 iteration과 구분하며 AMP skip 가능성을
+남긴다. exact worker/prefetch·mid-epoch 재생이나 저장 상태를 실제 resume한 검증은 아니다.
+best는 optimizer/scheduler가 없는 **추론용 weights-only**이며 재개 파일로 쓰지 않는다.
+full message hub의 best score·경로도 위 E12 best와 일치한다.
+
+Drive 자동 백업의 기존 중복 경로/COMPLETE 재읽기 오류는 학습 종료와 분리한다.
+**10:48 KST 최종 after-val 두 파일의 Drive 백업은 미완료**로 판정했다.
+full `f18fc726…`은 payload 전체 SHA readback을 통과했지만 PARTS.json이 동일 내용
+2개(각 2,638바이트)로 존재해 경로 readback은 5,276바이트가 됐고 COMPLETE는 없었다.
+best `f3ade1bf…`는 7개 part와 일부 metadata가 있으나 part별 이름 중복이 있고 COMPLETE가
+없었다. 이 최종 best의 전체 SHA readback 성공은 당시 로그에서 확인하지 못했다.
+LATEST도 아래 train-end SHA를 계속 가리켰다. 폴더·part가 있다는 이유로 완료를 선언하지 않는다.
+E12 train-end **534,830,789바이트·SHA `af192e7b…65524`**의 COMPLETE/LATEST 성공은
+확인했지만 위 after-val full과 다른 파일이므로 최종 백업 완료로 대신 쓰지 않는다.
+이번 관제에서 재업로드·중복 폴더 삭제·자격증명 갱신이나 인스턴스 Stop/Destroy는 하지 않았다.
+
+로컬 근거는 `artifacts/evaluation/base5_full30750_completion_261023_v1/`의
+`remote_observations/`, `native_history/NATIVE_FINAL_FINDINGS.json`, 해당
+`snapshot_1792719650993423428/`의 history·거리·환경 CSV, `checkpoint_audit/`의
+`audit_1792719720292318765.json`, `backup_audit/`에 보존한다. 최종 가중치를 로컬로
+회수하거나 새 bag 추론·threshold·tracker를 검증한 작업은 아니다.
+**E12는 새 native best 후보이고 production E24는 그대로다.** 앞선 E10의 bag 성능을
+E12의 실전 검증으로 전용하지 않는다.
+
+문서 검증은 링크 590개·기존 원문 13개의 보존·계약 표기에 새 오류가 없었다.
+기존 README/CURRENT/데이터 CURRENT 세 파일의 길이 예산 초과는 그대로 남아 있으며,
+전체 문서 검사 통과로 보고하지 않는다.
+
+<a id="full30750-e12-bags-far-front-261023"></a>
+
+## 57. E12/E24 동일 bag·동일 native 초장거리 대조와 보강 여지 — 2026-10-23
+
+사용자는 E12를 rosbag으로 비교하고 전방 80~100m가 E24보다 악화됐는지, 데이터 보강으로
+해결할 수 있는지 분석하도록 요청했다. production·threshold·tracker·센서·GT·생성기·학습은
+변경하지 않았다. E12 best는 기존 Drive의 part를 ID로 읽어 **8.84초**에 회수했다.
+part·전체 SHA·ZIP CRC·CPU load·574개 state 유한성·epoch 12/iteration 78,408과 원격 원본
+불변을 확인했다. 로컬 파일은 `artifacts/evaluation/bevfusion/e24_e12_bags_261023_v1/checkpoint/E12_best.pth`,
+SHA는 `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`다.
+payload 회수 성공을 자동 Drive 백업의 metadata/COMPLETE 오류 해결로 전용하지 않는다.
+
+### 동일 rosbag 14장면 비교
+
+54~55절의 원형 infos·GT·평가 제외 기준과 E24/E10 예측을 그대로 유지하고 E12만 추론했다.
+고정 image `13488ccac149…`, 같은 5060 Ti, AMP·camera 병렬화 ON/compile OFF,
+ROS XYZI ÷255 **1회**, 같은 Q90 JPEG 원본·512×1056/5cm/20cm/depth 0.25m를 사용했다.
+strict load·입력/ordered GT·런타임 계약은 세 모델에서 일치했다. 점 수로 GT를 추가 삭제하지 않았다.
+bag 지표는 기존 server floor 0.1·top100·class-aware rotated NMS 0.5·V/P/O 0.4/0.1/0.1을 유지한다.
+
+| 고정 묶음 | 입력 / 평가 프레임 | E24 AP(%) | E10 AP(%) | E12 AP(%) |
+|---|---:|---:|---:|---:|
+| 기존 4장면, 전체 mAP | 1,570 / 1,413 | 53.65 | 60.53 | 60.18 |
+| 추가 9월 3장면, 전체 mAP | 1,473 / 1,473 | 55.89 | 59.24 | 59.58 |
+| 추가 10월 6장면, 전체 mAP | 2,571 / 2,564 | 76.13 | 77.68 | 77.64 |
+| 실제50 Man1, Pedestrian AP | 372 / 372 | 96.66 | 98.89 | 98.89 |
+
+총 **5,986입력 / 5,822평가**, 원형 164개 제외를 유지했다. E12는 E24보다 전반적으로
+개선됐지만 E10과의 우열은 묶음마다 다르다. pooled AP는 각 장면 AP의 단순 평균이 아니며,
+GT가 없는 class의 미대응 출력도 해당 class가 있는 다른 장면과 함께 순위 평가에 참여한다.
+단독 Man1의 AP는 GT가 있는 Pedestrian에 한정하며 Vehicle 오검출이 없다는 뜻이 아니다.
+
+기존 4장면 Obstacle 0~30m AP는 E24/E10/E12 **81.34/87.68/88.62%**,
+20~30m는 **79.21/82.44/85.22%**다. 추가 9월 Obstacle 20~30m는 **74.81/73.78/75.23%**다.
+실제50 차량의 launch/stream/roundabout AP는 E24→E12 각각 **78.00→79.63 /
+67.10→68.32 / 83.25→86.70%**다. 그러나 실제50 전방 80~100m는 세 모델 모두
+AP **0%**, score 0.4·2m 적중 **1/180관측**으로 매우 약하다. AP 0을 박스가 전혀
+없다는 뜻으로 읽지 않는다. 같은 조건의 후방은 E24→E12 **27→41/115관측**이다.
+
+추가 9월 고주로 전방 80~100m AP는 **9.84→14.27%**로 개선됐지만,
+score 0.4·2m 적중은 **26→23/136관측**이다. E24-only 13개는 트럭 10개/G80 3개이며
+모두 2m 이내 차량 후보의 score가 0.4 아래로 내려간 경우다. 반대로 E12-only 10개도 있었다.
+NMS/top100에서 고점수 후보가 사라진 단서는 없었다. 따라서 **AP 개선과 현재 운영점 recall의
+소폭 악화가 함께 존재**하며 전방 전체가 좋아졌다거나 나빠졌다고 단정하지 않는다.
+같은 bag의 |Y|≤5m에서는 10→12/94관측이지만 G80·Xcient 두 차량 반복이라는 한계가 있다.
+기존 4장면의 전방 80~100m 25관측은 모두 |Y| 22.8~29.9m다. 여기서 front는 X≥0,
+80~100은 XY 방사 거리이며 카메라 정중앙이나 종방향 X 80~100m와 동일하지 않다.
+
+동시 Pedestrian+근처 Vehicle 출력은 core E24/E10/E12 **6/14/11관측**,
+9월 **5/15/13관측**으로 E12에도 남았다. 실제 중복 객체·tracker birth·planner 영향은 미검증이다.
+전체 결과를 근사 catalog/interpolated GT의 알려진 개발 bag 시험으로 한정한다.
+
+### 같은 최신 native 입력에서 E24가 더 나았는가
+
+E24의 옛 val과 E12의 새 val AP를 직접 비교하지 않았다. 최신 val 4,614장에서 전·후방
+80~100m 차량 GT **각 134개**가 있는 양성 256프레임을 모델 독립으로 선택하고,
+같은 cohort에서 hash로 선택한 음성 256프레임을 합친 **512프레임**을 동결했다.
+해당 프레임의 다른 거리·class GT도 유지했다. 두 모델 모두 FP32, AMP/TF32/compile/병렬화 OFF,
+native 강도 0~1 그대로, 원형 좌표·native evaluator ROI·0.5/1/2/4m AP를 사용했다.
+**512장 AP는 전체 4,614장 AP가 아니다.** 생략된 다른 프레임의 FP가 없어 E12 전체 native
+전방 57.39%와 이 subset의 62.06%를 상승량으로 비교할 수 없다. ROS AMP 평가와도 별도 계약이다.
+
+| 같은 native subset의 지표 | E24 | E12 |
+|---|---:|---:|
+| 전방 80~100m AP | 34.41% | 62.06% |
+| 후방 80~100m AP | 91.05% | 96.24% |
+| 전방 score 0.4·1m 적중 | 38/134 | 62/134 |
+| 후방 score 0.4·1m 적중 | 107/134 | 122/134 |
+| 전방 0점 GT 적중, 1m | 0/53 | 0/53 |
+| 전방 1~4점 GT 적중, 1m | 21/44 | 34/44 |
+| 전방 5점 이상 GT 적중, 1m | 17/37 | 28/37 |
+
+전방 신규 복구 27개/상실 3개이며 두 모델이 함께 잡은 35 GT의 평균 XY 오차도
+**19.75→15.32cm**다. |Y| 0~5/5~10/10~20/20~30m 모두 고정 운영점 적중이 개선됐다.
+따라서 같은 native 입력에서는 **E12의 전방 퇴보 근거가 아니라 개선 근거**가 확인됐다.
+
+0점 53개는 score 0.4·1/2m에서 두 모델 모두 미대응이지만, E12를 score 0.1로 진단하면
+1/2/4m에서 각각 **7/8/11개**가 대응된다. camera-only가 원천적으로 불가능하다는 뜻은 아니다.
+같은 양성 프레임 전방의 native 미대응 출력은 score 0.4·1m 0개에서 score 0.1·1m 18개로
+늘었다. 이는 **ROS bridge의 floor/top100/NMS를 적용하지 않은 native decoded 출력 진단**이며
+실제 ROS 오검출 18개라는 뜻이 아니다. 낮은 threshold의 안전성은 별도 후처리·음성 검증이 필요하다.
+
+### 수량 부족인가, 센서 지원의 차이인가
+
+전체 30,750장 원형 infos·manifest·native 지원을 연결한 80~100m 차량 GT는
+**전방 925 / 후방 953개**다. 전방 단순 배치 부족보다 지원 차이가 크다.
+GT 박스 내 LiDAR 0점은 **384/925(41.5%) 대 10/953(1.0%)**, 중앙값은 2점 대 4점이다.
+전방 90~100m만 보면 **264/405(65.2%)가 0점**이다. train에서도 전방 331/791,
+후방 9/819개가 0점이라 val만의 사고가 아니다. native 점 수와 실제 원본 OBB 재검산의
+일치 근거를 연결했고, 센서 장착을 수집 중 바꾸지 않았다.
+
+대표 단독 전방 차량의 full-RPY native 높이각이 약 −0.935~+0.075°에 놓여 −1°/+1°
+빔 사이를 빠지는 사례를 실제 채널·발사점 fit과 함께 확인했다. 모든 0점이 빔 공백이라는
+뜻은 아니며 차폐·표면·거리 경계도 가능하다. 위 native val 표본의 카메라 관측이 있는
+대상은 현재 crop의 마스크 잘림이 없었다. 전체 자료의 투영 짧은 축 중앙값은 전/후방 약 **10.28/10.00px**다.
+Instance 마스크는 실제 안개 속 광학적 가시성·RGB 대비를 보증하지 않는다. 같은 자산의
+Sunny/Foggy 원본 3개도 직접 확인했으며 작고 안개에 약해진 실루엣과 annotation 대응을 구분했다.
+
+현재 DepthLSS는 sparse LiDAR depth를 영상 feature와 결합하고 검출 loss로 간접 학습한다.
+직접 depth CE/L1 감독은 현재 경로에서 발견되지 않았다. 0점 GT라고 카메라 경로를 차단하는
+구조는 아니다. 작은 영상·대상 직접 LiDAR 단서 부족에서 depth 분포/BEV feature가 불확실해져
+heatmap·score가 낮아질 가능성은 있지만, 이 53개의 depth tensor/ablation으로 입증한 원인은 아니다.
+관련 코드는 `plugin/morai_depth_raster.py`, `plugin/morai_pool_optimization.py`, 원형
+`depth_lss.py`, `bevfusion.py`와 `transfusion_head.py`다. depth bin 0.25m가 실제 오차 0.25m를 뜻하지 않는다.
+
+### 현재 권고와 검증 범위
+
+**전체 30K를 당장 재수집할 근거는 없다. 현행 센서의 작은 표적 보강과 짧은 대조가 우선 후보다.**
+단순히 같은 0점 장면 수만 늘리면 없는 LiDAR 측정을 만들 수 없다. 그렇다고 0점 GT를
+일괄 삭제하거나 초장거리를 포기하지도 않는다. 다음은 계획 후보이며 수집·학습을 실행하지 않았다.
+
+- 정면/인접 차로 |Y|≤10m를 중심으로 80~90/90~100m·0/1~4/5점 이상을 분리한다.
+- 보이는 작은 0점 카메라 양성, 후보는 맞지만 score가 낮은 양성, 같은 배경의 무차량/hard negative를 함께 둔다.
+- 일반 승용/SUV와 실제 누락의 트럭/G80를 포함하되 특정 개발 bag의 두 차량·같은 배치에 과적합하지 않는다.
+- 새 Ego 위치·방향·도로 높이/곡률·차폐·동반 객체를 분산하고 근거리·후방 보호용 기존 표본을 유지한다.
+- 원거리 물체를 인위적으로 확대하거나 LiDAR 각도를 즉시 바꾸지 않는다. 상향은 별도 소량 실측 A/B 뒤 판단한다.
+- 모델 후보별 threshold·미대응/중복·연속 tracker를 검증하기 전 production E24나 운영 score를 교체하지 않는다.
+
+bag의 낮은 절대 AP는 native 개선과 별개로 계속 관측한다. timestamp/네트워크 한계를 모르는
+상태에서 이를 새 모델의 확정 현장 성능이나 센서 시간 보상 필요량으로 단정하지 않는다.
+기존 source-footer GT를 재사용한 E24/E12 보조 검사에서는 두 시계 공통 차량 GT 3,398개에서
+score 0.4·2m 적중이 header **2,681→2,743**, footer **2,683→2,745**로 개선폭 +62개가 같았다.
+Ego 이동 중 공통 1,509개에서는 header 1,191→1,212 / footer 1,191→1,211이었다.
+전방 초장거리 원형 180개 중 두 시계 모두 ROI에 남는 **공통 176개**는 두 모델·두 시계 모두
+**1/176**이었다. 제외된 4개를 실패/회복으로 세지 않았다. 전체 ROI 먼저 매칭한 결과이며,
+이 alternate GT 시각으로 전방 문제가 해소되지는 않았다. 원형 header를 주 기준으로 유지하고
+footer를 실제 보정 시계나 다른 네트워크 오류까지 제거한 정답으로 승격하지 않는다.
+데이터/모델/학습 횟수·compile 조건이 달라 이번 모델 대조를 데이터 확장의 순수 인과 효과로도 부르지 않는다.
+
+새 산출물 루트는 `artifacts/evaluation/bevfusion/e24_e12_bags_261023_v1/`다.
+`{core,september,october,man1_actual50}_comparison.json`, `native_far_review/`,
+`sensor_data_review/`, `missed_far_review/`, `MANUAL_RGB_REVIEW.json`과
+`clock_sensitivity/`, `integrity/FINAL_INTEGRITY.json`에 근거를 보존했다. 최종 무결성에서 12개 bag export와
+native 두 export의 SHA·GT 원점 왕복·기하·label/support/asset·runtime 및 기존 E24/E10 bag 지표 exact를 확인했다.
+원시 센서 전체 SHA는 기존 동결 검증을 재사용했고 이번에 raw bag 전체를 새로 파싱하지 않았다.
+native의 사전 source pin 60개는 실제 `docker/bevfusion/app`을 누락한 **선택적 pin**이다.
+실제 앱 10파일의 사후 HEAD SHA·mtime 대조를 별도로 묶었으며 이를 사전 전체 import closure로 표현하지 않는다.
+scorer의 info/control/support binding도 보강하고 빈 GT 배열 shape 실패는 원본 보존 후 수정·재검증했다.
+production·GT·센서·원형 예측·기존 실험 자료를 덮어쓰지 않았다.
+
+마감 시 CPU 회귀 **27개(7+5+5+4+6)**를 재실행해 통과했다. 독립 QA fixture 6개 중 3개는
+뒤에 추가한 횡방향 귀속용 `bbox_3d` 필드가 빠져 처음 재실행에서 실패했다. 모두 Y=0인 합성
+지원 metadata만 보완하고 원래 검증 조건을 유지해 6개를 다시 통과했다. 실험 GT·예측·scorer는
+이 fixture 보완으로 변경하지 않았다. 문서 링크 590개·계약·원문 보존에 새 오류는 없지만
+기존 README/CURRENT/데이터 CURRENT의 길이 예산 초과 3개는 남아 있다.
+
+<a id="full30750-zero-lidar-threshold-research-261023"></a>
+
+## 58. LiDAR 0점 차량의 거리별 confidence·threshold 한계와 연구 검토 — 2026-10-23
+
+사용자는 데이터 보강만으로 현재 0%인 LiDAR 0점 검출이 100%가 될 수 있는지, 연구를 넓게
+조사하고 80~90/90~100m로 나누어 confidence와 threshold 가능성을 확인하도록 요청했다.
+57절의 동결 예측을 CPU로 재평가했다. 새 GPU 추론·수집·학습은 실행하지 않았으며,
+가중치·원형 GT/점 수·예측·production·서버 floor·운영 threshold·센서는 변경하지 않았다.
+
+### 먼저 구분할 조건
+
+- **0점은 GT 박스 내부의 LiDAR 점이 0개라는 뜻**이다. 전체 LiDAR 입력·배경/주변 점·영상의
+  모든 depth hint가 없는 것은 아니다. 이번 결과는 LiDAR branch를 제거한 camera-only ablation이 아니다.
+- 이전 0%는 native 전방 53관측에서 **score 0.4·XY 중심 오차 1/2m 이내의 고정 운영점**이었다.
+  모든 score에서 후보가 전혀 없거나 영상만으로 원천적으로 불가능하다는 뜻이 아니다.
+- front는 X≥0, 거리는 XY 방사 거리이며 구간은 [80,90), [90,100)m다. 전방 카메라 정중앙과
+  동일하지 않다. 전체 의미 ROI의 모든 GT에 먼저 class별 일대일 매칭한 뒤 거리·점 수를 귀속했다.
+- 현 TransFusion score는 decoder sigmoid와 query heatmap score 등의 곱이다. **0.04는 성공확률
+  4%로 보정된 값이 아니다.** 없는 후보를 score 0으로 채우지 않고 후보 부재와 조건부 분포를 구분했다.
+
+### 같은 native 512장에서 거리별로 무엇이 달랐는가
+
+양성 256장과 같은 cohort의 음성 256장을 그대로 유지했다. FP32·native intensity와
+저장 decoded 최대 200 query 조건도 유지했다. 512장 결과는 전체 val 4,614장 AP가 아니다.
+
+| 전방 조건 | 80~90m | 90~100m |
+|---|---:|---:|
+| 전체 30,750장의 해당 차량 GT | 520 | 405 |
+| 그중 LiDAR 0점 | 120/520, 23.1% | 264/405, 65.2% |
+| native 평가 subset의 전체 / 0점 GT | 77 / 16 | 57 / 37 |
+| 전체 GT의 E24→E12 적중, score 0.4·1m | 31→47/77 | 7→15/57 |
+| 0점 GT의 E12 저장 후보 존재, XY 2m 이내 | 15/16 | 37/37 |
+| 위 후보의 최대 score 평균 / 중앙값 | 0.0472 / 0.0428 | 0.0624 / 0.0620 |
+| 위 후보의 최대 score p90 / p95 / 최댓값 | 0.1124 / 0.1275 / 0.1333 | 0.1226 / 0.1473 / 0.1658 |
+
+score 분포는 **GT 2m 안의 같은 class 후보 중 가장 높은 score**이며 후보가 존재하는 경우만
+계산했다. GT를 알아야 고를 수 있는 진단값이지 online 출력의 정확도나 순수 영상 신뢰도가 아니다.
+원래 E24에서 같은 0점 GT 2m 후보는 각각 7/16, 22/37개였다. E12의 후보 위치·score는 개선됐지만
+데이터·학습 횟수·일부 실행 조건이 함께 달라 보강 데이터만의 인과 효과로 해석하지 않는다.
+
+| E12 전방 0점 GT, 저장 decoded 출력·XY 2m | 80~90m | 90~100m |
+|---|---:|---:|
+| score ≥0.4 | 0/16 | 0/37 |
+| score ≥0.2 | 0/16 | 0/37 |
+| score ≥0.1 | 2/16 | 6/37 |
+| score ≥0.05 | 6/16 | 22/37 |
+| score ≥0.01 | 11/16 | 34/37 |
+| 저장 후보 전부 유지, score ≥0 | 15/16 | 37/37 |
+
+마지막 줄은 **고정된 저장 query·class·score 순위·greedy 매칭에서 threshold만 낮춘 포화치**다.
+200개 중 거의 0점인 후보가 우연히 GT 근처에 있을 수도 있어 이를 검출 성공률 98.1%나
+100% 달성 가능성으로 승격하지 않는다. XY 1m로 엄격히 보면 전부 유지해도 12/16, 26/37개다.
+유일한 2m 후보 부재는 85.48m의 Bike2로, 저장 vehicle query의 최근접 오차가 약 75.6m다.
+낮은 threshold로 잘못된 class나 위치를 수정할 수는 없다.
+
+낮은 score의 비용도 함께 계산했다. 양성 256장 전방 전체 134 GT에서 score
+0.4/0.1/0.05/0.01/0의 1m 적중은 **62/75/91/109/118개**인 반면, 같은 예측 거리의
+미대응 출력은 **0/18/131/381/1,409개**다. 음성 256장의 전방 원거리 미대응 출력도
+**0/0/3/9/259개**다. 이는 ROS NMS 전 decoded 진단이며 그대로 운영 FP 수라고 부르지 않는다.
+원래 서버 후처리 floor 0.1·전체 class top100·class-aware rotated NMS 0.5를 적용하면
+0점 적중은 score 0.1·1m **2/16, 4/37**, 2m **2/16, 6/37**이다. 뒤쪽 threshold만
+0.05/0.01/0으로 내려도 이미 삭제된 후보가 복구되지 않아 결과가 0.1과 정확히 같다.
+
+### 실제 bag에서도 threshold를 낮추면 해결되는가
+
+기존 **14장면·5,822평가 프레임** 전부를 포함했다. 전방 80~100m GT 341관측 중
+0점은 214관측이며 재구성 track key 17개의 반복이다. 독립 차량 214대가 아니다.
+원래 ROS 후처리를 유지하고 Vehicle cutoff만 CPU에서 비교했다. 다른 class cutoff는 0.1이다.
+
+| Vehicle cutoff | 0점 80~90m 적중 /130 | 0점 90~100m 적중 /84 | 전체 전방 80~100m 적중 /341 | 같은 예측 거리의 미대응 출력 / precision |
+|---|---:|---:|---:|---:|
+| 0.40 | 0 | 1 | 26 | 7 / 80.0% |
+| 0.30 | 0 | 1 | 32 | 13 / 72.3% |
+| 0.20 | 0 | 1 | 39 | 27 / 60.3% |
+| 0.15 | 2 | 1 | 46 | 39 / 54.7% |
+| 0.10 | 3 | 1 | 52 | 73 / 42.1% |
+
+모두 XY 2m 기준이다. recall은 GT 거리, precision은 예측 거리 기준이므로 경계의 TP가
+서로 다를 수 있다. 미대응은 근사 catalog/interpolated GT와의 불일치이지 전부 확정 물리적
+오검출로 수작업 인증한 것이 아니다. GT가 없는 프레임·다른 거리의 GT도 제거하지 않았다.
+
+실제 bag의 0점 GT 중 2m 안 저장 vehicle 후보가 있는 경우는 **88/130, 57/84개**다.
+그 최대 score의 중앙값/p90은 각각 **0.00496/0.02782**, **0.00263/0.06496**이며
+후보 부재는 각각 42/27관측이다. 90~100m의 최대 0.5488은 단일 큰 예외로, 평균이나
+최댓값만 보면 일반적인 score 수준을 과대평가한다. native의 상대적으로 좋은 저점수 후보
+결과를 실제 bag의 score 분포로 그대로 옮길 수 없다.
+
+0.4→0.1에서 전체 의미 ROI의 vehicle 미대응 출력은 **87→383**, 보행자 정답 근처에서
+Pedestrian도 함께 출력된 Vehicle 관측은 **45→208**, 최장 연속은 **3→7프레임**이다.
+반면 0점의 추가 회복은 3관측뿐이고 0.1에서의 4적중도 최장 **2프레임, 약 0.171초**다.
+전체 cutoff 변경의 비용이지 원거리만 바꾼 정책의 확정 비용은 아니다. 거리별 정책을 고르려면
+예측 거리로 적용하고 독립 bag에서 새 birth·중복·잔류·위치/속도까지 검증해야 한다.
+GT 0점 여부로 threshold를 바꾸는 oracle 정책은 online에서 사용할 수 없다.
+
+### 10편의 1차 연구·공식 코드에서 얻은 판단
+
+| 연구 방향 | 확인한 근거 | 현재 시스템에 대한 해석과 한계 |
+|---|---|---|
+| 객체 내부 point dropout | [Liang 등의 BEVFusion, NeurIPS 2022](https://arxiv.org/html/2205.13790v3), §4.4.1 | 독립 camera stream과 객체 내부 점의 확률 0.5 삭제를 연구한다. 현재 MIT Liu 계열과 다른 구현이며 자연발생 16채널 사각·100m 성능을 보장하지 않는다 |
+| 직접 depth 감독 | [BEVDepth, AAAI 2023](https://arxiv.org/abs/2206.10092), [공식 loss](https://github.com/Megvii-BaseDetection/BEVDepth/blob/main/bevdepth/exps/nuscenes/base_exp.py) | sparse depth를 입력으로 주는 것과 loss로 감독하는 것은 다르다. 다만 유효 depth mask에만 loss가 있어 0점 객체의 직접 surface 정답을 새로 만들지 않는다 |
+| 시간축 정보 | [BEVFormer, ECCV 2022](https://arxiv.org/abs/2203.17270) | ego 정합된 과거 영상/BEV를 결합한다. tracker의 단순 기억과 다르며 현재 독립 정적 캡처를 더 주는 것만으로 구현되지 않는다 |
+| 원거리 영상 query | [Far3D, AAAI 2024](https://arxiv.org/html/2308.09616v2) | 2D prior 기반 3D query·다중 scale·거리별 denoising·temporal propagation을 사용한다. 150m 검출 가능성은 있지만 장수만 늘린 대조나 0점 100% 근거가 아니다 |
+| 융합 의존성·특징 보존 | [DeepInteraction, NeurIPS 2022](https://arxiv.org/abs/2208.11112), [MoME, CVPR 2025](https://arxiv.org/html/2503.19776v2) | 독립 modality 표현/decoder·local routing 등으로 약한 센서가 다른 경로를 해치는 문제를 다룬다. MoME도 object failure 평가를 포함하나 우리 구조의 drop-in 변경이나 원인 확정은 아니다 |
+| 원거리 사전학습·깊이·시간축 | [LRS4Fusion, ICCV 2025](https://arxiv.org/abs/2508.13995) | 250m를 목표로 sparse representation·multimodal/temporal·self-supervised pretraining을 결합한다. 다른 센서·사전학습 조건이며 0점 대상 전용 성능은 여기서 확인하지 않았다 |
+| 깊이 불확실성·score 해석 | [GUPNet, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/html/Lu_Geometry_Uncertainty_Projection_Network_for_Monocular_3D_Object_Detection_ICCV_2021_paper.html), [Küppers 등의 calibration, CVPRW 2020](https://arxiv.org/abs/2004.13546) | 작은 영상 오차와 metric depth 오차는 별개이며 confidence를 보정된 확률로 가정하지 않는다. 다른 데이터/2D 보정 연구를 현재 3D 모델의 검증된 성과로 전용하지 않는다 |
+| 현재 구조의 출발점 | [MIT BEVFusion, ICRA 2023](https://arxiv.org/abs/2205.13542) | 영상에서 BEV를 만드는 경로가 있어 객체-local 0점 자체로 영상을 차단하지 않는다. 현재 custom DepthLSS의 camera-only 능력을 별도 검증했다는 뜻은 아니다 |
+
+특히 평가 조건을 대조했다. [nuScenes 공식 범위](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json)는
+차량 50m다. [공식 loader](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/common/loaders.py)는
+LiDAR+radar 합이 0인 GT를 제외한다. LiDAR 0점 전체를 제외한다고 쓰면 radar 때문에 부정확하다.
+또한 **Far3D 공개 평가 코드에서도 `num_interior_pts > 0`을 요구**한다.
+[dataset 연결](https://github.com/megvii-research/Far3D/blob/main/projects/mmdet3d_plugin/datasets/argoverse2_dataset.py)과
+[실제 GT mask](https://github.com/megvii-research/Far3D/blob/main/projects/mmdet3d_plugin/datasets/av2_utils.py)를 확인했다.
+공개 main/master를 확인한 것이지 논문 제출 당시 커밋·가중치 전체를 재현한 것은 아니다.
+따라서 외부 camera-only mAP를 우리 80~100m·0점 GT 보존 조건의 100% 근거로 사용할 수 없다.
+
+### 결론과 다음 후보
+
+**데이터만 늘리면 100%가 된다는 근거도, 0점이므로 개선 불가능하다는 근거도 없다.**
+E12에는 E24보다 위치가 나아진 저점수 후보가 있어 개선 여지는 보이지만 현재 실제 bag에서
+threshold만 낮추는 해법의 효율은 낮다. 보강 장수 확정보다 다음을 작은 대조로 구분하는 편이 낫다.
+
+1. 실제 RGB 가시성·2D 존재·GT 근처 query·score/위치 오차를 분리하고 독립 평가 장면을 남긴다.
+2. 현 센서의 보이는 0점/sparse 양성·다른 자산/도로/방향과 hard negative를 균형 있게 보강하고,
+   기존 근거리·후방을 보호한다. 객체-local dropout은 별도 학습 후보로 clean 조건과 대조한다.
+3. 그래도 점수/깊이가 개선되지 않으면 camera 별도 감독·유효 depth loss·image-derived query를
+   검토한다. 3D BBox 중심 depth를 전체 instance 표면의 정답으로 칠하지 않는다.
+4. temporal·센서 pitch·이미지 해상도 변경은 별도 비용/정합/근접 손실까지 검증할 후속 후보다.
+
+이는 계획이며 새 구현·학습·수집을 시작하지 않았다. 현재 score 0.4와 production E24는 유지한다.
+산출물 루트는 `artifacts/evaluation/bevfusion/e12_zero_lidar_threshold_261023_v1/`이며
+`native/THRESHOLD_ANALYSIS.json`, `ZERO_THRESHOLD_UPPER_BOUND_BOUND_V2.json`,
+`ZERO_THRESHOLD_BOUND_V2_RECEIPT.json`, `bags/KEY_TABLES.json`, `BAG_SWEEP_QUALIFIED.json`,
+`research/PRIMARY_RESEARCH_REVIEW.json`, `RECENT_PRIMARY_RESEARCH_SUPPLEMENT.json`에 보존했다.
+native baseline 39개 source/input SHA의 전후 불변·실제 읽은 10개 입력 연결·receipt/COMPLETE/
+512 ordered token 정합을 확인했고 threshold 0의 강화 바인딩 재검산은 기존 값과 exact다.
+CPU 합성/회귀 **16개(7+9)**를 main agent도 재실행해 통과했다. 실제 tracker·새 full-stack은
+실행하지 않았으므로 위 동시 출력·연속 관측을 tracker ID 오류나 planner 위험의 확정 수치로 쓰지 않는다.
+독립 QA에서도 입력·코드 SHA와 거리/지원량별 합계·구간 경계·매칭 계약을 재확인했다.
+문서 검사는 링크 592개·기존 원문 13개의 보존에 새 오류가 없었으나, 기존 세 문서의
+길이 예산 초과는 남아 있어 전체 통과로 보고하지 않는다.
+
+<a id="full30750-positive-lidar-evaluation-261023"></a>
+
+## 59. LiDAR 1점 이상 GT만 남긴 E12 전체 val·동일 bag 보조 평가 — 2026-10-23
+
+사용자는 다른 벤치마크처럼 LiDAR 1점 이상 GT만 평가하면 거리·class별 결과가 어떻게
+달라지는지 요청했다. **주 결과는 E12 전체 native val 4,614장**이다. 기존 원거리 선택
+512장과 bag 5,822프레임도 계산했지만 전체 val과 분리한다. 새 학습·운영 필터 변경이 아니다.
+
+### 고정 조건과 필터의 의미
+
+- E12 SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`와
+  기존 infos·JPEG·포인트를 고정했다. 로컬 5060 Ti의 고정 Docker에서 network 없이
+  FP32·AMP/TF32/compile/branch 병렬화 OFF로 4,614장을 새로 추론했다. intensity 1.0,
+  decoded 200개·원래 ROI·GT bottom 기준을 유지했다. 이는 runtime 속도 시험이 아니다.
+- `num_lidar_pts > 0`인 **GT만 matching 전에 남긴다. 예측과 기존 평가 가능 프레임은
+  전부 보존**한다. 제거한 GT 근처 예측을 GT 정보로 지우거나 ignore 처리하지 않는다.
+  따라서 어떤 구간은 분모가 줄어도 AP가 하락할 수 있다. GT가 없으면 AP는 `null`이다.
+- 지표는 기존 XY 중심 AP@0.5/1/2/4m 평균, min recall/precision 0.1이다. 거리별 AP는
+  기존 코드처럼 GT/예측을 각각 XY 반경의 `[lo, hi)`에 넣은 후 matching한다. 단일 threshold
+  적중률, XYZ IoU AP나 실제 tracker 결과가 아니다. native에는 ROS floor/top100/NMS를 추가하지 않는다.
+- nuScenes는 LiDAR+radar 합과 다른 범위를 사용하므로 이 보조 평가를 공식 벤치마크와
+  완전히 같은 계약이라고 부르지 않는다. 0점 GT를 포함한 원래 지표도 그대로 보존한다.
+
+### 전체 native val: E12
+
+| Class | 전체 GT→1점 이상 GT | 원래 AP→1점 이상 AP |
+|---|---:|---:|
+| Vehicle | 3,972→3,887 | 97.27→98.00% |
+| Pedestrian | 2,850→2,752 | 96.53→98.10% |
+| Obstacle | 3,685→3,267 | 88.41→92.15% |
+| 세 class mAP | 10,507→9,906 | **94.07→96.09%** |
+
+다음 표의 AP는 **원래 GT→1점 이상 GT**, N은 남은 GT 수다.
+
+| XY 반경 | Vehicle AP / N | Pedestrian AP / N | Obstacle AP / N |
+|---|---:|---:|---:|
+| 0~10m | 98.22→97.96 /671 | 98.38→98.60 /795 | 93.31→93.59 /1,074 |
+| 10~20m | 97.85→97.85 /946 | 98.27→98.35 /903 | 93.92→94.81 /1,211 |
+| 20~30m | 98.33→98.38 /804 | 95.73→97.65 /667 | 86.84→90.83 /785 |
+| 30~40m | 96.87→97.24 /483 | 91.71→96.63 /214 | 45.56→61.80 /105 |
+| 40~50m | 94.22→95.38 /350 | 88.21→93.23 /127 | 25.50→60.06 /30 |
+| 50~60m | 94.22→95.18 /158 | 88.94→94.38 /25 | 57.78→73.69 /39 |
+| 60~70m | 86.34→89.14 /141 | 62.22→69.83 /18 | 43.38→63.63 /13 |
+| 70~80m | 86.77→89.04 /120 | 30.09→71.57 /3 | 36.65→64.83 /9 |
+| 80~90m | 81.48→87.23 /134 | 0.71→평가 불가 /0 | 12.08→평가 불가 /0 |
+| 90~100m | 74.87→92.66 /80 | 16.10→평가 불가 /0 | 0.00→0.00 /1 |
+
+70~80m 보행자 3개, 90~100m 장애물 1개의 비율은 안정적인 성능 추정이 아니다.
+80~100m 보행자는 원래 4개가 모두 0점이어서 새 조건에서는 평가 대상 자체가 없다.
+장애물 30~50m는 259→135 GT, AP **40.40→60.78%**로 오르지만 여전히 취약하다.
+차량 80~100m는 268→214 GT, AP **79.27→89.48%**다.
+
+전방은 `x>=0`, 후방은 `x<0`이며 거리는 계속 XY 반경이다.
+
+| Vehicle 방향·거리 | GT 전체→1점 이상 | AP 전체→1점 이상 |
+|---|---:|---:|
+| 전방 80~90m | 77→61 | 65.06→75.17% |
+| 전방 90~100m | 57→20 | 44.56→82.72% |
+| 후방 80~90m | 73→73 | 95.33→95.33% |
+| 후방 90~100m | 61→60 | 96.00→97.04% |
+
+앞선 512장 subset의 E12 전방 80~90m 72.07→82.59%와 전체 val의
+65.06→75.17%는 다르다. 원거리 GT 수가 같아도 전체 val의 추가 프레임에서 나온
+미대응 예측을 보존하므로 AP가 달라질 수 있다. subset 수치를 전체 val 결과로 대체하지 않는다.
+
+### 동일 bag 보조 결과와 남는 한계
+
+같은 14장면·5,822평가 프레임, 원래 floor 0.1/top100·class-aware rotated NMS 0.5를
+유지했다. AP에는 운영 class threshold를 추가하지 않았다. GT는 catalog/interpolated이며
+동일 객체의 반복 관측을 독립 객체 수로 해석하지 않는다.
+
+| Bag pooled class AP | E24 전체→1점 이상 | E12 전체→1점 이상 |
+|---|---:|---:|
+| Vehicle | 73.94→81.95% | 76.05→83.72% |
+| Pedestrian | 87.90→88.91% | 90.90→90.83% |
+| Obstacle | 37.24→53.80% | 42.79→57.30% |
+
+E12 bag 전방 Vehicle AP는 80~90m **0.85→8.42%**, 90~100m **4.22→19.32%**다.
+1점 이상만 남겨도 실제 연속 bag의 원거리 문제는 사라지지 않는다. native AP 상승을
+실주행 정확도·0점 검출 회복으로 오해하지 않는다. 예측을 그대로 둬 removed GT의 예측이
+FP가 될 수 있으므로 일부 보행자 구간의 AP 하락도 학습/가중치 변경에 의한 악화가 아니다.
+
+산출물은 `artifacts/evaluation/bevfusion/e12_positive_lidar_eval_261023_v1/`의
+`nativefull_RESULT.json`, `native512_RESULT.json`, `bags_RESULT.json`이다. 새 전체 추론의
+receipt·COMPLETE·4,614 ordered token·원형 GT·센서 23,070경로·고정 runtime/source SHA를
+전후 확인했다. `qualify_positive_support.py`는 native 전체와 subset 5,638프레임을 기존
+`_extract_samples(..., use_valid_flag=False)` 결과와 원소별 대조하고, 기존 8개 model/bag
+묶음의 원래 class AP·GT·예측 SHA를 그대로 재현했다. 6개 추가 합성 테스트가 통과했고
+`QUALIFIED_1792734703364943933.json`에 세 결과의 입력 불변·예측 수 보존·GT 합계를 검증했다.
+production·threshold·센서·tracker·원래 W&B 이력은 변경하지 않았다.
+문서 검사는 링크 595개·원문 보존 13개에 새 오류가 없었다. 기존 README/CURRENT와 데이터
+CURRENT의 길이 예산 초과 3건은 그대로 남았으며, 문서 회귀 8개 중 해당 예산 검사 1개는
+실패하고 나머지 7개가 통과했다. 문서 검사 전체 통과로 보고하지 않는다.
+
+<a id="e12-partial-trt-cuda-experiment-261023"></a>
+
+## 60. E12 부분 TensorRT·CUDA 비용 실험과 저장 공간 정리 — 2026-10-23
+
+사용자는 재학습 없이 부분 TensorRT/CUDA 후보의 구현·실험을 승인했고, 작은 수치 차이만으로
+기각하지 말고 실제 정확도·안정성 손실과 속도 이득을 함께 판단하도록 요청했다. 따라서 아래의
+엄격 tensor/box gate는 **진단 기록이지 production 채택의 절대 조건이 아니다.** 과거 실패를
+통과로 바꾸거나 허용치를 사후 완화하지 않으며 실제 AP·전달 검출·연속 tracking을 구분한다.
+
+### 고정 조건과 구현 범위
+
+- E12 SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`,
+  Q90·512×1056·4 camera·5cm/20cm·depth 1–100m/0.25m·nearest를 유지했다.
+  AMP·camera 병렬화 ON, compile OFF다. 새 학습·센서/GT/ROI/threshold 변경은 없다.
+- 실제 RTX 4090 48GB의 별도 venv에서 Torch 2.7.1+cu128을 재사용하고 ONNX 1.16.0,
+  TensorRT-cu12/bindings/libs 10.13.3.9만 `--no-deps`로 설치했다. 기존 학습 환경은 덮어쓰지 않았다.
+  CUDA 기본 stream으로 우회하거나 CPU로 feature를 왕복하지 않고 현재 PyTorch stream의
+  CUDA tensor를 engine에 직접 연결한다. shape·dtype·engine SHA·GPU·TRT 버전·camera
+  parameter hash를 확인하며 명시적으로 원래 backbone/neck으로 복귀할 수 있다.
+- camera backbone+neck만 고정 shape ONNX/FP16 engine으로 만들었다. FP32 입력,
+  FP16 neck 출력 경계를 맞추고 normalization/softmax는 FP32 precision constraint를 적용했다.
+  LiDAR sparse·depthnet/view transform·fusion·head는 기존 PyTorch다. 다른 GPU에서 engine을
+  그대로 쓸 수 있다고 가정하지 않으며 5060 Ti와 4090의 engine은 공유하지 않는다.
+- 구현은 `docker/bevfusion/app/camera_tensorrt.py`와 BEVFusion `scripts/`의 export/qualify/
+  profile/native-export CLI다. 운영 server/launch 기본값에 연결하지 않았다. 별도 Dockerfile은
+  고정 학습 이미지의 **추론 실험 overlay recipe**이며 실제 이미지 build/push 성공을 뜻하지 않는다.
+  data·weights·engine·인증정보를 이미지에 넣지 않는다.
+
+### 카메라 부분 TRT: 64장·192회 서비스 비용과 검출 차이
+
+6환경에서 SHA 순서로 고른 48장과 별도 원거리 양성 16장이다. 출력 차이를 보고 표본을 고르지
+않았지만 전체 val의 대표 AP 표본도 아니다. 같은 입력을 eager→TRT→eager 복귀 순서로 재생했다.
+비용은 CPU JPEG decode/resize·GPU 전달·모델·decoded CPU 반환을 포함하며 파일 읽기·TCP·ROS·
+tracker/planner는 제외한다. 10ms 감소를 센서 header→planner 지연 10ms 감소로 바로 단정하지 않는다.
+
+| 실행 | 서비스 평균 / p50 / p95 / p99 | Camera CUDA event 평균 |
+|---|---:|---:|
+| AMP eager | 74.546 / 74.511 / 76.297 / 76.815ms | 15.783ms |
+| Camera FP16 TRT | 64.589 / 64.511 / 66.360 / 67.266ms | 5.399ms |
+| Eager 복귀 | 75.898 / 74.509 / 75.825ms / 별도 원본 참조 | 별도 원본 참조 |
+
+평균 약 **9.96ms·13.4% 감소**다. 복귀 실행에 330.233ms의 단발 예외가 있어 평균이 올라갔으며
+이를 지우거나 75.9ms를 유일한 정상 baseline으로 선택하지 않았다. camera event는 backbone
+진입부터 neck 뒤 view-transform 진입까지로, kernel self-time만은 아니다.
+
+기존 floor 0.1→top100→class-aware rotated NMS 0.5→V/P/O 0.4/0.1/0.1을 CPU에서 동일하게
+적용한 최종 전달 130박스(V54/P32/O44)는 전부 대응했다. class별 XY 차이 평균은
+0.150/0.087/0.087mm, 최대는 0.411/0.218/0.343mm다. yaw 최대는
+0.000519/0.019531/0.009766rad, score 최대 차이는 0.000595/0.001149/0.001632다.
+이 작은 표본의 최종 전달·AP용 후보 gate는 통과했고 eager 복귀는 exact였다.
+
+반면 decoded 최대 200개 전체에는 낮은 score query의 class/위치 차이가 있어 raw strict gate는
+실패했다. 이를 실제 검출 성능 악화나 무해함으로 곧바로 결론내리지 않는다. 첫 FP32 출력 경계
+engine의 12장 시험도 보행자 yaw 최대 0.021484rad로 0.02 gate를 넘었으며 기록을 보존했다.
+현재 후보는 학습 AMP의 neck FP16 경계를 맞춘 별도 v4다. 48GB 카드에서 20GiB allocator cap을
+사용했지만 실제 24GB ROS 풀스택 인증은 아니다. PyTorch allocated만 보면 TRT가 작아져도
+device free는 약 332MiB 줄어 engine의 별도 CUDA 메모리가 있다.
+
+### CUDA pooling: 실제 이득은 kernel보다 layout 복사 감소
+
+12장에서 baseline→layout 한 번 복사→pack4+layout→baseline 복귀를 비교했다.
+모든 raw decoded 출력은 exact였다. 서비스 p50은 73.788→73.394→72.696→73.897ms이며
+기준 실행의 단발 284.227ms 때문에 mean 79.689→72.692ms를 지속 이득으로 쓰지 않는다.
+계측 구간은 중첩·병렬 실행이 있어 개별 stage 시간을 더해 전체 시간으로 계산하지 않는다.
+
+실제 AMP view-transform activation은 depth/feature 모두 **FP32**였다. 이를 FP16으로 바꾸는
+것은 이미 half인 값을 읽는 최적화가 아니라 새 양자화이므로 이번 후보에 넣지 않았다.
+저장 activation은 5,889,322 rays·223,131 intervals·80 channels이며 output은 약 108MB다.
+같은 activation 50회 CUDA event 측정은 다음과 같다.
+
+| 분리 측정 | 평균 |
+|---|---:|
+| 기존 kernel+zeroing | 0.599ms |
+| 기존 layout 복사만 | 1.135ms |
+| 한 번 복사 layout만 | 0.756ms |
+| 기존 kernel+기존 layout | 1.689ms |
+| 기존 kernel+한 번 복사 layout | 1.295ms |
+| Pack4 kernel+한 번 복사 layout | 1.298ms |
+
+새 pack4는 FP32 scalar 누적·ray 순서·`--fmad=false`·현재 stream을 보존하고 27,095,040개
+activation 원소가 exact였지만 **기존 kernel보다 추가 속도 이득은 확인되지 않았다.** 따라서
+새 kernel을 빠른 후보로 권하지 않는다. layout 후보는 Z-major/C 순서와 XY transpose를
+보존하는 수학적 동일 변환이고 독립 CPU 18개 shape 조합에서도 exact였다. 이득은 국소적으로
+약 0.39ms이며 전체 10ms 이득과 중복 합산하지 않는다. calibration signature host 구간은
+평균 약 0.342ms였다. cache 무효화 보호를 제거해 큰 이득을 얻었다고 보고하지 않는다.
+
+### 전체 native val 4,614장: 실제 AP 손실은 매우 작음
+
+같은 E12·AMP·parallel·TF32 ON·cuDNN benchmark ON에서 두 backend를 순차 실행했다.
+원래 Runner validation pipeline·GT bottom 표현·native intensity 0..1·decoded 최대 200개를
+유지했다. ROS floor/top100/NMS를 넣지 않았고 GT 0점 601개, 빈 GT 232프레임도 남겼다.
+원격에서 이미 검증된 센서 경로만 재연결한 infos SHA는
+`073feab03770853fd2b4c56b392bf65f2fffa07f83b6b7e171670a8e2f9dcc40`,
+두 export의 GT identity는 모두 `7f6b5b9ff7c3c981a4261bba035eae388c57a9827cefefa5685e02c084a1bbf2`다.
+고유 sensor 23,070파일을 시작/끝에 SHA 확인하고 실행 source·weights·engine도 검산했다.
+
+| Class | GT | AMP eager AP | Camera TRT AP | 후보−기준 |
+|---|---:|---:|---:|---:|
+| Vehicle | 3,972 | 97.2743% | 97.2726% | −0.0017%p |
+| Pedestrian | 2,850 | 96.5265% | 96.5252% | −0.0014%p |
+| Obstacle | 3,685 | 88.3626% | 88.4004% | +0.0378%p |
+| 세 class mAP | 10,507 | **94.0545%** | **94.0661%** | **+0.0116%p** |
+
+지표는 기존 XY center AP@0.5/1/2/4m 평균·min recall/precision 0.1이다. 작은 상승을
+모델 능력 향상으로 해석하지 않는다. 전체 mAP만으로 일부 구간의 손실을 가리지도 않는다.
+20~30m Pedestrian/Obstacle은 각각 95.7293→95.7247%, 86.7782→86.7714%다.
+10m class 구간의 가장 큰 하락은 50~60m Obstacle **−0.0764%p/49 GT**였고,
+40~50m Obstacle은 −0.0585%p/71 GT다. 근거리 장애물·보행자의 큰 퇴보는 이 val에서
+확인되지 않았다. 80m 이상 보행자/장애물의 작은 분모는 원거리 능력 보존의 강한 증거가 아니다.
+
+| 원거리 Vehicle | GT | AMP eager→TRT AP |
+|---|---:|---:|
+| 전방 80~90m | 77 | 64.8485→64.8517% |
+| 전방 90~100m | 57 | 44.5510→44.5469% |
+| 후방 80~90m | 73 | 95.3701→95.3701% |
+| 후방 90~100m | 61 | 95.9852→95.9852% |
+
+같은 전체 export의 Runner `test_step`+decoded CPU 반환 비용은 첫 10장을 제외한
+각 4,604회에서 평균 **55.096→45.168ms**, p95 **56.166→46.962ms**였다.
+이는 파일 decode/loader를 제외하므로 위 74.55→64.59ms 서비스 비용과 범위를 섞지 않는다.
+양쪽에 574/580ms 최대 예외가 있었고 삭제하지 않았다. 실제 ROS/LAN 입력 age는 측정하지 않았다.
+
+**판단:** raw 저점수 query의 완전 동일성을 못 맞췄다는 이유로 후보를 기각할 근거는 약하다.
+이 전체 val의 class/거리 AP 변화는 약 10ms·13.4% 서비스 이득에 비해 매우 작아 부분 TRT는
+후속 배포 검증에 올릴 합리적인 후보다. 다만 이 결과가 continuous bag의 threshold 경계·ID
+교체·coasting이나 24GB 동시 풀스택까지 보증하지는 않는다. 다음은 같은 learned E12의 연속
+bag·원래 threshold에서 검출/추적 차이를 확인하고 팀장님 4090에서 engine을 빌드해 시험하는
+순서다. production E24·운영 TRT OFF는 유지하며 자동 승격하지 않았다.
+
+`FULL_NATIVE_AP_PAIR_v2.json` SHA는
+`360fcfcde69fc313926c4e75e37f634643c78675f4d69be2a601895f2c411600`이다.
+완료 raw export 두 개는 Vast `/workspace/base5_trt_probe_261023_v1/full_native_*_v2/`에 보존했다.
+큰 raw 파일의 느린 SSH 회수는 중단하고 **동일 소스 CPU scorer를 원격 실행해** 먼저 결과를
+회수했다. 로컬에 일부만 받은 폴더를 완료 export로 사용하지 않는다. scorer는 COMPLETE/
+receipt/payload SHA·ordered GT·class/precision/config/infos 동일성을 확인하고 기존 공개
+evaluator의 ROI/거리 연산과 대조한다. production inference나 GPU 작업을 다시 실행하지 않았다.
+
+CPU 회귀는 카메라 adapter 32개·AP scorer 5개·기존 packaging 4개 **41개 통과**다.
+고정 Docker의 adapter/parallel/기존 inference 회귀도 40개 통과·CUDA 전용 4개 skip였다.
+AP scorer는 실제 infos에 넣은 합성 정답 예측의 33개 class/group 결과가 public canonical
+evaluator와 정확히 같았다. 이는 scorer QA이지 실제 모델 AP가 아니다. 문서 링크·과거 원문은
+보존했고 기존 세 문서의 길이 예산 초과는 남아 있어 문서 검사 전체 통과라고 보고하지 않는다.
+
+### 저장 공간 정리와 재현 자료
+
+사용자가 승인한 RGB PNG→Q90 JPEG 보존 정책에 따라 20,000개 원본의 대응 JPEG SHA·decode·
+크기를 확인했다. 정확히 2개 hardlink가 확인된 17,012 inode의 RGB PNG 34,024경로와,
+원래 native GT/pointcloud/TXT 및 infos가 보존된 옛 PNG tar.zst를 삭제했다. 로컬 회수량은
+약 **32.26GiB**, 직후 여유는 약 **43GiB**다. 추가 hardlink가 있는 2,988개는 보존했다.
+JPEG는 승인한 lossy 입력이고 삭제된 PNG의 bitwise 원상복구를 보장하는 백업은 아니다.
+Instance/semantic/depth annotation·JPEG·pointcloud·weights·rosbag은 삭제하지 않았다.
+
+Vast는 SHA가 확인된 완료 archive가 따로 있는 3,020,423,168바이트 partial만 삭제했다.
+대체 archive·복원 데이터·학습 원본은 보존했다. 약 2.81GiB 회수했고 TRT 설치 후 저장 공간은
+실제 시점에 따라 달라진다. 빌린 PC는 이번 작업에서 접속·정리하지 않았다.
+
+근거 루트는 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+`qualify_fp16_boundary_64_v1/report.json`, `profile_pool_12_v1/report.json`,
+`pool_isolated_v1.json`, cleanup receipt와 삭제 경로 목록을 보존한다. 초기 config lazy-import·
+relative third-party 경로 실패와 native infos 전송 완료 전 시작 실패도 덮어쓰지 않았다.
+전체 native val A/B는 원래 GT·0점·빈 프레임을 모두 보존하고 같은 AMP/TF32/병렬화로
+비교한다. 과거 59절의 FP32/TF32 OFF 94.07%와 새 AMP 결과의 차이를 TRT 효과로 쓰지 않는다.
+
+<a id="continuous-trt-competition-startup-261023"></a>
+
+## 61. 연속 bag의 부분 TRT·head 비용과 실대회 시작 거부 경로 감사 — 2026-10-23
+
+60절 이후의 추가 결과다. 사용자는 작은 수치 차이와 속도 이득을 함께 판단하고, 선택 가속기의
+자격 검사 때문에 현장에서 detector 전체가 시작하지 못하는 위험을 우선 검토하도록 요청했다.
+**Production은 E24이며 E12로 자동 승격하지 않았다.** 학습·GT·센서·threshold·후단 정책은 바꾸지 않았다.
+빌린 PC·MORAI·주행 제어는 사용하지 않았다. 다음 결과는 대회 4090/24GB 풀스택 인증과 다르다.
+
+### 연속 원본 ROS 입력 480장과 실제 EKF 코어
+
+학습된 동일 E12·4090/48GB·AMP/TF32·parallel ON·compile OFF에서 eager→camera TRT→eager
+복원을 비교했다. O02 정적 장애물·P01 보행자·H03 고주로에서 각 160개 **연속 원본 입력**을
+모델 출력이나 GT 정답 여부로 고르지 않고 선택했다. 구간 길이는 각각 14.20/13.57/13.67초다.
+원본 JPEG는 재압축하지 않았으며 XYZI 0–255→한 번 ÷255·calibration·시간 순서를 보존했다.
+조건별 처음 프레임을 포함하고 빈 출력도 삭제하지 않았다. sparse 원형/첫 사용 비용도 남겼다.
+
+| 480장 서비스 비용 | 기존 eager | Camera backbone+neck TRT |
+|---|---:|---:|
+| 평균 | 75.25ms | 65.68ms |
+| p95 | 75.68ms | 65.85ms |
+| 실제 전달 박스 | 903개 | 903개 |
+
+원래 V/P/O 0.40/0.10/0.10·상위 100·class-aware rotated NMS 0.5 경계의 전달 박스는
+Vehicle 64 / Pedestrian 167 / Obstacle 672개이며 추가·누락 없이 모두 대응했다.
+대응 검출 XY 차이의 최대는 약 1.13mm다. 원형 복원 후 raw 예측은 480장 모두 정확히 같았다.
+다만 저점수 raw query의 완전 동일성은 통과하지 않았으며 이것만으로 실용 후보를 기각하지 않았다.
+
+같은 전달 결과를 수정하지 않은 C++ EKF 코어에 조건·장면별 새 프로세스로 재생했다.
+현재 pipeline의 CTRV·association 5m·XY noise 0.4m·coast 0.5/1초·보행자 Gaussian 순위·
+기존 duplicate-birth guard를 명시했다. 임의 detector velocity fusion은 넣지 않았다.
+
+| 장면 | 대응된 confirmed 상태 XY 차이 p95 / 최대 | confirmed 집합 차이 | 교차 실행 ID 대응 교체 |
+|---|---:|---:|---:|
+| O02 | 0.93 / 6.17cm | 0 | 0 |
+| P01 | 0.045 / 0.133cm | 0 | 0 |
+| H03 | 0.456 / 0.718cm | 0 | 0 |
+
+위치는 작아도 모든 형상 차이가 작았다고 요약하지 않는다. P01의 약 19m 보행자 1관측에서
+score 약 0.912의 검출 yaw가 약 64° 달라져 박스 모서리 최대 약 29cm·BEV IoU 0.632의
+예외가 있었다. 이 관측의 실제 코어는 같은 ID를 유지했고 차이가 yaw 3.164°·모서리 2.083cm·
+중심 0.492mm로 작아졌다. 보행자 코어 전체 yaw p95/최대는 2.024/3.164°다.
+O02에서 근접 겹침 진단 33관측·coasting 367관측은 양쪽이 같았다. 기존 중복 문제를 TRT가
+해결했다고도, 이 수만으로 모든 박스를 오검출이라고도 해석하지 않는다.
+
+실제 ROS 노드의 TF·yaw canonicalizer·30Hz 출력·UNKNOWN stationary policy·Map-CV·planner는
+이 코어 시험에서 실행하지 않았다. 준비된 Ego yaw에는 기존 −1.347° 보정이 있어 재적용하지 않았다.
+ID 대응 차이 0은 GT IDF1이나 대회 주행 안전의 인증이 아니다. 제한된 세 개발 장면의 결과다.
+
+### 추가 head 후보: 불필요한 attention weight와 좌표 복사
+
+실제 E12의 head는 Q1이 아니라 `MoraiRectangularTransFusionHead`가 상속한 TransFusionHead다.
+같은 입력에서 뜬 실제 activation을 사용해 제안 선택 full argsort→topk, MMCV attention의
+미사용 weight 반환 제거(`need_weights=False`/SDPA), 고정 BEV 위치의 device 복사 cache를 나눠 비교했다.
+레이어·가중치·학습 코드를 바꾸거나 전역 torch 함수를 교체하지 않는 eval 인스턴스 hook이다.
+
+2개 activation·조건별 20회 국소 head 비용은 원형 **7.80ms**, topk **7.79ms**, SDPA **5.08ms**,
+topk+SDPA **5.10ms**, 둘+위치 cache **4.25ms**, 복원 **7.89ms**였다.
+**topk는 이득이 없어 채택하지 않는다.** 작동한다는 이유로 모든 부분을 TRT로 이식하지 않는다.
+국소 7.8→4.3ms를 곧바로 전체 서비스 이득이라고 계산하지 않았다.
+
+이어 같은 480장을 camera TRT 고정→**SDPA+위치 cache만** ON→복원으로 추가 비교했다.
+topk는 OFF다. 평균 서비스는 **65.97→60.34→65.53ms**, p95는 **66.01→60.88→65.46ms**,
+모델 구간 평균은 **44.31→39.72→44.63ms**였다. 최대 서비스 332/340/379ms 예외도 보존했다.
+반복 원형끼리의 호스트 변동을 인정하며 평균뿐 아니라 중앙값·p95를 함께 본다.
+전달 903박스는 추가·누락 없이 대응했고 최대 XY 차이는 0.222mm다. 보행자 1관측에서 yaw
+최대 약 6.53° 예외가 남았다. 작은 중심 오차로 yaw도 동일하다고 결론내리지 않았다.
+
+이 추가 비교의 새 실제 EKF 코어에서도 confirmed 집합·교차 실행 ID 대응 교체는 0이었다.
+XY 차이 p95/최대는 O02 **0.728/2.848cm**, P01 **0.010/0.019cm**, H03 **0.226/0.356cm**다.
+O02의 최대 모서리 차이는 3.399cm·속도 벡터 차이는 0.097m/s였으며 원형 복원은 정확히 같았다.
+위와 같은 ROS 노드/후단 제한이 그대로 있다. **이 head 후보는 4,614장 전체 native AP를 아직
+비교하지 않았으므로 기본 실행에 연결하지 않았다.** 부분 camera TRT의 앞선 전체 AP 통과를
+새 SDPA 후보의 AP 인증으로 전용하지 않는다. 성능과 비용상 유망한 후속 후보다.
+
+### CPU 준비: CPU 사용량을 두 배로 늘리는 작은 이득은 선택하지 않음
+
+6환경×4개 원본 native 입력을 순·역방향으로 비교했다. 실제 픽셀 51,904,512개·pointcloud·
+투영 값은 해당 표본에서 같았다. 고정 Docker CPU에서 원형 camera worker 4/OpenCV 1의
+프레임 준비 평균 8.398ms·CPU 15.165ms/frame에 비해 RGB 변환을 crop 뒤로 옮기기는 8.427ms로
+이득이 없었다. OpenCV 12스레드는 7.913ms로 약 0.486ms 빨랐지만 CPU 32.439ms/frame으로
+약 2.14배를 사용했다. ROS 풀스택 경쟁을 고려해 둘 다 기본 채택하지 않았다. 현재 4/1을 유지한다.
+이 CPU 표본은 앞의 GPU 서비스 전처리 시간을 대체하지 않으며 모든 이미지의 bitwise 동일성을 보증하지 않는다.
+
+### 실제로 시작을 막을 수 있었던 경로와 변경
+
+연구용 비교의 수치 gate와 실제 production 시작 조건을 분리해 코드 전반을 확인했다.
+raw query 완전 동일·W&B·Drive·학습 계약 파일·실험 AP 보고서는 기본 production 시작의 필수 입력이 아니다.
+설정하지 않은 TensorRT/compile/head 연구 후보도 기본 eager 실행을 거부하지 않는다.
+
+| 발견·조건 | 현재 처리 |
+|---|---|
+| 선택 engine의 가중치·GPU·TRT·binding 불일치가 전체 시작 실패로 전파 | engine 미지정 기본 `off`; 지정 시 기본 `prefer`, 첫 enqueue 전의 분류된 가속기 준비 실패만 같은 모델 eager로 한 번 복귀 |
+| 가속기 강제 시험 | 명시적 `require`만 계속 엄격 거부. 미준비 현장 기본값으로 쓰지 않음 |
+| 선택 가속기를 완전히 배제하고 시작 | `bevfusion --safe --model e24`: 같은 모델·threshold·센서, 원래 AMP/parallel·nearest, TRT/pool OFF, baseline 이미지 |
+| 과거 `INTRINSIC_SOURCE` 환경변수 때문에 server ready 이후 모든 bridge 요청 거절 가능 | production 실행기가 bridge와 동일한 `horizontal_fov`를 명시하고 health에서도 camera order와 함께 확인 |
+| Docker 자동 재시작으로 같은 서버가 이미 실행 중이거나 warmup 중 | 제한된 준비 대기 후 정확히 같은 eager·선택 계약일 때 재사용. 새 세션은 해당 컨테이너를 stop하지 않음 |
+| 이전 ZIP 참고 코드와 현재 checkout 바이트 차이 때문에 weights 설치도 거부 | 설치는 동결 ZIP/참고 파일·weights SHA·경로 안전성을 검증. 과거 snapshot 정확 비교는 별도 `audit-runtime-snapshot`으로 분리 |
+| 정상 이미지·가중치가 이미 설치됐는데 cloud 연결 요구 | 기본 추론과 읽기 전용 preflight에 인터넷·W&B·Drive·registry 로그인을 요구하지 않음 |
+| 매 컨테이너 시작 시 JIT cache 소실 | Compose에 torch extension cache volume 추가. GPU/소스가 달라지면 재컴파일은 여전히 필요 |
+
+가속기 복귀 시 checkpoint/config·class·입력·AMP·병렬화·threshold를 바꾸지 않는다. E12 engine을
+E24에 쓸 수 없다는 이유로 E12 가중치를 자동 선택하지 않는다. 실패한 생성자의 CUDA 참조는
+traceback 밖에서 정리하고 CUDA health 확인 후 한 번만 eager를 생성한다. 직접 adapter API는 엄격하다.
+선택 engine의 source hash는 이력이며 모든 Python 구현의 의미 호환성을 자동 인증하지 않는다.
+따라서 engine은 실제 검증한 소스 snapshot/receipt와 관리하고 camera 구현 변경 시 재검증한다.
+
+**유지하는 필수 거부:** weights 누락·SHA/클래스/shape 오류, 잘못된 sensor/config·camera 순서·
+강도·crop 계약, CUDA/driver 자체 실패, 실제 다른 canonical detector publisher다. 이를 무시하고
+준비 완료로 보고하면 다른 모델·좌표·입력을 정상 detector처럼 사용하게 될 수 있다.
+잘못된 필수 입력을 임의 교체하거나 다른 사람이 켠 노드/컨테이너를 자동 kill하지 않는다.
+
+**기동과 프레임 누락은 별도다.** 원래 bridge의 카메라 누락·LiDAR와 50ms 이상 차이·잘못된 JPEG/
+pointcloud는 해당 프레임을 사용하지 않는다. single-frame production의 deskew·temporal·query
+memory는 OFF이므로 정상 실행이 localization pose coverage를 새로 요구하지 않는다.
+센서·TF/LAN 입력과 실제 토픽 발행의 확인은 여전히 필요하다. 동기화 기준을 이번에 완화하지 않았다.
+
+Validator 경로도 별도로 읽었다. Base5 E24의 새 계약 생성→검증→실행 명령 구성은 현재 소스로
+통과했고 checkpoint 확인·config graph `11740c4549…`·참조 325파일을 확인했다. 명령은 구성만
+했으며 GUI/주행을 실행하지 않았다. 현재 Base5 trial은 engine 인자를 전달하지 않아 eager다.
+**이전 실행에 대한 resume의 source/config 변경 차단은 유지한다.** 새 코드로는 새 실험 계약을
+생성해야 하며, 이 재현성 보호를 대회 production의 매번 과거 ZIP 코드 대조와 혼동하지 않는다.
+`--safe`는 production shell 옵션이지 validator GUI에 새 기능을 배포한 것이 아니다.
+
+CUDA enqueue 이후 실패·illegal memory access·device-side assert는 runtime hot fallback으로
+덮지 않는다. readiness를 계속 true로 둔 채 예외만 반환하던 서버 catch도 수정해 해당 프로세스를
+끝내고 새 프로세스 복구를 요구한다. 주행을 안전하게 중단한 뒤 담당 세션에서 `--safe`로 복구한다.
+하드웨어/driver 고장이나 물리 비상정지를 이 코드로 해결했다고 보고하지 않는다.
+
+### 실제 오프라인 GPU 기동과 회귀 시험
+
+로컬 RTX 5060Ti/16GB·기존 팀 image `sha256:13488ccac149f41b070e618db5db91bfa3bf2d3d1a6de3dac80aa2e2c948ec46`
+에서 `--network none`·source/weights/sensor read-only·ROS/TCP listen 없이 시험했다.
+E24 SHA `84c7a849…`·nearest config SHA `b963b785…`·실제 LAN sensor를 사용했다.
+
+1. E12 engine metadata를 E24에 제공한 `require`는 의도대로 거부했다.
+2. 같은 잘못된 engine을 `prefer`로 주면 **같은 E24 eager 모델로 복귀하고 GPU warmup에 성공**했다.
+   cold 약 78.87초였으며 weights/config 미변경을 identity에서 확인했다.
+3. `off`는 잘못된 engine을 무시하고 같은 E24 warmup에 성공했다. 1.30초는 같은 프로세스의
+   후속 cache 조건이므로 cold 기동 시간이라고 보고하지 않는다.
+4. checkpoint·config 누락은 `prefer`에서도 각각 정상 거부했다. 필수 오류를 가속기 fallback으로 숨기지 않았다.
+5. 새로운 competition preflight의 실제 GPU smoke도 통과했다. 마지막 시험은 **실제 InferenceServer
+   생성→warmup→local socketpair PING/PONG→production health identity→close**를 약 81.81초에
+   완료했다. TCP listen·실제 ROS publisher·주행은 시작하지 않았다.
+
+정적 preflight는 **blocker 0 / warning 2**였다. 두 warning은 실제 ROS/LAN 상태와 대회용 GPU/
+풀스택 미인증이다. 별도 자격증명이나 cloud 조회 없이 준비된 모델을 확인했다.
+기존 가중치의 `base5_production_bundle.py install --check-only`도 다운로드·덮어쓰기 없이 통과했다.
+ZIP 재생성·Drive 업로드·팀 PC 배포는 하지 않았다. TRT image recipe도 여전히 미빌드·미푸시다.
+
+최초 고정 Docker CPU 회귀는 180개 통과했고, 최종 확장은 **Docker CPU 212 passed / CUDA 전용
+4 skipped·20 subtests passed**, 호스트 packaging 4개·명시 sensor 인자를 준 단독 calibration 1개
+통과로 총 **217개**다. 단독 CLI용 sensor 시험을 일반 pytest로 호출하고 컨테이너에서 호스트
+Git 소유권을 대조한 첫 전체 검사에는 3개 실패가 있었으며, 올바른 실행 위치·명시 인자로
+구분해 재검증했다. 시험을 통과시키려고 센서 검사나 Git 보안 기본값을 완화하지 않았다.
+기존 서버 cold warmup 후 재사용과 영구 불일치의 제한 대기·종료 소유권도 모사했다. 실제 GPU
+시험 결과와 CPU 모사 결과를 구분한다. 문서 검사에서 기존 CURRENT/README/데이터 CURRENT의 세 길이 예산
+초과는 남아 있으므로 전체 문서 검사 통과라고 하지 않는다.
+
+### 근거 파일과 다음 확인
+
+근거 루트는 앞 절과 같은 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+
+- 원래 연속 비교: `continuous_ros_v1/results/summary.json`, `tracking_v4/report.json`.
+  실제 코어 보고서 SHA `78ce57e68d739a5111ca0e52f4174875b3794dc15ec07dfa6bbbf670cd2fabe7`.
+- Head 국소/480장: `continuous_ros_v1/head_primitives_v1/`, `head_results_v1/`, `head_tracking_v2/`.
+  전체 비교 report SHA `42268fa728bd9aa799c0cc871058d144b46f319cbb9e65d467a252cb9b8f56c4`,
+  코어 SHA `8ece9c643db1fac6ed868b836ec0ce437ec2ede3af2a39e8f5c106cf385b232d`.
+  초기 `head_tracking_v1`의 sensor 경로 오류는 실제 코어 실행 전에 실패했고 v2로 구분했다.
+- CPU 입력: `cpu_jpeg_prepare_24_v1/RESULT.json`.
+- 기동: `E24_OFFLINE_STARTUP_v1.json`, `E24_STARTUP_POLICIES_GPU_v2.json`,
+  `E24_COMPETITION_SERVER_PREFLIGHT_GPU_v2.json`.
+  마지막 receipt SHA `c7d733913dad1be21cfdfc34c551ebf9ae18fb83853e309758c88a5d33114628`.
+
+다음 필수 단계는 최신 코드를 전달한 **팀장님 대회용 4090 PC에서** 오프라인 preflight→실제
+eager 기동→원래 LAN 센서의 연속 발행→YOLO/전체 ROS 동시 부하를 확인하는 것이다. 가속기는
+그 다음 별도 선택한다. E12 production 승격과 4090용 engine 생성·배포는 자동 수행하지 않았다.
+Orin 25 FPS의 입력·정밀도·timer 차이와 Swin 유지 근거는
+[배포 추가 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023)를 따른다.
+
+<a id="head-native-ap-runtime-261023"></a>
+
+## 62. Head SDPA·고정 좌표 cache의 전체 native AP와 실제 서버 연결 — 2026-10-23
+
+사용자의 다음 진행 요청으로 61절에서 남긴 전체 AP 확인과 실제 실행 옵션 연결을 진행했다.
+**E12·camera TRT 고정에서 head SDPA+BEV 위치 cache의 AP 변화는 매우 작았고, 선택 가능한
+runtime 후보로 연결했다.** 재학습·모델 구조 축소·E12 production 승격은 하지 않았다.
+E24·TRT/compile/head 기본 OFF는 유지한다. 61절의 당시 ‘head 전체 AP 미검증’은 이 절로 후속했다.
+
+### 새 paired export: 원형 camera TRT 대 추가 head 최적화
+
+과거 camera TRT 예측에 새 label만 붙이지 않고 양쪽을 같은 새 exporter로 다시 실행했다.
+Vast의 분리 source `source_head_native_v1`을 동결하고, 두 export 사이 source·weights·센서 원본을
+변경하지 않았다. 별도 `score_source_head_native_v1`에서 AP를 계산해 실험 source를 보존했다.
+
+- E12 best SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`.
+  nearest config SHA `b963b78565699b62e3570081c75330db7cf1e27dba5d49fbcb2b71d27545d978`.
+- infos 4,614장 SHA `073feab03770853fd2b4c56b392bf65f2fffa07f83b6b7e171670a8e2f9dcc40`.
+  공통 GT identity `7f6b5b9ff7c3c981a4261bba035eae388c57a9827cefefa5685e02c084a1bbf2`.
+- 같은 camera engine SHA `3ef14dd0ebfe9f7f6e5c35d2fe8b8f0990fa8efa47cd09f819054876ede93a0f`.
+  engine metadata 전체·binary SHA, GPU/Torch·AMP/TF32·병렬화·nearest·실효 pipeline을 대조했다.
+- 비어 있는 GT 프레임 **232개**, LiDAR 0점 GT도 보존했다. 전체 GT는 V/P/O
+  **3,972/2,850/3,685개**, 그중 0점 **85/98/418개**다. 23,070개 센서 파일의 시작·종료 SHA를 확인했다.
+- ROS floor·top100·NMS·class cutoff를 적용하지 않은 원래 native 평가를 사용했다.
+  예측 최대 200개·낮은 score도 보존하며 GT 지원점으로 예측이나 프레임을 삭제하지 않았다.
+- reference backend는 `camera_trt`, candidate는 `camera_trt_head_sdpa_position`이다.
+  topk OFF, attention 두 곳의 SDPA·고정 위치 cache만 ON이다. 나머지 공통 계약의 불일치는
+  scorer가 거부한다. absent-GT는 null이며 10m 구간·전후방 80~90/90~100m를 별도로 산출했다.
+
+| 지표 | Camera TRT | + SDPA·좌표 cache | 변화(%p) |
+|---|---:|---:|---:|
+| 전체 mAP | 94.066058% | 94.065589% | −0.000469 |
+| Vehicle AP | 97.272621% | 97.272661% | +0.000040 |
+| Pedestrian AP | 96.525156% | 96.524988% | −0.000169 |
+| Obstacle AP | 88.400396% | 88.399118% | −0.001278 |
+
+장애물 20~30m(GT 844개)와 30~40m(188개)의 변화는 각각 **−0.00198/−0.00433%p**다.
+10m class 구간의 최대 감소는 보행자 80~90m **−0.05787%p**이나 GT가 2개뿐이며 둘 다
+LiDAR 0점이다. 이를 충분한 초장거리 보행자 성능 인증으로 해석하지 않는다.
+전방 차량 80~90m(GT 77개)는 −0.00113%p, 90~100m(57개)는 변화 0이다.
+후방 해당 두 구간도 변화 0이다. 전방 80~100m를 pooling한 AP는 −0.00501%p이며
+각 10m AP 평균과는 다른 지표다.
+
+원시 예측 수는 V 66,305/P 282,390으로 같고 O는 **559,466→559,463**이다.
+이 3개 감소를 GT 3개 미검출이라고 환산하지 않는다. 모든 raw query가 bitwise 같다는
+시험도 아니며 개별 감소의 원인을 이 보고서만으로 확정하지 않았다.
+
+### 비용의 범위를 구분한 판단
+
+같은 native export에서 첫 10장을 뺀 4,604장의 실행 구간은 다음과 같다. 이미지 loader/JPEG
+decode와 ROS/TCP 후단을 포함하지 않아 앞선 480장 `service_ms`와 직접 합치지 않는다.
+큰 예외를 삭제하지 않았으며 첫 reference→candidate 순서·호스트 변동 한계가 있다.
+
+| native 실행 구간 | Camera TRT | + SDPA·좌표 cache |
+|---|---:|---:|
+| 평균 | 45.32ms | 41.87ms |
+| 중앙값 | 44.45ms | 40.90ms |
+| p95 | 47.43ms | 43.84ms |
+| 최대 | 613.43ms | 719.51ms |
+
+61절의 별도 원본 연속 480장 A/B/복원은 서비스 **65.97→60.34→65.53ms**였다.
+이 전체 AP와 연속 검출·실제 EKF 코어 결과를 함께 보면 작은 수치 손해에 비해 비용 이득이
+실용적이라고 판단했다. 다만 드문 raw yaw 차이와 실제 ROS/Map-CV/planner 미실행 한계는 남는다.
+‘항상 60ms’, 센서 age 60ms, 실제 풀스택 16.6Hz 인증으로 쓰지 않는다.
+
+### 실제 model/server·실행기 연결과 시작 복귀
+
+`BevFusionModel`과 서버 CLI·Compose·shell에 `head_attention_sdpa`/`head_cache_bev_pos`를 연결했다.
+환경변수는 `BEVFUSION_HEAD_ATTENTION_SDPA`/`BEVFUSION_HEAD_CACHE_BEV_POS`, 기본은 둘 다 false다.
+topk는 외부 실행 옵션으로 제공하지 않는다. `--safe`는 두 변수를 false로 고정한다.
+OFF이면 선택 helper를 import하거나 원형 head를 수정하지 않는다.
+
+head/MMCV의 미지원 소스·AST 등 **부착 전의 이름 있는 선택 최적화 오류**만 경고와 함께
+같은 원형 head로 복귀한다. source hash가 다르다는 이유로 기본 추론 전체를 거부하지 않는다.
+일반 모델 ValueError·CUDA 실행 실패는 선택 기능 오류로 위장하지 않는다. 실행 중 hook 재설정은
+거부하며 close 시 소유 wrapper를 복원한다. 요청/활성/fallback/사유를 실제 health identity에
+분리한다. 이미 원형으로 복귀한 서버의 과거 요청 true만으로 safe 재사용을 막지 않는다.
+checkpoint/config/class·입력·threshold의 필수 health 대조는 유지한다.
+
+1. **E24 로컬 실제 GPU/RPC:** 5060Ti 16GB·기존 baseline image·네트워크 차단·source/weights
+   read-only에서 실제 InferenceServer 생성→PING/PONG·health→원본 ROS JPEG/XYZI255 3입력
+   protocol 요청→close를 원형/ON/safe 세 조건으로 확인했다. 각각 반환 수는 **1/0/1개**다.
+   ON은 실제 helper enabled·fallback false였고 safe는 명시 ON 인자보다 우선해 OFF였다.
+   safe 출력은 원형과 정확히 같았다. 이 3장으로 E24 전체 AP를 인증하지 않는다.
+2. **E12 4090 실제 결합:** 별도 `runtime_source_head_integrated_v1`에서 실제 서버 생성으로
+   camera TRT `require`+head ON을 확인했다. 원본 연속 480장 중 세 입력은 앞선 수동 hook
+   시험과 **2/0/1개**, 위치·크기·yaw·score까지 정확히 같았다. 서버 생성 후 model API를
+   직접 호출한 시험이므로 이 경우 실제 TCP/ROS handshake까지 실행했다고 쓰지 않는다.
+3. 첫 4090 probe v1은 `compare_detections`의 빈 미대응 **목록**을 숫자 0과 비교해 항상
+   실패하는 시험 코드 오류였다. 원본 v1을 보존하고 v2에서 목록 검사를 고쳐 재실행했다.
+   모델·threshold를 바꾸거나 허용 오차를 넓혀 통과시킨 것이 아니다. v2는 양성 관측을 포함한다.
+
+최종 회귀는 고정 Docker CPU **247 passed / CUDA 전용 4 skipped / 63 subtests passed**,
+호스트 packaging 4개와 명시 sensor calibration 1개가 통과해 합계 **252개**다.
+건너뛴 CUDA 단위 시험과 위 실제 GPU smoke를 구분한다. 읽기 전용 safe preflight는
+blocker 0 / warning 2(실제 ROS/LAN·대회 GPU 풀스택 미인증)다. 문서의 기존 세 길이 예산
+초과는 남으므로 전체 문서 QA 통과라고 쓰지 않는다.
+
+### 근거와 남은 순서
+
+근거 루트는 같은 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/`다.
+
+- `full_head_native_v1/FULL_HEAD_NATIVE_AP_PAIR_v1.json`
+  SHA `ab112e0db0ff1279fc8d90edafd576d1b1e60a71b0dbf55e8c35a12883f306fe`.
+  양쪽 export receipt/COMPLETE를 로컬에 회수했다. 큰 원시 prediction은 원격에 보존했다.
+- `E24_HEAD_RUNTIME_GPU_SMOKE_v1.json`
+  SHA `5eb9146be28f7bec1675314c85686ef94a3a3b8b2e36386eff5edf580c99967e`.
+- `E12_INTEGRATED_HEAD_SERVER_4090_v2.json`
+  SHA `1d16f196b098b702bbde4095e18f4e21d470c8c1078f4592188e477366f83d50`.
+
+다음은 **실제 대회용 4090 24GB PC의 원형 eager 기동·LAN/ROS/YOLO 풀스택** 확인이다.
+가속기 선택과 E12 승격은 별도 결정이다. E24용 전체 AP를 E12 결과로 대신하지 않으며,
+TRT image build/push·팀 PC engine 배포도 아직 하지 않았다. 이번 시험 완료 후 자체 GPU 작업은
+종료했고 Vast Stop/Destroy나 MORAI·빌린 PC·planning 노드 조작은 하지 않았다.
+
+<a id="e12-production-ros1-deployment-261023"></a>
+
+## 63. 사용자 승인 E12 최적화 production 승격과 ROS1 전체 통합 — 2026-10-23
+
+사용자가 **60.34ms 시험 버전을 production으로 배포**하도록 명시했다. 앞선 E24 유지 결정은
+이 요청으로 변경했다. 기본은 전체 30,750장 E12·camera TRT·head SDPA/BEV 좌표 cache 요청 ON,
+compile/topk/시험 pool layout OFF다. 같은 입력·격자·강도·nearest·threshold 0.40/0.10/0.10과
+gravity-center ROS 출력을 유지한다. E24/E25는 명시적인 복귀로 보존한다.
+60.34ms는 61절의 4090·연속 480장 서비스 평균이지 팀 PC의 센서 age/풀스택 성능 보증이 아니다.
+
+### 코드·설치·GPU별 가속기
+
+- `dataset/base5`에 최신 ROS1 planning `59a3fd6e`를 **전체 merge**했다(`b99b868b`). 선별 복사나
+  cherry-pick을 하지 않았다. 신규 추월·차선 변경·cruise·궤적 이력·지도 속도 편집 변경을 보존했다.
+- 들어온 `behavior_velocity_modules.yaml`의 잘못된 `ㅊ   현backward_path_length` 키만 좁게
+  바로잡았다. 새 판단 정책을 detector 승격의 효과나 이번 폐루프 검증 결과로 보고하지 않는다.
+- 기본 CLI/profile·가중치 설치기·validator 새 YAML/GUI는 E12다. 기존 명시 E24/E25 실행은
+  해당 모델을 유지한다. 과거 실행 snapshot을 변경하거나 다른 checkpoint로 강제 resume하지 않는다.
+- 기존 팀 이미지 위에 Torch 2.7.1/cu128을 유지한 **TRT 10.13.3.9·ONNX 1.16.0 overlay**를
+  로컬 빌드한다. 호스트 Python에 TRT를 설치하지 않으며 Docker Hub에 새 이미지를 push한 것은 아니다.
+  첫 라이브러리 다운로드는 약 3.1GB·이 PC에서 약 8분이었다. 설치 후 주행은 인터넷을 요구하지 않는다.
+- `setup_production_tensorrt.py --execute`만 target GPU engine을 만들고 전체 E12 warmup을 확인한
+  뒤 `~/bevfusion_artifacts/tensorrt/e12/runtime.json`을 게시한다. 기본 호출은 쓰기 없는 계획 출력이다.
+  엔진은 다른 PC의 파일을 공용 배포하지 않는다. 고정 v4 FP32 입력/FP16 출력·NORMALIZATION/
+  SOFTMAX FP32·TRT TF32 OFF를 유지한다. image ID·GPU·weights/config·engine/metadata SHA를 기록한다.
+- 정상 receipt는 production 실행기와 validator가 공유한다. engine/선택 image 미준비나 첫 enqueue
+  전의 분류된 오류는 **같은 E12 eager**로 복귀하고 실제 backend를 기록한다. 기본 prefer와
+  명시 require를 구분하며 require를 성공처럼 off로 낮추지 않는다. `--safe`도 같은 E12의 추가
+  가속만 끈다. weights·센서 오류나 CUDA 실행 이후 손상은 이 복귀로 숨기지 않는다.
+- 기존 `.env`의 공통 baseline image 값이 유효한 E12 준비 receipt를 가리던 배포 문제를 보완했다.
+  개인 파일을 수정하지 않고 준비된 관리 image를 선택한다. 별도 custom image는 유지하며,
+  명시 policy `off`와 `--safe`는 baseline으로 복귀한다. 관련 통합 CPU 회귀 69개를 다시 통과했다.
+- 설치기는 planning 전체를 명시적으로 증분 빌드한 뒤 base를 빌드한다. 완료 marker만 보고
+  planning을 건너뛰는 기존 build_all 단독 실행과 구분한다. clean·드라이버 재설치는 하지 않는다.
+
+### 실제 배포 archive와 로컬 GPU/RPC
+
+현재 배포 명세는 `configs/perception/base5_e12_production_release.json`이다.
+`model/bevfusion/production/base5_e12_trt_head_261023/`의
+`ajounice_base5_e12_production_261023_trt_head_v3.zip`은 **161,709,293 bytes**,
+SHA `ffb039facbe9e6e3a8f928fd6da0bd0f5c24901f619996fccec194deadde5273`다.
+Drive 원격 size·MD5 `6797b8c773f99b2738c7e9082de21002`를 로컬과 대조했다.
+ZIP 내 E12는 **215,840,895 bytes**, SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`다.
+원본 E24 전달본·복귀 파일은 바꾸지 않았다. v1 ZIP은 첫 설치 시험의 이력으로 남겼다.
+
+첫 v1은 Drive에서 별도의 빈 HOME으로 실제 다운로드·CRC/내부 SHA·72개 참고 source 검증·
+weights 설치를 완료했다(약 1분 43초). v2는 마지막 시작 정책/참고 소스를 갱신한 파일이며
+로컬 archive 전체 검증과 기존 E12 무다운로드 check-only를 통과했다. v3는 옛 baseline image
+override 보완을 참고 사본에 반영해 재동결했다. source 72개 snapshot 대조와 별도 빈 HOME의
+로컬 ZIP 전체 검사·설치도 통과했다. 세 버전의 가중치 바이트는 같다.
+
+로컬 5060Ti 16GB에서 새 Docker **실제 build/import → GPU별 engine 생성 → 전체 E12 warmup →
+close → runtime receipt 게시**를 확인했다. image ID는 `sha256:26880867295feaac329d5c9fdd20dcbe572677e5f0cf71e0515d82db8e2d1230`,
+생성 engine SHA는 `c0d5e197a913444aa4345936675c3065752af29287e62f2f26597339f4a84e74`다.
+
+같은 이미지에서 실제 InferenceServer·socketpair PING/PONG·입력 계약·원본 JPEG/XYZI255의
+세 요청을 eager/최적화/safe로 실행했다. 각 조건은 **3/0/1개**를 반환했고 박스 대응 추가/누락은
+없었다. eager→최적화의 최대 XY 차이는 **0.195mm**, score 차이 **0.000377**였다.
+eager 재생성→safe도 bitwise 같지는 않았다(최대 XY **0.313mm**, 크기 **0.977mm**, yaw **0.168°**,
+score **0.000170**). 최초 v1 smoke가 이를 exact assert로 거부해 v2에서 분포와 출력을 보존했다.
+동일 가중치·원형 backend 복귀를 byte 동일성으로 과장하지 않으며 그 미세 차이의 개별 kernel 원인은
+이 시험에서 분해하지 않았다. runtime/threshold를 바꿔 통과시킨 것은 아니다.
+
+실제 TCP listen·ROS publisher·MORAI/주행은 실행하지 않았다. 4090 24GB 팀 PC의 LAN·YOLO·
+풀스택 지연/메모리는 사용자 요청대로 후속이다. 재학습·Vast Stop/Destroy·빌린 PC 조작은 하지 않았다.
+
+회귀는 Docker CPU **281 passed / CUDA 전용 4 skipped / 67 subtests**, 호스트 packaging 4개·
+명시 calibration 1개 통과다. 전체 planning/base overlay의 validator 집중 회귀 **59개**도 통과했다.
+planning **154/154**, base **27개 패키지** 증분 설치도 통과했다.
+별도 새 판단 C++ 5대상은 **60 passed / optional replay 1 skipped / 0 failures**였다.
+읽기 전용 safe preflight는 blocker 0 / warning 2다. 기존 문서 길이 예산 3건과 GPS-shadow
+starter의 기존 별도 생성 차이는 보존했으며 전체 문서/전체 생성기 검사 통과라고 쓰지 않는다.
+준비된 E12 TRT를 실제 선택한 읽기 전용 일반 preflight도 blocker 0 / warning 3이다.
+
+근거는 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/production_e12_v1/`,
+`production_e12_v2/`, `production_e12_v3/`, `E12_PRODUCTION_TRT_RPC_GPU_v2.json`에 보존했다.
+RPC 보고서 SHA `af1ecce57b633b64ef2a52c42eb75a7cc665f5e5f1065630bad9beb4201d43a5`,
+target setup receipt SHA `09610f0834bdd904f2825828092016b5bfdad92477bf0498f5cc96bd37500ea0`다.
+
+### 추가 사용자 요청: Drive의 검증된 중복만 정리
+
+휴지통 전체 비우기·경로 기준 중복 이름 삭제를 하지 않았다. 소유권·삭제 가능·ID·크기·MD5를
+Drive API로 다시 확인하고 다음 **11개 ID, 4,121,614,919 bytes**만 영구 제거했다.
+구 E24 ZIP은 동일 로컬 사본, 원격 중복은 동일 MD5의 보존 ID를 삭제 직전에 재확인했다.
+
+| 정리 항목 | 삭제한 여분 | 보존 |
+|---|---:|---|
+| 구 E24 production ZIP 4개 | 1,799,123,791 B | 로컬 동일 ZIP·최신 lidar50 E24 ZIP·E24 weights |
+| 옛 180장 smoke의 중복 copy 1개 | 2,121,164,536 B | Drive의 동일 size/MD5 원본 1개 |
+| E10 best의 중복 part 6개 | 201,326,592 B | 검증된 canonical part ID·로컬 parts·조립 checkpoint |
+
+잔여 용량은 약 **6.53→10.65GB**로 실제 증가했고, 배포 ZIP v2/v3 업로드 후 약 **10.33GB**다.
+`drive_cleanup_261023_v1/PLAN.json`과 `DELETION_RECEIPTS.jsonl`에 ID별 보존 근거를 남겼다.
+현재 30,750 cohort·보강 750·E12 best/full/production·E24/E25 복귀는 정리 대상에서 제외했다.
+
+추가로 애매해 보존한 항목은 Base1 salvage **14.04GB**, Base2 **39.86GB**, Base3 raw
+**24.78GB**, 옛 Base3 handoff archive **40.65GB**, Base4 **6.24GB**, PointPainting **6.09GB**,
+옛 Docker **7.41GB**다. 고유 archive와 로컬 보존/복원 동등성을 확인하지 못했다.
+초기 Base5 Q90 **3.33GB**는 로컬 4파트 MD5가 맞지만 E24 데이터 재현 이력이므로 보류했다.
+휴지통 **19.44GB**는 대부분 옛 Base5 v140 raw parts이며 로컬 archive/parts가 없어 비우지 않았다.
+같은 이름의 `supp750` 두 폴더는 환경별 파일이 달라 모두 필요했다. 이름만으로 삭제하지 않는다.
+별도 Foggy13 1장 보충 archive는 로컬에 있지만 조사한 Drive dataset scope에서는 찾지 못했으므로,
+폴더명 `full30749`만으로 30,750장 전체의 Drive 보존이 완료됐다고 단정하지 않는다.
