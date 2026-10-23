@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 # Importing our local profile must not create a __pycache__ during diagnostics.
 sys.dont_write_bytecode = True
 from bevfusion_production_profile import profile, resolve_checkpoint
+from bevfusion_acceleration_profile import resolve_acceleration
 
 ROOT = Path(__file__).resolve().parents[2]
 SAFE_IMAGE = 'ajounice/bevfusion:team-cu128-v1'
@@ -31,7 +32,8 @@ ENV_KEYS = {'BEVFUSION_CHECKPOINT', 'BEVFUSION_INFERENCE_CHECKPOINT', 'BEVFUSION
             'BEVFUSION_IMAGE', 'BEVFUSION_PRODUCTION_MODEL', 'BEVFUSION_CAMERA_TENSORRT_POLICY',
             'BEVFUSION_CAMERA_TENSORRT_ENGINE', 'BEVFUSION_CAMERA_TENSORRT_METADATA',
             'BEVFUSION_SAFE_MODE', 'BEVFUSION_POOL_FUSED_LAYOUT',
-            'BEVFUSION_HEAD_ATTENTION_SDPA', 'BEVFUSION_HEAD_CACHE_BEV_POS'}
+            'BEVFUSION_HEAD_ATTENTION_SDPA', 'BEVFUSION_HEAD_CACHE_BEV_POS',
+            'BEVFUSION_ACCELERATION_RECEIPT'}
 
 
 def sha256(path):
@@ -151,12 +153,15 @@ def xml_contract(path):
     return node(ET.parse(path).getroot())
 
 
-def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None, safe=False,
+def inspect_startup(root, model=None, checkpoint=None, sensor=None, image=None, safe=False,
                     environment=None, home=None, runner=run_readonly):
     root = Path(root).resolve(); home = Path.home() if home is None else Path(home)
     base_environment = dict(os.environ if environment is None else environment)
     environment, unsupported = local_overrides(root/'.env.bevfusion.local', base_environment, root, home)
+    model = model or environment.get('BEVFUSION_PRODUCTION_MODEL') or 'e12'
     safe = safe or environment.get('BEVFUSION_SAFE_MODE') == 'true'
+    acceleration = resolve_acceleration(model, dict(environment, BEVFUSION_SAFE_MODE=str(safe).lower()), home)
+    environment.update(acceleration['environment'])
     selected = profile(model, home)
     checkpoint = Path(checkpoint or resolve_checkpoint(model, environment, home)).expanduser().resolve()
     sensor = Path(sensor or environment.get('BEVFUSION_SENSOR_CONFIG') or root/selected['sensor']).expanduser().resolve()
@@ -176,7 +181,9 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
     local_only, _ = local_overrides(root/'.env.bevfusion.local', {}, root, home)
     if local_only.get('BEVFUSION_CHECKPOINT') and Path(local_only['BEVFUSION_CHECKPOINT']).expanduser().resolve() != checkpoint:
         add('checkpoint_startup_override', 'blocker', 'The local shell file overrides the inspected checkpoint; align that literal assignment before using the startup command')
-    add('model_selection', 'pass', 'Production E24 default; E25 only when explicitly selected', model=model)
+    add('model_selection', 'pass', 'Production E12 default; E24/E25 are explicit rollback profiles', model=model)
+    add('optional_acceleration_setup', 'pass' if acceleration['receipt_loaded'] or safe else 'warning',
+        acceleration['reason'], same_selected_model=True)
     if exists('checkpoint', checkpoint):
         try:
             actual = sha256(checkpoint)
@@ -250,7 +257,8 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
                 'Installed ROS bridge matches current source AST' if same else 'Installed ROS bridge differs; rebuild/install before startup')
         except (OSError, SyntaxError): add('bridge_install_contract', 'blocker', 'ROS bridge source/install cannot be parsed')
     add('ros_live_state', 'warning', 'ROS master, live topics, publishers, MORAI network and sensor rates were not started or certified')
-    env = dict(base_environment, AJOUNICE_ROOT=str(root), BEVFUSION_CHECKPOINT=str(checkpoint),
+    env = dict(base_environment, **environment)
+    env.update(AJOUNICE_ROOT=str(root), BEVFUSION_CHECKPOINT=str(checkpoint),
                BEVFUSION_SENSOR_CONFIG=str(sensor), BEVFUSION_IMAGE=image)
     compose = root/'docker/bevfusion/compose.yaml'
     image_id, cache_volume = None, None
@@ -262,6 +270,15 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
     code, stdout = runner(['docker', 'image', 'inspect', '--format', '{{.Id}}', image], environment=env)
     if code == 0 and re.fullmatch(r'sha256:[a-f0-9]{64}', stdout.strip()):
         image_id = stdout.strip(); add('local_image', 'pass', 'Selected image is already local', image=image, image_id=image_id)
+    elif acceleration['managed_image'] and not safe and environment.get('BEVFUSION_CAMERA_TENSORRT_POLICY') != 'require':
+        code, stdout = runner(['docker', 'image', 'inspect', '--format', '{{.Id}}', SAFE_IMAGE], environment=env)
+        if code == 0 and re.fullmatch(r'sha256:[a-f0-9]{64}', stdout.strip()):
+            image = SAFE_IMAGE; image_id = stdout.strip(); env['BEVFUSION_IMAGE'] = image
+            environment.update(BEVFUSION_CAMERA_TENSORRT_POLICY='off', BEVFUSION_CAMERA_TENSORRT_ENGINE='',
+                               BEVFUSION_CAMERA_TENSORRT_METADATA='')
+            add('local_image', 'warning', 'Optional TRT image missing; the SAME model uses the installed baseline image', image=image)
+        else:
+            add('local_image', 'blocker', 'Neither prepared optional nor baseline image is locally available', image=image)
     else: add('local_image', 'blocker', 'Selected image is not locally available; no registry/pull/login attempted', image=image)
     if compose.is_file():
         code, stdout = runner(['docker', 'compose', '-f', str(compose), 'config', '--format', 'json'], environment=env)
@@ -313,7 +330,9 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
                 path = Path(raw).expanduser()
                 if str(path).startswith('/workspace/AjouNice2026/'):
                     path = root/path.relative_to('/workspace/AjouNice2026')
-                if not path.is_absolute(): path = root/path
+                if str(path).startswith('/opt/bevfusion_tensorrt/'):
+                    path = Path(acceleration['artifact_root']) / path.relative_to('/opt/bevfusion_tensorrt')
+                elif not path.is_absolute(): path = root/path
                 if not path.is_file(): raise ValueError('Configured engine/metadata is not locally available')
                 paths.append(path)
             metadata = json.loads(paths[1].read_text())
@@ -337,7 +356,8 @@ def inspect_startup(root, model='e24', checkpoint=None, sensor=None, image=None,
             add('head_optimization_option', 'blocker', key+' must be true or false')
         head_flags[key] = value == 'true'
     if any(head_flags.values()):
-        add('head_optimization', 'warning', 'Explicit inference-only head candidate; startup source eligibility may retain the SAME original head. --safe disables both options', flags=head_flags)
+        add('head_optimization', 'pass' if model == 'e12' else 'warning',
+            'Inference-only head optimization; startup source eligibility may retain the SAME original head. --safe disables both options', flags=head_flags)
     if policy != 'off' or environment.get('BEVFUSION_POOL_FUSED_LAYOUT') == 'true':
         add('acceleration', 'warning', 'Optional engine/layout eligibility is checked separately by runtime; --safe disables both without changing selected weights', policy=policy)
     command = ['env', 'BEVFUSION_CHECKPOINT='+str(checkpoint), 'bash',
@@ -382,7 +402,7 @@ def smoke_command(report, root, name=None):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--model', choices=['e24', 'e25'], default='e24')
+    p.add_argument('--model', choices=['e12', 'e24', 'e25'])
     p.add_argument('--root', type=Path, default=ROOT)
     p.add_argument('--checkpoint', type=Path)
     p.add_argument('--sensor-config', type=Path)

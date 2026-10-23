@@ -459,3 +459,13 @@ camera TRT를 고정하고 SDPA+BEV 위치 cache만 바꿨다. E12 native val �
 `--safe`는 두 옵션을 모두 끈다. E24 전체 AP 또는 팀 4090 24GB 풀스택을 인증한 것은 아니므로
 production 기본 OFF와 기존 E24를 유지한다. 재학습은 필요 없으며 이 변경은 새 TRT head engine이나
 새 backbone의 도입이 아니다. 실행 방법은 [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup)를 따른다.
+
+### 후속 배포 결정 — 2026-10-23
+
+위 E24 유지·선택 옵션 설명은 승격 전의 검토 이력이다. 이후 사용자의 명시적 배포 요청에 따라
+기본 모델을 **E12 + camera TRT + head SDPA/BEV 위치 cache**로 변경했다. 새 production Docker
+overlay의 로컬 빌드, GPU별 engine 생성, 전체 E12 warmup과 실제 RPC를 확인했다. Docker Hub에
+새 이미지를 push하거나 팀원의 4090 24GB 풀스택을 검증한 것은 아니다. 준비되지 않은 가속기는
+같은 E12 eager로 복귀하며 E24/E25는 명시적인 rollback이다. 현재 설치법은
+[production handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup), 실제 범위와
+수치는 [63절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023)을 따른다.

@@ -1,4 +1,4 @@
-# E24 production transport; checkpoint/options are pinned by run_bevfusion.sh.
+# Shared E12 production / explicit E24 rollback transport; weights/options are selected together by run_bevfusion.sh.
 operation: inference
 server_host: 127.0.0.1
 server_port: 29500

@@ -1,6 +1,8 @@
-"""Pinned production E24 and explicit comparison/rollback detector contracts."""
+"""Pinned production E12 and explicit comparison/rollback detector contracts."""
 import ast
+import copy
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -14,7 +16,10 @@ BASE5_CONFIG_GRAPH_SHA = '88ac69c228daae7b8c7a96a97e412c51d9694e2ef6207093bab9e8
 BASE5_E24_CONFIG = 'perception/detection3d/bevfusion/configs/bevfusion_base5_fine_512_depth25_nearest_depth_runtime.py'
 BASE5_E24_CONFIG_GRAPH_SHA = '11740c454919dd3c369d014997673380ab65d4908990c1ae2c5f203da44f3d33'
 PRESETS = {
-    'base5_e24': {'label': 'Base5 E24 production',
+    'base5_e12': {'label': 'Base5 E12 production (TRT + SDPA/cache)',
+                  'sha256': 'f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8',
+                  'thresholds': [0.40, 0.10, 0.10], 'epoch': 12},
+    'base5_e24': {'label': 'Base5 E24 rollback',
                   'sha256': '84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746',
                   'thresholds': [0.40, 0.10, 0.10], 'epoch': 24},
     'e25': {'label': 'E25 rollback', 'sha256': E25_SHA, 'thresholds': [0.40, 0.15, 0.10]},
@@ -22,7 +27,7 @@ PRESETS = {
                  'sha256': '067205c3f5f5b0abc1bb775116c2b8bca2c9a7f31a0727b959db0ab1ce70b271',
                  'thresholds': [0.30, 0.20, 0.12], 'epoch': 9},
 }
-DEFAULT_MODEL = 'base5_e24'
+DEFAULT_MODEL = 'base5_e12'
 LABEL_PRESETS = {v['label']: k for k, v in PRESETS.items()}
 CANONICAL = DETECTION
 
@@ -30,7 +35,7 @@ CANONICAL = DETECTION
 def selected_model(stack):
     value = stack.get('bevfusion_model', DEFAULT_MODEL)
     if not isinstance(value, str) or value not in PRESETS:
-        raise ValueError('stack.bevfusion_model은 e25, base5_e24, base5_e9 중 하나입니다')
+        raise ValueError('stack.bevfusion_model은 base5_e12, base5_e24, e25, base5_e9 중 하나입니다')
     if any(key in stack for key in ('bevfusion_checkpoint', 'bevfusion_config')):
         raise ValueError('checkpoint/config 직접 교체는 금지합니다. 검증된 모델 프리셋을 선택하세요')
     return value
@@ -77,6 +82,56 @@ def e25_environment(root):
     return environment
 
 
+def production_acceleration(root):
+    """Resolve the same CPU-only local accelerator selection as production."""
+    path = root / 'scripts/runtime/bevfusion_acceleration_profile.py'
+    spec = importlib.util.spec_from_file_location('validator_acceleration_profile', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result = module.resolve_acceleration('e12', os.environ)
+    result = dict(result, environment=dict(result['environment']))
+    environment = result['environment']
+    policy = environment.get('BEVFUSION_CAMERA_TENSORRT_POLICY', 'off')
+    if policy not in ('off', 'prefer', 'require'):
+        raise ValueError('잘못된 production TensorRT startup policy입니다')
+    for key in ('BEVFUSION_HEAD_ATTENTION_SDPA', 'BEVFUSION_HEAD_CACHE_BEV_POS'):
+        if environment.get(key) not in ('true', 'false'):
+            raise ValueError('production head runtime 설정은 true 또는 false여야 합니다: ' + key)
+    files, paths = {}, {}
+    for key, host_key in (('BEVFUSION_CAMERA_TENSORRT_ENGINE', 'engine_path'),
+                          ('BEVFUSION_CAMERA_TENSORRT_METADATA', 'metadata_path')):
+        value = environment.get(key)
+        if value and policy != 'off':
+            path = Path(value).expanduser()
+            if not path.is_file() and result.get(host_key):
+                candidate = Path(result[host_key]).resolve()
+                try:
+                    container_path = Path('/opt/bevfusion_tensorrt') / candidate.relative_to(result['artifact_root'])
+                    if str(container_path) == value:
+                        path = candidate
+                except (ValueError, KeyError):
+                    pass
+            path = path.resolve()
+            if path.is_file():
+                files[str(path)] = sha256(path)
+                paths[key] = str(path)
+    if policy != 'off' and len(paths) != 2:
+        if policy == 'require':
+            raise ValueError('require 정책에는 읽을 수 있는 production engine과 metadata가 필요합니다')
+        result['reason'] = 'validator_optional_artifact_unavailable; ' + result.get('reason', '')
+        policy = 'off'
+        environment['BEVFUSION_CAMERA_TENSORRT_POLICY'] = 'off'
+        files, paths = {}, {}
+    if policy == 'off':
+        environment['BEVFUSION_CAMERA_TENSORRT_ENGINE'] = ''
+        environment['BEVFUSION_CAMERA_TENSORRT_METADATA'] = ''
+    return {'selection': result, 'files_sha256': files, 'host_paths': paths,
+            'fallback_image': module.SAFE_IMAGE,
+            'camera_tensorrt_policy': policy,
+            'head_attention_sdpa': environment.get('BEVFUSION_HEAD_ATTENTION_SDPA') == 'true',
+            'head_cache_bev_pos': environment.get('BEVFUSION_HEAD_CACHE_BEV_POS') == 'true'}
+
+
 def resolve_contract(stack, sensor, root, *, require_assets=True):
     root = Path(root).resolve()
     if stack.get('detector') != 'bevfusion':
@@ -92,16 +147,17 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         runtime_config = root / 'configs/perception/bevfusion_sensor4.yaml'
         amp = env.get('BEVFUSION_USE_AMP', 'true') == 'true'
     else:
-        checkpoint = (Path.home() / 'bevfusion_artifacts/checkpoints/base5_e24_inference.pth' if name == 'base5_e24'
+        checkpoint = (Path.home() / 'bevfusion_artifacts/checkpoints/{}_inference.pth'.format(name)
+                      if name in ('base5_e12', 'base5_e24')
                       else root / 'artifacts/evaluation/bevfusion/base5_rosbag_quick_261012/checkpoints/E9.pth')
-        model_config = root / (BASE5_E24_CONFIG if name == 'base5_e24' else BASE5_CONFIG)
+        model_config = root / (BASE5_E24_CONFIG if name in ('base5_e12', 'base5_e24') else BASE5_CONFIG)
         runtime_config = root / 'configs/perception/bevfusion_base5_trial.yaml'
         amp = True
     checkpoint = checkpoint.expanduser().resolve()
     if not model_config.is_absolute():
         model_config = root / model_config
     graph = config_graph(model_config, root)
-    expected_graph = BASE5_E24_CONFIG_GRAPH_SHA if name == 'base5_e24' else BASE5_CONFIG_GRAPH_SHA
+    expected_graph = BASE5_E24_CONFIG_GRAPH_SHA if name in ('base5_e12', 'base5_e24') else BASE5_CONFIG_GRAPH_SHA
     if name != 'e25' and fingerprint(graph) != expected_graph:
         raise ValueError('Base5 checkpoint/config 계약 불일치: 상속 config hash가 검증본과 다릅니다')
     actual_sha = sha256(checkpoint) if checkpoint.is_file() else None
@@ -128,6 +184,7 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
             for path in sorted((root / directory).rglob(extension)):
                 source_files[str(path.relative_to(root))] = sha256(path)
     for relative in ('scripts/runtime/run_bevfusion.sh', 'docker/bevfusion/compose.yaml',
+                     'scripts/runtime/bevfusion_production_profile.py',
                      'base_ws/src/planning_addons/planning_scenario_validator/scripts/run_bevfusion_trial.py',
                      'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/models.py'):
         source_files[relative] = sha256(root / relative)
@@ -149,8 +206,8 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         'thresholds': dict(zip(('vehicle', 'pedestrian', 'obstacle'), preset['thresholds'])),
         'nms': {'enabled': True, 'class_aware': True, 'rotated_bev_iou_threshold': 0.5},
         'amp': amp, 'parallel_camera': name != 'e25', 'compile_parts': [],
-        'depth_raster_policy': 'nearest_positive' if name == 'base5_e24' else None,
-        'box_center_output_origin': 'gravity_center_v1' if name == 'base5_e24' else 'legacy_passthrough',
+        'depth_raster_policy': 'nearest_positive' if name in ('base5_e12', 'base5_e24') else None,
+        'box_center_output_origin': 'gravity_center_v1' if name in ('base5_e12', 'base5_e24') else 'legacy_passthrough',
         'temporal': False, 'detector_velocity': False,
         'point_intensity_source': 'ros255' if name != 'e25' else 'production_raw',
         'image_encoding': 'compressed_native_jpeg' if name != 'e25' else 'production_rgb8',
@@ -164,6 +221,11 @@ def resolve_contract(stack, sensor, root, *, require_assets=True):
         'topic_contract': model_topics(name)}
     if name == 'e25':
         result['production_environment'] = {key: value for key, value in env.items() if key.startswith('BEVFUSION_') or key in ('PROJECTION_ONLY', 'INTRINSIC_SOURCE')}
+    if name == 'base5_e12':
+        result['acceleration'] = production_acceleration(root)
+        result['image'] = result['acceleration']['selection']['environment']['BEVFUSION_IMAGE']
+        relative = 'scripts/runtime/bevfusion_acceleration_profile.py'
+        source_files[relative] = sha256(root / relative)
     result['fingerprint'] = fingerprint({key: value for key, value in result.items() if key != 'sensor_config'})
     return result
 
@@ -176,6 +238,42 @@ def verify_contract(contract, stack, sensor, root):
     if actual.get('fingerprint') != contract.get('fingerprint'):
         raise ValueError('모델/핵심 설정이 이전 실행과 다릅니다. 같은 결과에 resume할 수 없습니다. 새 실험을 시작하세요')
     return actual
+
+
+def runtime_image_selection(contract):
+    """Inspect local images only at startup, outside the frozen model contract."""
+    def inspect(image):
+        return subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', image],
+                                       text=True, timeout=15).strip()
+    selected = contract['image']
+    result = {'selected_image': selected, 'image': selected, 'fallback': False, 'reason': None}
+    try:
+        result['image_id'] = inspect(selected)
+    except (subprocess.CalledProcessError, OSError):
+        acceleration = contract.get('acceleration', {})
+        if (not acceleration.get('selection', {}).get('managed_image') or
+                acceleration.get('camera_tensorrt_policy') == 'require'):
+            raise
+        result.update(image=acceleration['fallback_image'], fallback=True,
+                      reason='managed_optional_trt_image_unavailable_same_e12_eager')
+        result['image_id'] = inspect(result['image'])
+    return result
+
+
+def runtime_contract(contract, image_selection):
+    """Derive launch-only options; never rewrite the saved logical identity."""
+    result = copy.deepcopy(contract)
+    result['image_id'] = image_selection['image_id']
+    if image_selection['fallback']:
+        acceleration = result['acceleration']
+        if acceleration['camera_tensorrt_policy'] == 'require':
+            raise ValueError('require 정책에서는 production TensorRT image를 eager로 대체할 수 없습니다')
+        acceleration['camera_tensorrt_policy'] = 'off'
+        acceleration['host_paths'] = {}
+        acceleration['selection']['environment'].update(
+            BEVFUSION_CAMERA_TENSORRT_POLICY='off', BEVFUSION_CAMERA_TENSORRT_ENGINE='',
+            BEVFUSION_CAMERA_TENSORRT_METADATA='')
+    return result
 
 
 def trial_commands(contract, root, container_name):
@@ -193,7 +291,24 @@ def trial_commands(contract, root, container_name):
         '--config', '/workspace/AjouNice2026/' + str(Path(contract['model_config']).relative_to(root)),
         '--camera-order', 'camera_front', 'camera_front_left', 'camera_front_right', 'camera_back',
         '--base5-runtime', '--point-intensity-source', 'ros255', '--amp', '--parallel-camera']
-    launch = ('base5_e24_calibrated_trial.launch' if contract['preset'] == 'base5_e24'
+    acceleration = contract.get('acceleration')
+    if acceleration:
+        environment = acceleration['selection']['environment']
+        # Explicit CLI options reproduce the frozen selection instead of inheriting
+        # a shell's changing settings. Mount trusted local artifacts read-only.
+        for key, option, destination in (
+                ('BEVFUSION_CAMERA_TENSORRT_ENGINE', '--camera-tensorrt-engine', '/opt/accelerator/camera.engine'),
+                ('BEVFUSION_CAMERA_TENSORRT_METADATA', '--camera-tensorrt-metadata', '/opt/accelerator/camera.engine.json')):
+            if acceleration['host_paths'].get(key):
+                host = acceleration['host_paths'][key]
+                command[2:2] = ['-v', '{}:{}:ro'.format(host, destination)]
+                command += [option, destination]
+        command += ['--camera-tensorrt-policy', acceleration['camera_tensorrt_policy']]
+        for key, option in (('head_attention_sdpa', '--head-attention-sdpa'),
+                            ('head_cache_bev_pos', '--head-cache-bev-pos')):
+            if acceleration[key]:
+                command.append(option)
+    launch = ('base5_e24_calibrated_trial.launch' if contract['preset'] in ('base5_e12', 'base5_e24')
               else 'base5_e9_calibrated_trial.launch')
     bridge = ['roslaunch', str(root / 'base_ws/src/perception/bevfusion_ros/launch' / launch),
               'sensor_config:=' + contract['sensor_config'], 'config:=' + contract['runtime_config'],

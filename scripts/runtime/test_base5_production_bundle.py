@@ -12,15 +12,16 @@ import base5_production_bundle as bundle
 
 
 class BundleTests(unittest.TestCase):
-    def fixture(self, root, *, extra=None):
+    def fixture(self, root, *, extra=None, model='e24'):
         weights = b'known inference weights'
         source = b'fixed runtime'
-        doc = dict(schema=bundle.SCHEMA, model='e24', checkpoint_sha256=hashlib.sha256(weights).hexdigest(),
+        doc = dict(schema=bundle.SCHEMA, model=model, checkpoint_sha256=hashlib.sha256(weights).hexdigest(),
                    checkpoint_bytes=len(weights), source_files_sha256={'runtime.py': hashlib.sha256(source).hexdigest()})
-        manifest = dict(doc, checkpoint_member=bundle.WEIGHTS)
+        member=bundle.weights_member(model)
+        manifest = dict(doc, checkpoint_member=member)
         archive = root / 'bundle.zip'
         with zipfile.ZipFile(archive, 'w') as z:
-            z.writestr(bundle.WEIGHTS, weights)
+            z.writestr(member, weights)
             z.writestr('reference/runtime.py', source)
             z.writestr('README.txt', 'handoff')
             z.writestr('bundle_manifest.json', json.dumps(manifest))
@@ -141,6 +142,72 @@ class BundleTests(unittest.TestCase):
         doc = json.loads(bundle.DESCRIPTOR.read_text())
         with self.assertRaises(ValueError):
             bundle.validate_descriptor(dict(doc, checkpoint_sha256='0' * 64), require_matching_sources=False)
+
+    def test_e12_build_records_real_archive_size_and_selected_model_without_overwriting_release(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);source=root/'runtime.py';source.write_text('fixed runtime')
+            checkpoint=root/'E12.pth';checkpoint.write_bytes(b'known E12 inference weights')
+            archive=root/'e12.zip';descriptor=root/'e12_release.json'
+            p=dict(bundle.profile('e12'),sha256=bundle.digest(checkpoint))
+            with patch.object(bundle,'ROOT',root),patch.object(bundle,'profile',return_value=p), \
+                    patch.object(bundle,'required_sources',return_value=['runtime.py']):
+                result=bundle.build(checkpoint,archive,'model/bevfusion/production/base5_e12_trt_head_261023',
+                                    model='e12',descriptor_output=descriptor)
+                self.assertEqual(result,json.loads(descriptor.read_text()))
+                self.assertEqual(result['model'],'e12')
+                self.assertEqual(result['archive_bytes'],archive.stat().st_size)
+                self.assertEqual(result['archive_sha256'],bundle.digest(archive))
+                self.assertEqual(result['checkpoint_bytes'],checkpoint.stat().st_size)
+                self.assertEqual(result['checkpoint_member'],'weights/base5_e12_inference.pth')
+                bundle.validate_archive(archive,result)
+                with zipfile.ZipFile(archive) as z:
+                    manifest=json.loads(z.read('bundle_manifest.json'))
+                    self.assertTrue(manifest['runtime']['camera_tensorrt_requested'])
+                    self.assertTrue(manifest['runtime']['head_attention_sdpa'])
+                    self.assertTrue(manifest['runtime']['head_cache_bev_pos'])
+                    self.assertEqual(z.read(result['checkpoint_member']),checkpoint.read_bytes())
+                    self.assertFalse(any(name.endswith(('.engine','.plan')) for name in z.namelist()))
+                before=archive.read_bytes(),descriptor.read_bytes()
+                with self.assertRaises(FileExistsError):
+                    bundle.build(checkpoint,archive,model='e12',descriptor_output=descriptor)
+                with self.assertRaises(FileExistsError):
+                    bundle.build(checkpoint,root/'new.zip',model='e12',descriptor_output=descriptor)
+                self.assertFalse((root/'new.zip').exists())
+                self.assertEqual(before,(archive.read_bytes(),descriptor.read_bytes()))
+
+    def test_e12_archive_installs_only_selected_weights_and_preserves_e24(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);archive,descriptor,doc=self.fixture(root,model='e12')
+            destination=root/'checkpoints/base5_e12_inference.pth'
+            destination.parent.mkdir();old=destination.parent/'base5_e24_inference.pth';old.write_bytes(b'old E24')
+            p=dict(bundle.profile('e12'),checkpoint_path=str(destination),sha256=doc['checkpoint_sha256'])
+            args=SimpleNamespace(model='e12',archive=archive,remote='unused',check_only=False)
+            with patch.object(bundle,'E12_DESCRIPTOR',descriptor),patch.object(bundle,'profile',return_value=p), \
+                    patch('prepare_bevfusion_production.profile',return_value=p), \
+                    patch.object(bundle.subprocess,'run') as network:
+                bundle.install(args);mtime=destination.stat().st_mtime_ns;bundle.install(args)
+                self.assertEqual(destination.stat().st_mtime_ns,mtime)
+                network.assert_not_called()
+            self.assertEqual(destination.read_bytes(),b'known inference weights')
+            self.assertEqual(old.read_bytes(),b'old E24')
+            self.assertFalse((root/'reference').exists())
+
+    def test_selected_e12_never_accepts_the_e24_release_descriptor(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);archive,descriptor,doc=self.fixture(root,model='e24')
+            with patch.object(bundle,'E12_DESCRIPTOR',descriptor), \
+                    patch.object(bundle.subprocess,'run') as network:
+                with self.assertRaisesRegex(ValueError,'Pinned selected'):
+                    bundle.install(SimpleNamespace(model='e12',archive=archive,check_only=False))
+                network.assert_not_called()
+
+    def test_e25_rollback_only_checks_existing_legacy_weights(self):
+        with patch.object(bundle,'prepare') as prepare,patch.object(bundle.subprocess,'run') as network:
+            bundle.install(SimpleNamespace(model='e25',archive=None))
+            prepare.assert_called_once_with(SimpleNamespace(model='e25',source_checkpoint=None,check_only=True))
+            with self.assertRaisesRegex(ValueError,'not a Base5 ZIP'):
+                bundle.install(SimpleNamespace(model='e25',archive=Path('E12.zip')))
+            network.assert_not_called()
 
 
 if __name__ == '__main__':

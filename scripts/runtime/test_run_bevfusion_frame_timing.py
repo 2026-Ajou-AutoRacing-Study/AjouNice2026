@@ -1,6 +1,7 @@
 """Dry runner qualification: no real Docker, ROS, master, or inference service."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -17,7 +18,7 @@ class FrameTimingRunnerTests(unittest.TestCase):
                     extra_environment=None, extra_args=(), server_running=False, health_matches=True,
                     server_backend="eager", server_pool_fused_layout=False, health_fail_first=0,
                     server_head_attention_sdpa=False, server_head_cache_bev_pos=False,
-                    server_head_enabled=False):
+                    server_head_enabled=False, prepared_engine=False, managed_image_missing=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             runtime = root / "scripts/runtime"
@@ -26,6 +27,7 @@ class FrameTimingRunnerTests(unittest.TestCase):
             for directory in (runtime, workspace, binaries):
                 directory.mkdir(parents=True)
             shutil.copyfile(ROOT / "scripts/runtime/run_bevfusion.sh", runtime / "run_bevfusion.sh")
+            shutil.copyfile(ROOT / "scripts/runtime/bevfusion_acceleration_profile.py", runtime / "bevfusion_acceleration_profile.py")
             (workspace / "source_aw149.sh").write_text(":\n", encoding="utf-8")
             checkpoint = root / "checkpoint.pth"
             checkpoint.write_bytes(b"local fixture checkpoint; not model weights")
@@ -35,11 +37,25 @@ class FrameTimingRunnerTests(unittest.TestCase):
                 str(checkpoint), hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
                 "model.yaml", "bridge.yaml", "base5_production.launch", "true", "true", "sensor.json",
             ]) + "\n", encoding="utf-8")
+            if prepared_engine:
+                from bevfusion_acceleration_profile import E12_SHA, CONFIG_SHA
+                folder = root / 'bevfusion_artifacts/tensorrt/e12/test_gpu'
+                folder.mkdir(parents=True)
+                receipt = dict(schema='bevfusion_production_tensorrt_setup_v1',complete=True,model='e12',
+                    checkpoint_sha256=E12_SHA,config_sha256=CONFIG_SHA,image='fixture:managed-trt')
+                for name, filename in [('engine','camera.engine'),('metadata','camera.engine.json')]:
+                    path=folder/filename;path.write_bytes(b'test '+name.encode())
+                    receipt[name+'_path']=str(path)
+                    receipt[name+'_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+                    receipt['container_'+name+'_path']='/opt/bevfusion_tensorrt/e12/test_gpu/'+filename
+                (folder.parent/'runtime.json').write_text(json.dumps(receipt))
             log = root / "calls.log"
             mocks = {
                 "python3": '''#!/bin/bash
 if [[ "$1" == *bevfusion_production_profile.py ]]; then
   /bin/cat "$AJOUNICE_FIXTURE_ROOT/profile.fields"
+elif [[ "$1" == *bevfusion_acceleration_profile.py ]]; then
+  "$AJOUNICE_FIXTURE_PYTHON" "$@"
 elif [[ "$1" == *healthcheck.py ]]; then
   shift
   printf "healthcheck" >> "$AJOUNICE_FIXTURE_LOG"
@@ -81,6 +97,7 @@ elif [[ "$1" == *healthcheck.py ]]; then
 fi
 ''',
                 "docker": '''#!/bin/bash
+if [[ "$1" == image && "$2" == inspect && "$3" == fixture:managed-trt && "$AJOUNICE_FIXTURE_MISSING_IMAGE" == true ]]; then exit 1; fi
 printf "docker" >> "$AJOUNICE_FIXTURE_LOG"
 printf " <%s>" "$@" >> "$AJOUNICE_FIXTURE_LOG"
 printf "\\n" >> "$AJOUNICE_FIXTURE_LOG"
@@ -110,7 +127,8 @@ done
             for name in list(environment):
                 if name.startswith("BEVFUSION_"):
                     environment.pop(name)
-            environment.update(PATH=f"{binaries}:{os.environ['PATH']}",
+            environment.update(PATH=f"{binaries}:{os.environ['PATH']}", HOME=str(root),
+                               AJOUNICE_FIXTURE_PYTHON=__import__('sys').executable,
                                AJOUNICE_FIXTURE_ROOT=str(root), AJOUNICE_FIXTURE_LOG=str(log),
                                AJOUNICE_FIXTURE_SERVER_RUNNING=str(server_running).lower(),
                                AJOUNICE_FIXTURE_HEALTH_EXIT="0" if health_matches else "1",
@@ -120,12 +138,51 @@ done
                                AJOUNICE_FIXTURE_SERVER_HEAD_SDPA=str(server_head_attention_sdpa).lower(),
                                AJOUNICE_FIXTURE_SERVER_HEAD_CACHE=str(server_head_cache_bev_pos).lower(),
                                AJOUNICE_FIXTURE_SERVER_HEAD_ENABLED=str(server_head_enabled).lower())
+            environment['AJOUNICE_FIXTURE_MISSING_IMAGE']=str(managed_image_missing).lower()
             if defined and value is not None:
                 environment["BEVFUSION_PUBLISH_FRAME_TIMING"] = value
             environment.update(extra_environment or {})
-            result = subprocess.run(["bash", str(runtime / "run_bevfusion.sh"), "--model", model, *extra_args],
+            result = subprocess.run(["bash", str(runtime / "run_bevfusion.sh"),
+                                    *(["--model", model] if model is not None else []), *extra_args],
                                     env=environment, text=True, capture_output=True, timeout=10)
             return result, log.read_text(encoding="utf-8") if log.exists() else ""
+
+    def test_e12_is_default_with_heads_on_and_same_model_eager_without_setup(self):
+        result,log=self.run_fixture(model=None,server_head_attention_sdpa=True,server_head_cache_bev_pos=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Production e12',result.stdout)
+        self.assertIn('runtime_heads safe=false sdpa=true cache=true',log)
+
+    def test_e12_safe_keeps_e12_and_disables_optimizations(self):
+        result,log=self.run_fixture(model=None,extra_args=('--safe',))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Production e12',result.stdout)
+        self.assertIn('runtime_heads safe=true sdpa=false cache=false',log)
+
+    def test_missing_managed_image_falls_back_without_changing_e12(self):
+        result,log=self.run_fixture(model='e12',prepared_engine=True,managed_image_missing=True,
+            server_head_attention_sdpa=True,server_head_cache_bev_pos=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('SAME selected model',result.stderr)
+        self.assertIn('Production e12',result.stdout)
+        self.assertIn('image=ajounice/bevfusion:team-cu128-v1 engine=unset policy=off',log)
+        self.assertNotIn('<--expected-camera-engine-sha256>',log)
+
+    def test_prepared_matching_trt_server_is_reused_without_ownership(self):
+        result,log=self.run_fixture(model='e12',prepared_engine=True,server_running=True,
+            server_backend='camera_tensorrt',server_head_attention_sdpa=True,server_head_cache_bev_pos=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Reusing the already-ready matching server',result.stdout)
+        self.assertIn('<--expected-camera-engine-sha256>',log)
+        self.assertNotIn('<stop> <inference>',log)
+
+    def test_explicit_require_is_not_silently_relaxed_when_managed_image_is_missing(self):
+        result,log=self.run_fixture(model='e12',prepared_engine=True,managed_image_missing=True,
+            server_head_attention_sdpa=True,server_head_cache_bev_pos=True,
+            extra_environment={'BEVFUSION_CAMERA_TENSORRT_POLICY':'require'})
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Docker image is missing',result.stderr)
+        self.assertNotIn('roslaunch',log)
 
     def test_unset_defaults_false_and_owns_only_mock_server(self):
         result, log = self.run_fixture(defined=False)
@@ -193,7 +250,7 @@ done
     def test_matching_preexisting_eager_server_is_reused_without_taking_ownership(self):
         result, log = self.run_fixture(server_running=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Reusing the already-ready matching eager server", result.stdout)
+        self.assertIn("Reusing the already-ready matching server", result.stdout)
         self.assertIn("pre-existing matching server is not owned by this session", result.stdout)
         self.assertIn("<ps> <--status> <running> <-q> <inference>", log)
         self.assertIn("<--expected-camera-backend> <eager>", log)
@@ -218,7 +275,7 @@ done
         result, log = self.run_fixture(server_running=True, health_fail_first=3)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Waiting for the existing server to finish warmup", result.stdout)
-        self.assertIn("Reusing the already-ready matching eager server", result.stdout)
+        self.assertIn("Reusing the already-ready matching server", result.stdout)
         self.assertEqual(len([line for line in log.splitlines() if line.startswith("healthcheck")]), 4)
         self.assertEqual(log.splitlines().count("sleep <2>"), 3)
         self.assertNotIn("<up>", log)
@@ -306,7 +363,7 @@ done
             server_head_enabled=False, extra_environment={
                 "BEVFUSION_HEAD_ATTENTION_SDPA": "true", "BEVFUSION_HEAD_CACHE_BEV_POS": "true"})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Reusing the already-ready matching eager server", result.stdout)
+        self.assertIn("Reusing the already-ready matching server", result.stdout)
         self.assertNotIn("<up>", log)
         self.assertNotIn("<stop>", log)
         self.assertEqual(log.count("roslaunch"), 1)

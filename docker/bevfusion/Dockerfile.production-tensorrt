@@ -1,0 +1,22 @@
+# Small inference overlay. Build from the already installed team runtime; no
+# training image, checkpoint, engine, dataset or registry credential is copied.
+ARG BASE_IMAGE=ajounice/bevfusion:team-cu128-v1
+FROM ${BASE_IMAGE}
+LABEL ai.ajounice.runtime-purpose="production-e12-camera-tensorrt" \
+      ai.ajounice.tensorrt-version="10.13.3.9" \
+      ai.ajounice.target-gpu-engine="build-on-each-team-pc"
+COPY docker/bevfusion/requirements/tensorrt-inference-experiment.txt /opt/requirements/production-tensorrt.txt
+# PyPI's libs sdist is a downloader stub; skip its opaque metadata/build step.
+# Resolve the pinned binary directly from NVIDIA's official package index.
+RUN python -m pip install --no-cache-dir --no-deps --timeout 30 --retries 2 \
+        --extra-index-url https://pypi.nvidia.com --only-binary=tensorrt-cu12-libs \
+        -r /opt/requirements/production-tensorrt.txt \
+    && python -c "import torch,onnx,tensorrt; assert torch.__version__.split('+')[0]=='2.7.1'; assert torch.version.cuda=='12.8'; assert onnx.__version__=='1.16.0'; assert tensorrt.__version__=='10.13.3.9'"
+COPY docker/bevfusion/app/ /opt/ajounice/app/
+COPY docker/bevfusion/scripts/setup_production_tensorrt.py \
+     docker/bevfusion/scripts/run_inference_server.sh \
+     docker/bevfusion/scripts/healthcheck.py /opt/ajounice/scripts/
+# The checkout is mounted read-only at setup/runtime. Engine export is an
+# explicit setup command, never a Docker build step or a driving-time action.
+WORKDIR /workspace/AjouNice2026
+CMD ["bash"]

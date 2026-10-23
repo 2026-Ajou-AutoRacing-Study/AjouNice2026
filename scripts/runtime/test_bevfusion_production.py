@@ -15,24 +15,54 @@ sys.path.insert(0,str(ROOT/'docker/bevfusion'))
 
 
 class ProductionTests(unittest.TestCase):
+    def test_prepared_camera_reuse_checks_engine_or_truthful_startup_fallback(self):
+        spec=importlib.util.spec_from_file_location('engine_health',ROOT/'docker/bevfusion/scripts/healthcheck.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        args=SimpleNamespace(expected_checkpoint='pinned',expected_base5='true',expected_config='config',
+            expected_sensor='sensor',expected_camera_engine_sha256='engine')
+        execution=dict(camera_tensorrt=dict(enabled=True,loaded=True,healthy=True,engine_sha256='engine'),
+                       camera_tensorrt_startup=dict(fallback=False))
+        metadata=dict(model_loaded=True,runtime_identity=dict(checkpoint_sha256='pinned',config_sha256='config',
+            base5_runtime=True,amp=True,parallel_camera=True,compile_parts=[],execution_optimization=execution),
+            calibration=dict(config_sha256='sensor'),point_intensity_source='ros255',image_final_dim=[512,1056],
+            classes=['vehicle','pedestrian','obstacle'])
+        module.validate_production_identity(metadata,args)
+        for key,value in [('engine_sha256','other'),('loaded',False),('healthy',False)]:
+            bad=copy.deepcopy(metadata);bad['runtime_identity']['execution_optimization']['camera_tensorrt'][key]=value
+            with self.assertRaises(ValueError):module.validate_production_identity(bad,args)
+        execution['camera_tensorrt']=dict(enabled=False)
+        with self.assertRaises(ValueError):module.validate_production_identity(metadata,args)
+        execution['camera_tensorrt_startup']['fallback']=True
+        module.validate_production_identity(metadata,args)
+
     def test_legacy_env_only_selects_e25_and_explicit_override_is_preserved(self):
         env={'BEVFUSION_INFERENCE_CHECKPOINT':'legacy-e25.pth'}
         self.assertNotEqual(resolve_checkpoint('e24',env),'legacy-e25.pth')
+        self.assertNotEqual(resolve_checkpoint('e12',env),'legacy-e25.pth')
         self.assertEqual(resolve_checkpoint('e25',env),'legacy-e25.pth')
         env['BEVFUSION_CHECKPOINT']='explicit.pth'
         self.assertEqual(resolve_checkpoint('e24',env),'explicit.pth')
-    def test_e24_default_and_explicit_rollback_have_distinct_contracts(self):
+        self.assertEqual(resolve_checkpoint('e12',env),'explicit.pth')
+    def test_e12_default_and_explicit_rollbacks_have_distinct_contracts(self):
         a,b=profile(),profile('e25')
-        self.assertEqual(a['model'],'e24')
+        self.assertEqual(a['model'],'e12')
         self.assertEqual(a['thresholds'],[.4,.1,.1])
         self.assertEqual(b['thresholds'],[.4,.15,.1])
         self.assertTrue(a['base5'] and a['parallel'])
         self.assertFalse(b['base5'] or b['parallel'])
         self.assertEqual(a['compile_parts'],[])
         self.assertNotEqual(a['checkpoint_path'],b['checkpoint_path'])
+        self.assertEqual(a['sha256'],'f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8')
+        self.assertTrue(a['camera_tensorrt'] and a['head_attention_sdpa'] and a['head_cache_bev_pos'])
+        self.assertFalse(a['pool_fused_layout'])
+        old=profile('e24')
+        self.assertNotEqual(a['checkpoint_path'],old['checkpoint_path'])
+        self.assertEqual(old['sha256'],'84c7a849406a37f05250f872d4d0dfa3ebcffdb66b48e47bdfcb3209efecc746')
+        for candidate in (old,b):
+            self.assertFalse(candidate['camera_tensorrt'] or candidate['head_attention_sdpa'] or candidate['head_cache_bev_pos'])
 
     def test_profile_files_exist_and_e24_uses_canonical_topics(self):
-        for name in ('e24','e25'):
+        for name in ('e12','e24','e25'):
             p=profile(name)
             for k in ('model_config','bridge_config','sensor'):self.assertTrue((ROOT/p[k]).is_file())
         launch=ET.parse(ROOT/'base_ws/src/perception/bevfusion_ros/launch/base5_production.launch').getroot()
@@ -63,6 +93,18 @@ class ProductionTests(unittest.TestCase):
             a=SimpleNamespace(model='e24',source_checkpoint=src,check_only=False)
             with patch('prepare_bevfusion_production.profile',return_value=p):
                 with self.assertRaises(ValueError):prepare(a)
+            self.assertFalse(target.exists())
+
+    def test_e12_prepare_without_source_never_downloads_old_e24_weights(self):
+        with tempfile.TemporaryDirectory() as t:
+            target=Path(t)/'weights/base5_e12_inference.pth'
+            p=dict(profile('e12'),checkpoint_path=str(target))
+            args=SimpleNamespace(model='e12',source_checkpoint=None,check_only=False)
+            with patch('prepare_bevfusion_production.profile',return_value=p), \
+                    patch('prepare_bevfusion_production.subprocess.run') as network:
+                with self.assertRaisesRegex(ValueError,'install_base5_production.sh'):
+                    prepare(args)
+                network.assert_not_called()
             self.assertFalse(target.exists())
 
     def test_readiness_rejects_wrong_weights_options_intensity_or_classes(self):

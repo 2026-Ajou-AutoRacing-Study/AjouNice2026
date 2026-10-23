@@ -29,7 +29,7 @@ class LatencyContractTests(unittest.TestCase):
         self.doc['recording']['video']['enabled'] = False
         self.path = self.root / 'campaign.yaml'
 
-    def cfg(self, preset='base5_e24'):
+    def cfg(self, preset='base5_e12'):
         self.doc['stack'].update(detector='bevfusion', bevfusion_model=preset, traffic_light=False)
         self.path.write_text(yaml.safe_dump(self.doc))
         return load_campaign(self.path, check_install=False)
@@ -49,7 +49,7 @@ class LatencyContractTests(unittest.TestCase):
         self.assertEqual(profile_contract_warnings(cfg), [])
 
     def test_both_models_use_same_contract_in_launcher_recording_and_audit(self):
-        for preset in ('base5_e24', 'e25'):
+        for preset in ('base5_e12', 'base5_e24', 'e25'):
             with self.subTest(preset=preset):
                 cfg = self.cfg(preset)
                 contract = model_topics(preset)

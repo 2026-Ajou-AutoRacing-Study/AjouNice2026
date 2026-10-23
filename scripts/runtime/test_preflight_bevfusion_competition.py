@@ -23,7 +23,7 @@ class PreflightTests(unittest.TestCase):
         path.write_text(text); return path
 
     def test_existing_production_default_and_explicit_rollback_are_preserved(self):
-        self.assertEqual(profile()['model'], 'e24')
+        self.assertEqual(profile()['model'], 'e12')
         self.assertTrue(profile()['base5'])
         self.assertEqual(profile('e25')['model'], 'e25')
         self.assertNotIn('e12', preflight.ENV_KEYS)
@@ -106,7 +106,7 @@ class PreflightTests(unittest.TestCase):
         self.assertNotIn('never_print', serialized)
         self.assertNotIn('WANDB', serialized)
         self.assertFalse(report['cloud_access_required'])
-        self.assertEqual(report['selected']['model'], 'e24')
+        self.assertEqual(report['selected']['model'], 'e12')
         self.assertFalse(any('run' in command or 'pull' in command or 'stop' in command or 'login' in command
                              for command in commands))
         gpu_checks = [row for row in report['checks'] if row['check'] == 'nvidia_gpu_driver']
@@ -121,6 +121,14 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(report['selected']['model'], 'e25')
         self.assertEqual(report['selected']['image'], preflight.SAFE_IMAGE)
         self.assertEqual(report['selected']['camera_tensorrt_policy'], 'off')
+
+    def test_explicit_legacy_model_environment_matches_the_actual_runner(self):
+        report=preflight.inspect_startup(self.root,home=self.root,
+            environment={'BEVFUSION_PRODUCTION_MODEL':'e24'},runner=lambda *a,**k:(127,''))
+        self.assertEqual(report['selected']['model'],'e24')
+        report=preflight.inspect_startup(self.root,model='e12',home=self.root,
+            environment={'BEVFUSION_PRODUCTION_MODEL':'e24'},runner=lambda *a,**k:(127,''))
+        self.assertEqual(report['selected']['model'],'e12')
 
     def test_missing_optional_engine_warns_for_prefer_but_blocks_require(self):
         for policy, level in [('prefer', 'warning'), ('require', 'blocker')]:

@@ -7900,3 +7900,107 @@ blocker 0 / warning 2(실제 ROS/LAN·대회 GPU 풀스택 미인증)다. 문서
 가속기 선택과 E12 승격은 별도 결정이다. E24용 전체 AP를 E12 결과로 대신하지 않으며,
 TRT image build/push·팀 PC engine 배포도 아직 하지 않았다. 이번 시험 완료 후 자체 GPU 작업은
 종료했고 Vast Stop/Destroy나 MORAI·빌린 PC·planning 노드 조작은 하지 않았다.
+
+<a id="e12-production-ros1-deployment-261023"></a>
+
+## 63. 사용자 승인 E12 최적화 production 승격과 ROS1 전체 통합 — 2026-10-23
+
+사용자가 **60.34ms 시험 버전을 production으로 배포**하도록 명시했다. 앞선 E24 유지 결정은
+이 요청으로 변경했다. 기본은 전체 30,750장 E12·camera TRT·head SDPA/BEV 좌표 cache 요청 ON,
+compile/topk/시험 pool layout OFF다. 같은 입력·격자·강도·nearest·threshold 0.40/0.10/0.10과
+gravity-center ROS 출력을 유지한다. E24/E25는 명시적인 복귀로 보존한다.
+60.34ms는 61절의 4090·연속 480장 서비스 평균이지 팀 PC의 센서 age/풀스택 성능 보증이 아니다.
+
+### 코드·설치·GPU별 가속기
+
+- `dataset/base5`에 최신 ROS1 planning `59a3fd6e`를 **전체 merge**했다(`b99b868b`). 선별 복사나
+  cherry-pick을 하지 않았다. 신규 추월·차선 변경·cruise·궤적 이력·지도 속도 편집 변경을 보존했다.
+- 들어온 `behavior_velocity_modules.yaml`의 잘못된 `ㅊ   현backward_path_length` 키만 좁게
+  바로잡았다. 새 판단 정책을 detector 승격의 효과나 이번 폐루프 검증 결과로 보고하지 않는다.
+- 기본 CLI/profile·가중치 설치기·validator 새 YAML/GUI는 E12다. 기존 명시 E24/E25 실행은
+  해당 모델을 유지한다. 과거 실행 snapshot을 변경하거나 다른 checkpoint로 강제 resume하지 않는다.
+- 기존 팀 이미지 위에 Torch 2.7.1/cu128을 유지한 **TRT 10.13.3.9·ONNX 1.16.0 overlay**를
+  로컬 빌드한다. 호스트 Python에 TRT를 설치하지 않으며 Docker Hub에 새 이미지를 push한 것은 아니다.
+  첫 라이브러리 다운로드는 약 3.1GB·이 PC에서 약 8분이었다. 설치 후 주행은 인터넷을 요구하지 않는다.
+- `setup_production_tensorrt.py --execute`만 target GPU engine을 만들고 전체 E12 warmup을 확인한
+  뒤 `~/bevfusion_artifacts/tensorrt/e12/runtime.json`을 게시한다. 기본 호출은 쓰기 없는 계획 출력이다.
+  엔진은 다른 PC의 파일을 공용 배포하지 않는다. 고정 v4 FP32 입력/FP16 출력·NORMALIZATION/
+  SOFTMAX FP32·TRT TF32 OFF를 유지한다. image ID·GPU·weights/config·engine/metadata SHA를 기록한다.
+- 정상 receipt는 production 실행기와 validator가 공유한다. engine/선택 image 미준비나 첫 enqueue
+  전의 분류된 오류는 **같은 E12 eager**로 복귀하고 실제 backend를 기록한다. 기본 prefer와
+  명시 require를 구분하며 require를 성공처럼 off로 낮추지 않는다. `--safe`도 같은 E12의 추가
+  가속만 끈다. weights·센서 오류나 CUDA 실행 이후 손상은 이 복귀로 숨기지 않는다.
+- 기존 `.env`의 공통 baseline image 값이 유효한 E12 준비 receipt를 가리던 배포 문제를 보완했다.
+  개인 파일을 수정하지 않고 준비된 관리 image를 선택한다. 별도 custom image는 유지하며,
+  명시 policy `off`와 `--safe`는 baseline으로 복귀한다. 관련 통합 CPU 회귀 69개를 다시 통과했다.
+- 설치기는 planning 전체를 명시적으로 증분 빌드한 뒤 base를 빌드한다. 완료 marker만 보고
+  planning을 건너뛰는 기존 build_all 단독 실행과 구분한다. clean·드라이버 재설치는 하지 않는다.
+
+### 실제 배포 archive와 로컬 GPU/RPC
+
+현재 배포 명세는 `configs/perception/base5_e12_production_release.json`이다.
+`model/bevfusion/production/base5_e12_trt_head_261023/`의
+`ajounice_base5_e12_production_261023_trt_head_v3.zip`은 **161,709,293 bytes**,
+SHA `ffb039facbe9e6e3a8f928fd6da0bd0f5c24901f619996fccec194deadde5273`다.
+Drive 원격 size·MD5 `6797b8c773f99b2738c7e9082de21002`를 로컬과 대조했다.
+ZIP 내 E12는 **215,840,895 bytes**, SHA `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8`다.
+원본 E24 전달본·복귀 파일은 바꾸지 않았다. v1 ZIP은 첫 설치 시험의 이력으로 남겼다.
+
+첫 v1은 Drive에서 별도의 빈 HOME으로 실제 다운로드·CRC/내부 SHA·72개 참고 source 검증·
+weights 설치를 완료했다(약 1분 43초). v2는 마지막 시작 정책/참고 소스를 갱신한 파일이며
+로컬 archive 전체 검증과 기존 E12 무다운로드 check-only를 통과했다. v3는 옛 baseline image
+override 보완을 참고 사본에 반영해 재동결했다. source 72개 snapshot 대조와 별도 빈 HOME의
+로컬 ZIP 전체 검사·설치도 통과했다. 세 버전의 가중치 바이트는 같다.
+
+로컬 5060Ti 16GB에서 새 Docker **실제 build/import → GPU별 engine 생성 → 전체 E12 warmup →
+close → runtime receipt 게시**를 확인했다. image ID는 `sha256:26880867295feaac329d5c9fdd20dcbe572677e5f0cf71e0515d82db8e2d1230`,
+생성 engine SHA는 `c0d5e197a913444aa4345936675c3065752af29287e62f2f26597339f4a84e74`다.
+
+같은 이미지에서 실제 InferenceServer·socketpair PING/PONG·입력 계약·원본 JPEG/XYZI255의
+세 요청을 eager/최적화/safe로 실행했다. 각 조건은 **3/0/1개**를 반환했고 박스 대응 추가/누락은
+없었다. eager→최적화의 최대 XY 차이는 **0.195mm**, score 차이 **0.000377**였다.
+eager 재생성→safe도 bitwise 같지는 않았다(최대 XY **0.313mm**, 크기 **0.977mm**, yaw **0.168°**,
+score **0.000170**). 최초 v1 smoke가 이를 exact assert로 거부해 v2에서 분포와 출력을 보존했다.
+동일 가중치·원형 backend 복귀를 byte 동일성으로 과장하지 않으며 그 미세 차이의 개별 kernel 원인은
+이 시험에서 분해하지 않았다. runtime/threshold를 바꿔 통과시킨 것은 아니다.
+
+실제 TCP listen·ROS publisher·MORAI/주행은 실행하지 않았다. 4090 24GB 팀 PC의 LAN·YOLO·
+풀스택 지연/메모리는 사용자 요청대로 후속이다. 재학습·Vast Stop/Destroy·빌린 PC 조작은 하지 않았다.
+
+회귀는 Docker CPU **281 passed / CUDA 전용 4 skipped / 67 subtests**, 호스트 packaging 4개·
+명시 calibration 1개 통과다. 전체 planning/base overlay의 validator 집중 회귀 **59개**도 통과했다.
+planning **154/154**, base **27개 패키지** 증분 설치도 통과했다.
+별도 새 판단 C++ 5대상은 **60 passed / optional replay 1 skipped / 0 failures**였다.
+읽기 전용 safe preflight는 blocker 0 / warning 2다. 기존 문서 길이 예산 3건과 GPS-shadow
+starter의 기존 별도 생성 차이는 보존했으며 전체 문서/전체 생성기 검사 통과라고 쓰지 않는다.
+준비된 E12 TRT를 실제 선택한 읽기 전용 일반 preflight도 blocker 0 / warning 3이다.
+
+근거는 `artifacts/evaluation/bevfusion/e12_trt_cuda_probe_261023_v1/production_e12_v1/`,
+`production_e12_v2/`, `production_e12_v3/`, `E12_PRODUCTION_TRT_RPC_GPU_v2.json`에 보존했다.
+RPC 보고서 SHA `af1ecce57b633b64ef2a52c42eb75a7cc665f5e5f1065630bad9beb4201d43a5`,
+target setup receipt SHA `09610f0834bdd904f2825828092016b5bfdad92477bf0498f5cc96bd37500ea0`다.
+
+### 추가 사용자 요청: Drive의 검증된 중복만 정리
+
+휴지통 전체 비우기·경로 기준 중복 이름 삭제를 하지 않았다. 소유권·삭제 가능·ID·크기·MD5를
+Drive API로 다시 확인하고 다음 **11개 ID, 4,121,614,919 bytes**만 영구 제거했다.
+구 E24 ZIP은 동일 로컬 사본, 원격 중복은 동일 MD5의 보존 ID를 삭제 직전에 재확인했다.
+
+| 정리 항목 | 삭제한 여분 | 보존 |
+|---|---:|---|
+| 구 E24 production ZIP 4개 | 1,799,123,791 B | 로컬 동일 ZIP·최신 lidar50 E24 ZIP·E24 weights |
+| 옛 180장 smoke의 중복 copy 1개 | 2,121,164,536 B | Drive의 동일 size/MD5 원본 1개 |
+| E10 best의 중복 part 6개 | 201,326,592 B | 검증된 canonical part ID·로컬 parts·조립 checkpoint |
+
+잔여 용량은 약 **6.53→10.65GB**로 실제 증가했고, 배포 ZIP v2/v3 업로드 후 약 **10.33GB**다.
+`drive_cleanup_261023_v1/PLAN.json`과 `DELETION_RECEIPTS.jsonl`에 ID별 보존 근거를 남겼다.
+현재 30,750 cohort·보강 750·E12 best/full/production·E24/E25 복귀는 정리 대상에서 제외했다.
+
+추가로 애매해 보존한 항목은 Base1 salvage **14.04GB**, Base2 **39.86GB**, Base3 raw
+**24.78GB**, 옛 Base3 handoff archive **40.65GB**, Base4 **6.24GB**, PointPainting **6.09GB**,
+옛 Docker **7.41GB**다. 고유 archive와 로컬 보존/복원 동등성을 확인하지 못했다.
+초기 Base5 Q90 **3.33GB**는 로컬 4파트 MD5가 맞지만 E24 데이터 재현 이력이므로 보류했다.
+휴지통 **19.44GB**는 대부분 옛 Base5 v140 raw parts이며 로컬 archive/parts가 없어 비우지 않았다.
+같은 이름의 `supp750` 두 폴더는 환경별 파일이 달라 모두 필요했다. 이름만으로 삭제하지 않는다.
+별도 Foggy13 1장 보충 archive는 로컬에 있지만 조사한 Drive dataset scope에서는 찾지 못했으므로,
+폴더명 `full30749`만으로 30,750장 전체의 Drive 보존이 완료됐다고 단정하지 않는다.

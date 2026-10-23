@@ -11,7 +11,7 @@
 | 현재 모델·checkpoint·옵션 선택 | [CURRENT](CURRENT.md) |
 | 원거리 차량·후단·다음 수집과 최종 학습의 진행 순서 | [개선 계획](261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md) |
 | 80~100m의 실제 센서·E24 누락 원인과 보조 차량 보강 | [v153 데이터·검증 근거](../../dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md) |
-| Production E24 배포·실대회 기동 점검·가속기 OFF 복구와 E25 복귀 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
+| Production E12 TRT/head 배포·PC별 engine·실대회 기동 점검·E24/E25 복귀 | [production handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup), [E25 복귀 계약](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md) |
 | Base5 ROS 시험 | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md) |
 | 운영 localization과 독립 평가 GT의 heading·pose 기준 | [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md) |
 | Validator 녹화 프리셋·로그·공유 묶음의 누락과 담당자 전달 | [분석 공유 검토](261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md) |
@@ -58,7 +58,7 @@
 | 실제 학습 compile OFF/ON·메모리 경계 | [25절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-fine-training-compile-vast-261011), [26절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-memory-batch-decision-261011) |
 | JPEG 전환·정답 heatmap 축·upright BBox | [12절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#all-jpeg-policy-261011), [15절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-heatmap-target-alignment-261011), [16절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-upright-native-rpy-261011) |
 | 격자·depth·Z 설정 비교 | [17절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-grid-depth-local-261011), [19절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-vast-depth-z-qualification-261011) |
-| CUDA·부분 TRT의 AP/연속 tracker·head 전체 AP/실행 연결·기동 거부 감사·Orin 비교 | [배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023), [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023), [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023), [62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023) |
+| CUDA·부분 TRT·head AP/연속 tracker·Orin 비교·E12 production 배포와 Drive 정리 | [배포 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023), [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023), [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023), [62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023), [63절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023) |
 | 차량 velocity 기준과 bag GT | [GT 기준 조사](261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md) |
 
 ## 과거 재현

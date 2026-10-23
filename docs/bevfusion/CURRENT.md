@@ -1,8 +1,8 @@
 # BEVFusion 현재 모델과 실행 기준
 
 문서 상태: CURRENT. 최종 근거 확인: 2026-10-23.
-2026-10-13 사용자 요청으로 production 기본값은 E24다. 팀 공유 planning 브랜치용 ZIP 설치기와
-validator 기본 선택도 E24 계약을 사용한다. E25는 명시적인 복귀 후보다.
+2026-10-23 사용자 요청으로 production 기본값은 **전체 30,750장 E12 + camera TRT + head SDPA·좌표 cache**다.
+팀 공유 planning 설치기·validator 기본도 E12다. E24/E25는 명시적 복귀 후보이며 아래 과거 실험의 ‘E24 유지’는 당시 결정이다.
 구 Sunny13 모델의 native-val best E9와 production E24의 선택 기준을 혼동하지 않는다.
 상세 결과는 [작업별 근거 인덱스](README.md)에서 필요한 절만 읽는다.
 
@@ -77,7 +77,8 @@ Best는 native val 선정 기준이며 모든 bag·미션에서 우월하다는 
 
 | 실행 역할 | 현재 계약 | 실행 기준 |
 |---|---|---|
-| Production E24 | AMP·병렬화·nearest hint ON, compile OFF, gravity-center ROS 출력, V/P/O 0.40/0.10/0.10, NMS 0.50 | [E24 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion` |
+| Production E12 | 전체 30,750장 E12, camera TRT·head SDPA·좌표 cache 요청 ON, AMP·병렬화·nearest, compile OFF, gravity-center, V/P/O 0.40/0.10/0.10, NMS 0.50. PC별 engine 준비 후 자동 선택하며 미준비 시 같은 E12 eager | [배포 handoff](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion`; `--safe`는 같은 E12 원형 |
+| E24 명시적 복귀 | 기존 E24·Base5 입력·threshold 보존, 추가 head/TRT 기본 OFF | `bevfusion --model e24` |
 | E25 명시적 복귀 | V/P/O 0.40/0.15/0.10, class-aware rotated BEV NMS 0.50 | [E25 handoff](BASE3_BEVFUSION_PRODUCTION_HANDOFF.md), `bevfusion --model e25` |
 | Base5 baseline trial | 별도 namespace·서버. production을 자동 교체하지 않음 | [ROS 패키지](../../base_ws/src/perception/bevfusion_ros/README.md), `base5_trial.launch` |
 | E24 선정 trial | AMP·camera 병렬화 ON, 추론 compile OFF, V/P/O 0.40/0.10/0.10 | `base5_e24_calibrated_trial.launch`, [threshold 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-local-threshold-calibration-261012) |
@@ -106,7 +107,7 @@ Validator 분석은 [현재 런북](../planning/SCENARIO_VALIDATOR_RUNBOOK.md#5-
 비용용 빈 출력·query 고정 통제를 완성 모델의 정확도/배포 근거로 사용하지 않는다.
 
 BEVPool/CUDA 경로 개선은 적용된 구현을 따른다. CUDA-BEVFusion은 참고 구현이며 새 프레임워크로 전체 이주한 상태가 아니다.
-[부분 TensorRT 실험](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-partial-trt-implementation-261023)을 E12·4090에서 구현했다. [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)의 전체 val 4,614장 동일 AMP 비교 mAP는 **94.0545→94.0661%**, V/P/O 변화는 −0.0017/−0.0014/+0.0378%p다. [61절 후속](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)의 원본 연속 480장은 서비스 평균 **75.25→65.68ms**, 전달 903박스 추가/누락·실제 EKF 코어의 교차 실행 ID 대응 교체 0이다. 큰 raw yaw 예외와 코어 범위 한계도 기록했다. [62절의 head 추가 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)은 camera TRT 고정·SDPA+고정 좌표 cache만 ON으로 전체 4,614장의 mAP **94.0661→94.0656%**, V/P/O 변화 **+0.00004/−0.00017/−0.00128%p**를 확인했다. 앞선 별도 480장의 서비스 평균 **65.97→60.34ms**와 함께 실용적인 선택 후보로 판단해 runtime 옵션을 연결했다. 기본은 OFF이고 `--safe`도 OFF다. topk와 CPU 스레드 증가는 이득/CPU 비용상 채택하지 않았다. **production E24·운영 TRT/compile/head OFF는 유지**하며 E12 결과를 E24 전체 AP 인증으로 전용하지 않는다. 실제 24GB 풀스택은 아직 미검증이다. [실대회 시작 감사·안전 실행](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup)에서 선택 가속기의 시작 복귀와 `bevfusion --safe`를 구현했고, 네트워크 차단 E24 GPU warmup·실제 ready PONG 및 원본 3입력 RPC를 확인했다. E12·4090 실제 서버 생성과 TRT+head 조합의 3입력 출력도 검증했다. 필수 weights/sensor·중복 publisher 오류는 우회하지 않으며 옛 ZIP 코드 snapshot만으로 동일 weights 설치를 막지 않는다. 팀 PC 배포·실제 ROS/LAN 주행은 별도다. 공개 Orin FPS 비교·Swin 유지 근거는 [배포 추가 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023)를 따른다. 구조 축소·INT8·새 sparse backend·재학습은 이번 완료 범위가 아니다.
+[부분 TensorRT 실험](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-partial-trt-implementation-261023)을 E12·4090에서 구현했다. [60절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)의 전체 val 4,614장 동일 AMP 비교 mAP는 **94.0545→94.0661%**, V/P/O 변화는 −0.0017/−0.0014/+0.0378%p다. [61절 후속](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)의 원본 연속 480장은 서비스 평균 **75.25→65.68ms**, 전달 903박스 추가/누락·실제 EKF 코어의 교차 실행 ID 대응 교체 0이다. 큰 raw yaw 예외와 코어 범위 한계도 기록했다. [62절의 head 추가 검증](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)은 camera TRT 고정·SDPA+고정 좌표 cache만 ON으로 전체 4,614장의 mAP **94.0661→94.0656%**, V/P/O 변화 **+0.00004/−0.00017/−0.00128%p**를 확인했다. 앞선 별도 480장의 서비스 평균 **65.97→60.34ms**와 함께 실용적인 선택 후보로 판단해 runtime 옵션을 연결했다. 2026-10-23 사용자 승인으로 **E12 production에서 camera TRT·head SDPA/cache 요청을 기본 ON**으로 승격했다. PC별 setup receipt가 없거나 선택 가속기 준비가 실패하면 같은 E12 eager를 사용하고, `--safe`는 추가 가속을 끈다. topk와 CPU 스레드 증가는 이득/CPU 비용상 채택하지 않았다. **production은 E12이며 compile은 계속 OFF**다. E24/E25는 명시적 복귀로 보존하고 E12 결과를 E24 전체 AP 인증으로 전용하지 않는다. 실제 24GB 풀스택은 아직 미검증이다. [실대회 시작 감사·안전 실행](BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#competition-startup)에서 선택 가속기의 시작 복귀와 `bevfusion --safe`를 구현했고, 네트워크 차단 E24 GPU warmup·실제 ready PONG 및 원본 3입력 RPC를 확인했다. E12·4090 실제 서버 생성과 TRT+head 조합의 3입력 출력도 검증했다. 필수 weights/sensor·중복 publisher 오류는 우회하지 않으며 옛 ZIP 코드 snapshot만으로 동일 weights 설치를 막지 않는다. 팀 PC 배포·실제 ROS/LAN 주행은 별도다. 공개 Orin FPS 비교·Swin 유지 근거는 [배포 추가 검토](261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023)를 따른다. 구조 축소·INT8·새 sparse backend·재학습은 이번 완료 범위가 아니다.
 
 <a id="next"></a>
 
@@ -120,7 +121,7 @@ E9 87.55%, E24 87.97%로, Base5 val의 난이도 차이만으로 격차를 설�
 구 Base3 입력의 자차 근처 LiDAR 회신점에 E24가 차량으로 반응했다. 32장 대조에서
 해당 점만 제외하자 자차 위치 차량 관측은 30→0건이 됐지만 장애물 AP는 개선되지 않았다.
 현재 Base5 val·개발 bag에는 그 회신점이 없었다. 일반적인 자차 제거 필터는 적용하지 않았다.
-기본 실행은 현재 입력 계약의 E24 0.40/0.10/0.10이며 E9는 val best·비교 후보로 보존한다.
+기본 실행은 E12 0.40/0.10/0.10이며 E24/E25는 명시적 복귀, 구 E9는 비교 후보로 보존한다.
 production 승격은 사용자 선택이며 실제 4090 24GB 풀스택 검증 완료를 뜻하지 않는다.
 구 입력에 동일 threshold가 그대로 통한다는 뜻은 아니다. [교차 평가 근거](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)를 따른다.
 각 결과의 표본·정밀도·제약은 [근거 인덱스](README.md#evaluation)를 따른다.

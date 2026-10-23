@@ -20,7 +20,7 @@ from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolv
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
-from .models import resolve_contract, verify_contract, selected_model, CANONICAL
+from .models import resolve_contract, verify_contract, selected_model, runtime_image_selection, CANONICAL
 from .recording_audit import audit_bag
 from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
 from .localization_contract import effective_localization_args, effective_gt_pose_args, resolve_localization_contract
@@ -925,10 +925,15 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
     for warning in state['recording_profile_warnings']:
         print('[WARN] ' + warning + ' · 기존 사본은 수정하지 않습니다. 새 실험으로 갱신하세요.', flush=True)
     if model['preset'] != 'od_gt':
-        image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', model['image']], text=True).strip()
+        image_selection = runtime_image_selection(model)
+        image_id = image_selection['image_id']
         if previous_model and previous_model.get('image_id') not in (None, image_id):
             raise RuntimeFailure('Docker image가 이전 모델 실행과 다릅니다. 같은 결과에 resume할 수 없습니다')
         model['image_id'] = image_id
+        atomic_json(cfg['output'] / 'model_image_selection.json', image_selection)
+        if image_selection['fallback']:
+            print('[WARN] optional TensorRT image 없음: 같은 E12 eager로 시작합니다. ' +
+                  image_selection['reason'], flush=True)
     atomic_json(cfg['output'] / 'model_runtime.json', model)
     state.update(run_status='RUNNING', runner_pid=os.getpid())
     snapshot = cfg["output"] / "campaign_config.yaml"

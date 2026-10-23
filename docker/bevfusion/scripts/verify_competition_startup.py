@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--model', choices=['e24', 'e25'], required=True)
+    p.add_argument('--model', choices=['e12', 'e24', 'e25'], required=True)
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--checkpoint', type=Path, required=True)
     p.add_argument('--sensor-config', type=Path, required=True)

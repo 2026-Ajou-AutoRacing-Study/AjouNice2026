@@ -1,5 +1,5 @@
 <launch>
-  <!-- User-promoted E24, 2026-10-13. Canonical topics; E25 rollback stays separate.
+  <!-- Shared E12 production / E24 rollback transport. The launcher pins weights/options; E25 stays separate.
        AMP + camera parallel ON, compile OFF are owned by the GPU runner. -->
   <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_lan.json"/>
   <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_production.yaml"/>

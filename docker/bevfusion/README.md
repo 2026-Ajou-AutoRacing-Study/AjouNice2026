@@ -1,8 +1,8 @@
 # AjouNice BEVFusion runtime
 
-현재 production은 E24이며 선택·입력·가중치·최적화의 단일 기준은
+현재 production은 전체 30,750장 E12 + camera TRT + head SDPA·좌표 cache이며 선택·입력·가중치·최적화의 단일 기준은
 [모델 CURRENT](../../docs/bevfusion/CURRENT.md)다. 실행은
-[E24 handoff](../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의
+[production handoff](../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)의
 `scripts/runtime/run_bevfusion.sh`를 따른다. 이 디렉터리는 Base3 호환 환경과 Base5
 학습·추론 서버를 함께 관리한다. 파일명에 Base3가 있어도 현재 실행값이라고 가정하지 않는다.
 팀 CUDA 12.8 이미지의 하드웨어 지원과 새 호스트 qualification은 구분한다.

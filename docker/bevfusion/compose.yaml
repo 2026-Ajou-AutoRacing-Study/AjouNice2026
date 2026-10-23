@@ -32,6 +32,7 @@ services:
       - ${AJOUNICE_ROOT}:/workspace/AjouNice2026:ro
       - ${BEVFUSION_SENSOR_CONFIG:-${AJOUNICE_ROOT}/configs/sensors/Sensor.json}:/config/Sensor.json:ro
       - ${BEVFUSION_CHECKPOINT}:/opt/checkpoints/bevfusion_base3.pth:ro
+      - ${BEVFUSION_TENSORRT_ARTIFACTS:-${HOME}/bevfusion_artifacts/tensorrt}:/opt/bevfusion_tensorrt:ro
       - bevfusion_torch_extensions:/root/.cache/torch_extensions
     shm_size: "4gb"
     gpus: all

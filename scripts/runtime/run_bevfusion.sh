@@ -20,10 +20,10 @@ case "$PUBLISH_FRAME_TIMING" in
     ;;
 esac
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"
-MODEL="${BEVFUSION_PRODUCTION_MODEL:-e24}"
+MODEL="${BEVFUSION_PRODUCTION_MODEL:-e12}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model) MODEL="${2:?Use --model e24 or --model e25}"; shift 2 ;;
+    --model) MODEL="${2:?Use --model e12, e24 or e25}"; shift 2 ;;
     --publish-frame-timing) PUBLISH_FRAME_TIMING=true; shift ;;
     --safe) SAFE_MODE=true; shift ;;
     --*) echo "[ERROR] Unknown BEVFusion option: $1" >&2; exit 2 ;;
@@ -47,6 +47,8 @@ if [[ "$SAFE_MODE" == true ]]; then
   export BEVFUSION_HEAD_ATTENTION_SDPA=false BEVFUSION_HEAD_CACHE_BEV_POS=false
 fi
 export BEVFUSION_SAFE_MODE="$SAFE_MODE"
+acceleration_exports="$(python3 "$ROOT/scripts/runtime/bevfusion_acceleration_profile.py" --model "$MODEL" --shell)"
+eval "$acceleration_exports"
 for variable in BEVFUSION_HEAD_ATTENTION_SDPA BEVFUSION_HEAD_CACHE_BEV_POS; do
   case "${!variable:-false}" in
     true|false) ;;
@@ -65,7 +67,7 @@ CHECKPOINT="${profile[0]}"
 IMAGE="${BEVFUSION_IMAGE:-ajounice/bevfusion:team-cu128-v1}"
 EXPECTED_SHA256="${profile[1]}"
 health_policy_args=()
-if [[ "$MODEL" == e24 ]]; then
+if [[ "${profile[5]}" == true ]]; then
   health_policy_args=(--require-box-origin-tag --expected-depth-raster-policy nearest_positive)
 fi
 if [[ "${BEVFUSION_CAMERA_TENSORRT_POLICY:-}" == require ]]; then
@@ -89,7 +91,7 @@ export INTRINSIC_SOURCE=horizontal_fov
 export BEVFUSION_BASE5_RUNTIME="${profile[5]}"
 export BEVFUSION_PARALLEL_CAMERA="${profile[6]}"
 export BEVFUSION_POINT_INTENSITY_SOURCE=native
-if [[ "$MODEL" == e24 ]]; then export BEVFUSION_POINT_INTENSITY_SOURCE=ros255; fi
+if [[ "${profile[5]}" == true ]]; then export BEVFUSION_POINT_INTENSITY_SOURCE=ros255; fi
 # Bridge/server port and precision are one frozen production contract.
 export BEVFUSION_PORT=29500
 export BEVFUSION_USE_AMP=true
@@ -98,6 +100,10 @@ export PROJECTION_ONLY=false
 server_owned=false
 
 check_server_identity() {
+  local engine_args=()
+  if [[ -n "${BEVFUSION_ACCELERATION_ENGINE_SHA256:-}" ]]; then
+    engine_args=(--expected-camera-engine-sha256 "$BEVFUSION_ACCELERATION_ENGINE_SHA256")
+  fi
   PYTHONPATH="$ROOT/docker/bevfusion" \
     python3 "$ROOT/docker/bevfusion/scripts/healthcheck.py" --expected-checkpoint "$EXPECTED_SHA256" \
     --expected-base5 "${profile[5]}" \
@@ -107,6 +113,7 @@ check_server_identity() {
     --expected-camera-order camera_front camera_front_left camera_front_right camera_back \
     --expected-head-attention-sdpa "${BEVFUSION_HEAD_ATTENTION_SDPA:-false}" \
     --expected-head-cache-bev-pos "${BEVFUSION_HEAD_CACHE_BEV_POS:-false}" \
+    "${engine_args[@]}" \
     "${health_policy_args[@]}"
 }
 
@@ -140,9 +147,20 @@ if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
 fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "[ERROR] Docker image is missing: $IMAGE" >&2
-  echo "  Build it from $ROOT before starting BEVFusion." >&2
-  exit 1
+  if [[ "${BEVFUSION_ACCELERATION_MANAGED_IMAGE:-false}" == true && \
+        "${BEVFUSION_CAMERA_TENSORRT_POLICY:-off}" != require ]] && \
+      docker image inspect ajounice/bevfusion:team-cu128-v1 >/dev/null 2>&1; then
+    echo '[WARNING] Prepared optional TRT image is unavailable; using the SAME selected model with the baseline image.' >&2
+    IMAGE=ajounice/bevfusion:team-cu128-v1
+    export BEVFUSION_IMAGE="$IMAGE" BEVFUSION_CAMERA_TENSORRT_POLICY=off
+    unset BEVFUSION_CAMERA_TENSORRT_ENGINE BEVFUSION_CAMERA_TENSORRT_METADATA
+    unset BEVFUSION_ACCELERATION_ENGINE_SHA256
+    health_policy_args+=(--expected-camera-backend eager)
+  else
+    echo "[ERROR] Docker image is missing: $IMAGE" >&2
+    echo "  Build/install the team image before starting BEVFusion." >&2
+    exit 1
+  fi
 fi
 
 if topic_info="$(rostopic info "$DETECTION_TOPIC" 2>/dev/null)"; then
@@ -164,13 +182,14 @@ if [[ -n "$(docker compose -f "$COMPOSE_FILE" ps --status running -q inference)"
   # Docker may restart an already-warmed eager server when the PC boots. It
   # need not block a fresh bridge if every selected frozen identity matches.
   # Never take ownership, change its options, or kill someone else's server.
-  if [[ -n "${BEVFUSION_CAMERA_TENSORRT_ENGINE:-}${BEVFUSION_CAMERA_TENSORRT_METADATA:-}" ]]; then
+  if [[ -n "${BEVFUSION_CAMERA_TENSORRT_ENGINE:-}${BEVFUSION_CAMERA_TENSORRT_METADATA:-}" && \
+        -z "${BEVFUSION_ACCELERATION_ENGINE_SHA256:-}" ]]; then
     echo '[ERROR] An inference service is already running; stop its owning session before changing acceleration options.' >&2
     exit 1
   fi
   echo '[BEVFusion] Waiting for the existing server to finish warmup and match the selected profile'
   if wait_for_selected_server; then
-    echo '[BEVFusion] Reusing the already-ready matching eager server; this session will not stop it.'
+    echo '[BEVFusion] Reusing the already-ready matching server; this session will not stop it.'
   else
     echo '[ERROR] The existing inference service did not become ready with the selected profile.' >&2
     check_server_identity >&2 || true
@@ -178,9 +197,11 @@ if [[ -n "$(docker compose -f "$COMPOSE_FILE" ps --status running -q inference)"
     exit 1
   fi
 else
+  mkdir -p "$BEVFUSION_TENSORRT_ARTIFACTS"
   echo "[BEVFusion] Starting Docker inference server"
   echo "[BEVFusion] Production $MODEL; hash $EXPECTED_SHA256; sensor $SENSOR_CONFIG"
   echo "[BEVFusion] Safe mode: $SAFE_MODE; camera TRT policy: ${BEVFUSION_CAMERA_TENSORRT_POLICY:-automatic off/prefer}"
+  echo "[BEVFusion] Acceleration setup: $BEVFUSION_ACCELERATION_REASON"
   docker compose -f "$COMPOSE_FILE" up -d inference
   server_owned=true
   echo "[BEVFusion] Waiting for model readiness"

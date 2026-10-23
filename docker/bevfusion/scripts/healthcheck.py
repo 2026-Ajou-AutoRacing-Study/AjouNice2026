@@ -42,6 +42,16 @@ def validate_production_identity(metadata,args):
                 camera.get('enabled') and camera.get('loaded') and camera.get('healthy')):
             raise ValueError('Selected TensorRT camera is not loaded and healthy')
     expected_pool = getattr(args, 'expected_pool_fused_layout', None)
+    expected_engine = getattr(args, 'expected_camera_engine_sha256', None)
+    if expected_engine:
+        execution = identity.get('execution_optimization') or {}
+        camera = execution.get('camera_tensorrt') or {}
+        startup = execution.get('camera_tensorrt_startup') or {}
+        if camera.get('enabled'):
+            if not (camera.get('loaded') and camera.get('healthy') and camera.get('engine_sha256') == expected_engine):
+                raise ValueError('Server camera engine differs from the prepared local production engine')
+        elif not startup.get('fallback'):
+            raise ValueError('Existing eager server did not attempt the requested prepared camera engine')
     if expected_pool is not None:
         pool = (identity.get('execution_optimization') or {}).get('pool_fused_layout') or {}
         if bool(pool.get('enabled', False)) != (expected_pool == 'true'):
@@ -83,6 +93,7 @@ def main():
     parser.add_argument('--expected-intrinsic-source',choices=('horizontal_fov','focal_length_pixel'))
     parser.add_argument('--expected-camera-order',nargs=4)
     parser.add_argument('--expected-camera-backend',choices=('eager','camera_tensorrt'))
+    parser.add_argument('--expected-camera-engine-sha256')
     parser.add_argument('--expected-pool-fused-layout', choices=('true', 'false'))
     parser.add_argument('--expected-head-attention-sdpa', choices=('true', 'false'))
     parser.add_argument('--expected-head-cache-bev-pos', choices=('true', 'false'))
