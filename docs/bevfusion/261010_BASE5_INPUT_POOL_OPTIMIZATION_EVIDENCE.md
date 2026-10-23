@@ -7206,3 +7206,145 @@ production·GT·센서·원형 예측·기존 실험 자료를 덮어쓰지 않�
 지원 metadata만 보완하고 원래 검증 조건을 유지해 6개를 다시 통과했다. 실험 GT·예측·scorer는
 이 fixture 보완으로 변경하지 않았다. 문서 링크 590개·계약·원문 보존에 새 오류는 없지만
 기존 README/CURRENT/데이터 CURRENT의 길이 예산 초과 3개는 남아 있다.
+
+<a id="full30750-zero-lidar-threshold-research-261023"></a>
+
+## 58. LiDAR 0점 차량의 거리별 confidence·threshold 한계와 연구 검토 — 2026-10-23
+
+사용자는 데이터 보강만으로 현재 0%인 LiDAR 0점 검출이 100%가 될 수 있는지, 연구를 넓게
+조사하고 80~90/90~100m로 나누어 confidence와 threshold 가능성을 확인하도록 요청했다.
+57절의 동결 예측을 CPU로 재평가했다. 새 GPU 추론·수집·학습은 실행하지 않았으며,
+가중치·원형 GT/점 수·예측·production·서버 floor·운영 threshold·센서는 변경하지 않았다.
+
+### 먼저 구분할 조건
+
+- **0점은 GT 박스 내부의 LiDAR 점이 0개라는 뜻**이다. 전체 LiDAR 입력·배경/주변 점·영상의
+  모든 depth hint가 없는 것은 아니다. 이번 결과는 LiDAR branch를 제거한 camera-only ablation이 아니다.
+- 이전 0%는 native 전방 53관측에서 **score 0.4·XY 중심 오차 1/2m 이내의 고정 운영점**이었다.
+  모든 score에서 후보가 전혀 없거나 영상만으로 원천적으로 불가능하다는 뜻이 아니다.
+- front는 X≥0, 거리는 XY 방사 거리이며 구간은 [80,90), [90,100)m다. 전방 카메라 정중앙과
+  동일하지 않다. 전체 의미 ROI의 모든 GT에 먼저 class별 일대일 매칭한 뒤 거리·점 수를 귀속했다.
+- 현 TransFusion score는 decoder sigmoid와 query heatmap score 등의 곱이다. **0.04는 성공확률
+  4%로 보정된 값이 아니다.** 없는 후보를 score 0으로 채우지 않고 후보 부재와 조건부 분포를 구분했다.
+
+### 같은 native 512장에서 거리별로 무엇이 달랐는가
+
+양성 256장과 같은 cohort의 음성 256장을 그대로 유지했다. FP32·native intensity와
+저장 decoded 최대 200 query 조건도 유지했다. 512장 결과는 전체 val 4,614장 AP가 아니다.
+
+| 전방 조건 | 80~90m | 90~100m |
+|---|---:|---:|
+| 전체 30,750장의 해당 차량 GT | 520 | 405 |
+| 그중 LiDAR 0점 | 120/520, 23.1% | 264/405, 65.2% |
+| native 평가 subset의 전체 / 0점 GT | 77 / 16 | 57 / 37 |
+| 전체 GT의 E24→E12 적중, score 0.4·1m | 31→47/77 | 7→15/57 |
+| 0점 GT의 E12 저장 후보 존재, XY 2m 이내 | 15/16 | 37/37 |
+| 위 후보의 최대 score 평균 / 중앙값 | 0.0472 / 0.0428 | 0.0624 / 0.0620 |
+| 위 후보의 최대 score p90 / p95 / 최댓값 | 0.1124 / 0.1275 / 0.1333 | 0.1226 / 0.1473 / 0.1658 |
+
+score 분포는 **GT 2m 안의 같은 class 후보 중 가장 높은 score**이며 후보가 존재하는 경우만
+계산했다. GT를 알아야 고를 수 있는 진단값이지 online 출력의 정확도나 순수 영상 신뢰도가 아니다.
+원래 E24에서 같은 0점 GT 2m 후보는 각각 7/16, 22/37개였다. E12의 후보 위치·score는 개선됐지만
+데이터·학습 횟수·일부 실행 조건이 함께 달라 보강 데이터만의 인과 효과로 해석하지 않는다.
+
+| E12 전방 0점 GT, 저장 decoded 출력·XY 2m | 80~90m | 90~100m |
+|---|---:|---:|
+| score ≥0.4 | 0/16 | 0/37 |
+| score ≥0.2 | 0/16 | 0/37 |
+| score ≥0.1 | 2/16 | 6/37 |
+| score ≥0.05 | 6/16 | 22/37 |
+| score ≥0.01 | 11/16 | 34/37 |
+| 저장 후보 전부 유지, score ≥0 | 15/16 | 37/37 |
+
+마지막 줄은 **고정된 저장 query·class·score 순위·greedy 매칭에서 threshold만 낮춘 포화치**다.
+200개 중 거의 0점인 후보가 우연히 GT 근처에 있을 수도 있어 이를 검출 성공률 98.1%나
+100% 달성 가능성으로 승격하지 않는다. XY 1m로 엄격히 보면 전부 유지해도 12/16, 26/37개다.
+유일한 2m 후보 부재는 85.48m의 Bike2로, 저장 vehicle query의 최근접 오차가 약 75.6m다.
+낮은 threshold로 잘못된 class나 위치를 수정할 수는 없다.
+
+낮은 score의 비용도 함께 계산했다. 양성 256장 전방 전체 134 GT에서 score
+0.4/0.1/0.05/0.01/0의 1m 적중은 **62/75/91/109/118개**인 반면, 같은 예측 거리의
+미대응 출력은 **0/18/131/381/1,409개**다. 음성 256장의 전방 원거리 미대응 출력도
+**0/0/3/9/259개**다. 이는 ROS NMS 전 decoded 진단이며 그대로 운영 FP 수라고 부르지 않는다.
+원래 서버 후처리 floor 0.1·전체 class top100·class-aware rotated NMS 0.5를 적용하면
+0점 적중은 score 0.1·1m **2/16, 4/37**, 2m **2/16, 6/37**이다. 뒤쪽 threshold만
+0.05/0.01/0으로 내려도 이미 삭제된 후보가 복구되지 않아 결과가 0.1과 정확히 같다.
+
+### 실제 bag에서도 threshold를 낮추면 해결되는가
+
+기존 **14장면·5,822평가 프레임** 전부를 포함했다. 전방 80~100m GT 341관측 중
+0점은 214관측이며 재구성 track key 17개의 반복이다. 독립 차량 214대가 아니다.
+원래 ROS 후처리를 유지하고 Vehicle cutoff만 CPU에서 비교했다. 다른 class cutoff는 0.1이다.
+
+| Vehicle cutoff | 0점 80~90m 적중 /130 | 0점 90~100m 적중 /84 | 전체 전방 80~100m 적중 /341 | 같은 예측 거리의 미대응 출력 / precision |
+|---|---:|---:|---:|---:|
+| 0.40 | 0 | 1 | 26 | 7 / 80.0% |
+| 0.30 | 0 | 1 | 32 | 13 / 72.3% |
+| 0.20 | 0 | 1 | 39 | 27 / 60.3% |
+| 0.15 | 2 | 1 | 46 | 39 / 54.7% |
+| 0.10 | 3 | 1 | 52 | 73 / 42.1% |
+
+모두 XY 2m 기준이다. recall은 GT 거리, precision은 예측 거리 기준이므로 경계의 TP가
+서로 다를 수 있다. 미대응은 근사 catalog/interpolated GT와의 불일치이지 전부 확정 물리적
+오검출로 수작업 인증한 것이 아니다. GT가 없는 프레임·다른 거리의 GT도 제거하지 않았다.
+
+실제 bag의 0점 GT 중 2m 안 저장 vehicle 후보가 있는 경우는 **88/130, 57/84개**다.
+그 최대 score의 중앙값/p90은 각각 **0.00496/0.02782**, **0.00263/0.06496**이며
+후보 부재는 각각 42/27관측이다. 90~100m의 최대 0.5488은 단일 큰 예외로, 평균이나
+최댓값만 보면 일반적인 score 수준을 과대평가한다. native의 상대적으로 좋은 저점수 후보
+결과를 실제 bag의 score 분포로 그대로 옮길 수 없다.
+
+0.4→0.1에서 전체 의미 ROI의 vehicle 미대응 출력은 **87→383**, 보행자 정답 근처에서
+Pedestrian도 함께 출력된 Vehicle 관측은 **45→208**, 최장 연속은 **3→7프레임**이다.
+반면 0점의 추가 회복은 3관측뿐이고 0.1에서의 4적중도 최장 **2프레임, 약 0.171초**다.
+전체 cutoff 변경의 비용이지 원거리만 바꾼 정책의 확정 비용은 아니다. 거리별 정책을 고르려면
+예측 거리로 적용하고 독립 bag에서 새 birth·중복·잔류·위치/속도까지 검증해야 한다.
+GT 0점 여부로 threshold를 바꾸는 oracle 정책은 online에서 사용할 수 없다.
+
+### 10편의 1차 연구·공식 코드에서 얻은 판단
+
+| 연구 방향 | 확인한 근거 | 현재 시스템에 대한 해석과 한계 |
+|---|---|---|
+| 객체 내부 point dropout | [Liang 등의 BEVFusion, NeurIPS 2022](https://arxiv.org/html/2205.13790v3), §4.4.1 | 독립 camera stream과 객체 내부 점의 확률 0.5 삭제를 연구한다. 현재 MIT Liu 계열과 다른 구현이며 자연발생 16채널 사각·100m 성능을 보장하지 않는다 |
+| 직접 depth 감독 | [BEVDepth, AAAI 2023](https://arxiv.org/abs/2206.10092), [공식 loss](https://github.com/Megvii-BaseDetection/BEVDepth/blob/main/bevdepth/exps/nuscenes/base_exp.py) | sparse depth를 입력으로 주는 것과 loss로 감독하는 것은 다르다. 다만 유효 depth mask에만 loss가 있어 0점 객체의 직접 surface 정답을 새로 만들지 않는다 |
+| 시간축 정보 | [BEVFormer, ECCV 2022](https://arxiv.org/abs/2203.17270) | ego 정합된 과거 영상/BEV를 결합한다. tracker의 단순 기억과 다르며 현재 독립 정적 캡처를 더 주는 것만으로 구현되지 않는다 |
+| 원거리 영상 query | [Far3D, AAAI 2024](https://arxiv.org/html/2308.09616v2) | 2D prior 기반 3D query·다중 scale·거리별 denoising·temporal propagation을 사용한다. 150m 검출 가능성은 있지만 장수만 늘린 대조나 0점 100% 근거가 아니다 |
+| 융합 의존성·특징 보존 | [DeepInteraction, NeurIPS 2022](https://arxiv.org/abs/2208.11112), [MoME, CVPR 2025](https://arxiv.org/html/2503.19776v2) | 독립 modality 표현/decoder·local routing 등으로 약한 센서가 다른 경로를 해치는 문제를 다룬다. MoME도 object failure 평가를 포함하나 우리 구조의 drop-in 변경이나 원인 확정은 아니다 |
+| 원거리 사전학습·깊이·시간축 | [LRS4Fusion, ICCV 2025](https://arxiv.org/abs/2508.13995) | 250m를 목표로 sparse representation·multimodal/temporal·self-supervised pretraining을 결합한다. 다른 센서·사전학습 조건이며 0점 대상 전용 성능은 여기서 확인하지 않았다 |
+| 깊이 불확실성·score 해석 | [GUPNet, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/html/Lu_Geometry_Uncertainty_Projection_Network_for_Monocular_3D_Object_Detection_ICCV_2021_paper.html), [Küppers 등의 calibration, CVPRW 2020](https://arxiv.org/abs/2004.13546) | 작은 영상 오차와 metric depth 오차는 별개이며 confidence를 보정된 확률로 가정하지 않는다. 다른 데이터/2D 보정 연구를 현재 3D 모델의 검증된 성과로 전용하지 않는다 |
+| 현재 구조의 출발점 | [MIT BEVFusion, ICRA 2023](https://arxiv.org/abs/2205.13542) | 영상에서 BEV를 만드는 경로가 있어 객체-local 0점 자체로 영상을 차단하지 않는다. 현재 custom DepthLSS의 camera-only 능력을 별도 검증했다는 뜻은 아니다 |
+
+특히 평가 조건을 대조했다. [nuScenes 공식 범위](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json)는
+차량 50m다. [공식 loader](https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/common/loaders.py)는
+LiDAR+radar 합이 0인 GT를 제외한다. LiDAR 0점 전체를 제외한다고 쓰면 radar 때문에 부정확하다.
+또한 **Far3D 공개 평가 코드에서도 `num_interior_pts > 0`을 요구**한다.
+[dataset 연결](https://github.com/megvii-research/Far3D/blob/main/projects/mmdet3d_plugin/datasets/argoverse2_dataset.py)과
+[실제 GT mask](https://github.com/megvii-research/Far3D/blob/main/projects/mmdet3d_plugin/datasets/av2_utils.py)를 확인했다.
+공개 main/master를 확인한 것이지 논문 제출 당시 커밋·가중치 전체를 재현한 것은 아니다.
+따라서 외부 camera-only mAP를 우리 80~100m·0점 GT 보존 조건의 100% 근거로 사용할 수 없다.
+
+### 결론과 다음 후보
+
+**데이터만 늘리면 100%가 된다는 근거도, 0점이므로 개선 불가능하다는 근거도 없다.**
+E12에는 E24보다 위치가 나아진 저점수 후보가 있어 개선 여지는 보이지만 현재 실제 bag에서
+threshold만 낮추는 해법의 효율은 낮다. 보강 장수 확정보다 다음을 작은 대조로 구분하는 편이 낫다.
+
+1. 실제 RGB 가시성·2D 존재·GT 근처 query·score/위치 오차를 분리하고 독립 평가 장면을 남긴다.
+2. 현 센서의 보이는 0점/sparse 양성·다른 자산/도로/방향과 hard negative를 균형 있게 보강하고,
+   기존 근거리·후방을 보호한다. 객체-local dropout은 별도 학습 후보로 clean 조건과 대조한다.
+3. 그래도 점수/깊이가 개선되지 않으면 camera 별도 감독·유효 depth loss·image-derived query를
+   검토한다. 3D BBox 중심 depth를 전체 instance 표면의 정답으로 칠하지 않는다.
+4. temporal·센서 pitch·이미지 해상도 변경은 별도 비용/정합/근접 손실까지 검증할 후속 후보다.
+
+이는 계획이며 새 구현·학습·수집을 시작하지 않았다. 현재 score 0.4와 production E24는 유지한다.
+산출물 루트는 `artifacts/evaluation/bevfusion/e12_zero_lidar_threshold_261023_v1/`이며
+`native/THRESHOLD_ANALYSIS.json`, `ZERO_THRESHOLD_UPPER_BOUND_BOUND_V2.json`,
+`ZERO_THRESHOLD_BOUND_V2_RECEIPT.json`, `bags/KEY_TABLES.json`, `BAG_SWEEP_QUALIFIED.json`,
+`research/PRIMARY_RESEARCH_REVIEW.json`, `RECENT_PRIMARY_RESEARCH_SUPPLEMENT.json`에 보존했다.
+native baseline 39개 source/input SHA의 전후 불변·실제 읽은 10개 입력 연결·receipt/COMPLETE/
+512 ordered token 정합을 확인했고 threshold 0의 강화 바인딩 재검산은 기존 값과 exact다.
+CPU 합성/회귀 **16개(7+9)**를 main agent도 재실행해 통과했다. 실제 tracker·새 full-stack은
+실행하지 않았으므로 위 동시 출력·연속 관측을 tracker ID 오류나 planner 위험의 확정 수치로 쓰지 않는다.
+독립 QA에서도 입력·코드 SHA와 거리/지원량별 합계·구간 경계·매칭 계약을 재확인했다.
+문서 검사는 링크 592개·기존 원문 13개의 보존에 새 오류가 없었으나, 기존 세 문서의
+길이 예산 초과는 남아 있어 전체 통과로 보고하지 않는다.
