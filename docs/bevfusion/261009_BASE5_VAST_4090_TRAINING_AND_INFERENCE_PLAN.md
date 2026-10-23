@@ -1,6 +1,6 @@
 # Base5 원격 실행과 보존 안내
 
-문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-22.
+문서 상태: RUNBOOK + COMPATIBILITY ROUTER. 확인 기준: 2026-10-23.
 기존 Sunny13 24 epoch 학습·E9/E24 외부 백업은 완료했다. 새 데이터 대조 학습을 포함한
 현재 모델·다음 작업은 [CURRENT](CURRENT.md)를 따른다.
 아래 기존 명령은 완료된 동결 run의 점검/복구용이며 새로운 학습 준비를 자동으로 의미하지 않는다.
@@ -11,6 +11,8 @@
 v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 대신 쓰지 않는다.
 이후 사용자 승인으로 시작한 현재 전체 학습은 [실제 시작 기록](#full-data-live-training-261021)을 따른다.
 10/22 확인한 중단 상태와 완료 E3 복원·평가는 [후속 기록](#full-data-e3-interrupted-evaluation-261022)을 따른다.
+10/23 복구된 기존 호스트의 [E7→E8 인계](#full-data-e7-return-original-host-261023) 뒤 학습은 계속됐다.
+08:47 KST에는 E11 진행·완료 E10을 확인했으며 [E10 native·동일 bag 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e10-local-bags-261023)는 별도 근거다.
 평가 작업은 학습 재개나 인스턴스 시작 승인이 아니다.
 첫 val의 파일 디스크립터 오류와 별도 계승 준비는 [10/21 병목 수정 기록](#full-data-speed-repair-261021)을 따른다. 시작 당시의 기록을 재개 성공으로 바꾸지 않는다.
 
