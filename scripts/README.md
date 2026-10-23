@@ -52,6 +52,14 @@ native val AP가 아니다. `analyze_e12_map_horizon.py`는 실제 predictor를 
 코호트·예측·원래 frozen Map 지표·GT 속도의 과거 창·성분 지표를 교차 확인한다.
 [65절의 조건·재현 명령](../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-map-motion-ablation-261023)을 따른다.
 
+`qualify_e12_mixed_horizon.py`는 같은 동결 트랙에서 고주로만 6초로 연장하는 후보의
+첫 3초·Top-K·객체 필드 ROS 직렬화를 비교한다. `analyze_map_mixed_horizon_live.py`는
+실제 기록 TrackedObjects를 이용한 동일 입력 대조와 주행 bag 지표를 별도로 계산한다.
+`run_validator_route_probe.py CONFIG --require-lanelet ID ...`는 허가된 live 시험에서만
+사용한다. 실제 선택 route에 요구 lanelet이 순서대로 있는지 **제어 시작 전** 확인하고
+기존 validator의 정지/P·녹화·정리를 그대로 사용한다. production 기본값은 바꾸지 않는다.
+[혼합 horizon 동작·복귀와 근거](../base_ws/src/perception_object_pipeline/docs/MIXED_PREDICTION_HORIZON.md)를 따른다.
+
 동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의

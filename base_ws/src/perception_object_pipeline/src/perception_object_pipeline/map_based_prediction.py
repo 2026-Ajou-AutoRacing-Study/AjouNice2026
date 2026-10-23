@@ -227,6 +227,7 @@ class LaneletRecord:
     lanelet_id: int
     centerline: Tuple[Point3, ...]
     following_ids: Tuple[int, ...] = ()
+    attributes: Tuple[Tuple[str, str], ...] = ()
 
     @property
     def length(self) -> float:
@@ -400,7 +401,12 @@ class LaneletNetwork:
                 for candidate in routing_graph.following(lanelet)
                 if int(candidate.id) in vehicle_lanelets
             )
-            records.append(LaneletRecord(lanelet_id, points, following))
+            attributes = tuple(
+                (key, str(lanelet.attributes[key]))
+                for key in ("subtype", "speed_limit")
+                if key in lanelet.attributes
+            )
+            records.append(LaneletRecord(lanelet_id, points, following, attributes))
 
         return cls(
             records,
@@ -647,3 +653,118 @@ class LaneletNetwork:
             )
             for score, lanelet_ids, poses in raw_paths
         )
+
+    def extend_trajectories(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        yaw: float,
+        speed: float,
+        base_horizons: Sequence[float],
+        extended_horizons: Sequence[float],
+        trajectories: Tuple[PredictedTrajectory, ...],
+        allowed_lanelet_ids: Optional[Iterable[int]] = None,
+    ) -> Tuple[PredictedTrajectory, ...]:
+        """Append samples to already selected routes without changing their prefix.
+
+        ``extended_horizons`` is the *full* horizon sequence and must start
+        with ``base_horizons`` exactly. Route selection, clustering and score
+        normalization have already happened in :meth:`predict`; none is
+        repeated here. A branch not selected by that original prediction is
+        deliberately not guessed. If any retained path cannot be extended,
+        the original tuple for the whole object is returned unchanged.
+
+        This optional operation never pads/clamps a new sample at a route
+        end. Map construction/loading errors retain their normal exceptions;
+        there is intentionally no blanket exception handler here.
+        """
+        base = tuple(base_horizons)
+        extended = tuple(extended_horizons)
+        if (
+            not trajectories
+            or not base
+            or len(extended) <= len(base)
+            or extended[: len(base)] != base
+            or not all(math.isfinite(value) and value >= 0.0 for value in extended)
+            or any(first >= second for first, second in zip(extended, extended[1:]))
+            or not all(math.isfinite(value) for value in (x, y, z, yaw, speed))
+            or speed < self.config.minimum_speed_mps
+            or speed <= 0.0
+        ):
+            return trajectories
+        allowed = None if allowed_lanelet_ids is None else frozenset(allowed_lanelet_ids)
+        suffix_horizons = extended[len(base):]
+        maximum_depth = max(1, int(self.config.maximum_route_depth))
+        completed = []
+        for trajectory in trajectories:
+            route_ids = tuple(trajectory.lanelet_ids)
+            if (
+                not route_ids
+                or len(route_ids) > maximum_depth
+                or len(trajectory.poses) != len(base)
+                or any(lanelet_id not in self.records for lanelet_id in route_ids)
+                or (allowed is not None and any(i not in allowed for i in route_ids))
+                or any(
+                    second not in self.records[first].following_ids
+                    for first, second in zip(route_ids, route_ids[1:])
+                )
+            ):
+                return trajectories
+            base_geometry, projection_geometry = self._route_geometry(route_ids)
+            start = projection_geometry.project(x, y)
+            if start is None:
+                return trajectories
+            # Production predict() tolerates up to 0.5 m at a route end. That
+            # legacy tolerance may already clamp its final baseline sample;
+            # retain it as-is rather than extending a temporarily stopped
+            # prefix into a newly moving suffix.
+            if base_geometry.length < start.arc_length + speed * base[-1]:
+                return trajectories
+            # Keep the original projection even if a later looping segment
+            # happens to pass closer to the object. Extending must not move
+            # the route's arc origin or change the retained 3-second path.
+            required_distance = start.arc_length + speed * extended[-1]
+            geometry = base_geometry
+            occurrences = {i: route_ids.count(i) for i in set(route_ids)}
+            while geometry.length < required_distance:
+                if len(route_ids) >= maximum_depth:
+                    return trajectories
+                followers = tuple(dict.fromkeys(self.records[route_ids[-1]].following_ids))
+                # Inspect all graph successors before the region filter: a
+                # branch outside the allowed region must not make its sibling
+                # look like an unambiguous route continuation.
+                if len(followers) != 1:
+                    return trajectories
+                successor = followers[0]
+                if (
+                    successor not in self.records
+                    or occurrences.get(successor, 0) >= 2
+                    or (allowed is not None and successor not in allowed)
+                ):
+                    return trajectories
+                route_ids += (successor,)
+                occurrences[successor] = occurrences.get(successor, 0) + 1
+                geometry, _ = self._route_geometry(route_ids)
+            offset_x, offset_y, offset_z = x - start.x, y - start.y, z - start.z
+            suffix = []
+            for horizon in suffix_horizons:
+                route_distance = start.arc_length + speed * horizon
+                center = geometry.sample(route_distance)
+                residual = (
+                    0.0
+                    if self.config.lateral_convergence_time_sec <= 1.0e-6
+                    else max(0.0, 1.0 - horizon / self.config.lateral_convergence_time_sec)
+                )
+                suffix.append((
+                    center[0] + residual * offset_x,
+                    center[1] + residual * offset_y,
+                    center[2] + residual * offset_z,
+                    geometry.tangent(route_distance),
+                ))
+            completed.append(PredictedTrajectory(
+                poses=trajectory.poses + tuple(suffix),
+                confidence=trajectory.confidence,
+                lanelet_ids=route_ids,
+            ))
+        return tuple(completed)

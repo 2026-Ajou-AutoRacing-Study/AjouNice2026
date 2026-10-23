@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import copy
 import json
+import math
+import threading
 import time
 
 import rospy
@@ -66,7 +68,85 @@ def _kinematic_path(tracked, horizons) -> PredictedPath:
     return path
 
 
-def make_map_based_predicted_objects(message, horizons, network):
+class MixedHorizonExtension:
+    """Optional append-only extension; the ordinary predictor remains authoritative.
+
+    Failures in this optional path retain the *whole object's* original paths.
+    Required map loading / frame validation deliberately remain outside it.
+    """
+
+    def __init__(self, network, horizons, extended_horizons, selector):
+        self.network = network
+        self.horizons = tuple(horizons)
+        self.extended_horizons = tuple(extended_horizons)
+        self.selector = selector
+        self.lock = threading.RLock()
+        self.extended_objects = 0
+        self.extension_errors = 0
+        self.reasons = {}
+
+    def begin(self, message):
+        self.frame_available = True
+        self.extended_objects = 0
+        self.extension_errors = 0
+        self.reasons = {}
+        try:
+            self.selector.prune(message.header.stamp.to_sec(),
+                                [tracked.object_id.uuid for tracked in message.objects])
+        except Exception as error:
+            self.frame_available = False
+            self._error(error)
+
+    def _error(self, error):
+        self.extension_errors += 1
+        rospy.logwarn_throttle(5.0, "[map_based_prediction] optional horizon extension "
+                               "unavailable; retaining original horizon: %s", str(error))
+
+    def extend(self, tracked, trajectories, stamp):
+        if not self.frame_available:
+            return trajectories
+        try:
+            current = tracked.kinematics.pose_with_covariance.pose
+            speed = tracked.kinematics.twist_with_covariance.twist.linear.x
+            decision = self.selector.decide(tracked.object_id.uuid, stamp.to_sec(),
+                                            current.position.x, current.position.y,
+                                            speed, trajectories)
+            self.reasons[decision.reason] = self.reasons.get(decision.reason, 0) + 1
+            if not decision.extend or not trajectories:
+                return trajectories
+            extended = self.network.extend_trajectories(
+                current.position.x, current.position.y, current.position.z,
+                quaternion_to_yaw(current.orientation), speed, self.horizons,
+                self.extended_horizons, trajectories,
+                allowed_lanelet_ids=self.selector.highway_lanelet_ids)
+            # Defensive contract check, before converting any optional results
+            # into ROS messages. Never publish a partially extended object.
+            if len(extended) != len(trajectories) or any(
+                    new.confidence != old.confidence or
+                    new.lanelet_ids[:len(old.lanelet_ids)] != old.lanelet_ids or
+                    new.poses[:len(old.poses)] != old.poses or
+                    len(new.poses) != len(self.extended_horizons)
+                    for old, new in zip(trajectories, extended)):
+                self.reasons['route_not_extendable'] = self.reasons.get('route_not_extendable', 0) + 1
+                return trajectories
+            self.extended_objects += 1
+            return extended
+        except Exception as error:
+            self._error(error)
+            return trajectories
+
+
+def make_map_based_predicted_objects(message, horizons, network, mixed_extension=None):
+    # Only the opt-in stateful selector needs serialization across subscriber
+    # connections. Feature OFF follows the original computation path.
+    if mixed_extension is not None:
+        with mixed_extension.lock:
+            mixed_extension.begin(message)
+            return _make_map_based_predicted_objects(message, horizons, network, mixed_extension)
+    return _make_map_based_predicted_objects(message, horizons, network)
+
+
+def _make_map_based_predicted_objects(message, horizons, network, mixed_extension=None):
     output = PredictedObjects()
     output.header = copy.copy(message.header)
     output.header.stamp = copy.copy(message.header.stamp)
@@ -89,6 +169,11 @@ def make_map_based_predicted_objects(message, horizons, network):
                 speed=twist.linear.x,
                 horizons=horizons,
             )
+
+        # Empty map paths / a non-vehicle classification also reset the
+        # selector's continuous-highway history for this UUID.
+        if mixed_extension is not None:
+            trajectories = mixed_extension.extend(tracked, trajectories, message.header.stamp)
 
         if trajectories:
             mapped_count += 1
@@ -166,6 +251,27 @@ class MapBasedPredictionNode:
         self.network = LaneletNetwork.load(map_file, projector_file, config)
         load_duration = time.perf_counter() - load_started
 
+        self.mixed_extension = None
+        if bool(rospy.get_param("~mixed_horizon_enabled", False)):
+            try:
+                # Optional feature has no additional map file, service or
+                # credential dependency. Unknown semantic metadata means 3s.
+                from perception_object_pipeline.mixed_horizon import MixedHorizonSelector
+                if (not math.isclose(self.prediction_horizon, 3.0, abs_tol=1.e-9) or
+                        not math.isclose(self.prediction_time_step, 0.1, abs_tol=1.e-9)):
+                    raise ValueError("mixed horizon candidate requires baseline 3.0s / 0.1s")
+                selector = MixedHorizonSelector(self.network)
+                if not selector.highway_lanelet_ids:
+                    raise ValueError("no explicit highway lanelet metadata; using baseline")
+                self.mixed_extension = MixedHorizonExtension(
+                    self.network, self.horizons, build_prediction_horizons(0.1, 6.0), selector)
+                rospy.loginfo("[map_based_prediction] optional mixed horizon ON: "
+                              "baseline=3s highway=6s, highway_lanelets=%d",
+                              len(selector.highway_lanelet_ids))
+            except Exception as error:
+                rospy.logwarn("[map_based_prediction] optional mixed horizon disabled: %s; "
+                              "continuing ordinary predictor", str(error))
+
         self.publisher = rospy.Publisher(
             "~output/objects", PredictedObjects, queue_size=1
         )
@@ -201,9 +307,9 @@ class MapBasedPredictionNode:
         diagnostics = self.processing_diagnostics_publisher
         token = self.processing_timing.start(message, rospy.Time.now().to_nsec()) if diagnostics else None
         make_start = time.perf_counter() if diagnostics else None
+        mixed_extension = getattr(self, 'mixed_extension', None)
         output, mapped, fallback, paths = make_map_based_predicted_objects(
-            message, self.horizons, self.network
-        )
+            message, self.horizons, self.network, mixed_extension)
         make_end = time.perf_counter() if diagnostics else None
         self.publisher.publish(output)
         publish_end = time.perf_counter() if diagnostics else None
@@ -220,6 +326,10 @@ class MapBasedPredictionNode:
         if diagnostics:
             sample = self.processing_timing.finish(token, make_start, make_end, publish_end,
                                                   mapped=mapped, fallback=fallback, paths=paths)
+            if mixed_extension is not None:
+                sample.update(mixed_extended_objects=mixed_extension.extended_objects,
+                              mixed_extension_errors=mixed_extension.extension_errors,
+                              mixed_horizon_reasons=dict(mixed_extension.reasons))
             diagnostics.publish(String(data=json.dumps(sample, allow_nan=False, separators=(",", ":"))))
 
 

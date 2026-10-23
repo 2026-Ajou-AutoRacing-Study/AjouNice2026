@@ -1,7 +1,7 @@
 # Tracking·Prediction production 현재 상태
 
 상태: **CURRENT**
-마지막 문서·launch 대조: 2026-10-23. 아래 9~10월 bag 실측은 각각 당시 이력이다.
+마지막 문서·launch 대조: 2026-10-24. 아래 9~10월 bag 실측은 각각 당시 이력이다.
 현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
 현재 E12 및 명시적 E24의 detection pose는 geometric/gravity center다(2026-10-14 전환).
 원래 tensor의 bottom center와 혼합하지 않으며 detector·tracker·planner를 정지한 뒤
@@ -94,6 +94,9 @@ prediction coverage를 함께 감시한다.
 - `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
   `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
 - horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
+- [고주로 6초 / 나머지 3초 후보](MIXED_PREDICTION_HORIZON.md)는 구현·시험용 opt-in이며
+  `prediction_mixed_horizon_enabled=false`가 운영 기본이다. 기존 첫 3초와 Top-K를 보존하고
+  연장 불가능한 객체는 3초를 유지한다. 지도/선택기 오류를 새 production 시작 차단 조건으로 만들지 않는다.
 - minimum map-following speed: `0.5 m/s`.
 - lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.
 - centerline lateral convergence: `1.5 s`.
@@ -133,8 +136,9 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 순위가 바뀌었다. 기존 분기 보존 연장 후보도 일부 악화가 남아 **기본 3초·moving coast 0.5초**를
 유지한다. [65절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-map-motion-ablation-261023)의
 동일 E12 CV/CTRV 대조로 centerline 지도 보정의 평균 이득을 확인했다. 전달받은 차량 centerline 추종
-조건을 전제로 구조는 유지하고 초기/재취득 종속도·진행량과 회전 구간 Top-1 분기 오류를 우선 분리한다.
-5초 연장은 그 뒤 기존 첫 3초와 분기를 보존하는 별도 후보이며 운영 미적용이다.
+조건을 전제로 구조는 유지한다. 출발 급가속은 기존 허용 구간으로 두며 새 가속 모델링을 우선하지 않는다.
+로터리는 Top-1만으로 실패를 판정하지 않고 경로별 대표 Top-K의 정답 분기 포함과 min-K를 함께 본다.
+후속은 위 구간별 3/6초의 기존 prefix·후보 보존과 실제 판단 동작 검증이며 운영 미적용이다.
 
 ## 최신 팀장님 풀주행 확인 (2026-10-14)
 
@@ -234,7 +238,7 @@ LiDAR 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유�
 현재 Map-CV는 검출 삭제 필터가 아니며, 현재 Lane Change의 최고 confidence 동점 처리를 실제 실행값과 대조한다.
 현재 코어의 association은 cost 정렬 후 greedy matching이다. Hungarian으로 설명하지 않는다.
 
-- 위 3/5/6초 후속 근거를 따른 기본 5초·구간/track 품질별 horizon 선택(운영 미적용).
+- 위 3/5/6초 후속 근거를 따른 구간별 3/6초 후보(구현·시험, 운영 기본 OFF).
 - tracker history를 이용한 temporal lane association과 Top-1 안정화.
 - detector 9D velocity를 tracker update에 fusion.
 - Planning의 추월 gap 판단을 위한 track-age/confidence gate.

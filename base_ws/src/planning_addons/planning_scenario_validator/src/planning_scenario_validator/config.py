@@ -104,6 +104,14 @@ def _yaml(path):
     return value
 
 
+def prediction_mixed_horizon_enabled(stack):
+    """One explicit experimental switch; never enable it through truthiness."""
+    value = stack.get('prediction_mixed_horizon_enabled', False)
+    if type(value) is not bool:
+        raise ConfigError('stack.prediction_mixed_horizon_enabled는 true/false여야 합니다')
+    return value
+
+
 def validate_campaign_document(document, *, allow_legacy=False):
     """Structural checks for GUI opening too; no ROS/filesystem prerequisites."""
     if not isinstance(document, dict):
@@ -121,6 +129,7 @@ def validate_campaign_document(document, *, allow_legacy=False):
     for key in required - {"campaign_name"}:
         if not isinstance(document[key], dict):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
+    prediction_mixed_horizon_enabled(document['stack'])
     try:
         selected_model(document['stack'])
         normalize_localization_launch_args(document['stack'], check_paths=False)

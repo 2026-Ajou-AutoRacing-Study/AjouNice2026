@@ -5,6 +5,7 @@
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_mixed_horizon_enabled" default="false"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_processing_diagnostics" default="false"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
@@ -41,6 +42,7 @@
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
       <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
       <param name="map_file" value="$(arg map_file)"/>
+      <param name="mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
       <param name="projector_file" value="$(arg projector_file)"/>
     </node>
   </group>
