@@ -13,6 +13,7 @@ v4 준비와 더미 패널 run은 실제 추가 지표의 검증 기록으로 �
 10/22 확인한 중단 상태와 완료 E3 복원·평가는 [후속 기록](#full-data-e3-interrupted-evaluation-261022)을 따른다.
 10/23 복구된 기존 호스트의 [E7→E8 인계](#full-data-e7-return-original-host-261023) 뒤 학습은 계속됐다.
 08:47 KST에는 E11 진행·완료 E10을 확인했으며 [E10 native·동일 bag 비교](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e10-local-bags-261023)는 별도 근거다.
+이후 **10:40:01 KST 총 12 epoch 정상 종료**를 확인했다. [최종 E12 결과·파일 검증·백업 상태](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-completion-261023)를 따른다. 완료 run을 `--resume`로 다시 시작하지 않으며 인스턴스는 자동 Stop/Destroy하지 않았다.
 평가 작업은 학습 재개나 인스턴스 시작 승인이 아니다.
 첫 val의 파일 디스크립터 오류와 별도 계승 준비는 [10/21 병목 수정 기록](#full-data-speed-repair-261021)을 따른다. 시작 당시의 기록을 재개 성공으로 바꾸지 않는다.
 

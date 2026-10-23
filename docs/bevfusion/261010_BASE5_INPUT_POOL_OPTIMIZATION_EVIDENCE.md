@@ -6967,3 +6967,96 @@ COMPLETE·receipt·prediction·가중치 SHA와 ordered GT identity·runtime 일
 전방 초장거리, 후방 중거리 CargoBox score, 일부 장애물 자산 교환, 짧은 V/P 추가 박스가 남았다.
 다음은 최종 배포 가중치를 정한 뒤 그 모델의 threshold와 이 동시 출력의 실제 tracker 전달을
 따로 검증하는 것이다. production E24·threshold·tracker·학습·시간 보정은 이번 요청으로 바꾸지 않았다.
+
+<a id="full30750-e12-completion-261023"></a>
+
+## 56. 전체 30,750장 12 epoch 완료 관제와 최종 native 결과 — 2026-10-23
+
+사용자는 남은 시간 확인과 실제 종료까지의 관제·결과 보고를 요청했다. 기존
+`175.155.64.164:19463` 학습을 읽기 전용으로 관측했으며 source·학습 설정·프로세스·
+백업 워처·production을 변경하지 않았다. 마지막 학습 계산은 약 **10:29:29 KST**에 끝났고,
+val 4,614장과 CPU 지표 집계 뒤 최종 summary는 **10:39:10 KST**에 나왔다.
+**10:40:01 KST worker exit 0**, `oneclick_status=finished/0`, 원래 훈련 PID 종료와
+`last_checkpoint=epoch_12.pth`를 확인했다. W&B 원래 run도 `finished`다.
+
+동결 계약은 `97760ca4680d77451ecb0aee86269711176bc10b7f535d4f01c5e19fbf8f5998`다.
+train 26,136 / val 4,614, batch 4, epoch당 6,534 iteration, 최종 iteration **78,408**이며
+일반 코사인·compile OFF·기존 이미지/공간/depth·평가지표를 유지했다. 원래 W&B history
+**4,098/4,098행**을 구간별로 읽고 non-null val만 선택했다. 마지막 run summary의 null을
+0점이나 미수신으로 해석하지 않았다. 확인 가능한 E2~E12의 **123개 분모 키는 불변**이고,
+6환경 각각 750장 + 장애물 보강 114장 = **4,614장**이다. E1 history 복원을 새로 주장하지 않는다.
+
+### 같은 native val의 후기 변화
+
+아래 값은 중심 거리 기반 AP(%)이며 이전 단일 Sunny13 E24와 같은 검증셋이 아니다.
+
+| 지표 | E3 | E10 | E11 | E12 |
+|---|---:|---:|---:|---:|
+| 전체 mAP | 89.45 | 93.83 | 93.93 | **94.07** |
+| Vehicle AP | 95.90 | 97.29 | 97.26 | 97.27 |
+| Pedestrian AP | 93.31 | 96.49 | 96.55 | 96.53 |
+| Obstacle AP | 79.13 | 87.72 | 87.98 | **88.41** |
+| Obstacle 20~30m AP, GT 844 | 77.43 | 86.14 | 86.16 | **86.84** |
+| Pedestrian 40~50m AP, GT 143 | 84.54 | 88.27 | 88.40 | 88.21 |
+| Vehicle 80~100m AP, GT 268 | 73.98 | 79.22 | 79.49 | 79.26 |
+
+전체 best는 **E12, 정확한 mAP 94.067949%**다. E10 대비 +0.236947pp,
+E11 대비 +0.137788pp이며, E3 대비 +4.621577pp다. 장애물은 E3 대비 +9.274507pp로
+후기까지 상승했다. 클래스별 자체 best는 Vehicle E10 / Pedestrian E8 / Obstacle E12이므로
+E12가 모든 세부 지표에서 최고라는 뜻은 아니다. 단일 seed·소폭 후기 상승을 추가 학습의
+확정 이득이나 계속 epoch를 늘릴 근거로 삼지 않는다.
+
+| 환경 | E12 mAP(%) | val 장수 |
+|---|---:|---:|
+| Sunny11 | 94.18 | 750 |
+| Sunny13 | 94.41 | 750 |
+| Sunny15 | 94.09 | 750 |
+| Foggy11 | 94.63 | 750 |
+| Foggy13 | 94.24 | 750 |
+| Foggy15 | 93.65 | 750 |
+
+6환경 각각의 전체 mAP도 E12가 자체 최고다. 환경마다 배치가 달라 이 표를 순수 날씨·시간의
+인과 효과로 읽지 않는다. 남은 약점은 전방 80~100m Vehicle **57.39%** 대 후방 **95.99%**
+(각 GT 134), Obstacle 30~40m **45.56%**(GT 188) / 40~50m **25.45%**(GT 71)다.
+80~100m Pedestrian·Obstacle의 10m 구간 GT는 각각 2+2 / 5+5뿐이라 극소 표본 한계를 남긴다.
+
+### 최종 파일 저장 검증과 백업 경계
+
+작업 경로는 `/workspace/base5_full30750_e12_speed_261021_v2`다. 10:42 KST 원격 CPU 검사에서
+아래 두 파일의 전체 SHA·ZIP 전체 member CRC·CPU load·epoch 12 / iteration 78,408·
+계약·모델 state 574개 유한성 및 검사 전후 파일 불변을 확인했다. GPU 계산이나 복원은 하지 않았다.
+
+| 파일 | 바이트 | SHA256 |
+|---|---:|---|
+| `epoch_12.pth`, after-val full | 535,008,709 | `f18fc72681e64ed965b57c4a2035c6085453d7ff7173d0f5bada73ca414ab04f` |
+| `best_val_center_mAP_epoch_12.pth`, native best | 215,840,895 | `f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8` |
+
+full은 optimizer 순서 394개, 390개 Adam 상태와 780개 유한 moment, AMP scaler,
+두 scheduler와 Python/NumPy/Torch/CUDA main RNG를 포함한다. scheduler global step은
+78,408이고 최종 LR은 약 1e-6다. Adam step 78,379는 iteration과 구분하며 AMP skip 가능성을
+남긴다. exact worker/prefetch·mid-epoch 재생이나 저장 상태를 실제 resume한 검증은 아니다.
+best는 optimizer/scheduler가 없는 **추론용 weights-only**이며 재개 파일로 쓰지 않는다.
+full message hub의 best score·경로도 위 E12 best와 일치한다.
+
+Drive 자동 백업의 기존 중복 경로/COMPLETE 재읽기 오류는 학습 종료와 분리한다.
+**10:48 KST 최종 after-val 두 파일의 Drive 백업은 미완료**로 판정했다.
+full `f18fc726…`은 payload 전체 SHA readback을 통과했지만 PARTS.json이 동일 내용
+2개(각 2,638바이트)로 존재해 경로 readback은 5,276바이트가 됐고 COMPLETE는 없었다.
+best `f3ade1bf…`는 7개 part와 일부 metadata가 있으나 part별 이름 중복이 있고 COMPLETE가
+없었다. 이 최종 best의 전체 SHA readback 성공은 당시 로그에서 확인하지 못했다.
+LATEST도 아래 train-end SHA를 계속 가리켰다. 폴더·part가 있다는 이유로 완료를 선언하지 않는다.
+E12 train-end **534,830,789바이트·SHA `af192e7b…65524`**의 COMPLETE/LATEST 성공은
+확인했지만 위 after-val full과 다른 파일이므로 최종 백업 완료로 대신 쓰지 않는다.
+이번 관제에서 재업로드·중복 폴더 삭제·자격증명 갱신이나 인스턴스 Stop/Destroy는 하지 않았다.
+
+로컬 근거는 `artifacts/evaluation/base5_full30750_completion_261023_v1/`의
+`remote_observations/`, `native_history/NATIVE_FINAL_FINDINGS.json`, 해당
+`snapshot_1792719650993423428/`의 history·거리·환경 CSV, `checkpoint_audit/`의
+`audit_1792719720292318765.json`, `backup_audit/`에 보존한다. 최종 가중치를 로컬로
+회수하거나 새 bag 추론·threshold·tracker를 검증한 작업은 아니다.
+**E12는 새 native best 후보이고 production E24는 그대로다.** 앞선 E10의 bag 성능을
+E12의 실전 검증으로 전용하지 않는다.
+
+문서 검증은 링크 590개·기존 원문 13개의 보존·계약 표기에 새 오류가 없었다.
+기존 README/CURRENT/데이터 CURRENT 세 파일의 길이 예산 초과는 그대로 남아 있으며,
+전체 문서 검사 통과로 보고하지 않는다.
