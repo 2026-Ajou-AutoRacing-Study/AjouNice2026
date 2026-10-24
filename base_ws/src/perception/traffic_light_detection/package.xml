@@ -16,6 +16,7 @@
   <depend>builtin_interfaces</depend>
   <depend>morai_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>lanelet2_core</exec_depend>
   <exec_depend>lanelet2_io</exec_depend>
   <exec_depend>lanelet2_projection</exec_depend>

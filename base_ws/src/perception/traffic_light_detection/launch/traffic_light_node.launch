@@ -11,9 +11,34 @@
        virtual environment explicitly disables user-site package injection. -->
   <arg name="isolate_python" default="false" />
   <arg name="device" default="0" />
+  <arg name="detector_imgsz" default="640" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
+  <!-- Research candidates are opt-in. Existing center+HSV defaults are unchanged. -->
+  <arg name="selection_mode" default="legacy_center" />
+  <arg name="classifier_mode" default="hsv" />
+  <arg name="cnn_checkpoint_path" default="" />
+  <arg name="cnn_device" default="cpu" />
+  <arg name="cnn_min_bit_confidence" default="0.6" />
+  <arg name="cnn_crop_margin_px" default="12" />
+  <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />
+  <arg name="map_roi_topic" default="/perception/traffic_light_recognition/map_rois" />
+  <arg name="map_geometry_path" default="$(find traffic_light_detection)/config/traffic_light_map_geometry.json" />
+  <arg name="sensor_config" default="$(env AJOUNICE_ROOT)/configs/sensors/Sensor_competition_local.json" />
+  <arg name="map_base_margin_px" default="12.0" />
+  <arg name="map_pitch_tolerance_degrees" default="1.0" />
+  <arg name="map_max_padding_px" default="90.0" />
+  <arg name="map_max_vertical_padding_px" default="180.0" />
+  <arg name="map_min_aspect_ratio_factor" default="0.4" />
+  <arg name="map_max_aspect_ratio_factor" default="2.5" />
+  <arg name="map_max_position_sigma_m" default="1.5" />
+  <arg name="map_max_vertical_sigma_m" default="1.5" />
+  <arg name="map_max_yaw_sigma_degrees" default="3.0" />
+  <arg name="map_max_view_angle_degrees" default="45.0" />
+  <arg name="map_min_height_px" default="3.0" />
+  <arg name="map_packet_max_image_delta_sec" default="0.0" />
+  <arg name="map_packet_wait_sec" default="0.03" />
 
   <arg name="publish_debug_image" default="true" />
   <arg name="debug_jpeg_quality" default="60" />
@@ -61,6 +86,35 @@
       <param name="route_state_topic" value="$(arg route_state_topic)" />
       <param name="odometry_topic" value="$(arg odometry_topic)" />
       <param name="output_topic" value="$(arg route_group_id_topic)" />
+      <!-- Map candidate skips old D-1 and all other non-mission rules while
+           finding the NEXT light; legacy route-provider output is unchanged. -->
+      <rosparam if="$(eval arg('selection_mode') == 'map_association')" param="allowed_group_ids">[201351, 201365, 201290, 201326]</rosparam>
+    </node>
+  </group>
+
+  <!-- TF bindings remain in system Python; GPU Python consumes JSON projections.
+       Only the actual existing TF is read, at camera image time. No broadcaster. -->
+  <group if="$(eval arg('selection_mode') == 'map_association')">
+    <node pkg="traffic_light_detection" type="traffic_light_map_roi_node.py"
+          name="traffic_light_map_roi" launch-prefix="/usr/bin/python3" output="screen">
+      <param name="geometry_path" value="$(arg map_geometry_path)" />
+      <param name="sensor_config" value="$(arg sensor_config)" />
+      <param name="image_topic" value="$(arg image_topic)" />
+      <param name="odometry_topic" value="$(arg odometry_topic)" />
+      <param name="route_group_id_topic" value="$(arg route_group_id_topic)" />
+      <param name="route_group_id_stale_sec" value="$(arg route_group_id_stale_sec)" />
+      <param name="output_topic" value="$(arg map_roi_topic)" />
+      <param name="base_margin_px" value="$(arg map_base_margin_px)" />
+      <param name="pitch_tolerance_degrees" value="$(arg map_pitch_tolerance_degrees)" />
+      <param name="max_padding_px" value="$(arg map_max_padding_px)" />
+      <param name="max_vertical_padding_px" value="$(arg map_max_vertical_padding_px)" />
+      <param name="min_aspect_ratio_factor" value="$(arg map_min_aspect_ratio_factor)" />
+      <param name="max_aspect_ratio_factor" value="$(arg map_max_aspect_ratio_factor)" />
+      <param name="max_position_sigma_m" value="$(arg map_max_position_sigma_m)" />
+      <param name="max_vertical_sigma_m" value="$(arg map_max_vertical_sigma_m)" />
+      <param name="max_yaw_sigma_degrees" value="$(arg map_max_yaw_sigma_degrees)" />
+      <param name="max_view_angle_degrees" value="$(arg map_max_view_angle_degrees)" />
+      <param name="min_height_px" value="$(arg map_min_height_px)" />
     </node>
   </group>
 
@@ -80,7 +134,18 @@
     <param name="weights_path" value="$(arg weights_path)" />
     <param name="conf" value="$(arg conf)" />
     <param name="device" value="$(arg device)" />
+    <param name="detector_imgsz" value="$(arg detector_imgsz)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
+    <param name="selection_mode" value="$(arg selection_mode)" />
+    <param name="classifier_mode" value="$(arg classifier_mode)" />
+    <param name="cnn_checkpoint_path" value="$(arg cnn_checkpoint_path)" />
+    <param name="cnn_device" value="$(arg cnn_device)" />
+    <param name="cnn_min_bit_confidence" value="$(arg cnn_min_bit_confidence)" />
+    <param name="cnn_crop_margin_px" value="$(arg cnn_crop_margin_px)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="map_roi_topic" value="$(arg map_roi_topic)" />
+    <param name="map_packet_max_image_delta_sec" value="$(arg map_packet_max_image_delta_sec)" />
+    <param name="map_packet_wait_sec" value="$(arg map_packet_wait_sec)" />
     <param name="publish_debug_image" value="$(arg publish_debug_image)" />
     <param name="debug_jpeg_quality" value="$(arg debug_jpeg_quality)" />
 
