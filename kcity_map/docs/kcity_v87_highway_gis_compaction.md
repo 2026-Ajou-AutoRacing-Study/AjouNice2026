@@ -45,11 +45,9 @@ export AJOUNICE_ROOT="$PWD"
 roslaunch ajounice_planning_integration competition_planning_v87.launch
 ```
 
-새 지도와 맞는 `kcity_v87_competition_route.yaml`, `competition_route_requester_v87.param.yaml`, `mission_planner_kcity_v87.yaml`, `lanelet_speed_limits_v87.yaml`을 함께 선택한다. 삭제 ID를 새 ID로 치환하고 중복을 정리했다. waypoint와 fallback cutoff의 세계 좌표는 보존하고, 병합된 차로의 시작점에서 계산하는 `lanelet_s_m`만 재산정했다.
+새 지도와 맞는 `kcity_v87_competition_route.yaml`, `competition_route_requester_v87.param.yaml`, `mission_planner_kcity_v87.yaml`을 함께 선택한다. 삭제 ID를 새 ID로 치환하고 중복을 정리했다. waypoint와 fallback cutoff의 세계 좌표는 보존하고, 병합된 차로의 시작점에서 계산하는 `lanelet_s_m`만 재산정했다.
 
-속도 덮어쓰기 파일은 지도 SHA가 정확히 맞아야 로더가 수락한다. 기존 v86 launch가 참조하던 기본 파일은 v85 SHA에 고정되어 있어, v87에서는 새 전용 파일을 명시했다. 기존 파일은 수정하지 않았다.
-
-기존 50km/h cap은 병합 대상 중 가장 낮은 값으로 보존하여 `201468`, `201439`, `201441`, `201446`에 적용한다. **`201446`은 이전 앞 조각에 있던 50km/h cap이 병합된 전체 차로에 적용되므로, 마지막 옛 201446 구간도 50km/h가 된다.** 다른 속도 정책과 LC·Cruise·제어 파라미터는 이번 작업에서 변경하지 않았다.
+**현재 속도 정책은 OSM 원본 속성만 사용한다.** 별도 YAML 속도 덮어쓰기, native 적용 코드, launch 연결과 생성 기능을 사용자 요청으로 삭제했다. 따라서 `201468`, `201439`, `201441`, `201446`도 OSM에 기록된 **150km/h**를 그대로 로드한다. OSM 파일 자체와 지도 버전/SHA는 변경하지 않았다. 이전 검증 JSON이나 분석 백의 50km/h 값은 삭제 전 시점의 증거이며 현재 정책이 아니다.
 
 규정 모니터를 별도로 사용하는 경우 `roslaunch competition_rule_monitor competition_rule_monitor_v87.launch`를 선택한다. 지도 SHA와 고속 차로 개수(병합 후 39개)가 맞는 새 `kcity_v87_rules.yaml`을 사용한다. GT localization의 `official_start_config`가 필요하면 이 새 YAML 경로로 지정할 수 있다(공식 시작 위치 자체는 동일).
 
@@ -61,7 +59,7 @@ roslaunch ajounice_planning_integration competition_planning_v87.launch
 - [실제 VMB 결과](kcity_v87_highway_gis_compaction_actual_vmb.json), [화면](kcity_v87_highway_gis_compaction_actual_vmb.png): **오류 0개**.
 - [VMB 전후 비교](kcity_v87_highway_gis_compaction_vmb_comparison.json): ID 병합을 반영한 신규 경고 대상 0개. 기존 중심선 연결 경고는 40 → 13개. 기존 속도 임계값(30km/h) 경고 1199개, 고립 점 899개, intersection_area 경고 60개는 남아 있다. 요청 범위 밖을 고치지 않았다.
 - [launch 해석·기존 파일 보존 검증](kcity_v87_highway_gis_compaction_launch_validation.json): **PASS**. 신규 설정 source/install 일치, 이전 지도 전체와 기존 LC 소스 파일 SHA 동일. 차이는 지도 및 관련 설정 선택과 mission ID 치환뿐이다.
-- [실제 native map-loader 속도 적용 함수 오프라인 검사](kcity_v87_highway_gis_compaction_native_caps.json): **PASS**. 최종 지도 SHA와 4개 cap을 수락했고 실제 lanelet에 50km/h 적용을 확인했다.
+- 속도 검증은 [덮어쓰기 삭제 후 실제 map publication 검사](kcity_v87_original_osm_speed_validation.json)를 따른다. 이전 native cap 검사 JSON은 삭제 전의 역사적 기록이다.
 - 실시간 ROS 노드 실행, bag replay, MORAI 폐루프 주행: **미실시**.
 
 재현 스크립트는 `../scripts/kcity_map_workflow/{build_v87_highway_gis_compaction,prepare_v87_profiles,validate_v87_highway_gis_compaction,visualize_v87_highway_gis_compaction}.py`다. build/prepare는 기존 결과를 덮어쓰지 않는다. 최초 형상 작업 당시 지도는 로컬 파일이었다. 후속 배포에서는 Drive quota 초과에 따라 v87 OSM만 Git 관리 예외로 추가했다. 배포 상태는 [배포 문서](kcity_v87_runtime_release.md)를 따른다.

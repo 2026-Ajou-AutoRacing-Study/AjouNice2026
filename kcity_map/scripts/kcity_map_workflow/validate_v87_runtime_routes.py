@@ -106,6 +106,6 @@ for c in raw['cases']:
   reached=lateral_closure(entry,sets[i]);transitions.append({'from_section':i-1,'to_section':i,'reachable_lanelets':sorted(reached)})
  assert seq[-1] in reached,(c['name'],'goal not reachable')
  result.append({'name':c['name'],'sections':len(seq),'preferred_sequence_matches_config_or_accepted_suffix':True,'all_section_transitions_connected':True,'actual_preferred_lanelet_ids':seq,'transitions':transitions})
-out={'status':'PASS','map_sha256':hashlib.sha256((root/'kcity_map/lanelet_map/lanelet2_map_v87.osm').read_bytes()).hexdigest(),'method':'Installed production DefaultPlanner on private ROS master, production footprint and map speed caps; Lanelet2 graph checks emitted section-by-section continuity','cases':result,'live_closed_loop':False}
+out={'status':'PASS','map_sha256':hashlib.sha256((root/'kcity_map/lanelet_map/lanelet2_map_v87.osm').read_bytes()).hexdigest(),'method':'Installed production DefaultPlanner on private ROS master, production footprint and original OSM speeds (no overrides); Lanelet2 graph checks emitted section-by-section continuity','cases':result,'live_closed_loop':False}
 (args.report or out/'route_audit.json').write_text(json.dumps(out,indent=2)+'\n')
 print('PASS',len(result),'native cases,',sum(x['sections']-1 for x in result),'section transitions')

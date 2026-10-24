@@ -1,7 +1,7 @@
 {
   "status": "PASS",
   "map_sha256": "70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575",
-  "method": "Installed production DefaultPlanner on private ROS master, production footprint and map speed caps; Lanelet2 graph checks emitted section-by-section continuity",
+  "method": "Installed production DefaultPlanner on private ROS master, production footprint and original OSM speeds (no overrides); Lanelet2 graph checks emitted section-by-section continuity",
   "cases": [
     {
       "name": "route_a_full",

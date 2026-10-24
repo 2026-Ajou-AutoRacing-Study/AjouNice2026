@@ -161,11 +161,8 @@ def main():
             assert after.laneletLayer.exists(int(key)),key
             assert all(after.laneletLayer.exists(i) for i in ids),(key,ids)
         assert all(after.laneletLayer.exists(i) for i in mission['route_section_excluded_lanelet_ids'])
-        caps=yaml.safe_load((ROOT/'lanelet_map/lanelet_speed_limits_v87.yaml').read_text())
-        assert caps['map_sha256']==sha256(args.map)
-        assert all(after.laneletLayer.exists(int(i)) and 0<v<=150 for i,v in caps['lanelet_speed_limits'].items())
         profile_result={'route_policy_validation':'PASS','geometry_constructor':'PASS','preferred_paths_reachable':True,
-                        'waypoints_inside_lanelets':True,'mission_ids_exist':True,'speed_override_hash_and_ids':'PASS'}
+                        'waypoints_inside_lanelets':True,'mission_ids_exist':True,'speed_policy':'OSM original attributes; no override files'}
     result={'status':'PASS','map':str(args.map),'sha256':sha256(args.map),'baseline_sha256':sha256(BASE),'map_version':87,
             'lanelets':len(after.laneletLayer),'primitive_diff':diff,'outside_region_primitives_unchanged':True,
             'outside_graph_changes_only_remapped_ids':interface,'invalid_polygons':invalid,'local_centerlines_outside':outside,

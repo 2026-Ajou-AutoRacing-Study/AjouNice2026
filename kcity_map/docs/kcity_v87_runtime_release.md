@@ -16,10 +16,10 @@ roslaunch ajounice_planning_integration competition_planning.launch
 
 ## 일치시킨 항목
 
-- `map.launch`: v87 OSM, v87 전용 속도 cap 파일, projector 발행기의 지도 경로와 SHA.
+- `map.launch`: v87 OSM 원본 속도, projector 발행기의 지도 경로와 SHA. 별도 속도 덮어쓰기는 제거했다.
 - `planning.launch`: `mission_planner_kcity_v87.yaml`.
 - 기본 requester 설정: `kcity_v87_competition_route.yaml`. Route A/B/fallback 모두 병합 후 ID를 사용한다.
-- planning RViz·속도 편집기: 같은 v87 경로 정의와 cap 파일.
+- planning RViz: 같은 v87 경로 정의. 별도 속도 덮어쓰기 편집 도구는 삭제했다.
 - Map-CV 예측·신호등 경로 helper·규정 모니터·map visualizer·map TF launch: 같은 v87 OSM.
 - localization의 공식 시작점 YAML: v87 파일. 공식 시작점 좌표·yaw는 v85와 동일하다.
 - 현재 실행/평가 도구의 지도 기본값도 v87로 맞췄다. 과거 버전 YAML, 지도 제작 이력, 기존 시나리오 좌표의 출처 주석은 보존했다.
@@ -29,7 +29,7 @@ v87 지도 SHA256은 `70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c
 
 ## Route A/B 연결 검증
 
-[실제 production DefaultPlanner 검증 JSON](kcity_v87_runtime_route_audit.json)을 참조한다. 별도 ROS master에서 설치된 실제 plugin에 v87 binary map과 production 차량 치수·mission 정책을 입력했다. 가짜 route 응답을 사용하지 않았다.
+[실제 production DefaultPlanner 검증 JSON](kcity_v87_runtime_route_audit.json)을 참조한다. 별도 ROS master에서 설치된 실제 plugin에 v87 binary map과 production 차량 치수·mission 정책을 입력했다. 속도 덮어쓰기 삭제 후 아래 40개 경로를 다시 검사했고, 원본 속도 보존은 별도의 실제 publication 검사로 확인했다. 가짜 route 응답을 사용하지 않았다.
 
 - Route A 전체: **48 section**, 설정된 preferred 순서와 일치.
 - Route B 전체: **58 section**, 설정된 preferred 순서와 일치.
@@ -51,9 +51,9 @@ source scripts/workspace/source_aw149.sh
 
 ## 추가 검사
 
-- [기본 launch 12개 해석](kcity_v87_runtime_launch_audit.json): 모두 성공, map·route·mission·속도·규칙 경로가 v87로 일치. 노드 실행 없이 `--dump-params`로 검사했다.
-- 지도 관련 pytest 계약 **69개**, requester private-master ROS 테스트 **19개** 통과.
-- 실제 map-loader 속도 적용 함수: [PASS](kcity_v87_highway_gis_compaction_native_caps.json).
+- [기본 launch 11개 해석](kcity_v87_runtime_launch_audit.json): 모두 성공, map·route·mission·속도·규칙 경로가 v87로 일치. 노드 실행 없이 `--dump-params`로 검사했다.
+- 지도 관련 pytest 계약 **62개**, requester private-master ROS 테스트 **19개** 통과.
+- 현재 map-loader는 OSM 원본 속도만 발행한다: [삭제 후 검증](kcity_v87_original_osm_speed_validation.json). 이전 native cap 검사 JSON은 삭제 전의 기록이다.
 - 동일한 최종 OSM에 대한 실제 VMB: [오류 0개](kcity_v87_highway_gis_compaction_actual_vmb.json). 기존 경고는 남아 있으며 이번 배포 작업에서 지도 바이트는 변경하지 않았다.
 - 기존 dirty RViz/개인 network 설정/LC YAML과 이전 OSM 전체 SHA를 보존했다. 이번 커밋에서 제외한다.
 - 전역 perception 문서 검사는 기존 `docs/bevfusion/README.md`, `docs/bevfusion/CURRENT.md`, `dataset/morai_od/docs/BASE5_V2_CURRENT.md`의 분량 제한 3건으로 실패한다. 세 파일의 줄 수는 기존 HEAD와 동일하며 이번 지도 변경에 포함하지 않았다. 링크/원문 보존 관련 신규 오류는 없다.
@@ -64,6 +64,8 @@ source scripts/workspace/source_aw149.sh
 
 설정/지도/검증 도구/릴리스 문서만 현재 planning 브랜치와 개발 브랜치에 반영한다. 현 원격에는 `dev`가 없어 기존 개발 브랜치 `develop`을 대상으로 한다. 서로 다른 branch의 다른 변경을 통째로 합치지 않고 이 릴리스 커밋만 반영한다.
 
-개발 브랜치에는 아직 없는 선택 도구(속도 편집기·route 편집기)와 route-profile 전용 테스트는 해당 브랜치에 억지로 추가하지 않는다. 대신 v87 실행에 필요한 기존 native 속도 cap 로더 6개 파일을 함께 이식해 SHA 검증과 cap 적용이 누락되지 않도록 한다.
+개발 브랜치에는 아직 없는 선택 도구(속도 편집기·route 편집기)와 route-profile 전용 테스트는 해당 브랜치에 억지로 추가하지 않는다. 이후 사용자 지시로 두 브랜치에서 별도 속도 cap 기능을 제거했다.
 
 개발 브랜치는 별도로 계약 테스트 **39개**, planning·RViz·prediction launch 해석, operational source의 지도 버전 검사를 통과했다. native mission planner·route handler·map loader 소스 트리가 실제 40개 경로 검사에 사용한 planning 브랜치와 동일함도 확인했다. 개발 브랜치의 native 바이너리를 별도로 전체 재빌드한 것은 아니다. [개발 브랜치 검증](kcity_v87_develop_release_validation.json)을 참조한다.
+
+현재 속도 정책: OSM 파일의 `speed_limit`만 사용한다. YAML, native 덮어쓰기 함수, launch 인자, 재생성 코드와 속도 cap 편집기를 삭제했다. `201468/201439/201441/201446`은 원본과 동일하게 150km/h다. 이미 실행 중인 프로세스가 보유한 과거 지도는 자동으로 다시 쓰지 않았으므로 새 정책은 planning 재실행 시 적용된다.

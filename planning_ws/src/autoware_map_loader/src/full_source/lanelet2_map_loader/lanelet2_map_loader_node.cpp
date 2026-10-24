@@ -32,7 +32,6 @@
  */
 
 #include "autoware/map_loader/lanelet2_map_loader_node.hpp"
-#include "autoware/map_loader/speed_limit_overrides.hpp"
 
 #include "lanelet2_local_projector.hpp"
 
@@ -91,15 +90,6 @@ void Lanelet2MapLoaderNode::on_map_projector_info(
   if (!map) {
     RCLCPP_ERROR(get_logger(), "Failed to load lanelet2_map. Not published.");
     return;
-  }
-
-  std::string speed_limit_overrides_file;
-  param<std::string>("speed_limit_overrides_file", speed_limit_overrides_file, "");
-  // Keep the audited OSM geometry and route SHA unchanged; serialize the caps
-  // into the map actually consumed by RouteHandler and the planning pipeline.
-  apply_speed_limit_overrides(map, lanelet2_filename, speed_limit_overrides_file);
-  if (!speed_limit_overrides_file.empty()) {
-    RCLCPP_INFO(get_logger(), "Applied lanelet speed cap file: %s", speed_limit_overrides_file.c_str());
   }
 
   std::string format_version{"null"}, map_version{""};
