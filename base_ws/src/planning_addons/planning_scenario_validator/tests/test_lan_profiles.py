@@ -146,9 +146,9 @@ recording:
 
     def test_default_output_is_sibling_and_under_gitignored_personal_workspace(self):
         result = self.prepare()
-        self.assertEqual(result['yaml'], self.workspace / 'private_lan.yaml')
-        self.assertEqual(result['sensor'], self.workspace / 'private_lan_network/sensor_lan.json')
-        self.assertEqual(result['ego_network'], self.workspace / 'private_lan_network/ego_network_lan.json')
+        self.assertEqual(result['yaml'], self.workspace / 'private_lan_dev.yaml')
+        self.assertEqual(result['sensor'], self.workspace / 'private_lan_dev_network/sensor_lan_dev.json')
+        self.assertEqual(result['ego_network'], self.workspace / 'private_lan_dev_network/ego_network_lan_dev.json')
         self.assertEqual(result['yaml'].parent, self.source.parent)
         self.assertEqual(self.ignore.read_bytes(),
                          (PACKAGE / 'config/missions/full_course/workspace/.gitignore').read_bytes())
@@ -185,7 +185,7 @@ recording:
             with self.subTest(path=path), self.assertRaises(ValueError):
                 self.prepare(output=path)
         self.assert_originals()
-        self.assertFalse((self.workspace / 'private_lan_network').exists())
+        self.assertFalse((self.workspace / 'private_lan_dev_network').exists())
 
     def test_invalid_non_unicast_and_same_ips_are_rejected_without_writes(self):
         for bad in ('bad', '::1', '127.0.0.1', '0.0.0.0', '224.0.0.1', '255.255.255.255'):
@@ -194,8 +194,8 @@ recording:
                     self.prepare(**{role: bad})
         with self.assertRaises(ValueError):
             self.prepare(morai_ip='10.42.0.1', ros_ip='10.42.0.1')
-        self.assertFalse((self.workspace / 'private_lan.yaml').exists())
-        self.assertFalse((self.workspace / 'private_lan_network').exists())
+        self.assertFalse((self.workspace / 'private_lan_dev.yaml').exists())
+        self.assertFalse((self.workspace / 'private_lan_dev_network').exists())
         self.assert_originals()
 
     def test_scenario_slot_must_be_unique_active_udp_9095_to_9096(self):
@@ -251,13 +251,13 @@ recording:
         outside.mkdir()
         marker = outside / 'unrelated.txt'
         marker.write_text('preserve existing external content\n')
-        directory = self.workspace / 'private_lan_network'
+        directory = self.workspace / 'private_lan_dev_network'
         directory.symlink_to(outside, target_is_directory=True)
         with self.assertRaisesRegex(ValueError, '실제 폴더'):
             self.prepare()
         self.assertEqual(list(outside.iterdir()), [marker])
         self.assertEqual(marker.read_text(), 'preserve existing external content\n')
-        self.assertFalse((self.workspace / 'private_lan.yaml').exists())
+        self.assertFalse((self.workspace / 'private_lan_dev.yaml').exists())
         self.assert_originals()
 
     def test_existing_identical_payload_symlink_is_rejected_before_any_other_write(self):
@@ -295,7 +295,22 @@ recording:
                                         '--ros-ip', '10.42.0.1'])
         self.assertEqual(result, 2)
         self.assertIn('LAN 준비 실패', captured.getvalue())
-        self.assertFalse((self.workspace / 'private_lan.yaml').exists())
+        self.assertFalse((self.workspace / 'private_lan_dev.yaml').exists())
+        self.assert_originals()
+
+    def test_main_success_labels_development_only_and_keeps_previous_lan_files(self):
+        previous = self.workspace / 'private_lan.yaml'
+        previous.write_text('previous personal LAN file, do not migrate\n')
+        prepare = partial(lan_profiles.prepare_lan_bundle, root=self.root)
+        captured = io.StringIO()
+        with patch.object(lan_profiles, 'prepare_lan_bundle', prepare), redirect_stdout(captured):
+            result = lan_profiles.main(['--yaml', str(self.source), '--morai-ip', '10.42.0.252',
+                                        '--ros-ip', '10.42.0.1'])
+        self.assertEqual(result, 0)
+        self.assertIn('개발용 임시 사본', captured.getvalue())
+        self.assertIn('대회에서는 검증된 현장점검 실행 절차와 설정을 그대로', captured.getvalue())
+        self.assertTrue((self.workspace / 'private_lan_dev.yaml').is_file())
+        self.assertEqual(previous.read_text(), 'previous personal LAN file, do not migrate\n')
         self.assert_originals()
 
 

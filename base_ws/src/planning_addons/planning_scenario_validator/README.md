@@ -1,6 +1,6 @@
 # Planning scenario validator
 
-LAN 실행 오류는 [하나씩 확인하는 짧은 안내](../../../../docs/planning/SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 먼저 봅니다.
+팀장님 PC의 임시 LAN-to-LAN 개발 오류는 [전용 짧은 안내](../../../../docs/planning/SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 봅니다. 대회에서는 검증된 현장점검 실행 절차·설정을 유지합니다.
 
 공유·실행 브랜치는 `planning/autoware-universe-to-ros1`이다. 업데이트는 캠페인·스택 종료 → pull → planning/base 증분 빌드 → 환경 재source·노드 재실행 순서다. 초기 설치/clean을 매번 반복하지 않는다. 복붙 명령은 [팀원 안내 4-1](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있다.
 

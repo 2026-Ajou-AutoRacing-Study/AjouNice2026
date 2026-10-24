@@ -1,4 +1,4 @@
-"""Prepare private LAN copies; never change shared profiles or execution inputs."""
+"""Prepare temporary LAN-to-LAN development copies, not competition profiles."""
 import argparse
 import copy
 import ipaddress
@@ -38,7 +38,7 @@ def patch_lan_addresses(document, ego_network, sensor_config, morai_ip, ros_ip):
             or len(scenario) != 1 or scenario[0].get('hostPort') != 9095
             or scenario[0].get('destinationPort') != 9096):
         raise ValueError('기존 YAML에 validator용 Ego Network(ScenarioLoad 9095→9096)가 '
-                         '필요합니다. competition JSON으로 대신하지 마세요')
+                         '필요합니다. 시나리오 자동 로드가 없는 일반 주행용 Ego Network로 대신하지 마세요')
     sensors = list(_active_sensor_udp(sensor_config))
     if not sensors:
         raise ValueError('Sensor JSON에 활성 UDP 센서가 없습니다')
@@ -72,7 +72,7 @@ def prepare_lan_bundle(source, morai_ip, ros_ip, *, output=None, root=ROOT):
     source = _resolve(source, root)
     _personal_yaml(source, root)
     destination = (_resolve(output, root) if output else
-                   source.with_name(source.stem + '_lan.yaml'))
+                   source.with_name(source.stem + '_lan_dev.yaml'))
     _personal_yaml(destination, root)
     if destination.parent != source.parent or destination == source:
         raise ValueError('출력은 원본과 같은 workspace의 다른 YAML이어야 합니다')
@@ -89,7 +89,7 @@ def prepare_lan_bundle(source, morai_ip, ros_ip, *, output=None, root=ROOT):
     directory = destination.with_name(destination.stem + '_network')
     if directory.is_symlink() or directory.resolve().parent != destination.parent:
         raise ValueError('Network 출력 폴더는 같은 workspace 안의 실제 폴더여야 합니다')
-    sensor_path, ego_path = directory / 'sensor_lan.json', directory / 'ego_network_lan.json'
+    sensor_path, ego_path = directory / 'sensor_lan_dev.json', directory / 'ego_network_lan_dev.json'
     for key, path in (('sensor_json', sensor_path), ('ego_network_json', ego_path)):
         document['network'][key] = str(path.relative_to(root))
     payloads = {
@@ -112,18 +112,19 @@ def prepare_lan_bundle(source, morai_ip, ros_ip, *, output=None, root=ROOT):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='개인 YAML용 LAN Sensor/Ego 사본 준비 (연결/주행 없음)')
+    parser = argparse.ArgumentParser(description='LAN-to-LAN 개발용 임시 Sensor/Ego 사본 준비 (대회용 아님, 연결/주행 없음)')
     parser.add_argument('--yaml', required=True, help='미션 workspace의 기존 개인 YAML')
     parser.add_argument('--morai-ip', required=True, help='MORAI PC IPv4')
     parser.add_argument('--ros-ip', required=True, help='ROS PC IPv4')
-    parser.add_argument('--output', help='같은 workspace의 새 YAML 경로 (기본: 원본이름_lan.yaml)')
+    parser.add_argument('--output', help='같은 workspace의 새 YAML 경로 (기본: 원본이름_lan_dev.yaml)')
     args = parser.parse_args(argv)
     try:
         result = prepare_lan_bundle(args.yaml, args.morai_ip, args.ros_ip, output=args.output)
     except (ValueError, OSError, KeyError, TypeError, IndexError, yaml.YAMLError) as error:
         print('LAN 준비 실패: {}'.format(error))
         return 2
-    print('새 YAML: {}'.format(result['yaml']))
+    print('개발용 임시 사본입니다. 대회에서는 검증된 현장점검 실행 절차와 설정을 그대로 사용하세요.')
+    print('새 개발 YAML: {}'.format(result['yaml']))
     print('MORAI Sensor Network에 Load: {}'.format(result['sensor']))
     print('MORAI Ego Network에 Load: {}'.format(result['ego_network']))
     print('원본/공용 파일은 그대로입니다. 생성 파일은 workspace 아래 Git 제외입니다.')
