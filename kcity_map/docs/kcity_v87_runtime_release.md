@@ -65,3 +65,5 @@ source scripts/workspace/source_aw149.sh
 설정/지도/검증 도구/릴리스 문서만 현재 planning 브랜치와 개발 브랜치에 반영한다. 현 원격에는 `dev`가 없어 기존 개발 브랜치 `develop`을 대상으로 한다. 서로 다른 branch의 다른 변경을 통째로 합치지 않고 이 릴리스 커밋만 반영한다.
 
 개발 브랜치에는 아직 없는 선택 도구(속도 편집기·route 편집기)와 route-profile 전용 테스트는 해당 브랜치에 억지로 추가하지 않는다. 대신 v87 실행에 필요한 기존 native 속도 cap 로더 6개 파일을 함께 이식해 SHA 검증과 cap 적용이 누락되지 않도록 한다.
+
+개발 브랜치는 별도로 계약 테스트 **39개**, planning·RViz·prediction launch 해석, operational source의 지도 버전 검사를 통과했다. native mission planner·route handler·map loader 소스 트리가 실제 40개 경로 검사에 사용한 planning 브랜치와 동일함도 확인했다. 개발 브랜치의 native 바이너리를 별도로 전체 재빌드한 것은 아니다. [개발 브랜치 검증](kcity_v87_develop_release_validation.json)을 참조한다.

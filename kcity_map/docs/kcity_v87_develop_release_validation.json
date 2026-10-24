@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "development_branch": "develop",
+  "changed_files": 92,
+  "same_native_source_trees": {
+    "planning_ws/src/autoware_mission_planner_universe": "a6e608b4e27a59b7f15e4f31180a461fe06485c0",
+    "planning_ws/src/autoware_route_handler": "c9ade4c946cc3d1cb9b06a248ca37d9b107a37d9",
+    "planning_ws/src/autoware_map_loader": "373266d10479ff6e32e6ce670018a900c13c74b0"
+  },
+  "identical_shared_release_files": true,
+  "map_sha256": "70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575",
+  "develop_source_contract_tests": 39,
+  "develop_resolved_launches": [
+    "competition_planning.launch",
+    "aw149_planning_rviz.launch",
+    "object_pipeline.launch"
+  ],
+  "development_native_binaries_rebuilt": false,
+  "native_route_validation_basis": "Develop mission-planner, route-handler and map-loader source trees equal those used for the 40-case installed-plugin audit; this is not a closed-loop run.",
+  "all_target_runtime_version_references": "v87",
+  "absent_optional_files_not_introduced": [
+    "aw149_lanelet_speed_editor.launch",
+    "test_lanelet_speed_editor.py",
+    "test_planning_route_editor.py",
+    "test_route_profile.py"
+  ]
+}
