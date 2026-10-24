@@ -62,6 +62,7 @@
 #include <vector>
 #include <std_msgs/String.h>
 #include <chrono>
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 
 namespace autoware::behavior_path_planner
 {
@@ -1376,7 +1377,7 @@ bool NormalLaneChange::get_lane_change_paths(LaneChangePaths & candidate_paths) 
 
   const auto target_objects = get_target_objects(filtered_objects_, current_lanes);
 
-  const auto prepare_phase_metrics = get_prepare_metrics();
+  const auto prepare_phase_metrics = utils::lane_change::diversify_prepare_metrics(get_prepare_metrics());
 
   const auto sorted_lane_ids = utils::lane_change::get_sorted_lane_ids(common_data_ptr_);
   const auto search = [&](const CandidateSearchMode mode, const double budget_ms) {
@@ -1561,7 +1562,15 @@ bool NormalLaneChange::get_path_using_path_shifter(
     utils::lane_change::set_prepare_velocity(
       prepare_segment, common_data_ptr_->get_ego_speed(), prep_metric.velocity);
 
+    std::vector<std::pair<double,double>> tested_dynamics;
     for (const auto & lc_metric : lane_changing_metrics) {
+      // Larger lateral limits can produce the very same jerk-limited maneuver.
+      // Do not spend the cycle regenerating identical rejected candidates.
+      if (std::any_of(tested_dynamics.begin(),tested_dynamics.end(),[&](const auto & tested) {
+            return std::abs(tested.first-lc_metric.duration)<1e-3 &&
+              std::abs(tested.second-lc_metric.actual_lon_accel)<1e-6;
+          })) continue;
+      tested_dynamics.emplace_back(lc_metric.duration,lc_metric.actual_lon_accel);
       if (stop_watch_.toc(__func__) >= time_limit_ms) {
         RCLCPP_DEBUG(logger_, "Time limit reached and no safe path was found.");
         return false;

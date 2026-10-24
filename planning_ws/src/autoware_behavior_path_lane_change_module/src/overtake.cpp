@@ -337,6 +337,8 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
   }
   const auto & reference = common_data_ptr_->current_lanes_path.points;
   if (reference.size() < 2) return reject("reference_unavailable");
+  const double end = autoware::motion_utils::calcSignedArcLength(reference,
+    getEgoPosition(), candidate.info.lane_changing_end.position);
   std::vector<double> positions, velocities;
   for (const auto & point : feedback->points) {
     const double s = autoware::motion_utils::calcSignedArcLength(
@@ -348,7 +350,7 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
     const double dx = b.x-a.x, dy = b.y-a.y;
     const double ratio = std::clamp(((point.pose.position.x-a.x)*dx +
       (point.pose.position.y-a.y)*dy)/std::max(1e-9, dx*dx+dy*dy), 0.0, 1.0);
-    if (s >= 0 && std::hypot(point.pose.position.x-a.x-ratio*dx,
+    if (s >= 0 && s <= end + 1.0 && std::hypot(point.pose.position.x-a.x-ratio*dx,
                             point.pose.position.y-a.y-ratio*dy) > 0.5) {
       return reject("feedback_maneuver_geometry_mismatch");
     }
@@ -358,21 +360,16 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
     velocities.push_back(std::max(0.0, static_cast<double>(point.longitudinal_velocity_mps)));
   }
   if (positions.size() < 2 || positions.front() > 1.0) return reject("feedback_off_route");
+  if (positions.back() < end) return reject("feedback_shorter_than_maneuver");
   auto capped = candidate;
-  const double end = autoware::motion_utils::calcSignedArcLength(reference,
-    getEgoPosition(), candidate.info.lane_changing_end.position);
-  for (auto & point : capped.path.points) {
-    const double s = autoware::motion_utils::calcSignedArcLength(reference,
-      getEgoPosition(), point.point.pose.position);
-    if (s < 0) continue;
-    if (s > end+1.0) break;
-    if (s > positions.back()) return reject("feedback_shorter_than_maneuver");
-    const auto upper = std::lower_bound(positions.begin(), positions.end(), s);
-    const auto i = static_cast<size_t>(upper-positions.begin());
-    const double limit = i == 0 ? velocities.front() : velocities[i-1] +
-      (velocities[i]-velocities[i-1]) * (s-positions[i-1])/(positions[i]-positions[i-1]);
-    point.point.longitudinal_velocity_mps = std::min<double>(
-      point.point.longitudinal_velocity_mps, limit);
+  // Recheck the final geometry and speed themselves. Projecting only its speed
+  // onto the old candidate silently ignores optimizer-induced lateral changes.
+  capped.path.points.clear();
+  for (const auto & point : feedback->points) {
+    PathPointWithLaneId output;
+    output.point.pose = point.pose;
+    output.point.longitudinal_velocity_mps = point.longitudinal_velocity_mps;
+    capped.path.points.push_back(output);
   }
   capped.type = lane_change::PathType::SpatialSpeedProfile;
   try {

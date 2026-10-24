@@ -3,6 +3,7 @@
 #include <autoware/behavior_path_lane_change_module/scene.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/overtake.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/speed_profile.hpp>
+#include <autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/utils.hpp>
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <gtest/gtest.h>
@@ -518,6 +519,40 @@ TEST_F(Scene, CompletePredictionCoverageStillAllowsSafeGap)
   safety::CollisionCheckDebugMap debug;
   EXPECT_FALSE(module->is_colliding(candidate(),obj,prediction(20,4),
     parameters->safety.rss_params,debug,false));
+}
+
+TEST(LaneChangeCandidateBudget, AccelerationCruiseAndBrakingAreVisitedBeforeFinePositiveGrid)
+{
+  std::vector<bpp::LaneChangePhaseMetrics> input;
+  for(double a:{3.0,2.0,1.0,0.0,-1.0,-2.0}) input.emplace_back(0,0,15,a,0,0);
+  for(double a:{3.0,0.0,-1.0}) input.emplace_back(0.5,7.5,15,a,a,0);
+  const auto ordered=lc::diversify_prepare_metrics(input);
+  ASSERT_EQ(ordered.size(),input.size());
+  EXPECT_EQ(ordered[0].sampled_lon_accel,3.0);
+  EXPECT_EQ(ordered[1].sampled_lon_accel,0.0);
+  EXPECT_EQ(ordered[2].sampled_lon_accel,-1.0);
+  EXPECT_EQ(ordered[6].duration,0.5);
+}
+
+TEST_F(Scene, FinalFeedbackChecksActualLateralGeometry)
+{
+  auto message=boost::make_shared<autoware_planning_msgs::Trajectory>();
+  message->header.frame_id="map"; message->header.stamp=ros::Time::now();
+  for(double x=-5;x<=150;x+=1) {
+    autoware_planning_msgs::TrajectoryPoint p;p.pose=pose(x,0.25);p.longitudinal_velocity_mps=20;
+    message->points.push_back(p);
+  }
+  module->receiveFinalTrajectory(message);
+  const auto checked=module->finalVelocityPrediction(candidate());
+  ASSERT_TRUE(checked);ASSERT_FALSE(checked->empty());
+  EXPECT_NEAR(checked->front().pose.position.y,0.25,1e-9);
+}
+TEST_F(Scene, FasterFinalProfileIsAlsoCheckedWithoutClippingToCandidate)
+{
+  feedback(25);
+  const auto checked=module->finalVelocityPrediction(candidate());
+  ASSERT_TRUE(checked);ASSERT_FALSE(checked->empty());
+  EXPECT_NEAR(checked->front().velocity,25.0,1e-6);
 }
 
 int main(int argc, char ** argv)

@@ -26,7 +26,8 @@ TEST(LaneChangeOwnership, OnlyMatchingApprovedOutputOwnsSpeed) { Fixture f; EXPE
 TEST(LaneChangeOwnership, WaitingOrCompletedHasNoLease) { Fixture f; f.commitment.points.clear(); EXPECT_EQ(f.check(),"no_approved_lc_output"); }
 TEST(LaneChangeOwnership, ExpiryAndClockResetRevokeLease) { Fixture f; EXPECT_EQ(f.check(ros::Time(101)),"commitment_expired"); EXPECT_EQ(f.check(ros::Time(99)),"commitment_expired"); }
 TEST(LaneChangeOwnership, DifferentManeuverGeometryIsRejected) { Fixture f; f.trajectory[20].pose.position.y=1; EXPECT_EQ(f.check(),"lc_geometry_changed"); }
-TEST(LaneChangeOwnership, DownstreamSpeedChangeIsDetected) { Fixture f; f.trajectory[20].longitudinal_velocity_mps=10; EXPECT_EQ(f.check(),"lc_speed_changed"); }
+TEST(LaneChangeOwnership, SlowerProfileRemainsLcOwnedForSafetyRecheck) { Fixture f; f.trajectory[20].longitudinal_velocity_mps=10; EXPECT_TRUE(f.check().empty()); }
+TEST(LaneChangeOwnership, UnapprovedFasterProfileIsRejected) { Fixture f; f.trajectory[20].longitudinal_velocity_mps=20; EXPECT_EQ(f.check(),"lc_speed_changed"); }
 TEST(LaneChangeOwnership, NonFiniteSpeedCannotOwn) { Fixture f; f.trajectory[20].longitudinal_velocity_mps=std::numeric_limits<double>::quiet_NaN(); EXPECT_EQ(f.check(),"lc_speed_changed"); }
 TEST(LaneChangeOwnership, WrongFrameIsRejected) { Fixture f; f.commitment.header.frame_id="odom"; EXPECT_EQ(f.check(),"commitment_frame_mismatch"); }
 int main(int argc, char ** argv) { testing::InitGoogleTest(&argc,argv); return RUN_ALL_TESTS(); }
