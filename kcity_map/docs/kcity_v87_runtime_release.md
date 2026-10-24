@@ -63,3 +63,5 @@ source scripts/workspace/source_aw149.sh
 팀 Drive에 v87만 immutable 업로드를 시도했지만 `403 storageQuotaExceeded`로 거절됐다. 다른 자산을 삭제하거나 원격 파일을 덮어쓰지 않았다. 사용자 요청에 따라 **v87 OSM만 Git 예외로 직접 포함**했다. 따라서 이번 릴리스가 반영된 브랜치를 checkout하면 v87 OSM도 함께 받으며, v87 지도 자체를 받기 위해 Drive 인증이 필요하지 않다. 다른 대용량 지도 자산은 기존 Drive 정책을 유지한다.
 
 설정/지도/검증 도구/릴리스 문서만 현재 planning 브랜치와 개발 브랜치에 반영한다. 현 원격에는 `dev`가 없어 기존 개발 브랜치 `develop`을 대상으로 한다. 서로 다른 branch의 다른 변경을 통째로 합치지 않고 이 릴리스 커밋만 반영한다.
+
+개발 브랜치에는 아직 없는 선택 도구(속도 편집기·route 편집기)와 route-profile 전용 테스트는 해당 브랜치에 억지로 추가하지 않는다. 대신 v87 실행에 필요한 기존 native 속도 cap 로더 6개 파일을 함께 이식해 SHA 검증과 cap 적용이 누락되지 않도록 한다.
