@@ -8,7 +8,6 @@
       "resolved": true,
       "map_selections": {
         "/lanelet2_map_loader/lanelet2_map_path": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
-        "/lanelet2_map_loader/speed_limit_overrides_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml",
         "/map_projector_publisher/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm"
       }
     },
@@ -18,7 +17,6 @@
       "resolved": true,
       "map_selections": {
         "/lanelet2_map_loader/lanelet2_map_path": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
-        "/lanelet2_map_loader/speed_limit_overrides_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml",
         "/map_projector_publisher/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm"
       }
     },
@@ -28,7 +26,6 @@
       "resolved": true,
       "map_selections": {
         "/lanelet2_map_loader/lanelet2_map_path": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
-        "/lanelet2_map_loader/speed_limit_overrides_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml",
         "/map_based_prediction/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
         "/map_projector_publisher/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
         "/traffic_light_node/lanelet2_map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
@@ -41,16 +38,6 @@
       "resolved": true,
       "map_selections": {
         "/lanelet2_osm_marker_publisher/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm"
-      }
-    },
-    {
-      "package": "bringup",
-      "launch": "aw149_lanelet_speed_editor.launch",
-      "resolved": true,
-      "map_selections": {
-        "/lanelet2_osm_marker_publisher/map_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet2_map_v87.osm",
-        "/lanelet_speed_editor/route_definition_file": "/home/jihun/AjouNice2026/base_ws/install_aw149/share/competition_route_requester/config/kcity_v87_competition_route.yaml",
-        "/lanelet_speed_editor/save_file": "/home/jihun/AjouNice2026/kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml"
       }
     },
     {

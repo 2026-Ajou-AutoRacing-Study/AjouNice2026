@@ -5,7 +5,6 @@ map_sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
 map_storage: git
 lanelet_count: 1302
 projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
-speed_limits_file: kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml
 route_definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml
 requester_config_file: base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v87.param.yaml
 mission_planner_config_file: base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v87.yaml
@@ -15,3 +14,4 @@ explicit_planning_launch: ajounice_planning_integration/competition_planning_v87
 vmb_errors: 0
 live_closed_loop_validation: not_run
 team_drive_upload: rejected_storage_quota_exceeded
+speed_limit_policy: original_osm_attributes_only

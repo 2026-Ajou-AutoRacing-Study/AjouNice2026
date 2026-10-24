@@ -16,7 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(PCL REQUIRED COMPONENTS common io filters)
 find_package(yaml-cpp REQUIRED)
-find_package(OpenSSL REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -77,7 +76,6 @@ install(DIRECTORY launch test/data DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATIO
 find_package(autoware_utils_rclcpp REQUIRED CONFIG)
 find_package(fmt REQUIRED)
 add_library(autoware_map_loader_full_source SHARED
-  src/speed_limit_overrides.cpp
   src/full_source/lanelet2_map_loader/lanelet2_map_loader_node.cpp
   src/full_source/pointcloud_map_loader/differential_map_loader_module.cpp
   src/full_source/pointcloud_map_loader/partial_map_loader_module.cpp
@@ -88,7 +86,7 @@ add_library(autoware_map_loader_full_source SHARED
 target_include_directories(autoware_map_loader_full_source BEFORE PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src/full_source
   ${autoware_utils_rclcpp_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
-target_link_libraries(autoware_map_loader_full_source ${catkin_LIBRARIES} ${PCL_LIBRARIES} yaml-cpp fmt::fmt OpenSSL::Crypto)
+target_link_libraries(autoware_map_loader_full_source ${catkin_LIBRARIES} ${PCL_LIBRARIES} yaml-cpp fmt::fmt)
 set_target_properties(autoware_map_loader_full_source PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 target_link_libraries(pointcloud_map_loader autoware_map_loader_full_source)
 add_executable(autoware_pointcloud_map_loader_full src/full_pointcloud_main.cpp)
@@ -100,12 +98,6 @@ install(TARGETS autoware_map_loader_full_source autoware_pointcloud_map_loader_f
 install(DIRECTORY include/autoware/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/autoware)
 
 if(CATKIN_ENABLE_TESTING)
-  catkin_add_gtest(test_speed_limit_overrides test/test_speed_limit_overrides.cpp)
-  if(TARGET test_speed_limit_overrides)
-    target_compile_definitions(test_speed_limit_overrides PRIVATE
-      AUTOWARE_MAP_LOADER_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data")
-    target_link_libraries(test_speed_limit_overrides autoware_map_loader_full_source ${catkin_LIBRARIES})
-  endif()
   catkin_add_gmock(full_test_cylinder_box_overlap test/full_original/test_cylinder_box_overlap.cpp)
   if(TARGET full_test_cylinder_box_overlap)
     target_link_libraries(full_test_cylinder_box_overlap autoware_map_loader_full_source gmock_main)

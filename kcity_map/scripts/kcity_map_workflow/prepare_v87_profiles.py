@@ -48,16 +48,10 @@ def main():
     mission=remap(yaml.safe_load((mdir/'mission_planner_kcity_v85.yaml').read_text()))
     mission['route_section_excluded_lanelet_ids']=list(dict.fromkeys(mission['route_section_excluded_lanelet_ids']))
     save(mdir/'mission_planner_kcity_v87.yaml',mission)
-    caps=yaml.safe_load((ROOT/'lanelet_map/lanelet_speed_limits.yaml').read_text())
-    limits={}
-    for key,value in caps['lanelet_speed_limits'].items():
-        key=str(REMAPPED.get(int(key),int(key)));limits[key]=min(limits.get(key,value),value)
-    caps.update(map_file=str(OUTPUT.relative_to(REPO)),map_sha256=sha256(OUTPUT),lanelet_speed_limits=limits)
-    save(ROOT/'lanelet_map/lanelet_speed_limits_v87.yaml',caps)
     rule_dir=REPO/'base_ws/src/competition/competition_rule_monitor/config'
     rules=yaml.safe_load((rule_dir/'kcity_v85_rules.yaml').read_text())
     count=sum(tags(r).get('subtype')=='road' and float(tags(r).get('speed_limit',0))>60 for r in E.parse(str(OUTPUT)).findall('relation'))
     rules.update(map_version=87,map_sha256=sha256(OUTPUT));rules['high_speed_exception']['expected_lanelet_count']=count
     save(rule_dir/'kcity_v87_rules.yaml',rules)
-    print('Created v87 route, requester, mission, speed caps, and rule-monitor profiles; high-speed lanes:',count)
+    print('Created v87 route, requester, mission, and rule-monitor profiles; high-speed lanes:',count)
 if __name__=='__main__':main()

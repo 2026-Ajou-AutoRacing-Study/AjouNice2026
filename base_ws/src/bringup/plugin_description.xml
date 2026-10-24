@@ -19,10 +19,4 @@
   <class name="bringup/RoutePoint" type="bringup::RoutePointTool" base_class_type="rviz::Tool">
     <description>Click the map to insert a route waypoint (P).</description>
   </class>
-  <class name="bringup/LaneletSpeedEditor" type="bringup::LaneletSpeedPanel" base_class_type="rviz::Panel">
-    <description>Select lanelet speed caps on Route B and save them for the next planning run.</description>
-  </class>
-  <class name="bringup/LaneletSpeed" type="bringup::LaneletSpeedTool" base_class_type="rviz::Tool">
-    <description>Click a lanelet footprint to toggle its 50 km/h cap (L).</description>
-  </class>
 </library>

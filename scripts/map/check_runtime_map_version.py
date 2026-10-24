@@ -31,9 +31,6 @@ for directory in roots:
         historical_config = re.search(r'(?:kcity|competition_planning|competition_route_requester)_v(\d+)', path.name)
         if historical_config and int(historical_config[1]) != VERSION:
             continue
-        # Preserved v85 speed caps are no longer selected by the default map launch.
-        if path.name == 'lanelet_speed_limits.yaml':
-            continue
         if path.suffix not in {'.py', '.yaml', '.yml', '.launch', '.sh', '.rviz', '.cpp', '.hpp', ''}:
             continue
         try:

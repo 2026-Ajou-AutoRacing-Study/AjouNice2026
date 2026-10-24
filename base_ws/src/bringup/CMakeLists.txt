@@ -155,14 +155,10 @@ add_library(bringup_rviz_plugins SHARED
   src/route_control_panel.cpp
   src/route_editor_panel.cpp
   src/route_point_tool.cpp
-  src/lanelet_speed_panel.cpp
-  src/lanelet_speed_tool.cpp
   include/bringup/rosbag_recorder_panel.hpp
   include/bringup/route_control_panel.hpp
   include/bringup/route_editor_panel.hpp
   include/bringup/route_point_tool.hpp
-  include/bringup/lanelet_speed_panel.hpp
-  include/bringup/lanelet_speed_tool.hpp
 )
 target_compile_features(bringup_rviz_plugins PRIVATE cxx_std_14)
 target_link_libraries(bringup_rviz_plugins
@@ -218,7 +214,6 @@ catkin_install_python(
   validation/scripts/planning_vehicle_overlay.py
   validation/scripts/planning_trajectory_visualizer.py
   validation/scripts/planning_route_editor.py
-  validation/scripts/lanelet_speed_editor.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -287,7 +282,6 @@ install(
 ## Add folders to be run by python nosetests
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_planning_route_editor.py)
-  catkin_add_nosetests(test/test_lanelet_speed_editor.py)
   catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
   catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)
 endif()

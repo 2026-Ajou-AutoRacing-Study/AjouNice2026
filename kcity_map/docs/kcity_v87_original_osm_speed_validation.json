@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "speed_policy": "original OSM speed_limit attributes only",
+  "lanelets_compared": 1302,
+  "all_published_speeds_equal_original_osm": true,
+  "former_override_lanelets_kmh": {
+    "201468": 150,
+    "201439": 150,
+    "201441": 150,
+    "201446": 150
+  },
+  "stale_override_parameter_ignored": true,
+  "default_and_v87_launch_override_parameters": false,
+  "original_osm_unchanged": true,
+  "loader_and_rviz_plugin_rebuilt_and_installed": true,
+  "other_dirty_files_preserved": true,
+  "live_stack_restarted": false,
+  "publication": {
+    "map_version": "87",
+    "data_sha256": "bd4bfba3f3044078afcd4a6a2f34cfaf48aebc4df108ac7db1543933c5b843a8",
+    "original_osm_sha256": "70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575",
+    "stale_override_parameter_ignored": true,
+    "private_master_only": true
+  },
+  "native_route_cases": 40,
+  "native_route_section_transitions": 1199,
+  "contract_tests": 62
+}
