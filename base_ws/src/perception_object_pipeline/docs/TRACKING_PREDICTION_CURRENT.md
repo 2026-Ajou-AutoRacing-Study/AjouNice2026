@@ -79,6 +79,20 @@ BEVFusion production E12 DetectedObjects (explicit E24/E25 rollback preserved)
 운영 허용치다. 0.50초 동안 새 관측 없이 정확하다는 뜻이 아니므로 detector age와
 prediction coverage를 함께 감시한다.
 
+### 선택형 연결·수명 진단
+
+다음 LAN 분석용 `publish_association_diagnostics`는 기본 OFF다. 최신 tracker submodule을
+빌드한 뒤 `tracking publish_association_diagnostics:=true`로 시작하고 녹화기가 구독하면
+`/perception/object_recognition/tracking/diagnostics/association`에 JSON을 발행한다.
+입력 stamp/index·ID/UUID·연결·생성·억제·coasting·삭제와 class vote를 기록하며 추적 정책은 바꾸지 않는다.
+최대 256행과 누락 행 수를 기록한다. 최근접 후보 한 개의 gate 이유를 모든 후보의 탈락 이유로
+일반화하지 않고 `snapshot_phase`·`candidate_scope`를 함께 읽는다. 구독자가 없으면 상세 수집·
+직렬화는 하지 않는다. 계측 전 binary와 OFF/ON의 2,334개 저장 입력 state/covariance 동등성과
+ROS 빌드 및 격리 localhost의 합성 입력 12회→진단 JSON 12회·실제 출력 UUID 일치를 확인했다.
+실제 대회 LAN·24GB 풀스택 지연 검증은 별도다.
+`measurement_objects`는 30Hz predicted copy라 이 내부 assignment 진단을 대신하지 않는다.
+양쪽 PC 부하·raw 센서·단계별 시간의 [개발 녹화 절차](../../../../scripts/README.md#lan-두-pc를-함께-계측하기)를 따른다.
+
 ## Obstacle/UNKNOWN 정책
 
 `force_unknown_stationary=true`다. 최신 관측은 pose와 box를 갱신하지만 tracker가 만든
@@ -94,6 +108,9 @@ prediction coverage를 함께 감시한다.
 - `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
   `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
 - horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
+- 2026-10-24 사용자 결정으로 판단 정책이 안정되기 전까지 **로터리 3초 / 고주로 3초**를
+  유지한다. 아래 3/6초·6/6초는 연구 이력과 명시적 시험 후보이며 운영 승격·추가 시험을
+  자동 재개하지 않는다. 최신 LAN Foggy15 bag에서도 저장된 모든 path는 3초였다.
 - [고주로 6초 / 나머지 3초 후보](MIXED_PREDICTION_HORIZON.md)는 구현·시험용 opt-in이며
   `prediction_mixed_horizon_enabled=false`가 운영 기본이다. 기존 첫 3초와 Top-K를 보존하고
   연장 불가능한 객체는 3초를 유지한다. 지도/선택기 오류를 새 production 시작 차단 조건으로 만들지 않는다.
@@ -139,7 +156,8 @@ Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검
 동일 E12 CV/CTRV 대조로 centerline 지도 보정의 평균 이득을 확인했다. 전달받은 차량 centerline 추종
 조건을 전제로 구조는 유지한다. 출발 급가속은 기존 허용 구간으로 두며 새 가속 모델링을 우선하지 않는다.
 로터리는 Top-1만으로 실패를 판정하지 않고 경로별 대표 Top-K의 정답 분기 포함과 min-K를 함께 본다.
-후속은 위 구간별 3/6초의 기존 prefix·후보 보존과 실제 판단 동작 검증이며 운영 미적용이다.
+구간별 3/6초의 기존 prefix·후보 보존 검증은 판단 정책 안정화 뒤 다시 검토한다.
+현재는 위 사용자 결정에 따라 3초/3초를 유지하며 운영 설정을 바꾸지 않는다.
 
 ## 최신 팀장님 풀주행 확인 (2026-10-14)
 

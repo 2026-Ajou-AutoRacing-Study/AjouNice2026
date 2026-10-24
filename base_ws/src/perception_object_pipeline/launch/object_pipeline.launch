@@ -21,6 +21,7 @@
   <arg name="prediction_horizon" default="3.0"/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
   <arg name="publish_processing_diagnostics" default="false"/>
+  <arg name="publish_association_diagnostics" default="false"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
@@ -200,6 +201,7 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="publish_association_diagnostics" value="$(arg publish_association_diagnostics)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg pedestrian_gaussian_association_ranking)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>

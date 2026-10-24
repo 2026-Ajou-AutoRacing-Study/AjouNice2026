@@ -48,7 +48,8 @@ bash scripts/rosbag/record/rosbag_for_development.sh
 bash scripts/rosbag/record/rosbag_for_development.sh --duration 300
 ```
 
-`rosbags/eval/development/dev_날짜_고유번호/`에 bag·recorder.log·metadata.json·recording_audit.json을
+`rosbags/eval/development/dev_날짜_고유번호/`에 bag·recorder.log·metadata.json·recording_audit.json·
+시작/종료 `ros_state_*.json`·Linux `host_algorithm.jsonl`을
 함께 저장한다. 공유할 때 **폴더 전체**를 전달한다. 카메라는 실제 ROS 입력의 원본 CompressedImage
 바이트를 그대로 담으며 재인코딩하지 않는다. LiDAR PointCloud와 원본 패킷·GPS·IMU,
 GT·인지·측위·TF·단계별 계획 경로·제어·LC 안전 검사·Cruise 선택/입력 궤적도 요청한다.
@@ -61,6 +62,89 @@ GT·인지·측위·TF·단계별 계획 경로·제어·LC 안전 검사·Cruis
 종료 검사는 실제 메시지 수와 빠진 core/진단 토픽을 보고할 뿐 안전 주행·시간 동기화를 인증하지 않는다.
 구버전 노드·미활성 기능의 진단은 없을 수 있다. 최신 빌드가 필요하며, advertise만 있고 발행하지 않는
 Cruise `debug/obstacle_cruise/trajectory`는 필수 토픽으로 취급하지 않는다.
+
+### LAN 두 PC를 함께 계측하기
+
+2026-10-24 사용자 LAN 구성은 **Windows MORAI 송신 `10.42.0.252` → Linux 알고리즘 수신
+`10.42.0.1`**이다. 현재 LAN JSON도 같은 주소를 사용한다. 이는 저장된 설정 대조이지 실제
+인터페이스 IP 확인이 아니며, 이 녹화기는 IP·방화벽·시계·센서·차량 설정을 변경하지 않는다.
+제어 명령은 반대 방향으로도 흐른다. 과거 현장 원본 JSON의 `192.168.0.*` 주소와 혼합하지 않는다.
+
+다음 시험에서 **기존 노드를 시작하기 전**, 필요한 진단만 명시적으로 켠다.
+주행 중 이 옵션 때문에 노드를 재시작하지 않는다. `bevfusion`, `tracking`은 공용 alias 기준이다.
+
+```bash
+# 각 원래 담당 터미널에서 실행할 시작 명령. 녹화기가 대신 실행하지 않는다.
+bevfusion --publish-frame-timing
+tracking publish_processing_diagnostics:=true publish_association_diagnostics:=true
+```
+
+BEVFusion 진단은 LiDAR callback/header age, camera 선택 차이, raw/prepared queue,
+전처리·RPC/server·검출 발행 비용과 누적 skip counter를 담는다. tracker 선택형 association 진단은
+입력 측정 stamp/index와 ID/UUID, 연결·새 ID·억제·coasting·삭제 이유를 담는다. 각 launch 기본은
+계속 OFF이며, 새 tracker 진단에는 갱신된 submodule과 대상 PC 재빌드가 필요하다.
+`measurement_objects`만 녹화해도 내부 연결 사유가 기록되는 것은 아니다.
+Map-CV·motion-policy 진단과 이 association 옵션은 모델·threshold·3초 예측 정책을 바꾸지 않는다.
+LC safety/Cruise selection은 해당 코드가 지원하고 실제 구간에서 발행해야 저장된다.
+
+Linux의 **별도 녹화 터미널**:
+
+```bash
+source scripts/workspace/source_aw149.sh
+# 선택: 토픽 광고/설정만 읽는다. 실제 메시지 저장 검사는 종료 후에 수행한다.
+bash scripts/rosbag/record/rosbag_for_development.sh --check
+# Windows와 같은 세션 이름을 쓴다. Ctrl-C까지 녹화하며 --duration 300도 가능하다.
+bash scripts/rosbag/record/rosbag_for_development.sh --session-id lan_261024_01
+```
+
+Linux 호스트 계측은 기본 1초 간격이며 CPU 전체·코어별, RAM/swap, NIC 누적/증분,
+Linux UDP 오류, LiDAR 수신 포트 2368의 socket queue/drop, GPU를 함께 기록한다.
+`--udp-port 2368 --udp-port 9291`처럼 추가 포트를 선택할 수 있고, `--telemetry-pid PID`로
+특정 프로세스 CPU/RSS를 기록한다. GPU는 5초 간격·조회 timeout 1초다.
+`--no-host-gpu` 또는 `--no-host-telemetry`는 계측만 끈다. 미지원·권한 오류는 0으로 위장하지 않는다.
+계측 subprocess 실패가 차량이나 bag을 중단하지는 않으며 종료 audit에서 실패 여부를 확인한다.
+
+Windows에는 저장소 전체·ROS·Python 설치 없이
+[`record_morai_host.ps1`](rosbag/record/record_morai_host.ps1) 한 파일을 전달한다.
+일반 PowerShell에서 다음과 같이 실행한다. 기존 파일은 덮어쓰지 않는다.
+
+```powershell
+# 파일을 둔 폴더에서 먼저 30초 사전 확인. 출력 부모 폴더는 이미 존재해야 한다.
+powershell.exe -NoProfile -File .\record_morai_host.ps1 -Output "$HOME\Desktop\morai_check.jsonl" -SessionId "lan_check" -Duration 30 -IncludeGpu
+# 실제 녹화: Linux와 session-id를 맞추고 끝나면 Ctrl+C. MORAI는 종료하지 않는다.
+powershell.exe -NoProfile -File .\record_morai_host.ps1 -Output "$HOME\Desktop\morai_lan_261024_01.jsonl" -SessionId "lan_261024_01" -IncludeGpu
+```
+
+Windows는 CPU/코어별·RAM·NIC·IPv4 UDP·선택 MORAI 프로세스 CPU/RSS를 기본 2초 간격으로
+기록한다. 실제 프로세스 이름이 다르면 `-ProcessId 1234` 또는 `-ProcessName "실제이름*"`를 준다.
+`-IncludeGpu`는 선택 사항이다. 실행 정책에 막히면 PC 소유자와 확인하며 전역 실행 정책을 바꾸지 않는다.
+PowerShell 7 Linux parser의 구문 오류 0개와 provider를 대체한 JSONL 생성·마감·카운터 모의 시험을
+확인했다. **Windows PowerShell 5.1 및 실제 Windows provider·Ctrl+C는 아직 실기 미검증이다.**
+실제 Windows에서 30초 로그가 정상 종료되고 `sample`이 있는지 확인한 뒤 사용한다.
+Linux 계측·녹화 및 모의 시험은 이 Windows 실기 검증을 대신하지 않는다.
+
+녹화가 끝나면 Windows JSONL도 Linux의 녹화 폴더 안에 넣어 **폴더 전체**를 공유한다.
+같은 session-id는 로그를 묶는 이름일 뿐 두 PC 시계 동기화나 물리 LAN 지연을 증명하지 않는다.
+[Windows UDP 통계](https://learn.microsoft.com/en-us/dotnet/api/system.net.networkinformation.udpstatistics)와
+[NIC 통계](https://learn.microsoft.com/en-us/powershell/module/netadapter/get-netadapterstatistics)는
+호스트/인터페이스 전체 범위이며, Windows port-error discard를 Linux `RcvbufErrors`와 같은 뜻으로
+해석하지 않는다. MORAI 내부 FPS·생성 시각·송신 packet sequence는 이 호스트 통계만으로는 알 수 없다.
+정확한 송신 전/네트워크 손실 분리에는 송신측 packet/FPS 증거가 추가로 필요할 수 있다.
+
+종료 audit는 raw 재추론·센서/측위·트래커 연결 trace·검출/후처리 시간·LC/Cruise 이유별로
+**실제 메시지 유무**를 구분하고, 센서/검출 주기·gap·header age와 LiDAR 패킷 수 histogram을 낸다.
+`recorded=true`는 메시지가 있다는 뜻이지 안전 주행·정확도·전체 미션 관측 인증이 아니다.
+Header sequence gap도 ROS/recorder 손실이나 publisher 재시작을 포함할 수 있어 UDP 손실로 단정하지 않는다.
+닫힌 기존 bag은 다음 명령으로 ROS master 없이 검사할 수 있다(결과는 stdout, 원본 불변).
+
+```bash
+bash scripts/rosbag/record/rosbag_for_development.sh --audit-only /경로/development.bag
+```
+
+기능 검증: `python3 -m unittest discover -s scripts/rosbag/record -p 'test_*record*py'`.
+`smoke_development_recording.py --output-dir 새폴더`는 **별도 localhost master**의 합성 입력으로만
+녹화·마감·원본 바이트 보존을 확인한다. 기존 ROS master·MORAI·차량을 사용하지 않으며,
+실제 LAN/GPU/Windows/판단 폐루프 성능 시험이 아니다.
 
 `prepare_e12_postprocessing.py`는 이미 동결한 E12/E24 bag 검출의 **모든** 입력을 실제 C++ EKF
 코어로 재생하고, 평가 eligibility·GT 원래 index·0점 근거를 별도 보존한다. `analyze_e12_tracking_support.py`는
