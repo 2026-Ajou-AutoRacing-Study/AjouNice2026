@@ -188,6 +188,13 @@ Top-K·순위·confidence·첫 3초 변경을 허용하고 양방향 prefix 대�
 `--output`은 새 `planner_logs/analysis/` 하위 경로를 사용한다. 별도 주행 간 차이는 NPC 생성 시점과
 부하도 포함하므로 horizon만의 인과 효과나 예측 정확도 개선으로 해석하지 않는다.
 
+`qualify_tracker_observation_consistency.py --output 새폴더`는 고정 Git 코어와 현재 source
+사본을 별도로 빌드해 중복 관측 경쟁·큰 크기 변화에 동반된 class 전환 후보를 비교한다.
+`--variant 이름=JSON`, `--world-cache-manifest`, `--pack`, `--catalog-metrics`, `--native-timing`으로
+독립 bag·GT 장면과 순수 native 갱신 비용을 대조한다. 기존 출력은 덮어쓰지 않으며
+ROS master·설치본·production 설정을 변경하지 않는다. 로컬 동결 cache/pack이 필요한 분석 도구다.
+[범위·결과·기본 OFF 정책](../base_ws/src/perception_object_pipeline/docs/OBSERVATION_CONSISTENCY_REVIEW.md)을 따른다.
+
 동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의

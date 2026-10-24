@@ -81,6 +81,12 @@ prediction coverage를 함께 감시한다.
 
 ### 선택형 연결·수명 진단
 
+[중복·분류 증폭 완화 후보](OBSERVATION_CONSISTENCY_REVIEW.md)는 구현·오프라인 회귀했지만
+`shape_consistent_association_ranking=false`, `guard_inconsistent_class_transitions=false`를 유지한다.
+전자는 트럭의 새 ID 관측 경쟁을 줄였으나 남은 장애물 중복까지 해결하지 않는다.
+후자는 class 왕복을 줄였지만 반복되는 잘못된 차량 분류를 정답으로 고치지는 못했다.
+generic/운영 wrapper 모두 opt-in이며 실제 ROS·planner 대조 전 자동 승격하지 않는다.
+
 다음 LAN 분석용 `publish_association_diagnostics`의 강제 ON 기본값은 false다. 최신 tracker
 submodule을 빌드하고 스택을 시작하면 기본 `diagnostics_auto_on_subscribe=true`에 따라 녹화기가 구독할 때
 `/perception/object_recognition/tracking/diagnostics/association`에 JSON을 발행한다.

@@ -42,6 +42,8 @@
   <arg name="suppress_duplicate_track_birth" default="true"/>
   <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
   <arg name="pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="shape_consistent_association_ranking" default="false"/>
+  <arg name="guard_inconsistent_class_transitions" default="false"/>
   <arg name="fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
@@ -206,6 +208,10 @@
     <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg pedestrian_gaussian_association_ranking)"/>
+    <arg name="shape_consistent_association_ranking"
+         value="$(arg shape_consistent_association_ranking)"/>
+    <arg name="guard_inconsistent_class_transitions"
+         value="$(arg guard_inconsistent_class_transitions)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
     <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>

@@ -7,6 +7,26 @@ import xml.etree.ElementTree as ET
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_observation_consistency_candidates_are_explicit_and_default_off():
+    wrapper = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
+    pipeline = ET.parse(PACKAGE_ROOT / "launch" / "object_pipeline.launch").getroot()
+    standalone = ET.parse(PACKAGE_ROOT.parent / "ekf-multi-object-tracking" /
+                          "launch" / "ekf_multi_class_object_tracking.launch").getroot()
+    wrapper_defaults = {a.attrib["name"]: a.attrib.get("default") for a in wrapper.findall("arg")}
+    pipeline_defaults = {a.attrib["name"]: a.attrib.get("default") for a in pipeline.findall("arg")}
+    standalone_defaults = {a.attrib["name"]: a.attrib.get("default") for a in standalone.findall("arg")}
+    wrapper_args = {a.attrib["name"]: a.attrib["value"] for a in wrapper.find("include").findall("arg")}
+    tracker_include = next(i for i in pipeline.findall("include") if "ekf_multi" in i.attrib["file"])
+    tracker_args = {a.attrib["name"]: a.attrib["value"] for a in tracker_include.findall("arg")}
+    params = {p.attrib["name"]: p.attrib["value"] for p in standalone.findall("param")}
+    for name in ("shape_consistent_association_ranking", "guard_inconsistent_class_transitions"):
+        assert wrapper_defaults["tracker_" + name] == "false"
+        assert pipeline_defaults[name] == standalone_defaults[name] == "false"
+        assert wrapper_args[name] == "$(arg tracker_" + name + ")"
+        assert tracker_args[name] == "$(arg " + name + ")"
+        assert params["configure/" + name] == "$(arg " + name + ")"
+
+
 def _included_arguments():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     include = root.find("include")
