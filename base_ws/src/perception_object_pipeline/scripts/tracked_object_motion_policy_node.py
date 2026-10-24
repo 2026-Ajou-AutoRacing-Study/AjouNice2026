@@ -21,8 +21,15 @@ class TrackedObjectMotionPolicyNode:
         self.publisher = rospy.Publisher(
             "~output/objects", TrackedObjects, queue_size=10
         )
+        self.publish_processing_diagnostics = bool(
+            rospy.get_param("~publish_processing_diagnostics", False)
+        )
+        self.diagnostics_auto_on_subscribe = bool(
+            rospy.get_param("~diagnostics_auto_on_subscribe", True)
+        )
         self.processing_diagnostics_publisher = None
-        if bool(rospy.get_param("~publish_processing_diagnostics", False)):
+        self._processing_diagnostics_active = False
+        if self.publish_processing_diagnostics or self.diagnostics_auto_on_subscribe:
             self.processing_diagnostics_publisher = rospy.Publisher(
                 "~diagnostics/processing_time_ms", String, queue_size=1
             )
@@ -35,8 +42,28 @@ class TrackedObjectMotionPolicyNode:
             self.force_unknown_stationary,
         )
 
+    def _processing_diagnostics_for_callback(self):
+        publisher = self.processing_diagnostics_publisher
+        enabled = publisher is not None and getattr(
+            self, "publish_processing_diagnostics", True
+        )
+        if publisher is not None and not enabled and getattr(
+            self, "diagnostics_auto_on_subscribe", False
+        ):
+            try:
+                # Local rospy connection state, not a parameter-server RPC.
+                enabled = publisher.get_num_connections() > 0
+            except Exception as error:
+                rospy.logwarn_throttle(
+                    5., "[tracked_object_motion_policy] optional diagnostics unavailable: %s", str(error)
+                )
+        if enabled and not getattr(self, "_processing_diagnostics_active", False):
+            self.processing_timing = NodeProcessingTiming()
+        self._processing_diagnostics_active = enabled
+        return publisher if enabled else None
+
     def callback(self, message):
-        diagnostics = self.processing_diagnostics_publisher
+        diagnostics = self._processing_diagnostics_for_callback()
         token = self.processing_timing.start(message, rospy.Time.now().to_nsec()) if diagnostics else None
         make_start = time.perf_counter() if diagnostics else None
         output, constrained_count = apply_object_motion_policy(

@@ -32,7 +32,7 @@ recording:
 # 보통 수정하지 않는 연결/운영 설정입니다.
 network:
   # GT 객체 시험은 GPS+IMU 경량 센서면 충분합니다. BEVFusion은 full sensor JSON을 사용하세요.
-  sensor_json: configs/sensors/Sensor_localization_gt_lightweight.json
+  sensor_json: configs/sensors/legacy/Sensor_localization_gt_lightweight.json
   ego_network_json: base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json
 morai:
   map_name: R_KR_PR_K-city_2025

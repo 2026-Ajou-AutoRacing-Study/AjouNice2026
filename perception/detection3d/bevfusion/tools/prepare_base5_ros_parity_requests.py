@@ -33,7 +33,7 @@ def build(inputs, output, image_encoding='compressed'):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     bridge = module.BevFusionRosBridge.__new__(module.BevFusionRosBridge)
-    bridge.sensor_config = str(ROOT / 'configs/sensors/Sensor_4.json')
+    bridge.sensor_config = str(ROOT / 'configs/sensors/legacy/Sensor_4.json')
     bridge.camera_order = ['camera_front', 'camera_front_left', 'camera_front_right', 'camera_back']
     bridge.intrinsic_source = 'horizontal_fov'
     bridge.operation = 'inference'

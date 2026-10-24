@@ -80,7 +80,7 @@ def main():
             rospy.Subscriber('/perception/object_recognition/detection/objects',DetectedObjects,detection,queue_size=100),
             rospy.Subscriber('/perception/bevfusion/status',String,status,queue_size=100)]
         bridge=launch(['roslaunch','bevfusion_ros','base3_online.launch','start_rviz:=false',
-            'config:='+str(a.output/'runtime.yaml'),'sensor_config:='+str(repo/'configs/sensors/Sensor.json')],'bridge')
+            'config:='+str(a.output/'runtime.yaml'),'sensor_config:='+str(repo/'configs/sensors/Sensor_competition_local.json')],'bridge')
         for _ in range(150):
             if bridge.poll() is not None:raise RuntimeError('Bridge failed')
             if subprocess.run(['rosnode','ping','-c','1','/bevfusion_ros_bridge'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:break

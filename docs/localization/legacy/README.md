@@ -1,30 +1,20 @@
-# Legacy localization 기록
+# Localization historical archive
 
-이 디렉터리는 현재 대회 production 계약이 아니다.
+현재 production 계약은 [상위 README](../README.md),
+[CURRENT](../COMPETITION_LOCALIZATION_CURRENT_STATE.md),
+[현재 근거 요약](../CURRENT_EVIDENCE.md)이 기준이다.
 
-- 과거 FAST-LIO 및 FAST-LIO+GNSS 실험.
-- GT heading/velocity를 쓰기 전의 GNSS+IMU baseline.
-- `/Ego_topic` 직접 GT localization과 구형 `maptf_*` 실행법.
-- 예전 control pipeline 문서.
-- 루트 `docs/`에 있던 번호형 1~7 초기 설치·MORAI·rosbag·FAST-LIO 문서.
-- `260804_localization_state_input_architecture_plan.md`: 채택 전 구조 검토 기록.
-- `260801_robot_localization_gnss_imu_gt_ctra_fusion.md`: 초기 estimator 구현과
-  v60/v61 시점 검증·실행 기록. 현재 명령은 상위 README와 launch를 따른다.
-- `260916_competition_lateral_jitter_stabilization_plan.md`: GNSS Q/R 채택 전 계획과
-  초기 covariance sweep 기록. 최신 판정은 CURRENT/EVIDENCE 문서를 따른다.
+이 디렉터리는 완료된 실험·옛 provider·기각/보류 후보·원본 snapshot 보관소다.
+날짜가 오래됐다는 이유가 아니라 현재 tracked launch/config/import·채택 상태를
+대조해 분리했다. 현재 채택 근거의 원본도 보관하되 그 문서 전체를 현재 지침으로 읽지 않는다.
 
-번호형 문서는 다음과 같이 모두 이 디렉터리에 보존한다.
+- `evidence/`: 원본 bag catalog, Q/R·TF·Smooth·음영·입력 계약의 누적 실험 기록.
+- `plans/`: 완료·보류된 localization/판단·제어 공동 실험 계획. 현재 정책이나 변경 허가가 아니다.
+- `guides/`: 당시 validator 설정과 실험 절차. 현재 validator 구현·운영 허가를 대신하지 않는다.
+- `snapshots/`: 정리 전 README/CURRENT와 package/evaluation 설명의 원문.
+- 이 디렉터리의 기존 번호형 설치·MORAI·Fast-LIO·직접 GT 문서와 alias도 역사적 원문이다.
 
-1. `1_setup_ubuntu20_ros1.md`
-2. `2_setup_morai_local.md`
-3. `3_debug_lidar_imu.md`
-4. `4_rosbag.md`
-5. `5_GT_bridge.md`
-6. `6_setup_fast_lio.md`
-7. `7_fast_lio_bridge.md`
-
-현재 production은 상위 [`README.md`](../README.md)와
-[`260918_competition_localization_critical_issue_status.md`](../260918_competition_localization_critical_issue_status.md)를 따른다.
-
-이 기록은 재현 근거를 보존하기 위해 삭제하지 않았다. 여기의 alias와 launch 명령을
-현재 full stack에 동시에 섞지 않는다.
+원문 바이트·명령·실행명·CP 구번호·상대링크를 보존했다. 원래 위치를 전제로 한 상대링크나
+스크립트 경로가 남을 수 있다. 명시적 재현 요청 시 기록된 revision에서 격리 재현하고,
+옛 alias·heading·Q/R·timestamp·provider를 현재 stack에 자동 복원하거나 혼합하지 않는다.
+기본 context 수집이나 최신 문서 검색에서 이 디렉터리를 먼저 읽지 않는다.

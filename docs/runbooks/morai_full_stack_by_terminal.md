@@ -8,9 +8,9 @@
 기준 구성은 다음과 같다.
 
 ```text
-MORAI sensors/Ego
+MORAI sensors/Competition (production: no Ego GT)
   -> UDP bridge
-  -> Base5 E24 BEVFusion
+  -> Base5 E12 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -23,9 +23,10 @@ MORAI sensors/Ego
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-2026-10-13 사용자 요청으로 production detector는 Base5 E24, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.10/0.10`이다. 최초 weights·증분 빌드는
-[E24 배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+현재 production detector는 전체 30,750장 Base5 E12이며 class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.10/0.10`이다. 실제 모델 기준은
+[모델 CURRENT](../bevfusion/CURRENT.md), 최초 weights·증분 빌드는
+[배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
 E25 명시적 복귀는 `bevfusion --model e25`이며 실제 24GB 풀스택 점검은 별도다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
@@ -46,10 +47,13 @@ test -f kcity_map/lanelet_map/lanelet2_map_v87.osm
 
 MORAI에서는 다음을 확인한다.
 
-1. v84 map과 원하는 competition scenario를 연다.
+1. MORAI의 공식 K-City 맵과 원하는 competition scenario를 연다. 알고리즘 지도는 Lanelet v87다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
+
+로드할 현장점검 원본의 정확한 경로와 IP·Ego 미사용 기준은
+[현장 파일 안내](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)를 따른다.
 
 ## 대회 현장 권장: alias + `tee` 로그 세션
 
@@ -105,11 +109,11 @@ host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적�
 ajou
 set -o pipefail
 
-udp_lan 2>&1 | field_log_tee udp_lan
+udp_lan enable_ego_vehicle_status:=false 2>&1 | field_log_tee udp_lan
 ```
 
-camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd` UDP
-송신을 담당한다.
+camera/IMU/GPS 수신, Velodyne LiDAR 변환, Competition 상태 수신과 `/ctrl_cmd` UDP
+송신을 담당한다. 이 대회 명령은 `/Ego_topic` 수신·광고를 끈다.
 
 ### Terminal 3: sensing static TF + 차량 모델
 
@@ -130,11 +134,13 @@ sensing_lan 2>&1 | field_log_tee sensing
 ajou
 set -o pipefail
 
-localization 2>&1 | field_log_tee localization
+localization initial_position_source:=official_start 2>&1 | field_log_tee localization
 ```
 
 이 alias는 `localization_gnss_imu_gt_ctra.launch`를 실행한다. `sensing_lan`이 sensor
 static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `false`로 유지한다.
+위 명령은 공식 START 출발용이다. 개발 alias의 기본 Ego 위치를 사용하지 않으며,
+`Published GNSS+IMU initial pose from official_start`와 초기 pose 발행을 확인한다. 중간 위치·checkpoint에 강제로 적용하지 않는다.
 
 ### Terminal 5: BEVFusion detection
 
@@ -245,7 +251,7 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 
 한 PC에서 MORAI와 폐루프 localization/control을 함께 실행할 때만 사용하는
 비-production 구성이다. MORAI에는
-`Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
 `SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
 
 ### 고정 시나리오와 시험 계약
@@ -266,7 +272,7 @@ MR `SaveFile/Scenario/R_KR_PR_K-city_2025`에서는 목록 상단에 보이도�
 다른 PC에 생성되지 않는다.
 원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
 장애물과 모든 actor spawn을 제거했다. Sensor는
-`Sensor_localization_gt_lightweight.json`, Ego Network는
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`, Ego Network는
 `ego_network_competition_local.json`을 로드한다. control mode는
 `AV-ExternalCtrl`로 설정한다.
 
@@ -435,8 +441,8 @@ Bag은 Camera, LiDAR, PointCloud topic을 포함하지 않는다. 주행 후
 
 ## E25 복귀용 수동 통합 launch 참고
 
-아래 절차는 E25 복귀용 구 입력 계약이다. 현재 E24 production은 위의 alias별 실행과
-[E24 설치 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
+아래 절차는 E25 복귀용 구 입력의 로컬 재현 계약이다. 현재 E12 production·대회 실행은 위의 alias별 실행과
+[배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
 절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
 중복될 수 있으므로 둘 중 하나만 사용한다.
 
@@ -553,7 +559,7 @@ export AJOUNICE_ROOT="$PWD"
 source scripts/workspace/source_aw149.sh
 source docs/common_alias.txt
 
-localization
+localization initial_position_source:=official_start
 ```
 
 alias는 `gt_source=competition`, heading correction `-1.347 deg`,
@@ -688,10 +694,10 @@ stack은 멈추지 않지만, 빈 debug display를 production 기능으로 오�
 권장하지 않는다. RViz의 rosbag-record topic 목록에 `/Object_topic`이 있어도 없는
 topic만 기록되지 않을 뿐 다른 topic 기록은 계속된다.
 
-주의할 점은 `/Object_topic`과 `/Ego_topic`이 서로 다른 계약이라는 것이다. 현재
-MORAI 통합 launch의 localization은 `/Ego_topic`을 사용한다. 대회에서 주최 측이
-제공하기로 한 Ego/localization 계약은 별도로 반드시 확인되어야 하며,
-`/Object_topic`이 없어도 된다는 결론을 `/Ego_topic`에도 확대하면 안 된다.
+`/Object_topic`과 `/Ego_topic`은 별도 계약이지만 현재 대회 실행은 둘 모두 필수 입력으로
+사용하지 않는다. 통합 launch의 GT localization은 기본 OFF이며, 위 별도 localization이
+Competition과 공식 START 초기화를 사용한다. 개발용 Ego 초기화·`od_gt`·GT overlay를
+대회에 함께 켜지 않는다. 초기화 조건과 남은 LAN 검증은 Localization CURRENT를 따른다.
 
 ## 종료 순서
 

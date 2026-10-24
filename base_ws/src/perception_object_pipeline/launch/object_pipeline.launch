@@ -18,8 +18,13 @@
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="prediction_time_step" default="0.1"/>
-  <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="false"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
   <arg name="publish_processing_diagnostics" default="false"/>
+  <arg name="publish_association_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
@@ -39,6 +44,8 @@
   <arg name="suppress_duplicate_track_birth" default="true"/>
   <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
   <arg name="pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="shape_consistent_association_ranking" default="false"/>
+  <arg name="guard_inconsistent_class_transitions" default="false"/>
   <arg name="fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
@@ -199,8 +206,14 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="publish_association_diagnostics" value="$(arg publish_association_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg pedestrian_gaussian_association_ranking)"/>
+    <arg name="shape_consistent_association_ranking"
+         value="$(arg shape_consistent_association_ranking)"/>
+    <arg name="guard_inconsistent_class_transitions"
+         value="$(arg guard_inconsistent_class_transitions)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
     <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
@@ -302,6 +315,8 @@
            value="$(arg force_unknown_stationary)"/>
     <param name="publish_processing_diagnostics"
            value="$(arg publish_processing_diagnostics)"/>
+    <param name="diagnostics_auto_on_subscribe"
+           value="$(arg diagnostics_auto_on_subscribe)"/>
   </node>
 
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
@@ -323,8 +338,12 @@
     <arg name="output_objects" value="$(arg predicted_objects)"/>
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+    <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+    <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
     <arg name="publish_processing_diagnostics" value="$(arg publish_processing_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>

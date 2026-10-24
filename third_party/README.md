@@ -53,7 +53,7 @@ parameter-group 학습률, 주기 경계와 checkpoint 저장·재개 일치를 
 `7c1623f234d5a9794fd862c9456f68f87ae7b900`이며 sparse checkout으로
 `CUDA-BEVFusion`과 `libraries/3DSparseConvolution`을 펼쳤다. 빌드·모델 다운로드·실행은 하지 않는다.
 이 clone 자체는 Git ignore 상태로 유지하고, 이식 판단은
-[CUDA-BEVFusion 검토](../docs/bevfusion/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md)를 따른다.
+[CUDA-BEVFusion 검토](../docs/bevfusion/evidence/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md)를 따른다.
 
 새 checkout에서 참조 코드를 가져오는 명령은 아래와 같다. 기존 폴더가 있으면 재실행하지 않는다.
 

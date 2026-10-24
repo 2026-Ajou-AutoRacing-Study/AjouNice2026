@@ -25,7 +25,7 @@ def main():
     scripts='perception/detection3d/bevfusion/scripts/'
     files=[scripts+name for name in ('profile_base5_stages.py','benchmark_base5_capacity.py',
         'benchmark_base5_input_optimization.py','validate_base5_pool_model.py','test_pool_optimization.py')]
-    files+=['configs/sensors/Sensor.json','perception/detection3d/bevfusion/view_geometry.py',
+    files+=['configs/sensors/Sensor_competition_local.json','perception/detection3d/bevfusion/view_geometry.py',
         'dataset/morai_od/scripts/dynamic_capture_metadata.py',
         'base_ws/src/perception/bevfusion_ros/scripts/bevfusion_ros_bridge.py']
     folders=['perception/detection3d/bevfusion/configs','perception/detection3d/bevfusion/plugin',

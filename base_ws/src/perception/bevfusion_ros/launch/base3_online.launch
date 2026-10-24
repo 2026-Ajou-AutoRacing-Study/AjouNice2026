@@ -1,13 +1,14 @@
 <launch>
   <!-- Base3-trained four-camera + LiDAR BEVFusion online inference. -->
   <arg name="sensor_config"
-       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
+       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_local.json"/>
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <!-- Production uses the shared planviz terminal; keep detector-only launch
        argument-free and avoid opening a second RViz instance. -->
   <arg name="start_rviz" default="false"/>
   <arg name="publish_frame_timing" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <!-- Explicit origin trial only; old E25/E24 output remains the default. -->
   <arg name="box_center_output_origin" default="legacy_passthrough"/>
   <!-- E25 compatibility defaults; the canonical E24 wrapper passes its own
@@ -57,6 +58,7 @@
     <param name="sensor_config" value="$(arg sensor_config)"/>
     <param name="operation" value="inference"/>
     <param name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
+    <param name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <param name="box_center_output_origin" value="$(arg box_center_output_origin)"/>
     <param name="score_threshold" value="$(arg score_threshold)"/>
     <param name="vehicle_score_threshold" value="$(arg vehicle_score_threshold)"/>

@@ -1,433 +1,96 @@
-# Competition Localization 현재 상태
+# Competition Localization 현재 계약
 
-상태: **CURRENT**
-마지막 갱신: 2026-10-15 (soft/Smooth 유지, Spawn 실측 및 운영측 CP14 음영 조정 계획)
+상태: CURRENT. 코드 대조·문서 정리: 2026-10-24. 보존된 주행 근거의 마지막 갱신은
+2026-10-15이며, 이번 정리로 LAN/공식 checkpoint 검증이 추가된 것은 아니다.
 
-## 한 줄 결론
-
-현재 production은 GNSS 양자화에 맞춘 Q/R과 Local EKF 기반 Smooth controller
-state를 함께 사용한다. Global-only soft body `vy≈0` prior(σ=0.20m/s)가 기본 ON이다.
-Planning과 TF는 Global state를 유지하고 controller는 vehicle-pivot Smooth의
-종/횡/yaw tau `0.5/0.1/0.5 s`, 횡 correction rate cap `0.3m/s`를 사용한다.
-이 cap은 차량의 횡이동/조향 속도가 아니라 측위 보정 성분만 제한한다. GPS 음영 중에도 마지막
-유효 z를 유지하며 planar state를 계속 발행한다.
-
-## Production 계약
+## Production
 
 | 항목 | MR·실대회 | MRP |
 |---|---|---|
-| alias | `localization` | `localization_mrp` |
-| motion source | `/Competition_topic` | `/Ego_topic` |
-| heading correction | `-1.347 deg` | `0 deg` (현재 설정; MRP 시나리오·지도 기준 독립 검증은 아직 없음) |
-| initial pose | 개발 기본값: 첫 `/Ego_topic` **위치** + `/Competition_topic` **heading**. 대회 후보: 공식 START 위치 + `/Competition_topic` heading | 첫 `/Ego_topic` 위치·heading, 보정 `0 deg` |
-| GNSS horizontal sigma | `0.10 m` | `0.10 m` |
-| Global EKF Qxy | `0.0005` | `0.0005` |
-| planning/TF state | `/localization/kinematic_state` | 동일 |
-| controller-facing state | `/localization/control_kinematic_state` | 동일 |
-| Global soft lateral prior | ON, σ `0.20 m/s`, body vy만 융합 | 동일 기본값; 별도 MRP 폐루프 미검증 |
-| control longitudinal/lateral/yaw tau | `0.5 / 0.1 / 0.5 s`, vehicle pivot | 동일 |
-| control lateral correction rate cap | `0.3 m/s` | 동일 |
-| GNSS motion projection | `gnss_motion_compensation_sec=0.0` 기본 OFF | 동일; 별도 MRP 검증 없음 |
-| heuristic relocation reset | `enable_relocation_guard=false`, monitor-only 기본 true | 동일; 자동 복귀 승격 아님 |
+| alias / motion source | `localization` / `/Competition_topic` heading, velocity.x | `localization_mrp` / `/Ego_topic` |
+| heading correction | `-1.347 deg` | `0 deg`; 시나리오·지도 yaw 독립 대조 미완료 |
+| 초기 위치 / yaw | 대회 명시 옵션: 공식 START 위치 / 보정된 Competition heading. 개발 alias 기본은 첫 Ego 위치 | 첫 Ego 위치·heading |
+| GNSS horizontal sigma / Global Qxy | `0.10 m` / `0.0005` | 동일 |
+| Global-only soft body vy prior | ON, sigma `0.20 m/s` | 동일 기본값; MRP 폐루프 미검증 |
+| Smooth longitudinal / lateral / yaw tau | `0.5 / 0.1 / 0.5 s`, vehicle pivot | 동일 |
+| lateral correction rate cap | `0.3 m/s`, 차량 운동이 아닌 **Global 위치 보정 성분**에만 적용 | 동일 |
+| GNSS motion compensation | `gnss_motion_compensation_sec=0.0` (OFF) | 동일 |
+| relocation guard | `enable_relocation_guard=false`, monitor-only 기본 true | 동일 |
+| quantization-aware control candidate | `use_quantized_gnss_control_state=false` | 동일 |
 
-공통 계약:
+공통 고정 계약:
 
-- local/global EKF `two_d_mode=true`.
-- `predict_to_current_time=true`.
-- `publish_sensor_tf=false`.
-- UDP는 ROS host receipt-time 정책을 유지한다.
-- localization provider는 한 번에 하나만 실행한다.
-- Local EKF에는 횡속도 prior를 추가하지 않는다. 기존 GT heading/vx 메시지와 IMU
-  yaw-rate/ax, IMU ay OFF, sigma/Qxy 및 UDP 정책은 유지한다.
-- `use_lateral_velocity_constraint`와 `lateral_velocity_stddev_mps` launch 인자가
-  custom noise/Global YAML보다 우선해 publisher와 Global mask를 함께 설정한다.
-  구형 config를 줬다는 이유로 prior의 절반만 켜지는 상태를 허용하지 않는다.
-- 대회에서 `/Ego_topic`과 `/Object_topic`을 기대하지 않는다.
-- MR 개발용 `localization`은 초기 위치에만 `/Ego_topic`을 쓴다. 초기 yaw와
-  연속 GT yaw는 모두 `/Competition_topic.heading - 1.347 deg`다.
-- 대회용 고정 위치 후보는 `localization initial_position_source:=official_start`로
-  명시한다. 위치는 v85 공식 규칙 파일의 `start_finish.xyz`를 `morai_map -> map`
-  변환하고 yaw는 동일한 Competition heading을 쓴다. 공식 `start_finish.yaw_deg`는
-  입력 yaw가 아니라 시작 정합 검증 기준이다. 보정된 yaw가 기준과 `1 deg` 초과로
-  다르면 초기화를 거부한다. GNSS map 위치가 공식 START에서 `3 m` 이내이고
-  Competition heading과 GNSS stamp 차이가 `0.5 s` 이내인 것도 확인한다.
-  MR 로컬 시작점 대조는 통과했으나 대회 LAN 검증 전까지 기본값이 아니다.
-- 공식 고정 모드에서는 `/Ego_topic`을 구독하거나 기다리지 않는다. 사고 후
-  체크포인트 복귀를 START 초기값으로 반복 처리하지 않는다.
+- status heading/vx와 IMU yaw-rate/ax는 Local/Global EKF에, GPS map XY는 Global에만 전달한다.
+  IMU ay mask는 이미 OFF다. soft vy prior는 실측 Competition vel_y가 아닌 모델 prior다.
+  Local에는 이 prior를 넣지 않으며, launch 인자가 publisher와 Global mask를 함께 확정한다.
+- `two_d_mode=true`, `predict_to_current_time=true`, `publish_sensor_tf=false`.
+- [UDP receipt-time](morai_udp_receipt_time.md), `/use_sim_time=false`가 live 계약이다.
+  receipt-time은 userspace dequeue 시각이지 물리 measurement/NIC 시각이 아니다.
+- provider는 한 번에 하나만 실행한다. 대회에서 Ego 직접 GT provider는 fallback이 아니다.
+- heading correction은 MR convention 보정이다. 이미 보정된 localization 출력에 재적용하지 않는다.
+  raw Ego oracle을 평가할 때만 해당 실행의 estimator와 같은 offset을 준다.
+- production `velocity.x` scale, Q/R, UDP timestamp를 임의 변경하지 않는다.
 
-## 공식 START MR 로컬 검증 (2026-09-26)
+## 출력·TF·GPS 음영
 
-`06023573` 코드 기준으로 MR에 공식 START 위치·yaw를 지정한 로컬 전용
-`0_official_start_localization_probe.json`을 로드하고
-`localization initial_position_source:=official_start`를 실행했다. 시나리오 파일은
-MORAI SaveFile에만 있으며 Git 전달물이 아니다. 공식 기준은 v85 규칙 파일의
-`start_finish`다.
+Local EKF는 `odom -> base_link`를 발행한다. 최종 publisher는 Local pose를 Global
+stamp로 외삽해 `map -> odom`을 합성하며, EKF stamp를 보존한 map-frame base_link
+Odometry `/localization/kinematic_state`를 발행한다. 최신 TF를 무시각 조회해 합성하지 않는다.
 
-| 항목 | 관측값 |
-|---|---:|
-| 공식 START morai_map 좌표 | `(-131.689798, -428.331023, 28.543960) m` |
-| 공식 START yaw | `61.298126 deg` |
-| `/Competition_topic` raw heading | `62.627533 deg` |
-| raw heading `- 1.347 deg` | `61.280533 deg` |
-| EKF 초기 / 현재 yaw | `61.280762 / 61.280532 deg` |
-| EKF 초기 map XY / 공식 START 변환 map XY | `(-0.130667, 117.580) / (-0.130667, 117.580) m` |
+vehicle-pivot Smooth는 같은 시각 Local 운동과 Global correction을 결합해
+`/localization/control_kinematic_state`를 발행하며 TF는 발행하지 않는다.
+Planning/TF의 Global 출력 계약은 유지한다. Local odometry만 controller로 단순 remap하면
+map trajectory와 frame이 달라지므로 금지한다. 이 문서는 planning/control 정책을 변경하지 않는다.
 
-초기화는 `/Ego_topic` 없이 완료됐고, 보정된 yaw와 공식 기준 차이는
-`0.017593 deg`다. 이는 **MR 로컬 출발 정합 통과**이지 LAN-to-LAN, 전체 주행,
-checkpoint 복귀 검증은 아니다. 이 한 표본만으로 `-1.347 deg`를 재조정하지 않는다.
-공식 시나리오 로드 직후 z 변화에 따른 차량 자세 안정화가 차이에 기여했을 가능성은
-있지만 측정된 원인으로 단정하지 않는다. 시작 직후 Smooth가
-`translation_discontinuity` reset을 한 번 기록했으며 반복 여부·주행 영향은 이
-시험에서 평가하지 않았다.
+GPS `(0,0)`은 거부한다. 최초 유효 z 이후 GPS가 stale/invalid이면 마지막 z만 유지하고
+Global의 planar state를 계속 발행한다. 최초 z조차 없으면 startup-ready가 아니다.
+state 약50Hz 연속성과 실제 위치 정확도는 별개다.
 
-MRP의 `0 deg`는 현재 alias 설정과 기존 MRP replay 비교 계약이다. 공식
-시나리오 yaw와 지도 heading을 독립 대조한 결과가 아니므로 MR의
-`-1.347 deg`와 우열·정합성을 이 결과에서 추론하지 않는다.
+## 초기화·checkpoint
 
-## 현재 데이터 흐름
+합의한 대회 공식 START 출발에서는 다음 옵션을 명시한다. bare `localization`의
+개발 기본값 `initial_position_source=ego`는 바꾸지 않았으므로 대회에서 인자를 생략하지 않는다.
 
-```text
-/Competition_topic heading/vx ----> GT motion adapter ----+
-/sensor/imu yaw-rate/ax ----------> covariance adapter ---+--> Local EKF
-                                                          +--> Global EKF
-/sensor/gps quantized x/y --------> GNSS odometry --------+
-
-Local EKF  : odom -> base_link, GNSS가 직접 들어가지 않는 smooth motion
-Global EKF : map pose, GNSS x/y correction 포함
-Publisher  : Global pose + 최신/마지막 유효 GNSS z -> /localization/kinematic_state
-Prior      : source-stamped body vy≈0 (σ=0.20m/s) -> Global EKF only
-Smooth     : Local motion 예측 + 현재 차량 기준점의 Global correction
-             (종/횡/yaw tau=0.5/0.1/0.5s, 횡 correction cap=0.3m/s)
-             -> /localization/control_kinematic_state
-Planning/TF: /localization/kinematic_state
-Controller : /localization/control_kinematic_state
+```bash
+localization initial_position_source:=official_start
 ```
 
-## 해결된 범위
+v85 규칙의 `start_finish.xyz`를 `morai_map -> map`으로 변환하고 yaw는 보정된
+Competition heading을 사용한다. 공식 yaw와 차이 `1 deg` 초과, START와 GNSS 거리
+`3 m` 초과, GNSS/heading stamp 차이 `0.5 s` 초과면 초기화를 거부한다.
+이 모드는 Ego를 구독/대기하지 않는다. [현장 원본·Ego 미사용 명령](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)을 함께 따른다.
+MR 로컬 출발 정합은 통과했으나 새 LAN 검증 완료는 아니다. `Published GNSS+IMU initial pose from official_start` 로그와
+`/localization/initialpose`를 확인한다. EKF는 센서만으로도 출력할 수 있어 odom 발행만으로
+공식 START 초기화 성공을 판정하지 않는다. 사고 후 복귀에 START 초기화를 반복 적용하지 않는다.
 
-1. MORAI GNSS는 무잡음이어도 동서 약 `14.8 cm`, 남북 약 `18.5 cm`로 양자화됨을
-   확인했다.
-2. 기존 sigma `0.05 m`, Qxy `0.05`가 cell transition을 과도하게 따라가는 주원인임을
-   확인했다.
-3. sigma `0.10 m`, Qxy `0.0005`는 동일 raw bag replay에서 횡 frame-jump p95를
-   `5.432 -> 1.444 cm`, 종 frame-jump p95를 `7.234 -> 2.416 cm`로 줄였다.
-4. 경량 폐루프에서 production Q/R은 localization `50 Hz`, 횡 frame-jump p95
-   `1.31 cm`, steering-rate p95 `0.54 rad/s` 수준을 재현했다.
-5. 로컬 full-stack의 velocity 적분 불일치는 production `velocity.x` bias가 아니라
-   MORAI 비실시간율과 receipt wall-time 혼합 artifact로 판정했다.
-6. GPS 음영 `5.64 s`, `11.01 s` replay에서도 마지막 유효 z를 유지하면서
-   `/localization/kinematic_state`를 각각 `50.00 Hz`, `50.01 Hz`로 연속 발행했다.
-7. 현재 `/Ego_topic` 임시 초기값 계약으로 수행한 Competition 전체 경로 replay에서
-   `49.71 Hz` state와 기존 정확도 수준을 유지했다.
-8. 동일 actor-free 전체 경로 폐루프 A/B에서 Smooth state는 완주 시간 손실 없이
-   steering-rate 평균을 `15.4%`, 조향 반전 빈도를 `23.8%` 줄였다.
-9. 같은 A/B에서 controller-facing XY p50은 `2.44 -> 1.66 cm`, 횡오차 p50은
-   `1.77 -> 0.88 cm`로 감소했다.
-10. 약 `7.25 s` GPS 음영 재획득 직후 첫 1초의 조향 변화율 p95는
-    `0.698 -> 0.221 rad/s`로 `68.3%` 감소했다.
-11. 새 soft+vehicle-pivot Smooth로 사용자 실제 무객체 전체 코스2회와 음영 pair2회가
-    목적지PASS·충돌0·약50Hz를 확인했다. 최신 pair의 실제12.844초 GPS 음영에서
-    Global/Smooth 횡p95는6.61/6.60cm였다. Ego 위치는 초기화1회뿐이며 음영 중
-    GNSS odometry는0개다. 이는 MR 확인이며 LAN·슬립 검증은 아니다. 장기 정차는 아래 후속 검증을 따른다.
-12. 같은 최신 pair raw 입력에서 soft만 OFF/ON한1× estimator replay는 초기pose와
-    입력payload/header를 일치시킨 뒤 음영 Global 횡p95를56.44→6.59cm로 줄였다.
-    ON에서 내부ay/vy가0에 수렴하는 효과를 분리했다. 실제 OFF 차량 재주행은 아니다.
+보존된 운영 기록은 수정안 START+CP1–14와 Spawn 툴0–14가 일치한다고 정정했다.
+원본 실행명 CP13/15는 구번호(현행12/14)이므로 원문을 고쳐 쓰지 않는다.
+변경 전 로컬 툴14에서는 raw NMEA zero가 관측됐다. 운영측은 CP14 좌표·spawn을
+유지하고 음영 범위를 조정하겠다고 답했으나 **새 환경 배포·GPS 수신·재출발 검증은 대기**다.
+[공식 안내 보관](../competition/261015_공식_체크포인트_안내_보관.md)과 로컬 관측을 구분한다.
+runtime rule monitor의 구15점 표 동기화는 이 정리 범위에서 수행하지 않았다.
 
-## 남은 위험과 우선순위
+유효 GNSS 복귀에서 Global/Smooth 정합 대기, fresh route, 기존 제어 재개를 검증하는
+것이 우선이다. GPS도 새 절대위치도 없는 teleport는 soft prior/ZUPT/Q 조정으로 복구할 수 없다.
+개발 helper의 known-checkpoint prior는 명시적 실험 입력이며 대회 기본 입력이 아니다.
 
-### 개선·승격. GPS 음영 중 미관측 횡상태 발산
+guard는 OFF/monitor-only를 유지한다. active 실험은 정차 1초·GNSS 위치 안정 1초,
+fresh/frame/quaternion/covariance 검사, 5m innovation 3표본, Global ACK를 요구한다.
+timeout/발행 실패는 blocked latch다. Local XY를 강제 reset하지 않으며 heuristic은
+공식 checkpoint 이벤트나 자동 제어 재개 허가가 아니다.
 
-최종 state의 연속 발행과 실제 위치 정확도는 별개다. 2026-10-15 실제 Validator의
-localization + od_gt + Planning/제어 폐루프에서 약 11.4초 음영 동안 Global의
-미관측 `ay`가 유지돼 `vy`와 횡위치가 적분되고, 횡오차 최대 2.49m가 확인됐다.
-Smooth는 그 Global drift를 완만하게 따라가므로 이를 자체적으로 제거하지 못한다.
+## 근거와 남은 gate
 
-Global에만 별도 soft `vy=0` 모델 prior(σ=0.20m/s)를 주는 방식을 사용자 승인으로 승격했다.
-이는 IMU `ay` 입력을 새로 끄는 변경이 아니다. 현재 CTRA overlay의 Local/Global
-IMU `ay` mask는 이미 OFF이며, 그와 별개로 15-state EKF 내부 `ay/vy`는 남는다.
-모델 prior는 기본 ON이며 기존 GT twist를 바꾸거나 Competition의 미제공 vel_y를
-실측으로 사용하지 않는다. 매 launch에서 noise/Global overlay를 로드한 뒤 명시적
-launch 인자로 publisher와 Global vy mask를 같이 확정해 parameter 잔류를 막는다.
-동일입력/실제 폐루프 근거와 작은 악화·남은 gate는
-[`261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md`](261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)를 따른다.
-production alias 명칭, Q/R, heading, 시간 정책은 유지한다. 아래 비교의 Smooth 0.5/0.5s
-수치는 승격 전 기준이며 현재 새 Smooth 기본값의 실제 폐루프 성능으로 재사용하지 않는다.
-후속 actor-free 전체 코스에서도 후보 두 번과 기존 반복 한 번이 완주했다.
-음영 Global 횡 p95는 기존 1.343m에서 후보 0.084/0.085m로 줄었으나 Smooth 전체 횡
-p95는 약 1.4~1.6cm 악화했다. 최초 기존 주행의 먼 목적지 궤적·정차는 GPS 유효
-상태에서 발생했고 반복에서 재현되지 않아 측위 후보의 완주 효과로 세지 않는다.
-이후 RViz/영상 ON인 사용자 후보 주행 두 번(`024445`, `024803`)에서 동일한 고주로
-경로 붕괴가 다시 재현됐다. 직전 횡측위 오차는 cm 수준이며 GPS는 유효했고,
-경로 최적화 실패와 차선 변경 영역 전환이 먼저 관측됐다. 별도의 Planning/제어
-통합 진단으로 분리하며 이 실패를 후보 횡측위 발산으로 세지 않는다. 관련 증거는
-같은 EVIDENCE 문서와 `planner_logs/analysis/261015_fullcourse_route_collapse/`에 누적한다.
-이는 로컬 후보 근거이며 대회 LAN·장시간 음영 정차·슬립 gate를 대신하지 않는다.
-승격 승인은 이후 사용자에게 받았지만 LAN·장시간 정차·슬립 검증을 완료한 것으로
-기록하지 않는다. 새 Smooth는 동일입력5개 bag·단위/transport 이후 사용자 실제
-전체 코스2회·음영pair2회도 확인했다. 최신 전체 코스와 과거 같은scene의 보조 비교에서
-Smooth 횡mean/p50은2.43/1.67→2.09/1.23cm지만 횡p95는6.70→8.12cm로 악화했다.
-반복·부하·초기상태 차이가 있고 모든 통계의 일괄 개선을 주장하지 않는다.
-최신 E24 동일 입력을 원본 post-ScenarioLoad 초기 pose와 맞춰 재실행한 결과도 Global
-음영 횡 p95 1.261→0.117m였다. 단순 Global IMU ay ON 진단은 16.693m로 악화해
-기각했다. 반면 후보의 Smooth 선회 평가(음영·재획득 포함) p95 0.070→0.119m 및
-10cm 복귀 기준 손해가 있었다. 이후 음영·재획득 첫1초를 제외한 정상 선회에서
-같은 입력의 개선 Smooth는 p95를0.114→0.059m로 줄였다. 같은 soft 입력의
-10cm 복귀 시간도1.185→0.199s로 줄었다. 정상 GNSS 이동/선회를 pre-soft까지
-세 단계로 대조하면 횡p95는5.35→9.78→4.92cm / 6.90→11.45→5.88cm였다.
-이는 동일입력 estimator replay와 출력 재구성이지 세 번의 신규 폐루프가 아니다.
-세부 표와 서로 다른 비교 창은 같은 EVIDENCE를 따른다. 새 전체 코스의 종오차는
-Global과 Smooth 모두 평균약26~28cm로 남아 있으며, Smooth 단독 지연으로
-단정하지 않고 속도·가감속·입력 시각 정합을 다음 원인 분리 대상으로 둔다.
+[CURRENT_EVIDENCE](CURRENT_EVIDENCE.md)는 현재 채택 근거와 역사적 후보를 구분한다.
+MR 실제 soft/Smooth 완주·음영 pair·30초 Park hold 근거는 있지만 LAN, MRP 별도 폐루프,
+slip/충돌, 변경 환경 CP14 및 배우·미션상태를 포함한 checkpoint 복귀는 미완료다.
+20ms GNSS 보상은 입력별 개선/악화가 역전돼 기본 0초를 유지한다.
 
-### 해결. GPS 음영 중 최종 state 연속성
+변경 승인 순서: 동일 raw bag offline A/B → `od_gt` 경량 폐루프 → GPS 음영
+진입·유지·복귀 → LAN-to-LAN 동일 controller → production 승격.
+횡/종 오차·frame jump·yaw·rate·steering-rate/sign flip을 함께 본다.
+2026-10-15 soft/개선 Smooth는 사용자 승인으로 기본값이 됐으며, 승인과 로컬 결과를
+미완료 LAN/slip gate의 통과로 기록하지 않는다.
 
-`morai_gps_to_local_odometry.py`는 `(0,0)` GNSS를 거부한다. 최초 유효 z를 받은 뒤
-GNSS가 stale해지면 publisher는 마지막 유효 z만 유지하고 Global EKF의 x/y/yaw/twist를
-계속 발행한다. 유효 GNSS가 돌아오면 z hold를 해제한다. 최초 z조차 없는 startup은
-기존처럼 준비되지 않은 상태로 판단한다.
-
-### P0-A. GPS 재획득과 checkpoint 순간이동 구분 — 안전 계약과 운영 입력
-
-**운영측 답변 (2026-10-15, 14:33 설명): CP14 좌표·spawn 위치는 유지하고 음영구역 범위를 조정할 예정이다.**
-CP14와 음영이 겹치지 않도록 여유거리를 주는 방안이며, 좌표를 앞으로 옮기는 변경은 아니다.
-현재는 **외부 변경 반영 예정 / 새 환경 재검증 대기**다. 이를 근거로 측위 기본값·좌표를 바꾸거나
-배포·GPS 정상 수신이 이미 확인됐다고 판단하지 않는다. 변경 환경에서 툴14 스폰 후 유효 GPS,
-Global/Smooth 정합, 새 경로와 기존 제어 재개를 다시 확인한다.
-
-앞선 ‘체크포인트는 음영 밖’은 사용자 지도 그림 판단이었고, 변경 전 로컬의 실제 제공
-Spawn 툴14(수정안CP14, 구CP15)에서는 raw NMEA zero를 재현했다. 기존 실측은
-누적 EVIDENCE의 제공 Spawn 시험 절을 따르며 운영측 조치 이후 결과로 재사용하지 않는다.
-실제 툴0–13은 추가initialpose 없이 정상GNSS로 자연 복구했으나 Smooth25cm/0.5초 유지까지
-약2.78–7.03초가 필요했다. 즉시 제어를 재개해도 된다는 뜻이 아니다. 툴14의 GPSzero는
-rawGGA/RMC에서도 확인됐고 quality1/A라 좌표zero거부가 필수다. 현재 로컬 조건에서는
-새 절대위치 없이 복귀를 보장할 수 없다. 별도 raw진단은 툴0·정상GPS·실제P로 종료했다.
-유효GNSS인 툴12(수정안CP12, 구CP13)의 실제211m 스폰 뒤 XY/yaw회복·freshroute·stockPP/PI 재출발은
-별도 `loc_official_spawn_remaining_route_261015_132923`에서 목적지PASS·최종정지/P를 확인했다.
-무객체·로컬개발경로이며 공식미션진행상태/배우추적이력 복구까지 검증한 것은 아니다.
-**번호 기준:** 재배포된 수정안은 START+CP1–14이며 프로그램0–14와 모두 일치한다.
-구표와의 차이를 프로그램 불일치로 본 판단은 철회한다. 이하 과거 실험의 CP13/15는
-구번호(수정안12/14)다. 원본 bag·실행명·metadata는 변경하지 않는다. runtime rule monitor와
-ScenarioLoad helper가 참조하는 `kcity_v85_rules.yaml`은 아직 구15점 표이며 별도 동기화가 필요하다.
-공식 START 값은 개정 전후 같아 이번 문서 갱신으로 측위 시작 기본값을 바꾸지 않는다.
-[공식 안내 좌표·yaw 백업](../competition/261015_공식_체크포인트_안내_보관.md)과
-로컬 실험을 구분한다. 대회 복귀의 우선 검증은 유효 GNSS에서 재정합한 뒤 새 경로와
-제어 재개를 확인하는 것이다. 아래 무GNSS 개발 실험을 대회 체크포인트의 지리적
-조건이나 명시적 좌표 prior의 필수성으로 일반화하지 않는다.
-
-음영 종료 GNSS는 일반 EKF update로 반영한다. 별도 opt-in guard의 gap count 초기화와
-재획득 1초 grace는 Global EKF update 자체를 늦추는 기능이 아니다.
-covariance inflation·correction rate limit·확정적인 teleport 분류는 추가하지 않았다.
-
-- active guard: vx 정차 1초 + 유효 GNSS 위치 span≤0.3m 1초, 동시각/정상 frame/
-  quaternion/covariance, source age≤0.5초/미래≤0.05초, 5m/3개 sample을 확인한다.
-- 한 번 reset 뒤 새 Global pose 2개로 ACK를 확인한다. 2초 timeout 또는 발행 실패는
-  blocked latch이며 임의 재시도하지 않는다. Local XY를 강제 reset하지 않는다.
-- `/localization/relocation/status`는 source-stamped JSON 상태를 제공한다.
-- 기본 OFF/monitor-only다. heuristic은 공식 checkpoint 이벤트가 아니다.
-
-MR ScenarioLoad checkpoint13 대조에서 Guard OFF/ON 모두 재출발·도착했다. 독립 GT
-대비 Smooth XY≤25cm를 0.5초 유지하기까지 약4.01/3.94초였지만 **둘 다 relocation
-reset은 0회**였다. 일반 GNSS update가 먼저 오차를 줄인 결과이며 가드의 속도 이득이 아니다.
-정차/P에서 회복을 기다리고 새 route를 확인한 실험으로, 계속 움직이는 실대회 자동복귀
-검증은 아니다. 순간이동 시 Local XY는 연속이었지만 절대 heading 입력으로 Local yaw가
-약46° 변했으므로 전체 Local pose가 연속이라고 주장하지 않는다.
-
-**구CP15(수정안14) 로컬 ScenarioLoad 실험에서 GPS zero가 관측됐다. 실대회 음영 판정은 아니다.**
-이전의 "checkpoint15는 실제 GPS 음영"이라는 지리적 해석은 철회한다. 해당 로컬 장면에서
-GPS가 0이었던 원인은 미확인이다. 새 위치를 제공하지 않은 실험은 GPS zero·
-GNSS odometry0개 상태에서 약138.65m 위치 차이를 복구하지 못했고 재출발을 차단했다.
-이는 관측 불가능성이다. vy prior/ZUPT/더 큰 Q로 새 절대XY를 찾을 수 없다.
-실험에서만 확정된 checkpoint 좌표와 fresh Competition heading을 기존
-`/localization/initialpose`에 한 번 전달하자 Global/Smooth 정렬과 같은 PP/PI
-재출발이 가능했다. Ego 위치를 지속 fusion하거나 0-GPS를 정상 fix로 바꾸지 않았다.
-
-대회에서는 **복귀 시 실제 GNSS 유효성·위치 회복 대기·새 route·제어 재개**를 우선 검증한다.
-복귀 이벤트·번호·배치 정확도를 사용할 경우에는 판단팀/운영측과 입력 계약을 확인한다.
-helper의 `--known-checkpoint-prior`는 ScenarioLoad 목적지를 알고 있는 개발용 명시적 prior이며,
-GPS가 정상인 대회 복귀의 필수 입력이나 자동 production 계약이 아니다. GPS 복귀 전 z는 기존 마지막
-GNSS 높이를 유지한다. 상세 결과·명령은 누적 EVIDENCE를 따른다.
-이번 복귀 장면은 무객체이며 공식 remaining-checkpoint 경로가 아니다. 배우가 있는 복귀의
-tracker/prediction history 무효화와 판단/제어의 오래된 경로·명령 차단은 별도 통합 gate다.
-
-### 검증. 장시간 음영 정차·재출발 / ZUPT 보류
-
-실제 MR에서 GPS 음영 총50.25초 중30.07초 Park 정차 후 같은 PP/PI로 재출발해
-목적지·최종 P 확인을 통과했다. hold 중 Global/Smooth 약50Hz, GNSS odometry0개,
-횡오차 p95 9.80cm였다. XY p95 26.66cm 중 약24.79cm는 기존 종편차이며,
-정차30초 동안 오차 변화는0.00119cm로 발산하지 않았다. 재획득 첫1초 Smooth 횡p95
-13.14cm는 남고 이후1–5초에는4.16cm로 줄었다. 현재 vx=0 측정과 Global soft vy prior가
-이미 정차를 제한하므로 추가 ZUPT/Local prior는 구현하지 않았다. Local vy covariance
-증가는 실제 위치 발산과 구분한다. LAN·충돌/slip 검증은 남는다.
-
-### 후보. 종방향 observation epoch 보상 — 기본 0초 유지
-
-최신 MR raw GPS가 독립 Ego pose보다 속도에 비례해 약16–24ms 뒤처지는 패턴을 확인했다.
-단순 converter geometry/vx scale/Smooth 단독 지연으로 설명되지 않았다.
-opt-in `gnss_motion_compensation_sec`은 map-frame GNSS XY에
-`dt*vx*(cos(corrected_yaw), sin(corrected_yaw))`를 더한다. raw header/UDP 시간·z·cell·
-Q/R·heading은 보존하며 Ego 위치는 사용하지 않는다. 보정된 heading을 다시 회전하지 않는다.
-canonical heading/twist stamp가 같고 source age≤0.1초일 때만 적용하며, 잘못되면
-원래 유효 GNSS를 계속 발행한다. 기본0초는 aux 구독도 없다.
-
-최신 full 동일입력 Smooth 종 mean/p95는27.21/57.92→2.99/7.64cm였다. 그러나9/19
-historical heldout은2.46/6.59→21.86/36.54cm로 악화했다. 따라서20ms를 보편 센서 지연이나
-공통 기본값으로 쓰지 않는다. 최신 실제 짧은 주행은 통과했으나 전체 코스 후보는 기존
-장소의 MPT/path 붕괴로 중단돼 승격 gate 미완료다. 대회 PC/센서 epoch·판단/제어 상호작용
-확인 전 **default=0.0**을 유지한다. Ego 없는 motion/GPS lag 추정도 적분 convention에
-민감해 자동 보정으로 사용하지 않는다.
-
-후속 **실제 무카메라·무LiDAR** 풀주행 `112304`는 동일 production·보상0초로
-PASS153.71초·충돌0·최종 P를 확인했다. 정상 GNSS 이동의 raw 상대lag는 기존18–20ms에서
-0ms(2ms 검색격자), Smooth 종mean/p95는27.33/59.60→1.46/3.67cm였다.
-음영 포함 새 전체 이동의 Smooth XY mean/p50/p95는2.18/1.75/4.87cm,
-횡1.24/0.78/4.01cm, 종1.47/1.10/3.71cm였다. 실제 음영7.276초에도 약50Hz를 유지했다.
-센서 배치·생성 부하 가설을 강하게 지지하지만 별도 시점 비교이며 동일조건 Sensor ON
-대조와 대회 LAN은 남아 있다. 최신 로컬 큰 종오차를 필터의 불가피한 한계로 일반화하지 않는다.
-기본 보상0초·UDP 정책은 유지하며 세부 모집단과 sensor/source provenance는 누적 EVIDENCE를 따른다.
-
-9/15 LAN 현장bag의누락GPS를다른토픽/최종state로역산한후속분석도추가보상0초유지를지지했다.
-최종state의Ego대비header등가lag는현장1/2/3에서최적4ms,공간/가감속을고려한회귀약5.4–5.8ms였다.
-원시GPS가있는5개실제bag에서역산방법을교차검증했지만현장물리GPS지연을직접측정한것은아니다.
-정확한0ms로단정하지않고,18–20ms급로컬지연과는다른수ms수준이라는조건부결론이다.
-현장2에는별도state발행/기록지연이있어CPU부하문제가전혀없었다고도단정하지않는다.
-현재필터의LAN재검증과당시구버전의역산을구분한다. 원본현장bag는FIELD_RESULT_ONLY다.
-
-### 해결. Controller의 Global correction 직접 소비
-
-Local EKF의 연속성을 controller에 전달하는 전용 map-frame state를 사용한다. Global/Local
-pose에서 `map -> odom` 정합을 구해 그 correction만 저역통과한 뒤 현재 Local pose와
-합성한다. planning과 TF는 기존 Global state를 유지한다.
-
-현재는 차량 위치를 기준으로 correction을 종/횡으로 나눠 `tau=0.5/0.1s`를 적용한다.
-yaw tau=0.5s, 횡 correction cap=0.3m/s다. co-time Local 운동 예측 뒤 Global
-correction만 보정하며, odom 원점을 바꿔도 차량 출력이 같도록 vehicle-pivot을 쓴다.
-현재 5개 bag의 동일입력 검증은 횡 p95를 모두 줄였지만 motion residual p95가
-0.05~0.07cm 증가했다. 이후 실제 MR 폐루프에서 기존 판단/제어 설정으로4회PASS를
-확인했고, 최신 전체 코스의 steering-rate mean/p95는 과거0.0704/0.3438에서
-0.0664/0.3144rad/s였다. 완주시간은 사실상 같고 횡p95 악화도 함께 기록한다.
-GPS 음영에서 수 m급 발산 억제는 확인됐지만 종방향/전체 XY 오차가0인 것은 아니다.
-
-**이전 Smooth 승격 근거:** offline/open-loop 검증 뒤 동일 전체 경로 폐루프 A/B를 수행했다. `tau=0.5/0.5 s`
-후보는 gate-to-gate 완주 시간 차이 `0.28%` 이내에서 steering-rate 평균을 `15.4%`,
-sign flip을 `23.8%` 줄였다. GPS 재획득 직후 조향 변화율 p95도 `68.3%` 감소했다.
-따라서 production alias는 `publish_control_state=true`, controller 기본 입력은
-`/localization/control_kinematic_state`로 승격했다. 근거는
-`260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md`에 있다.
-
-후속 quantization-aware 후보는 GNSS를 점이 아닌 cell interval로 처리하고, 그 결과의
-횡 displacement만 controller state에 사용하면서 종 위치와 yaw는 Global EKF를
-보존한다. 52초/242초 1× replay에서 횡 jump p95가 각각 `1.263 -> 0.213 cm`,
-`1.307 -> 0.259 cm`로 줄고 종·yaw는 유지됐다. 기존 Global-LPF보다 더 강한 후보지만
-아직 폐루프가 아니므로 `use_quantized_gnss_control_state=false`가 기본이다. 근거는
-`260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md`에 있다.
-
-세 raw bag에서 위·경도 격자 `1/600000 deg`와 UTM cell 축 `-1.348 deg`를 독립적으로
-재확인해 후보의 기존 axis-aligned cell을 바로잡았다. 변경 후 1× replay도 49.99 Hz와
-종 위치 보존을 유지했다. 이는 후보 내부 좌표계 정합 수정이며 production 승격은 아니다.
-
-두 개의 합성 8초 GNSS 음영 1× filter replay도 수행했다. stale GNSS에서는 Global로
-fallback하고 재획득 후 1초 grace를 둔 결과, 음영과 복귀 첫 1초의 후보가 Global보다
-나빠지지 않았으며 복귀 1~4초 횡 p95는 각각 `10.78 -> 4.74 cm`,
-`8.87 -> 2.28 cm`로 감소했다. 이는 replay gate 통과이며 실제 폐루프 승격은 아니다.
-
-Planning/TF는 Global state를 유지하고 두 controller node만
-`controller_kinematic_state_topic`으로 함께 전환한다. 불연속 판정은
-alignment parameter가 아니라 현재 차량의 map pose 차이로 수행한다. `0.5 m / 20 deg`
-기준은 정상 replay에서 reset 0회였고, 인위적 8초 음영 두 경우의 `0.53 / 1.38 m`
-재획득 correction에서 각각 1회 reset돼 planning과 controller state의 장시간 frame
-불일치를 막았다. checkpoint 실측이 없어 아직 production 계약은 아니다.
-
-승격 전 동일 기록 trajectory로 controller를 다시 실행한 open-loop A/B에서 `tau=0.5 s`
-후보는 52초/242초 bag 모두 steering-rate p95를 약 4%, sign flip을 약 15~17%
-줄였다. 장주행 controller lateral error p50/p95도 `3.95/27.65 -> 2.68/24.14 cm`로
-개선됐고, 이후 전체 경로 폐루프도 통과했다.
-
-Quantization-aware 후보도 같은 controller A/B에서 Global보다 개선됐지만, 장주행
-sign flip `0.2925/s`, lateral error `2.84/25.08 cm`로 Smooth의 `0.2830/s`,
-`2.68/24.14 cm`보다 근소하게 나빴다. 따라서 더 낮은 pose jump만으로 순위를
-뒤집지 않고 Smooth 0.5초를 폐루프 1순위로 유지한다.
-
-후속 Ego oracle 감사에서 frame별 종방향 pose 증분이 자체 velocity/heading 예측과
-p95 약 `10~12 cm` 불일치함을 확인했다. 전체 거리 적분은 `0.01%` 이내로 맞으므로
-속도 bias는 아니며 pose 갱신 시간 불균일이다. 이에 따라 종 frame jump는 진단값으로만
-남기고, continuity 승격 판단에는 횡 frame jump와 controller 지표를 사용한다.
-
-`/localization/odometry/local`만 controller에 단순 remap하면 map trajectory와 frame이
-달라지므로 금지한다.
-
-### P0-C. Local/Global TF co-time 정합
-
-기존 final-state publisher는 Global state와 약 `3~17 ms` 오래된 최신 Local TF를
-합성해 고속에서 TF closure가 p95 `4.5~28.9 cm` 어긋났다. 현재 코드는 Local pose를
-Global timestamp까지 외삽해 `map -> odom`을 만들며, production 짧은 bag 1× replay의
-closure p95는 `17.40 -> 0.071 cm`로 감소했다. EKF state 자체는 변경하지 않는다.
-새 bag에서 50 Hz와 `tf_contract`를 재확인한다.
-
-### P1. 공식 start pose 교체와 checkpoint reset
-
-Competition Status에는 global position이 없다. MR 개발 기본값의 첫 `/Ego_topic`
-**위치**는 임의 시나리오를 지원하기 위한 초기값 전용이다. 공식 START 좌표가
-확인되어 이를 선택하는 launch 인자를 마련했다. MR 로컬 공식 START 위치·yaw 대조는
-통과했지만 현장 LAN 시작 검증 전에는 대회 기본값으로 승격하지 않는다. MRP는 별도
-Ego 계약을 유지한다.
-사고 후 checkpoint 후보 가드는 기본 OFF·monitor-only다. 과거 합성20m 검증은 당시
-계약이며 현재 active gate가 더 엄격하다. 후속 개발 emulation의 GNSS 유효 복귀와 로컬
-GPSzero 복귀를 위 P0-A에서 구분한다. 실제 대회 복귀의 유효 GNSS는 아직 보장되지 않았다.
-GNSS도 새 위치 정보도 없는 순간이동의 관측 불가능성은 예외 조건의 한계이며,
-공식 체크포인트 복귀가 불가능하다는 결론이 아니다. 자동 reset/재출발 production 계약은 아직 없다.
-Quantization-aware control state와 active guard를 결합한 합성 20 m 전체 replay에서는
-guard reset이 1회였고 reset 순간 Global–control 차이가 0.0 m였다. 따라서 두 후보의
-당시 기계적 결합의 근거다. 공식 checkpoint 운영 이벤트·LAN gate는 여전히 남아 있다.
-GNSS gap `0.5 s` 초과 또는 timestamp 역행 시 relocation 연속 count를 초기화해 음영
-전후 표본이 하나의 3-sample 후보로 잘못 이어지는 상태관리 결함은 제거했다.
-
-### 해결. Competition yaw-rate A/B
-
-현재는 Competition heading/vx와 IMU yaw-rate/ax를 사용한다. Competition
-UDP 패킷에는 `angular_velocity.z`가 있지만 기존 `EgoVehicleStatus` ROS type에는 해당
-필드가 없어 receiver가 값을 버리고 있었다. 기존 message MD5와 bag 호환성을 유지하기
-위해 `/Competition_topic`은 바꾸지 않고 `/competition/raw_twist`에 전체 linear/angular
-twist를 추가 발행한다.
-
-260925 전체 경로 bag의 새 토픽으로 확인한 결과 native angular.z는 clockwise
-degrees/s이며 ROS yaw-rate에는 `-pi/180` 변환이 필요했다. 변환 후 IMU와의 상관계수는
-`0.99995` 이상이었다. IMU를 대체한 1× 전체 EKF replay에서도 횡·종·yaw 성능은
-사실상 동등해 production 입력 변경을 기각했다. 두 신호는 같은 simulator state에서
-파생되므로 동시에 독립 측정처럼 fuse하지 않는다.
-
-기존 입력 ablation에서는 IMU yaw-rate 제거가 yaw p95를 약 3.6~3.9배 악화했고,
-ax 제거는 장주행 종오차를 조금 악화하면서 유의미한 횡 이득이 없었다. Competition
-yaw-rate 대체도 의미 있는 우위가 없어 현재 IMU yaw-rate와 ax를 유지한다.
-
-추가 입력 계약 감사에서 최신 receipt-time bag의 IMU yaw-rate와 Competition heading
-미분은 상관계수 `0.99925`, p95 오차 `0.0140 rad/s`로 정합했다. IMU TF의 translation에
-따른 lever-arm 가속도는 `robot_localization`이 이미 target frame 원점으로 보정하므로
-adapter에서 중복 보정하지 않는다. 자세한 근거는
-`260925_FUSION_INPUT_CONTRACT_AUDIT.md`와
-`260925_COMPETITION_YAW_RATE_AND_YAW_SMOOTHING_EVIDENCE.md`에 있다.
-
-## Production 변경 gate
-
-```text
-동일 raw bag offline A/B
--> od_gt 경량 폐루프
--> GPS 음영 진입·유지·복귀
--> LAN-to-LAN 동일 controller
--> production alias/config 변경
-```
-
-Offline 위치 오차 하나만 좋아졌다는 이유로 기본값을 바꾸지 않는다. 횡·종 오차,
-frame jump, yaw, state rate, steering-rate와 sign flip을 함께 본다.
-2026-10-15 soft·개선 Smooth 기본값은 사용자의 즉시 승격 승인에 따른 변경이다.
-soft에는 이전 실제 장애물/전체 코스 폐루프 근거가 있고, 개선 Smooth도 동일입력
-5 bag 및 단위/설치본 transport 이후 사용자 신규 MR 폐루프4회를 확인했다.
-이 사용자 승인과 로컬 결과를 LAN·장기음영·슬립 gate 완료로 기록하지 않는다.
-
-## 변경하지 않을 항목
-
-- heading correction `-1.347 deg`.
-- production Q/R을 추가 sweep의 출발점 없이 임의 수정하는 것.
-- UDP receipt-time 정책.
-- `velocity.x` 임의 scale.
-- local state만 controller에 바로 remap하는 것.
-- perception P8/P9 결과를 localization 보정 근거로 사용하는 것.
+Fast-LIO/직접 GT/구형 GNSS provider와 opt-in 연구 node는 설치·공통 launch·테스트
+호환성 때문에 남아 있다. 그 경로가 존재한다는 사실은 production 선택 근거가 아니다.

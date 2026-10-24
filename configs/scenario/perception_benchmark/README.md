@@ -24,7 +24,7 @@ is map infrastructure rather than a perception actor.
 > ‘아직 A/B를 수행하지 않았다’는 문장도 그 시점의 이력이며 후속 독립 비교는 완료했다.
 > 현재 MORAI 기본값은 50이다. 최신 선택·재시작·51 재현은
 > [production handoff](../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md#lidar-50-적용과-51-복귀),
-> 후속 결과는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
+> 후속 결과는 [독립 검증](../../../docs/bevfusion/evidence/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
 
 ### 독립 차량과 실제 50/51 후속
 
@@ -34,7 +34,7 @@ is map infrastructure rather than a perception actor.
 이 후속은 로드·경로 준비 동안 실제 P·정지를 유지한 뒤 D 제어기로 전환한다.
 초기 이전 장면을 `SCENARIO_READY`로 구분하고, 종료 시 장면 재로드 없이 P·기본 50을 확인한다.
 기존 자동 실행기의 과거 완료/실패와 구분하여 아래 네트워크를 그대로 사용한다.
-소량 시험·원본 경로·채택 여부는 [독립 검증](../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
+소량 시험·원본 경로·채택 여부는 [독립 검증](../../../docs/bevfusion/evidence/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)을 따른다.
 2026-10-14 후속 사용자 승인으로 production LiDAR 기본값은 50이다. 아래 최초 51 녹화는 보존된 이력이다.
 
 ### 권장: 네트워크만 연결하고 자동 실행

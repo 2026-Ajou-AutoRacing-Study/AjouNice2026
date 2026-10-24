@@ -19,6 +19,10 @@
 `/perception/base5_trial/detection/objects`를 사용한다.
 status·latency·marker·projection도 `/perception/base5_trial/`로 분리한다.
 `base5_e24_calibrated_trial.launch`의 선정값은 E24 전용이며 E9나 다음 학습 모델에 자동 적용하지 않는다.
+과거 trial의 Camera20Hz profile은 `configs/sensors/legacy/Sensor_4.json`에서 명시적으로
+읽는다. 현재 production의 `Sensor_competition_lan.json`이나 로컬 canonical profile로
+자동 대체하지 않는다. 일반 bringup·Base3 호환 launch의 기본값은
+`Sensor_competition_local.json`으로 통일했다.
 2026-10-13 동일 조건 비교의 Base5 최종 시험 선택은 E24다. E9 비교용 선정값은
 `base5_e9_calibrated_trial.launch`의 0.30/0.20/0.12이며 각 모델의 서버 가중치는 별도로 확인한다.
 정확한 모델·threshold·최적화 선택은 위 CURRENT와 실제 launch/config를 확인한다.
@@ -28,7 +32,7 @@ status·latency·marker·projection도 `/perception/base5_trial/`로 분리한�
 서버의 `--base5-runtime --point-intensity-source ros255`가 강도를 정확히 한 번 ÷255 한다.
 `--fp32-reference`는 정합 대조용이며 최적화된 실시간 옵션을 의미하지 않는다.
 
-[ROS 입력/TCP 정합 근거](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)는
+[ROS 입력/TCP 정합 근거](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)는
 함수·메시지·저장된 입력 검증이다. 실제 24GB·LAN·full-stack queue 인증과 구분한다.
 
 ## 입력과 후단 경계
@@ -40,17 +44,20 @@ LiDAR 기준으로 카메라 buffer의 가까운 이미지를 선택하며 prepr
 [후단 CURRENT](../../perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를 따른다.
 MORAI GT·ego oracle을 대회 detector 입력이나 production fallback으로 쓰지 않는다.
 
-단계별 JSON 진단은 `publish_frame_timing:=true`로 선택한다. 기본 OFF이며 production
-실행기는 `BEVFUSION_PUBLISH_FRAME_TIMING=true`를 명시한다. canonical/trial 토픽과
-raw/prepared queue·server·publish 범위는 [진단 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#diagnostics)을 따른다.
+단계별 JSON 진단은 최신 노드의 `diagnostics_auto_on_subscribe=true` 기본값에 따라 녹화기 등
+진단 구독자가 있을 때 자동 활성화된다. 구독자 없이 계속 계측하려면 `publish_frame_timing:=true`
+또는 `bevfusion --publish-frame-timing`을 선택한다. 강제 ON 기본값은 false이며,
+자동 모드까지 끄려면 launch의 `diagnostics_auto_on_subscribe:=false`를 지정한다. ledger는
+스레드 간 유지하며 입력 프레임별로 계측 여부를 결정한다. 구버전 실행 노드는 녹화기가 재시작하지 않는다. canonical/trial 토픽과
+raw/prepared queue·server·publish 범위는 [진단 계약](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#diagnostics)을 따른다.
 기존 latency Float32나 입력 stamp·payload를 재정의하지 않으며 실제 server 비용은 별도로 기록한다.
 
 박스 원점 시험은 calibrated trial의 `box_center_output_origin:=gravity_center_v1`을 선택한다.
 기본은 `legacy_passthrough`이며 원점 metadata가 없는 구 서버는 시험 변환을 거부한다.
 새 서버 raw tensor는 바닥 기준 그대로 보존하고 ROS adapter에서 높이 절반을 한 번만 더한다.
 2026-10-14 E24 production은 tagged gravity 변환을 사용하며 generic trial/E9/E25 비교 기본은 legacy로 보존한다.
-[Live 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)의 실제 ROS·fresh tracker 확인을 따르되,
-[출력 중심 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)에 따라
+[Live 검토](../../../../docs/bevfusion/evidence/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)의 실제 ROS·fresh tracker 확인을 따르되,
+[출력 중심 계약](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)에 따라
 기존 tracker·planner를 켠 채 Z 기준을 hot-switch하지 않는다. future-Z와 실제 폐루프 검증은 별도다.
 
 기존 Base3 실행 설명과 내부 구현 시점 기록은

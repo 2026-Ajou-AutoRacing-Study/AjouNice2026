@@ -1303,7 +1303,7 @@ Vast에서 tar 실행 직전에 실제 archive SHA를 다시 확인하고 `datas
 - 기존 E24·초기화 가중치·모델 소스·실패 파일은 변경하지 않았다.
 - 이후 두 8-epoch 후보에 같은 manifest를 연결하고 `--prepare`까지 완료했다.
   두 후보의 GPU·W&B·Drive 소량 쓰기/읽기까지 `--check`를 통과했고 학습은 시작하지 않았다.
-  실제 학습은 [원격 런북](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#최종-사용자-실행-명령--학습-미시작)을 따른다.
+  실제 학습은 [원격 런북](../../../docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#최종-사용자-실행-명령--학습-미시작)을 따른다.
 
 ### 승인된 RGB PNG 정리 완료
 
@@ -1342,4 +1342,4 @@ JPEG·native GT·mask/depth·LiDAR·실패 원본과 과거 증거는 보존했�
 - 실패 파일의 범위별 SHA 기반 재개: `scripts/portable_base5/vast_drive_resume.py`
 
 현재 유효 상태는 [CURRENT](BASE5_V2_CURRENT.md), 기존 준비와 과거 실패는
-[fresh 환경 런북](261010_base5_fresh_environment_runbook.md)을 함께 참고한다.
+[fresh 환경 런북](legacy/base5/261010_base5_fresh_environment_runbook.md)을 함께 참고한다.

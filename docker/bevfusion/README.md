@@ -98,7 +98,7 @@ the model checkpoint.
 서버 raw box는 `lidar_bottom_v1`로 선언하며 원본 tensor·GT·가중치를 바꾸지 않는다.
 ROS의 `box_center_output_origin:=gravity_center_v1`은 명시적인 시험용 어댑터다.
 기본 `legacy_passthrough`를 유지하고, 선언 없는 이전 서버는 시험 모드에서 거부한다.
-[Z 계약·reset·TF 검증 경계](../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 먼저 확인한다.
+[Z 계약·reset·TF 검증 경계](../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)를 먼저 확인한다.
 
 - ROS chooses the closest four camera messages for each LiDAR timestamp.
 - The ROS host decodes and resizes the four images concurrently with OpenCV.
@@ -138,6 +138,6 @@ With the server running, the real-data TCP benchmark is reproducible with:
 cd ~/AjouNice2026/docker/bevfusion
 PYTHONPATH=. python3 scripts/benchmark_base3_tcp.py \
   --info ~/AjouNice2026/artifacts/datasets/morai_base3_bevfusion_v1/morai_base3_infos_val.pkl \
-  --sensor-config ~/AjouNice2026/configs/sensors/Sensor.json \
+  --sensor-config ~/AjouNice2026/configs/sensors/Sensor_competition_local.json \
   --samples 50
 ```

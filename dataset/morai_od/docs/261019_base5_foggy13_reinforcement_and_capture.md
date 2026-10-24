@@ -43,7 +43,7 @@ restart도 같은 방향 편차를 보인다. 전방 train 122개 중 LiDAR 0점
 ### 추가 요청: E24 조건의 새 Sunny13 학습 중간 대조
 
 이 절은 학습 진행 중의 관측이다. 이후 완료된 24 epoch·Drive 백업·동일 val 교차 평가의
-최종 결과는 [모델 근거의 완료 절](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)을 따른다.
+최종 결과는 [모델 근거의 완료 절](../../../docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)을 따른다.
 
 원형 로그와 새 학습의 E13까지 완료된 로그를 읽기 전용으로 대조했다.
 기존 E24 실험의 실제 총 길이는 24에폭이다. 기존 학습 조건을 유지한 새 run을 시작했으며
@@ -341,7 +341,7 @@ Vast 새 Sunny13의 동일 조건 24에폭 학습과 Drive 백업도 별도 세�
 최종 데이터 개선량·새 production 선정·30K 수집 완료는 아직 인증하지 않는다.
 
 위 문장은 본수집 시작 당시의 기록이다. 이후 새 Sunny13 학습·백업·동일 val 네 칸 평가는
-완료했다. [최종 모델 비교](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)를 따르며,
+완료했다. [최종 모델 비교](../../../docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#sunny13-matched-e24-result-261019)를 따르며,
 Foggy13 거리 보강의 학습 결과나 production 교체로 해석하지 않는다.
 
 <a id="foggy13-crash-continuation-261019"></a>
@@ -2041,7 +2041,7 @@ byte-range·길이·전체 SHA·덮어쓰기 방지는 유지했다. Drive와 Va
 자체 Foggy13 RAM 임시 압축본만 정리했고 원본 JPEG·영구 receipt·실패 근거는 보존했다.
 
 이것은 데이터 전달 완료다. 12-epoch 실행 설정과 W&B·Drive 사전 검사, 실제 학습 시작은
-[모델 학습 준비 기록](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-12epoch-preparation-261021)에서 별도로 관리한다.
+[모델 학습 준비 기록](../../../docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-12epoch-preparation-261021)에서 별도로 관리한다.
 
 <a id="foggy13-terminal-one-30750-261021"></a>
 
@@ -2102,4 +2102,4 @@ Vast의 새 전체 설정 `--prepare`·온라인 `--check`와 실제 Concat CPU 
 train 26,136 / val 4,614·19개 child·원래 경로 95개를 확인했으며 모델 학습은 실행하지 않았다.
 최종 준비 receipt는 `artifacts/evaluation/base5_full30750_training_261021_v1/FINAL_PREPARATION.json`이다.
 준비 계약·실패한 연결 시도 보존·실행 방법은
-[전체 30,750장 학습 준비](../../../docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-30750-preparation-261021)에서 별도로 관리한다.
+[전체 30,750장 학습 준비](../../../docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md#full-data-30750-preparation-261021)에서 별도로 관리한다.

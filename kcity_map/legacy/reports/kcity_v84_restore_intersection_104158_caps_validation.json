@@ -1,0 +1,34 @@
+{
+  "map": "lanelet_map/lanelet2_map_v84.osm",
+  "sha256": "36369766a0fade01cbd64a49d4d9c33248b15770eb1433ce334d6becaddf3e4d",
+  "map_load": "pass",
+  "restored_cap_nodes": [
+    231570,
+    231571,
+    231572,
+    231577,
+    231578,
+    231579
+  ],
+  "restored_distances_m": {
+    "231570": 5.00000000059369,
+    "231571": 5.000000000136818,
+    "231572": 5.000000001509554,
+    "231577": 4.999999998714765,
+    "231578": 4.999999999168226,
+    "231579": 5.000000000112549
+  },
+  "polygon_valid": true,
+  "polygon_area_m2": 428.1765263609908,
+  "left_opposite_lanelets_of_200291": [
+    200289
+  ],
+  "soa_outer_left_bound": 101881,
+  "endpoint_distances_m": {
+    "2447": 0.0,
+    "6120": 0.0,
+    "3050": 0.0,
+    "6030": 0.0
+  },
+  "invalid_lanelets": []
+}

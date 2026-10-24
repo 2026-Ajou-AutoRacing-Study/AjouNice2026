@@ -20,3 +20,5 @@ bash scripts/map/download_kcity_map_assets.sh
 파일을 교체하는 작업은 대상 버전과 체크섬을 먼저 확인한 뒤 수행합니다.
 
 실행 전에 각 스크립트의 `--help`로 필요한 Python 패키지와 입·출력 경로를 확인하세요.
+
+과거 버전 전용 도구는 [legacy](../../legacy/README.md)에 보존했다. 원래 Git tree에서 재현하며 현재 배포 도구로 자동 사용하지 않는다.

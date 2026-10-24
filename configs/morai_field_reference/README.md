@@ -5,8 +5,34 @@
 
 ## 파일 역할
 
-- `AjouNice_sensor.json`: 현장 MORAI PC의 Sensor 설정 원본
-- `2026_molit_comp_network.json`: 현장 MORAI PC의 Network 설정 원본
+- [AjouNice_sensor.json](AjouNice_sensor.json): 현장 MORAI PC의 Sensor 설정 원본
+- [2026_molit_comp_network.json](2026_molit_comp_network.json): 현장 MORAI PC의 Network 설정 원본
+
+## 합의한 대회 실행 기준
+
+MORAI PC에는 위 현장점검 원본을 로드한다. 이 PC의 보관 경로는 각각
+`~/AjouNice2026/configs/morai_field_reference/AjouNice_sensor.json`과
+`~/AjouNice2026/configs/morai_field_reference/2026_molit_comp_network.json`이다.
+알고리즘 PC는 아래 명령을 **각각 별도 터미널**에서 사용한다. 기존 alias를 준비한 뒤
+공식 START에서 정지 상태로 출발하는 기준이며 기본 alias 자체를 바꾼 것은 아니다.
+
+```bash
+udp_lan enable_ego_vehicle_status:=false
+sensing_lan
+localization initial_position_source:=official_start
+```
+
+Ego 수신·Ego TF·Ego 초기 위치를 사용하지 않고, 주행 측위는 GPS·IMU·Competition을 쓴다.
+`udp_lan`은 현장 원본 Network를 직접 읽지 않고 아래 LAN adapter를 사용한다.
+보관 endpoint는 MORAI `192.168.0.1` → 알고리즘 `192.168.0.10`이다. 실제 두 NIC와
+다르면 원본을 덮어쓰지 말고 양쪽 실행 설정을 맞춘다.
+
+공식 START 초기화는 fresh GNSS·Competition heading·TF와 위치/방향 검사를 요구한다.
+중간 위치·checkpoint 복귀에 START를 강제로 적용하지 않는다. 자세한 조건과
+초기화 발행 확인은 [Localization CURRENT](../../docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#초기화checkpoint)를 따른다.
+이 문서는 실행방법의 합의이며 새 대회 LAN 주행 검증 완료 기록이 아니다.
+
+## 원본과 알고리즘 adapter 구분
 
 두 파일은 **MORAI PC에 로드하는 기준 자료**다. 알고리즘 PC에서 `udp_lan`이
 직접 읽는 파일은 다음과 같다.

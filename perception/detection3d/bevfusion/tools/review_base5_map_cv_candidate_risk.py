@@ -125,7 +125,7 @@ def main():
     network=LaneletNetwork.load(ROOT/'kcity_map/lanelet_map/lanelet2_map_v85.osm',ROOT/'kcity_map/lanelet_map/map_projector_info_v1.yaml')
     prepare_network(network)
     cases,gt=load_dev(ROOT/'artifacts/evaluation/bevfusion/base5_production_tracker_review_261013/promotion_ros_v2/messages.json.gz',
-                      ROOT/'artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1',ROOT/'configs/sensors/Sensor_4.json',alignment)
+                      ROOT/'artifacts/evaluation/bevfusion/base5_far_bag_retention_261012/inputs_v1',ROOT/'configs/sensors/legacy/Sensor_4.json',alignment)
     for direction in ('worse','better'):
         candidates=[(case,row) for case in dev['results'] for row in dev['results'][case]['rows'] if row['horizon']==3]
         case,row=(max if direction=='worse' else min)(candidates,key=lambda x:x[1]['errors']['route_history']['top1']-x[1]['errors']['baseline']['top1'])

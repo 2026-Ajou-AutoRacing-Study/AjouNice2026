@@ -1,0 +1,36 @@
+{
+  "input": "lanelet_map/lanelet2_map_v82.osm",
+  "input_sha256": "c7632c255eec8e55b18550f7b52b8eb9ec986bd76e8654d26ca555b6d0599cb6",
+  "output": "lanelet_map/lanelet2_map_v83.osm",
+  "output_sha256": "46cbdd08545b88fa313f2a9a6e81fdf1066d65c403cc70c57757bc2ca8d32863",
+  "map_version": 83,
+  "topology": {
+    "lanelet_200291_left": 100395,
+    "lanelet_200289_left": 100395,
+    "removed_duplicate_way": 100394,
+    "removed_orphan_nodes": [
+      6035,
+      6036,
+      6038
+    ],
+    "duplicate_geometry_hausdorff_m": 0.04090711724972335,
+    "shared_bound_tags": {
+      "type": "line_thin",
+      "subtype": "dashed"
+    }
+  },
+  "intersection_area": {
+    "id": 104158,
+    "tags": {
+      "type": "intersection_area",
+      "area": "yes"
+    },
+    "inserted_endpoint_nodes": [
+      3050,
+      6120,
+      2447,
+      6030
+    ],
+    "area_m2": 507.44680034231675
+  }
+}
