@@ -118,11 +118,18 @@ def check_no_conflicting_publishers():
     import rosgraph
     state = rosgraph.Master("/planning_scenario_validator").getSystemState()[0]
     owners = dict(state)
+    conflicts = {}
     for topic in ("/Ego_topic", "/Object_topic", "/sensor/gps", "/ctrl_cmd",
                   "/planning/trajectory", "/localization/kinematic_state",
                   "/perception/object_recognition/detection/objects"):
         if owners.get(topic):
-            raise RuntimeFailure("기존 스택이 {}을 발행 중입니다: {}. 새 캠페인은 빈 ROS graph에서 시작하세요".format(topic, owners[topic]))
+            conflicts[topic] = owners[topic]
+    if conflicts:
+        error = RuntimeFailure('기존 스택 publisher 충돌: {}. 수동 udp/udp_lan·측위·인지·planning·제어 '
+            '터미널을 정상 종료한 뒤 새 실험을 시작하세요. roscore와 MORAI GUI Connect만 유지할 수 있습니다. '
+            'validator가 다른 제어기를 자동 종료하지는 않습니다.'.format(conflicts))
+        error.conflicting_publishers = conflicts
+        raise error
 
 
 def prepare_scenario(case, install_dir, ego_network_json):

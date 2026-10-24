@@ -30,6 +30,7 @@ from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, up
 from .scenario_selection import choose_scenarios
 from .models import PRESETS, LABEL_PRESETS, DEFAULT_MODEL
 from . import recording_options as bag_options
+from .startup_audit import stream_console
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -541,7 +542,11 @@ def result_counts(state):
 
 
 def completion_label(code, state):
-    """CLI exit 0 can include legitimate FAIL cases: never call that a pass."""
+    """Show startup causes separately from legitimate per-case drive failures."""
+    if code not in (0, 130) and state and state.get('startup_error'):
+        failure = state['startup_error']
+        return '실행 준비 실패 [{}] {} | 종료 코드 {} · stack_logs/startup_error.log 확인'.format(
+            failure.get('phase', 'UNKNOWN'), failure.get('error', ''), code)
     if state is None:
         return "실행 종료 (코드 {}). 결과 파일 없음 — 로그를 확인하세요.".format(code)
     counts = result_counts(state)
@@ -1015,10 +1020,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         status.set("{}: {}".format(label, error))
         messagebox.showerror(label, str(error))
 
-    def command_reader(process, label):
+    def command_reader(process, label, log_path=None):
         try:
-            for line in process.stdout:
-                events.put(("line", line.rstrip("\n")))
+            stream_console(process, lambda line: events.put(('line', line)), log_path)
         except Exception as error:
             events.put(("line", "출력 수집 오류: {}".format(error)))
         finally:
@@ -1212,7 +1216,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         if video_enabled and document["recording"]["video"].get("window_layout") == "split":
             set_compact_mode(True, document["recording"]["video"].get("bottom_bar_px", "auto"))
         status.set("주행 검증 실행 중: {}".format(cfg['name']))
-        threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
+        threading.Thread(target=command_reader,
+            args=(process, "run", cfg['output'] / 'stack_logs/runner_console.log'), daemon=True).start()
 
     def stop(*, force=False):
         process = active["process"]
