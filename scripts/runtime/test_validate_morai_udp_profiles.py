@@ -27,6 +27,12 @@ class ProductionInventoryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'missing='):
             profiles.validate_production_inventory(self.root)
 
+    def test_explicit_team_development_exceptions_are_allowed(self):
+        for folder,names in profiles.DEVELOPMENT_PROFILE_FILES.items():
+            for name in names:
+                (self.root/'configs'/folder/name).write_text('{}')
+        profiles.validate_production_inventory(self.root)
+
     def test_duplicate_sensor_rejected(self):
         (self.root / 'configs/sensors/Sensor.json').write_text('{}')
         with self.assertRaisesRegex(ValueError, 'unexpected=.*Sensor.json'):

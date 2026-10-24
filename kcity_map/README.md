@@ -8,7 +8,7 @@
 | Lanelet2 | `lanelet_map/lanelet2_map_v87.osm` |
 | Projector | `lanelet_map/map_projector_info_v1.yaml` |
 | Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
-| 속도 상한 | `lanelet_map/lanelet_speed_limits.yaml` — 판단 정책이므로 임의 변경 금지 |
+| 속도 상한 | v87 OSM attributes를 사용한다. 별도 override 파일은 최신 planning에서 제거됨 |
 | 최신 제작 검증 근거 | `../configs/map/kcity_v87_release.yaml` |
 | 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
 

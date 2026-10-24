@@ -13,9 +13,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -65,7 +65,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -86,9 +86,9 @@
             "commType": 1,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9093,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9094,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -155,9 +155,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9091,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9092,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -207,7 +207,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -228,9 +228,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -297,9 +297,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9797,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9798,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -349,7 +349,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -370,9 +370,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -439,9 +439,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9088,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9099,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -491,7 +491,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -512,9 +512,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -581,9 +581,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9100,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9110,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -633,7 +633,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -654,9 +654,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -723,9 +723,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7605,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 7505,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -775,7 +775,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -796,9 +796,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -865,9 +865,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7607,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 7503,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -917,7 +917,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -938,9 +938,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -1007,9 +1007,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9095,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9096,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -1059,7 +1059,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -1080,9 +1080,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -1149,9 +1149,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -1201,7 +1201,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -1222,9 +1222,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,
@@ -1339,9 +1339,9 @@
             "pubSleepTime": 0.019999999552965164,
             "pubFrequency": 50.0,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7604,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 7504,
               "receiveTimeout": 50,
               "isBufferThreadActivated": true,
@@ -1391,7 +1391,7 @@
               "Channel": "DafaultChannel"
             },
             "GrpcConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 7789,
               "Connect": false
             },
@@ -1412,9 +1412,9 @@
             "commType": 0,
             "ctrlSleepTime": 0.016666999086737633,
             "udpConfig": {
-              "hostIP": "10.42.0.252",
+              "hostIP": "127.0.0.1",
               "hostPort": 9090,
-              "destinationIP": "10.42.0.1",
+              "destinationIP": "127.0.0.1",
               "destinationPort": 9090,
               "receiveTimeout": 50,
               "isBufferThreadActivated": false,

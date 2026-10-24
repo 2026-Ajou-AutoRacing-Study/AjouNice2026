@@ -89,13 +89,20 @@ def main():
                     regional=net.recover_lane_direction(x,y,selector.highway_lanelet_ids) is not None
                     if regional:c['on_highway_geometry']+=1
                     if name.find('H03')>=0 or name.find('H04')>=0 or 'ind_highway' in name:
-                        if wire(o)==wire(short) and not net.predict(x,y,z,obs['yaw'],v,base,truncate_at_route_end=True):
+                        map_speed=max(0.,v) if abs(v)<cfg.minimum_speed_mps else v
+                        if wire(o)==wire(short) and not net.predict(x,y,z,obs['yaw'],map_speed,base,
+                                truncate_at_route_end=True,allow_low_speed=True):
                             c['highway_scene_kinematic']+=1
                             reason='low_speed' if v<cfg.minimum_speed_mps else 'no_lane_match'
                             c['fallback_'+reason]+=1
                             if regional:c['on_highway_geometry_fallback']+=1
                             bad.append(dict(case=name,stamp=f['stamp'],id=tid,reason=reason,
                                             on_highway_geometry=regional,speed=v,xy=[x,y]))
+                        if regional and not net.lane_candidates(x,y,obs['yaw']) and wire(o)!=wire(short):
+                            distance=min((math.hypot(g['center'][0]-x,g['center'][1]-y)
+                                          for g in f['gt']),default=float('inf'))
+                            c['direction_recovery_gt_within_2m' if distance<=2.
+                              else 'direction_recovery_gt_unmatched']+=1
         reports[name]=dict(c);print(name,dict(c),flush=True)
     for f,h in hashes.items():
         if digest(Path(f))!=h:raise AssertionError('source changed during qualification')

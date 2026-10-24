@@ -312,9 +312,11 @@ def _make_map_based_predicted_objects(message, horizons, network, mixed_extensio
                 y=current.position.y,
                 z=current.position.z,
                 yaw=quaternion_to_yaw(current.orientation),
-                speed=twist.linear.x,
+                speed=(max(0., twist.linear.x) if abs(twist.linear.x) < network.config.minimum_speed_mps
+                       else twist.linear.x),
                 horizons=horizons,
                 truncate_at_route_end=True,
+                allow_low_speed=True,
             )
 
         # Empty map paths / a non-vehicle classification also reset the
