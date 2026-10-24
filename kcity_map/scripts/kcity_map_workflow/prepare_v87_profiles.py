@@ -34,14 +34,14 @@ def save(path,data):
 
 def main():
     conf=REPO/'base_ws/src/planning_addons/competition_route_requester/config'
-    route=remap(yaml.safe_load((conf/'kcity_v86_competition_route.yaml').read_text()))
+    route=remap(yaml.safe_load((conf/'kcity_v85_competition_route.yaml').read_text()))
     route['map'].update(version=87,file=str(OUTPUT.relative_to(REPO)),sha256=sha256(OUTPUT))
     geom=Geometry(str(REPO),route)
     for pose in route['poses'].values():
         if pose['lanelet_id'] in EDIT_LANES:
             pose['lanelet_s_m']=round(project(geom.lanes[pose['lanelet_id']][0],pose['x'],pose['y'])[1],6)
     save(conf/'kcity_v87_competition_route.yaml',route)
-    cfg=yaml.safe_load((conf/'competition_route_requester_v86.param.yaml').read_text())
+    cfg=yaml.safe_load((conf/'competition_route_requester.param.yaml').read_text())
     cfg['route_definition_file']='kcity_v87_competition_route.yaml'
     save(conf/'competition_route_requester_v87.param.yaml',cfg)
     mdir=REPO/'base_ws/src/planning_addons/ajounice_planning_integration/config'
