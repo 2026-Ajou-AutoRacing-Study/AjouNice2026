@@ -1,6 +1,8 @@
 # 지도 구간별 3초 / 6초 예측 후보
 
-상태: **OPT-IN / production 기본 OFF**. 기준: 2026-10-24.
+상태: **기존3/6초 시험 기록**. 기준: 2026-10-24.
+후속 사용자·판단팀 승인으로 고주로 Map-CV 8초·지도 부족 시 기존 3초를 선택한다.
+[현재 배포·검증](HIGHWAY_EIGHT_SECOND_HANDOFF.md)을 우선하며 아래의 당시 OFF 결론·6초 수치를 소급 변경하지 않는다.
 운영 계약은 [CURRENT](TRACKING_PREDICTION_CURRENT.md)를 따른다.
 
 ## 의도와 전제

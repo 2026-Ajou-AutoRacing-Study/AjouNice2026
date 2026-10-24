@@ -2,9 +2,56 @@
 
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import yaml
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_highway_eight_second_production_wiring_and_rollback():
+    wrapper = ET.parse(PACKAGE_ROOT / 'launch/tracking_prediction.launch').getroot()
+    defaults = {a.attrib['name']: a.attrib.get('default') for a in wrapper.findall('arg')}
+    assert defaults['prediction_mixed_horizon_enabled'] == 'true'
+    assert defaults['prediction_highway_horizon'] == ''
+    assert defaults['prediction_highway_mode'] == ''
+    forwarded = _included_arguments()
+    assert forwarded['prediction_horizon'] == '$(arg prediction_horizon)'
+    for name in ('prediction_mixed_horizon_enabled', 'prediction_highway_horizon', 'prediction_highway_mode'):
+        assert forwarded[name] == '$(arg ' + name + ')'
+    pipeline = ET.parse(PACKAGE_ROOT / 'launch/object_pipeline.launch').getroot()
+    generic = {a.attrib['name']: a.attrib.get('default') for a in pipeline.findall('arg')}
+    assert generic['prediction_mixed_horizon_enabled'] == 'false'
+    prediction = next(i for i in pipeline.findall('include') if 'object_prediction.launch' in i.attrib['file'])
+    for name in ('prediction_mixed_horizon_enabled', 'prediction_highway_horizon', 'prediction_highway_mode'):
+        assert prediction.find("arg[@name='" + name + "']").attrib['value'] == '$(arg ' + name + ')'
+    leaf = ET.parse(PACKAGE_ROOT / 'launch/object_prediction.launch').getroot()
+    node = next(n for n in leaf.iter('node') if n.attrib['name'] == 'map_based_prediction')
+    assert node.find("param[@name='highway_prediction_horizon']").attrib['value'] == '$(arg prediction_highway_horizon)'
+    assert node.find("param[@name='highway_prediction_mode']").attrib['value'] == '$(arg prediction_highway_mode)'
+    # Ordinary CTRV/fallback objects retain the baseline 3-second horizon.
+    assert leaf.find("arg[@name='prediction_horizon']").attrib['default'] == ''
+    policy = yaml.safe_load((PACKAGE_ROOT / 'config/map_based_prediction.yaml').read_text())
+    assert policy['prediction_horizon'] == 3.0
+    assert policy['highway_prediction_horizon'] == 8.0
+    assert policy['highway_prediction_mode'] == 'native'
+    assert "arg('prediction_horizon') != ''" in node.find("param[@name='prediction_horizon']").attrib['if']
+
+
+def test_integrated_full_stack_and_operating_alias_select_same_mixed_policy():
+    repo = PACKAGE_ROOT.parents[2]
+    launch = ET.parse(repo / 'base_ws/src/planning_addons/ajounice_planning_integration/launch/morai_planning_stack.launch').getroot()
+    expected = {'prediction_horizon': '', 'prediction_mixed_horizon_enabled': 'true',
+                'prediction_highway_horizon': '', 'prediction_highway_mode': ''}
+    include = next(i for i in launch.iter('include') if 'object_pipeline.launch' in i.attrib['file'])
+    for name, value in expected.items():
+        assert launch.find("arg[@name='" + name + "']").attrib['default'] == value
+        assert include.find("arg[@name='" + name + "']").attrib['value'] == '$(arg ' + name + ')'
+    alias = next(line for line in (repo / 'docs/common_alias.txt').read_text().splitlines()
+                 if line.startswith('alias tracking='))
+    assert 'prediction_mixed_horizon_enabled:=true' in alias
+    assert 'prediction_highway_horizon:=' not in alias
+    assert 'prediction_highway_mode:=' not in alias
+    assert 'maximum_tracking_internal_prediction_age_sec:=0.5' in alias
 
 
 def test_observation_consistency_candidates_are_explicit_and_default_off():
@@ -48,7 +95,7 @@ def test_production_tracking_and_prediction_values_are_explicit():
         "force_unknown_stationary": "true",
         "prediction_model": "map_based",
         "prediction_time_step": "0.1",
-        "prediction_horizon": "3.0",
+        "prediction_horizon": "$(arg prediction_horizon)",
     }
     for name, value in expected.items():
         assert arguments.get(name) == value, (name, arguments.get(name))

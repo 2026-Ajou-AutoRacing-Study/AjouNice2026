@@ -1,3 +1,11 @@
+## Prediction durations (seconds). Restart tracking after editing.
+## Baseline: rotary/general and ALL kinematic fallback paths.
+prediction_horizon: 3.0
+## Highway: only complete Map-CV paths use this longer duration.
+highway_prediction_horizon: 8.0
+highway_prediction_mode: native
+prediction_time_step: 0.1
+
 maximum_lane_distance_m: 3.0
 maximum_lane_yaw_error_rad: 0.7853981634
 lane_distance_sigma_m: 0.75

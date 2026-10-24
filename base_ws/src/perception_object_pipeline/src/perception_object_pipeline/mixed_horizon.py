@@ -1,9 +1,9 @@
-"""Optional, conservative highway horizon eligibility without ROS dependencies.
+"""Map-based highway horizon eligibility without ROS dependencies.
 
-The existing map prediction is always the baseline.  This module only decides
-whether a track may request an extension; it never creates, deletes, reorders or
-changes a trajectory.  The caller must also reject an extension that leaves the
-eligible lanelets, and retain the complete baseline if extension fails.
+This module decides where the requested highway policy applies; trajectory
+generation and fallback remain owned by the caller. Legacy append experiments
+require every route lanelet to be highway. Native long-horizon prediction can
+classify the current start lanelet only, without constraining future branches.
 
 ``speed_limit=150`` is this map's geographic highway marker, NOT an estimate or
 requirement for the NPC's speed.  No historical lanelet IDs are embedded here.
@@ -18,6 +18,45 @@ import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable, Optional
+
+
+# Keep the current pose plus future samples within the upstream Autoware
+# PredictedPath capacity even though this ROS1 port exposes an unbounded array.
+# This also bounds allocation before a ROS parameter can become a horizon list.
+MAX_PREDICTED_PATH_POSES = 100
+
+
+def build_highway_horizons(base_horizons, time_step, highway_prediction_horizon):
+    """Build a bounded uniform highway horizon, or reject the optional mode.
+
+    The ordinary predictor is not reconfigured here.  The caller catches a bad
+    optional value and keeps its existing baseline, rather than refusing to
+    start.  Exact baseline samples matter: recomputing its first three seconds
+    at a different resolution would violate the wire-prefix contract.
+    """
+
+    if isinstance(time_step, bool) or isinstance(highway_prediction_horizon, bool):
+        raise ValueError("mixed highway horizon/time step must be numeric")
+    try:
+        step = float(time_step)
+        horizon = float(highway_prediction_horizon)
+        base = tuple(base_horizons)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("mixed highway horizon/time step must be numeric") from error
+    if not math.isfinite(step) or not math.isclose(step, 0.1, abs_tol=1.e-9):
+        raise ValueError("mixed highway extension requires a 0.1s time step")
+    expected_base = tuple(step * index for index in range(1, len(base) + 1))
+    if not base or base != expected_base:
+        raise ValueError("mixed highway extension requires a uniform positive baseline")
+    maximum_horizon = step * (MAX_PREDICTED_PATH_POSES - 1)
+    if (not math.isfinite(horizon) or horizon <= base[-1]
+            or horizon > maximum_horizon + 1.e-6):
+        raise ValueError("mixed highway horizon must exceed baseline and fit within 100 poses")
+    count = int(round(horizon / step))
+    if (count <= len(base) or count + 1 > MAX_PREDICTED_PATH_POSES
+            or abs(count * step - horizon) > 1.e-6):
+        raise ValueError("mixed highway horizon must be an integer 0.1s step within 100 poses")
+    return tuple(step * index for index in range(1, count + 1))
 
 
 @dataclass(frozen=True)
@@ -69,7 +108,7 @@ def _is_highway_record(record) -> bool:
 
 
 class MixedHorizonSelector:
-    """Require unambiguous highway baseline routes and stable track identity.
+    """Require unambiguous highway map context and stable track identity.
 
     Construct once for an immutable ``LaneletNetwork``.  Optional map metadata
     being absent is a usable, all-baseline mode, not a startup error.  The node
@@ -77,10 +116,16 @@ class MixedHorizonSelector:
     disappearance immediately resets entry history.  Lazy expiration in
     ``decide`` also bounds state when that convenience call is unavailable.
 
-    Entry confirmation takes 0.5 seconds by default.  Leaving the highway,
-    unknown/ambiguous routes, a timestamp jump, disappearance, a two-second gap,
-    or an implausible position jump removes confirmation immediately.  No exit
-    hold can keep a six-second path alive outside the highway region.
+    ``current_lanelet_only`` uses the original start lanelet of every candidate
+    for native long-horizon prediction. Future branches or non-highway successors
+    do not shorten that prediction. The default retains append-only research's
+    stricter all-route eligibility rule.
+
+    Entry confirmation takes 0.5 seconds by default for legacy callers. The
+    production native caller selects 0.0 seconds: "highway confirmed" then means
+    current map classification, not a new observation-count/time gate. Leaving
+    the current highway region, unknown/ambiguous map context, a timestamp jump,
+    disappearance or an implausible position jump removes history immediately.
     """
 
     def __init__(
@@ -90,10 +135,14 @@ class MixedHorizonSelector:
         state_timeout_sec: float = 2.0,
         maximum_tracks: int = 512,
         minimum_speed_mps: float = 0.5,
+        current_lanelet_only: bool = False,
     ):
         self.entry_confirm_sec = float(entry_confirm_sec)
         self.state_timeout_sec = float(state_timeout_sec)
         self.minimum_speed_mps = float(minimum_speed_mps)
+        if not isinstance(current_lanelet_only, bool):
+            raise ValueError("current_lanelet_only must be boolean")
+        self.current_lanelet_only = current_lanelet_only
         if not (
             math.isfinite(self.entry_confirm_sec) and self.entry_confirm_sec >= 0.0
             and math.isfinite(self.state_timeout_sec) and self.state_timeout_sec > 0.0
@@ -211,8 +260,10 @@ class MixedHorizonSelector:
     def _ineligible_reason(self, speed_mps: float, baseline_paths) -> Optional[str]:
         if not self.metadata_available:
             return "map_metadata_unavailable"
-        # Negative/reversing vehicles do not use the forward-lane map predictor.
-        if speed_mps < self.minimum_speed_mps:
+        # Legacy append only extends a moving forward Map-CV route. Native
+        # coverage is geographic: a stopped, slow or reversing vehicle can
+        # retain the long horizon using the existing signed CTRV fallback.
+        if not self.current_lanelet_only and speed_mps < self.minimum_speed_mps:
             return "low_or_reverse_speed"
         try:
             paths = tuple(baseline_paths)
@@ -222,6 +273,8 @@ class MixedHorizonSelector:
                 lanelet_ids = tuple(int(value) for value in path.lanelet_ids)
                 if not lanelet_ids:
                     return "missing_route_lanelets"
+                if self.current_lanelet_only:
+                    lanelet_ids = lanelet_ids[:1]
                 if any(value not in self._known_lanelet_ids for value in lanelet_ids):
                     return "route_unknown_lanelet"
                 if any(value not in self.highway_lanelet_ids for value in lanelet_ids):

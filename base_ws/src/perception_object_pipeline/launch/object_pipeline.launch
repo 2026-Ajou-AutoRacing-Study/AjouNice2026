@@ -18,8 +18,10 @@
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="prediction_time_step" default="0.1"/>
-  <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_horizon" default=""/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
   <arg name="publish_processing_diagnostics" default="false"/>
   <arg name="publish_association_diagnostics" default="false"/>
   <arg name="diagnostics_auto_on_subscribe" default="true"/>
@@ -337,6 +339,8 @@
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
     <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+    <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+    <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
     <arg name="publish_processing_diagnostics" value="$(arg publish_processing_diagnostics)"/>
     <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>

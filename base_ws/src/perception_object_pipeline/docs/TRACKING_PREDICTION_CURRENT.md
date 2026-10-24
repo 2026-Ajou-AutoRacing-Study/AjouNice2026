@@ -48,7 +48,7 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 | 항목 | 현재 계약 |
 |---|---|
 | Map | `kcity_map/lanelet_map/lanelet2_map_v85.osm` 기본. 실제 `map_file` override도 확인 |
-| Horizon | **로터리 3초 / 고주로 3초**, step 0.1s, 현재 pose 포함 31개 |
+| Horizon | **로터리/일반 3초·지도 경로가 충분한 고주로 Map-CV 8초**. 부족하면 기존 Map-CV/CTRV 3초. step 0.1s, 현재 pose 포함 31/81개 |
 | Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
 | 경로 | start lanelet 최대 3개, 최종 path 최대 6개, centerline lateral convergence 1.5s |
 | 중복 hypothesis | 같은 downstream lanelet·전체 horizon 0.75m 이내 경로를 하나로 묶음 |
@@ -62,9 +62,10 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다.
 실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
 
-## 기본 OFF 후보와 미승격 경계
+## 승격 범위와 기본 OFF 후보
 
-- 사용자 결정(2026-10-24): 판단 정책이 안정될 때까지 3초/3초 유지. [Mixed/native horizon](MIXED_PREDICTION_HORIZON.md)의 mixed 3/6초·native 6/6초는 연구/명시적 시험이며 `prediction_mixed_horizon_enabled=false`다. 추가 live 시험을 자동 재개하지 않는다.
+- 사용자·판단팀 승인(2026-10-24): 고주로 native Map-CV 8초, 지도 길이가 부족하면 기존 3초를 보존한다. 갈림길 자체는 8초 후보로 계산하며 CTRV 8초·직선 연장은 사용하지 않는다. 시간은 `config/map_based_prediction.yaml`에서 바꾼다. 코드 설치·tracking 재시작이 적용 경계이며 live stack은 자동 재시작하지 않는다. [설정·근거](HIGHWAY_EIGHT_SECOND_HANDOFF.md)를 따른다.
+- Map8 부재 85개 객체-프레임은 모두 v87 우측 소멸차선의 `following` 종단 때문이었다. Map3는 가능하나 Map8에 필요한 길이가 부족하며, 현재 그래프는 옆 차로로 합류하는 연결을 쓰지 않는다. CTRV 전환의 첫 3초 위치 차이가 최대 38.27m여서 자동 장기 대체를 승격하지 않는다. 기존 3/6초 시험은 [당시 기록](MIXED_PREDICTION_HORIZON.md)에 보존한다.
 - [관측 일관성 후보](OBSERVATION_CONSISTENCY_REVIEW.md)의 `shape_consistent_association_ranking=false`, `guard_inconsistent_class_transitions=false`를 유지한다. [실제 ROS·Cruise 확인](OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)은 LC·로터리·최종 제어 폐루프 인증이 아니다.
 - 긴 coasting 0.75/1/2초, mature 차량 전용 확대, 빠른 차량 승격, 저점수 EKF 갱신, 초기 방향 guard, 재취득 공분산/reset, lane history·횡이동 순위 후보는 운영 미적용이다.
 - 저장 검출 재생·실제 코어·격리 ROS·새 bag·실제 LAN·planner 폐루프를 서로 대체하지 않는다. E12 코어 결과를 새 TRT ROS 30Hz 인증으로 전용하지 않는다.

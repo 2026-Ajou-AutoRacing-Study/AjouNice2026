@@ -129,6 +129,30 @@ def prediction_horizon(stack):
     return horizon
 
 
+def prediction_highway_horizon(stack):
+    """Explicit mixed-mode suffix, bounded to the 100-pose wire budget."""
+    value = stack.get('prediction_highway_horizon', 8.0)
+    label = 'stack.prediction_highway_horizon'
+    if type(value) not in (int, float):
+        raise ConfigError('{}은 3.1~9.9초의 숫자여야 합니다'.format(label))
+    try:
+        horizon = float(value)
+    except OverflowError as error:
+        raise ConfigError('{}은 유한한 숫자여야 합니다'.format(label)) from error
+    if (not math.isfinite(horizon) or not 3.1 <= horizon <= 9.9 or
+            not math.isclose(horizon * 10.0, round(horizon * 10.0), rel_tol=0.0, abs_tol=1e-8)):
+        raise ConfigError('{}은 3.1~9.9초, 0.1초 단위여야 합니다'.format(label))
+    return horizon
+
+
+def prediction_highway_mode(stack):
+    """Keep historical campaigns append-only; production native mode is explicit."""
+    value = stack.get('prediction_highway_mode', 'append')
+    if value not in ('append', 'native'):
+        raise ConfigError('stack.prediction_highway_mode는 append/native여야 합니다')
+    return value
+
+
 def validate_campaign_document(document, *, allow_legacy=False):
     """Structural checks for GUI opening too; no ROS/filesystem prerequisites."""
     if not isinstance(document, dict):
@@ -148,6 +172,8 @@ def validate_campaign_document(document, *, allow_legacy=False):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
     prediction_mixed_horizon_enabled(document['stack'])
     prediction_horizon(document['stack'])
+    prediction_highway_horizon(document['stack'])
+    prediction_highway_mode(document['stack'])
     try:
         selected_model(document['stack'])
         normalize_localization_launch_args(document['stack'], check_paths=False)

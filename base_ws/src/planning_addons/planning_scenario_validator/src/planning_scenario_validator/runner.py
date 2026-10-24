@@ -17,7 +17,8 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolve_path,
-                     prediction_horizon, prediction_mixed_horizon_enabled)
+                     prediction_horizon, prediction_mixed_horizon_enabled,
+                     prediction_highway_horizon, prediction_highway_mode)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import runtime_mode, runtime_settings
@@ -195,6 +196,8 @@ def _start_case_stack(cfg, processes, monitor):
         start_detector=False, prediction_model="map_based",
         prediction_horizon=prediction_horizon(stack),
         prediction_mixed_horizon_enabled=prediction_mixed_horizon_enabled(stack),
+        prediction_highway_horizon=prediction_highway_horizon(stack),
+        prediction_highway_mode=prediction_highway_mode(stack),
         publish_processing_diagnostics=diagnostics_enabled(cfg.get('recording', {})),
         maximum_tracking_internal_prediction_age_sec=0.5))
     if stack.get("traffic_light", False):

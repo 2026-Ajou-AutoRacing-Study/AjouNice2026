@@ -13,7 +13,7 @@ sys.path.insert(0, str(PACKAGE / 'src'))
 from planning_scenario_validator import executions, runner
 from planning_scenario_validator.config import (
     ConfigError, load_campaign, prediction_horizon, prediction_mixed_horizon_enabled,
-    validate_campaign_document,
+    validate_campaign_document, prediction_highway_horizon, prediction_highway_mode,
 )
 
 
@@ -49,6 +49,59 @@ class PredictionCandidateTests(unittest.TestCase):
                 self.document['stack']['prediction_horizon'] = value
                 validate_campaign_document(self.document)
                 self.assertEqual(prediction_horizon(self.document['stack']), float(value))
+
+    def test_highway_horizon_defaults_to_eight_without_enabling_old_campaigns(self):
+        before = copy.deepcopy(self.document)
+        self.assertEqual(prediction_highway_horizon(self.document['stack']), 8.0)
+        self.assertFalse(prediction_mixed_horizon_enabled(self.document['stack']))
+        self.assertEqual(prediction_highway_mode(self.document['stack']), 'append')
+        self.assertEqual(before, self.document)
+
+    def test_highway_mode_requires_an_explicit_known_strategy(self):
+        for value in ('append', 'native'):
+            self.document['stack']['prediction_highway_mode'] = value
+            validate_campaign_document(self.document)
+            self.assertEqual(prediction_highway_mode(self.document['stack']), value)
+        for value in (None, True, 0, [], {}, 'auto', 'Native'):
+            with self.subTest(value=value):
+                self.document['stack']['prediction_highway_mode'] = value
+                with self.assertRaisesRegex(ConfigError, 'prediction_highway_mode'):
+                    validate_campaign_document(self.document)
+
+    def test_highway_horizon_is_bounded_to_valid_message_length(self):
+        for value in (3.1, 6, 8.0, 9.9):
+            self.document['stack']['prediction_highway_horizon'] = value
+            validate_campaign_document(self.document)
+            self.assertEqual(prediction_highway_horizon(self.document['stack']), value)
+        for value in (None, True, '8', 3, 8.05, 10, float('nan'), float('inf'), 10**1000):
+            with self.subTest(value=value):
+                self.document['stack']['prediction_highway_horizon'] = value
+                with self.assertRaisesRegex(ConfigError, 'prediction_highway_horizon'):
+                    validate_campaign_document(self.document)
+
+    def test_mixed_eight_second_choice_reaches_launch_and_survives_snapshot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'candidate.yaml'
+            self.document['stack'].update(prediction_mixed_horizon_enabled=True,
+                                           prediction_highway_horizon=8.0,
+                                           prediction_highway_mode='native')
+            self.document['scenarios']['include'] = ['high_baseline_01.json']
+            self.document['output_root'] = str(Path(temporary) / 'results')
+            path.write_text(yaml.safe_dump(self.document))
+            cfg = load_campaign(path, check_install=False)
+            processes, monitor = Mock(), Mock()
+            runner._start_case_stack(cfg, processes, monitor)
+            command = next(c.args[1] for c in processes.start.call_args_list if c.args[0] == 'tracking')
+            self.assertIn('prediction_mixed_horizon_enabled:=true', command)
+            self.assertIn('prediction_highway_horizon:=8.0', command)
+            self.assertIn('prediction_highway_mode:=native', command)
+            self.assertIn('prediction_horizon:=3.0', command)
+            prepared = executions.prepare_execution(path, check_install=False)
+            self.document['stack']['prediction_highway_horizon'] = 6.0
+            path.write_text(yaml.safe_dump(self.document))
+            resumed = executions.load_execution(prepared['output'], check_install=False)
+            self.assertEqual(prediction_highway_horizon(resumed['stack']), 8.0)
+            self.assertEqual(prediction_highway_mode(resumed['stack']), 'native')
 
     def test_invalid_native_horizons_rejected_before_loading_or_driving(self):
         for value in (None, True, False, '3', '6.0', [], {}, 0, -1,

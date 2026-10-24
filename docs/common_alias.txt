@@ -60,7 +60,7 @@ alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_RO
 alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
 # Retain measurement timestamps; bound predicted age independently of detector Hz.
 # Host-specific latency measurements belong in evidence, not this runtime alias.
-alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5'
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5 prediction_mixed_horizon_enabled:=true'
 alias od_gt='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline morai_gt_detection.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
 

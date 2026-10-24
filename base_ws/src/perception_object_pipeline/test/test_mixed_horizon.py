@@ -18,6 +18,7 @@ _POLICY = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _POLICY
 _SPEC.loader.exec_module(_POLICY)
 MixedHorizonSelector = _POLICY.MixedHorizonSelector
+build_highway_horizons = _POLICY.build_highway_horizons
 
 
 def uuid(value=1):
@@ -35,6 +36,46 @@ def network():
         201: SimpleNamespace(attributes=(("speed_limit", "50"),)),
         202: SimpleNamespace(attributes=()),
     })
+
+
+class HighwayHorizonConfigurationTest(unittest.TestCase):
+    BASE = tuple(.1 * index for index in range(1, 31))
+
+    def test_eight_seconds_is_80_future_samples_with_exact_baseline_prefix(self):
+        result = build_highway_horizons(self.BASE, .1, 8.)
+        self.assertEqual(len(result), 80)
+        self.assertEqual(result[-1], 8.)
+        self.assertEqual(result[:30], self.BASE)
+
+    def test_six_seconds_remains_compatible(self):
+        result = build_highway_horizons(self.BASE, .1, 6.)
+        self.assertEqual(result, tuple(.1 * index for index in range(1, 61)))
+
+    def test_wire_capacity_includes_current_pose(self):
+        result = build_highway_horizons(self.BASE, .1, 9.9)
+        self.assertEqual(len(result) + 1, _POLICY.MAX_PREDICTED_PATH_POSES)
+        with self.assertRaises(ValueError):
+            build_highway_horizons(self.BASE, .1, 10.)
+
+    def test_invalid_horizon_is_rejected_before_unbounded_allocation(self):
+        for value in (None, 'invalid', True, False, [], math.nan, math.inf,
+                      -math.inf, -8., 0., 2.9, 3., 3.01, 8.05, 1.e308):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                build_highway_horizons(self.BASE, .1, value)
+
+    def test_different_baseline_or_step_cannot_silently_change_prefix(self):
+        for base, step in ((self.BASE, .2), (self.BASE, math.nan),
+                           (self.BASE, True), (self.BASE[:-1] + (3.05,), .1),
+                           (None, .1), (tuple(range(1, 31)), .1)):
+            with self.subTest(base=base, step=step), self.assertRaises(ValueError):
+                build_highway_horizons(base, step, 8.)
+
+    def test_configurable_rotary_baseline_four_and_six_seconds(self):
+        for seconds in (4., 6.):
+            base = tuple(.1 * i for i in range(1, int(seconds * 10) + 1))
+            result = build_highway_horizons(base, .1, 8.)
+            self.assertEqual(result[:len(base)], base)
+            self.assertEqual(result[-1], 8.)
 
 
 class MixedHorizonSelectorTest(unittest.TestCase):
@@ -81,6 +122,31 @@ class MixedHorizonSelectorTest(unittest.TestCase):
                 self.assertFalse(decision.extend)
                 self.assertEqual(decision.reason, reason)
         self.assertTrue(self.decide(selector, paths=[path(101), path(102)]).extend)
+
+    def test_native_current_lane_scope_ignores_future_region_and_unknown_successor(self):
+        selector = MixedHorizonSelector(network(), entry_confirm_sec=0., current_lanelet_only=True)
+        for paths in ([path(101, 201)], [path(101, 999)], [path(101, 201), path(102, 202)]):
+            with self.subTest(paths=paths):
+                self.assertTrue(self.decide(selector, paths=paths).extend)
+        self.assertFalse(self.decide(selector, paths=[path(201, 101)]).extend)
+        self.assertFalse(self.decide(selector, paths=[path(101), path(201)]).extend)
+        self.assertFalse(self.decide(selector, paths=[path(999, 101)]).extend)
+
+    def test_native_current_lane_scope_still_requires_identity_and_confirmation(self):
+        selector = MixedHorizonSelector(network(), current_lanelet_only=True)
+        self.assertFalse(self.decide(selector, 10., paths=[path(101, 201)]).extend)
+        self.assertTrue(self.decide(selector, 10.5, paths=[path(101, 201)]).extend)
+        self.assertFalse(self.decide(selector, 10.6, paths=[path(201, 101)]).extend)
+        self.assertFalse(self.decide(selector, 10.7, paths=[path(101)]).extend)
+        self.assertFalse(self.decide(selector, 11.2, ident=bytes(16)).extend)
+
+    def test_native_geographic_coverage_does_not_require_forward_motion(self):
+        native = MixedHorizonSelector(network(), entry_confirm_sec=0., current_lanelet_only=True)
+        append = MixedHorizonSelector(network(), entry_confirm_sec=0.)
+        for speed in (0., .1, .49, -10.):
+            with self.subTest(speed=speed):
+                self.assertTrue(self.decide(native, speed=speed).extend)
+                self.assertFalse(self.decide(append, speed=speed).extend)
 
     def test_entry_waits_half_second_and_exit_is_immediate(self):
         selector = MixedHorizonSelector(network())
@@ -185,7 +251,7 @@ class MixedHorizonSelectorTest(unittest.TestCase):
     def test_configuration_validation_does_not_allow_unbounded_cache(self):
         for kwargs in ({"maximum_tracks": 0}, {"maximum_tracks": 2.5},
                        {"entry_confirm_sec": -1.0}, {"state_timeout_sec": 0.0},
-                       {"minimum_speed_mps": float("nan")}):
+                       {"minimum_speed_mps": float("nan")}, {"current_lanelet_only": 'native'}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 MixedHorizonSelector(network(), **kwargs)
 
