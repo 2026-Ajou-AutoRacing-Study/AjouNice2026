@@ -1,5 +1,28 @@
 # 시나리오 검증기 짧은 사용법
 
+## LAN ↔ LAN Ego Network
+
+`config/internal/generated/ego_network_validator_lan.json`은 competition LAN 프로파일의
+다른 항목을 유지하고 PUBSUB_TYPE 783만 validator의 UDP ScenarioLoad 9095→9096으로 교체한다.
+기본 주소는 MORAI `192.168.0.1`, ROS PC `192.168.0.10`이다. Local 프로파일은 바꾸지 않는다.
+미션별 `base/example_lan.yaml`을 workspace로 복사하면 Sensor/Ego Network LAN 경로와
+ScenarioLoad IP가 함께 지정된다. 기존 example.yaml과 개인 local YAML은 변경하지 않는다.
+
+주소가 다르면 저장소 루트에서 다음으로 생성한다. Sensor JSON은 별도이므로 같은 주소로 맞춘다.
+
+```bash
+python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/generate_network_profile.py \
+  --lan --morai-ip 192.168.0.1 --ros-ip 192.168.0.10 --no-install
+```
+
+개인 YAML의 `network.ego_network_json`에 위 파일의 저장소 상대경로,
+`network.sensor_json`에 `configs/sensors/Sensor_competition_lan.json`,
+`morai.scenario_load_host`에 MORAI IP를 넣는다. 수정 JSON을 MORAI GUI에도 Load/Connect하고
+새 실험을 시작한다. ROS 노드는 ROS PC 안에서만 실행한다면 loopback 설정을 유지한다.
+원격 자동 로드는 IP 외에도 MORAI의 Scenario 폴더 공유/마운트가 필요하다.
+`morai.scenario_install_dir`을 그 마운트 경로로 지정해야 생성된 JSON과 EgoNetwork sidecar가
+MORAI PC에 실제로 전달된다. 네트워크 프로파일 생성만으로 원격 파일 전달은 지원하지 않는다.
+
 ## 측위 에이전트의 GPS 음영 A/B (2026-10-14)
 
 GUI 녹화 모드에 **측위 분석 (센서 원본 제외)**를 추가했습니다. GNSS·IMU·Competition·
