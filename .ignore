@@ -1,0 +1,14 @@
+# Search/context discovery only. These files remain tracked and explicitly readable.
+**/legacy/**
+docs/bevfusion/evidence/**
+perception/pointpainting/**
+perception/detection3d/fastbev/**
+base_ws/src/morai_pointpainting_ros/**
+base_ws/src/morai_fastbev_ros/**
+tools/segmentation/**
+# Required historical mirrors/provider inputs: keep their paths, hide as choices.
+configs/sensors/Sensor.json
+configs/sensors/Sensor_[0-9]*.json
+configs/network/ego_network_[0-9]*.json
+configs/network/ego_network_local.json
+configs/network/ego_network_mr_minimal_hybrid.json

@@ -1,0 +1,3567 @@
+{
+  "schema": "context_archive_v1",
+  "date": "2026-10-24",
+  "policy": "Byte-preserving archive; restore original Git paths for historical execution.",
+  "records": [
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/assets/kcity_v67_competition_intersections.svg",
+      "archive_path": "kcity_map/legacy/reports/assets/kcity_v67_competition_intersections.svg",
+      "sha256": "b4b8856b5c4ac96b33e8c8a44a98ce6c225921aee6079a3afb8d825b2b7aa7d0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/assets/kcity_v67_competition_intersections_detail.svg",
+      "archive_path": "kcity_map/legacy/reports/assets/kcity_v67_competition_intersections_detail.svg",
+      "sha256": "201cd7fb69ca033583bc17ebbfe875cc654324e2382b912b6aae657e418f0283",
+      "operation": "copy_for_protected_reference",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/assets/kcity_v68_roundabout.png",
+      "archive_path": "kcity_map/legacy/reports/assets/kcity_v68_roundabout.png",
+      "sha256": "ec774ad683bebcee41a5517c24932c6bec7b916b88c16566a1f6cbd7d1390385",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/assets/kcity_v68_roundabout.svg",
+      "archive_path": "kcity_map/legacy/reports/assets/kcity_v68_roundabout.svg",
+      "sha256": "c11b628d0afdb5f8e659d8429cb93a1560af541c699b028887f47fd910f38853",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v66_validation_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v66_validation_report.md",
+      "sha256": "ac3e1733f016e90cff6bd2f3dabeabe99175f8c3766a25954f384945c3d7b592",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v67_intersection_speed_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v67_intersection_speed_report.md",
+      "sha256": "f2666de7b87fac77a0830eee9dba6e4c99a99c69e0aa005c1dc10850e48a6989",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v68_roundabout_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v68_roundabout_report.json",
+      "sha256": "a561cfda6ed1b923fd2f8851298421f427f8f83c1dccf44facd3226651284f0c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v68_roundabout_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v68_roundabout_report.md",
+      "sha256": "050559a6a15e53ce3c78a73512a7cc9b37987f2b8f3897a64ae18d4a365f2cc0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v69_speed_policy_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v69_speed_policy_report.json",
+      "sha256": "6bc67bf2741c34812e68b8982c424c89b94b6ed95627e5b1b071ec2d210b98b2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v69_speed_policy_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v69_speed_policy_report.md",
+      "sha256": "f70c87edb342ad4c52acae69485fe5ba58a0804ab3a60960290af137e126df03",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v70_highway_buffer_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v70_highway_buffer_report.json",
+      "sha256": "e673de947fe8f033b922e6ad50c7d676caea0b1d4996ec128f8ae25babb83ce3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v70_highway_buffer_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v70_highway_buffer_report.md",
+      "sha256": "c8366fafd4d73d8152775f89942317a3527b89ce3e968eb366a7b4711d582686",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v71_compaction_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v71_compaction_report.json",
+      "sha256": "5394ba869bcba38e5adf82d091bf637ee1edfd652efb2dc7a551179a43202833",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v71_compaction_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v71_compaction_report.md",
+      "sha256": "7a59d8cb3bba8f59ebbf60c896f2ca8401f539d08279bebf69451d899a1da761",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v72_speed_update_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v72_speed_update_report.json",
+      "sha256": "fd0aaf41af2790ba74dc94c152a7f92723f1ad5df5c9c570d2a3b31ebe3ac022",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v72_speed_update_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v72_speed_update_report.md",
+      "sha256": "55f1d981833a3fa5fbfaabda43b92f73e7e51cee1a219916fdde9831d127f9a9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v73_highway_lane_change_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v73_highway_lane_change_report.json",
+      "sha256": "90584269e98312f85ff039a03b758b55f56c931ad03edd360ef980b9f007666e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v73_highway_lane_change_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v73_highway_lane_change_report.md",
+      "sha256": "33f1f2d115d63a28fe0056179cac6c4910aaf70003592cf085a24d0154a12cde",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v73_route_drivable_policy_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v73_route_drivable_policy_report.md",
+      "sha256": "0978276a8058ea668d5747be9daf8f8e3abbd24d40cfb22584a32a71ac4786c8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v74_drivable_lanes_report.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v74_drivable_lanes_report.json",
+      "sha256": "0ebf141328f4b317e85d66325784acae9643939648c44ff6b5b3cb409fcd9de2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v74_drivable_lanes_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v74_drivable_lanes_report.md",
+      "sha256": "dd0a31297452836fb49941ba85e0d14bdb03a6ce7423636b7cf03c2be2fcca57",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v74_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v74_validation.json",
+      "sha256": "d641f9887f5684562f57f5b730fb8673bbc6b85431ed6474628d5350f6b0eef8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v75_merge_corridors.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v75_merge_corridors.json",
+      "sha256": "177ba6ff80a1354dbf0ca13bbf5b3187507f94951c4d1fa01b4f14d45037ba5a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v75_merge_corridors_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v75_merge_corridors_report.md",
+      "sha256": "86dc3d7e1c4cf68b4da9aad144fdf729cdef81dd9a6bebd9fb5ee83904cde79d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v75_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v75_validation.json",
+      "sha256": "98ea1c7464c72decd9a62f15b0a855b8b2b65f6adc2ae6905c0efbd4c3c60cea",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v76_highway_lc_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v76_highway_lc_build.json",
+      "sha256": "aa5a4935f0467c4b4c2cc59cf50007d30438e38b1375c1ff94f443b853e01859",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v76_highway_lc_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v76_highway_lc_report.md",
+      "sha256": "075962fab3c412b7c63d1300640781cf63c4f2217763cce16a9c4be7dc8fd404",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v76_highway_lc_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v76_highway_lc_validation.json",
+      "sha256": "833623f69267b5e2817ed671fce4aa902cb71c7c8516b654101519741528df66",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v76_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v76_speed_rule_audit.json",
+      "sha256": "e8eb6cc98dc446e1df4a1b2befd018a5357d333f6b5d4bef2e45aee7a57e0065",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v77_highway_geometry_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v77_highway_geometry_build.json",
+      "sha256": "5adf20bd5fecfc947b1c5ffca8fe49660e626b11c3905f3d962d8f431fa743ba",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v77_highway_geometry_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v77_highway_geometry_report.md",
+      "sha256": "dd7a7f8457ae722973c67e5965c393fd0f259e9e56dd278be74714183476fa09",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v77_highway_geometry_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v77_highway_geometry_validation.json",
+      "sha256": "e84d7a2eeda35af3a1a4f80b5f88d4ef1341dc6eeae52abf3711d0f0fa6ec1bb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v77_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v77_speed_rule_audit.json",
+      "sha256": "2f965f99db54b8f23ea6ab4a630070b0168d2783a3120e132c9218c6c6d263d9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v78_highway_geometry_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v78_highway_geometry_validation.json",
+      "sha256": "feec1048274e97f7520ba78be8ae3572b0fc03ac7a561427c839e3577255913a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v78_obsolete_geometry_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v78_obsolete_geometry_build.json",
+      "sha256": "df79e39684d74a81833cb315ef06a497ad14b0381368509381334a12ae6e0873",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v78_obsolete_geometry_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v78_obsolete_geometry_report.md",
+      "sha256": "e89c4a4ac0745cd689f705514cfca269299901002a9104982b9261d29486fc94",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v78_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v78_speed_rule_audit.json",
+      "sha256": "34018d20bc524a843e64fdd31fd0bdaeed926d5476e390189aa184b08a465cc9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v79_bottleneck_cleanup_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v79_bottleneck_cleanup_build.json",
+      "sha256": "a93cfa65d60f6df30eab3e13c1efb4dfd621d4d60396f50ee60edc7442d70e00",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v79_bottleneck_cleanup_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v79_bottleneck_cleanup_report.md",
+      "sha256": "f3233e0cc3528f6721f049e9b6d632ca90092af318197d63f6231ccc4b2f0817",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v79_highway_geometry_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v79_highway_geometry_validation.json",
+      "sha256": "91d6ccf1dd8c33c5e3a84b4eed914ff4aea055086adef32d59abcd151c6bf79a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v79_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v79_speed_rule_audit.json",
+      "sha256": "6a57e8113a9a270df6426d2b57ae12623e9c6143835831a17d3c90a7feb773d8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v80_bottleneck_geometry_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v80_bottleneck_geometry_build.json",
+      "sha256": "c4ad7477ddf006006bfddea397747dc0dea1a4d819b3dde48b36565ee8cef7e0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v80_bottleneck_geometry_report.md",
+      "archive_path": "kcity_map/legacy/reports/kcity_v80_bottleneck_geometry_report.md",
+      "sha256": "c269fbd9c7cedca08df4871bc55295db7195f2d61ac769884de640ca9924fd98",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v80_bottleneck_geometry_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v80_bottleneck_geometry_validation.json",
+      "sha256": "c528c1d6df612a44071a50d87519b5b0cfc086187111a63cf0e899fed31ea3dd",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v80_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v80_speed_rule_audit.json",
+      "sha256": "e40a23a4aaa6f30be5040c84370648737ea4e44f4e5d8bf7427e990a893618b7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v81_mid_bottleneck_lc_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v81_mid_bottleneck_lc_build.json",
+      "sha256": "b65750a76b9cf137f1bd99b9cbb752719b5539ad74af9eb3ba0598351af7f475",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v81_mid_bottleneck_lc_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v81_mid_bottleneck_lc_validation.json",
+      "sha256": "7a69ac333a87efb48d00deac9a0ce81650a1c80443e05f4684b2295424fbbba0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v81_speed_rule_audit.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v81_speed_rule_audit.json",
+      "sha256": "01b801932f73646adc3be4e9cecd5150b91d4eb7d2560d426bd9406048a756e2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v82_intersection_104158_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v82_intersection_104158_build.json",
+      "sha256": "c81ccd9f989dd9029ff4df8beb540e37b1bf11e7cbde4dc22768a0a285aa0b5f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v82_intersection_104158_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v82_intersection_104158_validation.json",
+      "sha256": "456c4fbea88b0f78942732b55ef8445341086fc3aa7025cb0ca3729140b8dce1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v83_lanelet_200291_intersection_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v83_lanelet_200291_intersection_build.json",
+      "sha256": "e3d688612b3a008f14869f279320accaf45dcab2c8403f40cc379215539d136c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v83_lanelet_200291_intersection_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v83_lanelet_200291_intersection_validation.json",
+      "sha256": "5da6a8e11bc29ea7424b64e92ce70c1fac045dbad0fd1a0668093e41a0e134de",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v84_restore_intersection_104158_caps_build.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v84_restore_intersection_104158_caps_build.json",
+      "sha256": "f47fb93f59b4af14dee313dc2207bd2a33f8cb9f49f9f2c9a5c58c4cabda88e8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/docs/kcity_v84_restore_intersection_104158_caps_validation.json",
+      "archive_path": "kcity_map/legacy/reports/kcity_v84_restore_intersection_104158_caps_validation.json",
+      "sha256": "1f86f6808e24c4d166256c7a273df6230ae7d6aa16b618f5601740a40b71be70",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v76_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v76_speed_rule.py",
+      "sha256": "e51e9bae9384a0d519c03693efb18fbccf583b90d402be28b3fd02c639ad8578",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v77_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v77_speed_rule.py",
+      "sha256": "49b331e48caaca0d61ad9466a1102c15566222a967b5c927e9bb9fc7c766e27c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v78_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v78_speed_rule.py",
+      "sha256": "5f33e2a72ef057877766f6d1408523f019ff2289b19269b2bcaa4304c8284c90",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v79_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v79_speed_rule.py",
+      "sha256": "480c849b453613e49e1c5bad2b9acb9af9aec463775fb5a51722f85ff3aa6d9e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v80_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v80_speed_rule.py",
+      "sha256": "1652e3b72cb9c8fcb1c8cab4550552d20d35538f4fefb4fc83fe8c1d1d03f373",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/audit_v81_speed_rule.py",
+      "archive_path": "kcity_map/legacy/version_workflow/audit_v81_speed_rule.py",
+      "sha256": "03480def99bcb8287ca3e53d04b84c328faa04582c515bb6c74a5a3b0fbd039a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v66_validation_fixes.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v66_validation_fixes.py",
+      "sha256": "548b7b508232ce667412f610b32816df59de8407bd12e827e63603770ba926bc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v67_intersection_speed_limits.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v67_intersection_speed_limits.py",
+      "sha256": "0835902c8f7841469cad65e46e8a3ecb482deead38ace523aad7acd9776ce3f9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v68_roundabout.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v68_roundabout.py",
+      "sha256": "e78b98a4f8a96c0b65fd2a2767edc48751ef0ffc9cf9ad4c32dac338dc88217a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v69_speed_policy.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v69_speed_policy.py",
+      "sha256": "14871314d64e09fc2580a307aa96756ecbc98e91025c0a5383ec1d38f4b4e1fe",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v70_highway_buffer.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v70_highway_buffer.py",
+      "sha256": "227feb43f897c160cdb6ec12ba95561231d75d53cd115e8b1f35827c464a8afa",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v71_compact_highway_vmb.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v71_compact_highway_vmb.py",
+      "sha256": "6b8282d64f142d0ee42895f05a689aaadc894e8c2a4186c379aa2ceff27d5848",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v72_raise_58_to_59.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v72_raise_58_to_59.py",
+      "sha256": "8b230f6bd0b2ba659b8919e9340a41e2b453a3b04da69ea3ec1df6c636b9a36b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v73_highway_lane_change.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v73_highway_lane_change.py",
+      "sha256": "56dbaf8e674d74c11bde42de864a2cca63a718f64ccceea8e8c8e51edd15ebaf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v74_drivable_lanes.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v74_drivable_lanes.py",
+      "sha256": "de6889a6c0d0f2b945ff1632de05408ea7beeb03a166f64cbdec3b4236ce51b4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v75_merge_corridors.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v75_merge_corridors.py",
+      "sha256": "060eaff346a8dd34ad651a31e9031e74ff07b66a78bf02dd1f2ddc283a95c92f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v76_highway_lc.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v76_highway_lc.py",
+      "sha256": "dcf5cff259064d6ad6aa37f5ed1030a79c06ce6ea5437fcea1eb52f6b230fdbb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v77_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v77_highway_geometry.py",
+      "sha256": "82fbb838894469b2a69c4fb75c821ab1313d38d452a15c84f782b35ab53075dd",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v78_remove_obsolete_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v78_remove_obsolete_highway_geometry.py",
+      "sha256": "5ae39e9b029d36bce01253eecac730c94b7e5f4aaaee316a715ca45b0e5ca016",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v79_bottleneck_cleanup.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v79_bottleneck_cleanup.py",
+      "sha256": "0df44ca02bea9f4024b3f24c411b3ec5b637753415631551fd3ae96a827e9373",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v80_bottleneck_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v80_bottleneck_geometry.py",
+      "sha256": "b8862d21aa7baeb6bf001665168823d210bceeb0b7795c416306a0501b9df01f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v81_mid_bottleneck_lc.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v81_mid_bottleneck_lc.py",
+      "sha256": "f2e0219797771a818997550b941e7797cfc9178b0a0b544460463d11b2450a15",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v82_extend_intersection_104158.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v82_extend_intersection_104158.py",
+      "sha256": "5fb7d5b052e1210d7af6c1da63be614cf4fd3846925c5d1d237583c7ca2f0dac",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v83_lanelet_200291_intersection.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v83_lanelet_200291_intersection.py",
+      "sha256": "ff0b063954ff340b0eea6a1c4eab96d51a2b38a4397f915dc542ca640f8e5642",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v84_restore_intersection_104158_caps.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v84_restore_intersection_104158_caps.py",
+      "sha256": "c97715706cc2d67c0f645da2c7e20eccefe83bad7ba7ff05dccc8c2781e73b2c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/build_v85_crosswalk_201190_regulatory.py",
+      "archive_path": "kcity_map/legacy/version_workflow/build_v85_crosswalk_201190_regulatory.py",
+      "sha256": "992a8a32351e97ef93b470514e4d1125992510ec412ae6b23f7aa270caa3f184",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_v40_traffic_light_to_v41.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_v40_traffic_light_to_v41.py",
+      "sha256": "1d6b86e9e75a78573d4a045b3e4b90fb5b26fc6033b8b28a70c02d5b8290a548",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_v41_stop_lines_to_v42.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_v41_stop_lines_to_v42.py",
+      "sha256": "de53212b27b546d63f1ca258cc1a48d96e2a4f0e35066b0c5a678e9290b7aea9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_v42_stop_lines_to_v43.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_v42_stop_lines_to_v43.py",
+      "sha256": "99d3ce0148bd7286916fa731d0a536cef5901a9e42110c67e108d0ef4aa05bbc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_v43_shared_boundaries_to_v44.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_v43_shared_boundaries_to_v44.py",
+      "sha256": "a3192c5d763f81a92b4b43450ac0bc470c6cacc6960a60e7e97232a42059ff8d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_vmb_v31_to_v32.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_vmb_v31_to_v32.py",
+      "sha256": "7b7ff3591de5038ffaa891b41116e2269d269b65aabc70f96be0cb306f79adaa",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_vmb_v32_to_v33.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_vmb_v32_to_v33.py",
+      "sha256": "3aa13d1889b66ac9e6781283ec35d6f02e9d246a8dd728aecbe3df59d817f93d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_vmb_v32_to_v34.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_vmb_v32_to_v34.py",
+      "sha256": "a387f2ee8fa0db52b89c69b396b30683de0cdd742e83a6d2fba98aa651a6860c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/fix_vmb_v34_to_v35.py",
+      "archive_path": "kcity_map/legacy/version_workflow/fix_vmb_v34_to_v35.py",
+      "sha256": "8b8f216d3e8f23a883ab8c5daa16477b3c9ce29ab5045bb106852aa3e49c65fa",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/generate_drive_course_v41.py",
+      "archive_path": "kcity_map/legacy/version_workflow/generate_drive_course_v41.py",
+      "sha256": "970ea51a36b2abc533c2050a325c6deb5d65f98798346ce430306923950617de",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/normalize_v39_speed_tags_to_v40.py",
+      "archive_path": "kcity_map/legacy/version_workflow/normalize_v39_speed_tags_to_v40.py",
+      "sha256": "500533526f434b3c25bea0d493e70cfc31950b32a91d4c4a34934b3f4adf2662",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/split_tollgate_v38_to_v39.py",
+      "archive_path": "kcity_map/legacy/version_workflow/split_tollgate_v38_to_v39.py",
+      "sha256": "296f174086168bf219d39680b71c7dc8575164001a35c8bc2b98c83baa0865b4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v44_course_graph.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v44_course_graph.py",
+      "sha256": "a006e08bcf9dab1da5a99c017c9a12bacace92aeeb73b49868d09bf61ebce1e6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v44_lanelet2_change_graph.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v44_lanelet2_change_graph.py",
+      "sha256": "8a6c969c4d89e6fc1b28bb5db657eee691c6238731aa2b54b94b2e006daf44dc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v44_mgeo_lane_changes.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v44_mgeo_lane_changes.py",
+      "sha256": "e330522dfc0d37f6d9a257742480ab458e537f293782f5840fdd6f9f529f1545",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v66_map.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v66_map.py",
+      "sha256": "47ac5587f63c9774c611b6d7b637c7192112bf4f7d3fea74f5cd52c646142da2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v67_intersection_speed_limits.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v67_intersection_speed_limits.py",
+      "sha256": "eeded4022a4b46049946583366107997cc51def561f7df51e780403a551b403d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v69_speed_policy.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v69_speed_policy.py",
+      "sha256": "82753b1b66759e3092eac47c56ee79acf52df3f2760d27918875ae485d0b6856",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v70_highway_buffer.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v70_highway_buffer.py",
+      "sha256": "1fc7c7f3135dfe54f3714a938b6d8d6b63eed10ab6e80a0441ed2f08c37b9a99",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v71_compact_highway_vmb.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v71_compact_highway_vmb.py",
+      "sha256": "45070e5da94037118bcd220b5c66dd5aab0d4978d25bbbd1d68627121ebd571f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v72_speed_update.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v72_speed_update.py",
+      "sha256": "5000ceeec7bdc5a849106eb7de7cff6f7266dae7c1fae47f03840d67b52bbee2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v73_highway_lane_change.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v73_highway_lane_change.py",
+      "sha256": "1619db132a959768a7dbd1015d6196ae54aabda2867f24c7f87c2613e24bafcd",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v74_drivable_lanes.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v74_drivable_lanes.py",
+      "sha256": "18d414af8e6e225e051c1c5b211b24d13d92c3d24925c13a8a4cbefddb0d33f7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v75_merge_corridors.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v75_merge_corridors.py",
+      "sha256": "42adbca311b4f477d9106380b274a8360cf850c4a78300c9ca1c0384cfce3a05",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v76_highway_lc.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v76_highway_lc.py",
+      "sha256": "9afc4358db1b3db2117a5b9dae75e464327c8ad2f5c37b49f5c162dc273cee47",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v77_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v77_highway_geometry.py",
+      "sha256": "8e47dd5e064eb2e939ea88919e01c5b1e7709c2bdddf4a1f2915a5ab05488d40",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v78_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v78_highway_geometry.py",
+      "sha256": "97e1ed732cd314654bfb8ae8ff881be0a81edd9387e2e052f0b2d80ff346f44d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v79_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v79_highway_geometry.py",
+      "sha256": "ad869d8c6aafd58806ed95608932482230bd8e90b4a4356b4b6a5f479f5177d5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v80_bottleneck_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v80_bottleneck_geometry.py",
+      "sha256": "9dca3a319bd9aa32dd9601c3d0c1c8900c0a9f32fdf1af28310d66906db23003",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v81_mid_bottleneck_lc.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v81_mid_bottleneck_lc.py",
+      "sha256": "ad72275d8602e106bddbfbe76ea4888952e4b72a91a75787b237718c2494a22c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v82_intersection_104158.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v82_intersection_104158.py",
+      "sha256": "3aabe19f8b89a4d1b021b25664571eb007b9659e40767a4a4d93e710b2b71cf4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v83_lanelet_200291_intersection.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v83_lanelet_200291_intersection.py",
+      "sha256": "10179747b9c65e1deedc9890c946eb228b7d75dd0e3cdac36f5eb5a11babc7a9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v84_restore_intersection_104158_caps.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v84_restore_intersection_104158_caps.py",
+      "sha256": "9e93fafd05ff9aee56a4cd478fa50ce709c8484c4c57a2cdd72953b4e4f03881",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/validate_v85_crosswalk_201190_regulatory.py",
+      "archive_path": "kcity_map/legacy/version_workflow/validate_v85_crosswalk_201190_regulatory.py",
+      "sha256": "98a65a7da2be401d96df8693b5575c134baff2e7d23624fe6692e61e45638780",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/visualize_v67_competition_intersections.py",
+      "archive_path": "kcity_map/legacy/version_workflow/visualize_v67_competition_intersections.py",
+      "sha256": "7732f36b12bbcf451d563170c275fdb495e81aa3c2155f7356f9b84c1d5c4391",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/visualize_v68_roundabout.py",
+      "archive_path": "kcity_map/legacy/version_workflow/visualize_v68_roundabout.py",
+      "sha256": "73d9d45bc6cb73f71f880aa853c298f017f66e8585b45f65a70fd7910becc283",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/visualize_v77_highway_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/visualize_v77_highway_geometry.py",
+      "sha256": "b6d0fb55e12afc4973503a9b702326f8bf6b8324b9fa8f8ab73fd6261211b750",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/visualize_v79_bottleneck_cleanup.py",
+      "archive_path": "kcity_map/legacy/version_workflow/visualize_v79_bottleneck_cleanup.py",
+      "sha256": "adeadffbf34e4d4d6837b317953c25727a1ef9fef47b42d34411673fcf43485c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/visualize_v80_bottleneck_geometry.py",
+      "archive_path": "kcity_map/legacy/version_workflow/visualize_v80_bottleneck_geometry.py",
+      "sha256": "1f074a4c0f6265bd4e31773c6ca21f6f47cd3591ddd17b4f77bde38f42e2c79b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "tools/morai_dataset/build_morai_4class_masks.py",
+      "archive_path": "tools/legacy/morai_dataset/build_morai_4class_masks.py",
+      "sha256": "37a7e89968444b11c891dd9f0f6f410dfae78ec44cbd9808e790ad153aec2f7f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "tools/morai_dataset/make_morai_seg_split_v2.py",
+      "archive_path": "tools/legacy/morai_dataset/make_morai_seg_split_v2.py",
+      "sha256": "71efd7f3e0bcd32a49b9ee7d1ea68248c228346e95a4e5417c59ae2d64703481",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "tools/morai_dataset/make_morai_seg_split_v3.py",
+      "archive_path": "tools/legacy/morai_dataset/make_morai_seg_split_v3.py",
+      "sha256": "cce3334f93b1698702be359ba0b33f397292c532a58671a6381e5246f278ef11",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "tools/morai_dataset/semantic_class_mapping_v1.yaml",
+      "archive_path": "tools/legacy/morai_dataset/semantic_class_mapping_v1.yaml",
+      "sha256": "2d0c260bc6682d72655698d186ee81210046e370225ba53f97d851b84a69d2c9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/lidar_preprocess.md",
+      "archive_path": "docs/legacy/design_2605/lidar_preprocess.md",
+      "sha256": "9d79b8ff36e09815dc3cc99056d9a057fd7ae7743e9b8f801d84fddab2d62de0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/morai_lanelet_alignment.md",
+      "archive_path": "docs/legacy/design_2605/morai_lanelet_alignment.md",
+      "sha256": "06b934e4bb32db2bff6128553ad2f2d6ed8fbaf2a6b653092b70c4e52b397d87",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/topic_interface.md",
+      "archive_path": "docs/legacy/design_2605/topic_interface.md",
+      "sha256": "c726235cb4ebae062ddc419f5a0026b85e06812fb1a32c22505d1d7b6485e6e6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/topic_interface_example.md",
+      "archive_path": "docs/legacy/design_2605/topic_interface_example.md",
+      "sha256": "23ea41f05fc833af3e5de7874f6381ae73274770ebf3282ada36ffcb1ab7f59e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/other_contexts_for_ai/ai_context_260511.md",
+      "archive_path": "docs/legacy/design_2605/ai_context_260511.md",
+      "sha256": "6f8364a063f588d1ad3cf3cc3be34a2d8d7cfd938d720fb7ccd68b5cb0fd1bb7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/common_alias.txt",
+      "archive_path": "docs/legacy/context_261024/docs/common_alias.txt",
+      "sha256": "d70baa62f2febca9978ab1d735ec975af99b27bd26783a282e2e26cab10fa82e",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/ACTIVE_PRIORITIES.md",
+      "archive_path": "docs/legacy/context_261024/docs/ACTIVE_PRIORITIES.md",
+      "sha256": "0a506bec90b1a02cd7d78d896853143d201672b900320312433d6ec9f359f82a",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "configs/README.md",
+      "archive_path": "docs/legacy/context_261024/configs/README.md",
+      "sha256": "f7e82d11782e61f159b8124009c3520262e154fec3123a358a056728d5b1da06",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/README.md",
+      "archive_path": "docs/legacy/context_261024/scripts/README.md",
+      "sha256": "11a834754c67192fb1ac35335a9b0acebafc9c8437448f408e29d4ab8a757200",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/README.md",
+      "archive_path": "docs/legacy/context_261024/kcity_map/README.md",
+      "sha256": "3252e7ed29dfb4daab26f0393f946d7896be22ec0c223c6985d6280a2e82e609",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/scripts/kcity_map_workflow/README.md",
+      "archive_path": "docs/legacy/context_261024/kcity_map/scripts/kcity_map_workflow/README.md",
+      "sha256": "36a08e95b3e846ad945c0e29dc525bfec0ce4f4218a4f7d3e6078eb468e4ff6b",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "kcity_map/competition_route/README.md",
+      "archive_path": "docs/legacy/context_261024/kcity_map/competition_route/README.md",
+      "sha256": "cfab9d07ec9dbf2ec129736d79dd20c6f342e246770ceacaaf50a15acddb623b",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/rosbag/record/rosbag_for_eval.sh",
+      "archive_path": "scripts/legacy/fast_lio/rosbag_for_eval.sh",
+      "sha256": "5a87f4d7e32cd8af73219377501707a225fc72da63f1f75cccbcfe8d5d1df4e9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/rosbag/record/rosbag_for_fast_lio_gnss_eval.sh",
+      "archive_path": "scripts/legacy/fast_lio/rosbag_for_fast_lio_gnss_eval.sh",
+      "sha256": "ed23caed0fd8ec7b4c31e1a9858ee433ff9a78621a57410ef371dcc77a3a030a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/rosbag/repair/convert_lidar_for_fastlio.py",
+      "archive_path": "scripts/legacy/fast_lio/convert_lidar_for_fastlio.py",
+      "sha256": "f6157f748e1ac85a261be56ca73c9dcf44a56694d8de6d5199056e4045f7e2d4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/reports/build_midterm_perception_ppt.py",
+      "archive_path": "scripts/legacy/reports/build_midterm_perception_ppt.py",
+      "sha256": "b667da69f88cc5c934d9ec22cd1d025330a432fd39d96f2d603b17f1fe08cf84",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "docs/AI융합자율주행_규정_개발요약.md",
+      "archive_path": "docs/competition/legacy/AI융합자율주행_규정_개발요약.md",
+      "sha256": "2ccf9c0c9552daf0dadbdaf44b7b4a656b4b44b8008ee700bdb26f06f2b65f2f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/maintenance/cleanup_approved_legacy_captures_261018.py",
+      "archive_path": "scripts/legacy/maintenance/cleanup_approved_legacy_captures_261018.py",
+      "sha256": "b6481c3d81ee8a5804b91fe83ad14755097fdd23e9db458b455b8bcbf09f5e50",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/maintenance/cleanup_approved_smoke_checkpoints_261018.py",
+      "archive_path": "scripts/legacy/maintenance/cleanup_approved_smoke_checkpoints_261018.py",
+      "sha256": "f5ab96acc1787251c23ff4eaa727a63b6257dd0cd75f1d31433d2fb5575ef2c7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "common_map_tools",
+      "original_path": "scripts/maintenance/cleanup_archives_caches_rgb_agent_261018.py",
+      "archive_path": "scripts/legacy/maintenance/cleanup_archives_caches_rgb_agent_261018.py",
+      "sha256": "68824b5464e38814cfd846d549d8b52c31311e26371e103c6607e0d226e287ce",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "base_ws/src/localization/localization_manager/README.md",
+      "archive_path": "docs/localization/legacy/snapshots/261015_localization_manager_README.md",
+      "sha256": "3a5d02f9d2ee2380eb37dddd20b791eba7e4dcac1f2f641b43b77b58c13b4d98",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/fast_lio_morai_marsim.yaml",
+      "archive_path": "configs/localization/legacy/fast_lio_morai_marsim.yaml",
+      "sha256": "a3f784ab20adaf94ac99780c84d395841f488d88bb56c414cf8e89d55ced87c1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/fast_lio_morai_velodyne.yaml",
+      "archive_path": "configs/localization/legacy/fast_lio_morai_velodyne.yaml",
+      "sha256": "7d08b6ec7f47ce94f140fe9f3326994d99a581b29692b26437c1a2d13da330ab",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/fast_lio_morai_velodyne_lidar_2.yaml",
+      "archive_path": "configs/localization/legacy/fast_lio_morai_velodyne_lidar_2.yaml",
+      "sha256": "d2fa3d64efa8521a1a6713507279cc0cec1e46a9196d86b179ac24cc5b4bc496",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/fast_lio_msf_morai_velodyne.yaml",
+      "archive_path": "configs/localization/legacy/fast_lio_msf_morai_velodyne.yaml",
+      "sha256": "7dd26562ec4aa96f49219de387b2cd04c82dbc3cf75814c9fffc29745fe4665c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/gnss_imu_gt_noise_sensor6_sigma_0p05.yaml",
+      "archive_path": "configs/localization/legacy/gnss_imu_gt_noise_sensor6_sigma_0p05.yaml",
+      "sha256": "c53b3e81578c03d56e383467077b7772f7a2c2583b0ca45a5285cd4530371267",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/gnss_imu_noise_sensor4_ideal.yaml",
+      "archive_path": "configs/localization/legacy/gnss_imu_noise_sensor4_ideal.yaml",
+      "sha256": "c6aa8c249bccdb77540d87801816b58be7728e5f7c5be5588ba9a5442ac1b273",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/gnss_imu_noise_sensor4_noise_v1.yaml",
+      "archive_path": "configs/localization/legacy/gnss_imu_noise_sensor4_noise_v1.yaml",
+      "sha256": "fa59deb7e569ea695cd2f7ab16c879b3c04fa21fb17c141f3181e2fbcd19c020",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml",
+      "archive_path": "configs/localization/legacy/robot_localization_gnss_imu_global_qxy_0p05.yaml",
+      "sha256": "97107c3c9c13861eed5f00e3009f2e26bce8e89683ada4932651ea3aa3b0c114",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "configs/localization/robot_localization_gnss_imu_local.yaml.save",
+      "archive_path": "configs/localization/legacy/robot_localization_gnss_imu_local.yaml.save",
+      "sha256": "dcc7ed077b959bcf4a396e387b322d18be88787d6e6d95b74cb9af9fe4572401",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260918_competition_localization_critical_issue_status.md",
+      "archive_path": "docs/localization/legacy/evidence/260918_competition_localization_critical_issue_status.md",
+      "sha256": "9d64dd22a192b9a20554f5cbfa4b8523ec382b1d3f46a3f2b451723b8ad00656",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260919_quantized_gnss_qr_tuning_evidence.md",
+      "archive_path": "docs/localization/legacy/evidence/260919_quantized_gnss_qr_tuning_evidence.md",
+      "sha256": "20df0b797ed9d17fb0086c49b96f1d5cedb64949ecea9b9b5ca2d4f1699fce95",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260920_competition_status_and_local_control_frame_plan.md",
+      "archive_path": "docs/localization/legacy/plans/260920_competition_status_and_local_control_frame_plan.md",
+      "sha256": "07f80511a6e164e375997514429334a53fc3dcf83e9bb08a35e740aaf5f10d3d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260920_lightweight_closed_loop_evidence.md",
+      "archive_path": "docs/localization/legacy/evidence/260920_lightweight_closed_loop_evidence.md",
+      "sha256": "3cd343af70b8aaca16ac752db8628c26fd003d79ada93e6bc7547997ed10020e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md",
+      "archive_path": "docs/localization/legacy/evidence/260924_GNSS_OUTAGE_CONTINUITY_AND_CONTRACT_AUDIT.md",
+      "sha256": "7323b9920d5faab45e7d8216883cf6b9477f2e520af0023bb488ffa447c76282",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260924_LOCALIZATION_BASELINE_AUDIT.md",
+      "archive_path": "docs/localization/legacy/evidence/260924_LOCALIZATION_BASELINE_AUDIT.md",
+      "sha256": "979a4b858a7d017b7352dd6d1a306ca22915168b66381bf2f8e37303f76d49cb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md",
+      "archive_path": "docs/localization/legacy/evidence/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md",
+      "sha256": "f5eb4f09356e359047245e61d109fb86236af89e25dcf7813d9c91ad04a50860",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_CHECKPOINT_RELOCATION_GUARD_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_CHECKPOINT_RELOCATION_GUARD_EVIDENCE.md",
+      "sha256": "f26d6706a55898719a8e2fc8287fe92eacc6645eca063be470eb98008faa1857",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_COMPETITION_YAW_RATE_AND_YAW_SMOOTHING_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_COMPETITION_YAW_RATE_AND_YAW_SMOOTHING_EVIDENCE.md",
+      "sha256": "be1730de5ccab165cdc9585ee659cc8f6169b7eb0eba555d72ecfccbd9ba4c92",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_EGO_ORACLE_TIMING_AUDIT.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_EGO_ORACLE_TIMING_AUDIT.md",
+      "sha256": "59e4b24ea71dd3f2fec7bc068bab97aa9df7d2bae4f50950d03ae2fdae40be34",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_FUSION_INPUT_CONTRACT_AUDIT.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_FUSION_INPUT_CONTRACT_AUDIT.md",
+      "sha256": "306cbb4049f0de7e7de5ccd671b5c0374f641702438a47bd3afd4b4905ed0d60",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_GNSS_OUTAGE_REACQUISITION_EVIDENCE.md",
+      "sha256": "47ba54806b9fbc7574aae963d40e4b9091708cb4d3e9abdd8f9fb182bf8aa92c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_GNSS_QUANTIZATION_LATTICE_AUDIT.md",
+      "sha256": "caecca41df1789dfd0d759bfe9df1e55ea3451c8e3f6da03906431bed3b77a0f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_MOTION_INPUT_ABLATION_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_MOTION_INPUT_ABLATION_EVIDENCE.md",
+      "sha256": "62bf7555d565e1b83501c55e9fbe03b762dc4cd4978792eb69fd1a20685cdb9b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_QUANTIZED_GNSS_CONTROL_STATE_EVIDENCE.md",
+      "sha256": "b4b5542005076191ff2fa4351b63e3b11e9ea2dc1700b7f1199a59e15ff3784c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_SMOOTH_CONTROL_STATE_CLOSED_LOOP_EVIDENCE.md",
+      "sha256": "410f292f6d50656757222d236bc54c2ccd03897fd13bb04f6bf0d4bf399d2a1e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_SMOOTH_CONTROL_STATE_OFFLINE_EVIDENCE.md",
+      "sha256": "c0f9343d89b5e24ada612bb543fbc73e6b2c0f81cf246131315383d8588c2edc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_SMOOTH_CONTROL_STATE_OPEN_LOOP_EVIDENCE.md",
+      "sha256": "99d26528a4aa851eb1f69b509ca6b766d00499c601a083dc6e22366ae594847f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/260925_TF_COTIME_CONTRACT_EVIDENCE.md",
+      "archive_path": "docs/localization/legacy/evidence/260925_TF_COTIME_CONTRACT_EVIDENCE.md",
+      "sha256": "221eca918f10abeb81a4714d3365e9391f1a46a1bd29753cc44ecbc538009516",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md",
+      "archive_path": "docs/localization/legacy/guides/261014_GPS_SHADOW_VALIDATOR_AGENT_GUIDE.md",
+      "sha256": "f84b6fffa1a8ed72aef1d3259edbb2f94bb5e97642e35ba51d0880dafc0146cb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md",
+      "archive_path": "docs/localization/legacy/evidence/261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md",
+      "sha256": "258bdb65eb94aca5f34311ac38c0fdc95dad28f887e7843676b073e858136383",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md",
+      "archive_path": "docs/localization/legacy/snapshots/261015_COMPETITION_LOCALIZATION_CURRENT_STATE.md",
+      "sha256": "4ef4d02550f476ac427966a9edcd16fdf7ce50d966c449c11ccfe1075aba13c1",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md",
+      "archive_path": "docs/localization/legacy/plans/LOCALIZATION_PLANNING_CONTROL_EXPERIMENT_PLAN.md",
+      "sha256": "27ba8cb4de1f9409a8bea02d5672a09820556a5a1a7397aae64c6eb46bee5375",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "docs/localization/README.md",
+      "archive_path": "docs/localization/legacy/snapshots/261015_README.md",
+      "sha256": "d0c85833e0e744709056ef3ca6f04a2b0dd82f90bc37ffc7616fadd8a0bf31b8",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/README.md",
+      "archive_path": "docs/localization/legacy/snapshots/261015_evaluation_scripts_README.md",
+      "sha256": "da0ebc2cf86720f5c26bfaee5d52dc8770914833ae53d40f56e56a402732380e",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_checkpoint_relocation_replay.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_checkpoint_relocation_replay.py",
+      "sha256": "721ead32c04512299ddff994e92f136128ff52daaedb5e708f5bf9c59134e4cb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_competition_yaw_rate.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_competition_yaw_rate.py",
+      "sha256": "185adace0278733b4565fb67a366b821ba78ea8cc8b495b686521cea7811a456",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_gnss_outage_reacquisition.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_gnss_outage_reacquisition.py",
+      "sha256": "e07c04dec0d5f46dbf8debf6e4522dcc9af512e4f7459942e98c3914cde86186",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_gnss_quantization_lattice.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_gnss_quantization_lattice.py",
+      "sha256": "0257d0f4bdea9c4f8f5326f53b5bff704c6cdd81fe0f78c392aa5e8a1fab0bd1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_odom_frame_control_contract_bag.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_odom_frame_control_contract_bag.py",
+      "sha256": "9549c990173610fb45bffabc873553ad97f6231da20a69fd31dfa70cf79497a2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_relocation_guard_bag.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_relocation_guard_bag.py",
+      "sha256": "e2035b61ee56b8c687a23e4a0acfa6382ff3ec717a4a99f66159f334cc821f91",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/analyze_smooth_control_state_bag.py",
+      "archive_path": "scripts/evaluation/localization/legacy/analyze_smooth_control_state_bag.py",
+      "sha256": "f6061546d26f6a6cbc90350d5cbc203a4e6dba6661c878403f3ab0f6ff527ce6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/eval_localization_vs_ego.py",
+      "archive_path": "scripts/evaluation/localization/legacy/eval_localization_vs_ego.py",
+      "sha256": "67a104a6abd4e1aadf4dc1fb6d6d4e1eaabbcd473e5a8f38a05189642ef3198d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_checkpoint_relocation_replay.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_checkpoint_relocation_replay.sh",
+      "sha256": "4ba4d17e750ebbb2fc96946005f733b516c3273c0354bd66158e47c5b22ca93d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_competition_yaw_rate_ab.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_competition_yaw_rate_ab.sh",
+      "sha256": "eb0aeb0b753b1284842c59a2bb646b7df59a71f1e51751f793c0563829b6c592",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_controller_state_open_loop_ab.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_controller_state_open_loop_ab.sh",
+      "sha256": "b1754ebc8ab8d571fd41fea61e116acf147d53969837e77f7044615fc3fb7169",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_gnss_covariance_sweep.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_gnss_covariance_sweep.sh",
+      "sha256": "fbf6561d274d6aca97209d5e9762f2cdf7cb8fe1f0d76f93a584f9b0162f6eb8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_gnss_outage_reacquisition.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_gnss_outage_reacquisition.sh",
+      "sha256": "587d0e94b874ff8bf1ed1651810c3dd328c1c8c2cb26e9a68281d5dcb73fbc9a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_gnss_quantization_input_ab.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_gnss_quantization_input_ab.sh",
+      "sha256": "82df7930eb13b75134e12dff40f83b57f5ec4e8be528b347821978c0130ff05b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "localization",
+      "original_path": "scripts/evaluation/localization/run_motion_input_ablation.sh",
+      "archive_path": "scripts/evaluation/localization/legacy/run_motion_input_ablation.sh",
+      "sha256": "c5dfc211d99a014b18c23ee7a808002d48418429fba9c0495051e88bd6df4945",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260919_base3_online_highway_vehicle_1k_results.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/260919_base3_online_highway_vehicle_1k_results.md",
+      "sha256": "1f22b3efcd2e5efbf2d0a5e4fcf87f067bee998b16ea799257f60f1c5bdc24a7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260920_base3_online_highway_static_v2_collection_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/260920_base3_online_highway_static_v2_collection_plan.md",
+      "sha256": "d1c4a6093a6e94c07fd43c2f366001b8144166a5c98bd194da1ae3616e45f407",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260920_base4_deskew_and_control_safety_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260920_base4_deskew_and_control_safety_evidence.md",
+      "sha256": "f40af0124ae28502017335da6aea4a1bb155f50b7fc85639e1de9e8b90bf75a6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260920_morai_live_asset_and_woodbox_results.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/260920_morai_live_asset_and_woodbox_results.md",
+      "sha256": "995ee3b9fe2077c7bde08f664de4ebff386f6f340c9b51d67cb51800d63855bf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260920_morai_spawn_asset_and_multimodal_gt_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/260920_morai_spawn_asset_and_multimodal_gt_plan.md",
+      "sha256": "3619b18f188b50db71aaf6414761dbf158359b1a3dec43631dece6498b0c699b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260920_questions_for_morai.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/260920_questions_for_morai.md",
+      "sha256": "cefb0394d785685804d2c3b0d47b1ecfa349436132c4d8ff8e72509cbbe8699e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260921_mr_heading_and_sync_annotation_calibration.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/260921_mr_heading_and_sync_annotation_calibration.md",
+      "sha256": "523186081b62002f24e816a92f5a273949a8c95b8a86a6eb433404a9e4028c17",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260922_base4_highspeed_jitter_pilot_results.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260922_base4_highspeed_jitter_pilot_results.md",
+      "sha256": "55f6d14dab2fda0d11b995e77b9a4162d00b5b21ef6679c958ed4150e085096d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260922_base4_highway_first_experiment_dataset.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260922_base4_highway_first_experiment_dataset.md",
+      "sha256": "d5437abc1c9278229a73844291f71cd7db4fc49d2e6822f8851912741c880b47",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260922_base4_velocity_diagnostic_pilot_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260922_base4_velocity_diagnostic_pilot_runbook.md",
+      "sha256": "a16f87ee0e1734f6891c435601ecc872d3b72e72b6afb3593c23865298e06e76",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260922_base4_velocity_hardcase_v2_results.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260922_base4_velocity_hardcase_v2_results.md",
+      "sha256": "e86ac44b5cea2eef518e0e5ac523318d666b39e6d0725d0debeb1898ae208dc1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/260930_base4_competition_v2_live_validation.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/260930_base4_competition_v2_live_validation.md",
+      "sha256": "d6d895fa9ed833ddb9d8c313d6749f8ce6b6c5d3c8cca126550c8e122a364620",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261004_base5_diversity_and_replay_pilot.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261004_base5_diversity_and_replay_pilot.md",
+      "sha256": "440b9cabe6a69cbbb5473b6da31842a2cb3a0df3a9a078f0c8adc46593a42975",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261004_base5_reinforcement_smoke_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261004_base5_reinforcement_smoke_runbook.md",
+      "sha256": "94e563eaea4a5cb60aceae02a2f7db585ff034915932b0ce7b6907c45b1ea7a3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261004_base5_restored_replay_results.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261004_base5_restored_replay_results.md",
+      "sha256": "c00697703d094b9f319322e73a4ddb8ed652d6d9c4c3c70ec2c2ec4be3df0693",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261004_mr_restored_asset_gt_calibration_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261004_mr_restored_asset_gt_calibration_runbook.md",
+      "sha256": "277b1a23954848122c9056d4c7228ef0f4e882224991e22c3511e6895685e633",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261005_base5_mr_asset_review_smoke.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261005_base5_mr_asset_review_smoke.md",
+      "sha256": "b8bb23d14995ebd4d9c39a09da7ed3a4869a96f30f8ae40c92c7dcbafe8ceab6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261005_g80_and_composite_gt_followup.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261005_g80_and_composite_gt_followup.md",
+      "sha256": "d07ad9419557dfcd2aacd4ed73f5f1ef3068d13393e129285f857e2aec2369b7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261005_savesensordata_ego_motion_ab.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261005_savesensordata_ego_motion_ab.md",
+      "sha256": "c46192636a204ddcb7b688e84363c5bd95e65a48558b25d24ba5f8a40918de3b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_appearance_ground_integration_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_appearance_ground_integration_evidence.md",
+      "sha256": "1a61099ddcdb85b224378e0a07f763e2f8511cab87b735e71560e2ec6569f985",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_asset_motion_appearance_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_asset_motion_appearance_evidence.md",
+      "sha256": "e49e9cb17c2310a0f73d6aca9407eda8eddf77371f3237cc54f7cdad65fbd739",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_batch_capacity_budget_v42.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_batch_capacity_budget_v42.md",
+      "sha256": "e299377ab25ebc10f77b4a8b9337dd3c215788056ccfbe536fc8ccea5b107b60",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_budget6_fallback_v43.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_budget6_fallback_v43.md",
+      "sha256": "f4715c8e2d0cde4760f96d6148d660aea88a573c83b5a0d2b38468e955f478bf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_bulk_resume_v45.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_bulk_resume_v45.md",
+      "sha256": "a64ed62b510bf13601d45465ea08de5dfc839cce15534a118cdce54dec6123a1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_campaign_recovery_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_campaign_recovery_evidence.md",
+      "sha256": "4c75d10ed296084c30cab7f027e567ca37bf2958ecbaee06649243980a5b2389",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_capture_capacity_v36.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_capture_capacity_v36.md",
+      "sha256": "3337ee4578f1e6e355899562f648c92cd8bfdc5308f420cdcbdfb5b9a38badce",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_capture_stage_optimization_v37.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_capture_stage_optimization_v37.md",
+      "sha256": "71898f51f9c3d45fef6f8ae113efaf0114ab3eb801fab3e1df666b4558013947",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_diverse_coverage_eta_v44.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_diverse_coverage_eta_v44.md",
+      "sha256": "08ed337350824251c9d48009d89bf4a0621d60d32c2f0db8a9f0e9556d9e9e03",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_eventcmd_rosbridge_v40.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_eventcmd_rosbridge_v40.md",
+      "sha256": "97c64de5d4580e9508bfe04ca24b0095451201315e4d17818366c6fb56fe80be",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_final_10k_v35.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_final_10k_v35.md",
+      "sha256": "70735a818711ee5ea35630e6cc192855ec7e287bad6cae43c81338ba23cd02dc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_ground_quality_loop_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_ground_quality_loop_evidence.md",
+      "sha256": "98d19489f89ba55fa33f0487fc02f79b2062acd7674c0e4b62f704662ac455bf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_guard_seed_recovery_v41.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_guard_seed_recovery_v41.md",
+      "sha256": "2ae56c7c76c2edad4f4f95b1988a1a6b51fa47848dc8f787a62c11f6c2c66197",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_official_reply_smoke.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_official_reply_smoke.md",
+      "sha256": "8773498dd33ab2c7533ad7f094b7387bdd907992161a52144d54f00524c078a4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_ros_batch_network_evidence_v38.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_ros_batch_network_evidence_v38.md",
+      "sha256": "458be65167a11a89722625d491a9f576fbf58d8b6302ad00b579ca590f5accb2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_safe_batch_quota_v39.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_safe_batch_quota_v39.md",
+      "sha256": "49d7f5c609948a076a97269b8610d3ded66abf8c9a306885d838c420f07e25f5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261006_base5_z_margin_probe_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261006_base5_z_margin_probe_evidence.md",
+      "sha256": "747efe793fc42868e48fc608bd633b5d871be31b5ac96486388138cd15eda722",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_5k_capture_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_5k_capture_runbook.md",
+      "sha256": "791ebefad7304fb91d3275f16f9df2d9bba81d4ee6fe1745025328b2ea1cd08f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_direct_5k_current_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_direct_5k_current_plan.md",
+      "sha256": "1b50e238d6e920ce9f227c7db61fc1c20d46ec2dc6a4e21be486965250fa90cf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_dynamic_map_observation_v95.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_dynamic_map_observation_v95.md",
+      "sha256": "69c3d02c6d798ef458b0a835d56b872825d696aed61f274f4143cccfe510181c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_final_candidate_five_gates_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_final_candidate_five_gates_plan.md",
+      "sha256": "b55f801a67c635681c5af7728d7c56896b0e24735c0664e94327b37247344008",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_final_gates_v105_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_final_gates_v105_evidence.md",
+      "sha256": "aab30ea3bd80960b5faf0389fafefe715e80441a3fcc115a7ad40214c170257f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_generic_close_v98.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_generic_close_v98.md",
+      "sha256": "f6b1e3211ef6a93bcaddbbaa09a17fb70db6e81ca1c2beec21ac21589e883d76",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_mixed_motion_ground_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_mixed_motion_ground_evidence.md",
+      "sha256": "0ede6b19b6f15cc4a920f69070dd94e408b20ff17ce5f4add63ddb87f4096444",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_population_budget_v89.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_population_budget_v89.md",
+      "sha256": "c6e570e19240ca95dadc646cceea7028966f5c3642ba4ed7a2be51e0e4d69dfc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_prebulk_recovery_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_prebulk_recovery_evidence.md",
+      "sha256": "5f2bd57bcb7d42818d0436d843956ee97faff16188ad0854cd1830e6a258b9cc",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_static_height_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_static_height_evidence.md",
+      "sha256": "d81fb007bea364b33ffd0047de26bd531b94e6e0dcaec1c3cbfca2e68aa7ac0b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_static_rigid_ground_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_static_rigid_ground_evidence.md",
+      "sha256": "a583b0826db10925aa7f2beca99aa33f2ad4fc1b369a4c58d5f6b3319e4a90b4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_sunny13_environment_correction.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_sunny13_environment_correction.md",
+      "sha256": "a594d8e70fe1a46bdd1dba091480e97346dcaac030b6cc80f818891da87cecf4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261007_base5_vehicle_close_v100.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261007_base5_vehicle_close_v100.md",
+      "sha256": "eb5361ea7416bcc5795e5e76547ee08434e99b33e7367b048290fb4d62a000ab",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_completed_replenishment_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_completed_replenishment_evidence.md",
+      "sha256": "f0e82a361c5e509661e3c5d3dcd95da9351ca3ce67750236b9855e0f773e9b47",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_dashboard_and_launch_ready.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_dashboard_and_launch_ready.md",
+      "sha256": "be3bd1b1cd704853bb5c9fa3538dcc8cd4d5f3b56674f6c67c6e3a3599bd6f51",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_intersection_ground_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_intersection_ground_evidence.md",
+      "sha256": "b9022d1d0c33563cefde1272d37a5c9ad957a6a3a837f44d93452f1fb49b2237",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_intersection_manual_ground_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_intersection_manual_ground_plan.md",
+      "sha256": "db226d39dfe896c10334d69b9b0a22e6889faa1d47bb73bcd8370bf7455bb5e9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_motion_metadata_v125.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_motion_metadata_v125.md",
+      "sha256": "e235f27d9c101e03a326c25bbbe69c0146877e99b4716f4b77b9c51e0b72b852",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_prebulk_v124_final.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_prebulk_v124_final.md",
+      "sha256": "ea20b90d16183e80ec4b8857411ede61711f8ed57da103946960c37768cd2eaf",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_region_release_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_region_release_evidence.md",
+      "sha256": "e48a4f623a4e873f7f958be6e69b395e1e45e6d17b61c864cb5cb7927cea6e12",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_roundabout_route_mission_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_roundabout_route_mission_evidence.md",
+      "sha256": "374f28896edac750d4f2845f0fd997fd4109f0c82e038f42c95a1aec16dbe6f5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_shadow_approach_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_shadow_approach_evidence.md",
+      "sha256": "2e0d46b78a945fe371d0a714a809e69975c14da7e9233c7c5fa5eff5b4231e64",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_shadow_observation_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_shadow_observation_evidence.md",
+      "sha256": "49b010ba3f7f9da496f93709f229b1a368b29f9c8ca53eb5143867be58ce79b9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261008_base5_static_yaw_and_randomization_review.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261008_base5_static_yaw_and_randomization_review.md",
+      "sha256": "6b0bd67969fd217d8ac6620574ea327ed1b749cd7ff2e0423a6bf70d07574c46",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_collection_cost_and_next_experiments.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_collection_cost_and_next_experiments.md",
+      "sha256": "5d6e9afde79ded881a001894fb72ea9061ba529e8bea9023f63439f03a80c235",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_failure_aware_replenishment.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_failure_aware_replenishment.md",
+      "sha256": "72a841e3a3fef03467a223cbaaabc8ddf649908c4982b0b19e6b198efce48240",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_final_appearance_v131.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_final_appearance_v131.md",
+      "sha256": "a38a2480faf4ec71cfe095ea2966463a8bf12f956f9569f49b5c978e2afc8319",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_final_appearance_v132.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_final_appearance_v132.md",
+      "sha256": "c42a37fe0992aa7756c235375f2f9cae48b75ec95c559611f2c9ce0edc82fe49",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_remaining_environments_spatial_diversity_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_remaining_environments_spatial_diversity_plan.md",
+      "sha256": "a8b3934a46d9adf19b7520dced16f645d4fcfb07f4efb638b1aaa3f5bb726591",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_stationary_failure_recovery_v133.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_stationary_failure_recovery_v133.md",
+      "sha256": "90f63e374922b34df7ca1243f53523b35ee0d261a61c400d96e4a3b397222832",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261009_base5_training_split_visibility_and_temporal_decisions.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261009_base5_training_split_visibility_and_temporal_decisions.md",
+      "sha256": "458a83d756bee893835ea5a748b3e010961baf49c4e05386e94a21c608d64a23",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261010_base5_adaptive_completion.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261010_base5_adaptive_completion.md",
+      "sha256": "b14251f9328c6d7c88c2b69549736d2323068e1f0796bf35f98feca045e6b7f2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261010_base5_flexible_deficit_replacement.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261010_base5_flexible_deficit_replacement.md",
+      "sha256": "2301f170ab6008acf85b3d5d679aa146660709befa6ea3219ec16e1eea6c06f9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261010_base5_fresh_environment_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261010_base5_fresh_environment_runbook.md",
+      "sha256": "2f71ebe71cd4f7cdaa1bcdadadfdf1bc0ca94a60ae60d227c2929abd026f5379",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261010_base5_postcollection_collector_work.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261010_base5_postcollection_collector_work.md",
+      "sha256": "b7153d3a4e470447054a39d2faae0c6bc1f0f697c884452ead7c6db353775dfb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261013_base5_obstacle_generator_experiment_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261013_base5_obstacle_generator_experiment_plan.md",
+      "sha256": "6e7fdead3297c2112c73864e63d9995f32f572470264ab8e353e5711bff0744d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261013_base5_obstacle_support_experiments.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261013_base5_obstacle_support_experiments.md",
+      "sha256": "d9d9bba8998ba073fd7974be6eb21131037b06bc3e1ca374d2165660c93c2cf8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261013_base5_obstacle_support_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261013_base5_obstacle_support_runbook.md",
+      "sha256": "240d2006aba7869c33e4c5dd2db7dee879605dc42a35f5a3e8784b6d92668c72",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261013_base5_parked_npc_support_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261013_base5_parked_npc_support_evidence.md",
+      "sha256": "822d3602d722deb97d00ff6612320a18f4a1b783c7787c681d3e1cebc9adbdba",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261015_base5_front_far_compound_experiments.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261015_base5_front_far_compound_experiments.md",
+      "sha256": "619983e8c2313322aa5519e453c2dfa2d6cf0bc569c0642770d901113aa034ee",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261015_base5_front_recovery_release.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261015_base5_front_recovery_release.md",
+      "sha256": "4034f859103e4281d9f08072a6c8d6329566983f63f354d245403257362faf46",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261015_base5_primary_obstacle_range.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261015_base5_primary_obstacle_range.md",
+      "sha256": "5618116e86d766b51b7968073b82e6d892e909cba89d69939f2001e52bf5758d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261016_base5_far_vehicle_reinforcement.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261016_base5_far_vehicle_reinforcement.md",
+      "sha256": "1614ce353357cb5d0e2121dc71990e85dbe560d3f4f6690d75413c31e7a33e1b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261016_base5_mission_extent_and_asset_scale_plan.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261016_base5_mission_extent_and_asset_scale_plan.md",
+      "sha256": "90762665c74a0da6dac8a357d6145dfdddc49121508e898584ac53977c4d080b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261016_base5_native_scale_and_extent_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261016_base5_native_scale_and_extent_evidence.md",
+      "sha256": "94da048c2f47b984c8c0b69197baaa6dc29e1d1fc748f4d6d9686d5d893f7125",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261016_base5_precollection_final_review.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261016_base5_precollection_final_review.md",
+      "sha256": "dd795a056d6f1208b2b303ff30b29bcdff73740b7fde23321b71294f494dd2ce",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261016_base5_shadow_ground_reuse.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261016_base5_shadow_ground_reuse.md",
+      "sha256": "b8814747c52ec36f5384314111b1053ffda408d0a0258e44f9024ce064317795",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_geometry_reference_audit.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_geometry_reference_audit.md",
+      "sha256": "7c20cc3a885cd401f132f4c6ceade36017d958cc28d4130cf6ada2946a26cd7c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_known_map_layout_split_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_known_map_layout_split_evidence.md",
+      "sha256": "b5c324917bb98cfed1ca653452d6c620c36d593c8784368af0f36d68713e01fb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_native_extent_repeat_mask_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_native_extent_repeat_mask_evidence.md",
+      "sha256": "b020db5ad89707d65b2f3565fb2894a27224e472bf2542b2198b3d8d4a7efbad",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_scale_split_qualification.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_scale_split_qualification.md",
+      "sha256": "11335fa196b734f5bcb0d0375ddffa550449210c5728d07e182cb55a5d0f1c67",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_unit_only_restart_validation.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_unit_only_restart_validation.md",
+      "sha256": "9196dc62caf220e599a749f20fbaf6bb465f8be978198a7863d604b623cb932a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/261017_base5_unit_release_evidence.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/261017_base5_unit_release_evidence.md",
+      "sha256": "64e77dd9925fef425330b8c5077cef0cc6815801cb8f2191395fa3f64bada954",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE3_ONLINE_CURRENT_STATE.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/BASE3_ONLINE_CURRENT_STATE.md",
+      "sha256": "bb2afd0b9237d2f59f2c38ff93d00dca23d18453e183beab854c8eb1c1493939",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/BASE4_ROSBAG_CAPTURE_CURRENT_STATE.md",
+      "sha256": "a42f9a1a0a609e42055e277280d040af2aaf94cd567cba7ca99180c33311d218",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE5_INDEPENDENT_10K_DESIGN.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/BASE5_INDEPENDENT_10K_DESIGN.md",
+      "sha256": "f3fab05ddb0c7cdc015f65f19ee8224374ed670163595341a9bb3aa29f67a1aa",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE5_STATIC_CURRENT.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/BASE5_STATIC_CURRENT.md",
+      "sha256": "2efc791a16003633cdd5001dde27da41a096deb3acb69432315a86806d49a4d5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/BASE5_SYNCHRONOUS_CAPTURE_NETWORK.md",
+      "sha256": "5c33b6d64e2067f61bdcdbf2478532a060009873cd3c2b2a1785eb961fbf3b2d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE5_V2_HISTORY_THROUGH_V100.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base5/BASE5_V2_HISTORY_THROUGH_V100.md",
+      "sha256": "6d03551f667b3b872f9c45630fe7f6544798129cd2263608e9b1215660a013b3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/base3_online_rosbag_collection_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/base3_online_rosbag_collection_runbook.md",
+      "sha256": "d7948a0b3abc9450fe820a2fc55872a8c9c127f93bf6c80786e27dcf11f431f7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/base3_static_asset_catalog.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/base3_static_asset_catalog.md",
+      "sha256": "da35ef9c29ed2ac2e0c5cc3bf1466bdd72eaa6dedcc6b534c4b34323ebf3b66a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/base3_static_asset_names_handoff.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base3/base3_static_asset_names_handoff.md",
+      "sha256": "034174cd41de9d1f15406a68d08ffc115988ccb0c25ef71c9eb94e3642547c20",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/morai_asset_catalog_260807.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/morai_asset_catalog_260807.md",
+      "sha256": "ca3bea589888d6877fc3d9816f4473284f2671dcf670b44745866cd884e56050",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/morai_launcher_asset_compatibility_260807.md",
+      "archive_path": "dataset/morai_od/docs/legacy/morai_reference/morai_launcher_asset_compatibility_260807.md",
+      "sha256": "f994d6b870dbf5fdd8117cbe2d8bab711af7bf3a87903f35ba248fd39938a234",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/morai_mr_mrp_hybrid_scenario_capture_runbook.md",
+      "archive_path": "dataset/morai_od/docs/legacy/base4/morai_mr_mrp_hybrid_scenario_capture_runbook.md",
+      "sha256": "679cf51d881ad5576a77ccec11359b828980fc5866cf15ea76f99cb354cc8385",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/base3_static_lraspp_selection_v1.json",
+      "archive_path": "dataset/morai_od/configs/legacy/base3_static_lraspp_selection_v1.json",
+      "sha256": "698b40ab6a6ba723c45d44f31415398d1889338c31134da2a04d0e6f3c007779",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/base5_restored_sparse_camera_review_261004.json",
+      "archive_path": "dataset/morai_od/configs/legacy/base5_restored_sparse_camera_review_261004.json",
+      "sha256": "c7deb8af24cc92e3bdfda3d7d07794fecdf6b94b7b7dab64eb69a06f8aa0ae96",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/base5_sparse_camera_review_261004.json",
+      "archive_path": "dataset/morai_od/configs/legacy/base5_sparse_camera_review_261004.json",
+      "sha256": "042ddf1d0faf423812339a4f1c0d3fe9a76f8d167b9a4c819bf2754b2ae344df",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/generated/static_classcentric_base3_batch008_dynamic_ped_pilot12.json",
+      "archive_path": "dataset/morai_od/configs/legacy/generated/static_classcentric_base3_batch008_dynamic_ped_pilot12.json",
+      "sha256": "24f34eb7b04174f8d678aaf36ccb5a2aa6c03920d5a0c22b8f99f9c947379315",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/generated/static_classcentric_base3_batch008_dynamic_ped_replacement_v1.json",
+      "archive_path": "dataset/morai_od/configs/legacy/generated/static_classcentric_base3_batch008_dynamic_ped_replacement_v1.json",
+      "sha256": "0caeaf40d83ee9cda87e6ab2a9b83b34142cfc549833350c0bb8b7a99112c838",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/generated/static_classcentric_base3_batch008_dynamic_ped_replacement_v2.json",
+      "archive_path": "dataset/morai_od/configs/legacy/generated/static_classcentric_base3_batch008_dynamic_ped_replacement_v2.json",
+      "sha256": "e04394af5182a45956e942016834e19a90dce1542ce70934b6bd1c5d721ca212",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/scenario_runner_asset_catalog.yaml",
+      "archive_path": "dataset/morai_od/configs/legacy/scenario_runner_asset_catalog.yaml",
+      "sha256": "9846a99ee348314876bd682f23c00db9a21e2f4a2e4ea1dd050b14ecc8dcffcd",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "configs/dataset/base5_midrange_reinforcement_v161.json",
+      "archive_path": "configs/dataset/legacy/base5_midrange_reinforcement_v161.json",
+      "sha256": "7fa9655edf76b9dc3bdeec2c74d963fefb46c37a3bb82391a28f1ae99dbede26",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "configs/dataset/base5_midrange_reinforcement_v162.json",
+      "archive_path": "configs/dataset/legacy/base5_midrange_reinforcement_v162.json",
+      "sha256": "329c5249758ab8f32e910cd69ccdfc84869379319b9e212901e0251582d9cf42",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/BASE5_V2_CURRENT.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/BASE5_V2_CURRENT.before.md",
+      "sha256": "dfdb8e0ebf177322ca1b3fd3a84b0bd24dd336bfb005dadd398609fce7b22710",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/docs/README.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/docs_README.before.md",
+      "sha256": "e700126478fcb9f75b8143020b7236fb70f161eef2c13b5ec860e879746bb6c8",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/README.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/dataset_README.before.md",
+      "sha256": "73d813f4e918b88f39970839b7ffbc81bcd22766c09cdf4d90bca1b2e5a96d07",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/configs/README.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/configs_README.before.md",
+      "sha256": "c0d1fd6ecd667e6543a8ac0cdc2de2268087bc0ecd75035a2193551f212ad8f4",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "configs/dataset/README.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/profiles_README.before.md",
+      "sha256": "fa28b636a83106455d77a87c34e26587e64916a7e14213de39c1736aa2e0c15c",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "dataset",
+      "original_path": "dataset/morai_od/AGENTS.md",
+      "archive_path": "dataset/morai_od/docs/legacy/context_261024/AGENTS.before.md",
+      "sha256": "43adb4bd0a15ad2f1bdc10b9baf8a817df8f981ee1c64a59511022457fcd8eec",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260918_base3_e40_production_evaluation_results.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260918_base3_e40_production_evaluation_results.md",
+      "sha256": "9497043ac1f62c3b5149709fc91aadc9eb8d36ed71d238f66ada39ff5a05ec34",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260919_BASE3_ONLINE_E25_FINETUNE_RESULTS.md",
+      "sha256": "58805f660491c2595430b0ede8751eef80fa2663e0c92f67e70b874fcad6d093",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md",
+      "sha256": "ff352ab08ca0d9b915bbeb73eeec0211ff503ade70b7221549bb8bd14ed2ffda",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md",
+      "sha256": "3a77c4de64035674f1d345d24929511209192513822324e3986082f4db048c7f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260921_BASE4_TEMPORAL_P24_PIPELINE_SMOKE.md",
+      "sha256": "0c18a989b2bc9be68a8c117159865b80988137d1868226ca20978605dfd9020d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260921_BASE4_V1_T1_E4_HIGHWAY_EVALUATION.md",
+      "sha256": "4b6176bde0c020a5b7e07809dbb865c3d56ca4cc428388cc380395064dee38ee",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260921_ROSBAG_ASSET_CATALOG_GT_REEVALUATION.md",
+      "sha256": "be9ffd4622264be3bd8f1c2d50903d04b45884f8e8fb556e2755991d00031194",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260922_BASE4_T2_TEMPORAL_BEV_P0.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260922_BASE4_T2_TEMPORAL_BEV_P0.md",
+      "sha256": "8cde507455cb3628861b71894f23f110edf609ee76d80c34ef1b1f1ce3b7dc02",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260922_BASE4_VELOCITY_LEARNABILITY_AND_LR_ABLATION.md",
+      "sha256": "42199dad6309d093af28237b5f0b48cbc23867d2ddec4bd580e2f6c2ddb58989",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_CENTER_MOTION_PROBE.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_CENTER_MOTION_PROBE.md",
+      "sha256": "196506af72953b814d9aea2fea20f0b9d3671b37eb32459b1cf05417f423ff99",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_EXECUTION_ROADMAP.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_EXECUTION_ROADMAP.md",
+      "sha256": "e141ddc0fba5afcb0280616fe2ca13f68b8025630d9d10f983e097c919c28b0e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P0_QUERY_MEMORY_RESULTS.md",
+      "sha256": "74dd1784258e1a282e6cb16f4e8c15664fe7d32c6043610d0c80c01675fc5cd4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P1_MOTION_VALUE_RESULTS.md",
+      "sha256": "e627667e6d67f377d29144fde5c0b372f2d6fc11090f17aed82ea4bc2f720f35",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P2_POSTDECODER_MOTION_RESULTS.md",
+      "sha256": "bde620e03aa871d00c454d330144e4cb0387de82ed0d96ab8b372e1eab117a59",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P3_ROBUST_MOTION_RESULTS.md",
+      "sha256": "27fbf0b33e318a918ddce3b5d51616294d4ba15ae580939eb6ad8867594e7fbb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P4_ROBUST_ASSOCIATION_RESULTS.md",
+      "sha256": "d4b6d178ad0ea822a42cb639c14aa37ccdaaae81e3af691e78deb54bf5962365",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P5_SHADOW_SOFT_BLEND_RESULTS.md",
+      "sha256": "e2660a812f0e8a539a68d0cc177fbe5d2e0fdabbc61adfb27c557c79534076f7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260923_BASE4_Q1_P6_AGE_WEIGHTED_MOTION_RESULTS.md",
+      "sha256": "176777c5ae8f1849137e56b3d3faad2d5c5f8b26ad2d7b925a76637f04f9ed33",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260924_BASE4_Q1_P7_FREE_INTERCEPT_RESULTS.md",
+      "sha256": "03d81b535b490ba462b05b6ea1758754227aedf957f66c23b46d6c98e20a295a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260924_BASE4_Q1_P8_LONGITUDINAL_OUTPUT_RESULTS.md",
+      "sha256": "5189591f7b0214d1ba427bbdf6b9058a829b9be0d530b035458414abdec1a636",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260924_BASE4_Q1_P9_UNCERTAINTY_FUSION_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260924_BASE4_Q1_P9_UNCERTAINTY_FUSION_RESULTS.md",
+      "sha256": "1c8e7b25dd13020f00b1e3946727b0561b95c12203635c2e4f4b33deb4f5f9e6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md",
+      "sha256": "a9434d8ddb14c7a4c167c5f22620a2ae9ed03b665d437d638c091f360d3c359e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_BASE5_LIVE_ACQUISITION_PROBE.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_BASE5_LIVE_ACQUISITION_PROBE.md",
+      "sha256": "c53da27fc18e6db6191a52657234f31ffd3b0f03bc125c518b4092f9055fb624",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_E25_OLD_NEW_CURRENT_CONTRACT_COMPARISON.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_E25_OLD_NEW_CURRENT_CONTRACT_COMPARISON.md",
+      "sha256": "3d49f8b46a5a6e4cd3bc77a947a737e1d7122fcb98cdd2fbb92574968b873d2d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_NEW_VS_EXISTING_ROSBAG_ANALYSIS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_NEW_VS_EXISTING_ROSBAG_ANALYSIS.md",
+      "sha256": "b6ea5c59fd2a69f205c6a173885cd6012014760683962c072ad6dc346affa250",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_PERCEPTION_RANGE_NEARFIELD_AND_PROMOTION_PILOT.md",
+      "sha256": "e5f323a1fabc782b2451e9c9532e79397f80a91dcea66ac712e5eb9db839ccb5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_TEAMMATE_MANUAL_FULL_PIPELINE_EVALUATION.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_TEAMMATE_MANUAL_FULL_PIPELINE_EVALUATION.md",
+      "sha256": "b18582571711978789001aee872ca5eeb625bad80c672c53a0ae203c7fb0a7fb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_TEAMMATE_MANUAL_ROSBAG_RAW_AUDIT.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_TEAMMATE_MANUAL_ROSBAG_RAW_AUDIT.md",
+      "sha256": "e327738360d774eae895b6377db36d5f3397440f51639e374c9ab31fce4f53ec",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261004_VEHICLE_STATUS_SIZE_GT_RECOVERY.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261004_VEHICLE_STATUS_SIZE_GT_RECOVERY.md",
+      "sha256": "f6aa95c03f3d51c58a626a0b52e19efa3a149abd4b910188839c723b74c9467e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261005_BASE3_GAPS_AND_BASE5_PILOT_RESULTS.md",
+      "sha256": "98a747435d1b551842bd721c68e31056a825a0fb6ef649529fe79d5c52f92808",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261005_BASE5_E1_MISSION_ROSBAG_AB.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261005_BASE5_E1_MISSION_ROSBAG_AB.md",
+      "sha256": "0ab62a1388b9bd9ced44e3cf068eed411e035114beeaaa0d4d91d2ee1d6ee324",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261005_MR_VLP16_100M_RANGE_EVIDENCE.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261005_MR_VLP16_100M_RANGE_EVIDENCE.md",
+      "sha256": "7325d8a0576a492ad5e68db98022b9d05632cfac46216e3cf2056ee477350e7a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261005_VEHICLE_VELOCITY_GT_REFERENCE_REVIEW.md",
+      "sha256": "2058c7437d7f2b86a34c79296686bd9737be6389afc4d750df72a6edec19ba05",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261006_BASE5_BATCH1_CAPACITY_EVIDENCE.md",
+      "sha256": "2270cc8e9de5846ffa9d74690089004b5e37faf836996d61d66ee90aea64de22",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261006_BASE5_LATENCY_STAGE_BREAKDOWN.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/261006_BASE5_LATENCY_STAGE_BREAKDOWN.md",
+      "sha256": "01032ff0472e04e8deb58e532249fc437c72e13df2facbe9ba24c98457feaa24",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/BASE4_TEMPORAL_TEAM_HANDOFF.md",
+      "archive_path": "docs/bevfusion/legacy/research_2609_2610/BASE4_TEMPORAL_TEAM_HANDOFF.md",
+      "sha256": "0a8b1ff6866bea4d32eb3bda4eb51540987413d86546e801942269a0f190fb11",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md",
+      "archive_path": "docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md",
+      "sha256": "a6cb2b545ca995de5b8275b1e631a2ec669f34ea0e37df98ef95b51539c1c6d1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md",
+      "archive_path": "docs/bevfusion/evidence/261009_BASE5_VAST_4090_TRAINING_AND_INFERENCE_PLAN.md",
+      "sha256": "9cc52b0e66d9865a2d3b1baba74106c25e5ea4d1905cb8756ca923f2ba691757",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/CURRENT.md",
+      "archive_path": "docs/bevfusion/legacy/context_261024/CURRENT.md",
+      "sha256": "e3b069b824fcb8ef4ba44e75abd4971211884501812a2949bd011b8b90da2e06",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/README.md",
+      "archive_path": "docs/bevfusion/legacy/context_261024/README.md",
+      "sha256": "d3629724907c7a413f83934dbc12828e02c1e9340fafdb4b44a1fb8dcff2cf52",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md",
+      "archive_path": "base_ws/src/perception_object_pipeline/docs/legacy/context_261024/TRACKING_PREDICTION_CURRENT.md",
+      "sha256": "036988964efc5ad753bb444075555675c6bc84ec3d6bc17b8b8bf8ce08b478ee",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "base_ws/src/perception_object_pipeline/README.md",
+      "archive_path": "base_ws/src/perception_object_pipeline/docs/legacy/context_261024/README.md",
+      "sha256": "0bceafdde612be6bf8b94bbafa776078a672a7cbd10e670e49dfbb00f5d82059",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "base_ws/src/perception/traffic_light_detection/README.md",
+      "archive_path": "base_ws/src/perception/traffic_light_detection/docs/legacy/context_261024/README.md",
+      "sha256": "9899123201f271821b6b183c18183c109670ba57433bf31502eebbbf1af82b57",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p2_postdecoder_motion_gate50_4cam_lidar_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_q1_p2_postdecoder_motion_gate50_4cam_lidar_velocity.py",
+      "sha256": "9b307ec146a0824c9da24d8be88f52197455535a1fc7d002a1b47c2c4a2f73b8",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p2_postdecoder_motion_gate99_4cam_lidar_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_q1_p2_postdecoder_motion_gate99_4cam_lidar_velocity.py",
+      "sha256": "8ac3c2c6bc84983f8af73e83f93046b9a1c717b988f5e477bcb63042be957c07",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p4_mutual_consensus_gate90_4cam_lidar_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_q1_p4_mutual_consensus_gate90_4cam_lidar_velocity.py",
+      "sha256": "b6da8bfb1ab4eb2505341333b301945f4f2e14cb1f0b5a5247873a596c4ac732",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_q1_p5_shadow_softblend10_4cam_lidar_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_q1_p5_shadow_softblend10_4cam_lidar_velocity.py",
+      "sha256": "4da5bd21ea37d21120a3db5c0079cdaedadd0fec38f671c7eb10baac733a5991",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_q1_query_memory_off_control_4cam_lidar_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_q1_query_memory_off_control_4cam_lidar_velocity.py",
+      "sha256": "ed2092675891482bf12122d90346d8b38e60089c497323f508160d2f4a6bfac1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t1_4cam_lidar_3sweep_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t1_4cam_lidar_3sweep_velocity.py",
+      "sha256": "c1ef111469c74d55d3abde0262d38a1e1c3648982e1bfa0877133a0d86267a2f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w1.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w1.py",
+      "sha256": "8d1b50afff965c8e9096dd62503549c2d2e6c7705ff03d60857646b76bff77a1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w1_head5x.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w1_head5x.py",
+      "sha256": "445113a734ca71935e73069dc4dd79e36c756760d880dc70e40ffd15da8e31f4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w5_head5x.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t1_4cam_lidar_3sweep_velocity_w5_head5x.py",
+      "sha256": "69f0354333599b28d5fd7b25b2f47a50364d87fbf345d33376f97e7094e6cd51",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t2_4cam_lidar_temporal_bev_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t2_4cam_lidar_temporal_bev_velocity.py",
+      "sha256": "d4fe6920bc58fa93b4c13bfebcdfaf62d1565b2e9970124ea60ac8b331426688",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t2c_4cam_lidar_cached_bev_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t2c_4cam_lidar_cached_bev_velocity.py",
+      "sha256": "b1754a92a76b259677109bd34c44ebbaee73303dd013173b658ddfc6a72b3893",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_t2r_4cam_lidar_temporal_bev_velocity.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_t2r_4cam_lidar_temporal_bev_velocity.py",
+      "sha256": "8930103e90fcdbf87b11d2330ce267554a201e5222e5e608cb81474872eb71b7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/bevfusion_base4_v1_4cam_lidar_velocity_w5_head5x.py",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/bevfusion_base4_v1_4cam_lidar_velocity_w5_head5x.py",
+      "sha256": "2e41b247768b637a9c9283202553cfc99828c0be840ab67a607e7b4e3a72ea2c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t1_deskew_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_t1_deskew_e4.yaml",
+      "sha256": "07d2f11e3978463109890e42b0e3a7f09581148d48b8b6c0e47924652ba2af6a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t1_raw_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_t1_raw_e4.yaml",
+      "sha256": "15841729f8265cf4e67929c3de95fa03c74c9cafd2f8d58c45c91690f7dacc9f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t2_temporal_bev_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_t2_temporal_bev_e4.yaml",
+      "sha256": "6702ff05e10516bc18f6c3a3c719ac00264be42bb8cc5aace388a2a50b147c8c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t2c_cached_bev_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_t2c_cached_bev_e4.yaml",
+      "sha256": "16c2caaf650eb09cd3cc34c572b66a0218dfe570bbdfb112c7ec53c70dc731a9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_t2r_temporal_delta_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_t2r_temporal_delta_e4.yaml",
+      "sha256": "7510e07b24eb16206985190576ba5e52fc5386a37098d2685f6d871959cc9715",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_v1_deskew_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_v1_deskew_e4.yaml",
+      "sha256": "b743b7b74ca79a7ffb0a8d5e0f6bf29fa9d969061d5f683e4866786b5c782076",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_first_exp_v1_raw_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_first_exp_v1_raw_e4.yaml",
+      "sha256": "32511f518d94a5ba61f9e0c5dc0dd7cbfeb9a883c5b4479b9d4f1c9b26e61c84",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_pilot_t1_3sweep_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_pilot_t1_3sweep_e4.yaml",
+      "sha256": "784a7843601af9f593189c453f0eaadd2a5457c1699cab6193d6ea365f4ae0a6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_pilot_v1_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_pilot_v1_e4.yaml",
+      "sha256": "17b53081d244d6776e8a2552dc9750673002f5d77c00cc1f3aa9ff932fb43ed5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_continue_e6_newheads5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_continue_e6_newheads5x_e4.yaml",
+      "sha256": "32fb13236c67074fde9154729c9f10c4d000aa802f4c52e14f073799a8c3fc9b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_from_v1_raw_newheads5x_e6.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_from_v1_raw_newheads5x_e6.yaml",
+      "sha256": "299f07977ce80fe6fcbf118316c64bd9bff7dfd11068228dda94262ad5844f07",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_raw_overfit64_velw1_e40.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_raw_overfit64_velw1_e40.yaml",
+      "sha256": "62bbf3a980ba2879072aca6da591e936c454cc1d50f93b4ee2e3d55330d21160",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_raw_overfit64_velw1_lr1e4_e20.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_raw_overfit64_velw1_lr1e4_e20.yaml",
+      "sha256": "cd76d7359b3e75070325144ff168b86b99812f6d8766ccf2296244aaf1168325",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_raw_overfit64_velw5_head5x_e60.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_raw_overfit64_velw5_head5x_e60.yaml",
+      "sha256": "717b03528d59372b4ece9a448912a81bcc0e71282a9b2396276f6d411a32cf74",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_t1_raw_velw1_lr1e4_e8.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_t1_raw_velw1_lr1e4_e8.yaml",
+      "sha256": "38c99c0059b5e3b5cf6964767d1a227a82ef63672ce071c069cf488303ed64c1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_overfit64_e40.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_overfit64_e40.yaml",
+      "sha256": "3ecafb1a8c2313570b26e4433feafca3c92c85e37523e53625cb191076952f59",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_overfit64_velw1_e40.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_overfit64_velw1_e40.yaml",
+      "sha256": "da978d0d972c33640365b36d9c8d2d2f5378552fc0712c01f592dd8e83d495af",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_overfit64_velw1_lr1e4_e20.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_overfit64_velw1_lr1e4_e20.yaml",
+      "sha256": "e98d37ad5ca53861c7752aa556ad8a3816cc15f3312160262c11cf7f1d05c821",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_overfit64_velw5_head5x_e60.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_overfit64_velw5_head5x_e60.yaml",
+      "sha256": "ca761c438074ad9c77a38fcc86c582b0ea5386091000fc87245d4b100419d315",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_velw1_head5x_e8.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_velw1_head5x_e8.yaml",
+      "sha256": "a59b9127539495b9ea6832291d161aa75b418010f41d1726a644a382385c0297",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_highway_v1_raw_velw1_lr1e4_e8.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_highway_v1_raw_velw1_lr1e4_e8.yaml",
+      "sha256": "b501020365abbec47699305f6fafefbac15c4969b97ad8cc2e21c7bd0249ae28",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_hwy3h1_mrhc_v2_t1_3sweep_e4.yaml",
+      "sha256": "3f1147ccc276ffddc0acbe0e12dcacccfc07998f5756ffb0f5392bff33024998",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_mrhc_v2_v1_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_hwy3h1_mrhc_v2_v1_e4.yaml",
+      "sha256": "a50e47eafa1ab8374eaaee43b906566bb52f7d19322807ecf5fadd810d32a91a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_t1_3sweep_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_hwy3h1_t1_3sweep_e4.yaml",
+      "sha256": "f77436ec12a7cc28980e29db8b6851c64545f321ec0ac0e9b4663345fb087cdb",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_hwy3h1_v1_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_hwy3h1_v1_e4.yaml",
+      "sha256": "360f08437d148922317e7da667f3dda9cb7387b528a5fa4131b1d3632f63959e",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p1_motion_value_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p1_motion_value_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "22b3cf7d885b87c4276fd3ce829fe390c04ecacc9f03d8323254062a66d71b16",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p1_motion_value_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p1_motion_value_overfit64_w1_head5x_e12.yaml",
+      "sha256": "f1b0d101b735bb551a3ebaf2db379524ed46435820576baa83ce20711b4e3290",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_gate50_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_gate50_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "a64f472ef49d4915024a983efa4288d15a249a2ee18b92678eba5eb6aa540d79",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_gate50_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_gate50_overfit64_w1_head5x_e12.yaml",
+      "sha256": "e6338e979ed637c7a4edff7aa661d85bd7be91b95f838147e1e39e14c77690a0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_gate90_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_gate90_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "35be536fc99b830a2bf447ae77789232deca56dd2928373c919ac62429a6ee3b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_gate90_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_gate90_overfit64_w1_head5x_e12.yaml",
+      "sha256": "e9f8980ea9dd874fbbc74731840d3b95e6a421c0f5d1f28c428576b2391d4088",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_gate99_overfit64_w1_head5x_e8.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_gate99_overfit64_w1_head5x_e8.yaml",
+      "sha256": "00e00fe6ddd1860372e7b1287e13383559e9dd13079440c8812385842ddb5482",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "cadfa3472ac4e8ccfe2c385a10300527584d28cf113f1cca4b0d1210ca5978f3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p2_postdecoder_motion_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p2_postdecoder_motion_overfit64_w1_head5x_e12.yaml",
+      "sha256": "5a1c275d5e2c3baa9a7c3ecb93c1a359a795047b66baa237ca90530cac56dfa4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p3_robust_motion_gate90_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p3_robust_motion_gate90_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "5c1cd4d4ee9c74e9253319fbad1cf061eaae7462a4a5839a331ec76437a7b4e7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p3_robust_motion_gate90_overfit64_w1_head5x_e8.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p3_robust_motion_gate90_overfit64_w1_head5x_e8.yaml",
+      "sha256": "2c4af46f8432e75ec37b9151c48d03851264f4136a22d87e9b236801befbf90d",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p4_mutual_consensus_gate90_hardcase_v2_w1_head5x_e2.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p4_mutual_consensus_gate90_hardcase_v2_w1_head5x_e2.yaml",
+      "sha256": "4f83327fc6a074e443cb8c4e3625ee01ede39af03bdb765b750a24ddb0e2ed7b",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_p4_mutual_consensus_gate90_overfit64_w1_head5x_e2.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_p4_mutual_consensus_gate90_overfit64_w1_head5x_e2.yaml",
+      "sha256": "a49e8603204f523d8e27934b2c9509c38e6b7792dd5719a6910208465fa397f3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_query_memory_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_query_memory_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "4f21622cf70345fde45533c3d8981d2f3073d20965811ff7d71de336ca42c533",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_query_memory_off_control_hardcase_v2_w1_head5x_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_query_memory_off_control_hardcase_v2_w1_head5x_e4.yaml",
+      "sha256": "3b1a531d57ae6a52838b15df9f80b46b1c64d8236cdd4de26f6db3d2ee9836e2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_query_memory_off_control_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_query_memory_off_control_overfit64_w1_head5x_e12.yaml",
+      "sha256": "7fb2c1e7ba44a17a65e6db9e9eaf636d6c1c5db54ee66a3c766c90c95686cefe",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_q1_query_memory_overfit64_w1_head5x_e12.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_q1_query_memory_overfit64_w1_head5x_e12.yaml",
+      "sha256": "e4661723c9f72343dc48751acaf455350f218a0e0600ca1b1f7130aeb7b821d4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_diagnostic_t1_3sweep_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_velocity_diagnostic_t1_3sweep_e4.yaml",
+      "sha256": "f432181013bd2f05862290a5f38f306de0dad2bc214a644235b1c2001e4c61f1",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_hardcase_v2_t1_3sweep_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_velocity_hardcase_v2_t1_3sweep_e4.yaml",
+      "sha256": "bafe3855a566fe1d0d0ebf21c28fa09aff4f48b8734fd191e983cc515e72c9b7",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/configs/team/recipes/base4_velocity_hardcase_v2_v1_e4.yaml",
+      "archive_path": "perception/detection3d/bevfusion/configs/legacy/base4/recipes/base4_velocity_hardcase_v2_v1_e4.yaml",
+      "sha256": "49fefce6b8be37710cb8e1ae16dada161aab0c43d75ba8950d04d993920a2646",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/tools/adapt_base3_checkpoint_for_base4_t1.py",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/tools/adapt_base3_checkpoint_for_base4_t1.py",
+      "sha256": "7d0601ca0452113714d5788de8c156184109887754d151e45de3327ac3eb7637",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/tools/audit_base4_temporal_quality.py",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/tools/audit_base4_temporal_quality.py",
+      "sha256": "e6a1135f8f7d5ff500ace4babbe0ec057c77d57d0451a62af5be2498ccc48cc6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/tools/diagnose_base4_velocity_learnability.py",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/tools/diagnose_base4_velocity_learnability.py",
+      "sha256": "5d4b59203b516899bb502e60273e93b19fed52a95e8b930862387e755b3ab255",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/tools/test_base4_temporal_quality_audit.py",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/tools/test_base4_temporal_quality_audit.py",
+      "sha256": "41a14d62628b607af9cceca02df3a69bd61e4daf3a706393499a153037728972",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/tools/test_base4_velocity_learnability.py",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/tools/test_base4_velocity_learnability.py",
+      "sha256": "3a986f890e8c6cc0f92e0c84b85e5d50cfb9e61e7908c8cee2d177be1181ccb9",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "perception/detection3d/bevfusion/scripts/play_base4_highway_v1_rviz.sh",
+      "archive_path": "perception/detection3d/bevfusion/legacy/base4/scripts/play_base4_highway_v1_rviz.sh",
+      "sha256": "4c76a1740fa898dbb64368928fe1a498167b27fdb3353623c09f0282c944add0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261009_RTX4090_CAPACITY_RESULTS.md",
+      "archive_path": "docs/bevfusion/evidence/261009_RTX4090_CAPACITY_RESULTS.md",
+      "sha256": "45d1191fb1c642ffc8857ea2a6ad78446503a7c9ebdc9d5b9c597302ec498853",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261009_BASE5_CAMERA_CROP_INVESTIGATION.md",
+      "archive_path": "docs/bevfusion/evidence/261009_BASE5_CAMERA_CROP_INVESTIGATION.md",
+      "sha256": "2f3722ccacd161542d15736103d6e96180df61c652625684d7b7ab7f9f58aeb5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md",
+      "archive_path": "docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md",
+      "sha256": "79ee1e42ccc8aa9318d7b6d65605d9825048388bc2ca593c0ee4db468125479f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md",
+      "archive_path": "docs/bevfusion/evidence/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md",
+      "sha256": "70ced8cf8c6125fe1faf349ca41bae161d36c832fcda17eb98cb3ce5f16a2bf2",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md",
+      "archive_path": "docs/bevfusion/evidence/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md",
+      "sha256": "f83631ed02dcb3e02b3bdb80293384053ef0eae6e0adb31a090de7435d59f5f0",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md",
+      "archive_path": "docs/bevfusion/evidence/261016_BASE5_512_576_CROP_HEIGHT_DIAGNOSTIC.md",
+      "sha256": "b658fa43c3e4a4ece003d0846e24c931530dbc6198cd1d2fd3e584364505e447",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md",
+      "archive_path": "docs/bevfusion/evidence/261009_BASE5_CAMERA_INPUT_AND_4090_BENCH_PLAN.md",
+      "sha256": "1aff3d94c4fa2d1cbb7ebaaa407bd18420460c2b5c7a9e26fda85988cbd08990",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md",
+      "archive_path": "docs/bevfusion/evidence/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md",
+      "sha256": "a06a6ec35b474fca16205ab9a7838175230f74be8643d29266eb4eb932e98434",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md",
+      "archive_path": "docs/bevfusion/evidence/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md",
+      "sha256": "09bbbbb44c2c0308575237038383e256f820348ac6fbcead757cf83ea9ec72ed",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md",
+      "archive_path": "docs/bevfusion/evidence/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md",
+      "sha256": "cb50d7e8ea6db8b29c90d0fae3dbca955f3390a550a828480640bb74f64fc45c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md",
+      "archive_path": "docs/bevfusion/evidence/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md",
+      "sha256": "e765b0f0cd5d912d2481aff08bc1fee79d1ec162194a292fcba2256ab8c2c674",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "perception",
+      "original_path": "docs/bevfusion/261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md",
+      "archive_path": "docs/bevfusion/evidence/261014_VALIDATOR_ANALYSIS_SHARE_HANDOFF.md",
+      "sha256": "723e8a1d3e585e9a19abf4ae437cdfd1ab48b2920467ca1d9664871da15e9294",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_1.json",
+      "archive_path": "configs/sensors/legacy/Sensor_1.json",
+      "sha256": "882204ea1de4ee9ac30ea72ef21ba28619798a8ec9cdcfe103174ff50098dca6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_2.json",
+      "archive_path": "configs/sensors/legacy/Sensor_2.json",
+      "sha256": "aa9dc7d07f53611156032fea8dc8fff3844fcff751649e92fb43a0e6af1b3348",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_3.json",
+      "archive_path": "configs/sensors/legacy/Sensor_3.json",
+      "sha256": "1af28b0e289414ca9e1d5799d8cd9fad943636394ee7c5717921950c02f1660a",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_4_noise_v1.json",
+      "archive_path": "configs/sensors/legacy/Sensor_4_noise_v1.json",
+      "sha256": "a2525e6430542338259f6aa9496b3763a53311dd1ab494dbeba2eb63a08fa15f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_local.json",
+      "archive_path": "configs/sensors/legacy/Sensor_local.json",
+      "sha256": "1d1a96ef30964468e782de0afafa10c3ca90d22eb84eeae85e0169be3f152e79",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_lan.json",
+      "archive_path": "configs/sensors/legacy/Sensor_lan.json",
+      "sha256": "6d3a600a43c5b1f9b2f0d4e99ee27023f48485c2004679f916bee2eba32e3e7c",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_competition_local_lidar150_test.json",
+      "archive_path": "configs/sensors/legacy/Sensor_competition_local_lidar150_test.json",
+      "sha256": "b634d5f12dc52bfb779cee9738a54bb827373bfd03dfad33e939c592456b106f",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_competition_local_lidar_freq1_probe.json",
+      "archive_path": "configs/sensors/legacy/Sensor_competition_local_lidar_freq1_probe.json",
+      "sha256": "952e7316ca4febaf1ff17025055a901db36d57ecd4ac70d46687cb06f6d02fc3",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/Sensor_woodbox_lidar_only_local.json",
+      "archive_path": "configs/sensors/legacy/Sensor_woodbox_lidar_only_local.json",
+      "sha256": "8eda92415e17861673daf79df26561491ca7a64f6ae2a3289a0541ae3fa83ce5",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/2026_molit_comp_cam_set.json",
+      "archive_path": "configs/sensors/legacy/2026_molit_comp_cam_set.json",
+      "sha256": "5c3da20597f44a57a1ecab83374bd652024126e6a09e33a800ddc89c222dcbd4",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/sensor_layout.yaml",
+      "archive_path": "configs/sensors/legacy/sensor_layout.yaml",
+      "sha256": "6fe4961d4b5295706ad7019bdbbd76fbf07a8c7a84e0594ba6da505e75353db6",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/sensor_layout_example.yaml",
+      "archive_path": "configs/sensors/legacy/sensor_layout_example.yaml",
+      "sha256": "5304fa2ad4dcc5ffb55de86b4a6e94a02409885db07e83eedcc4b04785650cab",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/network/ego_network_mr_calibration_hybrid.json",
+      "archive_path": "configs/network/legacy/ego_network_mr_calibration_hybrid.json",
+      "sha256": "b73c19aeb6132ee09e5309db72033d973131862e239cdfb2db25e81cd487ea89",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/network/ego_network_mr_base5_savesensordata_local.json",
+      "archive_path": "configs/network/legacy/ego_network_mr_base5_savesensordata_local.json",
+      "sha256": "b73c19aeb6132ee09e5309db72033d973131862e239cdfb2db25e81cd487ea89",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/network/ego_network_1_lan_9088_9099.json",
+      "archive_path": "configs/network/legacy/ego_network_1_lan_9088_9099.json",
+      "sha256": "f87cc7b87cf80aa3afa902e3262ac698941d35248fe982be18ab2a5cfc63a1dd",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/network/ego_network_mrp_minimal_hybrid.json",
+      "archive_path": "configs/network/legacy/ego_network_mrp_minimal_hybrid.json",
+      "sha256": "8fda7af1e6d1f71b0cc865c9437c1219b7f910e5dfc14ccd8d569b51f92ee975",
+      "operation": "move",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/sensors/README.md",
+      "archive_path": "configs/sensors/legacy/261024_README.before.md",
+      "sha256": "58f22c5348396464574b11ca6ac24e5a665e320682a636b523dd59ed3aba12bc",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "sensor_network",
+      "original_path": "configs/network/README.md",
+      "archive_path": "configs/network/legacy/261024_README.before.md",
+      "sha256": "cef4697f57febabef1138e8fe3643eff6ababe7904199666bf289b427fa3e787",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    }
+  ]
+}

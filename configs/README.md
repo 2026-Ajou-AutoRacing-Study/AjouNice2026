@@ -1,27 +1,20 @@
-# configs
-- 차량, 센서, tf 구성에 사용할 파라미터들
+# 설정 진입점
 
-## configs 관리의 필요성
-- 설정 값들을 모두 코드에 하드코딩하면, 비교와 실험 재현, 설정 관리가 매우 어려워짐.
-- 따라서 기본 차량, 센서, tf 설정뿐만 아니라, 각 스택별 사용할 config 또한 따로 yaml 파일로 분기하여 저장하면 관리가 쉬워짐.
-- 반복 실험을 위해 yaml 파일은 여러 개를 만들 수도 있음. 활용하기 나름.
+현재 실행 파일은 각 분야의 README·CURRENT와 실제 launch에서 확인한다.
+번호가 큰 파일이나 날짜가 최신인 실험 설정을 운영 기본값으로 간주하지 않는다.
 
-## configs list
-- `vehicle/ioniq5.yaml`: 우리 차량 구성 파일
-- `sensors/sensor_layout.yaml`: 우리 센서 구성 파일
-- `tf/static_tf.yaml`: 우리 좌표계 구성 파일
-- `morai_field_reference/`: 현장 MORAI PC에 실제 로드해 풀주행을 검증한
-  Sensor/Network 원본. 알고리즘 PC의 `udp_lan` 입력과 역할이 다르므로 해당
-  디렉터리의 README를 먼저 확인함.
-- 개인 PC 단독 실행은 `sensors/Sensor_competition_local.json`과
-  `network/ego_network_competition_local.json`, 대회 알고리즘 PC는 대응하는
-  `*_competition_lan.json` profile을 사용함.
-- 
-## Notes
-- 현재(260511) 있는 `vehicle/ioniq5.yaml`, `sensors/sensor_layout.yaml`, `tf/static_tf.yaml`은 **예시 파일들임.**
+| 분야 | 진입점 |
+| --- | --- |
+| 센서 | [sensors/README.md](sensors/README.md) |
+| 네트워크 | [network/README.md](network/README.md) |
+| 현장 MORAI 원본 | [morai_field_reference/README.md](morai_field_reference/README.md) |
+| 측위 | [localization/README.md](localization/README.md) |
+| 인지 | [perception/AGENTS.md](perception/AGENTS.md) |
+| 데이터 수집 | [dataset/README.md](dataset/README.md) |
+| 지도 자산 | [지도 README](../kcity_map/README.md) |
 
-## TODO
-- [ ] `localization/fast_lio2.yaml` 생성
-- [ ] `perception/bevfusion.yaml` 생성
-- [ ] `planning/lane_driving.yaml` 생성
-- [ ] `control/mpc.yaml` 생성
+로컬 동시 실행·LAN 개발·대회 구성의 역할과 IP는 sensor/network 담당 문서를 따른다.
+수집·실험 전용 프로필을 대회 프로필로 혼용하지 않는다.
+초기 `vehicle/ioniq5.yaml`·`tf/static_tf.yaml` 예시와 `sensors/legacy/`의 옛 layout YAML은
+실제 센서 JSON·launch 계약을 대체하지 않는다. 과거 설정은 분야별 `legacy/`로 분리한다.
+인증정보·개인 workspace 설정·큰 지도·모델은 이 디렉터리에 추가하지 않는다.

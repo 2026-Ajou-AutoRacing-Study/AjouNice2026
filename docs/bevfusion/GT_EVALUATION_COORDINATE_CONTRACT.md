@@ -30,7 +30,7 @@
 MR/MRP 구분은 물리 PC나 ROS/UDP 여부가 아니라 simulator·launch·GT 입력 계약으로 한다.
 MRP 및 과거 FIELD-GT의 offset 0 계약에 이번 MR의 값을 일괄 적용하지 않는다.
 과거 bag은 [localization 현재 기준](../localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md)과
-[bag 목록](../localization/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md)의 provenance를 먼저 확인한다.
+[bag 목록](../localization/legacy/evidence/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md)의 provenance를 먼저 확인한다.
 
 각 평가 결과에는 다음을 기록한다.
 
@@ -49,8 +49,8 @@ MRP 및 과거 FIELD-GT의 offset 0 계약에 이번 MR의 값을 일괄 적용�
 3,647개 token의 LiDAR stamp·점 payload SHA·JPEG SHA는 보정 전후 동일하다.
 원본 입력·가중치·이미 계산한 추론 출력은 보존하고, 독립 GT 및 그에 따른 평가 좌표만 다시 계산했다.
 production localization 변경, 재학습 또는 재수집을 요구하는 수정이 아니다.
-[실측 근거](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md#물리-yaw와-기록된-기본-gt-tf의-구분)를 따른다.
+[실측 근거](evidence/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md#물리-yaw와-기록된-기본-gt-tf의-구분)를 따른다.
 
 이 계약은 BBox bottom/gravity 원점 변환과 별개다.
-ROS 출력 중심은 [BBox 원점 계약](261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)을 따르고,
+ROS 출력 중심은 [BBox 원점 계약](evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#box-origin)을 따르고,
 자산 지면 높이·부유 여부도 heading 보정으로 해결되지 않는다.
