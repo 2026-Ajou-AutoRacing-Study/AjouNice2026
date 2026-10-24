@@ -229,7 +229,7 @@ Google Drive 공유는 캠페인 YAML의 `upload.enabled`, `upload.profile`, `up
 ```yaml
 route:
   name: route_b
-  definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v85_competition_route.yaml
+  definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml
 ```
 
 실행기는 현재 위치부터 `default_case.goal`까지의 B 구간만 선택하고, 해당 차로의 중심점을

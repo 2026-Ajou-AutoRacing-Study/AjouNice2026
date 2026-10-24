@@ -41,7 +41,7 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v84.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v87.osm
 ```
 
 MORAI에서는 다음을 확인한다.

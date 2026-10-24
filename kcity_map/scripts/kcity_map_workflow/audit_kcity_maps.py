@@ -194,7 +194,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--alignment-lanelet-map",
-        default=str(ROOT / "lanelet_map/lanelet2_map_v68.osm"),
+        default=str(ROOT / "lanelet_map/lanelet2_map_v87.osm"),
         help="Lanelet2 map used for nearest-neighbor alignment summary.",
     )
     args = parser.parse_args()

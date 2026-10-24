@@ -32,7 +32,7 @@ Google Drive에서 관리하는 파일:
 - Lanelet2: `lanelet_map/lanelet2_map_v87.osm` (Git checkout에 포함)
 - Pointcloud: `lanelet_map/pointcloud_map_v1.pcd`
 - Projector: `lanelet_map/map_projector_info_v1.yaml`
-- Competition route: `competition_route/v44/`
+- Competition route: `base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml`
 
 ## v87 기본 실행
 
@@ -86,8 +86,8 @@ scripts/map/download_kcity_map_assets.sh
 
 ## 새 지도 업로드
 
-새 버전은 기존 파일을 덮어쓰지 않고 버전 번호를 올립니다. 예를 들어
-`lanelet2_map_v57.osm`이 이미 있다면 다음 파일은 `v58`로 만듭니다.
+새 버전은 기존 파일을 덮어쓰지 않고 버전 번호를 올립니다. 현재 Git 배포
+지도는 v87이며, 이전 버전 지도·라우트 설정과 제작 산출물은 Git에 포함하지 않습니다.
 
 ```bash
 # 업로드 대상과 충돌 여부를 실제 변경 없이 확인
@@ -129,10 +129,10 @@ scripts/map/upload_kcity_map_assets.sh --dry-run
 cd ~/AjouNice2026/kcity_map
 
 python3 scripts/kcity_map_workflow/generate_drive_course_from_map.py \
-  --map lanelet_map/lanelet2_map_v44.osm \
-  --reference-csv competition_route/v41/drive_course_v41_lanelets.csv \
-  --out-dir competition_route/v44 \
-  --output-prefix drive_course_v44
+  --map lanelet_map/lanelet2_map_v87.osm \
+  --reference-csv /path/to/reference_lanelets.csv \
+  --out-dir competition_route/v87 \
+  --output-prefix drive_course_v87
 ```
 
 일부 Autoware 연동 검증 스크립트는 선택적으로 상위 워크스페이스의

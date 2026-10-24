@@ -323,9 +323,9 @@ The historical v23 transform left a bag-region MGeo-to-Lanelet p50 residual of
 `0.0946 m` and required a mean correction vector of
 `(-0.0856, +0.0005) m`. The v60 runtime-origin transform reduces these to
 `0.0025 m` and `(+0.0028, -0.0003) m`. Production therefore uses
-`configs/tf/morai_lanelet_static_tf.yaml`; reproduce already-recorded legacy
-map-frame outputs with
-`configs/tf/morai_lanelet_static_tf_v23_refined_legacy.yaml`.
+`configs/tf/morai_lanelet_static_tf.yaml`. Historical map-frame transform
+configs are excluded from the current release; reproducing old outputs requires
+the transform recorded with the original evaluation.
 
 ### rolling-LiDAR timing audit
 

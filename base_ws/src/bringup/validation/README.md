@@ -90,4 +90,4 @@ display. Editing and saving alone issue no route request.
 `planner_logs/route_editor/competition_routes.yaml` by default; **불러오기** opens
 another saved draft. The editor reloads the default file on the next launch.
 These are editor files with a map fingerprint: they do not overwrite or replace
-the competition requester's frozen `kcity_v85_competition_route.yaml` contract.
+the competition requester's frozen `kcity_v87_competition_route.yaml` contract.
