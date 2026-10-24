@@ -98,3 +98,36 @@ def test_callback_processing_diagnostics_are_opt_in_without_policy_change():
     map_node = next(node for node in prediction.iter("node") if node.attrib["name"] == "map_based_prediction")
     map_params = {item.attrib["name"]: item.attrib.get("value") for item in map_node.findall("param")}
     assert map_params["publish_processing_diagnostics"] == "$(arg publish_processing_diagnostics)"
+
+
+def test_recorder_diagnostics_auto_default_and_opt_out_propagate_to_all_producers():
+    wrapper = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
+    wrapper_defaults = {item.attrib["name"]: item.attrib.get("default") for item in wrapper.findall("arg")}
+    assert wrapper_defaults["diagnostics_auto_on_subscribe"] == "true"
+    assert _included_arguments()["diagnostics_auto_on_subscribe"] == "$(arg diagnostics_auto_on_subscribe)"
+
+    pipeline = ET.parse(PACKAGE_ROOT / "launch" / "object_pipeline.launch").getroot()
+    defaults = {item.attrib["name"]: item.attrib.get("default") for item in pipeline.findall("arg")}
+    assert defaults["diagnostics_auto_on_subscribe"] == "true"
+    policy = next(node for node in pipeline.findall("node") if node.attrib["name"] == "tracked_object_motion_policy")
+    assert policy.find("param[@name='diagnostics_auto_on_subscribe']").attrib["value"] == "$(arg diagnostics_auto_on_subscribe)"
+    for include in pipeline.findall("include"):
+        if "ekf_multi_class_object_tracking.launch" in include.attrib["file"] or "object_prediction.launch" in include.attrib["file"]:
+            assert include.find("arg[@name='diagnostics_auto_on_subscribe']").attrib["value"] == "$(arg diagnostics_auto_on_subscribe)"
+
+    prediction = ET.parse(PACKAGE_ROOT / "launch" / "object_prediction.launch").getroot()
+    assert prediction.find("arg[@name='diagnostics_auto_on_subscribe']").attrib["default"] == "true"
+    map_node = next(node for node in prediction.iter("node") if node.attrib["name"] == "map_based_prediction")
+    assert map_node.find("param[@name='diagnostics_auto_on_subscribe']").attrib["value"] == "$(arg diagnostics_auto_on_subscribe)"
+
+    tracker_launch = PACKAGE_ROOT.parent / "ekf-multi-object-tracking" / "launch" / "ekf_multi_class_object_tracking.launch"
+    tracker = ET.parse(tracker_launch).getroot()
+    assert tracker.find("arg[@name='diagnostics_auto_on_subscribe']").attrib["default"] == "true"
+    tracker_node = tracker.find("node")
+    assert tracker_node.find("param[@name='diagnostics_auto_on_subscribe']").attrib["value"] == "$(arg diagnostics_auto_on_subscribe)"
+    for launch in (wrapper, pipeline, prediction, tracker):
+        names = [item.attrib["name"] for item in launch.findall("arg")]
+        assert len(names) == len(set(names)), "duplicate top-level launch arguments"
+        for node in launch.iter("node"):
+            params = [item.attrib["name"] for item in node.findall("param")]
+            assert len(params) == len(set(params)), "duplicate node parameters"

@@ -8,6 +8,7 @@
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_processing_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
@@ -35,6 +36,8 @@
           respawn="false">
       <param name="publish_processing_diagnostics"
              value="$(arg publish_processing_diagnostics)"/>
+      <param name="diagnostics_auto_on_subscribe"
+             value="$(arg diagnostics_auto_on_subscribe)"/>
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <rosparam command="load"

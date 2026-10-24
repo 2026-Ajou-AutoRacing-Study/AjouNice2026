@@ -81,8 +81,8 @@ prediction coverage를 함께 감시한다.
 
 ### 선택형 연결·수명 진단
 
-다음 LAN 분석용 `publish_association_diagnostics`는 기본 OFF다. 최신 tracker submodule을
-빌드한 뒤 `tracking publish_association_diagnostics:=true`로 시작하고 녹화기가 구독하면
+다음 LAN 분석용 `publish_association_diagnostics`의 강제 ON 기본값은 false다. 최신 tracker
+submodule을 빌드하고 스택을 시작하면 기본 `diagnostics_auto_on_subscribe=true`에 따라 녹화기가 구독할 때
 `/perception/object_recognition/tracking/diagnostics/association`에 JSON을 발행한다.
 입력 stamp/index·ID/UUID·연결·생성·억제·coasting·삭제와 class vote를 기록하며 추적 정책은 바꾸지 않는다.
 최대 256행과 누락 행 수를 기록한다. 최근접 후보 한 개의 gate 이유를 모든 후보의 탈락 이유로
@@ -90,6 +90,8 @@ prediction coverage를 함께 감시한다.
 직렬화는 하지 않는다. 계측 전 binary와 OFF/ON의 2,334개 저장 입력 state/covariance 동등성과
 ROS 빌드 및 격리 localhost의 합성 입력 12회→진단 JSON 12회·실제 출력 UUID 일치를 확인했다.
 실제 대회 LAN·24GB 풀스택 지연 검증은 별도다.
+자동 모드는 `tracking diagnostics_auto_on_subscribe:=false`로 끌 수 있다. 같은 인자는
+motion-policy·Map-CV에도 전달된다. 이미 실행 중인 구버전 노드는 자동 교체·재시작하지 않는다.
 `measurement_objects`는 30Hz predicted copy라 이 내부 assignment 진단을 대신하지 않는다.
 양쪽 PC 부하·raw 센서·단계별 시간의 [개발 녹화 절차](../../../../scripts/README.md#lan-두-pc를-함께-계측하기)를 따른다.
 

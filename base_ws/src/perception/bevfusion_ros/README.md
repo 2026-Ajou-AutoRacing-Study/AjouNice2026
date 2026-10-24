@@ -40,9 +40,11 @@ LiDAR 기준으로 카메라 buffer의 가까운 이미지를 선택하며 prepr
 [후단 CURRENT](../../perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를 따른다.
 MORAI GT·ego oracle을 대회 detector 입력이나 production fallback으로 쓰지 않는다.
 
-단계별 JSON 진단은 `publish_frame_timing:=true`로 선택한다. launch와 공용 production
-실행기의 기본값은 OFF다. 다음 계측 주행을 시작할 때 `bevfusion --publish-frame-timing` 또는
-`BEVFUSION_PUBLISH_FRAME_TIMING=true`를 명시한다. 녹화기가 실행 중인 bridge를 바꾸지는 않는다. canonical/trial 토픽과
+단계별 JSON 진단은 최신 노드의 `diagnostics_auto_on_subscribe=true` 기본값에 따라 녹화기 등
+진단 구독자가 있을 때 자동 활성화된다. 구독자 없이 계속 계측하려면 `publish_frame_timing:=true`
+또는 `bevfusion --publish-frame-timing`을 선택한다. 강제 ON 기본값은 false이며,
+자동 모드까지 끄려면 launch의 `diagnostics_auto_on_subscribe:=false`를 지정한다. ledger는
+스레드 간 유지하며 입력 프레임별로 계측 여부를 결정한다. 구버전 실행 노드는 녹화기가 재시작하지 않는다. canonical/trial 토픽과
 raw/prepared queue·server·publish 범위는 [진단 계약](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#diagnostics)을 따른다.
 기존 latency Float32나 입력 stamp·payload를 재정의하지 않으며 실제 server 비용은 별도로 기록한다.
 

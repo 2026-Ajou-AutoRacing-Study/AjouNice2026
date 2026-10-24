@@ -22,6 +22,7 @@
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
   <arg name="publish_processing_diagnostics" default="false"/>
   <arg name="publish_association_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
@@ -202,6 +203,7 @@
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
     <arg name="publish_association_diagnostics" value="$(arg publish_association_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg pedestrian_gaussian_association_ranking)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
@@ -305,6 +307,8 @@
            value="$(arg force_unknown_stationary)"/>
     <param name="publish_processing_diagnostics"
            value="$(arg publish_processing_diagnostics)"/>
+    <param name="diagnostics_auto_on_subscribe"
+           value="$(arg diagnostics_auto_on_subscribe)"/>
   </node>
 
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
@@ -329,6 +333,7 @@
     <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
     <arg name="publish_processing_diagnostics" value="$(arg publish_processing_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>

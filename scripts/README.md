@@ -70,19 +70,25 @@ Cruise `debug/obstacle_cruise/trajectory`는 필수 토픽으로 취급하지 �
 인터페이스 IP 확인이 아니며, 이 녹화기는 IP·방화벽·시계·센서·차량 설정을 변경하지 않는다.
 제어 명령은 반대 방향으로도 흐른다. 과거 현장 원본 JSON의 `192.168.0.*` 주소와 혼합하지 않는다.
 
-다음 시험에서 **기존 노드를 시작하기 전**, 필요한 진단만 명시적으로 켠다.
-주행 중 이 옵션 때문에 노드를 재시작하지 않는다. `bevfusion`, `tracking`은 공용 alias 기준이다.
+최신 코드를 반영해 **평소처럼 스택을 시작한 뒤**, 두 PC에서 각각 다음 한 명령으로 녹화한다.
+새 노드는 진단 구독자 유무로 자동 계측하므로 `bevfusion`·`tracking`에 별도 옵션을 줄 필요가 없다.
+구버전 실행 노드는 자동 교체·재시작하지 않는다. 최초 코드 반영·빌드는 주행 전에 수행한다.
 
 ```bash
-# 각 원래 담당 터미널에서 실행할 시작 명령. 녹화기가 대신 실행하지 않는다.
-bevfusion --publish-frame-timing
-tracking publish_processing_diagnostics:=true publish_association_diagnostics:=true
+# Linux: 저장소 밖에서도 실행 가능, ROS 환경은 스크립트가 준비한다.
+bash ~/AjouNice2026/scripts/rosbag/record/start_lan_recording.sh
+```
+
+```powershell
+# Windows: start_morai_recording.ps1 한 파일만 받아 실행하면 된다.
+powershell.exe -NoProfile -File .\start_morai_recording.ps1
 ```
 
 BEVFusion 진단은 LiDAR callback/header age, camera 선택 차이, raw/prepared queue,
 전처리·RPC/server·검출 발행 비용과 누적 skip counter를 담는다. tracker 선택형 association 진단은
-입력 측정 stamp/index와 ID/UUID, 연결·새 ID·억제·coasting·삭제 이유를 담는다. 각 launch 기본은
-계속 OFF이며, 새 tracker 진단에는 갱신된 submodule과 대상 PC 재빌드가 필요하다.
+입력 측정 stamp/index와 ID/UUID, 연결·새 ID·억제·coasting·삭제 이유를 담는다. 강제 ON 기본은
+계속 false이며, `diagnostics_auto_on_subscribe=true`가 구독 중에만 켠다. 새 tracker 진단에는
+갱신된 submodule과 대상 PC 재빌드가 필요하다. 자동 계측을 끄려면 해당 launch 인자를 false로 준다.
 `measurement_objects`만 녹화해도 내부 연결 사유가 기록되는 것은 아니다.
 Map-CV·motion-policy 진단과 이 association 옵션은 모델·threshold·3초 예측 정책을 바꾸지 않는다.
 LC safety/Cruise selection은 해당 코드가 지원하고 실제 구간에서 발행해야 저장된다.
@@ -105,19 +111,24 @@ Linux UDP 오류, LiDAR 수신 포트 2368의 socket queue/drop, GPU를 함께 �
 계측 subprocess 실패가 차량이나 bag을 중단하지는 않으며 종료 audit에서 실패 여부를 확인한다.
 
 Windows에는 저장소 전체·ROS·Python 설치 없이
-[`record_morai_host.ps1`](rosbag/record/record_morai_host.ps1) 한 파일을 전달한다.
+[`start_morai_recording.ps1`](rosbag/record/start_morai_recording.ps1) 한 파일만 전달한다.
+이 실행기는 바탕화면(없으면 사용자 홈)에 고유한 `AjouNice_LAN/날짜_UUID/` 폴더를 만들고 GPU 포함 계측을 시작한다.
+본체가 옆에 없으면 고정 commit·SHA256으로 확인해 새 폴더 안에 내려받는다. 기본 session은
+Linux 실행기와 같은 `lan_debug`이며, 기록 폴더·시각·호스트 ID도 같이 사용해 주행을 구분한다.
+고급 사용자용 [`record_morai_host.ps1`](rosbag/record/record_morai_host.ps1) 직접 실행도 유지한다.
 일반 PowerShell에서 다음과 같이 실행한다. 기존 파일은 덮어쓰지 않는다.
 
 ```powershell
-# 파일을 둔 폴더에서 먼저 30초 사전 확인. 출력 부모 폴더는 이미 존재해야 한다.
-powershell.exe -NoProfile -File .\record_morai_host.ps1 -Output "$HOME\Desktop\morai_check.jsonl" -SessionId "lan_check" -Duration 30 -IncludeGpu
+# 파일을 둔 폴더에서 먼저 30초 사전 확인. 출력 폴더는 자동 생성한다.
+powershell.exe -NoProfile -File .\start_morai_recording.ps1 -Duration 30
 # 실제 녹화: Linux와 session-id를 맞추고 끝나면 Ctrl+C. MORAI는 종료하지 않는다.
-powershell.exe -NoProfile -File .\record_morai_host.ps1 -Output "$HOME\Desktop\morai_lan_261024_01.jsonl" -SessionId "lan_261024_01" -IncludeGpu
+powershell.exe -NoProfile -File .\start_morai_recording.ps1
 ```
 
 Windows는 CPU/코어별·RAM·NIC·IPv4 UDP·선택 MORAI 프로세스 CPU/RSS를 기본 2초 간격으로
-기록한다. 실제 프로세스 이름이 다르면 `-ProcessId 1234` 또는 `-ProcessName "실제이름*"`를 준다.
-`-IncludeGpu`는 선택 사항이다. 실행 정책에 막히면 PC 소유자와 확인하며 전역 실행 정책을 바꾸지 않는다.
+기록한다. 딸깍 실행기는 GPU 계측 기본 ON이며 `-NoGpu`로 끈다. 고급 collector 직접 실행에서만
+`-ProcessId 1234`, `-ProcessName "실제이름*"`, `-IncludeGpu`를 사용한다.
+실행 정책에 막히면 PC 소유자와 확인하며 전역 실행 정책을 바꾸지 않는다.
 PowerShell 7 Linux parser의 구문 오류 0개와 provider를 대체한 JSONL 생성·마감·카운터 모의 시험을
 확인했다. **Windows PowerShell 5.1 및 실제 Windows provider·Ctrl+C는 아직 실기 미검증이다.**
 실제 Windows에서 30초 로그가 정상 종료되고 `sample`이 있는지 확인한 뒤 사용한다.
@@ -226,7 +237,8 @@ bash scripts/rosbag/record/rosbag_for_perception_latency_eval.sh --duration 60
 노드부터 별도 A/B로 수행하며, 이 실행기들이 운영 정책을 자동 승격하지 않는다.
 
 후단의 `publish_processing_diagnostics:=true`를 명시하면 Map-CV·UNKNOWN 정책의
-callback/header age·메시지 생성·publish 비용 JSON도 보조 녹화에 포함된다. 기본 OFF이며
+callback/header age·메시지 생성·publish 비용 JSON을 강제 활성화한다. 강제 ON 기본은 false이며,
+최신 노드는 기본 `diagnostics_auto_on_subscribe=true`에 따라 녹화 구독 중에만 자동 계측한다.
 30Hz tracking header age를 마지막 detector 관측 age로 해석하지 않는다.
 `profile_pipeline_cpu_offline.py`는 명시한 Git reference와 현재 소스를 6 bag 등 동일 입력에서
 wire-exact 비교한다. [CPU 검토와 포팅 gate](../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.

@@ -275,8 +275,15 @@ class MapBasedPredictionNode:
         self.publisher = rospy.Publisher(
             "~output/objects", PredictedObjects, queue_size=1
         )
+        self.publish_processing_diagnostics = bool(
+            rospy.get_param("~publish_processing_diagnostics", False)
+        )
+        self.diagnostics_auto_on_subscribe = bool(
+            rospy.get_param("~diagnostics_auto_on_subscribe", True)
+        )
         self.processing_diagnostics_publisher = None
-        if bool(rospy.get_param("~publish_processing_diagnostics", False)):
+        self._processing_diagnostics_active = False
+        if self.publish_processing_diagnostics or self.diagnostics_auto_on_subscribe:
             self.processing_diagnostics_publisher = rospy.Publisher(
                 "~diagnostics/processing_time_ms", String, queue_size=1
             )
@@ -294,6 +301,29 @@ class MapBasedPredictionNode:
             self.prediction_horizon,
         )
 
+    def _processing_diagnostics_for_callback(self):
+        publisher = self.processing_diagnostics_publisher
+        # Existing fixtures without the new switches retain their explicit
+        # publisher-based behaviour. ROS constructors always set both switches.
+        enabled = publisher is not None and getattr(
+            self, "publish_processing_diagnostics", True
+        )
+        if publisher is not None and not enabled and getattr(
+            self, "diagnostics_auto_on_subscribe", False
+        ):
+            try:
+                # Local rospy connection state, not a parameter-server RPC.
+                enabled = publisher.get_num_connections() > 0
+            except Exception as error:
+                rospy.logwarn_throttle(
+                    5., "[map_based_prediction] optional diagnostics unavailable: %s", str(error)
+                )
+        if enabled and not getattr(self, "_processing_diagnostics_active", False):
+            # A disconnected interval is not a callback-processing stall.
+            self.processing_timing = NodeProcessingTiming()
+        self._processing_diagnostics_active = enabled
+        return publisher if enabled else None
+
     def callback(self, message):
         if message.header.frame_id != "map":
             rospy.logwarn_throttle(
@@ -304,7 +334,7 @@ class MapBasedPredictionNode:
             )
             return
         started = time.perf_counter()
-        diagnostics = self.processing_diagnostics_publisher
+        diagnostics = self._processing_diagnostics_for_callback()
         token = self.processing_timing.start(message, rospy.Time.now().to_nsec()) if diagnostics else None
         make_start = time.perf_counter() if diagnostics else None
         mixed_extension = getattr(self, 'mixed_extension', None)

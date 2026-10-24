@@ -43,6 +43,7 @@
   <arg name="tracker_center_motion_velocity_fusion" default="false"/>
   <arg name="tracker_publish_center_motion_diagnostics" default="false"/>
   <arg name="tracker_publish_association_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="tracker_center_motion_fuse_ekf_state" default="true"/>
   <arg name="tracker_center_motion_override_output_velocity" default="false"/>
   <arg name="tracker_center_motion_maximum_output_age_sec" default="0.40"/>
@@ -65,6 +66,7 @@
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
     <arg name="publish_association_diagnostics" value="$(arg tracker_publish_association_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg tracker_pedestrian_gaussian_association_ranking)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>

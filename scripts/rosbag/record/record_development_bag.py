@@ -304,11 +304,11 @@ def main():
     print('양쪽 PC 공통 session-id: ' + session_id, flush=True)
     print('원본 압축 카메라·LiDAR PointCloud/패킷·GPS/IMU 포함. recorder.log의 Recording을 확인한 뒤 주행하세요.', flush=True)
     print('Ctrl-C로 마감. 디스크 2GiB 미만이면 녹화만 종료하며 차량/스택은 제어하지 않습니다.', flush=True)
-    print('상세 시간은 BEVFusion 시작 시 --publish-frame-timing, tracking 시작 시 publish_processing_diagnostics:=true가 필요합니다.', flush=True)
+    print('최신 노드는 녹화 구독에 따라 상세 진단을 자동 활성화합니다. 별도 시작 옵션이 필요하지 않습니다.', flush=True)
     print('이미 켠 주행 노드를 이 녹화기가 재시작하거나 설정 변경하지 않습니다.', flush=True)
     for name in ('detector_stage_timing', 'postprocessing_stage_timing', 'tracker_assignment_trace'):
         if not readiness['advertised_groups'][name]:
-            print('WARNING: ' + name + ' 진단 토픽 미광고. bag은 계속 녹화하지만 해당 비용 분해는 제한됩니다.', flush=True)
+            print('WARNING: ' + name + ' 진단 토픽 미광고: 구버전 또는 미실행 노드일 수 있습니다. 녹화는 계속하며 주행 노드는 재시작하지 않습니다.', flush=True)
     previous = {}
     stopping = False
     host_process = None
