@@ -29,6 +29,8 @@ def prepare_execution(source, *, check_install=True):
     source = resolve_path(source)
     source_bytes = source.read_bytes()
     cfg = load_campaign(source, check_install=check_install)
+    if cfg.get('network_contract', {}).get('errors'):
+        raise ValueError('\n'.join(cfg['network_contract']['errors']))
     if source.read_bytes() != source_bytes:
         raise ValueError('사본 준비 중 YAML이 변경됐습니다. 다시 시작하세요')
     if is_snapshot(cfg['path']):
