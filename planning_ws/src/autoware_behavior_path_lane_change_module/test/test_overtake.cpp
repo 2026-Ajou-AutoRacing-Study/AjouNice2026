@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0.
 #include <autoware/behavior_path_lane_change_module/scene.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/overtake.hpp>
+#include <autoware/behavior_path_lane_change_module/utils/speed_profile.hpp>
+#include <autoware/behavior_path_lane_change_module/utils/utils.hpp>
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <gtest/gtest.h>
 #include <ros/ros.h>
@@ -107,6 +109,12 @@ public:
   using NormalLaneChange::is_colliding;
   using NormalLaneChange::find_colliding_object_if_all_paths_collide;
   using NormalLaneChange::usesCooperativePolicy;
+  using NormalLaneChange::get_target_objects;
+  using NormalLaneChange::hard_collision_detected_;
+  using NormalLaneChange::CandidateSearchMode;
+  using NormalLaneChange::prepareCandidateForSearch;
+  using NormalLaneChange::ahead_candidates_checked_;
+  using NormalLaneChange::other_candidates_checked_;
 };
 struct Scene : testing::Test
 {
@@ -219,14 +227,39 @@ TEST(CooperativeRear, TruckYawAndFullLengthAffectGap)
   EXPECT_LT(lc::rear_body_gap(road(),pose(0),aligned,vehicle()),10);
   EXPECT_GT(lc::rear_body_gap(road(),pose(0),angled,vehicle()),10);
 }
-TEST_F(Scene, AcceleratesInCurrentLaneAndWaitsForMeasuredGap)
+TEST(MergeSlot, UsesPredictedBodyPositionInsteadOfAccelerationSign)
+{
+  const auto target=object(5);
+  EXPECT_TRUE(lc::merges_ahead_of_target(road(),pose(100,3.5),4,target,vehicle()));
+  EXPECT_FALSE(lc::merges_ahead_of_target(road(),pose(50,3.5),4,target,vehicle()));
+  EXPECT_FALSE(lc::merges_ahead_of_target(road(),pose(65,3.5),4,target,vehicle()));
+}
+TEST(MergeSlot, AllTargetPredictionsNeedCoverageAndAnAheadGap)
+{
+  auto target=object(5);
+  target.predicted_paths.push_back(object(50).predicted_paths.front());
+  EXPECT_FALSE(lc::merges_ahead_of_target(road(),pose(100,3.5),4,target,vehicle()));
+  target.predicted_paths.resize(1);
+  target.predicted_paths.front().path.resize(2);
+  EXPECT_FALSE(lc::merges_ahead_of_target(road(),pose(100,3.5),4,target,vehicle()));
+}
+TEST(MergeSlot, SeparatesRearSlotFromMissingCoverageAndBodyOverlap)
+{
+  auto target=object(5);
+  EXPECT_EQ(lc::predicted_merge_slot(road(),pose(50,3.5),4,target,vehicle()),
+    lc::MergeSlot::Behind);
+  EXPECT_EQ(lc::predicted_merge_slot(road(),pose(65,3.5),4,target,vehicle()),
+    lc::MergeSlot::Unavailable);
+  target.predicted_paths.front().path.resize(31);
+  EXPECT_EQ(lc::predicted_merge_slot(road(),pose(50,3.5),4,target,vehicle()),
+    lc::MergeSlot::Unavailable);
+}
+TEST_F(Scene, PreparationStaysInsideCurrentLane)
 {
   module->updateOvertake(false);
   ASSERT_EQ(module->overtake_.phase,Harness::OvertakePhase::Accelerating);
   ASSERT_TRUE(module->overtake_prepare_path_);
   for(const auto & p:module->overtake_prepare_path_->points) EXPECT_DOUBLE_EQ(p.point.pose.position.y,0);
-  module->updateLaneChangeStatus();
-  EXPECT_FALSE(module->getLaneChangeStatus().is_safe);
 }
 TEST_F(Scene, TargetPersistsAndBecomesReadyOnlyAfterActualPass)
 {
@@ -249,14 +282,14 @@ TEST_F(Scene, BlockedFrontSpacePreventsPreparation)
 {
   module->filtered_objects_.current_lane.push_back(object(12,0,5,2));
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
   EXPECT_FALSE(module->overtake_prepare_path_);
 }
 TEST_F(Scene, BlockedTargetSlotPreventsPreparation)
 {
   module->filtered_objects_.target_lane_leading.moving.push_back(object(20,3.5,15,2));
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
 }
 TEST_F(Scene, PreparationCannotCrossTheLaneBoundary)
 {
@@ -264,14 +297,14 @@ TEST_F(Scene, PreparationCannotCrossTheLaneBoundary)
     if (point.point.pose.position.x>20) point.point.pose.position.y=3.5;
   }
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
   EXPECT_FALSE(module->overtake_prepare_path_);
 }
 TEST_F(Scene, PassingMustLeaveRoomForTheLateralManeuver)
 {
   module->common_data_ptr_->transient_data.dist_to_terminal_start=60;
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
   EXPECT_FALSE(module->overtake_prepare_path_);
 }
 TEST_F(Scene, EgoMustBeInsideCurrentLaneBeforeAccelerating)
@@ -280,16 +313,66 @@ TEST_F(Scene, EgoMustBeInsideCurrentLaneBeforeAccelerating)
   odom->pose.pose=pose(0,1.5);
   data->self_odometry=odom; module->setData(data);
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
   EXPECT_FALSE(module->overtake_prepare_path_);
 }
-TEST_F(Scene, PreparationHasATimeLimit)
+TEST_F(Scene, PreparationIsReevaluatedWithoutAnElapsedTimeLimit)
 {
   module->updateOvertake(false);
   ros::Time::setNow(ros::Time(109));
   module->updateOvertake(false);
-  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Blocked);
-  EXPECT_EQ(module->overtake_.reason,"prepare_timeout");
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Accelerating);
+  EXPECT_TRUE(module->overtake_prepare_path_);
+}
+TEST_F(Scene, FailedPreparationCanRecoverOnTheVeryNextCycle)
+{
+  module->filtered_objects_.current_lane.push_back(object(12,0,5,2));
+  module->updateOvertake(false);
+  ASSERT_EQ(module->overtake_.phase,Harness::OvertakePhase::Unavailable);
+  module->filtered_objects_.current_lane.clear();
+  ros::Time::setNow(ros::Time(100,100000000));
+  module->updateOvertake(false);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Accelerating);
+  EXPECT_TRUE(module->overtake_prepare_path_);
+}
+TEST_F(Scene, AccelerationPreparationDoesNotExcludeRearCandidates)
+{
+  module->updateOvertake(false);
+  ASSERT_EQ(module->overtake_.phase,Harness::OvertakePhase::Accelerating);
+  auto rear=candidate(); rear.info.lane_changing_end=pose(50,3.5);
+  EXPECT_FALSE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Ahead));
+  EXPECT_TRUE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Other));
+  EXPECT_FALSE(rear.cooperative_overtake_target);
+  EXPECT_EQ(module->other_candidates_checked_,1U);
+}
+TEST_F(Scene, FrontPreferenceCannotLeakCooperationIntoRearCandidate)
+{
+  module->overtake_.target=object(5).uuid;
+  module->overtake_.phase=Harness::OvertakePhase::Ready;
+  auto front=candidate(); front.info.lane_changing_end=pose(100,3.5);
+  EXPECT_TRUE(module->prepareCandidateForSearch(front,Harness::CandidateSearchMode::Ahead));
+  ASSERT_TRUE(front.cooperative_overtake_target);
+  EXPECT_FALSE(module->prepareCandidateForSearch(front,Harness::CandidateSearchMode::Other));
+  auto rear=front; rear.info.lane_changing_end=pose(50,3.5);
+  EXPECT_TRUE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Other));
+  EXPECT_FALSE(rear.cooperative_overtake_target);
+}
+TEST_F(Scene, ShortPredictionCannotBypassFrontGateAsAnOrdinaryCandidate)
+{
+  module->overtake_.target=object(5).uuid;
+  module->overtake_.phase=Harness::OvertakePhase::Ready;
+  module->filtered_objects_.target_lane_leading.moving.front().predicted_paths.front().path.resize(31);
+  auto path=candidate(); path.info.lane_changing_end=pose(100,3.5);
+  EXPECT_FALSE(module->prepareCandidateForSearch(path,Harness::CandidateSearchMode::Ahead));
+  EXPECT_FALSE(module->prepareCandidateForSearch(path,Harness::CandidateSearchMode::Other));
+}
+TEST_F(Scene, MissingTargetDoesNotLatchAWaitingState)
+{
+  module->updateOvertake(false);
+  module->filtered_objects_.target_lane_leading.moving.clear();
+  module->updateOvertake(false);
+  EXPECT_FALSE(module->overtake_.target);
+  EXPECT_EQ(module->overtake_.phase,Harness::OvertakePhase::Idle);
 }
 TEST_F(Scene, FeedbackIsRequiredAndMustBeFresh)
 {
@@ -298,6 +381,18 @@ TEST_F(Scene, FeedbackIsRequiredAndMustBeFresh)
   EXPECT_TRUE(module->finalVelocityPrediction(candidate()));
   ros::Time::setNow(ros::Time(101));
   EXPECT_FALSE(module->finalVelocityPrediction(candidate()));
+}
+TEST_F(Scene, DifferentOrMissingFramesStillRejectFeedback)
+{
+  feedback();
+  auto path=candidate(); path.path.header.frame_id.clear();
+  EXPECT_FALSE(module->finalVelocityPrediction(path));
+  EXPECT_EQ(module->overtake_feedback_reason_,"feedback_frame_missing");
+  path.path.header.frame_id="odom";
+  EXPECT_FALSE(module->finalVelocityPrediction(path));
+  EXPECT_EQ(module->overtake_feedback_reason_,"feedback_frame_mismatch");
+  path.path.header.frame_id="map";
+  EXPECT_TRUE(module->finalVelocityPrediction(path));
 }
 TEST_F(Scene, FeedbackSubscribesToTheRos1FinalOutput)
 {
@@ -360,6 +455,69 @@ TEST_F(Scene, DifferentFrontVehicleRetainsNormalRssCheck)
     parameters->safety.rss_params,debug,false));
   ASSERT_TRUE(debug.count(front.uuid.uuid));
   EXPECT_EQ(debug.at(front.uuid.uuid).unsafe_reason,"overlap_extended_polygon");
+}
+
+TEST_F(Scene, OrdinaryLaneChangeIncludesCurrentLaneEvenWhenLegacySwitchIsFalse)
+{
+  parameters->safety.collision_check.check_current_lane=false;
+  module->filtered_objects_.current_lane.push_back(object(12,0,5,2));
+  const auto targets=module->get_target_objects(module->filtered_objects_,{});
+  EXPECT_TRUE(std::any_of(targets.leading.begin(),targets.leading.end(),[](const auto & o) {
+    return o.uuid.uuid[0]==2;
+  }));
+}
+TEST_F(Scene, ActualMotionHypothesisExistsBeforeApproval)
+{
+  const auto paths=lc::convert_to_predicted_paths(module->common_data_ptr_,candidate(),1,false);
+  ASSERT_EQ(paths.size(),2u);
+  EXPECT_FALSE(paths[0].empty()); EXPECT_FALSE(paths[1].empty());
+}
+TEST_F(Scene, FinalFeedbackFromDifferentLateralManeuverIsRejected)
+{
+  feedback(); auto path=candidate();
+  for(auto & p:path.path.points) p.point.pose.position.y+=1.0;
+  EXPECT_FALSE(module->finalVelocityPrediction(path));
+  EXPECT_EQ(module->overtake_feedback_reason_,"feedback_maneuver_geometry_mismatch");
+}
+TEST_F(Scene, LaterPhysicalCollisionBypassesEarlierRssOnlyHysteresis)
+{
+  auto obj=object(15,3.5,10);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(candidate(),obj,prediction(20),
+    parameters->safety.rss_params,debug,true));
+  EXPECT_TRUE(module->hard_collision_detected_);
+}
+TEST(LaneChangeExecutableSpeed, RampAndPropulsionLimitsAreAppliedTogether)
+{
+  std::vector<double> s,upper;
+  for(int i=0;i<=100;++i) { s.push_back(i); upper.push_back(std::sqrt(100+2*3.25*i)); }
+  auto v=lc::limit_speed_profile_jerk(s,upper,0.0,1.0,-1.0,3.25);
+  EXPECT_LT(v[1],upper[1]);
+  for(size_t i=1;i<v.size();++i) {
+    EXPECT_LE(v[i],upper[i]+1e-6);
+    EXPECT_LE((v[i]*v[i]-v[i-1]*v[i-1])/(2*(s[i]-s[i-1])),3.250001);
+  }
+}
+TEST(LaneChangeExecutableSpeed, InfeasibleBrakeJerkIsRejected)
+{
+  EXPECT_THROW(lc::limit_speed_profile_jerk({0,1},{20,1},0,1,-1,3.25),std::logic_error);
+}
+
+TEST_F(Scene, MissingPredictionTailCannotBeApprovedAsSafe)
+{
+  auto obj=object(100,3.5,15);
+  obj.predicted_paths.front().path.resize(31); // only three seconds
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(candidate(),obj,prediction(20,4),
+    parameters->safety.rss_params,debug,false));
+  EXPECT_EQ(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
+}
+TEST_F(Scene, CompletePredictionCoverageStillAllowsSafeGap)
+{
+  auto obj=object(100,3.5,15);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(candidate(),obj,prediction(20,4),
+    parameters->safety.rss_params,debug,false));
 }
 
 int main(int argc, char ** argv)

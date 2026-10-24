@@ -17,6 +17,7 @@
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/data_manager.hpp"
+#include "autoware/behavior_path_planner_common/utils/root_reference_utils.hpp"
 #include "autoware_test_utils/autoware_test_utils.hpp"
 #include "autoware_test_utils/mock_data_parser.hpp"
 
@@ -192,6 +193,28 @@ int main(int argc, char ** argv)
   if (load_result != 0) return EXIT_FAILURE;
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST_F(TestNormalLaneChange, GeneratedReferenceRetainsRouteHeaderBeforeModuleSafetyChecks)
+{
+  // The ROS1 mock route parser does not import Header. Supply a distinctive
+  // valid header here so the test detects both loss and hard-coded "map" fixes.
+  const auto filename=ros::package::getPath("autoware_behavior_path_lane_change_module") +
+    "/test_data/lane_change_test_route.yaml";
+  auto route=autoware::test_utils::parse<std::optional<LaneletRoute>>(filename);
+  ASSERT_TRUE(route);
+  route->header.frame_id="fixture_map";
+  route->header.stamp=ros::Time(123,456);
+  planner_data_->route_handler->setRoute(*route);
+  lanelet::ConstLanelet current;
+  ASSERT_TRUE(planner_data_->route_handler->getClosestLaneletWithinRoute(
+    planner_data_->self_odometry->pose.pose, &current));
+  const auto output=autoware::behavior_path_planner::utils::getReferencePath(current,planner_data_);
+  ASSERT_FALSE(output.path.points.empty());
+  const auto header=planner_data_->route_handler->getRouteHeader();
+  ASSERT_FALSE(header.frame_id.empty());
+  EXPECT_EQ(output.path.header.frame_id,header.frame_id);
+  EXPECT_EQ(output.path.header.stamp,header.stamp);
 }
 
 TEST_F(TestNormalLaneChange, testBaseClassInitialize)

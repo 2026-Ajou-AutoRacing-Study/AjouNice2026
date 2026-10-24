@@ -162,11 +162,9 @@ struct OvertakeParameters
   double minimum_gap{10.0};
   double activation_distance{15.0};
   double minimum_ego_speed{10.0};
-  double maximum_prepare_time{8.0};
   double npc_reaction_time{1.0};
   double npc_max_deceleration{3.0};
   double feedback_timeout{0.5};
-  double cooldown{3.0};
 };
 
 struct Parameters

@@ -70,14 +70,12 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
   optional("minimum_gap", p.overtake.minimum_gap);
   optional("activation_distance", p.overtake.activation_distance);
   optional("minimum_ego_speed", p.overtake.minimum_ego_speed);
-  optional("maximum_prepare_time", p.overtake.maximum_prepare_time);
   optional("npc_reaction_time", p.overtake.npc_reaction_time);
   optional("npc_max_deceleration", p.overtake.npc_max_deceleration);
   optional("feedback_timeout", p.overtake.feedback_timeout);
-  optional("cooldown", p.overtake.cooldown);
   for (double value : {p.overtake.minimum_gap, p.overtake.activation_distance,
-      p.overtake.minimum_ego_speed, p.overtake.maximum_prepare_time,
-      p.overtake.npc_max_deceleration, p.overtake.feedback_timeout, p.overtake.cooldown}) {
+      p.overtake.minimum_ego_speed,
+      p.overtake.npc_max_deceleration, p.overtake.feedback_timeout}) {
     if (!std::isfinite(value) || value <= 0.0) {
       throw std::invalid_argument("lane_change/overtake parameters must be finite and positive");
     }

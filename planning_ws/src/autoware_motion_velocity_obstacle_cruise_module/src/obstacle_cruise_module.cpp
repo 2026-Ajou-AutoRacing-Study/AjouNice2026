@@ -133,6 +133,13 @@ void ObstacleCruiseModule::init(ros::NodeHandle & node, const std::string & modu
 
   // cruise planner
   cruise_planner_ = create_cruise_planner(node);
+  lc_commitment_sub_ = node.subscribe<autoware_internal_planning_msgs::PathWithLaneId>(
+    "/planning/lane_change/longitudinal_commitment", 1,
+    [this](const autoware_internal_planning_msgs::PathWithLaneId::ConstPtr & message) {
+      std::lock_guard<std::mutex> lock(lc_commitment_mutex_);
+      lc_commitment_ = *message;
+      lc_commitment_received_ = ros::Time::now();
+    });
 }
 
 void ObstacleCruiseModule::updateParameters(const ParameterMap & parameters)
@@ -158,6 +165,37 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
     input.points = raw_trajectory_points;
     debug_input_trajectory_pub_.publish(input);
   }
+
+  std::string ownership_rejection;
+  {
+    std::lock_guard<std::mutex> lock(lc_commitment_mutex_);
+    ownership_rejection = lane_change_ownership_rejection(
+      lc_commitment_, lc_commitment_received_, ros::Time::now(), raw_trajectory_points,
+      planner_data->current_odometry.pose.pose);
+  }
+  const bool lc_owns = ownership_rejection.empty() && planning_algorithm_ == "pid_base";
+  if (lc_owns != lc_owns_longitudinal_) {
+    cruise_planner_->resetForLongitudinalHandoff();
+    prev_cruise_object_obstacles_.clear();
+  }
+  if (lc_owns) {
+    VelocityPlanningResult result;
+    // Clear ONLY this sender, including a previously latched limit. Never skip
+    // the clear when suppressing normal following output on the first LC cycle.
+    if (!lc_owns_longitudinal_ || need_to_clear_velocity_limit_) {
+      result.velocity_limit_clear_command =
+        create_velocity_limit_clear_command(ros::Time::now(), module_name_);
+    }
+    need_to_clear_velocity_limit_ = false;
+    lc_owns_longitudinal_ = true;
+    std_msgs::String state;
+    state.data = "{\"longitudinal_owner\":\"lane_change\",\"normal_cruise_suppressed\":true,"
+      "\"sender_cleared\":\"obstacle_cruise\"}";
+    debug_selection_pub_.publish(state);
+    publish_debug_info();
+    return result;
+  }
+  lc_owns_longitudinal_ = false;
 
   // filter obstacles of predicted objects
   const lateral_collision::LongitudinalMotion ego_motion{
@@ -185,7 +223,8 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
       if (std::isfinite(value)) stream << value;
       else stream << "null";
     };
-    stream << "{\"schema_version\":1,\"stamp\":";
+    stream << "{\"schema_version\":1,\"longitudinal_owner\":\"cruise\","
+      "\"ownership_rejection\":\"" << ownership_rejection << "\",\"stamp\":";
     number(ros::Time::now().toSec());
     stream << ",\"objects_stamp\":";
     number(ros::Time(planner_data->predicted_objects_header.stamp).toSec());

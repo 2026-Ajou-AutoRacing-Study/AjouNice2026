@@ -98,7 +98,15 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"measured_rear_body_gap_m", overtake_.gap}, {"minimum_gap_m", params.overtake.minimum_gap},
     {"npc_reaction_time", params.overtake.npc_reaction_time},
     {"npc_max_deceleration", params.overtake.npc_max_deceleration},
-    {"downstream_feedback", overtake_feedback_reason_}};
+    {"downstream_feedback", overtake_feedback_reason_},
+    {"feedback_candidate_frame", feedback_candidate_frame_},
+    {"feedback_trajectory_frame", feedback_trajectory_frame_},
+    {"ahead_candidates_checked", ahead_candidates_checked_},
+    {"other_candidates_checked", other_candidates_checked_},
+    {"unavailable_slot_candidates", unavailable_slot_candidates_},
+    {"required_slot_prediction_time", required_slot_prediction_time_},
+    {"selected_merge_slot", selected_merge_slot_},
+    {"continuous_search", true}};
 
   if (status_.is_valid_path) {
     const auto & candidate = approved ? activeSafetyPath() : status_.lane_change_path;
@@ -109,6 +117,7 @@ void NormalLaneChange::publishSafetyDiagnostics(
       {"execution_velocity", candidate.info.velocity.lane_changing},
       {"prepare_duration", candidate.info.duration.prepare},
       {"execution_duration", candidate.info.duration.lane_changing}};
+    document["selected_candidate"]["frame_id"] = candidate.path.header.frame_id;
   }
   if (const auto stop = getStopPose()) {
     document["stop_pose"] = {{"pose", pose_json(stop->pose)}, {"reason", stop->detail}};

@@ -21,6 +21,9 @@
 #include "autoware_utils/system/time_keeper.hpp"
 #include "cruise_planner_interface.hpp"
 #include "lateral_collision_check.hpp"
+#include "lane_change_ownership.hpp"
+#include <mutex>
+#include <ros/subscriber.h>
 #include "optimization_based_planner/optimization_based_planner.hpp"
 #include "parameters.hpp"
 #include "ros1_compat.hpp"
@@ -64,6 +67,11 @@ public:
 
 private:
   std::string module_name_;
+  ros::Subscriber lc_commitment_sub_;
+  std::mutex lc_commitment_mutex_;
+  autoware_internal_planning_msgs::PathWithLaneId lc_commitment_;
+  ros::Time lc_commitment_received_;
+  bool lc_owns_longitudinal_{false};
 
   // ros parameters
   std::string planning_algorithm_;

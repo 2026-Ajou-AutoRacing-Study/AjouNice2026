@@ -49,6 +49,52 @@ double cooperative_rear_distance(
          closing * closing / (2.0 * p.npc_max_deceleration);
 }
 
+MergeSlot predicted_merge_slot(
+  const autoware_internal_planning_msgs::PathWithLaneId & reference,
+  const geometry_msgs::Pose & merge_end, const double maneuver_time,
+  const safety::ExtendedPredictedObject & target,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle)
+{
+  if (!std::isfinite(maneuver_time) || maneuver_time <= 0.0 ||
+      target.predicted_paths.empty() || reference.points.size() < 2) {
+    return MergeSlot::Unavailable;
+  }
+  const auto body = safety::create_extended_ego_polygon(merge_end, vehicle, 0, 0, false);
+  const auto & origin = reference.points.front().point.pose.position;
+  const auto arc = [&](const auto & p) {
+    geometry_msgs::Point point; point.x=p.x(); point.y=p.y();
+    return autoware::motion_utils::calcSignedArcLength(reference.points, origin, point);
+  };
+  double ego_front = -std::numeric_limits<double>::infinity();
+  for (const auto & p : body.outer()) ego_front = std::max(ego_front, arc(p));
+  std::optional<MergeSlot> result;
+  for (const auto & path : target.predicted_paths) {
+    if (path.path.empty() || path.path.front().time > maneuver_time ||
+        path.path.back().time + 1e-6 < maneuver_time) return MergeSlot::Unavailable;
+    const auto object = safety::calc_interpolated_object_pose(
+      path.path, maneuver_time, target.shape);
+    if (!object) return MergeSlot::Unavailable;
+    double object_back = std::numeric_limits<double>::infinity();
+    for (const auto & p : object->polygon.outer()) object_back = std::min(object_back, arc(p));
+    const auto slot = rear_body_gap(reference, merge_end, object->polygon, vehicle) > 0.0
+      ? MergeSlot::Ahead : (object_back > ego_front ? MergeSlot::Behind : MergeSlot::Unavailable);
+    if (slot == MergeSlot::Unavailable || (result && *result != slot)) {
+      return MergeSlot::Unavailable;
+    }
+    result = slot;
+  }
+  return result.value_or(MergeSlot::Unavailable);
+}
+
+bool merges_ahead_of_target(
+  const autoware_internal_planning_msgs::PathWithLaneId & reference,
+  const geometry_msgs::Pose & merge_end, const double maneuver_time,
+  const safety::ExtendedPredictedObject & target,
+  const autoware::vehicle_info_utils::VehicleInfo & vehicle)
+{
+  return predicted_merge_slot(reference, merge_end, maneuver_time, target, vehicle) == MergeSlot::Ahead;
+}
+
 bool check_cooperative_rear(
   const autoware_internal_planning_msgs::PathWithLaneId & reference,
   const std::vector<safety::PoseWithVelocityStamped> & ego,

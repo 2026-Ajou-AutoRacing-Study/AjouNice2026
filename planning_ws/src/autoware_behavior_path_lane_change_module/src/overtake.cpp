@@ -35,8 +35,8 @@ const char * NormalLaneChange::overtakePhaseName() const
     case OvertakePhase::Idle: return "idle";
     case OvertakePhase::Accelerating: return "accelerating_in_current_lane";
     case OvertakePhase::Ready: return "gap_ready_waiting_for_safe_candidate";
-    case OvertakePhase::Changing: return "changing_after_overtake";
-    case OvertakePhase::Blocked: return "blocked";
+    case OvertakePhase::Changing: return "changing_lane";
+    case OvertakePhase::Unavailable: return "front_preparation_unavailable";
   }
   return "invalid";
 }
@@ -95,17 +95,14 @@ void NormalLaneChange::updateOvertake(const bool is_approved)
     if (overtake_.target) overtake_.phase = OvertakePhase::Changing;
     return;
   }
-  const auto now = ros::Time::now();
-  const auto block = [&](const char * reason) {
-    overtake_.phase = OvertakePhase::Blocked;
-    overtake_.cooldown_until = now + ros::Duration(p.cooldown);
+  const auto unavailable = [&](const char * reason) {
+    overtake_.phase = OvertakePhase::Unavailable;
     overtake_.reason = reason;
   };
-  if (overtake_.phase == OvertakePhase::Blocked) {
-    if (now < overtake_.cooldown_until) return;
+  // Reevaluate current geometry and predictions every cycle. An old target or
+  // failed preparation never latches a timer that suppresses normal LC search.
+  if (overtake_.target && !findOvertakeTarget()) {
     overtake_ = OvertakeState{};
-    // Permit the normal candidate search on this cycle, including merging behind.
-    return;
   }
   if (!overtake_.target) {
     if (getEgoVelocity() < p.minimum_ego_speed ||
@@ -135,20 +132,18 @@ void NormalLaneChange::updateOvertake(const bool is_approved)
     }
     if (!target) return;
     overtake_.target = target->uuid;
-    overtake_.started = now;
     overtake_.phase = OvertakePhase::Accelerating;
   }
   const auto * target = findOvertakeTarget();
-  if (!target) { block("tracked_target_missing"); return; }
-  if (now < overtake_.started || (now - overtake_.started).toSec() > p.maximum_prepare_time) {
-    block("prepare_timeout"); return;
-  }
+  if (!target) { unavailable("tracked_target_missing"); return; }
   overtake_.gap = lc::rear_body_gap(common_data_ptr_->current_lanes_path,
     getEgoPose(), target->initial_polygon, getCommonParam().vehicle_info);
   const double required = lc::cooperative_rear_distance(
     getEgoVelocity(), std::hypot(target->initial_twist.linear.x,
       target->initial_twist.linear.y), p);
-  if (!buildOvertakePreparation(*target)) { block("no_safe_acceleration_or_merge_space"); return; }
+  if (!buildOvertakePreparation(*target)) {
+    unavailable("no_safe_acceleration_or_merge_space"); return;
+  }
   overtake_.phase = overtake_.gap >= required ? OvertakePhase::Ready : OvertakePhase::Accelerating;
   overtake_.reason = overtake_.phase == OvertakePhase::Ready ?
     "measured_body_gap_ready" : "waiting_for_measured_body_gap";
@@ -158,7 +153,7 @@ bool NormalLaneChange::buildOvertakePreparation(const ExtendedPredictedObject & 
 {
   const auto & p = lane_change_parameters_->overtake;
   const auto & bpp = getCommonParam();
-  if (prev_module_output_.path.points.size() < 3) return false;
+  if (prev_module_output_.path.points.size() < 3 || target.predicted_paths.empty()) return false;
   const auto objects = allOvertakeObjects();
   auto all_objects = objects.leading;
   all_objects.insert(all_objects.end(), objects.trailing.begin(), objects.trailing.end());
@@ -190,9 +185,14 @@ bool NormalLaneChange::buildOvertakePreparation(const ExtendedPredictedObject & 
     for (size_t i = 0; i < velocities.size(); ++i) {
       path.points[first+i].point.longitudinal_velocity_mps = velocities[i];
     }
-    const double remaining_time = p.maximum_prepare_time -
-      std::max(0.0, (ros::Time::now() - overtake_.started).toSec());
-    const double horizon = std::min(remaining_time, lc::speed_profile_duration(s, velocities));
+    // Prediction coverage and remaining physical space bound this preparation,
+    // not elapsed time since a target was first selected.
+    double horizon = lc::speed_profile_duration(s, velocities);
+    for (const auto & object_path : target.predicted_paths) {
+      if (object_path.path.empty()) { horizon = 0.0; break; }
+      horizon = std::min(horizon, object_path.path.back().time);
+    }
+    if (!std::isfinite(horizon) || horizon <= 0.0) continue;
     std::vector<PoseWithVelocityStamped> prediction;
     std::optional<double> gap_time;
     bool within_current_lane = true;
@@ -271,6 +271,34 @@ bool NormalLaneChange::buildOvertakePreparation(const ExtendedPredictedObject & 
   return false;
 }
 
+bool NormalLaneChange::prepareCandidateForSearch(
+  LaneChangePath & candidate, const CandidateSearchMode mode) const
+{
+  const auto * target = findOvertakeTarget();
+  const double duration = candidate.info.duration.prepare + candidate.info.duration.lane_changing;
+  const auto slot = target ? lc::predicted_merge_slot(
+    common_data_ptr_->current_lanes_path, candidate.info.lane_changing_end,
+    duration, *target, getCommonParam().vehicle_info) : lc::MergeSlot::Unavailable;
+  if (target && slot == lc::MergeSlot::Unavailable) {
+    ++unavailable_slot_candidates_;
+    required_slot_prediction_time_ = std::max(required_slot_prediction_time_, duration);
+    return false;
+  }
+  const bool ahead = slot == lc::MergeSlot::Ahead;
+  if ((mode == CandidateSearchMode::Ahead && !ahead) ||
+      (mode == CandidateSearchMode::Other && ahead)) return false;
+
+  // A rear-slot/ordinary candidate must not inherit a failed front attempt's
+  // cooperative assumptions. It still checks the tracked object with normal RSS.
+  candidate.cooperative_overtake_target.reset();
+  if (ahead && overtake_.phase == OvertakePhase::Ready) {
+    candidate.cooperative_overtake_target = overtake_.target;
+  }
+  if (ahead) ++ahead_candidates_checked_;
+  else ++other_candidates_checked_;
+  return true;
+}
+
 std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVelocityPrediction(
   const LaneChangePath & candidate) const
 {
@@ -287,11 +315,16 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
     return std::nullopt;
   };
   const auto now = ros::Time::now();
+  feedback_candidate_frame_ = candidate.path.header.frame_id;
+  feedback_trajectory_frame_ = feedback ? feedback->header.frame_id : "";
   if (!feedback || feedback->points.size() < 2) return reject("final_trajectory_missing");
   if (now < received || (now-received).toSec() > lane_change_parameters_->overtake.feedback_timeout ||
       feedback->header.stamp.isZero() || now < feedback->header.stamp ||
       (now-feedback->header.stamp).toSec() > lane_change_parameters_->overtake.feedback_timeout) {
     return reject("final_trajectory_stale");
+  }
+  if (feedback->header.frame_id.empty() || candidate.path.header.frame_id.empty()) {
+    return reject("feedback_frame_missing");
   }
   if (feedback->header.frame_id != candidate.path.header.frame_id) return reject("feedback_frame_mismatch");
   const auto nearest = std::min_element(feedback->points.begin(), feedback->points.end(),
@@ -308,6 +341,17 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
   for (const auto & point : feedback->points) {
     const double s = autoware::motion_utils::calcSignedArcLength(
       reference, getEgoPosition(), point.pose.position);
+    const auto segment = autoware::motion_utils::findNearestSegmentIndex(
+      candidate.path.points, point.pose.position);
+    const auto & a = candidate.path.points[segment].point.pose.position;
+    const auto & b = candidate.path.points[segment + 1].point.pose.position;
+    const double dx = b.x-a.x, dy = b.y-a.y;
+    const double ratio = std::clamp(((point.pose.position.x-a.x)*dx +
+      (point.pose.position.y-a.y)*dy)/std::max(1e-9, dx*dx+dy*dy), 0.0, 1.0);
+    if (s >= 0 && std::hypot(point.pose.position.x-a.x-ratio*dx,
+                            point.pose.position.y-a.y-ratio*dy) > 0.5) {
+      return reject("feedback_maneuver_geometry_mismatch");
+    }
     if (!std::isfinite(s) || !std::isfinite(point.longitudinal_velocity_mps)) return reject("feedback_nonfinite");
     if (!positions.empty() && s <= positions.back()+1e-3) continue;
     positions.push_back(s);

@@ -739,11 +739,9 @@ lane_change:
     minimum_gap: 10.0
     activation_distance: 15.0
     minimum_ego_speed: 10.0
-    maximum_prepare_time: 8.0
     npc_reaction_time: 1.0
     npc_max_deceleration: 3.0
     feedback_timeout: 0.5
-    cooldown: 3.0
   time_limit: 50.0
   backward_lane_length: 200.0
   backward_length_buffer_for_end_of_lane: 3.0
@@ -756,7 +754,7 @@ lane_change:
     disable_near_goal: true
     stop_at_boundary: false
   trajectory:
-    max_prepare_duration: 4.0
+    max_prepare_duration: 3.0
     min_prepare_duration: 0.0
     lateral_jerk: 5.0
     min_longitudinal_acc: -8.0
@@ -784,19 +782,19 @@ lane_change:
     enable_target_lane_bound_check: true
     stopped_object_velocity_threshold: 0.3
     prepare:
-      expected_front_deceleration: -6.0
-      expected_rear_deceleration: -6.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.5
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 1.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: along_path
     execution:
-      expected_front_deceleration: -6.0
-      expected_rear_deceleration: -6.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.5
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 1.0
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
@@ -811,10 +809,10 @@ lane_change:
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
     cancel:
-      expected_front_deceleration: -6.0
-      expected_rear_deceleration: -6.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.5
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 1.0
       longitudinal_distance_min_threshold: 2.5
       longitudinal_velocity_delta_time: 0.0

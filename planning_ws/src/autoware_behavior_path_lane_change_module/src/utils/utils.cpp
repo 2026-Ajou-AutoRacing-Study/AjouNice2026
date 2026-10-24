@@ -1437,8 +1437,8 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
     prediction.emplace_back(duration,
       autoware::motion_utils::calcInterpolatedPose(points, s.back()), v.back());
     std::vector<std::vector<PoseWithVelocityStamped>> result{prediction};
-    if (is_approved) {
-      // Check actual-motion extrapolation as well as the planned acceleration;
+    {
+      // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
       // a lagging controller must not silently replace the planned hypothesis.
       result.push_back(convert_to_predicted_path(common_data_ptr, lane_change_path));
     }
@@ -1466,8 +1466,10 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
     return utils::lane_change::convert_to_predicted_path(common_data_ptr, lane_change_path, acc);
   };
 
-  return ranges::views::iota(0UL, sampling_num) | ranges::views::transform(ego_predicted_path) |
+  auto predictions = ranges::views::iota(0UL, sampling_num) | ranges::views::transform(ego_predicted_path) |
          ranges::to<std::vector>();
+  if (!is_approved) predictions.push_back(convert_to_predicted_path(common_data_ptr, lane_change_path));
+  return predictions;
 }
 
 std::vector<PoseWithVelocityStamped> convert_to_predicted_path(

@@ -41,6 +41,50 @@ inline std::vector<double> make_speed_profile(
   return v;
 }
 
+// Forward executable acceleration ramp. Use the same sampled spatial profile
+// for publication and safety prediction. A lower cap requiring excessive jerk
+// is rejected rather than approved under an instantaneous acceleration jump.
+inline std::vector<double> limit_speed_profile_jerk(
+  const std::vector<double> & s, const std::vector<double> & upper,
+  const double initial_acceleration, const double max_jerk, const double min_jerk,
+  const double max_acceleration,
+  const autoware::motion_utils::AccelerationLimits & acceleration_limits = {})
+{
+  if (s.size() != upper.size() || s.empty() || !std::isfinite(initial_acceleration) ||
+      !std::isfinite(max_jerk) || !std::isfinite(min_jerk) || max_jerk <= 0 || min_jerk >= 0 || !std::isfinite(max_acceleration) || max_acceleration <= 0) {
+    throw std::logic_error("Invalid LC jerk profile inputs");
+  }
+  auto v = upper;
+  double previous_acceleration = initial_acceleration;
+  for (size_t i = 1; i < s.size(); ++i) {
+    const double ds = s[i]-s[i-1];
+    if (ds <= 1e-8) { v[i] = std::min(v[i],v[i-1]); continue; }
+    v[i] = std::min(v[i], acceleration_limits.reachableVelocity(v[i-1], ds, max_acceleration));
+    // Bisection against the acceleration averaged over this segment.
+    const auto feasible = [&](double next) {
+      const double dt = 2*ds/std::max(1e-6,v[i-1]+next);
+      const double a = (next-v[i-1])/dt;
+      return a <= previous_acceleration + 0.5*max_jerk*dt;
+    };
+    if (!feasible(v[i])) {
+      double lo = 0.0, hi = v[i];
+      if (!feasible(lo)) throw std::logic_error("LC acceleration ramp cannot reach speed cap");
+      for (int j = 0; j < 48; ++j) {
+        const double mid = (lo+hi)*0.5;
+        if (feasible(mid)) lo = mid; else hi = mid;
+      }
+      v[i] = lo;
+    }
+    const double dt = 2*ds/std::max(1e-6,v[i-1]+v[i]);
+    const double acceleration = (v[i]-v[i-1])/dt;
+    if (acceleration < previous_acceleration + min_jerk*dt - 1e-3) {
+      throw std::logic_error("LC braking cap requires excessive jerk");
+    }
+    previous_acceleration = acceleration;
+  }
+  return v;
+}
+
 inline double speed_profile_duration(
   const std::vector<double> & s, const std::vector<double> & v)
 {

@@ -503,6 +503,7 @@ LaneChangePath construct_candidate_path(
   const auto terminal_lane_changing_velocity = lane_change_info.terminal_lane_changing_velocity;
 
   auto shifted_path = get_shifted_path(target_lane_reference_path, lane_change_info);
+  shifted_path.path.header = prepare_segment.header;
 
   if (shifted_path.path.points.empty()) {
     throw std::logic_error("Failed to generate shifted path.");
@@ -601,11 +602,26 @@ LaneChangePath construct_candidate_path(
         static_cast<double>(road_limit(current_ref, point.point.pose)),
         static_cast<double>(road_limit(target_ref, point.point.pose))}));
     }
-    const auto velocities = make_speed_profile(
+    auto velocities = make_speed_profile(
       distances, limits, lane_change_info.velocity.lane_changing,
       std::min({bpp.max_acc, params.max_longitudinal_acc,
                 lane_change_info.longitudinal_acceleration.lane_changing}),
       -std::max(bpp.min_acc, params.min_longitudinal_acc), common_data_ptr->acceleration_limits);
+    static const double max_jerk = [] {
+      double value = 0.0;
+      ros::param::get("/planning/scenario_planning/velocity_smoother/normal/max_jerk", value);
+      return value;
+    }();
+    static const double min_jerk = [] {
+      double value = 0.0;
+      ros::param::get("/planning/scenario_planning/velocity_smoother/normal/min_jerk", value);
+      return value;
+    }();
+    velocities = limit_speed_profile_jerk(distances, velocities,
+      common_data_ptr->get_current_accel(), max_jerk, min_jerk,
+      std::min({bpp.max_acc, params.max_longitudinal_acc,
+                lane_change_info.longitudinal_acceleration.lane_changing}),
+      common_data_ptr->acceleration_limits);
     if (*std::min_element(velocities.begin(), velocities.end()) < params.min_lane_changing_velocity) {
       throw std::logic_error("Spatial speed profile falls below minimum LC velocity");
     }
@@ -899,6 +915,7 @@ std::optional<LaneChangePath> get_candidate_path(
   const auto & lane_changing_candidate = trajectory_group.lane_changing;
   const auto & target_lane_ref_path = trajectory_group.target_lane_ref_path;
   const auto & prepare_segment = trajectory_group.prepare;
+  shifted_path.path.header = prepare_segment.header;
   const auto & prepare_metric = trajectory_group.prepare_metric;
   const auto & initial_state = trajectory_group.initial_state;
   const auto & target_ref_sums = trajectory_group.target_lane_ref_path_dist;

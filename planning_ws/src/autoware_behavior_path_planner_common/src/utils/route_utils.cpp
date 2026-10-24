@@ -148,6 +148,9 @@ autoware_internal_planning_msgs::PathWithLaneId getCenterLinePath(
   auto path = autoware::motion_utils::resamplePath(
     route_handler.getCenterLinePath(lanelet_sequence, backward, forward, true),
     parameters.input_path_interval, parameters.enable_akima_spline_first);
+  // RouteHandler's geometric centerline has no message header. Set it before
+  // this path is copied into module candidates and checked against trajectories.
+  path.header = route_handler.getRouteHeader();
   if (parameters.enable_cog_on_centerline) {
     return autoware::motion_utils::convertToRearWheelCenter(
       path, parameters.vehicle_length * 0.5 - parameters.rear_overhang);

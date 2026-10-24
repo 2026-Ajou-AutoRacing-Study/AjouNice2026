@@ -68,6 +68,14 @@ public:
 
   void updateParameters(const autoware::motion_velocity_planner::ParameterMap & parameters) override;
 
+  void resetForLongitudinalHandoff() override
+  {
+    reset_target_state();
+    previous_target_uuid_.reset();
+    prev_target_acc_.reset();
+    prev_traj_points_.clear();
+  }
+
 private:
   friend class PIDBasedPlannerTestPeer;
   void reset_target_state();
