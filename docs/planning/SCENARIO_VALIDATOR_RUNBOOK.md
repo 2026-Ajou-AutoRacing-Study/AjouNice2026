@@ -1,5 +1,7 @@
 # 시나리오 검증기 짧은 사용법
 
+LAN에서 시작이 안 되면 [팀장님용 단계별 확인](SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)부터 진행합니다.
+
 ## LAN ↔ LAN Ego Network
 
 `config/internal/generated/ego_network_validator_lan.json`은 competition LAN 프로파일의
