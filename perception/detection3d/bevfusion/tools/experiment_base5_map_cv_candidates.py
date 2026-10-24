@@ -231,7 +231,7 @@ def main():
     alignment=yaml.safe_load((ROOT/'configs/tf/morai_lanelet_static_tf.yaml').read_text())['map_to_morai_map']
     network=LaneletNetwork.load(ROOT/'kcity_map/lanelet_map/lanelet2_map_v85.osm',ROOT/'kcity_map/lanelet_map/map_projector_info_v1.yaml')
     prepare_network(network)
-    cases,gt=load_dev(args.messages,args.inputs,ROOT/'configs/sensors/Sensor_4.json',alignment)
+    cases,gt=load_dev(args.messages,args.inputs,ROOT/'configs/sensors/legacy/Sensor_4.json',alignment)
     results={}
     for case,frames in cases.items():
         results[case]=evaluate(network,frames,gt,case,VARIANTS)

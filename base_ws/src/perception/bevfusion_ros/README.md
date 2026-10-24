@@ -19,6 +19,10 @@
 `/perception/base5_trial/detection/objects`를 사용한다.
 status·latency·marker·projection도 `/perception/base5_trial/`로 분리한다.
 `base5_e24_calibrated_trial.launch`의 선정값은 E24 전용이며 E9나 다음 학습 모델에 자동 적용하지 않는다.
+과거 trial의 Camera20Hz profile은 `configs/sensors/legacy/Sensor_4.json`에서 명시적으로
+읽는다. 현재 production의 `Sensor_competition_lan.json`이나 로컬 canonical profile로
+자동 대체하지 않는다. 일반 bringup·Base3 호환 launch의 기본값은
+`Sensor_competition_local.json`으로 통일했다.
 2026-10-13 동일 조건 비교의 Base5 최종 시험 선택은 E24다. E9 비교용 선정값은
 `base5_e9_calibrated_trial.launch`의 0.30/0.20/0.12이며 각 모델의 서버 가중치는 별도로 확인한다.
 정확한 모델·threshold·최적화 선택은 위 CURRENT와 실제 launch/config를 확인한다.

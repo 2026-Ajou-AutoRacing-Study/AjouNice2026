@@ -50,7 +50,7 @@ def main():
     dp_cfg=deepcopy(cfg.model.data_preprocessor)
     dp_cfg.pop('voxelize_cfg',None)
     normalizer=MODELS.build(dp_cfg)
-    sensor=Path(__file__).resolve().parents[4]/'configs/sensors/Sensor.json'
+    sensor=Path(__file__).resolve().parents[4]/'configs/sensors/Sensor_competition_local.json'
     calibration=load_sensor4_calibration(sensor)
     saved_cal=json.loads((args.data/'infos/512x1056/calibration.json').read_text())
     if calibration['config_sha256']!=saved_cal['source_sha256']:

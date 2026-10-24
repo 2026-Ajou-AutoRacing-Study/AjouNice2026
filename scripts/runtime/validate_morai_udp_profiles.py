@@ -18,11 +18,10 @@ PAIRS = (
         ROOT / "configs/network/ego_network_competition_lan.json",
     ),
 )
-LEGACY_LOCAL_MIRRORS = (
-    (ROOT / "configs/sensors/Sensor.json", PAIRS[0][0]),
-    (ROOT / "configs/sensors/Sensor_6.json", PAIRS[0][0]),
-    (ROOT / "configs/network/ego_network_1.json", PAIRS[1][0]),
-)
+PRODUCTION_PROFILE_FILES = {
+    "sensors": {"Sensor_competition_local.json", "Sensor_competition_lan.json"},
+    "network": {"ego_network_competition_local.json", "ego_network_competition_lan.json"},
+}
 FIELD_SENSOR = FIELD_REFERENCE_ROOT / "AjouNice_sensor.json"
 FIELD_NETWORK = FIELD_REFERENCE_ROOT / "2026_molit_comp_network.json"
 
@@ -125,17 +124,23 @@ def validate_field_network_contract(field_network, adapter_network):
         )
 
 
-def main():
-    for legacy_path, canonical_path in LEGACY_LOCAL_MIRRORS:
-        if load(legacy_path) != load(canonical_path):
+def validate_production_inventory(root=ROOT):
+    for folder, expected in PRODUCTION_PROFILE_FILES.items():
+        directory = Path(root) / "configs" / folder
+        profiles = list(directory.glob("*.json"))
+        actual = {path.name for path in profiles}
+        if actual != expected:
             raise ValueError(
-                f"legacy local mirror differs from canonical profile: "
-                f"{legacy_path} vs {canonical_path}"
+                f"{folder} production inventory differs: "
+                f"missing={sorted(expected - actual)}, unexpected={sorted(actual - expected)}"
             )
-        print(
-            f"PASS: legacy local mirror {legacy_path.name} == "
-            f"{canonical_path.name}"
-        )
+        if any(not path.is_file() or path.is_symlink() for path in profiles):
+            raise ValueError(f"{folder} canonical profiles must be regular files")
+
+
+def main():
+    validate_production_inventory()
+    print("PASS: only canonical local/LAN profiles remain in current profile directories")
 
     for local_path, competition_path in PAIRS:
         local = normalize_and_check(load(local_path), "local")

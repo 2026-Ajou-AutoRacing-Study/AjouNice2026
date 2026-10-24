@@ -50,12 +50,12 @@ alias rosbag_cam_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_cam_raw.
 alias udp='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
 # Local MR/MRP localization load test: GPS+IMU only. MORAI must load the same
 # lightweight sensor JSON; Ego/Competition/Object/control stay on Ego Network.
-alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
+alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
 # Algorithm-PC adapter profile. On the field MORAI PC, load the original files
 # preserved under configs/morai_field_reference instead.
 alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias sensing="roslaunch bringup sensing.launch"
-alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
+alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
 alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
 # Retain measurement timestamps; bound predicted age independently of detector Hz.

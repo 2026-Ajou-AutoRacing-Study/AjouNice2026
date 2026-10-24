@@ -245,7 +245,7 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 
 한 PC에서 MORAI와 폐루프 localization/control을 함께 실행할 때만 사용하는
 비-production 구성이다. MORAI에는
-`Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
 `SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
 
 ### 고정 시나리오와 시험 계약
@@ -266,7 +266,7 @@ MR `SaveFile/Scenario/R_KR_PR_K-city_2025`에서는 목록 상단에 보이도�
 다른 PC에 생성되지 않는다.
 원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
 장애물과 모든 actor spawn을 제거했다. Sensor는
-`Sensor_localization_gt_lightweight.json`, Ego Network는
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`, Ego Network는
 `ego_network_competition_local.json`을 로드한다. control mode는
 `AV-ExternalCtrl`로 설정한다.
 

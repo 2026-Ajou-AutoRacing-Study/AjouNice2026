@@ -9,7 +9,7 @@
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>

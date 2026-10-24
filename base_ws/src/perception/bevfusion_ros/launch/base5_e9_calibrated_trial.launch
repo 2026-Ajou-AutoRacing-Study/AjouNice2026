@@ -4,7 +4,7 @@
        근거: BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE 43절.
        동일 E9 서버를 AMP·camera 병렬화 ON, compile OFF로 별도 준비해야 한다.
        이 launch는 서버 시작·가중치 선택·hash 검증을 수행하지 않는다. -->
-  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_4.json"/>
+  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/legacy/Sensor_4.json"/>
   <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_trial.yaml"/>
   <arg name="output_objects" default="/perception/base5_trial/detection/objects"/>
   <arg name="vehicle_score_threshold" default="0.30"/>

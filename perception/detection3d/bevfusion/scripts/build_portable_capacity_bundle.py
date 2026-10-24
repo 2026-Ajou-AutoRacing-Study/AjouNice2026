@@ -28,7 +28,7 @@ def main():
     files=[scripts+'profile_base5_stages.py',scripts+'benchmark_base5_capacity.py',
            'perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py',
            'perception/detection3d/bevfusion/view_geometry.py',
-           'configs/sensors/Sensor.json',
+           'configs/sensors/Sensor_competition_local.json',
            'artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth']
     folders=['perception/detection3d/bevfusion/plugin','perception/detection3d/common','docker/bevfusion/app',
              'third_party/mmdetection3d/configs','third_party/mmdetection3d/projects/BEVFusion/configs',

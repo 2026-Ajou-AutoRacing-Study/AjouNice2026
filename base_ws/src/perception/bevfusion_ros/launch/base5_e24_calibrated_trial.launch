@@ -4,7 +4,7 @@
        Evidence: BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE section 40.
        Inference qualification uses AMP + parallel camera, compile OFF.
        Recalibrate after retraining; this is not a universal score policy. -->
-  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_4.json"/>
+  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/legacy/Sensor_4.json"/>
   <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_trial.yaml"/>
   <arg name="output_objects" default="/perception/base5_trial/detection/objects"/>
   <arg name="vehicle_score_threshold" default="0.40"/>

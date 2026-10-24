@@ -19,7 +19,7 @@ def main():
     p.add_argument('--output',type=Path,required=True);a=p.parse_args()
     if a.output.exists():raise ValueError('Do not overwrite evidence')
     manifest,samples=load_samples(a.samples);result=dict(source=manifest,cases=[])
-    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor_competition_local.json')
     torch.set_num_threads(4)
     for shape in ('448x896','512x1056'):
         cfg=config_for(a.root,tuple(map(int,shape.split('x'))))

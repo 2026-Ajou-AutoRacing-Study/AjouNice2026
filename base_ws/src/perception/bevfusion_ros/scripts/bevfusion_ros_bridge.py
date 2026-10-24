@@ -655,7 +655,7 @@ class BevFusionRosBridge:
             raise ValueError("could not decode image for {}".format(frame))
         if image.shape[:2] != self.camera_shapes[frame]:
             raise ValueError(
-                "{} image shape {} differs from Sensor.json {}".format(
+                "{} image shape {} differs from sensor configuration {}".format(
                     frame, image.shape[:2], self.camera_shapes[frame]
                 )
             )

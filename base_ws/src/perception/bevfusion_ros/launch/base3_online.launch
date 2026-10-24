@@ -1,7 +1,7 @@
 <launch>
   <!-- Base3-trained four-camera + LiDAR BEVFusion online inference. -->
   <arg name="sensor_config"
-       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
+       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_local.json"/>
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <!-- Production uses the shared planviz terminal; keep detector-only launch

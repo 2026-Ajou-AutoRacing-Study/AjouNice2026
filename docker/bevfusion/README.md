@@ -138,6 +138,6 @@ With the server running, the real-data TCP benchmark is reproducible with:
 cd ~/AjouNice2026/docker/bevfusion
 PYTHONPATH=. python3 scripts/benchmark_base3_tcp.py \
   --info ~/AjouNice2026/artifacts/datasets/morai_base3_bevfusion_v1/morai_base3_infos_val.pkl \
-  --sensor-config ~/AjouNice2026/configs/sensors/Sensor.json \
+  --sensor-config ~/AjouNice2026/configs/sensors/Sensor_competition_local.json \
   --samples 50
 ```

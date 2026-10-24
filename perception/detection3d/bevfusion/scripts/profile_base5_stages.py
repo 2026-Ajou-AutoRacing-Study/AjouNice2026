@@ -120,7 +120,7 @@ def main():
     for file in sorted(a.samples.glob('sample_*.npz')):
         with np.load(file) as data:samples.append((data['points'].copy(),{'image/'+k:data[k].tobytes() for k in data.files if k!='points'}))
     if not samples or a.iterations<10:raise ValueError('Samples and >=10 iterations required')
-    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor_competition_local.json')
     checkpoint=a.root/'artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth'
     report=dict(gpu=torch.cuda.get_device_name(),iterations=a.iterations,cases=[],
         contract='CUDA-event critical-path spans incl host idle; parent/substage overlap; hooks perturb timing. Same raw bag samples. Legacy wide variants fresh/untrained; controlled cases use E25 3-class compatible weights, with resized depth output untrained. Cost only, not accuracy.')

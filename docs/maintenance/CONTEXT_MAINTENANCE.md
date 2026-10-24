@@ -26,11 +26,15 @@ CURRENT는 실행 기준, EVIDENCE는 조건부 실험 결과, RUNBOOK은 실행
 현재 build/launch/import가 참조하는 Fast-LIO·FastBEV·PointPainting 및 submodule은
 폴더명만 보고 제거하지 않는다. 호환용임을 명시하고 기본 탐색에서 분리한다.
 Base5 수집기의 script inventory와 runtime/resume 계약은 동결 상태를 유지한다.
+동결 bundle은 원래 내부 입력을 계속 사용하며, 옛 root 프로필이 필요한 소스 재현은
+별도 원본 tree를 사용한다. 현재 production 폴더에 호환 파일을 남기는 이유로 삼지 않는다.
 센서·네트워크·validator는 해당 담당자가 정리하며, planning/control은 이 정리의 수정 범위가 아니다.
 
 2026-10-24 통합 정리는 이동 420개·원문 snapshot 24개·보호된 planning 링크용 그림 복사 1개를
-manifest에 기록했다. 필수 mirror·Sensor4/5·validator source·동결 수집 profile은 원경로를
-유지하고 역할표의 내부 호환 항목으로만 안내한다. JSON 값·운영 모델·launch 기본값은 바꾸지 않았다.
+manifest에 기록했다. 이 1차 정리는 mirror·Sensor4/5·validator source를 남겼으나,
+사용자의 후속 지시에 따라 모두 legacy로 이동하고 실제 활성 caller의 경로를 정리했다.
+현재 sensors/network 루트는 local/LAN canonical 두 개씩만 둔다.
+JSON 값·운영 모델·제어/판단 알고리즘은 바꾸지 않았으며 동일 파일의 참조 경로만 통일했다.
 현재 측위/모델/데이터 문서와 인덱스만 갱신하고, 과거 실험 수치와 원문을 고쳐 쓰지 않았다.
 
 ## 이후 갱신

@@ -28,7 +28,7 @@ PROFILES = {
         model_config='perception/detection3d/bevfusion/configs/bevfusion_base3_b0_4cam_lidar.py',
         bridge_config='configs/perception/bevfusion_sensor4.yaml',
         launch='base3_online.launch', base5=False, parallel=False,
-        thresholds=[.4,.15,.1], sensor='configs/sensors/Sensor.json'),
+        thresholds=[.4,.15,.1], sensor='configs/sensors/Sensor_competition_local.json'),
 }
 
 

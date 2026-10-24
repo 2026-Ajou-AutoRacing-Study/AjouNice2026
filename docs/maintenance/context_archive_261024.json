@@ -4,6 +4,14 @@
   "policy": "Byte-preserving archive; restore original Git paths for historical execution.",
   "records": [
     {
+      "domain": "production_profile_consolidation",
+      "original_path": "docs/competition/midterm_perception_live_demo_runbook.md",
+      "archive_path": "docs/competition/legacy/midterm_perception_live_demo_runbook.md",
+      "sha256": "80ee47db8a88b9d104a4941dd64c9854abf07c35fc6753b3820be0706a76e9d8",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
       "domain": "common_map_tools",
       "original_path": "kcity_map/docs/assets/kcity_v67_competition_intersections.svg",
       "archive_path": "kcity_map/legacy/reports/assets/kcity_v67_competition_intersections.svg",
@@ -3562,6 +3570,102 @@
       "sha256": "cef4697f57febabef1138e8fe3643eff6ababe7904199666bf289b427fa3e787",
       "operation": "preserve_before_rewrite",
       "source_commit": "283f0791a90c8c55370bab19db5d664379ee36dc"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/Sensor.json",
+      "archive_path": "configs/sensors/legacy/Sensor.json",
+      "sha256": "35c4ae555483cc5ea5a46e36c97ec468adbfc2095c46c6a1790b2037125f82c2",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/Sensor_4.json",
+      "archive_path": "configs/sensors/legacy/Sensor_4.json",
+      "sha256": "f2d946a194b5a02162cb45f8dce1642d03cdf349ed06a6bf74a8a50bd483c4a1",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/Sensor_5.json",
+      "archive_path": "configs/sensors/legacy/Sensor_5.json",
+      "sha256": "1681bb5e7bd8716afb4f1b4ce036c8b38bb97fd5fc2c3a9fbc972b342e0e3277",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/Sensor_6.json",
+      "archive_path": "configs/sensors/legacy/Sensor_6.json",
+      "sha256": "35c4ae555483cc5ea5a46e36c97ec468adbfc2095c46c6a1790b2037125f82c2",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/Sensor_localization_gt_lightweight.json",
+      "archive_path": "configs/sensors/legacy/Sensor_localization_gt_lightweight.json",
+      "sha256": "4a7c8eb9f9f5a5c5a99a313472ffc8d6b71df20f1ed26a7f05c4fef9b5576c74",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/sensors/README.md",
+      "archive_path": "configs/sensors/legacy/261024_README.before_canonical_only.md",
+      "sha256": "e43bd3cbdc3e4783fabb1670e6ac893224a94051d946e4d564ff60f91f16bf49",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/ego_network_1.json",
+      "archive_path": "configs/network/legacy/ego_network_1.json",
+      "sha256": "96e2317f7905cd83c32ce7685c941440da098e65d975bb4bf8da58c8b13acee9",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/ego_network_1_lan.json",
+      "archive_path": "configs/network/legacy/ego_network_1_lan.json",
+      "sha256": "17502475a424ef26ccf608df685f3ec0e0007cd1cfa87c6c39079aad6468f336",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/ego_network_local.json",
+      "archive_path": "configs/network/legacy/ego_network_local.json",
+      "sha256": "a458162c2032b36ae97d5e500a42bb7fe4271ee0e741f6283d027f210d14e19c",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/ego_network_mr_minimal_hybrid.json",
+      "archive_path": "configs/network/legacy/ego_network_mr_minimal_hybrid.json",
+      "sha256": "8fda7af1e6d1f71b0cc865c9437c1219b7f910e5dfc14ccd8d569b51f92ee975",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/ego_network_mr_base5_savesensordata_collision_local.json",
+      "archive_path": "configs/network/legacy/ego_network_mr_base5_savesensordata_collision_local.json",
+      "sha256": "d1852274b4b26c9ae59602eaab830102cb284f614d4afc5d7f241a9e68442c79",
+      "operation": "move",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
+    },
+    {
+      "domain": "production_profile_consolidation",
+      "original_path": "configs/network/README.md",
+      "archive_path": "configs/network/legacy/261024_README.before_canonical_only.md",
+      "sha256": "81facde3780aff41d362e224f53e3a8853a21e234c9e56924e452f26b41cf39a",
+      "operation": "preserve_before_rewrite",
+      "source_commit": "78d4f92940efcf912e137ec2a1cd83d0d3db8ac0"
     }
   ]
 }

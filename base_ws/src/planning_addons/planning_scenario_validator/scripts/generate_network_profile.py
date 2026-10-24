@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
 BASE = ROOT / "configs/network/ego_network_competition_local.json"
-SCENARIO_SOURCE = ROOT / "configs/network/ego_network_local.json"
+SCENARIO_SOURCE = ROOT / "configs/network/legacy/ego_network_local.json"
 OUTPUT = ROOT / "base_ws/src/planning_addons/planning_scenario_validator/config/internal/generated/ego_network_validator_local.json"
 MR_NETWORK_DIR = Path.home() / "MoraiLauncher_Lin/MoraiLauncher_Lin_Data/SaveFile/Network/25.S4.MolitComp03"
 LAN_OUTPUT = OUTPUT.with_name('ego_network_validator_lan.json')
@@ -24,7 +24,7 @@ def build(*, lan=False, morai_ip=None, ros_ip=None, install=True):
         if address and ipaddress.ip_address(address).version != 4:
             raise ValueError('IPv4 addresses are required')
     base_path = ROOT / 'configs/network/ego_network_competition_lan.json' if lan else BASE
-    scenario_path = ROOT / 'configs/network/ego_network_1_lan.json' if lan else SCENARIO_SOURCE
+    scenario_path = ROOT / 'configs/network/legacy/ego_network_1_lan.json' if lan else SCENARIO_SOURCE
     output = LAN_OUTPUT if lan else OUTPUT
     base = json.loads(base_path.read_text(encoding="utf-8"))
     source_network = json.loads(scenario_path.read_text(encoding="utf-8"))

@@ -51,6 +51,10 @@ Sunny15는 `base5_sunny15_completion_261018/last_cell_v1/`, 빌린 PC Sunny13는
 
 ## 생성·수집·복구 계약
 
+운영 프로필 정리 후 과거 수집 JSON은 `configs/*/legacy/`에 보관한다. 이미 배포한 동결
+bundle로 재개하며 기존 소스·SHA를 고쳐 쓰지 않는다. 옛 root 경로를 요구하는 수집기를
+소스에서 재현할 때는 정리 전 `78d4f929` tree를 별도로 사용한다.
+
 새 생성의 단일 진입점은 `scripts/portable_base5/generation.py`다. 6환경은 같은 공통 정책·
 11단계·구현 SHA를 사용하며 환경과 seed만 새 identity로 기록한다.
 현재 보강 프로파일은 `configs/dataset/base5_midrange_reinforcement_v163.json`이다.
