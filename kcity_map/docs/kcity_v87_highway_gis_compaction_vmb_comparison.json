@@ -1,0 +1,55 @@
+{
+  "status": "PASS",
+  "v87_sha256": "70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575",
+  "vmb_errors": [],
+  "warnings": [
+    {
+      "message": "The centerline is not connected to the next centerline.",
+      "v86_counts": {
+        "Lanelet": 40
+      },
+      "v87_counts": {
+        "Lanelet": 13
+      },
+      "new_objects_after_lanelet_id_remap": {
+        "Lanelet": []
+      }
+    },
+    {
+      "message": "The speed limit of the lanelet is above the threshold(30 km/h)",
+      "v86_counts": {
+        "Lanelet": 1212
+      },
+      "v87_counts": {
+        "Lanelet": 1199
+      },
+      "new_objects_after_lanelet_id_remap": {
+        "Lanelet": []
+      }
+    },
+    {
+      "message": "The Point is not associated with Linestrings or Polygons.",
+      "v86_counts": {
+        "Point": 899
+      },
+      "v87_counts": {
+        "Point": 899
+      },
+      "new_objects_after_lanelet_id_remap": {
+        "Point": []
+      }
+    },
+    {
+      "message": "The edge points of the Lanelet are not included in intersection_area Polygon",
+      "v86_counts": {
+        "Lanelet": 60
+      },
+      "v87_counts": {
+        "Lanelet": 60
+      },
+      "new_objects_after_lanelet_id_remap": {
+        "Lanelet": []
+      }
+    }
+  ]
+}

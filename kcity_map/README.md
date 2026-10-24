@@ -12,6 +12,8 @@ Git에서 관리하는 파일:
 - `README.md`, `.gitignore`
 - `2026_molit_comp_sample_scene.json`
 - `lanelet_map/map_projector_info_v1.yaml`
+- `lanelet_map/lanelet2_map_v87.osm` (명시적 Git 배포 예외, 아래 설명)
+- v87 route/mission/speed/rules 설정과 `docs/kcity_v87_runtime_release.md`
 - `competition_route/README.md`
 - `competition_route/How to visualize competition route.txt`
 - `scripts/kcity_map_workflow/`
@@ -27,10 +29,20 @@ Google Drive에서 관리하는 파일:
 
 현재 기준 자산:
 
-- Lanelet2: `lanelet_map/lanelet2_map_v56.osm`
+- Lanelet2: `lanelet_map/lanelet2_map_v87.osm` (Git checkout에 포함)
 - Pointcloud: `lanelet_map/pointcloud_map_v1.pcd`
 - Projector: `lanelet_map/map_projector_info_v1.yaml`
 - Competition route: `competition_route/v44/`
+
+## v87 기본 실행
+
+`competition_planning.launch`와 명시적 `competition_planning_v87.launch`는 모두 v87을 사용합니다.
+RViz·예측·신호등·규정 모니터도 같은 지도 버전으로 맞췄습니다.
+[실행·Route A/B 전수 검증 결과](docs/kcity_v87_runtime_release.md)를 확인합니다.
+
+v87은 사용자 요청으로 OSM 자체도 Git에 배포합니다. 팀 Drive 업로드는
+`storageQuotaExceeded`로 거절되어, 이 버전만 `.gitignore` 예외로 추가했습니다.
+기존 지도 자산의 Drive 관리 정책과 이전 버전 파일은 보존합니다.
 
 ## 최초 준비
 

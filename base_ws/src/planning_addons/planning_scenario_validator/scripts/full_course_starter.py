@@ -9,7 +9,7 @@ from planning_scenario_validator.authoring import annotated_yaml
 from planning_scenario_validator.traffic_light import DEFAULT_PYTHON
 
 
-ROUTE_SOURCE = 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v85_competition_route.yaml'
+ROUTE_SOURCE = 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml'
 
 
 def build_full_course(sample, geometry, template, root, package, output, validate):
@@ -111,7 +111,7 @@ E24 인지 분석은 **[base5_e24_analysis_sample.yaml](base5_e24_analysis_sampl
 
 - Ego 시작점은 샘플 JSON 그대로: MORAI x={start['x']:.6f}, y={start['y']:.6f}, z={start['z']:.6f}.
 - 목적지 map: x={goal['x']:.6f}, y={goal['y']:.6f}, z={goal['z']:.6f}, yaw={goal['yaw_deg']:.6f}°.
-- 기존 v85 Route A의 경유점 {len(waypoints)}개와 비순환 종료점 `{route_a['goal_ref']}`를 사용합니다.
+- 기본 v87 Route A의 경유점 {len(waypoints)}개와 비순환 종료점 `{route_a['goal_ref']}`를 사용합니다.
 - 시작점과 결승선이 겹치는 코스라 **출발선 재진입 직전 종료**합니다. 정확한 결승선 통과/공식 완주 판정 실험은 아닙니다.
 - validator는 경유점들을 한 번의 SetWaypointRoute로 요청합니다. competition_route_requester의 선호 차선 지정·Route A/B 전환·fallback 정책까지 실행하는 구성은 아닙니다. 그 정책 시험은 별도 통합이 필요합니다.
 - 주행 제한은 장면당 **600초**입니다. 짧은 개별 미션 제한시간과 달리 약 2.2km 코스·신호 대기를 고려한 첫 상한이며 공식 제한시간은 아닙니다. 준비·마감 시간은 별도입니다.

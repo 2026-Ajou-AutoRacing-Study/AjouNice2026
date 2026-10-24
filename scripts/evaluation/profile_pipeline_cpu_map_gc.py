@@ -229,7 +229,7 @@ def worker(args):
     if digest(source_config) != digest(installed_config):
         raise RuntimeError("Installed/source map config mismatch")
     config = yaml.safe_load(installed_config.read_text())
-    map_file = ROOT / "kcity_map/lanelet_map/lanelet2_map_v85.osm"
+    map_file = ROOT / "kcity_map/lanelet_map/lanelet2_map_v87.osm"
     projector = ROOT / "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     network = LaneletNetwork.load(map_file, projector, MapPredictionConfig(**config))
     horizons = module.build_prediction_horizons(.1, 3.)

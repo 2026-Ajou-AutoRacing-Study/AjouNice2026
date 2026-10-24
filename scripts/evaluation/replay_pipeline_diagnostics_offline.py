@@ -188,7 +188,7 @@ def main():
         raise RuntimeError("Pure oracle must also load installed package, not worktree module")
     map_node = load_module(node_path, "offline_installed_map_node")
     config = yaml.safe_load((PACKAGE / "config/map_based_prediction.yaml").read_text())
-    map_file = ROOT / "kcity_map/lanelet_map/lanelet2_map_v85.osm"
+    map_file = ROOT / "kcity_map/lanelet_map/lanelet2_map_v87.osm"
     projector = ROOT / "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     network = LaneletNetwork.load(map_file, projector, MapPredictionConfig(**config))
     horizons = map_node.build_prediction_horizons(0.1, 3.0)

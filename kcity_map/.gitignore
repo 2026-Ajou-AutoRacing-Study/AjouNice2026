@@ -41,6 +41,9 @@ competition_route/**/tmp/
 # running scripts/map/download_kcity_map_assets.sh.
 /drive_assets.sha256
 /lanelet_map/*.osm
+# v87 is explicitly published to Git for branch-complete deployment.
+# The team Drive rejected this release with storageQuotaExceeded.
+!/lanelet_map/lanelet2_map_v87.osm
 /lanelet_map/*.pcd
 /competition_route/v*/
 /example_map/
