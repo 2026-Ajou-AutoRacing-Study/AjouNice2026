@@ -9,7 +9,7 @@
 |---|---|---|
 | alias / motion source | `localization` / `/Competition_topic` heading, velocity.x | `localization_mrp` / `/Ego_topic` |
 | heading correction | `-1.347 deg` | `0 deg`; 시나리오·지도 yaw 독립 대조 미완료 |
-| 초기 위치 / yaw | 개발 기본: 첫 Ego **위치만** / 보정된 Competition heading | 첫 Ego 위치·heading |
+| 초기 위치 / yaw | 대회 명시 옵션: 공식 START 위치 / 보정된 Competition heading. 개발 alias 기본은 첫 Ego 위치 | 첫 Ego 위치·heading |
 | GNSS horizontal sigma / Global Qxy | `0.10 m` / `0.0005` | 동일 |
 | Global-only soft body vy prior | ON, sigma `0.20 m/s` | 동일 기본값; MRP 폐루프 미검증 |
 | Smooth longitudinal / lateral / yaw tau | `0.5 / 0.1 / 0.5 s`, vehicle pivot | 동일 |
@@ -48,7 +48,8 @@ state 약50Hz 연속성과 실제 위치 정확도는 별개다.
 
 ## 초기화·checkpoint
 
-공식 START 위치 후보는 명시적으로 선택한다.
+합의한 대회 공식 START 출발에서는 다음 옵션을 명시한다. bare `localization`의
+개발 기본값 `initial_position_source=ego`는 바꾸지 않았으므로 대회에서 인자를 생략하지 않는다.
 
 ```bash
 localization initial_position_source:=official_start
@@ -57,8 +58,10 @@ localization initial_position_source:=official_start
 v85 규칙의 `start_finish.xyz`를 `morai_map -> map`으로 변환하고 yaw는 보정된
 Competition heading을 사용한다. 공식 yaw와 차이 `1 deg` 초과, START와 GNSS 거리
 `3 m` 초과, GNSS/heading stamp 차이 `0.5 s` 초과면 초기화를 거부한다.
-이 모드는 Ego를 구독/대기하지 않는다. MR 로컬 출발 정합은 통과했으나 LAN 검증 전까지
-기본값이 아니다. 사고 후 복귀를 START 초기화로 반복 처리하지 않는다.
+이 모드는 Ego를 구독/대기하지 않는다. [현장 원본·Ego 미사용 명령](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)을 함께 따른다.
+MR 로컬 출발 정합은 통과했으나 새 LAN 검증 완료는 아니다. `Published GNSS+IMU initial pose from official_start` 로그와
+`/localization/initialpose`를 확인한다. EKF는 센서만으로도 출력할 수 있어 odom 발행만으로
+공식 START 초기화 성공을 판정하지 않는다. 사고 후 복귀에 START 초기화를 반복 적용하지 않는다.
 
 보존된 운영 기록은 수정안 START+CP1–14와 Spawn 툴0–14가 일치한다고 정정했다.
 원본 실행명 CP13/15는 구번호(현행12/14)이므로 원문을 고쳐 쓰지 않는다.

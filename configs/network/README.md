@@ -9,6 +9,8 @@ source·과거 수집용 profile은 [legacy](legacy/README.md)로 분리했다.
 | LAN 개발 | 양쪽 IP를 맞춘 LAN wire 설정 | [competition_lan](ego_network_competition_lan.json), `udp_lan` |
 | 대회 | [현장 MORAI 원본](../morai_field_reference/2026_molit_comp_network.json) | 위 LAN adapter |
 
+대회는 [원본 경로·Ego 미사용 실행 기준](../morai_field_reference/README.md#합의한-대회-실행-기준)을 따른다.
+
 Sensor는 [센서 역할표](../sensors/README.md)를 따른다. LAN 보관 IP는
 `192.168.0.1 → 192.168.0.10`이며 실제 NIC와 다르면 그대로 연결된다고 판단하지 않는다.
 현장 Network 원본의 비활성 `rosConfig.Topic`은 bridge 출력 이름과 다르므로

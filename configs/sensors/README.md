@@ -9,6 +9,8 @@
 | LAN 개발 | [Sensor_competition_lan.json](Sensor_competition_lan.json), `udp_lan` + `sensing_lan` |
 | 대회 | MORAI: [현장 원본](../morai_field_reference/AjouNice_sensor.json), 알고리즘: 위 LAN canonical |
 
+대회는 [원본 경로·Ego 미사용 실행 기준](../morai_field_reference/README.md#합의한-대회-실행-기준)을 따른다.
+
 E12/E24 production은 LAN canonical을 사용한다. 로컬 실행·E25 복귀·공통 bringup의
 옛 `Sensor.json`·`Sensor_6.json` 참조는 바이트가 동일한 local canonical로 통일했다.
 Sensor4/5는 현행과 주기·LiDAR 설정이 달라 canonical로 바꿔치기하지 않았다.
