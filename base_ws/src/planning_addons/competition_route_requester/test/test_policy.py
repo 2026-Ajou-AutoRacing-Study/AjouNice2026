@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v85_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v87_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -74,8 +74,9 @@ class PolicyTest(unittest.TestCase):
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200261, 0))
         self.assertTrue(policy.in_window(r, 'route_b', 200311, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 201439, 1.9))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 201439, 2.0))
+        cutoff = r['poses'][r['fallback_route']['hard_cutoff_pose_ref']]['lanelet_s_m']
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201439, cutoff - 0.1))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201439, cutoff))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
@@ -126,7 +127,7 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
-    def test_v83_highway_lane_change_contract(self):
+    def test_v87_highway_lane_change_contract(self):
         """Prefer the leftmost highway corridor through the mandatory bottleneck."""
         for key in ('route_a', 'route_b'):
             initial = self.routes[key]['waypoint_path_lanelet_ids']
@@ -137,13 +138,12 @@ class PolicyTest(unittest.TestCase):
             initial_window = initial[initial.index(200138):initial.index(201439) + 1]
             self.assertEqual(
                 initial_window,
-                [200138, 201444, 201469, 200127, 201473, 201439],
+                [200138, 201444, 201469, 201439],
             )
             preferred_window = preferred[preferred.index(201459):preferred.index(201399) + 1]
             self.assertEqual(
                 preferred_window,
-                [201459, 201436, 201465, 200138, 201444, 201469, 200127,
-                 201473, 201439, 200185, 201453, 201477, 201479, 201447,
+                [201459, 201465, 200138, 201444, 201469, 201439, 200185, 201453, 201477, 201479, 201447,
                  201399],
             )
 

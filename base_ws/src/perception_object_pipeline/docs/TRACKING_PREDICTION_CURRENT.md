@@ -92,7 +92,7 @@ prediction coverage를 함께 감시한다.
 ## Map-CV
 
 - `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
-  `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
+  `kcity_map/lanelet_map/lanelet2_map_v87.osm`. 실제 실행의 `map_file` override도 확인한다.
 - horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
 - minimum map-following speed: `0.5 m/s`.
 - lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.

@@ -1,11 +1,15 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="speed_limit_overrides_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet_speed_limits.yaml"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
+  <arg name="map_sha256" default="70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575"/>
+  <arg name="speed_limit_overrides_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet_speed_limits_v87.yaml"/>
   <node pkg="ajounice_planning_integration" type="map_projector_publisher" name="map_projector_publisher" required="true" output="screen">
     <param name="repo_root" value="$(arg repo_root)"/>
+    <param name="map_file" value="$(arg map_file)"/>
+    <param name="map_sha256" value="$(arg map_sha256)"/>
   </node>
   <node pkg="autoware_map_loader" type="autoware_lanelet2_map_loader_full" name="lanelet2_map_loader" required="true" output="screen">
-    <param name="lanelet2_map_path" value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
+    <param name="lanelet2_map_path" value="$(arg map_file)"/>
     <param name="speed_limit_overrides_file" value="$(arg speed_limit_overrides_file)"/>
     <param name="center_line_resolution" value="5.0" type="double"/>
     <param name="use_waypoints" value="true"/>

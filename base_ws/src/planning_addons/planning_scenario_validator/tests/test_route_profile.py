@@ -11,7 +11,7 @@ from planning_scenario_validator.config import ROOT, load_campaign, resolve_path
 from planning_scenario_validator.executions import prepare_execution, load_execution
 from planning_scenario_validator.route_profile import normalize, ProfileGeometry, preferred_primitives, apply_and_verify
 
-DEFINITION = ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v85_competition_route.yaml'
+DEFINITION = ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml'
 SOURCE = ROOT / 'base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/example.yaml'
 
 
@@ -33,7 +33,7 @@ class RouteProfileTest(unittest.TestCase):
         plan = self.plan()
         ids = plan['expected_preferred_lanelet_ids']
         self.assertEqual(plan['goal'], self.document['default_case']['goal'])
-        self.assertEqual(ids[:6], [201096,201087,201086,201459,201436,201465])
+        self.assertEqual(ids[:6], [201096,201087,201086,201459,201465,200138])
         self.assertEqual(ids[-1], 200183)
         self.assertNotIn(200210,ids)
         self.assertEqual(len(plan['waypoints']),len(ids)-2)

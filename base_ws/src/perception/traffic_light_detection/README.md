@@ -76,7 +76,7 @@ old route ID. The separate 2-second message timeout only covers loss of the
 helper process itself.
 
 새 환경에서는 `start_traffic_light` 활성화 전에 `weights/best.pt`의 CUDA 로드를 확인한다.
-현재 launch의 지도 기본값은 v85이며 부모 launch가 map/projector를 override할 수 있다.
+현재 launch의 지도 기본값은 v87이며 부모 launch가 map/projector를 override할 수 있다.
 실제 resolved 인자를 확인한다. `morai_planning_stack.launch`의 UDP 시간 계약은
 `use_sim_time:=false`이며 planning의 기존 `is_simulation:=false` 동작을 유지한다.
 

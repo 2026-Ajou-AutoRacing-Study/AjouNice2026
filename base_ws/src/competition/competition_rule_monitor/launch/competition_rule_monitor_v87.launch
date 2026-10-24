@@ -1,0 +1,24 @@
+<launch>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
+  <arg name="projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
+  <arg name="output_root" default="$(arg repo_root)/artifacts/competition_rule_monitor"/>
+  <arg name="start_gui" default="true"/>
+
+  <node pkg="competition_rule_monitor" type="competition_rule_monitor_node"
+        name="competition_rule_monitor" output="screen" required="true">
+    <rosparam command="load" file="$(find competition_rule_monitor)/config/kcity_v87_rules.yaml"/>
+    <param name="map_file" value="$(arg map_file)"/>
+    <param name="projector_file" value="$(arg projector_file)"/>
+    <param name="repo_root" value="$(arg repo_root)"/>
+    <param name="output_root" value="$(arg output_root)"/>
+    <param name="ego_topic" value="/Ego_topic"/>
+    <param name="gear_topic" value="/vehicle/status/gear"/>
+    <param name="allow_late_drive_start" value="true"/>
+    <param name="collision_topic" value="/CollisionData"/>
+  </node>
+
+  <node if="$(arg start_gui)" pkg="competition_rule_monitor"
+        type="competition_rule_monitor_gui" name="competition_rule_monitor_gui"
+        output="screen" required="false"/>
+</launch>

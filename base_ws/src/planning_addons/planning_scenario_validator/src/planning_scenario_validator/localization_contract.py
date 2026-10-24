@@ -265,7 +265,7 @@ None entries rather than being silently treated as verified installations.
         'controller_pi': str(root / 'base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml'),
         'vehicle': str(root / 'configs/vehicle/ioniq5.yaml'),
         'map_tf': str(root / 'configs/tf/morai_lanelet_static_tf.yaml'),
-        'official_start': str(root / 'base_ws/src/competition/competition_rule_monitor/config/kcity_v85_rules.yaml'),
+        'official_start': str(root / 'base_ws/src/competition/competition_rule_monitor/config/kcity_v87_rules.yaml'),
     })
     config_files = {key: {'path': path, 'sha256': _sha(path)} for key, path in configs.items()}
     for key, row in config_files.items():

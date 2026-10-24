@@ -9,7 +9,7 @@
 #   MORAI k-city MGeo local frame from the current live simulator account.
 #
 # The transform uses the difference between the Lanelet projector origin and
-# the current MORAI MGeo origin. lanelet2_map_v85 centerlines are stored in the
+# the current MORAI MGeo origin. lanelet2_map_v87 centerlines are stored in the
 # current MGeo/GIS source coordinates, so no empirical rigid refinement is
 # applied.
 map_to_morai_map:
@@ -25,7 +25,7 @@ map_to_morai_map:
     morai_runtime_origin_delta_xyz: [131.559130220, 545.911338186, 0.0]
     morai_runtime_z_is_altitude_like: true
 
-    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v85.osm"
+    lanelet_map: "kcity_map/lanelet_map/lanelet2_map_v87.osm"
     lanelet_projector: "kcity_map/lanelet_map/map_projector_info_v1.yaml"
     lanelet_projector_type: "LocalCartesianUTM"
     lanelet_map_origin_lat_lon_alt: [37.2380038082, 126.7730819386, 0.0]
@@ -36,4 +36,4 @@ map_to_morai_map:
       yaw_rad: 0.0
       yaw_deg: 0.0
       translation_delta_from_runtime_origin_m: [0.0, 0.0, 0.0]
-      applied_for: "lanelet2_map_v85 source-coordinate alignment"
+      applied_for: "lanelet2_map_v87 source-coordinate alignment"

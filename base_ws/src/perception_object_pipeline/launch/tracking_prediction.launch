@@ -10,7 +10,7 @@
   <arg name="use_sim_time" default="false"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <!-- Enable this to replace PointPainting detection only with MORAI GT. -->

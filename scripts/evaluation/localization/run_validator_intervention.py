@@ -54,7 +54,7 @@ def near_link(point, yaw_deg):
 
 def checkpoint_case(case, cfg, folder, number, known_prior=False):
     import yaml
-    rules = yaml.safe_load((ROOT / "base_ws/src/competition/competition_rule_monitor/config/kcity_v85_rules.yaml").read_text())
+    rules = yaml.safe_load((ROOT / "base_ws/src/competition/competition_rule_monitor/config/kcity_v87_rules.yaml").read_text())
     point = next(row for row in rules["checkpoints"] if row["number"] == number)
     scene = json.loads(case.source.read_text())
     initial = scene["egoVehicle"]["initPosition"]
