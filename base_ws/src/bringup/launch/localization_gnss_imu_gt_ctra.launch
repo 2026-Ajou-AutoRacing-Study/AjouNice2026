@@ -9,7 +9,7 @@
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="measurement_noise_config"
        default="$(arg repo_root)/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml"/>
   <arg name="localization_manager_config"

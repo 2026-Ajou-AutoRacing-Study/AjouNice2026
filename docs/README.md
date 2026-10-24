@@ -11,8 +11,10 @@
 6. [`runbooks/morai_full_stack_by_terminal.md`](runbooks/morai_full_stack_by_terminal.md):
    full-stack 실행 순서.
 7. [`competition/README.md`](competition/README.md): 대회 최종 규정 v1.2와 과거 규정 구분.
+8. [`../kcity_map/README.md`](../kcity_map/README.md): 현재 지도·자산 준비와 제작 이력.
+9. [`../configs/README.md`](../configs/README.md): 센서·네트워크와 분야별 설정 안내.
 
-`legacy/`가 붙은 문서, `docs/jsw/`, `external_docs/`, 과거 detector 폴더는 재현·참고
-기록이다. 날짜가 최신이거나 내용이 자세하다는 이유만으로 CURRENT 실행값을 덮어쓰지
-않는다. `topic_interface.md`와 `topic_interface_example.md`는 설계 참고이며 실제 launch와
-`rostopic info`를 우선한다.
+`legacy/`·과거 detector는 재현용이다. 날짜나 분량으로 CURRENT를 덮어쓰지 않는다.
+초기 토픽·LiDAR·지도 정렬 설계는 `legacy/design_2605/`에 보관했으며 실제 launch와
+`rostopic info`가 현재 인터페이스의 기준이다. 원문·검색·재현 규칙은
+[문맥 관리 안내](maintenance/CONTEXT_MAINTENANCE.md)를 따른다.

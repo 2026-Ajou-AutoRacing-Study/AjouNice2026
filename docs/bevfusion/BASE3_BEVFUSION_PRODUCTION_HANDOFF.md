@@ -7,7 +7,7 @@
 운영 계약이다. 과거 `260720_*zero_shot*` 문서는 MORAI 학습 전 nuScenes
 checkpoint 실험 기록이며 production 실행법이 아니다.
 
-2026-10-12 Base5 입력·연속 bag 검사는 [EVIDENCE 35절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)에
+2026-10-12 Base5 입력·연속 bag 검사는 [EVIDENCE 35절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-ros-input-continuity-261012)에
 분리해 기록한다. `base5_trial.launch`는 별도 topic·port를 사용하는 opt-in 시험용이며
 이 문서의 E25 모델·입력·threshold를 자동 교체하지 않는다.
 
@@ -176,7 +176,7 @@ FastBEV/PointPainting을 하나 더 띄우지 않게 한다는 뜻이다. BEVFus
 `0.30 -> 0.40 m`로 조정했다. E25는 velocity를 출력하지 않으므로 detector velocity
 fusion은 꺼져 있다. 향후 9D velocity 모델도 검증 없이 자동으로 fusion을 켜지 않으며,
 첫 A/B covariance는 `0.5 m/s`를 사용한다. 근거는
-[`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)를
+[`260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md`](legacy/research_2609_2610/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)를
 따른다.
 
 2026-09-25 정적 장애물 재현 bag A/B 이후 confirmed track 삭제는 detector frame 수가
@@ -186,7 +186,7 @@ fusion은 꺼져 있다. 향후 9D velocity 모델도 검증 없이 자동으로
 같은 frame에서 mature track이 이미 관측된 위치 `0.75 m` 안의 유사한 큰 box는 새
 track ID를 만들지 않는다. 이는 planning/control 변경 없이 tracking output에서
 적용된다. 근거와 bag별 수치는
-[`260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md`](260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md)를
+[`260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md`](legacy/research_2609_2610/260924_STATIC_OBSTACLE_TRACKING_DIAGNOSIS.md)를
 따른다.
 
 공용 planning 기본값은 `0.25 s`로 유지한다. 위 `0.5 s` override는 RTX 5060 Ti에서

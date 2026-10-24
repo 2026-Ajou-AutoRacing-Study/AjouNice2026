@@ -3,8 +3,8 @@
 paths:
   files:
     # MORAI F4 Network, F3 Sensor와 차량 설정이다.
-    ego_network_json: "configs/network/ego_network_1.json"
-    sensor_json: "configs/sensors/Sensor_5.json"
+    ego_network_json: "configs/network/ego_network_competition_local.json"
+    sensor_json: "configs/sensors/legacy/Sensor_5.json"
     vehicle_config: "configs/vehicle/ioniq5.yaml"
     localization_manager_config: "configs/localization/localization_manager.yaml"
 

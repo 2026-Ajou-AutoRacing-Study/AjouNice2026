@@ -19,7 +19,7 @@
 
 2026-10-14의 nearest depth-raster와 proposal-peak trial은 production·완료 학습과 분리한
 연구 config다. peak3/5는 현 E24에서 recall 회귀로 기각했으며, nearest는 반복 안정화의
-검증 후보다. [실험 근거와 다음 gate](../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)를 따르고
+검증 후보다. [실험 근거와 다음 gate](../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#model-data)를 따르고
 가중치·GT·grid가 같다는 이유로 추론 query/입력 표현 변경을 자동 적용하지 않는다.
 
 초기 Base3 feasibility·smoke·팀 학습 명령은

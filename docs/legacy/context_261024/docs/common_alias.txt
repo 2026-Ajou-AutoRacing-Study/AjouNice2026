@@ -1,0 +1,202 @@
+# BASH_SOURCE identifies this checkout even if its directory/name differs.
+_AJOUNICE_ALIAS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$(cd "$_AJOUNICE_ALIAS_DIR/.." && pwd)}"
+export POINTPAINTING_BUNDLE_ROOT="${POINTPAINTING_BUNDLE_ROOT:-$HOME/Downloads/260909_pointpainting_production_3model}"
+unset _AJOUNICE_ALIAS_DIR
+if [ -f "$AJOUNICE_ROOT/base_ws/install_aw149/setup.bash" ]; then
+  source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
+elif [ -f "$AJOUNICE_ROOT/base_ws/devel/setup.bash" ]; then
+  source /opt/ros/noetic/setup.bash
+  source "$AJOUNICE_ROOT/base_ws/devel/setup.bash"
+fi
+
+# After this file is sourced once, re-enter this checkout's runtime from any directory.
+ajou() {
+  cd "$AJOUNICE_ROOT" || return
+  source "$AJOUNICE_ROOT/docs/common_alias.txt"
+}
+
+#-----------------------------------------------------
+alias ck="catkin_make"
+alias cm="catkin_make"
+alias cb="code ~/.bashrc"
+
+alias rt="rostopic list"
+alias so="source /opt/ros/noetic/setup.bash"
+if [ -f "$AJOUNICE_ROOT/base_ws/install_aw149/setup.bash" ]; then
+  alias sd='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"'
+else
+  alias sd='source /opt/ros/noetic/setup.bash && source "$AJOUNICE_ROOT/base_ws/devel/setup.bash"'
+fi
+alias sb="source ~/.bashrc"
+
+#-----------------------------------------------------
+alias rc="roscore"
+alias gps="rostopic echo /sensor/gps"
+alias gps1="rostopic echo -n 1 /sensor/gps"
+alias gpshz="rostopic hz /sensor/gps"
+alias gpsinfo="rostopic info /sensor/gps"
+alias tf="rosrun rqt_tf_tree rqt_tf_tree"
+
+#rosbag-----------------------------------------------
+
+alias rosbag_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_raw.sh"'
+alias rosbag_cam_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_cam_raw.sh"'
+
+# 260705 rosbag for eval 녹화 요청 스크립트
+alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eval.sh"'
+
+#-----------------------------------------------------
+# Personal-PC loopback profile. Ports match the competition profile; only IP differs.
+alias udp='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
+# Local MR/MRP localization load test: GPS+IMU only. MORAI must load the same
+# lightweight sensor JSON; Ego/Competition/Object/control stay on Ego Network.
+alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
+# Algorithm-PC adapter profile. On the field MORAI PC, load the original files
+# preserved under configs/morai_field_reference instead.
+alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
+alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
+alias sensing="roslaunch bringup sensing.launch"
+alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
+alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
+alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
+alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
+# BEVFusion detections are measurement-stamped and arrive at roughly
+# 0.27-0.39 s age on the RTX 5060 Ti live pipeline.  Keep the fixed-rate EKF
+# output alive without changing measurement time semantics.
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5'
+alias od_gt='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline morai_gt_detection.launch'
+alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
+
+# control----------------------------------------------
+alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"
+alias traj_fol="roslaunch trajectory_follower pp_pi.launch"
+alias traj_fol_a="roslaunch trajectory_follower pp_pi_autoware.launch kinematic_state_topic:=/localization/control_kinematic_state"
+alias traj_fol_global="roslaunch trajectory_follower pp_pi_autoware.launch kinematic_state_topic:=/localization/kinematic_state"
+alias traj_val="roslaunch trajectory_validator trajectory_validator.launch"
+alias traj_val_replay="roslaunch trajectory_validator history.launch mode:=replay"
+alias traj_val_final="roslaunch trajectory_validator history.launch mode:=final"
+alias traj_val_compare="roslaunch trajectory_validator history.launch mode:=compare"
+alias traj_val_plot='roslaunch viewer viewer_plotjuggler.launch config_file:=$(rospack find trajectory_validator)/config/history_run.yaml'
+
+# control viewer---------------------------------------
+alias viewer="roslaunch viewer viewer.launch"
+alias viewer_rviz="roslaunch viewer viewer_rviz.launch"
+alias viewer_rqt="roslaunch viewer viewer_rqt.launch"
+alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
+
+# MR (2025 competition launcher) and field competition localization.
+# The competition contract does not provide /Ego_topic.
+alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
+# Closed-loop experiment presets. These intentionally do not change the
+# production `localization` alias (sigma=0.10 m, Global Qxy=0.0005).
+alias localization_sigma_0p10_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
+alias localization_sigma_0p05_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_sigma_0p05.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
+# MRP (2026 personal launcher) only. Estimator is shared; heading convention is already aligned.
+alias localization_mrp='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego use_heading_correction:=false heading_yaw_offset_deg:=0.0 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
+# Historical localization aliases are intentionally excluded from this common file.
+# See docs/localization/legacy/common_aliases.txt when reproducing an old experiment.
+alias lanelet="roslaunch lanelet_map_visualizer kcity_lanelet_map.launch"   
+alias morai_status='bash "$AJOUNICE_ROOT/scripts/runtime/morai_status.sh"'
+alias morai_reset='bash "$AJOUNICE_ROOT/scripts/runtime/morai_reset.sh" stack'
+
+# Field terminal logging ------------------------------------
+# Start one shared session in the roscore terminal, then pipe every long-running
+# command through field_log_tee in its own terminal.  The pointer file lets newly
+# opened terminals join the same session without copying a timestamp by hand.
+export AJOUNICE_FIELD_LOG_POINTER="${AJOUNICE_FIELD_LOG_POINTER:-/tmp/ajounice_field_log_prefix}"
+
+field_log_new() {
+  local log_dir tag prefix index pointer_tmp
+
+  log_dir="${AJOUNICE_FIELD_LOG_DIR:-$AJOUNICE_ROOT/artifacts/field_logs}"
+  mkdir -p -- "$log_dir" || return
+
+  tag="$(date +%y%m%d_%H%M%S)"
+  prefix="$log_dir/$tag"
+  index=1
+  while compgen -G "${prefix}_*" >/dev/null; do
+    printf -v prefix '%s/%s_%02d' "$log_dir" "$tag" "$index"
+    ((index++))
+  done
+
+  pointer_tmp="${AJOUNICE_FIELD_LOG_POINTER}.tmp.$$"
+  printf '%s\n' "$prefix" >"$pointer_tmp" || return
+  chmod 600 "$pointer_tmp" 2>/dev/null || true
+  mv -f -- "$pointer_tmp" "$AJOUNICE_FIELD_LOG_POINTER" || return
+  export AJOUNICE_FIELD_LOG_PREFIX="$prefix"
+
+  {
+    echo "started_at=$(date --iso-8601=seconds)"
+    echo "hostname=$(hostname)"
+    echo "repo_root=$AJOUNICE_ROOT"
+    echo "git_branch=$(git -C "$AJOUNICE_ROOT" branch --show-current 2>/dev/null || true)"
+    echo "git_sha=$(git -C "$AJOUNICE_ROOT" rev-parse HEAD 2>/dev/null || true)"
+    echo "ros_master_uri=${ROS_MASTER_URI:-unset}"
+    echo "ros_ip=${ROS_IP:-unset}"
+  } >"${prefix}_session.txt"
+
+  echo "Field log prefix: $prefix"
+  echo "Session metadata: ${prefix}_session.txt"
+}
+
+field_log_prefix() {
+  local prefix log_dir
+
+  prefix=""
+  if [[ -r "$AJOUNICE_FIELD_LOG_POINTER" ]]; then
+    IFS= read -r prefix <"$AJOUNICE_FIELD_LOG_POINTER"
+  else
+    prefix="${AJOUNICE_FIELD_LOG_PREFIX:-}"
+  fi
+
+  log_dir="${AJOUNICE_FIELD_LOG_DIR:-$AJOUNICE_ROOT/artifacts/field_logs}"
+  if [[ -z "$prefix" || "$prefix" != "$log_dir"/* ]]; then
+    echo "ERROR: no valid field log session; run field_log_new in Terminal 1 first" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$prefix"
+}
+
+field_log_tee() {
+  local label prefix started log_file index
+
+  if [[ $# -ne 1 || ! "$1" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+    echo "usage: field_log_tee LOG_LABEL" >&2
+    return 2
+  fi
+  label="$1"
+  prefix="$(field_log_prefix)" || return
+  started="$(date +%y%m%d_%H%M%S)"
+  log_file="${prefix}_${label}_${started}.log"
+  index=1
+  while [[ -e "$log_file" ]]; do
+    printf -v log_file '%s_%s_%s_%02d.log' \
+      "$prefix" "$label" "$started" "$index"
+    ((index++))
+  done
+
+  echo "Field log file: $log_file" >&2
+  tee -- "$log_file"
+}
+
+field_log_list() {
+  local prefix log_dir base
+
+  prefix="$(field_log_prefix)" || return
+  log_dir="$(dirname -- "$prefix")"
+  base="$(basename -- "$prefix")"
+  echo "Current field log prefix: $prefix"
+  find "$log_dir" -maxdepth 1 -type f -name "${base}_*" -exec ls -lh -- {} +
+}
+
+# planning-----------------------------------------------
+alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
+alias planviz='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch'
+alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
+alias pvgui='"$AJOUNICE_ROOT/planning_validator_gui"'
+alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
+alias judge='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch competition_rule_monitor competition_rule_monitor.launch'
+alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
+alias kroute='roslaunch bringup kcity_competition_route.launch'

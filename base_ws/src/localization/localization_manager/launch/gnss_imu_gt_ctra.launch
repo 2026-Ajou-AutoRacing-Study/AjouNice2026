@@ -11,7 +11,7 @@
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="config"
        default="$(arg repo_root)/configs/localization/localization_manager.yaml"/>
   <arg name="measurement_noise_config"

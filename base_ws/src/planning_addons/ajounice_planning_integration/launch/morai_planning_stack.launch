@@ -9,7 +9,7 @@
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
@@ -36,6 +36,10 @@
   <arg name="pointpainting_pedestrian_score_threshold" default="0.15"/>
   <arg name="pointpainting_obstacle_score_threshold" default="0.10"/>
   <arg name="prediction_model" default="map_based"/>
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="true"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
   <!-- Preserve the planning baseline. BEVFusion hosts may explicitly override
@@ -117,7 +121,10 @@
       <arg name="detection_velocity_fusion_mode" value="0"/>
       <arg name="tracking_publish_rate_hz" value="0.0"/>
       <arg name="prediction_time_step" value="0.1"/>
-      <arg name="prediction_horizon" value="3.0"/>
+      <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+      <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+      <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
       <arg name="map_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
       <arg name="projector_file"

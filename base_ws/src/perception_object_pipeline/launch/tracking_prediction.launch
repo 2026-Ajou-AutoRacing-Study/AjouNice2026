@@ -8,6 +8,10 @@
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="use_sim_time" default="false"/>
+  <arg name="prediction_mixed_horizon_enabled" default="true"/>
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
@@ -20,6 +24,8 @@
   <arg name="tracker_prediction_model" default="1"/>
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="tracker_shape_consistent_association_ranking" default="false"/>
+  <arg name="tracker_guard_inconsistent_class_transitions" default="false"/>
   <arg name="tracker_vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
   <arg name="tracker_meas_noise_std_xy_m" default="0.4"/>
@@ -41,6 +47,8 @@
   <arg name="tracker_detection_velocity_longitudinal_blend" default="1.0"/>
   <arg name="tracker_center_motion_velocity_fusion" default="false"/>
   <arg name="tracker_publish_center_motion_diagnostics" default="false"/>
+  <arg name="tracker_publish_association_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="tracker_center_motion_fuse_ekf_state" default="true"/>
   <arg name="tracker_center_motion_override_output_velocity" default="false"/>
   <arg name="tracker_center_motion_maximum_output_age_sec" default="0.40"/>
@@ -62,8 +70,14 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="publish_association_diagnostics" value="$(arg tracker_publish_association_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg tracker_pedestrian_gaussian_association_ranking)"/>
+    <arg name="shape_consistent_association_ranking"
+         value="$(arg tracker_shape_consistent_association_ranking)"/>
+    <arg name="guard_inconsistent_class_transitions"
+         value="$(arg tracker_guard_inconsistent_class_transitions)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="start_detector" value="false"/>
@@ -161,7 +175,10 @@
 
     <arg name="prediction_model" value="map_based"/>
     <arg name="prediction_time_step" value="0.1"/>
-    <arg name="prediction_horizon" value="3.0"/>
+    <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+    <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+    <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>
   </include>

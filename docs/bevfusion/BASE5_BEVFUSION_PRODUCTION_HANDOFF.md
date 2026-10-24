@@ -78,7 +78,7 @@ bash scripts/runtime/install_base5_production.sh
 현재 전달본은 `configs/perception/base5_e12_production_release.json`이 지정한
 `model/bevfusion/production/base5_e12_trt_head_261023/`의 E12 ZIP이다. 설치기가 정확한 파일명·
 크기·SHA256과 Drive 경로를 자동 선택한다. 원격 업로드·검증 근거는
-[63절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023)에 기록했다.
+[63절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023)에 기록했다.
 E24 복귀 ZIP `261015_lidar50`는 별도 보존한다. 구 10월 13~14일 ZIP의 확인된 중복은 10/23 정리했고
 동일 로컬 사본을 남겼다. 예전 전달본을 새 기본 E12 설치에 혼용하지 않는다.
 가중치·검증 manifest·README·현재 runtime과 상속 config의 참고 사본만 포함한다.
@@ -168,11 +168,11 @@ rostopic hz /perception/object_recognition/detection/objects
 illegal memory access/device-side assert 같은 CUDA 손상은 같은 프로세스에서 무리하게 원형으로
 전환하지 않는다. 주행을 안전하게 중단한 뒤 담당 세션에서 새 프로세스의 `--safe`로 복구한다.
 다른 노드/컨테이너를 자동 kill하지 않으며 물리 비상정지나 무중단 주행을 보장하는 기능이 아니다.
-구현·GPU 시험·남은 검증은 [61절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따른다.
+구현·GPU 시험·남은 검증은 [61절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023)을 따른다.
 
 ### Production head 최적화: E12 기본 ON, 재학습 불필요
 
-10/23 [62절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)에서
+10/23 [62절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023)에서
 **E12의** camera TRT 고정·head SDPA+고정 BEV 좌표 cache를 전체 native val 4,614장으로 비교했다.
 mAP 차이 −0.00047%p와 앞선 연속 480장 서비스 약 66→60ms를 근거로 runtime 선택 옵션을 연결했다.
 새 layer·가중치·격자·학습을 추가하지 않는다. 제안 선택 `topk`는 이득이 없어 연결하지 않았다.
@@ -219,7 +219,7 @@ MORAI의 LiDAR 15Hz 설정·카메라·timestamp 정책·E24 가중치는 변경
 2026-10-14 현재 박스 원점이 수정됐다. 기존 detector·tracker·planner를 모두 정지하고
 새 stack으로 시작한다. 실행 중인 track/planner memory에 새 중심 기준을 hot-switch하지 않는다.
 이 변경은 실제 MORAI 에셋 높이·수집 GT·가중치 변경이 아니다.
-[Live 검토](261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)에 반복성·실제 ROS·future-Z의 범위를 구분했다.
+[Live 검토](evidence/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)에 반복성·실제 ROS·future-Z의 범위를 구분했다.
 
 기존 sensor/TF/localization 터미널을 준비하고 실행한다. 동일 canonical topic에 detector를 두 개 띄우지 않는다.
 
@@ -303,7 +303,7 @@ ZIP으로 빈 HOME에 설치한 뒤 같은 명령을 반복해도 기존 가중�
 - 유효 trajectory·제어·CollisionData까지 확인한다. 오프라인 detector/tracker 비교는 폐루프 인증이 아니다.
 
 현재 E12 배포·검증 범위는 [모델 CURRENT](CURRENT.md)와
-[63절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023)을 따른다.
+[63절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023)을 따른다.
 과거 E24 선택 근거와 알려진 한계는
-[43절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013),
-[44절](261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)을 따른다.
+[43절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-e9-e24-selection-261013),
+[44절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-on-base3-val-261013)을 따른다.

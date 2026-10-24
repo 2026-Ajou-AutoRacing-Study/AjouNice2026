@@ -9,7 +9,7 @@
   <arg name="use_sim_time" default="false"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor_6.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
   <arg name="projector_file"

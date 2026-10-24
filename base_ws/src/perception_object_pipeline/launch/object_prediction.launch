@@ -4,9 +4,14 @@
   <arg name="output_objects"
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
-  <arg name="prediction_horizon" default="3.0"/>
+  <!-- Empty overrides inherit config/map_based_prediction.yaml. -->
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="false"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_processing_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
@@ -22,7 +27,8 @@
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
-      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <rosparam command="load" file="$(env AJOUNICE_ROOT)/base_ws/src/perception_object_pipeline/config/map_based_prediction.yaml"/>
+      <param if="$(eval arg('prediction_horizon') != '')" name="prediction_horizon" value="$(arg prediction_horizon)"/>
     </node>
   </group>
 
@@ -34,13 +40,18 @@
           respawn="false">
       <param name="publish_processing_diagnostics"
              value="$(arg publish_processing_diagnostics)"/>
+      <param name="diagnostics_auto_on_subscribe"
+             value="$(arg diagnostics_auto_on_subscribe)"/>
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <rosparam command="load"
                 file="$(env AJOUNICE_ROOT)/base_ws/src/perception_object_pipeline/config/map_based_prediction.yaml"/>
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
-      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <param if="$(eval arg('prediction_horizon') != '')" name="prediction_horizon" value="$(arg prediction_horizon)"/>
       <param name="map_file" value="$(arg map_file)"/>
+      <param name="mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+      <param if="$(eval arg('prediction_highway_horizon') != '')" name="highway_prediction_horizon" value="$(arg prediction_highway_horizon)"/>
+      <param if="$(eval arg('prediction_highway_mode') != '')" name="highway_prediction_mode" value="$(arg prediction_highway_mode)"/>
       <param name="projector_file" value="$(arg projector_file)"/>
     </node>
   </group>

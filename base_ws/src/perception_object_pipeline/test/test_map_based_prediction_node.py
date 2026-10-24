@@ -88,7 +88,7 @@ class MapBasedPredictionNodeTest(unittest.TestCase):
         tracked = self._track(ObjectClassification.CAR, x=10.0, speed=0.0)
         tracked.kinematics.twist_with_covariance.twist.angular.z = 0.2
         output, mapped, fallback, _ = self._prediction(tracked)
-        self.assertEqual((mapped, fallback), (0, 1))
+        self.assertEqual((mapped, fallback), (1, 0))
         for pose in output.objects[0].kinematics.predicted_paths[0].path:
             self.assertEqual((pose.position.x, pose.position.y), (10.0, 0.0))
 

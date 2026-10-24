@@ -33,7 +33,7 @@ def main():
         with np.load(path) as data:
             samples.append((data['points'].copy(),{'image/'+k:data[k].tobytes() for k in data.files if k!='points'}))
     if not samples:raise ValueError('No samples')
-    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor_competition_local.json')
     folder=a.root/'perception/detection3d/bevfusion/configs'
     checkpoint=a.root/'artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth'
     report=dict(gpu=torch.cuda.get_device_name(),batch=1,amp=True,deskew=False,

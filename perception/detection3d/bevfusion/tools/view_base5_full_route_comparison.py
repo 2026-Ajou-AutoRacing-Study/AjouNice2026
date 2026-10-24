@@ -355,7 +355,7 @@ def view(args):
         subprocess.run(['rosparam','set','/use_sim_time','true'],env=env,check=True)
         from app.sensor4_calibration import load_sensor4_calibration
         from tf.transformations import quaternion_from_matrix
-        calibration=load_sensor4_calibration(ROOT/'configs/sensors/Sensor_4.json')
+        calibration=load_sensor4_calibration(ROOT/'configs/sensors/legacy/Sensor_4.json')
         transform=calibration['base_from_lidar']
         values=[*transform[:3,3],*quaternion_from_matrix(transform)]
         start('sensor_tf',['rosrun','tf2_ros','static_transform_publisher',*[str(v) for v in values],
@@ -386,7 +386,7 @@ if __name__=='__main__':
     a.add_argument('--velocity-scales',type=float,nargs='+',required=True);a.add_argument('--output',type=Path,required=True)
     a=sub.add_parser('verify');a.add_argument('--inputs',type=Path,required=True);a.add_argument('--pilot-info',type=Path)
     a=sub.add_parser('prepare');a.add_argument('--bag',type=Path,required=True);a.add_argument('--output',type=Path,required=True)
-    a.add_argument('--sensor',type=Path,default=ROOT/'configs/sensors/Sensor_4.json')
+    a.add_argument('--sensor',type=Path,default=ROOT/'configs/sensors/legacy/Sensor_4.json')
     a=sub.add_parser('export');a.add_argument('--inputs',type=Path,required=True)
     a.add_argument('--predictions',type=Path,nargs=2,required=True,help='E25 then E9')
     a.add_argument('--thresholds',type=float,nargs=3,default=[.4,.15,.1]);a.add_argument('--output',type=Path,required=True)

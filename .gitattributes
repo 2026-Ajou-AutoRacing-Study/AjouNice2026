@@ -1,0 +1,4 @@
+# Byte-preserved historical snapshots: retain original trailing spaces.
+# Only these original files need the exemption; current files remain checked.
+docs/legacy/context_261024/configs/README.md -whitespace
+docs/legacy/context_261024/docs/common_alias.txt -whitespace
