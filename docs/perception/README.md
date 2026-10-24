@@ -13,7 +13,7 @@
 | Base5 생성·수집·resume·부족분 보충 | [데이터 CURRENT](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md#capture) | [통합 생성·수집 근거](../../dataset/morai_od/docs/261018_base5_unified_generation_capture.md) |
 | Native GT·JPEG·가시성·학습 클래스 변환 | [데이터 GT 계약](../../dataset/morai_od/docs/BASE5_V2_CURRENT.md#gt) | 모델 입력을 바꾸면 [모델 CURRENT](../bevfusion/CURRENT.md#model) |
 | BEVFusion ROS bridge·배포·모델 선택 | [모델 실행 기준](../bevfusion/CURRENT.md#runtime) | [패키지 README](../../base_ws/src/perception/bevfusion_ros/README.md), production 작업이면 handoff |
-| 신호등 YOLO·Python·GPU 환경 | [신호등 README](../../base_ws/src/perception/traffic_light_detection/README.md) | 현재 launch와 대상 호스트 실행 상태 |
+| 신호등 YOLO·CNN·강건성·환경 | [신호등 CURRENT](traffic_light/CURRENT.md) | [실행 README](../../base_ws/src/perception/traffic_light_detection/README.md), 필요한 절의 근거 기록 |
 | Tracker·UNKNOWN policy·prediction | [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md) | [검출·추적 근거 인덱스](../bevfusion/README.md#evaluation) |
 | Base3·Base4·PointPainting·Fast-BEV 재현 | [재현 문서 선택](../../dataset/morai_od/docs/README.md#reproduction) | 명시된 당시 source·config·dataset 계약 |
 

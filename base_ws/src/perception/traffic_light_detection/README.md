@@ -42,3 +42,9 @@ Planning `competition_fail_open`도 missing/stale/entirely unknown 신호에서 
 원시 correction 이유는 `/traffic_light_node/debug_policy_reason`에서 확인한다.
 
 환경 설치 명령과 정리 전 상세는 [보존 원문](docs/legacy/context_261024/README.md)에 있다.
+
+## 강건성·학습 작업
+
+운영 기준·후보 상태·구간별 관찰 계약은
+[신호등 CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)에서 관리한다.
+이 README에는 과거 실험 결과를 누적하지 않는다.
