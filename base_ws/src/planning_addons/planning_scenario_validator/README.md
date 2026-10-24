@@ -1,5 +1,7 @@
 # Planning scenario validator
 
+LAN 실행 오류는 [하나씩 확인하는 짧은 안내](../../../../docs/planning/SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 먼저 봅니다.
+
 공유·실행 브랜치는 `planning/autoware-universe-to-ros1`이다. 업데이트는 캠페인·스택 종료 → pull → planning/base 증분 빌드 → 환경 재source·노드 재실행 순서다. 초기 설치/clean을 매번 반복하지 않는다. 복붙 명령은 [팀원 안내 4-1](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있다.
 
 2026-10-23 사용자 승인으로 기본 detector는 전체 30,750장 E12 최적화 production이다. 기존 팀 이미지 위 TRT overlay와 PC별 engine을 준비하고

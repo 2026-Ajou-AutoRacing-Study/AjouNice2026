@@ -301,6 +301,8 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("Ego Network에 UDP ScenarioLoad(9095)가 정확히 하나 필요합니다. 먼저 install.sh를 실행하세요")
     if sum(entry.get("PUBSUB_TYPE") == 783 for entry in entries) != 1:
         raise ConfigError("Ego Network의 PUBSUB_TYPE=783 슬롯이 중복됐습니다. install.sh를 다시 실행하세요")
+    from .network_contract import inspect_network_contract
+    network_contract = inspect_network_contract(document, ego_network, sensor_config)
     stack = document.get("stack", {})
     if stack.get("pose_source") not in ("localization", "maptf_morai"):
         raise ConfigError("stack.pose_source는 localization 또는 maptf_morai입니다")
@@ -358,6 +360,7 @@ def load_campaign(path, *, check_install=True):
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording, "route": route,
+            "network_contract": network_contract,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,
             "gt_pose_launch_args": gt_pose_launch_args,

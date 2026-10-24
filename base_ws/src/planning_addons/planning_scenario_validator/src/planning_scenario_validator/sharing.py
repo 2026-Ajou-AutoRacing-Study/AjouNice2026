@@ -90,6 +90,7 @@ def build_bundle(cfg, folder):
         safe_copy(path, target / path.relative_to(folder))
     for name in ('model_runtime.json', 'model_launch.json', 'model_process_receipt.json',
                  'localization_contract.json', 'localization_runtime.json',
+                 'startup_status.json', 'startup_error.json', 'network_contract.json',
                  'execution.json', 'campaign_config.yaml', 'campaign_state.json', 'summary.csv'):
         safe_copy(cfg['output'] / name, target / 'execution' / name)
     for path in (cfg['output'] / 'stack_logs').glob('*'):
