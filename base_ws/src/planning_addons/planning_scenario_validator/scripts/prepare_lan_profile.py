@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Create private LAN profiles without connecting MORAI or starting any stack."""
+"""Create temporary LAN development profiles, not field/competition settings."""
 import sys
 from pathlib import Path
 

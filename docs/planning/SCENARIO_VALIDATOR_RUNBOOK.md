@@ -1,6 +1,7 @@
 # 시나리오 검증기 짧은 사용법
 
-LAN에서 시작이 안 되면 [팀장님용 단계별 확인](SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)부터 진행합니다.
+팀장님 PC의 임시 LAN-to-LAN 개발 오류는 [전용 확인 절차](SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 봅니다.
+대회용 절차가 아니며 현장점검에서 검증된 실행·네트워크 설정은 변경하지 않습니다.
 
 ## LAN 종료코드 2와 시작 전 실패 로그
 
