@@ -13,7 +13,7 @@ Git에서 관리하는 파일:
 - `2026_molit_comp_sample_scene.json`
 - `lanelet_map/map_projector_info_v1.yaml`
 - `lanelet_map/lanelet2_map_v87.osm` (명시적 Git 배포 예외, 아래 설명)
-- v87 route/mission/speed/rules 설정과 `docs/kcity_v87_runtime_release.md`
+- v87 route/requester/mission/rules 실행 설정
 - `competition_route/README.md`
 - `competition_route/How to visualize competition route.txt`
 - `scripts/kcity_map_workflow/`
@@ -38,7 +38,14 @@ Google Drive에서 관리하는 파일:
 
 `competition_planning.launch`와 명시적 `competition_planning_v87.launch`는 모두 v87을 사용합니다.
 RViz·예측·신호등·규정 모니터도 같은 지도 버전으로 맞췄습니다.
-[실행·Route A/B 전수 검증 결과](docs/kcity_v87_runtime_release.md)를 확인합니다.
+
+공용 requester 실행 코드는 v87 전용
+[requester 설정](../base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v87.param.yaml)과
+[Route A/B 설정](../base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml)을 사용합니다.
+기본 requester 설정도 같은 v87 Route A/B를 선택합니다.
+
+지도 제작 중 생성한 SVG·PNG·검증 결과와 일회성 제작 스크립트는
+Git에서 제외된 `planner_logs/analysis/` 아래에 보관합니다.
 
 v87은 사용자 요청으로 OSM 자체도 Git에 배포합니다. 팀 Drive 업로드는
 `storageQuotaExceeded`로 거절되어, 이 버전만 `.gitignore` 예외로 추가했습니다.
