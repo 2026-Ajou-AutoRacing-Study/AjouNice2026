@@ -85,7 +85,10 @@ prediction coverage를 함께 감시한다.
 `shape_consistent_association_ranking=false`, `guard_inconsistent_class_transitions=false`를 유지한다.
 전자는 트럭의 새 ID 관측 경쟁을 줄였으나 남은 장애물 중복까지 해결하지 않는다.
 후자는 class 왕복을 줄였지만 반복되는 잘못된 차량 분류를 정답으로 고치지는 못했다.
-generic/운영 wrapper 모두 opt-in이며 실제 ROS·planner 대조 전 자동 승격하지 않는다.
+generic/운영 wrapper 모두 opt-in이며 기록 재생만으로 운영값을 자동 변경하지 않는다.
+[실제 ROS·Cruise 후속](OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)에서는 OFF 반복 동등성과
+트럭 중복 제거·나머지 객체 취득 보존을 확인했다. Cruise 선택 대상은 같고 상한 차이는
+최대 약0.23km/h였다. LC·로터리·최종 제어 폐루프 인증은 아니며 기본 OFF를 유지한다.
 
 다음 LAN 분석용 `publish_association_diagnostics`의 강제 ON 기본값은 false다. 최신 tracker
 submodule을 빌드하고 스택을 시작하면 기본 `diagnostics_auto_on_subscribe=true`에 따라 녹화기가 구독할 때

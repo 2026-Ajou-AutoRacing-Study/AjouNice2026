@@ -121,6 +121,7 @@ timing 사본의 마지막 primary 출력도 일반 trace 재생과 매 case/pol
 두 경로 모두 기본값은 false다.
 generic core/standalone launch도 OFF이며 기존 운영 alias를 몰래 교체하지 않는다.
 
-다음 승격 판단은 후보 1의 실제 ROS 연결·관측 age·신규 객체 취득과 planner 선택을
-새 raw LAN bag에서 대조하는 것이다. 후보 2는 반복되는 오분류의 영상·LiDAR 근거가
+2026-10-24 후속으로 [기록 입력의 실제 ROS·Cruise 대조](OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)를
+완료했다. 실제 LAN·LC/로터리 전체 판단·폐루프는 여전히 별도다.
+후보 2는 반복되는 오분류의 영상·LiDAR 근거가
 우선이다. 남은 장애물 중복을 없애려고 전역 거리·NMS·삭제시간을 강화하지 않는다.

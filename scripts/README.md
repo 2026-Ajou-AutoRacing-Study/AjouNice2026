@@ -195,6 +195,14 @@ Top-K·순위·confidence·첫 3초 변경을 허용하고 양방향 prefix 대�
 ROS master·설치본·production 설정을 변경하지 않는다. 로컬 동결 cache/pack이 필요한 분석 도구다.
 [범위·결과·기본 OFF 정책](../base_ws/src/perception_object_pipeline/docs/OBSERVATION_CONSISTENCY_REVIEW.md)을 따른다.
 
+`replay_tracker_shape_guard_ros.py --clock-mode receipt --output 새폴더`는 기록 TF world-cache를
+실제 ROS DetectedObjects로 재구성해 private tracker·UNKNOWN policy·Map-CV를 OFF/OFF/ON으로
+대조한다. live master/설치본은 사용하지 않는다. 원래 측정 시각·수신 시각·sim clock·wall 비용을
+구분하며 ACK 재생을 wall-rate/LAN 인증으로 해석하지 않는다.
+`analyze_shape_guard_planner_response.py`는 해당 닫힌 출력 bag과 기록 ego/optimizer/accel로
+현재 실제 Cruise C++ 모듈을 고정 입력 재실행한다. 최종 제어·LC·로터리 폐루프가 아니다.
+[실제 ROS·Cruise 결과와 한계](../base_ws/src/perception_object_pipeline/docs/OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)를 따른다.
+
 동결한 E12 결과를 RViz에서 보려면 이 분석 PC에서
 `bash scripts/evaluation/view_e12_postprocessing.sh H04 1.0`을 실행한다.
 H03(다른 고주로)·R01(로터리)도 같은 인자로 선택한다. 시작은 일시정지이며 **명령을 친 터미널의
