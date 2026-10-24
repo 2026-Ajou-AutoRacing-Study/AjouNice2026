@@ -13,10 +13,6 @@ parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()
 # Operational stack only; frozen dataset/model qualification scripts have their own map contracts.
 roots = ['base_ws/src', 'planning_ws/src', 'configs', 'scripts']
-historical_tools = {
-    'base_ws/src/planning_addons/competition_route_requester/tools/generate_route_visualization.py',
-    'base_ws/src/planning_addons/competition_route_requester/tools/generate_route_activation_windows.py',
-}
 
 if args.installed:
     roots += ['base_ws/install_aw149', 'base_ws/install_planning_addons', 'planning_ws/install_isolated']
@@ -24,7 +20,7 @@ issues = []
 count = 0
 for directory in roots:
     for path in (ROOT/directory).rglob('*'):
-        if not path.is_file() or 'docs' in path.parts or path.relative_to(ROOT).as_posix() in historical_tools:
+        if not path.is_file() or 'docs' in path.parts:
             continue
         # Released versioned configs remain available for rollback, but are not
         # runtime consumers unless a non-versioned launch/config points to them.

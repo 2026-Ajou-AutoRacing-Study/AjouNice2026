@@ -72,10 +72,10 @@ def insert_way(root, way_element) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default=str(ROOT / "lanelet_map/lanelet2_map_v24.osm"))
-    parser.add_argument("--output", default=str(ROOT / "lanelet_map/lanelet2_map_v25.osm"))
-    parser.add_argument("--report", default=str(ROOT / "reports/v25_bound_sort_repair.csv"))
-    parser.add_argument("--map-version", default="25")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--report", default=str(ROOT / "reports/bound_sort_repair.csv"))
+    parser.add_argument("--map-version", required=True)
     parser.add_argument("--origin-lat", type=float, default=DEFAULT_ORIGIN_LAT)
     parser.add_argument("--origin-lon", type=float, default=DEFAULT_ORIGIN_LON)
     parser.add_argument("--min-valid-area-m2", type=float, default=1.0)
