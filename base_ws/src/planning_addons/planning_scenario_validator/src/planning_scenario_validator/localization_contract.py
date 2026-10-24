@@ -287,6 +287,10 @@ None entries rather than being silently treated as verified installations.
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/localization_contract.py',
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/runner.py',
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/runtime.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/config.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/executions.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/network_contract.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/startup_audit.py',
         'base_ws/src/planning_addons/planning_scenario_validator/launch/parking_hold.launch',
         'base_ws/src/control/trajectory_follower/launch/pp_pi_autoware.launch',
         'base_ws/src/sensor_interface/src/morai_ego_udp_receiver.cpp',
@@ -310,7 +314,8 @@ None entries rather than being silently treated as verified installations.
             installed_files[relative] = _sha(install_root / relative)
     installed_files['share/sensor_interface/launch/morai_udp_interface.launch'] = _sha(
         install_root / 'share/sensor_interface/launch/morai_udp_interface.launch')
-    for name in ('localization_contract', 'runner', 'runtime'):
+    for name in ('localization_contract', 'runner', 'runtime', 'config', 'executions',
+                 'network_contract', 'startup_audit'):
         relative = 'lib/python3/dist-packages/planning_scenario_validator/' + name + '.py'
         installed_files[relative] = _sha(install_root / relative)
     relative = 'share/planning_scenario_validator/launch/parking_hold.launch'

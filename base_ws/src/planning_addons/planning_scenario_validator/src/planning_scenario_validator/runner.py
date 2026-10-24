@@ -27,6 +27,7 @@ from .recording_options import diagnostics_enabled, sharing_warnings, sharing_en
 from .localization_contract import effective_localization_args, effective_gt_pose_args, resolve_localization_contract
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .repetitions import sampled_scene
+from .startup_audit import mark_startup_phase, record_startup_failure, complete_startup
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure, SafetyFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
@@ -76,16 +77,45 @@ def _check_traffic_light(cfg):
     if runtime_mode(cfg["stack"]) == "virtualenv":
         command.append("--isolate-python")
     print("신호등 실행 환경 검사: {} / device={}".format(python, device), flush=True)
+    logs = cfg['output'] / 'stack_logs'
+    logs.mkdir(parents=True, exist_ok=True)
+    receipt = {'schema_version': 1, 'command': command, 'started_at': now(),
+               'python': python, 'device': device, 'status': 'RUNNING'}
+    atomic_json(logs / 'traffic_light_preflight.json', receipt)
     try:
         checked = subprocess.run(command, env=_env(), stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as error:
+        output = getattr(error, 'stdout', '') or ''
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
+        (logs / 'traffic_light_preflight.log').write_text(output, encoding='utf-8')
+        receipt.update(status='ERROR', error=str(error), finished_at=now())
+        atomic_json(logs / 'traffic_light_preflight.json', receipt)
         raise RuntimeFailure("신호등 환경 검사 실행 실패: {}".format(error)) from error
-    (cfg["output"] / "stack_logs").mkdir(parents=True, exist_ok=True)
-    (cfg["output"] / "stack_logs/traffic_light_preflight.log").write_text(checked.stdout, encoding="utf-8")
+    (logs / 'traffic_light_preflight.log').write_text(checked.stdout, encoding='utf-8')
+    probe_status = None
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(checked.stdout):
+        if char != '{':
+            continue
+        try:
+            value, _ = decoder.raw_decode(checked.stdout[index:])
+        except ValueError:
+            continue
+        if isinstance(value, dict) and value.get('status') in ('PASS', 'FAIL'):
+            probe_status = value['status']
+            break
+    receipt.update(status='PASS' if checked.returncode == 0 else 'FAIL',
+        returncode=checked.returncode, probe_report_status=probe_status,
+        reported_pass_but_process_failed=probe_status == 'PASS' and checked.returncode != 0,
+        finished_at=now())
+    atomic_json(logs / 'traffic_light_preflight.json', receipt)
     print(checked.stdout, flush=True)
     if checked.returncode:
-        raise RuntimeFailure("신호등 환경 검사가 실패했습니다. 차량 주행은 시작하지 않았습니다. 환경 설치 가이드를 확인하세요")
+        raise RuntimeFailure('신호등 환경 검사 프로세스 종료코드 {} (보고서 status={}). '
+            '차량 주행은 시작하지 않았습니다. 상세: {}'.format(
+                checked.returncode, probe_status, logs / 'traffic_light_preflight.json'))
 
 
 def _start_master(processes, monitor_timeout):
@@ -903,6 +933,26 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
 
 
 def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
+    mark_startup_phase(cfg, 'CONTRACT_CHECK')
+    try:
+        code = _run_campaign_impl(cfg, resume, rerun_failed)
+        complete_startup(cfg, code)
+        return code
+    except (Exception, KeyboardInterrupt) as error:
+        try:
+            record_startup_failure(cfg, error)
+            print('실패 단계: {} · 상세 로그: {}'.format(cfg.get('_startup_phase'),
+                cfg['output'] / 'stack_logs/startup_error.log'), file=sys.stderr, flush=True)
+        except Exception as audit_error:
+            print('시작 오류 기록 실패: {}'.format(audit_error), file=sys.stderr, flush=True)
+        raise
+
+
+def _run_campaign_impl(cfg, resume=True, rerun_failed=False):
+    mark_startup_phase(cfg, 'NETWORK_CHECK')
+    if cfg.get('network_contract', {}).get('errors'):
+        raise RuntimeFailure('\n'.join(cfg['network_contract']['errors']))
+    mark_startup_phase(cfg, 'CONTRACT_CHECK')
     state = _load_state(cfg, resume)
     model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
     previous_model = state.get('model_contract') or cfg.get('model_contract')
@@ -922,6 +972,8 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
     cfg['localization_contract'] = localization
     state['localization_contract'] = localization
     atomic_json(cfg['output'] / 'localization_runtime.json', localization)
+    if cfg.get('network_contract'):
+        atomic_json(cfg['output'] / 'network_contract.json', cfg['network_contract'])
     from .recording_audit import profile_contract_warnings
     state['recording_profile_warnings'] = profile_contract_warnings(cfg)
     state['recording_profile_warnings'] += sharing_warnings(cfg['recording'], cfg['upload'])
@@ -961,12 +1013,17 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
         return 0
     processes = Processes(cfg["output"] / "stack_logs", _env())
     try:
+        mark_startup_phase(cfg, 'DISK_CHECK')
         check_free_disk(cfg)
+        mark_startup_phase(cfg, 'TRAFFIC_LIGHT_CHECK')
         _check_traffic_light(cfg)
+        mark_startup_phase(cfg, 'ROS_MASTER_CHECK')
         _start_master(processes, float(cfg["document"].get("readiness_timeout_sec", 45)))
+        mark_startup_phase(cfg, 'ROS_NODE_INIT')
         import rospy
         rospy.init_node("planning_scenario_validator", anonymous=False, disable_signals=True)
         monitor = LiveMonitor()
+        mark_startup_phase(cfg, 'STACK_START')
         _start_persistent(cfg, processes, monitor)
         for index, case in enumerate(todo, 1):
             if is_snapshot(cfg['path']):
@@ -974,6 +1031,7 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
             # Check between cases without corrupting an in-progress recorder.
             check_free_disk(cfg)
             print("[{}/{}] {}".format(index, len(todo), case.name), flush=True)
+            mark_startup_phase(cfg, 'CASE_RUN')
             result = _run_case(cfg, processes, monitor, case, state)
             print("  -> {} ({})".format(result["status"], result["reason"]), flush=True)
             if result.get('halt_campaign'):
@@ -1008,6 +1066,11 @@ def main(argv=None):
             cfg = load_execution(args.config) if is_snapshot(args.config) else load_campaign(args.config)
         else:
             raise ConfigError('새 실행은 YAML, 재개는 --execution 결과폴더를 지정하세요')
+        network_contract = cfg.get('network_contract', {})
+        if network_contract.get('errors'):
+            raise ConfigError('\n'.join(network_contract['errors']))
+        for warning in network_contract.get('warnings', []):
+            print('[WARN] ' + warning, flush=True)
         if cfg["ignored_case_yamls"]:
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)

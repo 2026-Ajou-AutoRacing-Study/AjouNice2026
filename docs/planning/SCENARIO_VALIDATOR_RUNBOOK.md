@@ -23,6 +23,25 @@ python3 base_ws/src/planning_addons/planning_scenario_validator/scripts/generate
 `morai.scenario_install_dir`을 그 마운트 경로로 지정해야 생성된 JSON과 EgoNetwork sidecar가
 MORAI PC에 실제로 전달된다. 네트워크 프로파일 생성만으로 원격 파일 전달은 지원하지 않는다.
 
+### LAN 종료코드 2와 시작 전 실패 로그
+
+`--check`와 새 실행 준비는 실제 ScenarioLoad 슬롯의 `hostIP`와 YAML의
+`morai.scenario_load_host`가 서로 다른 구체적 IPv4인지 검사한다. `_local`/`_lan` 파일명보다
+실제 JSON 내용을 기준으로 한다. 불일치한 과거 사본을 수정하지 말고 원본 YAML을 고쳐 새 실험을 만든다.
+Sensor/Ego의 수신 IP가 다르면 여러 NIC를 의도한 것인지 경고하며, 실제 수신을 인증하지 않는다.
+
+이미 수동 `udp_lan`·인지·planning·제어 등이 실행 중이면 기존 publisher 충돌로 시작이 거부된다.
+MORAI GUI의 Connect와 ROS 스택 실행은 별개다. 수동 스택은 정상 종료하고 validator가 소유하게 한다.
+외부 노드를 강제 종료하거나 중복 제어를 허용하는 방식으로 검사를 우회하지 않는다.
+
+장면이 시작되기 전 실패도 결과 루트의 `startup_error.json`, `startup_status.json`,
+`stack_logs/startup_error.log`에 단계와 원문 오류를 남긴다. GUI 실행의 전체 출력은
+`stack_logs/runner_console.log`에 보존한다. GUI 종료 상태도 숫자만 아니라 실패 단계/원인을 표시한다.
+`traffic_light_preflight.log`의 PASS는 모델 검사 결과이며 자식 프로세스의 정상 종료까지 뜻하지 않는다.
+실제 종료코드·PASS 이후 프로세스 실패 여부는 `stack_logs/traffic_light_preflight.json`을 확인한다.
+정상 재시도 완료 뒤에는 `startup_status.json`이 COMPLETED이고, 과거 실패 파일은 증거로 남는다.
+이 진단 보완은 모델·threshold·planner·localization 튜닝을 바꾸지 않는다.
+
 ## 측위 에이전트의 GPS 음영 A/B (2026-10-14)
 
 GUI 녹화 모드에 **측위 분석 (센서 원본 제외)**를 추가했습니다. GNSS·IMU·Competition·
