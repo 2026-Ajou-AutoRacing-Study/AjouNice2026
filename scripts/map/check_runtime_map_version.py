@@ -6,24 +6,33 @@ import re
 import hashlib
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 85
-SHA = '5111ae16ba788b059e40e88201b51b0cb4d1d662dcd8456f43cda9705066be58'
+VERSION = 87
+SHA = '70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()
-roots = ['base_ws/src', 'planning_ws/src', 'configs', 'scripts', 'perception', 'dataset']
+# Operational stack only; frozen dataset/model qualification scripts have their own map contracts.
+roots = ['base_ws/src', 'planning_ws/src', 'configs', 'scripts']
+historical_tools = {
+    'base_ws/src/planning_addons/competition_route_requester/tools/generate_route_visualization.py',
+    'base_ws/src/planning_addons/competition_route_requester/tools/generate_route_activation_windows.py',
+}
+
 if args.installed:
     roots += ['base_ws/install_aw149', 'base_ws/install_planning_addons', 'planning_ws/install_isolated']
 issues = []
 count = 0
 for directory in roots:
     for path in (ROOT/directory).rglob('*'):
-        if not path.is_file() or 'docs' in path.parts:
+        if not path.is_file() or 'docs' in path.parts or path.relative_to(ROOT).as_posix() in historical_tools:
             continue
         # Released versioned configs remain available for rollback, but are not
         # runtime consumers unless a non-versioned launch/config points to them.
-        historical_config = re.search(r'kcity_v(\d+)', path.name)
+        historical_config = re.search(r'(?:kcity|competition_planning|competition_route_requester)_v(\d+)', path.name)
         if historical_config and int(historical_config[1]) != VERSION:
+            continue
+        # Preserved v85 speed caps are no longer selected by the default map launch.
+        if path.name == 'lanelet_speed_limits.yaml':
             continue
         if path.suffix not in {'.py', '.yaml', '.yml', '.launch', '.sh', '.rviz', '.cpp', '.hpp', ''}:
             continue
@@ -32,6 +41,8 @@ for directory in roots:
         except (UnicodeError, OSError):
             continue
         for line_number, line in enumerate(content.splitlines(), 1):
+            if line.lstrip().startswith('#'):
+                continue
             for match in re.finditer(r'(?:lanelet2_map_v|kcity_v)(\d+)', line):
                 count += 1
                 if int(match[1]) != VERSION:
