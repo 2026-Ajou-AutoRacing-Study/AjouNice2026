@@ -17,6 +17,7 @@
     <arg name="output_topic" value="$(arg output_topic)" />
     <arg name="weights_path" value="$(find traffic_light_detection)/weights/best.pt" />
     <arg name="detector_imgsz" value="640" />
+    <arg name="near_rescue_enabled" value="false" />
     <arg name="selection_mode" value="legacy_center" />
     <arg name="classifier_mode" value="hsv" />
     <arg name="cnn_checkpoint_path" value="" />

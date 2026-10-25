@@ -49,6 +49,8 @@ from signal_smoother import SignalSmoother
 from signal_phase_policy import SignalPhasePolicy
 from traffic_light_map_selector import (MISSION_GROUP_IDS, associate_boxes, select_packet,
                                         SELECTOR_CONTRACT_VERSION, selector_config)
+from traffic_light_near_rescue import (near_rescue_config, near_rescue_decision,
+                                       accept_near_rescue_selection)
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -172,6 +174,9 @@ class TrafficLightNode:
         self.detector_imgsz = int(rospy.get_param("~detector_imgsz", 640))
         if not 320 <= self.detector_imgsz <= 1920 or self.detector_imgsz % 32:
             raise ValueError("detector_imgsz must be a multiple of 32 within 320..1920")
+        self.near_rescue_config = near_rescue_config({
+            "enabled": rospy.get_param("~near_rescue_enabled", False),
+        })
         self.center_tolerance_ratio = rospy.get_param("~center_tolerance_ratio", 0.20)
         self.y_weight = rospy.get_param("~y_weight", 0.6)
         self.fallback_group_id = rospy.get_param("~fallback_group_id", 0)
@@ -256,6 +261,10 @@ class TrafficLightNode:
             "detector_weights_path": os.path.abspath(os.path.expanduser(weights_path)),
             "detector_requested_device": str(self.inference_device), "detector_imgsz": self.detector_imgsz,
             "cnn_crop_margin_px": self.cnn_crop_margin_px,
+            "near_rescue": dict(enabled=self.near_rescue_config.enabled,
+                                imgsz=self.near_rescue_config.imgsz,
+                                max_depth_m=self.near_rescue_config.max_depth_m,
+                                min_projected_width_px=self.near_rescue_config.min_projected_width_px),
             "cnn_startup_ready": self._cnn_startup.ready if self._cnn_startup else None,
             "cnn_metadata": self._cnn_startup.metadata if self._cnn_startup else None,
         }
@@ -426,18 +435,10 @@ class TrafficLightNode:
             imgsz=self.detector_imgsz,
             verbose=False,
         )
-        r = results[0]
-
-        boxes = []
-        for box in r.boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            det_conf = float(box.conf[0])
-            cx = ((x1 + x2) / 2) / w
-            cy = ((y1 + y2) / 2) / h
-            bw = (x2 - x1) / w
-            bh = (y2 - y1) / h
-            boxes.append((cx, cy, bw, bh, (x1, y1, x2, y2, det_conf)))
+        boxes = self._read_detector_boxes(results, w, h)
         t_detected = time.monotonic()
+        rescue_timing_sec = 0.
+        rescue_debug = {"attempted": False, "reason": "not_map_association"}
 
         group_array = TrafficLightGroupArray()
         source_stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
@@ -462,6 +463,7 @@ class TrafficLightNode:
                 best = None
                 selection = {"status": "missing", "reason": "map_packet_missing_or_stale" if packet is None
                              else packet.get("reason", "map_projection_missing")}
+                rescue_debug["reason"] = selection["reason"]
             else:
                 try:
                     if packet.get("selector_contract_version") != SELECTOR_CONTRACT_VERSION:
@@ -471,6 +473,40 @@ class TrafficLightNode:
                     config = selector_config(packet.get("selector_config"))
                     best, selection = associate_boxes(boxes, packet.get("rois", []),
                         group.traffic_light_group_id, self._selected_head_id, config=config)
+                    selection["projection_reason"] = packet.get("reason")
+                    decision = near_rescue_decision(selection, packet.get("rois", []),
+                        group.traffic_light_group_id, config=getattr(self, "near_rescue_config", None))
+                    if packet["source_stamp_ns"] != msg.header.stamp.to_nsec():
+                        decision.update(retry=False, reason="retry_requires_exact_image_stamp")
+                    rescue_debug = dict(decision, attempted=False)
+                    if decision["retry"] and self.detector_imgsz != decision["imgsz"]:
+                        # The SAME original image and exact/fresh map packet are
+                        # reused. No confidence, classifier or signal-policy relaxation.
+                        rescue_started = time.monotonic()
+                        rescue_debug.update(attempted=True, primary_reason=selection["reason"])
+                        try:
+                            retry_results = self.model.predict(source=img, conf=self.conf_threshold,
+                                device=self.inference_device, imgsz=decision["imgsz"], verbose=False)
+                            retry_boxes = self._read_detector_boxes(retry_results, w, h)
+                            retry_best, retry_selection = associate_boxes(boxes + retry_boxes,
+                                packet.get("rois", []), group.traffic_light_group_id,
+                                self._selected_head_id, config=config)
+                            context_reason = self._near_retry_context_reason(packet, group.traffic_light_group_id)
+                            accepted = (context_reason is None and
+                                        accept_near_rescue_selection(retry_selection, decision))
+                            rescue_debug.update(secondary_detection_count=len(retry_boxes),
+                                accepted=accepted, context_rejection=context_reason,
+                                result=dict(retry_selection))
+                            if accepted:
+                                best, selection = retry_best, retry_selection
+                            # Primary boxes remain present for identity checks/debug.
+                            boxes = boxes + retry_boxes
+                        except Exception as error:
+                            rescue_debug.update(accepted=False, error_type=type(error).__name__)
+                            self.status.note(_StatusLog.WARN, "근접 재검출 실패; missing 유지")
+                        rescue_timing_sec = time.monotonic() - rescue_started
+                    elif decision["retry"]:
+                        rescue_debug["reason"] = "primary_already_retry_scale"
                     selection["selector_contract_version"] = SELECTOR_CONTRACT_VERSION
                     selection["selector_config"] = config.to_dict()
                     selection["projection_reason"] = packet.get("reason")
@@ -481,7 +517,8 @@ class TrafficLightNode:
                 selection["projection_source_stamp_ns"] = packet["source_stamp_ns"]
             self._selected_head_id = selection.get("head_id")
         selection.update(mode=self.selection_mode, group_id=group.traffic_light_group_id,
-                         source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes))
+                         source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes),
+                         near_rescue=rescue_debug)
         self.selection_debug_pub.publish(String(data=json.dumps(selection, allow_nan=False)))
         t_selected = time.monotonic()
         label_text = "off"
@@ -599,6 +636,7 @@ class TrafficLightNode:
             "decode_sec": t_decoded-t_monotonic,
             "detector_and_box_readback_sec": t_detected-t_decoded,
             "selection_including_map_wait_sec": t_selected-t_detected,
+            "near_rescue_detector_and_association_sec": rescue_timing_sec,
             "crop_and_classifier_sec": t_classified-t_selected,
             "policy_and_publish_sec": t_published-t_classified,
             "callback_to_output_sec": t_published-t_monotonic,
@@ -607,6 +645,7 @@ class TrafficLightNode:
             "group_id": group.traffic_light_group_id,
             "head_id": selection.get("head_id"),
             "selection_status": selection.get("status"),
+            "near_rescue": rescue_debug,
             "classifier_known": classifier_debug.get("known"),
             "observed_tuples": detected_color_results,
             "normalized_tuples": raw_color_results,
@@ -633,6 +672,29 @@ class TrafficLightNode:
             self.signal_phase_policy.section_label(group.traffic_light_group_id),
             _short_label(color_results),
         )
+
+    @staticmethod
+    def _read_detector_boxes(results, width, height):
+        boxes = []
+        for box in results[0].boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            confidence = float(box.conf[0])
+            boxes.append((((x1+x2)/2)/width, ((y1+y2)/2)/height,
+                          (x2-x1)/width, (y2-y1)/height,
+                          (x1, y1, x2, y2, confidence)))
+        return boxes
+
+    def _near_retry_context_reason(self, packet, group_id):
+        """Discard a delayed retry if route/freshness changed during inference."""
+        if self._resolve_group_id() != group_id:
+            return "route_changed_during_retry"
+        try:
+            age = (rospy.Time.now().to_nsec() - int(packet["generated_stamp_ns"])) / 1e9
+            if not 0 <= age <= getattr(self, "map_packet_max_age_sec", .5):
+                return "map_packet_expired_during_retry"
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return "invalid_retry_packet_generation_stamp"
+        return None
 
 
 def main():

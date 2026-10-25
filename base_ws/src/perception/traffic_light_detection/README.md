@@ -87,7 +87,7 @@ camera frame을 대신 제공하지 않는다. 이름만 맞추는 새 정적 TF
 정면 각도·깊이·최소 투영 크기·공분산 기반 bounded padding을 검사한다. 투영은
 가림·실제 점등·완벽한 identity의 GT가 아니므로 실제 YOLO/측위 입력 검증이 남는다.
 
-지도 모드의 검색 상한은 수평 90px·수직 180px로 분리한다. XY 최대 고유축 표준편차와
+지도 모드의 검색 상한은 수평 90px·수직 200px로 분리한다. XY 최대 고유축 표준편차와
 GNSS Z 표준편차를 별도로 투영하며 Z가 수평 검색을 넓히지 않는다. 현재 Z 분산 1은
 EKF placeholder가 아니라 `vertical_stddev_m=1.0`의 명시적 GNSS 설정이므로 유지한다.
 기존 개발 val 66장의 저장 검출 박스 재생에서 수직 90px는 42개 정상 검출을 잃었고,
@@ -99,6 +99,17 @@ EKF placeholder가 아니라 `vertical_stddev_m=1.0`의 명시적 GNSS 설정이
 이는 실제 ROS match율·미관측 주행 test 성능이 아니다. helper와 node는 같은
 `selector_config()` 계약과 packet version 2를 사용하며, 구버전 helper와 섞이면 missing으로
 거부하므로 시험 배치 전 둘 다 설치·재시작해야 한다.
+
+근접 재검출은 `near_rescue_enabled:=true`가 기본이다. 960에서 현재 미션 신호를 연결하지
+못했고 지도 투영 깊이3~15m·폭60px 이상인 경우에만 같은 원본을640으로 한 번 더 본다.
+동일 이미지 stamp·지도 freshness·현재 미션을 확인하며, 재검출 도중 미션이 바뀌거나
+packet이 만료되면 결과를 버린다. 다른 head 모호성·기하 검사·confidence0.25는 그대로다.
+이미 연결된 관측·CNN UNKNOWN·지도 누락은 재시도 대상이 아니다. raw Python과 legacy는
+기본 OFF다. 가중치·CNN·황색/신호 상실 정책은 바꾸지 않는다.
+[근접 보완 근거](../../../../docs/perception/traffic_light/261025_NEAR_SIGNAL_RECOVERY.md)를 본다.
+기존 방식과 대조할 때만 `near_rescue_enabled:=false map_max_vertical_padding_px:=180`을 쓴다.
+`debug_selection.near_rescue`와 `debug_runtime.frame_decision.near_rescue`에 시도/승인을 남긴다.
+추가 비용 `near_rescue_detector_and_association_sec`는 기존 selection 시간의 부분집합이다.
 
 helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms만 기다린다.
 실 CPU 부하·TF 후속 표본 지연에서 이 대기값의 실제 match/missing 비율은 별도 측정한다.
