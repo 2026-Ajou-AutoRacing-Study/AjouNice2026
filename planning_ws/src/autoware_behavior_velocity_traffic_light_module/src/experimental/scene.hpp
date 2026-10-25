@@ -74,6 +74,10 @@ public:
     bool competition_fail_open{false};
     bool enable_signal_compliance_guard{false};
     double signal_compliance_front_axle_offset_m{-1.0};
+    int signal_compliance_required_green_observations{3};
+    bool signal_compliance_enable_timed_yellow{false};
+    double signal_compliance_min_yellow_sec{2.0};
+    double signal_compliance_yellow_time_margin_sec{0.2};
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter

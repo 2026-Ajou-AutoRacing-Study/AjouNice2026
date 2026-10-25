@@ -210,11 +210,15 @@ class NodeOverlayWiringTest(unittest.TestCase):
                 patch.object(self.module.time, "monotonic", side_effect=[10., 11., 12.]):
             self.module.TrafficLightNode._debug_planner_parameters(node)
             self.module.TrafficLightNode._debug_planner_parameters(node)
-            self.assertEqual(get.call_count, 5)
+            self.assertEqual(get.call_count, 9)
             self.module.TrafficLightNode._debug_planner_parameters(node)
-            self.assertEqual(get.call_count, 10)
+            self.assertEqual(get.call_count, 18)
         self.assertTrue(any(call.args[0].endswith("/traffic_light/enable_yellow_passthrough")
                             for call in get.call_args_list))
+        for key in ('signal_compliance_enable_timed_yellow', 'signal_compliance_min_yellow_sec',
+                    'signal_compliance_yellow_time_margin_sec', 'signal_compliance_required_green_observations'):
+            self.assertTrue(any(call.args[0].endswith('/traffic_light/'+key)
+                                for call in get.call_args_list))
 
 
 if __name__ == "__main__":

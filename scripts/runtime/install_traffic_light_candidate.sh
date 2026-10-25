@@ -51,6 +51,7 @@ planning=root/'planning_ws';base=root/'base_ws'
 cpp=planning/'src'/package
 traffic=base/'src/perception/traffic_light_detection'
 integration=base/'src/planning_addons/ajounice_planning_integration'
+validator_source=base/'src/planning_addons/planning_scenario_validator/src/planning_scenario_validator'
 receipt=base/'install_aw149/share/traffic_light_detection/oneclick_runtime_receipt.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -178,6 +179,10 @@ def compare_plugin_elf(built_bytes,installed_bytes):
                 allowed_difference='RPATH/RUNPATH removal only')
 
 sources=[p for p in files(cpp) if p.suffix in ('.cpp','.hpp','.h','.xml','.txt','.yaml')]
+if not (validator_source/'__init__.py').is_file():
+    raise RuntimeError('Missing Validator Python source package')
+validator_sources=[p for p in files(validator_source) if p.suffix=='.py' and '__pycache__' not in p.parts]
+sources += validator_sources
 sources += files(traffic/'scripts')+files(traffic/'launch')+files(traffic/'config')
 sources += files(integration/'launch')+files(integration/'config')
 sources += [traffic/'CMakeLists.txt',integration/'CMakeLists.txt',
@@ -216,11 +221,14 @@ for folder in ('launch','config'):
 for source in files(traffic/'scripts'):
     if source.suffix=='.py':
         pairs.append((source,base/'install_aw149/lib/traffic_light_detection'/source.name))
+for source in validator_sources:
+    pairs.append((source,base/'install_aw149/lib/python3/dist-packages/planning_scenario_validator'/source.relative_to(validator_source)))
 for source,target in pairs:
     if not target.is_file():raise RuntimeError('Missing installed runtime asset: '+str(target))
     left,right=source.read_bytes(),target.read_bytes()
-    if source.suffix=='.py':
+    if source.suffix=='.py' and source not in validator_sources:
         # catkin_install_python may rewrite ONLY the interpreter shebang.
+        # Python package modules are copied verbatim, including their first line.
         left,right=left.split(b'\n',1)[1],right.split(b'\n',1)[1]
     if left!=right:raise RuntimeError('Stale installed runtime asset: '+str(target))
 

@@ -1,5 +1,6 @@
 """User-selected v5 default and explicit legacy; planning policy is unchanged."""
 import importlib.util
+import math
 import os
 from pathlib import Path
 
@@ -10,6 +11,35 @@ DEFAULT_PROFILE = 'v5_candidate'
 PROFILE_LABELS = {'v5_candidate': 'v5 지도+CNN 후보', 'legacy': '기존 YOLO+HSV'}
 LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
+TIMED_POLICY_DEFAULTS = {
+    'signal_compliance_required_green_observations': 3,
+    'signal_compliance_min_yellow_sec': 2.0,
+    'signal_compliance_yellow_time_margin_sec': 0.2,
+    'signal_compliance_enable_timed_yellow': False,
+}
+
+
+def timed_policy_options(stack):
+    """Explicit candidate settings; minimum yellow is an assumption, not GT."""
+    result = {key: stack.get(key, default) for key, default in TIMED_POLICY_DEFAULTS.items()}
+    required = result['signal_compliance_required_green_observations']
+    if type(required) is not int or not 1 <= required <= 3:
+        raise ValueError('stack.signal_compliance_required_green_observations는 1~3 정수입니다')
+    enabled = result['signal_compliance_enable_timed_yellow']
+    if type(enabled) is not bool:
+        raise ValueError('stack.signal_compliance_enable_timed_yellow는 true/false입니다')
+    for key in ('signal_compliance_min_yellow_sec', 'signal_compliance_yellow_time_margin_sec'):
+        value = result[key]
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError('stack.{}는 유한한 숫자여야 합니다'.format(key))
+        result[key] = float(value)
+    minimum = result['signal_compliance_min_yellow_sec']
+    margin = result['signal_compliance_yellow_time_margin_sec']
+    if not 0 < minimum <= 10:
+        raise ValueError('stack.signal_compliance_min_yellow_sec는 0초 초과 10초 이하입니다')
+    if not 0 <= margin < minimum:
+        raise ValueError('stack.signal_compliance_yellow_time_margin_sec는 0 이상 최소 황색 시간 미만입니다')
+    return result
 
 
 def launch_options(stack, *, legacy_snapshot=False):
@@ -22,9 +52,15 @@ def launch_options(stack, *, legacy_snapshot=False):
     for key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
         if key in stack and type(stack[key]) is not bool:
             raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
-    return dict(yellow_passthrough=stack.get('traffic_light_yellow_passthrough', legacy_snapshot),
-                debug_view=stack.get('traffic_light_debug_view', False),
-                publish_debug_image=stack.get('traffic_light_debug_view', legacy_snapshot))
+    result = dict(yellow_passthrough=stack.get('traffic_light_yellow_passthrough', legacy_snapshot),
+                  debug_view=stack.get('traffic_light_debug_view', False),
+                  publish_debug_image=stack.get('traffic_light_debug_view', legacy_snapshot))
+    policy = timed_policy_options(stack)
+    # Preserve the effective old snapshot shape/hash when no new field exists.
+    # New execution preparation freezes all four fields explicitly.
+    if any(key in stack for key in TIMED_POLICY_DEFAULTS):
+        result.update(policy)
+    return result
 
 
 def profile_name(stack):

@@ -13,7 +13,7 @@ from planning_scenario_validator import batch, executions, gui, runner
 from planning_scenario_validator.authoring import quick_test_document
 from planning_scenario_validator.config import ConfigError, load_campaign, validate_campaign_document
 from planning_scenario_validator.recording_options import TRAFFIC_LIGHT_DEBUG_TOPIC
-from planning_scenario_validator.traffic_light import launch_options
+from planning_scenario_validator.traffic_light import launch_options, TIMED_POLICY_DEFAULTS
 
 
 YELLOW = 'traffic_light_yellow_passthrough'
@@ -198,6 +198,87 @@ class TrafficControlsTests(unittest.TestCase):
         self.assertIn('enable_yellow_passthrough:=false', commands['planning'])
         self.assertIn('publish_debug_image:=false', commands['traffic_light'])
         self.assertNotIn('traffic_light_debug_view', commands)
+
+    def test_timed_policy_has_typed_explicit_options_and_old_snapshot_shape_is_preserved(self):
+        old = launch_options({}, legacy_snapshot=True)
+        self.assertEqual(old, dict(yellow_passthrough=True, debug_view=False, publish_debug_image=True))
+        self.document['stack'].update(signal_compliance_enable_timed_yellow=True,
+            signal_compliance_required_green_observations=2,
+            signal_compliance_min_yellow_sec=2., signal_compliance_yellow_time_margin_sec=.25)
+        cfg = self.load(); options = cfg['traffic_light_options']
+        self.assertTrue(options['signal_compliance_enable_timed_yellow'])
+        self.assertEqual(options['signal_compliance_required_green_observations'], 2)
+        # Candidate flag does not silently enable the master yellow switch.
+        self.assertFalse(options['yellow_passthrough'])
+        processes = Mock()
+        with patch.object(runner, 'runtime_settings', return_value=('/mock/python', '0')), \
+             patch.object(runner, 'candidate_assets', return_value=None):
+            runner._start_case_stack(cfg, processes, Mock())
+        command = next(c.args[1] for c in processes.start.call_args_list if c.args[0] == 'planning')
+        for argument in ('signal_compliance_enable_timed_yellow:=true',
+                         'signal_compliance_required_green_observations:=2',
+                         'signal_compliance_min_yellow_sec:=2.0',
+                         'signal_compliance_yellow_time_margin_sec:=0.25',
+                         'enable_yellow_passthrough:=false'):
+            self.assertIn(argument, command)
+        # Advanced YAML fields survive both GUI save paths, without GUI migration.
+        values = gui.form_values(self.document)
+        self.assertEqual(gui.build_document(self.document, values), self.document)
+        self.assertEqual(gui.operator_document(self.document, self.document, values, None), self.document)
+        quick = quick_test_document(self.document, ['one.json'], detector='od_gt',
+            pose_source='localization', traffic_light=True,
+            traffic_light_yellow_passthrough=True)
+        for key in TIMED_POLICY_DEFAULTS:
+            self.assertEqual(quick['stack'][key], self.document['stack'][key])
+
+    def test_timed_policy_validation_rejects_invalid_types_and_bounds(self):
+        bad = {
+            'signal_compliance_required_green_observations': (0, 4, 2., True, '2', None),
+            'signal_compliance_enable_timed_yellow': (0, 1, 'false', None),
+            'signal_compliance_min_yellow_sec': (0, -1, 11, True, '2', float('inf'), float('nan')),
+            'signal_compliance_yellow_time_margin_sec': (-.1, 2., True, '.2', float('inf'), float('nan')),
+        }
+        for key, values in bad.items():
+            for value in values:
+                with self.subTest(key=key, value=value):
+                    doc = copy.deepcopy(self.document); doc['stack'][key] = value
+                    with self.assertRaisesRegex(ConfigError, key):
+                        validate_campaign_document(doc)
+        # Explicit zero margin is valid for a diagnostic comparison.
+        self.assertEqual(launch_options({'signal_compliance_yellow_time_margin_sec': 0})[
+            'signal_compliance_yellow_time_margin_sec'], 0.)
+
+    def test_new_snapshot_freezes_timed_defaults_and_changes_remain_hash_protected(self):
+        path = self.save(); before = path.read_bytes()
+        cfg = executions.prepare_execution(path, check_install=False)
+        self.assertEqual(path.read_bytes(), before)
+        for key, expected in TIMED_POLICY_DEFAULTS.items():
+            self.assertEqual(cfg['document']['stack'][key], expected)
+        frozen = cfg['path'].read_bytes()
+        resumed = executions.load_execution(cfg['output'], check_install=False)
+        self.assertEqual(resumed['traffic_light_options'], cfg['traffic_light_options'])
+        self.assertEqual(cfg['path'].read_bytes(), frozen)
+        changed = yaml.safe_load(frozen); changed['stack']['signal_compliance_min_yellow_sec'] = 1.
+        cfg['path'].write_text(yaml.safe_dump(changed))
+        with self.assertRaisesRegex(ValueError, '변경'):
+            executions.load_execution(cfg['output'], check_install=False)
+
+    def test_launches_expose_and_forward_all_timed_policy_parameters(self):
+        import xml.etree.ElementTree as ET
+        launch = Path(__file__).resolve().parents[2]/'ajounice_planning_integration/launch'
+        planning = ET.parse(launch/'planning.launch').getroot()
+        stack = ET.parse(launch/'morai_planning_stack.launch').getroot()
+        for key, default in TIMED_POLICY_DEFAULTS.items():
+            with self.subTest(key=key):
+                for xml in (planning, stack):
+                    args = {e.get('name'): e.get('default') for e in xml.findall('arg')}
+                    self.assertEqual(args[key], str(default).lower())
+                params = {e.get('name'): e.get('value') for e in planning.findall('param')}
+                self.assertEqual(params['/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/'+key], '$(arg '+key+')')
+                included = [e for e in stack.findall('include') if e.get('file', '').endswith('/launch/planning.launch')]
+                self.assertEqual(len(included), 1)
+                forwarded = {e.get('name'): e.get('value') for e in included[0].findall('arg')}
+                self.assertEqual(forwarded[key], '$(arg '+key+')')
 
 
 @unittest.skipUnless(os.environ.get('DISPLAY'), 'requires isolated Xvfb')

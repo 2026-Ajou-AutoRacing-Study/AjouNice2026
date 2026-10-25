@@ -138,7 +138,7 @@ def main():
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
                         help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
-    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss'), default='natural')
+    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow'), default='natural')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
     parser.add_argument('--signal-timeout-sec', type=float, default=1.0)
     parser.add_argument('--yellow-passthrough', choices=('true', 'false'), default='false',
@@ -146,6 +146,8 @@ def main():
     parser.add_argument('--group-id', type=int, choices=(201351, 201365, 201290, 201326), default=201326)
     parser.add_argument('--yellow-durations-sec', type=parse_yellow_durations,
                         help='Explicit stopped-yellow stress durations, for example 2,3; not an operating-time assumption')
+    parser.add_argument('--trigger-front-distance-m', type=float, default=8.,
+                        help='Real moving-native-yellow trigger distance from front axle to finite stopline')
     parser.add_argument('--planner-fixture', choices=FIXTURE_MODES,
                         help='Explicit synthetic planner-only input; no native SET or perception qualification')
     parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
@@ -155,8 +157,12 @@ def main():
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
-    if args.yellow_durations_sec is not None and args.experiment != 'stopped-yellow':
-        parser.error('Explicit yellow durations apply only to the stopped-yellow experiment')
+    if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'moving-native-yellow'):
+        parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
+    moving_native = args.experiment == 'moving-native-yellow'
+    if moving_native and (args.yellow_durations_sec not in ((1.,), (2.,), (3.,)) or
+                          not 1. <= args.trigger_front_distance_m <= 30.):
+        parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..30m')
     if args.planner_fixture and args.experiment != 'natural':
         parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
     if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
@@ -183,7 +189,8 @@ def main():
     guarded = None if production else args.mode == 'guarded'
     progress = None if production else args.route_progress == 'true'
     fixture = args.planner_fixture is not None
-    proxy = args.experiment != 'natural' or fixture
+    native_signal_control = args.experiment != 'natural' and not fixture
+    proxy = args.experiment not in ('natural', 'moving-native-yellow') or fixture
     plugin = ROOT/'planning_ws/install_isolated/lib/libautoware_behavior_velocity_traffic_light_module.so'
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
@@ -191,11 +198,14 @@ def main():
         enable_yellow_passthrough=None if production else args.yellow_passthrough=='true',
         signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
         yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
-                              if args.experiment == 'stopped-yellow' else None),
+                              if args.experiment in ('stopped-yellow', 'moving-native-yellow') else None),
         group_id=args.group_id, source_config=str(args.config.resolve()),
         planner_fixture=args.planner_fixture, planner_fixture_is_synthetic=fixture,
         fixture_probe_seconds=args.fixture_probe_seconds if fixture else None,
-        native_signal_SET_enabled=proxy and not fixture,
+        native_signal_SET_enabled=native_signal_control,
+        real_native_moving_yellow=moving_native,
+        synthetic_canonical_signal_proxy=proxy,
+        trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
         installed_traffic_plugin_sha256=digest(plugin) if plugin.is_file() else None,
@@ -416,7 +426,7 @@ def main():
                     '--output', str(args.output/'planner_fixture'), '--geometry', str(args.geometry),
                     '--group-id', str(args.group_id), '--mode', args.planner_fixture,
                     '--probe-seconds', str(args.fixture_probe_seconds), '--max-seconds', str(duration)])
-            elif proxy:
+            elif native_signal_control:
                 phase_script = ('control_traffic_light_green_loss_trial.py' if args.experiment=='green-loss'
                                 else 'control_traffic_light_policy_trial.py')
                 phase_command = [str(args.native_python), str(ROOT/'scripts/evaluation'/phase_script),
@@ -425,6 +435,8 @@ def main():
                 if args.yellow_durations_sec is not None:
                     phase_command.extend(('--yellow-durations-sec',
                         ','.join(format(value, 'g') for value in args.yellow_durations_sec)))
+                if moving_native:
+                    phase_command.extend(('--trigger-front-distance-m', str(args.trigger_front_distance_m)))
                 start('phase_controller', phase_command)
             def watch():
                 while not done.wait(.2):

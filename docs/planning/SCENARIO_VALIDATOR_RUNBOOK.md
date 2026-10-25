@@ -1,5 +1,28 @@
 # 시나리오 검증기 짧은 사용법
 
+## 시간제한 황색 후보 설정 (2026-10-26)
+
+새 시간제한 정책은 **기본 OFF인 시험 후보**다. 기존 GUI의 `황색 통과 허용`은 계속
+master switch이며 아래 `signal_compliance_enable_timed_yellow`까지 모두 true일 때만
+시간제한 후보가 선택된다. GUI 체크만 켠다고 이 후보를 자동 선택하지 않는다.
+고급 값은 편집용 YAML의 `stack`에 넣으며 GUI 저장·빠른 시험에서도 보존한다.
+
+```yaml
+stack:
+  traffic_light_yellow_passthrough: true
+  signal_compliance_enable_timed_yellow: true
+  signal_compliance_min_yellow_sec: 2.0
+  signal_compliance_yellow_time_margin_sec: 0.2
+  signal_compliance_required_green_observations: 3
+```
+
+`2.0초`는 공식 보장값이 아닌 최소 황색 가정이다. `0.2초`도 검증된 종단 지연 상한이 아니다.
+최초 황색 관측부터 이 시간을 새로 세는 의미가 아니며 주행 검증·패널티 보장은 별도다.
+허가 확인 횟수는 정수 1~3(기본 3), 최소 황색은 0초 초과 10초 이하,
+시간 여유는 0 이상 최소 황색 미만이다. 문자열·NaN·무한대·bool 숫자는 거부한다.
+새 실행 사본은 네 값을 명시적으로 동결한다. 구 snapshot은 수정하지 않고 새 값이 없으면
+기존 3회·시간제한 OFF 의미를 유지하며, 기존 hash/resume 보호는 완화하지 않는다.
+
 ## 신호등 검증·전방 디버그 화면 (2026-10-26)
 
 기본 탭의 같은 행에 **신호등 인지 / 황색 통과 허용 / 신호등 디버그 화면 / 화면 영상 녹화**가 있다.

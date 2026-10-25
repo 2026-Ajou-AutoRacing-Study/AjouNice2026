@@ -258,6 +258,8 @@ class InstallerRuntimeTest(unittest.TestCase):
         self.cpp='autoware_behavior_velocity_traffic_light_module'
         self.traffic=self.root/'base_ws/src/perception/traffic_light_detection'
         self.integration=self.root/'base_ws/src/planning_addons/ajounice_planning_integration'
+        self.validator=self.root/'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator'
+        self.validator_installed=self.root/'base_ws/install_aw149/lib/python3/dist-packages/planning_scenario_validator'
         self.plugin=self.root/'planning_ws/install_isolated/lib'/('lib'+self.cpp+'.so')
         self.receipt=self.root/'base_ws/install_aw149/share/traffic_light_detection/oneclick_runtime_receipt.json'
         self.write('scripts/runtime/install_traffic_light_candidate.sh',
@@ -275,6 +277,9 @@ class InstallerRuntimeTest(unittest.TestCase):
         self.write('base_ws/src/perception/traffic_light_detection/config/policy.yaml','guard: true\n')
         self.write('base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch','<launch/>\n')
         self.write('base_ws/src/planning_addons/ajounice_planning_integration/config/planning.yaml','value: 1\n')
+        self.write('base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/__init__.py','"""Validator package."""\n')
+        self.write('base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/runner.py','"""Runner first line."""\nVALUE = 1\n')
+        self.write('base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/nested/options.py','"""Nested module."""\nVALUE = 2\n')
         self.write('scripts/workspace/source_aw149.sh','# fake source; never calls ROS\n')
         self.write('planning_ws/tools/build.sh','#!/usr/bin/env bash\nexec mock_planning_build "$@"\n')
         self.write('scripts/runtime/setup_traffic_light_env.sh','#!/usr/bin/env bash\nexec mock_env "$@"\n')
@@ -304,6 +309,7 @@ def install_assets():
             target=r/'base_ws/install_aw149/lib'/package;target.mkdir(parents=True,exist_ok=True)
             for p in (source/'scripts').glob('*.py'):shutil.copy2(p,target/p.name)
     (r/'base_ws/install_aw149/share/planning_scenario_validator').mkdir(parents=True,exist_ok=True)
+    shutil.copytree(r/'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator',r/'base_ws/install_aw149/lib/python3/dist-packages/planning_scenario_validator',dirs_exist_ok=True)
 if name=='mock_planning_build':
     if os.environ.get('MOCK_BUILD_FAIL'):raise SystemExit(9)
     old=bool(os.environ.get('MOCK_OLD_PLUGIN'))
@@ -382,6 +388,37 @@ elif name!='mock_env':raise SystemExit('Unexpected external command '+name)
         self.assertNotEqual(stale.returncode,0)
         self.assertIn('Runtime receipt differs',stale.stderr)
         self.assertNotIn('[V5 READY]',stale.stdout)
+
+    def test_validator_source_and_nested_modules_are_in_fingerprint_and_install_audit(self):
+        installed=self.run_installer()
+        self.assertEqual(installed.returncode,0,installed.stderr)
+        receipt=json.loads(self.receipt.read_text())
+        for module in ('__init__.py','runner.py','nested/options.py'):
+            source=self.validator/module;target=self.validator_installed/module
+            self.assertIn(str(source.relative_to(self.root)),receipt['source_sha256'])
+            self.assertIn(str(target.relative_to(self.root)),receipt['installed_asset_sha256'])
+        checked=self.run_installer('--check')
+        self.assertEqual(checked.returncode,0,checked.stderr)
+        # Package first lines are not catkin script shebangs; preserve them.
+        (self.validator_installed/'runner.py').write_text('"""Tampered first line."""\nVALUE = 1\n')
+        tampered=self.run_installer('--check')
+        self.assertNotEqual(tampered.returncode,0)
+        self.assertIn('Stale installed runtime asset',tampered.stderr)
+        self.assertNotIn('[V5 READY]',tampered.stdout)
+
+    def test_validator_source_change_and_missing_installed_module_cannot_pass(self):
+        self.assertEqual(self.run_installer().returncode,0)
+        source=self.validator/'nested/options.py';target=self.validator_installed/'nested/options.py'
+        source.write_text('"""New nested source."""\nVALUE = 3\n')
+        target.write_bytes(source.read_bytes())
+        # Even byte-matching ad-hoc copies do not update the build receipt.
+        stale=self.run_installer('--check')
+        self.assertNotEqual(stale.returncode,0)
+        self.assertIn('Runtime receipt differs',stale.stderr)
+        target.unlink()
+        missing=self.run_installer('--check')
+        self.assertNotEqual(missing.returncode,0)
+        self.assertIn('Missing installed runtime asset',missing.stderr)
 
     def test_build_failure_keeps_installed_plugin_and_never_claims_ready(self):
         self.plugin.parent.mkdir(parents=True);self.plugin.write_bytes(b'user existing installed plugin')

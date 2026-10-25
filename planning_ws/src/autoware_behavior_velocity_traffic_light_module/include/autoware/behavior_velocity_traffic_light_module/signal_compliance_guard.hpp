@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 
 namespace autoware::behavior_velocity_planner::signal_compliance
 {
@@ -29,9 +30,20 @@ inline const char * observationName(Observation value)
 class Guard
 {
 public:
-  // Candidate-only fixed contract: three distinct fresh, direction-authorized
+  // Default three (configurable 1..3) distinct fresh, direction-authorized
   // source observations, not three planner callbacks or held/repeated stamps.
   static constexpr std::size_t requiredGreenObservations = 3;
+
+  void setRequiredGreenObservations(std::size_t count)
+  {
+    if (count < 1 || count > 3) {
+      throw std::invalid_argument("green confirmation count must be in 1..3");
+    }
+    if (required_green_observations_ != count) {
+      reset();
+      required_green_observations_ = count;
+    }
+  }
 
   bool observe(Observation observation, double source_sec, double now_sec, double timeout_sec)
   {
@@ -52,22 +64,25 @@ public:
         yellow_from_authorized_green_ = previous_ == Observation::AuthorizedGreen &&
           green_authorized_ && last_source_ && source_sec > *last_source_ &&
           now_sec - *last_source_ <= timeout_sec;
+        yellow_start_lower_bound_sec_ = yellow_from_authorized_green_ ? last_source_ : std::nullopt;
       }
       green_confirmations_ = 0;
       green_authorized_ = false;
     } else if (observation == Observation::AuthorizedGreen) {
       yellow_from_authorized_green_ = false;
+      yellow_start_lower_bound_sec_.reset();
       if (previous_ != Observation::AuthorizedGreen) {
         green_confirmations_ = 0;
         green_authorized_ = false;
       }
       if ((!last_source_ || source_sec > *last_source_) &&
-          green_confirmations_ < requiredGreenObservations) {
+          green_confirmations_ < required_green_observations_) {
         ++green_confirmations_;
       }
-      green_authorized_ = green_confirmations_ >= requiredGreenObservations;
+      green_authorized_ = green_confirmations_ >= required_green_observations_;
     } else {
       yellow_from_authorized_green_ = false;
+      yellow_start_lower_bound_sec_.reset();
       green_confirmations_ = 0;
       green_authorized_ = false;
     }
@@ -82,6 +97,7 @@ public:
   bool yellowTransitionEligible() const { return yellow_from_authorized_green_; }
   std::size_t greenConfirmationCount() const { return green_confirmations_; }
   Observation lastObservation() const { return previous_; }
+  std::optional<double> yellowStartLowerBoundSec() const { return yellow_start_lower_bound_sec_; }
 
   void reset()
   {
@@ -91,16 +107,70 @@ public:
     green_authorized_ = false;
     last_source_.reset();
     last_now_.reset();
+    yellow_start_lower_bound_sec_.reset();
   }
 
 private:
   Observation previous_{Observation::Missing};
   bool yellow_from_authorized_green_{false};
   std::size_t green_confirmations_{0};
+  std::size_t required_green_observations_{requiredGreenObservations};
   bool green_authorized_{false};
   std::optional<double> last_source_;
   std::optional<double> last_now_;
+  std::optional<double> yellow_start_lower_bound_sec_;
 };
+
+struct TimedYellowDecision
+{
+  bool allow{false};
+  const char * reason{"disabled"};
+  double remaining_sec{std::numeric_limits<double>::quiet_NaN()};
+  double arrival_sec{std::numeric_limits<double>::infinity()};
+};
+
+inline TimedYellowDecision timedYellowDecision(
+  bool enabled, bool transition_eligible, bool previous_stop, double velocity_mps,
+  double acceleration_mps2, double slow_velocity_mps, double signed_front_line_distance_m,
+  double now_sec, std::optional<double> yellow_start_lower_bound_sec,
+  double min_yellow_sec, double time_margin_sec)
+{
+  TimedYellowDecision result;
+  if (!enabled) { return result; }
+  result.reason = "invalid_input";
+  if (!std::isfinite(velocity_mps) || !std::isfinite(acceleration_mps2) ||
+      !std::isfinite(slow_velocity_mps) || slow_velocity_mps <= 0.0 ||
+      !std::isfinite(signed_front_line_distance_m) || signed_front_line_distance_m < 0.0 ||
+      !std::isfinite(now_sec) || !std::isfinite(min_yellow_sec) || min_yellow_sec <= 0.0 ||
+      !std::isfinite(time_margin_sec) || time_margin_sec < 0.0 || time_margin_sec >= min_yellow_sec) {
+    return result;
+  }
+  result.reason = "no_observed_authorized_transition";
+  if (!transition_eligible || !yellow_start_lower_bound_sec ||
+      !std::isfinite(*yellow_start_lower_bound_sec) || *yellow_start_lower_bound_sec <= 0.0 ||
+      *yellow_start_lower_bound_sec > now_sec) { return result; }
+  result.remaining_sec = min_yellow_sec - (now_sec - *yellow_start_lower_bound_sec);
+  result.reason = "already_stopped_or_slow";
+  if (previous_stop || velocity_mps < slow_velocity_mps) { return result; }
+  result.reason = "assumed_yellow_budget_exhausted";
+  if (result.remaining_sec <= time_margin_sec) { return result; }
+  // Do not assume future positive acceleration. Retain current negative
+  // acceleration for this estimate; this is a model, not a physical bound.
+  const double a = std::fmin(0.0, acceleration_mps2);
+  if (a < -1e-6) {
+    const double discriminant = velocity_mps*velocity_mps + 2.0*a*signed_front_line_distance_m;
+    result.reason = "current_braking_stops_before_crossing";
+    if (!std::isfinite(discriminant) || discriminant <= 0.0) { return result; }
+    result.arrival_sec = 2.0*signed_front_line_distance_m /
+      (velocity_mps + std::sqrt(discriminant));
+  } else {
+    result.arrival_sec = signed_front_line_distance_m / velocity_mps;
+  }
+  result.allow = std::isfinite(result.arrival_sec) &&
+    result.arrival_sec + time_margin_sec <= result.remaining_sec;
+  result.reason = result.allow ? "observed_transition_time_fits" : "insufficient_arrival_margin";
+  return result;
+}
 
 inline std::optional<double> candidateStoppingDistance(
   double velocity_mps, double acceleration_mps2, double max_stop_acceleration_mps2,

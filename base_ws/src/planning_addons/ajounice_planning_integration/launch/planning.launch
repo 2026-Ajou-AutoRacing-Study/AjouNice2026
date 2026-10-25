@@ -20,6 +20,12 @@
   <arg name="enable_signal_compliance_guard" default="true"/>
   <!-- Opt-in moving green->yellow dilemma exception, not a yellow departure grant. -->
   <arg name="enable_yellow_passthrough" default="false"/>
+  <!-- Timed candidate requires both this flag and the yellow master switch.
+       2.0s is an explicit minimum-duration assumption, not an official guarantee. -->
+  <arg name="signal_compliance_enable_timed_yellow" default="false"/>
+  <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
+  <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
+  <arg name="signal_compliance_required_green_observations" default="3"/>
   <!-- configs/planning/vehicle_info.yaml: base_link is the rear axle center. -->
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
@@ -84,6 +90,14 @@
          value="$(arg enable_signal_compliance_guard)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/enable_yellow_passthrough"
          value="$(arg enable_yellow_passthrough)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_enable_timed_yellow"
+         value="$(arg signal_compliance_enable_timed_yellow)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_min_yellow_sec"
+         value="$(arg signal_compliance_min_yellow_sec)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_time_margin_sec"
+         value="$(arg signal_compliance_yellow_time_margin_sec)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_required_green_observations"
+         value="$(arg signal_compliance_required_green_observations)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_front_axle_offset_m"
          value="$(arg signal_compliance_front_axle_offset_m)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/tl_state_timeout"

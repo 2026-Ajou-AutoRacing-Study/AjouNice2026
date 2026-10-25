@@ -11,7 +11,8 @@ import yaml
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
-from .traffic_light import profile_name, runtime_mode, runtime_settings, candidate_assets
+from .traffic_light import (profile_name, runtime_mode, runtime_settings, candidate_assets,
+                            timed_policy_options)
 from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
                                     effective_gt_pose_args, resolve_localization_contract)
 
@@ -44,6 +45,7 @@ def prepare_execution(source, *, check_install=True):
     document.setdefault('stack', {}).update(
         traffic_light_yellow_passthrough=options['yellow_passthrough'],
         traffic_light_debug_view=options['debug_view'])
+    document['stack'].update(timed_policy_options(cfg['stack']))
     if cfg['stack'].get('traffic_light', False):
         # Freeze the resolved selection, including the promoted default.
         python, _ = runtime_settings(cfg['stack'], resolve_path('.'))

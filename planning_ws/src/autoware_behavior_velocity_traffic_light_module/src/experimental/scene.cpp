@@ -54,6 +54,7 @@ TrafficLightModule::TrafficLightModule(
   is_prev_state_stop_(false)
 {
   planner_param_ = planner_param;
+  signal_compliance_guard_.setRequiredGreenObservations(planner_param_.signal_compliance_required_green_observations);
   prev_looking_tl_state_.traffic_light_group_id = 0;
 }
 
@@ -439,6 +440,24 @@ bool TrafficLightModule::isPassthrough(
       signed_arc_length, planner_param_.stop_margin,
       planner_data.vehicle_info_.max_longitudinal_offset_m,
       planner_param_.signal_compliance_front_axle_offset_m);
+    if (planner_param_.signal_compliance_enable_timed_yellow) {
+      const auto decision = signal_compliance::timedYellowDecision(
+        planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
+        is_prev_state_stop_ || planner_data.isVehicleStopped(),
+        planner_data.current_velocity->twist.linear.x,
+        planner_data.current_acceleration->accel.accel.linear.x,
+        planner_param_.yellow_light_stop_velocity,
+        front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
+        clock_->now().toSec(), signal_compliance_guard_.yellowStartLowerBoundSec(),
+        planner_param_.signal_compliance_min_yellow_sec, planner_param_.signal_compliance_yellow_time_margin_sec);
+      RCLCPP_INFO_THROTTLE(logger_, *clock_, 200,
+        "[signal_timed_yellow] reg=%ld allow=%d reason=%s remaining_sec=%.3f arrival_sec=%.3f margin_sec=%.3f front_line_m=%.3f min_yellow_assumption_sec=%.3f",
+        traffic_light_reg_elem_.id(), decision.allow, decision.reason, decision.remaining_sec,
+        decision.arrival_sec, planner_param_.signal_compliance_yellow_time_margin_sec,
+        front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
+        planner_param_.signal_compliance_min_yellow_sec);
+      return decision.allow;
+    }
     const bool allow_pass = front_line_distance && candidate_stop_distance &&
       signal_compliance::yellowPassthroughAllowed(
       planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),

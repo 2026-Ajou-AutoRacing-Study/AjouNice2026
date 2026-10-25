@@ -278,4 +278,14 @@ def test_source_has_no_vehicle_publisher_service_or_stack_start_call():
     first_apply = next(child for statement in native_try.body for child in ast.walk(statement)
                        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
                        and child.func.id == 'apply_and_read')
-    assert isinstance(first_apply.args[0], ast.Constant) and first_apply.args[0].value == 1
+    # The explicitly selected real moving trial first holds its route's GO,
+    # while the original stationary experiments still first override R1.
+    assert isinstance(first_apply.args[0], ast.Call)
+    assert isinstance(first_apply.args[0].func, ast.Name)
+    assert first_apply.args[0].func.id == 'controlled_go_state'
+    red_arming = next(node for node in ast.walk(native_try) if isinstance(node, ast.While)
+                     and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+                             and c.func.id == 'apply_and_read' and c.args
+                             and isinstance(c.args[0], ast.Constant) and c.args[0].value == 1
+                             for c in ast.walk(node)))
+    assert red_arming is not None

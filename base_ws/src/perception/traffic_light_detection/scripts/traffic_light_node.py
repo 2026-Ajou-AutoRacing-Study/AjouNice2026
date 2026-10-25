@@ -740,7 +740,9 @@ class TrafficLightNode:
             get_param = getattr(rospy, "get_param", lambda _key, default: default)
             cached = {key: get_param(prefix+key, None) for key in (
                 "enable_signal_compliance_guard", "enable_yellow_passthrough", "yellow_light_is_go",
-                "enable_arrow_aware_yellow_passing", "tl_state_timeout")}
+                "enable_arrow_aware_yellow_passing", "tl_state_timeout",
+                "signal_compliance_enable_timed_yellow", "signal_compliance_min_yellow_sec",
+                "signal_compliance_yellow_time_margin_sec", "signal_compliance_required_green_observations")}
             self._debug_planner_config_cache = cached
             self._debug_planner_config_clock = clock
         return dict(cached)

@@ -22,6 +22,7 @@ FAULT_TOPIC = '/evaluation/traffic_light_policy/fault'
 FRESH_SEC = 1.
 START_HOLD_SEC = 1.
 APPLY_TIMEOUT_SEC = 2.
+MULTI_HEAD_FRAME_WAIT_SEC = .1
 
 
 class TrialError(RuntimeError):
@@ -65,6 +66,11 @@ def experiment_stages(group_id, experiment, yellow_durations_sec=None):
     yellow = 5 if group_id == 201326 else 4
     terminal = dict(stage='terminal_controlled_go', action='controlled_go_until_owner_teardown',
                     color=go, seconds=None, fault='none')
+    if experiment == 'moving-native-yellow':
+        if len(durations) != 1 or durations[0] not in (1., 2., 3.):
+            raise ValueError('Moving native trial requires exactly one yellow duration: 1, 2 or 3 seconds')
+        return [dict(stage='moving_yellow', color=yellow, seconds=durations[0], fault='none'),
+                dict(stage='red_after_moving_yellow', color=1, seconds=3., fault='none'), terminal]
     if experiment == 'stopped-yellow':
         return [dict(stage='yellow_%ss' % format(duration, 'g'), color=yellow, seconds=duration, fault='none')
                 if index % 2 == 0 else dict(stage='red_after_%ss' % format(duration, 'g'), color=1, seconds=2., fault='none')
@@ -76,6 +82,46 @@ def experiment_stages(group_id, experiment, yellow_durations_sec=None):
                 dict(stage='red_restored', color=1, seconds=2., fault='none'),
                 terminal]
     raise ValueError('Unsupported experiment')
+
+
+def moving_front_geometry(odom, group, offset=3.):
+    """Finite stop-segment intersection along current heading, signed metres."""
+    if odom.get('frame', '').strip('/') != 'map':
+        return dict(ready=False, reason='odom_not_map')
+    forward = rotate([1., 0., 0.], odom['quaternion_xyzw'])
+    norm = math.hypot(*forward[:2])
+    if norm < 1e-6:
+        return dict(ready=False, reason='invalid_heading')
+    f = [x/norm for x in forward[:2]]
+    point = [finite(odom['position_xyz'][i])+offset*f[i] for i in (0, 1)]
+    for a, b in zip(group['stop_line_xy'], group['stop_line_xy'][1:]):
+        vx, vy = b[0]-a[0], b[1]-a[1]
+        denominator = vx*f[1]-vy*f[0]
+        if abs(denominator) < 1e-8:
+            continue
+        distance = -(vx*(point[1]-a[1])-vy*(point[0]-a[0]))/denominator
+        hit = [point[i]+distance*f[i] for i in (0, 1)]
+        fraction = ((hit[0]-a[0])*vx+(hit[1]-a[1])*vy)/(vx*vx+vy*vy)
+        if 0 <= fraction <= 1 and -10 <= distance <= 100:
+            return dict(ready=True, front_distance_m=distance, finite_segment_fraction=fraction,
+                        front_point_map_xy_m=point)
+    return dict(ready=False, reason='heading_does_not_intersect_finite_stop_segment')
+
+
+def moving_trigger_gate(latest, group, now, ros_ns, trigger_distance_m, offset=3.):
+    fresh, reason = fresh_inputs(latest, now, ros_ns)
+    if not fresh:
+        raise TrialError('Moving trial input invalid: '+reason)
+    geometry = moving_front_geometry(latest['odom'], group, offset)
+    speed = finite(latest['odom']['velocity_xyz'][0])
+    signal_row = latest.get('signal', {})
+    signal_age = now-signal_row.get('receipt_monotonic', -1e30)
+    source_age = (ros_ns-signal_row.get('source_stamp_ns', 0))/1e9
+    authorized = bool(signal_row.get('authorized')) and 0 <= signal_age <= .5 and 0 <= source_age <= .5
+    return dict(ready=geometry['ready'] and .2 < geometry['front_distance_m'] <= trigger_distance_m
+                      and speed >= 1. and latest['gear']['value'] == 4 and authorized,
+                geometry=geometry, speed_mps=speed, route_authorized=authorized,
+                signal_source_stamp_ns=signal_row.get('source_stamp_ns'))
 
 
 def fresh_inputs(latest, now, ros_ns):
@@ -195,18 +241,25 @@ def send_positive_signal(sender, native_id, state):
     return sender(native_id, state)
 
 
-def coordinated_native_cycle(native_ids, state, send, read):
+def coordinated_native_cycle(native_ids, state, send, read, frame_wait=None):
     """SET every selected head before GET of any head; this is not atomic GT.
 
     Geometry validation independently pins exact mission IDs. Per-head send/read
     observations must remain separate; no synthetic common color is produced.
+    Multi-head commands need simulator frame consumption between datagrams:
+    back-to-back C016/C018 SET can leave only the last head overridden.
+    Single-head cadence is unchanged. Wait after each multi-head SET, including
+    the last, then independently GET both heads. No failed read is accepted.
     """
     if (not isinstance(native_ids, (list, tuple)) or not native_ids or
             any(not isinstance(item, str) or not item.strip() for item in native_ids) or
             len(set(native_ids)) != len(native_ids)):
         raise ValueError('Unique explicit native IDs are required')
+    wait = time.sleep if frame_wait is None else frame_wait
     for native_id in native_ids:
         send_positive_signal(send, native_id, state)
+        if len(native_ids) > 1:
+            wait(MULTI_HEAD_FRAME_WAIT_SEC)
     return {native_id: read(native_id) for native_id in native_ids}
 
 
@@ -291,6 +344,10 @@ def run(args):
     groups, geometry = load_geometry(args.geometry)
     group = next(row for row in groups if row['group_id'] == group_id)
     stages = experiment_stages(group_id, args.experiment, getattr(args, 'yellow_durations_sec', None))
+    moving_native = args.experiment == 'moving-native-yellow'
+    trigger_distance = finite(getattr(args, 'trigger_front_distance_m', 8.))
+    if moving_native and not 1. <= trigger_distance <= 30.:
+        raise ValueError('Moving trigger front distance must be within 1..30m')
     if not 0 < args.max_seconds <= 600 or not 0 <= args.front_axle_offset_m <= 6:
         raise ValueError('Bounded max_seconds0..600 and front offset0..6 required')
     output = args.output.expanduser().resolve()
@@ -301,6 +358,11 @@ def run(args):
                     source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), stages=stages,
                     yellow_durations_sec=yellow_durations(getattr(args, 'yellow_durations_sec', None)),
                     max_seconds=args.max_seconds, front_axle_offset_m=args.front_axle_offset_m,
+                    trigger_front_distance_m=trigger_distance if moving_native else None,
+                    canonical_signal_proxy=False if moving_native else 'owner may drop or change IDs',
+                    native_multi_head_frame_wait_sec=MULTI_HEAD_FRAME_WAIT_SEC,
+                    native_multi_head_order='SET head0; wait; SET head1; wait; independent GET each head',
+                    native_single_head_cadence_unchanged=True,
                     signal_control='Only selected native IDs; positive-only OfficialSender UDP; no cleanup signal writes',
                     fault_control_topic=FAULT_TOPIC, native_rpc_retries=2, native_per_call_timeout_sec=.15,
                     limitations=['Non-natural phase-transition stress, NOT natural cycle timing or remaining-yellow estimation.',
@@ -337,6 +399,13 @@ def run(args):
                         row.update(position_xyz=[position.x, position.y, position.z], quaternion_xyzw=[q.x, q.y, q.z, q.w],
                                    velocity_xyz=[velocity.x, velocity.y, velocity.z], frame=message.header.frame_id)
                     elif name == 'gear': row['value'] = message.data
+                    elif name == 'signal':
+                        wanted = [g for g in message.traffic_light_groups if int(g.traffic_light_group_id) == group_id]
+                        shape = 2 if group_id == 201326 else 1
+                        row['authorized'] = len(wanted) == 1 and bool(wanted[0].elements) and all(
+                            int(e.status) == 2 and int(e.color) != 0 and int(e.shape) != 0 for e in wanted[0].elements) and any(
+                            int(e.color) == 3 and int(e.shape) == shape for e in wanted[0].elements)
+                        row['signal_message'] = primitive(message)
                     else: row['control_message'] = primitive(message)
                     latest[name] = row
                     writer.write(dict(event='input_observation', input_name=name, message_type=msgtype, **row))
@@ -348,6 +417,9 @@ def run(args):
 
     subscriptions = [rospy.Subscriber(topic, rospy.AnyMsg, callback(name), queue_size=5)
                      for name, topic in (('odom', args.odometry_topic), ('gear', args.gear_topic), ('ctrl', '/ctrl_cmd'))]
+    if moving_native:
+        subscriptions.append(rospy.Subscriber('/perception/traffic_light_recognition/traffic_signals',
+                             rospy.AnyMsg, callback('signal'), queue_size=5))
     publisher = rospy.Publisher(FAULT_TOPIC, String, queue_size=1, latch=False)
     fault = FaultRepeater(lambda data: publisher.publish(String(data=data)), writer,
                           fault_payload('none', group_id, args.experiment, 'initializing'), lambda: rospy.Time.now().to_nsec())
@@ -409,13 +481,62 @@ def run(args):
         sender = OfficialSender()
         reader = ModernNativeReader(timeout_sec=.15, rpc_retries=2)
         hold, arming_started, armed = StartHold(), time.monotonic(), False
-        fault.set(fault_payload('none', group_id, args.experiment, 'arming_red'))
+        if moving_native:
+            green_count, last_stamp, green_confirmed = 0, None, None
+            green_mismatch_since = None
+            while not armed:
+                if stop.is_set() or rospy.is_shutdown(): raise TrialError('Interrupted before moving trigger')
+                if time.monotonic() >= deadline: raise TrialError('Moving trigger deadline exceeded')
+                if fault.error is not None: raise TrialError('Fault-control publisher failed')
+                matched = apply_and_read(controlled_go_state(group_id), 'moving_approach_authorized_green')
+                if matched:
+                    green_mismatch_since = None
+                    if green_confirmed is None: green_confirmed = time.monotonic()
+                else:
+                    # Scene loading can reset a previously confirmed lamp while
+                    # the owner still holds P. Bound each continuous mismatch,
+                    # not total startup age; never qualify the trigger during it.
+                    green_confirmed = None
+                    if green_mismatch_since is None:
+                        green_mismatch_since = time.monotonic()
+                    elif time.monotonic()-green_mismatch_since >= APPLY_TIMEOUT_SEC:
+                        raise TrialError('Moving approach native authorized phase not confirmed')
+                with lock:
+                    gate = moving_trigger_gate(latest, group, time.monotonic(), rospy.Time.now().to_nsec(),
+                                               trigger_distance, args.front_axle_offset_m)
+                source = gate['signal_source_stamp_ns']
+                if matched and gate['route_authorized']:
+                    if last_stamp is not None and source < last_stamp:
+                        green_count, last_stamp = 0, None
+                    if last_stamp is None or source > last_stamp:
+                        green_count += 1
+                        last_stamp = source
+                else:
+                    green_count, last_stamp = 0, None
+                geometry = gate['geometry']
+                if geometry['ready'] and geometry['front_distance_m'] <= .2:
+                    raise TrialError('Moving trigger missed before verified authorization; no yellow issued')
+                armed = gate['ready'] and green_count >= 3
+                emit('moving_trigger_observation', gate=gate, verified_native_green=matched,
+                     distinct_authorized_observations=green_count, armed=armed,
+                     configured_trigger_front_distance_m=trigger_distance)
+                if not armed: stop.wait(.05)
+            emit('moving_native_yellow_triggered', gate=gate, native_green_confirmed_monotonic=green_confirmed,
+                 distinct_authorized_observations=green_count,
+                 real_camera_and_canonical_signal=True, synthetic_planner_signal=False)
+        fault.set(fault_payload('none', group_id, args.experiment,
+                                'moving_trigger_confirmed' if moving_native else 'arming_red'))
+        red_mismatch_since = None
         while not armed:
             if stop.is_set() or rospy.is_shutdown(): raise TrialError('Interrupted before start gate')
             if time.monotonic() >= deadline: raise TrialError('Start gate global deadline exceeded')
             if fault.error is not None: raise TrialError('Fault-control publisher failed')
             matched = apply_and_read(1, 'arming_red')
-            if not matched and time.monotonic()-arming_started >= APPLY_TIMEOUT_SEC:
+            if matched:
+                red_mismatch_since = None
+            elif red_mismatch_since is None:
+                red_mismatch_since = time.monotonic()
+            elif time.monotonic()-red_mismatch_since >= APPLY_TIMEOUT_SEC:
                 raise TrialError('Initial red phase not confirmed')
             with lock:
                 gate = start_gate(latest, group, time.monotonic(), rospy.Time.now().to_nsec(), args.front_axle_offset_m)
@@ -521,10 +642,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--geometry', type=Path, required=True)
     parser.add_argument('--group-id', required=True)
-    parser.add_argument('--experiment', choices=('stopped-yellow', 'missing-signal'), required=True)
+    parser.add_argument('--experiment', choices=('stopped-yellow', 'missing-signal', 'moving-native-yellow'), required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--max-seconds', type=float, default=120.)
     parser.add_argument('--front-axle-offset-m', type=float, default=3.)
+    parser.add_argument('--trigger-front-distance-m', type=float, default=8.)
     parser.add_argument('--odometry-topic', default='/localization/kinematic_state')
     parser.add_argument('--gear-topic', default='/vehicle/status/gear')
     parser.add_argument('--yellow-durations-sec', type=parse_yellow_durations,

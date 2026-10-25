@@ -57,6 +57,7 @@ def overlay_lines(metadata):
         "JPEG ns=%s | adopted ns=%s" % (metadata.get("source_stamp_ns", "?"), timing.get("adopted_observation_source_stamp_ns") if observed else "NONE"),
         "PROFILE: %s | TRANSITION: %s" % (metadata.get("policy_reason", "?"), metadata.get("transition_reason", "?")),
         "Planner CONFIG ONLY: guard=%s yellow_passthrough=%s TTL=%s | flag is NOT GO permission" % (_bool_label(params.get("enable_signal_compliance_guard")), _bool_label(params.get("enable_yellow_passthrough")), _age_label(params.get("tl_state_timeout"))),
+        "Timed candidate CONFIG ONLY: enabled=%s assumed_min_Y=%s margin=%s green_frames=%s | NOT remaining time" % (_bool_label(params.get("signal_compliance_enable_timed_yellow")), _age_label(params.get("signal_compliance_min_yellow_sec")), _age_label(params.get("signal_compliance_yellow_time_margin_sec")), params.get("signal_compliance_required_green_observations", "?")),
         "BOXES: gray=all YOLO candidates | cyan=selected housing | orange=CNN crop | near retry=%s" % metadata.get("near_retry", "OFF"),
     ]
 
