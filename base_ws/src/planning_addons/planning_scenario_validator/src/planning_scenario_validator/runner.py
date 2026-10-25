@@ -206,7 +206,7 @@ def _start_case_stack(cfg, processes, monitor):
         selected = candidate_assets(stack, ROOT, check_exists=True)
         extra = {} if selected is None else dict(models_root=selected['root'], repo_root=ROOT,
                                                 sensor_config=cfg['network']['sensor_json'])
-        filename = 'traffic_light_node.launch' if selected is None else 'traffic_light_v5_candidate.launch'
+        filename = 'traffic_light_legacy.launch' if selected is None else 'traffic_light_v5_candidate.launch'
         processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
             isolate_python=runtime_mode(stack) == "virtualenv", **extra))

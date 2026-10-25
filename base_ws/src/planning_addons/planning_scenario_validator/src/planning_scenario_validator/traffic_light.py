@@ -1,4 +1,4 @@
-"""Explicit inference profiles; planning signal decision policy is unchanged."""
+"""User-selected v5 default and explicit legacy; planning policy is unchanged."""
 import importlib.util
 import os
 from pathlib import Path
@@ -6,13 +6,14 @@ from pathlib import Path
 DEFAULT_PYTHON = "~/.local/share/ajounice/traffic_light_gpu/bin/python"
 MODE_LABELS = {"system": "시스템 Python", "virtualenv": "가상환경 Python"}
 LABEL_MODES = {label: mode for mode, label in MODE_LABELS.items()}
-PROFILE_LABELS = {'legacy': '기존 YOLO+HSV', 'v5_candidate': 'v5 지도+CNN 후보'}
+DEFAULT_PROFILE = 'v5_candidate'
+PROFILE_LABELS = {'v5_candidate': 'v5 지도+CNN 후보', 'legacy': '기존 YOLO+HSV'}
 LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
 
 
 def profile_name(stack):
-    profile = stack.get('traffic_light_profile', 'legacy')
+    profile = stack.get('traffic_light_profile', DEFAULT_PROFILE)
     if not isinstance(profile, str) or profile not in PROFILE_LABELS:
         raise ValueError('stack.traffic_light_profile은 legacy 또는 v5_candidate입니다')
     return profile
@@ -50,6 +51,10 @@ def profile_check_arguments(stack, root):
 def runtime_mode(stack):
     # Old YAMLs with a custom Conda interpreter continue to work unchanged.
     mode = stack.get("traffic_light_runtime")
+    if profile_name(stack) == 'v5_candidate' and mode in (None, 'system'):
+        # Old authoring YAMLs may explicitly contain system Python. The new
+        # default needs the managed v5 environment; no user-site pip mutation.
+        mode = 'virtualenv'
     if mode is None:
         mode = "virtualenv" if stack.get("traffic_light_python", "/usr/bin/python3") != "/usr/bin/python3" else "system"
     if not isinstance(mode, str) or mode not in MODE_LABELS:
@@ -64,6 +69,9 @@ def runtime_settings(stack, root, *, check_exists=False):
     if device != "cpu" and not (device.isascii() and device.isdecimal()):
         raise ValueError("신호등 장치는 cpu 또는 GPU 번호(예: 0)여야 합니다")
     value = "/usr/bin/python3" if mode == "system" else stack.get("traffic_light_python", DEFAULT_PYTHON)
+    if profile_name(stack) == 'v5_candidate' and (
+            stack.get('traffic_light_runtime') == 'system' or value == '/usr/bin/python3'):
+        value = DEFAULT_PYTHON
     if not isinstance(value, str) or not value.strip():
         raise ValueError("신호등 가상환경 Python 실행 파일 경로가 필요합니다")
     python = Path(os.path.expandvars(value)).expanduser()

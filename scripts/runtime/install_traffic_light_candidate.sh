@@ -76,5 +76,5 @@ if ! $SKIP_BUILD; then
       -DPYTHON_EXECUTABLE=/usr/bin/python3 --make-args -j2 -l2
   fi
 fi
-echo '[CANDIDATE READY] 두 모델과 선택 장치 추론·ROS import 검사 완료. 주행/production 전환은 시작하지 않았습니다.'
-echo '[GUI] 신호등 모델에서 v5 지도+CNN 후보를 선택하고 새 실험을 시작하세요. 기존 실행 사본은 수정하지 마세요.'
+echo '[V5 READY] 두 모델과 선택 장치 추론·ROS import 검사 완료. 주행은 시작하지 않았습니다.'
+echo '[GUI/traffic] v5 지도+CNN이 기본입니다. 새 실험/새 터미널을 사용하고 기존 실행 사본은 수정하지 마세요.'

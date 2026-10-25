@@ -1,7 +1,7 @@
 {
   "schema": "ajounice_traffic_light_candidate_v1",
   "version": "v5_3d29ee7f",
-  "status": "opt_in_candidate_not_production",
+  "status": "runtime_default_with_known_limitations",
   "archive": "final_weights_bundle.tar.gz",
   "archive_bytes": 46379169,
   "archive_sha256": "8e9e184812ff87e0bba4215483893b6453207df5d4ed163f46239bab4fc5e78e",

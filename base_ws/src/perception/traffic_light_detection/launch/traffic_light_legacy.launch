@@ -1,0 +1,25 @@
+<launch>
+  <!-- Explicit rollback only; no automatic fallback from missing v5 assets. -->
+  <arg name="inference_python" default="/usr/bin/python3" />
+  <arg name="device" default="0" />
+  <arg name="isolate_python" default="false" />
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
+  <arg name="sensor_config" default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json" />
+  <arg name="image_topic" default="/sensor/camera/front/compressed" />
+  <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />
+  <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
+    <arg name="inference_python" value="$(arg inference_python)" />
+    <arg name="device" value="$(arg device)" />
+    <arg name="isolate_python" value="$(arg isolate_python)" />
+    <arg name="repo_root" value="$(arg repo_root)" />
+    <arg name="sensor_config" value="$(arg sensor_config)" />
+    <arg name="image_topic" value="$(arg image_topic)" />
+    <arg name="output_topic" value="$(arg output_topic)" />
+    <arg name="weights_path" value="$(find traffic_light_detection)/weights/best.pt" />
+    <arg name="detector_imgsz" value="640" />
+    <arg name="selection_mode" value="legacy_center" />
+    <arg name="classifier_mode" value="hsv" />
+    <arg name="cnn_checkpoint_path" value="" />
+    <arg name="cnn_device" value="cpu" />
+  </include>
+</launch>

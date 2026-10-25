@@ -1,5 +1,5 @@
 <launch>
-  <!-- Explicit candidate only. No changes to traffic_light_node.launch defaults. -->
+  <!-- Compatibility entrypoint: v5 is also the ordinary launch default. -->
   <arg name="models_root" default="$(env HOME)/.local/share/ajounice/traffic_light_models/v5_3d29ee7f" />
   <arg name="inference_python" default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python" />
   <arg name="device" default="0" />

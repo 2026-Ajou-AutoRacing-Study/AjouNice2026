@@ -1,25 +1,25 @@
 <launch>
   <!-- configs/sensors/Sensor_*.json 기준 확인된 실제 토픽 (CompressedImage) -->
   <arg name="image_topic" default="/sensor/camera/front/compressed" />
-  <arg name="weights_path" default="$(find traffic_light_detection)/weights/best.pt" />
+  <arg name="models_root" default="$(env HOME)/.local/share/ajounice/traffic_light_models/v5_3d29ee7f" />
+  <arg name="weights_path" default="$(arg models_root)/yolo_final/selected.pt" />
   <!-- Keep the threshold validated by the traffic-light team. -->
   <arg name="conf" default="0.25" />
   <!-- Only the inference node uses this Python. Lanelet map matching remains
        on ROS Noetic's /usr/bin/python3 in a sibling process. -->
-  <arg name="inference_python" default="/usr/bin/python3" />
-  <!-- Default preserves existing system/user-site installations. The shared
-       virtual environment explicitly disables user-site package injection. -->
-  <arg name="isolate_python" default="false" />
+  <arg name="inference_python" default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python" />
+  <!-- User-selected v5 default. Legacy rollback has its own explicit wrapper. -->
+  <arg name="isolate_python" default="true" />
   <arg name="device" default="0" />
-  <arg name="detector_imgsz" default="640" />
+  <arg name="detector_imgsz" default="960" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
-  <!-- Research candidates are opt-in. Existing center+HSV defaults are unchanged. -->
-  <arg name="selection_mode" default="legacy_center" />
-  <arg name="classifier_mode" default="hsv" />
-  <arg name="cnn_checkpoint_path" default="" />
-  <arg name="cnn_device" default="cpu" />
+  <!-- Default promotion is not a full-route qualification claim. -->
+  <arg name="selection_mode" default="map_association" />
+  <arg name="classifier_mode" default="cnn" />
+  <arg name="cnn_checkpoint_path" default="$(arg models_root)/cnn_v5/best.pt" />
+  <arg name="cnn_device" default="$(eval 'cpu' if str(arg('device')) == 'cpu' else 'cuda:' + str(arg('device')))" />
   <arg name="cnn_min_bit_confidence" default="0.6" />
   <arg name="cnn_crop_margin_px" default="12" />
   <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />

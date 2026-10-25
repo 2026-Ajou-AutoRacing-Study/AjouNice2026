@@ -11,6 +11,7 @@ import yaml
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
+from .traffic_light import profile_name, runtime_mode, runtime_settings, candidate_assets
 from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
                                     effective_gt_pose_args, resolve_localization_contract)
 
@@ -36,6 +37,15 @@ def prepare_execution(source, *, check_install=True):
     if is_snapshot(cfg['path']):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
+    if cfg['stack'].get('traffic_light', False):
+        # Freeze the resolved selection, including the promoted default.
+        python, _ = runtime_settings(cfg['stack'], resolve_path('.'))
+        document['stack'].update(traffic_light_profile=profile_name(cfg['stack']),
+                                 traffic_light_runtime=runtime_mode(cfg['stack']),
+                                 traffic_light_python=python)
+        assets = candidate_assets(cfg['stack'], resolve_path('.'))
+        if assets is not None:
+            document['stack']['traffic_light_models_root'] = assets['root']
     if cfg['recording'].get('video', {}).get('enabled', False):
         # Freeze the effective host display even for CLI authoring YAMLs that
         # omit it. Resuming under another DISPLAY must not select a new screen.
@@ -164,7 +174,7 @@ def load_execution(directory, *, check_install=True):
         if (not isinstance(state, dict) or not isinstance(state.get('config_path'), str)
                 or not isinstance(state.get('config_sha256'), str)):
             raise ValueError('이전 실험 state 형식이 잘못되었습니다. 결과는 보존합니다')
-        cfg = load_campaign(state['config_path'], check_install=check_install)
+        cfg = load_campaign(state['config_path'], check_install=check_install, legacy_traffic_defaults=True)
         if cfg['output'] != directory or sha256(cfg['path']) != state.get('config_sha256'):
             raise ValueError('이전 실험의 원본 YAML이 변경됐습니다. 기존 입력을 복원해야 재개할 수 있습니다')
         return cfg

@@ -57,12 +57,13 @@ alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_conf
 alias sensing="roslaunch bringup sensing.launch"
 alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
-alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
+alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh" --model e12'
 # Retain measurement timestamps; bound predicted age independently of detector Hz.
 # Host-specific latency measurements belong in evidence, not this runtime alias.
 alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5 prediction_mixed_horizon_enabled:=true'
 alias od_gt='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline morai_gt_detection.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
+alias traffic_legacy='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_legacy.launch'
 
 # control----------------------------------------------
 alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"

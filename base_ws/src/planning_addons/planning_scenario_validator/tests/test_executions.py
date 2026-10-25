@@ -51,6 +51,19 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual((first['output'] / 'source_config.yaml').read_bytes(), original)
         self.assertEqual(len(first['cases']), 2)
 
+    def test_new_traffic_execution_freezes_promoted_defaults_without_editing_authoring_yaml(self):
+        self.doc['stack'].update(traffic_light=True,traffic_light_runtime='system',
+                                 traffic_light_python='/usr/bin/python3')
+        self.source.write_text(yaml.safe_dump(self.doc))
+        original=self.source.read_bytes()
+        cfg=self.prepare()
+        stack=cfg['document']['stack']
+        self.assertEqual(stack['traffic_light_profile'],'v5_candidate')
+        self.assertEqual(stack['traffic_light_runtime'],'virtualenv')
+        self.assertEqual(stack['traffic_light_python'],str(Path.home()/'.local/share/ajounice/traffic_light_gpu/bin/python'))
+        self.assertEqual(stack['traffic_light_models_root'],str(Path.home()/'.local/share/ajounice/traffic_light_models/v5_3d29ee7f'))
+        self.assertEqual(self.source.read_bytes(),original)
+
     def test_edit_or_delete_originals_does_not_change_resume_inputs(self):
         first = self.prepare()
         frozen = first['path'].read_bytes()

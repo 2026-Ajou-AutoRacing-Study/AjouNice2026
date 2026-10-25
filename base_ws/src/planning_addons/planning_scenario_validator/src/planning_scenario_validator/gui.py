@@ -183,7 +183,9 @@ def form_values(document):
         'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
-        "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
+        "traffic_light_python": (DEFAULT_PYTHON if stack.get('traffic_light_python') == '/usr/bin/python3'
+                                 or (profile_name(stack) == 'v5_candidate' and stack.get('traffic_light_runtime') == 'system')
+                                 else stack.get('traffic_light_python', DEFAULT_PYTHON)),
         "traffic_light_device": str(stack.get("traffic_light_device", "0")),
         "traffic_light_profile": PROFILE_LABELS[profile_name(stack)],
         "traffic_light_models_root": stack.get('traffic_light_models_root', DEFAULT_MODELS_ROOT),
@@ -253,7 +255,7 @@ def build_document(template, values):
         stack["traffic_light_python"] = str(values["traffic_light_python"]).strip()
         stack["traffic_light_device"] = str(values["traffic_light_device"]).strip()
     runtime_settings(stack, ROOT)
-    selected_profile = LABEL_PROFILES.get(values.get('traffic_light_profile', PROFILE_LABELS['legacy']))
+    selected_profile = LABEL_PROFILES.get(values.get('traffic_light_profile', PROFILE_LABELS['v5_candidate']))
     if selected_profile is None:
         raise ValueError('신호등 모델을 선택하세요')
     if selected_profile != profile_name(template.get('stack', {})):
