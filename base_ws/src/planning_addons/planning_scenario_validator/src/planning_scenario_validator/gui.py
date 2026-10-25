@@ -23,7 +23,8 @@ from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CON
                      UPLOAD_PROFILES, resolve_path, validate_campaign_document)
 from .config import load_campaign, scenario_sources
 from .layout import normalize_bar_setting, resolve_bar_height
-from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
+from .traffic_light import (DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings,
+                            PROFILE_LABELS, LABEL_PROFILES, DEFAULT_MODELS_ROOT, profile_name)
 from . import executions
 from . import batch
 from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
@@ -58,6 +59,8 @@ EDITABLE_FIELDS = {
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
     'bevfusion_model': ('stack', 'bevfusion_model'),
+    'traffic_light_profile': ('stack', 'traffic_light_profile'),
+    'traffic_light_models_root': ('stack', 'traffic_light_models_root'),
     'selected_topics': ('recording', 'selected_topics'),
     'video': ('recording', 'video', 'enabled'),
     'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
@@ -182,6 +185,8 @@ def form_values(document):
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
         "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
         "traffic_light_device": str(stack.get("traffic_light_device", "0")),
+        "traffic_light_profile": PROFILE_LABELS[profile_name(stack)],
+        "traffic_light_models_root": stack.get('traffic_light_models_root', DEFAULT_MODELS_ROOT),
         "topic_profile": recording.get("topic_profile", ""),
         "include_sensors": recording.get("include_sensors", False),
         "video": recording.get("video", {}).get("enabled", False),
@@ -247,6 +252,15 @@ def build_document(template, values):
         stack["traffic_light_runtime"] = mode
         stack["traffic_light_python"] = str(values["traffic_light_python"]).strip()
         stack["traffic_light_device"] = str(values["traffic_light_device"]).strip()
+    runtime_settings(stack, ROOT)
+    selected_profile = LABEL_PROFILES.get(values.get('traffic_light_profile', PROFILE_LABELS['legacy']))
+    if selected_profile is None:
+        raise ValueError('신호등 모델을 선택하세요')
+    if selected_profile != profile_name(template.get('stack', {})):
+        stack['traffic_light_profile'] = selected_profile
+    model_root = str(values.get('traffic_light_models_root', DEFAULT_MODELS_ROOT)).strip()
+    if model_root != str(old['traffic_light_models_root']):
+        stack['traffic_light_models_root'] = model_root
     runtime_settings(stack, ROOT)
     recording = result.setdefault("recording", {})
     recording["topic_profile"] = str(values["topic_profile"]).strip()
@@ -326,6 +340,10 @@ def operator_document(template, latest, values, include):
             value = LABEL_PRESETS.get(str(value))
             if value is None:
                 raise ValueError('모델 프리셋을 선택하세요')
+        elif key == 'traffic_light_profile':
+            value = LABEL_PROFILES.get(str(value))
+            if value is None:
+                raise ValueError('신호등 모델을 선택하세요')
         elif key == 'selected_topics':
             if not value:
                 proposed.setdefault('recording', {}).pop('selected_topics', None)
@@ -344,6 +362,14 @@ def operator_document(template, latest, values, include):
     else:
         proposed['scenarios']['include'] = list(include)
     paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
+    # An explicit opt-in can select the managed interpreter, but merely
+    # opening/saving old YAMLs must not migrate their runtime or resume hash.
+    if (values['traffic_light_profile'] != baseline['traffic_light_profile']
+            and proposed['stack'].get('traffic_light_profile') == 'v5_candidate'
+            and runtime_mode(template.get('stack', {})) == 'system'):
+        proposed['stack'].update(traffic_light_runtime='virtualenv',
+                                 traffic_light_python=DEFAULT_PYTHON)
+        paths += [('stack', 'traffic_light_runtime'), ('stack', 'traffic_light_python')]
     if values['recording_mode'] != baseline['recording_mode']:
         apply_recording_mode(proposed, values['recording_mode'])
         paths += bag_options.RECORDING_PATHS + [('recording', 'video', 'enabled')]
@@ -934,14 +960,25 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                              choices=list(MODE_LABELS.values()))
     traffic_python = add_field(traffic_tab, 1, "traffic_light_python", "가상환경 Python")
     add_field(traffic_tab, 2, "traffic_light_device", "신호등 장치 (0/cpu)")
+    traffic_profile = add_field(traffic_tab, 3, 'traffic_light_profile', '신호등 모델',
+                                choices=list(PROFILE_LABELS.values()))
+    add_field(traffic_tab, 4, 'traffic_light_models_root', '후보 모델 설치 경로')
     ttk.Label(traffic_tab, text="시스템 선택: /usr/bin/python3 (기존 환경 유지). 가상환경 선택: 위 실행 파일 사용.\n"
               "GPU 번호 0이 기본값입니다. CPU 시험은 cpu로 입력하세요. 신호등 off이면 환경이 없어도 실행됩니다.",
-              wraplength=750).grid(row=3, column=0, columnspan=3, sticky="w", pady=8)
+              wraplength=750).grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
 
     ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
               "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
               "환경 변경은 원본 YAML에 저장하고 새 실험을 시작하세요. 이전 기록은 당시 환경 설정으로 재개합니다.", wraplength=750).grid(
-        row=5, column=0, columnspan=3, sticky="w", pady=8)
+        row=7, column=0, columnspan=3, sticky="w", pady=8)
+
+    def select_traffic_profile(_event=None):
+        if LABEL_PROFILES.get(vars_['traffic_light_profile'].get()) == 'v5_candidate':
+            if vars_['traffic_light_runtime'].get() == MODE_LABELS['system']:
+                vars_['traffic_light_runtime'].set(MODE_LABELS['virtualenv'])
+                vars_['traffic_light_python'].set(DEFAULT_PYTHON)
+        changed()
+    traffic_profile.bind('<<ComboboxSelected>>', select_traffic_profile)
 
     def update_traffic_widgets(*_):
         traffic_mode.configure(state="disabled")

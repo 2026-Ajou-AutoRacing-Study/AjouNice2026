@@ -43,6 +43,8 @@ COMMENTS = {
     "stack.traffic_light_runtime": "system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.",
     "stack.traffic_light_python": "가상환경 bin/python 경로. conda activate는 필요 없습니다.",
     "stack.traffic_light_device": "GPU 한 개면 '0'. CPU 시험은 cpu. 신호등 off면 사용하지 않습니다.",
+    "stack.traffic_light_profile": "legacy=기존 방식 유지. v5_candidate=명시적 지도+CNN 시험. 후보 설치기 실행 후 새 실험에서 선택합니다.",
+    "stack.traffic_light_models_root": "후보 모델 설치 경로. 기본 ~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f. 기존 실행 사본을 수정하지 않습니다.",
     "network": "MORAI GUI에 실제 Load/Connect한 Sensor/Ego Network와 같아야 합니다.",
     "morai.scenario_install_dir": "auto: 각 PC의 ~/MoraiLauncher_Lin을 찾습니다. 설치 위치가 다를 때만 수정.",
     "validation": "충돌은 1회라도 FAIL. 목적지 도착 반경/정지 기준은 기본값 유지.",

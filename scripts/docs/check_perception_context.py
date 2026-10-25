@@ -20,7 +20,8 @@ AGENTS = (
 # Dated evidence, old plans and reproduction documents are linked on demand.
 ACTIVE = AGENTS + (
     'docs/README.md', 'docs/ACTIVE_PRIORITIES.md', 'kcity_map/README.md',
-    'docs/perception/README.md', 'docs/bevfusion/CURRENT.md', 'docs/bevfusion/README.md',
+    'docs/perception/README.md', 'docs/perception/traffic_light/CURRENT.md',
+    'docs/bevfusion/CURRENT.md', 'docs/bevfusion/README.md',
     'docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md',
     'docs/bevfusion/BASE3_BEVFUSION_PRODUCTION_HANDOFF.md',
     'docs/bevfusion/GT_EVALUATION_COORDINATE_CONTRACT.md',
@@ -35,6 +36,7 @@ BUDGETS = {
     **{name: 45 for name in AGENTS},
     **{name: 65 for name in ACTIVE if name.endswith('/README.md')},
     'docs/ACTIVE_PRIORITIES.md': 65,
+    'docs/perception/traffic_light/CURRENT.md': 100,
     'docs/bevfusion/CURRENT.md': 125,
     'dataset/morai_od/docs/BASE5_V2_CURRENT.md': 125,
     'base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md': 125,

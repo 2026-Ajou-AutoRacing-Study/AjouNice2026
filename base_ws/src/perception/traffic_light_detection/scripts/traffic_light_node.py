@@ -15,6 +15,10 @@ v13 -> v14 변경점 (2026-08-19, 스무딩 창(5)/과반수(3) 값 재조정을
 import os
 import sys
 import time as _time_module
+import json
+import hashlib
+import threading
+from collections import deque
 
 _user_site = os.path.expanduser(f"~/.local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")
 if (os.environ.get("TRAFFIC_LIGHT_ISOLATE_PYTHON", "false").lower() != "true"
@@ -43,6 +47,8 @@ from light_color_utils import classify_crop, pick_ego_lane_box
 from ros_time import builtin_time_from_ros
 from signal_smoother import SignalSmoother
 from signal_phase_policy import SignalPhasePolicy
+from traffic_light_map_selector import (MISSION_GROUP_IDS, associate_boxes, select_packet,
+                                        SELECTOR_CONTRACT_VERSION, selector_config)
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -62,6 +68,23 @@ DEBUG_DRAW_COLOR = {
 HZ_LOG_INTERVAL = 30
 
 EXCLUDED_MAP_ERROR_IDS = {201395, 201396}
+
+
+def _detector_runtime_device(model, requested_device):
+    """Read the inference backend, not Ultralytics' retained outer module.
+
+    Ultralytics may deepcopy the outer module when it creates a predictor, so
+    outer Model.device can still be CPU after predict(device=0) runs on CUDA.
+    This is diagnostic-only: never move a model or select an inference device.
+    """
+    predictor = getattr(model, "predictor", None)
+    for source, owner in (("predictor.device", predictor),
+                          ("predictor.model.device", getattr(predictor, "model", None)),
+                          ("model.device", model)):
+        device = getattr(owner, "device", None)
+        if device is not None:
+            return str(device), source
+    return str(requested_device), "requested_device_fallback"
 
 
 def _pick_draw_color(color_results):
@@ -146,12 +169,45 @@ class TrafficLightNode:
         # A GPU-capable Python can be selected by launch argument on hosts whose
         # system PyTorch does not support the installed GPU architecture.
         self.inference_device = rospy.get_param("~device", "cpu")
+        self.detector_imgsz = int(rospy.get_param("~detector_imgsz", 640))
+        if not 320 <= self.detector_imgsz <= 1920 or self.detector_imgsz % 32:
+            raise ValueError("detector_imgsz must be a multiple of 32 within 320..1920")
         self.center_tolerance_ratio = rospy.get_param("~center_tolerance_ratio", 0.20)
         self.y_weight = rospy.get_param("~y_weight", 0.6)
         self.fallback_group_id = rospy.get_param("~fallback_group_id", 0)
         self.publish_rate_limit_hz = rospy.get_param("~max_rate_hz", 10.0)
         self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
         self.debug_jpeg_quality = rospy.get_param("~debug_jpeg_quality", 60)
+        self.selection_mode = rospy.get_param("~selection_mode", "legacy_center")
+        if self.selection_mode not in ("legacy_center", "map_association"):
+            raise ValueError("selection_mode must be legacy_center or map_association")
+        self.classifier_mode = rospy.get_param("~classifier_mode", "hsv")
+        if self.classifier_mode not in ("hsv", "cnn"):
+            raise ValueError("classifier_mode must be hsv or cnn")
+        self.cnn_crop_margin_px = int(rospy.get_param("~cnn_crop_margin_px", 12))
+        if not 0 <= self.cnn_crop_margin_px <= 64:
+            raise ValueError("cnn_crop_margin_px must be within 0..64")
+        self._cnn_startup = None
+        if self.classifier_mode == "cnn":
+            from traffic_light_cnn_classifier import initialize_classifier
+            self._cnn_startup = initialize_classifier(
+                rospy.get_param("~cnn_checkpoint_path", ""),
+                device=rospy.get_param("~cnn_device", "cpu"),
+                min_bit_confidence=float(rospy.get_param("~cnn_min_bit_confidence", .6)),
+                warmup=True,
+            )
+            if not self._cnn_startup.ready:
+                rospy.logerr("[Traffic] CNN unavailable; missing observations, no HSV fallback: %s",
+                             self._cnn_startup.reason)
+        self._roi_lock = threading.Lock()
+        self._roi_condition = threading.Condition(self._roi_lock)
+        self._roi_packets = deque(maxlen=20)
+        self._selected_head_id = None
+        self.map_packet_max_image_delta_sec = float(rospy.get_param("~map_packet_max_image_delta_sec", 0.))
+        self.map_packet_max_age_sec = float(rospy.get_param("~map_packet_max_age_sec", .5))
+        self.map_packet_wait_sec = float(rospy.get_param("~map_packet_wait_sec", .03))
+        if not 0 <= self.map_packet_wait_sec <= .1 or not 0 <= self.map_packet_max_image_delta_sec <= .05:
+            raise ValueError("map packet wait/delta exceeds bounded candidate limits")
 
         self.debug_save_crop_dir = rospy.get_param("~debug_save_crop_dir", "")
         self._save_crop_count = 0
@@ -195,9 +251,22 @@ class TrafficLightNode:
 
         rospy.loginfo(f"[Traffic] 기동: YOLO {os.path.basename(weights_path)} device={self.inference_device}")
         self.model = YOLO(weights_path)
+        self.runtime_metadata = {
+            "selection_mode": self.selection_mode, "classifier_mode": self.classifier_mode,
+            "detector_weights_path": os.path.abspath(os.path.expanduser(weights_path)),
+            "detector_requested_device": str(self.inference_device), "detector_imgsz": self.detector_imgsz,
+            "cnn_crop_margin_px": self.cnn_crop_margin_px,
+            "cnn_startup_ready": self._cnn_startup.ready if self._cnn_startup else None,
+            "cnn_metadata": self._cnn_startup.metadata if self._cnn_startup else None,
+        }
+        try:
+            with open(weights_path, "rb") as stream:
+                self.runtime_metadata["detector_weights_sha256"] = hashlib.sha256(stream.read()).hexdigest()
+        except OSError:
+            self.runtime_metadata["detector_weights_sha256"] = None
 
         self.pub = rospy.Publisher(
-            "/perception/traffic_light_recognition/traffic_signals",
+            rospy.get_param("~output_topic", "/perception/traffic_light_recognition/traffic_signals"),
             TrafficLightGroupArray,
             queue_size=1,
         )
@@ -216,6 +285,15 @@ class TrafficLightNode:
         self.raw_debug_pub = rospy.Publisher("~debug_raw_label", String, queue_size=10)
         self.observed_debug_pub = rospy.Publisher("~debug_observed_label", String, queue_size=10)
         self.policy_debug_pub = rospy.Publisher("~debug_policy_reason", String, queue_size=10)
+        self.selection_debug_pub = rospy.Publisher("~debug_selection", String, queue_size=10)
+        self.classifier_debug_pub = rospy.Publisher("~debug_classifier", String, queue_size=10)
+        self.runtime_debug_pub = rospy.Publisher("~debug_runtime", String, queue_size=1, latch=True)
+        self._publish_runtime_debug()
+        self.sub_map_rois = None
+        if self.selection_mode == "map_association":
+            self.sub_map_rois = rospy.Subscriber(
+                rospy.get_param("~map_roi_topic", "/perception/traffic_light_recognition/map_rois"),
+                String, self.map_roi_callback, queue_size=10)
 
         self._last_stamp = rospy.Time(0)
         self._min_period = rospy.Duration(1.0 / self.publish_rate_limit_hz) if self.publish_rate_limit_hz > 0 else rospy.Duration(0)
@@ -239,6 +317,30 @@ class TrafficLightNode:
         )
         self._external_route_group_id_stamp = rospy.Time.now()
 
+    def map_roi_callback(self, msg):
+        try:
+            packet = json.loads(msg.data)
+            if not isinstance(packet, dict):
+                raise ValueError("ROI packet must be an object")
+            with self._roi_condition:
+                self._roi_packets.append(packet)
+                self._roi_condition.notify_all()
+        except (ValueError, TypeError) as error:
+            rospy.logwarn_throttle(5., "[Traffic] invalid map ROI packet: %s", error)
+
+    def _map_packet_for_image(self, msg, group_id, width, height):
+        deadline = time.monotonic() + self.map_packet_wait_sec
+        with self._roi_condition:
+            while True:
+                packet = select_packet(self._roi_packets, msg.header.stamp.to_nsec(), group_id,
+                    width, height, rospy.Time.now().to_nsec(), self.map_packet_max_image_delta_sec,
+                    self.map_packet_max_age_sec, msg.header.frame_id)
+                remaining = deadline-time.monotonic()
+                if packet is not None or group_id <= 0 or msg.header.stamp.to_nsec() <= 0 or remaining <= 0:
+                    return packet
+                # A sibling ROS callback can deliver the exact image-stamped packet.
+                self._roi_condition.wait(remaining)
+
     def _resolve_group_id(self):
         """Use the system-Python route matcher; return zero when it is stale."""
         if (
@@ -246,9 +348,11 @@ class TrafficLightNode:
             and self._external_route_group_id_stamp is not None
         ):
             age = (rospy.Time.now() - self._external_route_group_id_stamp).to_sec()
-            if age <= self.route_group_id_stale_sec:
+            if 0 <= age <= self.route_group_id_stale_sec:
+                if self.selection_mode == "map_association" and self._external_route_group_id not in MISSION_GROUP_IDS:
+                    return 0
                 return self._external_route_group_id
-        return self.fallback_group_id
+        return 0 if self.selection_mode == "map_association" else self.fallback_group_id
 
     def _log_hz_if_needed(self):
         self._n_processed += 1
@@ -263,6 +367,26 @@ class TrafficLightNode:
             self._hz_window_start = time.time()
             self._proc_time_sum = 0.0
             self._proc_time_max = 0.0
+
+    def _publish_runtime_debug(self, source_stamp=None, frame_timing=None, frame_decision=None):
+        report = dict(self.runtime_metadata)
+        report["detector_actual_device"], report["detector_actual_device_source"] = _detector_runtime_device(
+            self.model, self.inference_device)
+        report["source_stamp_ns"] = source_stamp.to_nsec() if source_stamp is not None else None
+        report["frame_timing"] = frame_timing
+        report["frame_decision"] = frame_decision
+        report["cuda_memory"] = None
+        if "cuda" in report["detector_actual_device"]:
+            try:
+                import torch
+                device = report["detector_actual_device"]
+                report["cuda_memory"] = {"device": device,
+                    "allocated_bytes": torch.cuda.memory_allocated(device),
+                    "reserved_bytes": torch.cuda.memory_reserved(device),
+                    "max_allocated_bytes": torch.cuda.max_memory_allocated(device)}
+            except (RuntimeError, ValueError, ImportError) as error:
+                report["cuda_memory_error"] = str(error)
+        self.runtime_debug_pub.publish(String(data=json.dumps(report, allow_nan=False)))
 
     def _maybe_save_conflict_crop(self, crop, raw_color_results):
         if not self.debug_save_crop_dir:
@@ -280,6 +404,7 @@ class TrafficLightNode:
         self._last_stamp = now
 
         t_start = time.time()
+        t_monotonic = time.monotonic()
 
         try:
             np_arr = np.frombuffer(msg.data, np.uint8)
@@ -292,11 +417,13 @@ class TrafficLightNode:
             return
 
         h, w = img.shape[:2]
+        t_decoded = time.monotonic()
 
         results = self.model.predict(
             source=img,
             conf=self.conf_threshold,
             device=self.inference_device,
+            imgsz=self.detector_imgsz,
             verbose=False,
         )
         r = results[0]
@@ -310,6 +437,7 @@ class TrafficLightNode:
             bw = (x2 - x1) / w
             bh = (y2 - y1) / h
             boxes.append((cx, cy, bw, bh, (x1, y1, x2, y2, det_conf)))
+        t_detected = time.monotonic()
 
         group_array = TrafficLightGroupArray()
         source_stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
@@ -323,8 +451,39 @@ class TrafficLightNode:
             self.signal_smoother.reset()
             self.signal_phase_policy.reset_transition()
             self._last_policy_group_id = group.traffic_light_group_id
+            self._selected_head_id = None
 
-        best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
+        selection = {"status": "legacy", "reason": "legacy_center"}
+        if self.selection_mode == "legacy_center":
+            best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
+        else:
+            packet = self._map_packet_for_image(msg, group.traffic_light_group_id, w, h)
+            if packet is None or packet.get("status") != "ready":
+                best = None
+                selection = {"status": "missing", "reason": "map_packet_missing_or_stale" if packet is None
+                             else packet.get("reason", "map_projection_missing")}
+            else:
+                try:
+                    if packet.get("selector_contract_version") != SELECTOR_CONTRACT_VERSION:
+                        raise ValueError("selector_contract_version_mismatch")
+                    if not isinstance(packet.get("selector_config"), dict):
+                        raise ValueError("missing_selector_configuration")
+                    config = selector_config(packet.get("selector_config"))
+                    best, selection = associate_boxes(boxes, packet.get("rois", []),
+                        group.traffic_light_group_id, self._selected_head_id, config=config)
+                    selection["selector_contract_version"] = SELECTOR_CONTRACT_VERSION
+                    selection["selector_config"] = config.to_dict()
+                    selection["projection_reason"] = packet.get("reason")
+                    selection["eligible_projected_head_ids"] = [roi.get("head_id") for roi in packet.get("rois", [])
+                                                               if roi.get("eligible")]
+                except (ValueError, TypeError, KeyError, IndexError) as error:
+                    best, selection = None, {"status": "missing", "reason": "invalid_map_rois:" + str(error)}
+                selection["projection_source_stamp_ns"] = packet["source_stamp_ns"]
+            self._selected_head_id = selection.get("head_id")
+        selection.update(mode=self.selection_mode, group_id=group.traffic_light_group_id,
+                         source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes))
+        self.selection_debug_pub.publish(String(data=json.dumps(selection, allow_nan=False)))
+        t_selected = time.monotonic()
         label_text = "off"
         draw_color_name = "off"
         box_coords = None
@@ -332,20 +491,38 @@ class TrafficLightNode:
 
         raw_color_results = []
         raw_det_conf = 0.0
+        classifier_debug = {"mode": self.classifier_mode, "known": False, "reason": "no_selected_crop",
+                            "source_stamp_ns": msg.header.stamp.to_nsec(),
+                            "group_id": group.traffic_light_group_id,
+                            "head_id": selection.get("head_id")}
 
         if best is not None:
             x1, y1, x2, y2, det_conf = best[4]
-            x1c, y1c = max(0, int(x1)), max(0, int(y1))
-            x2c, y2c = min(w, int(x2)), min(h, int(y2))
+            margin = self.cnn_crop_margin_px if self.classifier_mode == "cnn" else 0
+            x1c, y1c = max(0, int(x1)-margin), max(0, int(y1)-margin)
+            x2c, y2c = min(w, int(x2)+margin), min(h, int(y2)+margin)
             crop = img[y1c:y2c, x1c:x2c]
             box_coords = (x1c, y1c, x2c, y2c)
             raw_det_conf = det_conf
+            classifier_debug.update(detector_bbox_xyxy=[x1, y1, x2, y2],
+                                    crop_xyxy=list(box_coords), crop_margin_px=margin)
 
             if crop.size > 0:
-                raw_color_results, _counts = classify_crop(crop)
+                if self.classifier_mode == "hsv":
+                    raw_color_results, _counts = classify_crop(crop)
+                    classifier_debug.update(known=True, reason="hsv_observation", counts=_counts)
+                elif self._cnn_startup.ready:
+                    observation = self._cnn_startup.classifier.classify_bgr(crop)
+                    raw_color_results = list(observation.tuples) if observation.known else []
+                    classifier_debug.update(observation.to_dict())
+                    raw_det_conf = min(raw_det_conf, observation.confidence) if observation.known else 0.
+                else:
+                    classifier_debug["reason"] = self._cnn_startup.reason
 
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
+        self.classifier_debug_pub.publish(String(data=json.dumps(classifier_debug, allow_nan=False)))
+        t_classified = time.monotonic()
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         detected_color_results = list(raw_color_results)
         fixed, policy_reason = self.signal_phase_policy.apply(
@@ -416,6 +593,27 @@ class TrafficLightNode:
             )
 
         self.pub.publish(group_array)
+        t_published = time.monotonic()
+        self._publish_runtime_debug(msg.header.stamp, frame_timing={
+            "clock": "monotonic_callback_wall_not_CUDA_event_time",
+            "decode_sec": t_decoded-t_monotonic,
+            "detector_and_box_readback_sec": t_detected-t_decoded,
+            "selection_including_map_wait_sec": t_selected-t_detected,
+            "crop_and_classifier_sec": t_classified-t_selected,
+            "policy_and_publish_sec": t_published-t_classified,
+            "callback_to_output_sec": t_published-t_monotonic,
+            "header_to_callback_sec": (now-msg.header.stamp).to_sec(),
+            "includes_debug_image_encoding": False}, frame_decision={
+            "group_id": group.traffic_light_group_id,
+            "head_id": selection.get("head_id"),
+            "selection_status": selection.get("status"),
+            "classifier_known": classifier_debug.get("known"),
+            "observed_tuples": detected_color_results,
+            "normalized_tuples": raw_color_results,
+            "final_tuples": color_results,
+            "final_confidence": det_conf,
+            "policy_reason": policy_reason,
+            "transition_reason": transition_reason})
 
         if self.debug_pub is not None and debug_img is not None:
             ok, enc = cv2.imencode(".jpg", debug_img, [cv2.IMWRITE_JPEG_QUALITY, self.debug_jpeg_quality])

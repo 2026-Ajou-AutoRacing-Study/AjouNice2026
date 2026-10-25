@@ -7,6 +7,7 @@
 | Workspace 준비 | `workspace/`, `build_all.sh`, `source_aw149.sh` |
 | 평소 실행 | [공통 runbook](../docs/runbooks/morai_full_stack_by_terminal.md), [aliases](../docs/common_alias.txt) |
 | 인지 설치·실행 | `runtime/install_base5_production.sh`, `runtime/run_bevfusion.sh`, [현재 계약](../docs/bevfusion/CURRENT.md) |
+| 신호등 후보 설치 | `runtime/install_traffic_light_candidate.sh`, [시험 배포 안내](../docs/perception/traffic_light/V5_CANDIDATE_HANDOFF.md) |
 | 측위 평가 | [localization 도구](evaluation/localization/README.md) |
 | 데이터 수집·학습 준비 | [dataset 현재 안내](../dataset/morai_od/docs/README.md), `portable_base5/`, `runtime/` |
 | 지도 | [kcity_map](../kcity_map/README.md), `map/` |

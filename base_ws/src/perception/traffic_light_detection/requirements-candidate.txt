@@ -1,0 +1,3 @@
+# Opt-in v5 input decoder used by the validated local CNN fit/replay.
+-r requirements-runtime.txt
+pillow==12.2.0

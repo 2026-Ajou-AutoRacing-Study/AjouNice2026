@@ -1,0 +1,47 @@
+<launch>
+  <!-- Explicit candidate only. No changes to traffic_light_node.launch defaults. -->
+  <arg name="models_root" default="$(env HOME)/.local/share/ajounice/traffic_light_models/v5_3d29ee7f" />
+  <arg name="inference_python" default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python" />
+  <arg name="device" default="0" />
+  <arg name="isolate_python" default="true" />
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
+  <arg name="image_topic" default="/sensor/camera/front/compressed" />
+  <arg name="sensor_config" default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json" />
+  <arg name="lanelet2_map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm" />
+  <arg name="lanelet2_projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+  <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
+  <arg name="route_topic" default="/planning/mission_planning/route" />
+  <arg name="route_state_topic" default="/planning/route_state" />
+  <arg name="odometry_topic" default="/localization/kinematic_state" />
+  <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />
+  <arg name="map_roi_topic" default="/perception/traffic_light_recognition/map_rois" />
+  <arg name="route_group_id_topic" default="/perception/traffic_light_recognition/route_group_id" />
+  <arg name="publish_debug_image" default="true" />
+  <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
+    <arg name="inference_python" value="$(arg inference_python)" />
+    <arg name="device" value="$(arg device)" />
+    <arg name="isolate_python" value="$(arg isolate_python)" />
+    <arg name="weights_path" value="$(arg models_root)/yolo_final/selected.pt" />
+    <arg name="cnn_checkpoint_path" value="$(arg models_root)/cnn_v5/best.pt" />
+    <arg name="cnn_device" value="$(eval 'cpu' if str(arg('device')) == 'cpu' else 'cuda:' + str(arg('device')))" />
+    <arg name="selection_mode" value="map_association" />
+    <arg name="classifier_mode" value="cnn" />
+    <arg name="detector_imgsz" value="960" />
+    <arg name="conf" value="0.25" />
+    <arg name="cnn_crop_margin_px" value="12" />
+    <arg name="cnn_min_bit_confidence" value="0.6" />
+    <arg name="repo_root" value="$(arg repo_root)" />
+    <arg name="image_topic" value="$(arg image_topic)" />
+    <arg name="sensor_config" value="$(arg sensor_config)" />
+    <arg name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
+    <arg name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
+    <arg name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
+    <arg name="route_topic" value="$(arg route_topic)" />
+    <arg name="route_state_topic" value="$(arg route_state_topic)" />
+    <arg name="odometry_topic" value="$(arg odometry_topic)" />
+    <arg name="output_topic" value="$(arg output_topic)" />
+    <arg name="map_roi_topic" value="$(arg map_roi_topic)" />
+    <arg name="route_group_id_topic" value="$(arg route_group_id_topic)" />
+    <arg name="publish_debug_image" value="$(arg publish_debug_image)" />
+  </include>
+</launch>

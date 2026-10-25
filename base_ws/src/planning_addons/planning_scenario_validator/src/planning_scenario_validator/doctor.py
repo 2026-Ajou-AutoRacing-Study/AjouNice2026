@@ -12,7 +12,7 @@ import time
 import xml.etree.ElementTree as ET
 
 from .config import ROOT, load_campaign
-from .traffic_light import runtime_settings, runtime_mode
+from .traffic_light import runtime_settings, runtime_mode, profile_check_arguments
 from .models import resolve_contract, selected_model, runtime_image_selection, E25_SHA
 
 
@@ -148,6 +148,7 @@ def inspect_traffic_light(cfg, python, device, gpu, probe, add):
     args.append('--check-ros')
     if runtime_mode(cfg['stack']) == 'virtualenv':
         args.append('--isolate-python')
+    args += profile_check_arguments(cfg['stack'], ROOT)
     if gpu:
         probe('신호등 실제 GPU/모델', args, 'bash scripts/runtime/setup_traffic_light_env.sh', timeout=120)
     else:
