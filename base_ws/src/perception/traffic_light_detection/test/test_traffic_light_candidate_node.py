@@ -26,9 +26,11 @@ class Duration:
 
 
 class Stamp:
-    def __init__(self, value=0): self.value = value
+    def __init__(self, value=0, nsecs=0):
+        self._nsecs = int(value * 1e9) + int(nsecs)
+        self.value = self._nsecs / 1e9
     def to_sec(self): return self.value
-    def to_nsec(self): return int(self.value*1e9)
+    def to_nsec(self): return self._nsecs
     def __sub__(self, other): return Duration(self.value-other.value)
     @staticmethod
     def now(): return Stamp(10.)
@@ -94,9 +96,14 @@ class CandidateNodeTest(unittest.TestCase):
         node.cnn_crop_margin_px = 12
         node.center_tolerance_ratio, node.y_weight = .2, .6
         node.signal_smoother = Mock()
+        node.planner_compliance_observations = False
         node.signal_phase_policy = Mock()
         node.signal_phase_policy.apply.side_effect = lambda raw, group: (raw, "unchanged")
-        node.signal_phase_policy.process_normalized.side_effect = lambda raw, why, group, now, conf, smoother: (raw, conf, "unchanged")
+        node.signal_phase_policy.process_normalized.side_effect = lambda raw, why, group, now, conf, smoother, **kwargs: (raw, conf, "unchanged")
+        node.signal_phase_policy.output_observation_metadata.side_effect = lambda group: {
+            "output_is_observed": True,
+            "adopted_observation_source_stamp_ns":
+                node.signal_phase_policy.process_normalized.call_args.kwargs["source_stamp_ns"]}
         for name in ("pub", "selection_debug_pub", "classifier_debug_pub", "observed_debug_pub", "raw_debug_pub", "policy_debug_pub", "runtime_debug_pub"):
             setattr(node, name, Mock())
         node._maybe_save_conflict_crop = Mock()

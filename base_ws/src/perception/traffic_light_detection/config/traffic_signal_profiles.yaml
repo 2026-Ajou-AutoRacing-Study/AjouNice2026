@@ -48,10 +48,10 @@ profiles:
 
   straight_or_protected_left:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
-    # D-2 has two yellow phases, told apart by the red lamp alone:
-    #   YELLOW_CIRCLE            = end of straight green -> STOP for our route
-    #   RED_CIRCLE+YELLOW_CIRCLE = end of protected left -> GO (already turning)
-    # No dependence on the preceding phase.
+    # Phase identification only; departure/passthrough is decided downstream.
+    #   YELLOW_CIRCLE            = end of straight green -> normalized RED
+    #   RED_CIRCLE+YELLOW_CIRCLE = end of protected left -> preserve both lamps
+    # A preserved R+Y is not, by itself, authorization for a new departure.
     valid_phases:
       - [RED_CIRCLE]
       - [GREEN_CIRCLE]

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
-from .traffic_light import runtime_settings
+from .traffic_light import runtime_settings, launch_options as traffic_launch_options
 from .repetitions import repetition_settings
 from .models import selected_model
 from .route_profile import normalize as normalize_route
@@ -187,6 +187,7 @@ def validate_campaign_document(document, *, allow_legacy=False):
     validate_scenario_include(document["scenarios"])
     try:
         repetition_settings(document["scenarios"])
+        traffic_launch_options(document['stack'])
     except ValueError as error:
         raise ConfigError(str(error)) from error
     common = document["default_case"]
@@ -374,6 +375,8 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
     try:
+        traffic_options = traffic_launch_options(stack,
+            legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
         runtime_settings(stack, ROOT, check_exists=stack.get("traffic_light", False))
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -390,8 +393,9 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
     from .recording_options import effective_topics, topic_patterns, ensure_video_display
     try:
-        ensure_video_display(recording)
-        recording['topics'] = effective_topics(recording, resolve_path)
+        debug_view = stack.get('traffic_light', False) and traffic_options['debug_view']
+        ensure_video_display(recording, required=debug_view)
+        recording['topics'] = effective_topics(recording, resolve_path, traffic_light_debug=debug_view)
         recording['topic_regex'] = topic_patterns(recording)
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -417,6 +421,7 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording, "route": route,
+            "traffic_light_options": traffic_options,
             "network_contract": network_contract,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,

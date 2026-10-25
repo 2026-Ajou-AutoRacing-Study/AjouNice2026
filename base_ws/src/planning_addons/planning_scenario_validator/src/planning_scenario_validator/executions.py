@@ -11,7 +11,8 @@ import yaml
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
-from .traffic_light import profile_name, runtime_mode, runtime_settings, candidate_assets
+from .traffic_light import (profile_name, runtime_mode, runtime_settings, candidate_assets,
+                            timed_policy_options)
 from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
                                     effective_gt_pose_args, resolve_localization_contract)
 
@@ -37,6 +38,14 @@ def prepare_execution(source, *, check_install=True):
     if is_snapshot(cfg['path']):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
+    # Store resolved opt-in controls even when their displayed defaults are OFF.
+    # An older frozen snapshot without these keys retains its old behavior in
+    # load_campaign; this new explicit snapshot never depends on future defaults.
+    options = cfg['traffic_light_options']
+    document.setdefault('stack', {}).update(
+        traffic_light_yellow_passthrough=options['yellow_passthrough'],
+        traffic_light_debug_view=options['debug_view'])
+    document['stack'].update(timed_policy_options(cfg['stack']))
     if cfg['stack'].get('traffic_light', False):
         # Freeze the resolved selection, including the promoted default.
         python, _ = runtime_settings(cfg['stack'], resolve_path('.'))
@@ -46,10 +55,11 @@ def prepare_execution(source, *, check_install=True):
         assets = candidate_assets(cfg['stack'], resolve_path('.'))
         if assets is not None:
             document['stack']['traffic_light_models_root'] = assets['root']
-    if cfg['recording'].get('video', {}).get('enabled', False):
+    if (cfg['recording'].get('video', {}).get('enabled', False) or
+            (cfg['stack'].get('traffic_light', False) and options['debug_view'])):
         # Freeze the effective host display even for CLI authoring YAMLs that
         # omit it. Resuming under another DISPLAY must not select a new screen.
-        document['recording']['video']['display'] = cfg['recording']['video']['display']
+        document.setdefault('recording', {}).setdefault('video', {})['display'] = cfg['recording']['video']['display']
     root = resolve_path(document.get('output_root', 'planner_logs/validation'))
     root.mkdir(parents=True, exist_ok=True)
     label = cfg['name']

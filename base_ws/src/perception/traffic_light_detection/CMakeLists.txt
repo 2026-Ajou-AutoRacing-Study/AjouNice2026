@@ -32,6 +32,7 @@ catkin_install_python(PROGRAMS
   scripts/signal_smoother.py
   scripts/ros_time.py
   scripts/traffic_light_node.py
+  scripts/traffic_light_debug_view.py
   scripts/traffic_light_route_group_id_node.py
   scripts/traffic_light_map_selector.py
   scripts/traffic_light_near_rescue.py

@@ -58,6 +58,8 @@ EDITABLE_FIELDS = {
     'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
+    'traffic_light_yellow_passthrough': ('stack', 'traffic_light_yellow_passthrough'),
+    'traffic_light_debug_view': ('stack', 'traffic_light_debug_view'),
     'bevfusion_model': ('stack', 'bevfusion_model'),
     'traffic_light_profile': ('stack', 'traffic_light_profile'),
     'traffic_light_models_root': ('stack', 'traffic_light_models_root'),
@@ -182,6 +184,8 @@ def form_values(document):
         'recording_mode': bag_options.mode_label(recording),
         'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
+        "traffic_light_yellow_passthrough": stack.get('traffic_light_yellow_passthrough', False),
+        "traffic_light_debug_view": stack.get('traffic_light_debug_view', False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
         "traffic_light_python": (DEFAULT_PYTHON if stack.get('traffic_light_python') == '/usr/bin/python3'
                                  or (profile_name(stack) == 'v5_candidate' and stack.get('traffic_light_runtime') == 'system')
@@ -248,6 +252,12 @@ def build_document(template, values):
     if mode is None:
         raise ValueError("신호등 실행 환경을 선택하세요")
     old = form_values(template)
+    for key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
+        value = values.get(key, old[key])
+        if type(value) is not bool:
+            raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
+        if key in stack or value != old[key]:
+            stack[key] = value
     # Never change existing resume hashes merely by opening/saving an old YAML.
     if any(str(values[key]) != str(old[key]) for key in (
             "traffic_light_runtime", "traffic_light_python", "traffic_light_device")):
@@ -309,7 +319,8 @@ def build_document(template, values):
         if "profile" in upload or enabled or profile != "basic":
             upload["profile"] = profile
     result["resume"] = True
-    bag_options.ensure_video_display(recording)
+    bag_options.ensure_video_display(recording, required=(stack.get('traffic_light', False)
+        and stack.get('traffic_light_debug_view', False)))
     return result
 
 
@@ -351,6 +362,9 @@ def operator_document(template, latest, values, include):
                 proposed.setdefault('recording', {}).pop('selected_topics', None)
                 continue
             value = bag_options.checked_topics(json.loads(value))
+        elif key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
+            if type(value) is not bool:
+                raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
         elif key in ('traffic_light', 'video', 'include_sensors', 'upload_enabled'):
             value = bool(value)
         else:
@@ -413,7 +427,9 @@ def operator_document(template, latest, values, include):
         result.setdefault('upload', {})['rclone_remote'] = DEFAULT_UPLOAD_REMOTE
     # A video-OFF agent YAML may contain enabled only; the checkbox must also
     # supply the hidden X11 address, without replacing explicit VSCode settings.
-    bag_options.ensure_video_display(result.get('recording', {}))
+    stack = result.get('stack', {})
+    bag_options.ensure_video_display(result.get('recording', {}), required=(stack.get('traffic_light', False)
+        and stack.get('traffic_light_debug_view', False)))
     validate_campaign_document(result)
     return result
 
@@ -709,6 +725,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             quick_vars['detector'].set(values['detector'])
             quick_vars['pose_source'].set(values['pose_source'])
             quick_vars['traffic_light'].set(values['traffic_light'])
+            quick_vars['traffic_light_yellow_passthrough'].set(values['traffic_light_yellow_passthrough'])
+            quick_vars['traffic_light_debug_view'].set(values['traffic_light_debug_view'])
             if changed_source and quick_table.selection():
                 quick_table.selection_remove(quick_table.selection())
             refresh_quick_choices()
@@ -878,7 +896,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     topics_button.grid(row=7, column=2, padx=4)
     toggle_bar = ttk.Frame(basic)
     toggle_bar.grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
-    for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 영상 녹화'),
+    for key, label in (('traffic_light', '신호등 인지'),
+                       ('traffic_light_yellow_passthrough', '황색 통과 허용'),
+                       ('traffic_light_debug_view', '신호등 디버그 화면'), ('video', '화면 영상 녹화'),
                        ('upload_enabled', 'Drive 자동 업로드')):
         vars_[key] = tk.BooleanVar()
         widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
@@ -909,7 +929,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         field_widgets['video'].configure(state='disabled' if label == bag_options.ANALYSIS or running else 'normal')
         topics_button.configure(state='normal' if enabled and not running else 'disabled')
         try:
-            topics = bag_options.effective_topics(form_recording(), resolve_path)
+            topics = bag_options.effective_topics(form_recording(), resolve_path,
+                traffic_light_debug=vars_['traffic_light'].get() and vars_['traffic_light_debug_view'].get())
             sensor_count = len(set(topics) & set(bag_options.SENSORS))
             text = ('bag OFF · 실시간 판정·JSON·CSV 유지 · 영상은 별도 선택' if not enabled else
                     'bag {}개 토픽 · 원본 센서 {}/5개 · {}'.format(len(topics), sensor_count,
@@ -936,7 +957,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         try:
             if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
                 raise ValueError('실행/검사 중에는 녹화 토픽을 변경할 수 없습니다. 종료 후 다음 실행에 적용하세요.')
-            current = bag_options.effective_topics(form_recording(), resolve_path)
+            current = bag_options.effective_topics(form_recording(), resolve_path,
+                traffic_light_debug=vars_['traffic_light'].get() and vars_['traffic_light_debug_view'].get())
             selected = bag_options.choose_topics(root, bag_options.topic_catalog(ROOT, current), current)
             if selected is not None:
                 vars_['recording_mode'].set(bag_options.CUSTOM)
@@ -948,7 +970,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             show_error('녹화 토픽 선택', error)
     field_widgets['recording_mode'].bind('<<ComboboxSelected>>', select_recording_mode)
     vars_['upload_profile'].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
-    for key in ('include_sensors', 'selected_topics', 'video'):
+    for key in ('include_sensors', 'selected_topics', 'video', 'traffic_light', 'traffic_light_debug_view'):
         vars_[key].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
 
     for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
@@ -1167,6 +1189,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     quick_traffic = ttk.Checkbutton(quick_options, text='신호등', variable=quick_vars['traffic_light'])
     quick_traffic.pack(side='left', padx=6)
     batch_buttons.append(quick_traffic)
+    for key, label in (('traffic_light_yellow_passthrough', '황색 통과 허용'),
+                       ('traffic_light_debug_view', '신호등 디버그 화면')):
+        quick_vars[key] = tk.BooleanVar()
+        widget = ttk.Checkbutton(quick_options, text=label, variable=quick_vars[key])
+        widget.pack(side='left', padx=6)
+        batch_buttons.append(widget)
 
     def start_quick():
         try:
@@ -1175,7 +1203,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             template, _ = collect()
             document = quick_test_document(template, list(quick_table.selection()),
                 detector=quick_vars['detector'].get(), pose_source=quick_vars['pose_source'].get(),
-                traffic_light=quick_vars['traffic_light'].get())
+                traffic_light=quick_vars['traffic_light'].get(),
+                traffic_light_yellow_passthrough=quick_vars['traffic_light_yellow_passthrough'].get(),
+                traffic_light_debug_view=quick_vars['traffic_light_debug_view'].get())
             validate_campaign_document(document)
             path = PACKAGE / 'config/internal/generated' / ('planning_quick_{}.yaml'.format(os.getpid()))
             save_personal(document, path)
@@ -1225,8 +1255,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             show_error("실행 준비 실패", error)
             return
-        video_enabled = document["recording"]["video"]["enabled"]
-        split = document["recording"]["video"].get("window_layout") == "split"
+        video = document.get("recording", {}).get("video", {})
+        video_enabled = video.get("enabled", False)
+        split = video.get("window_layout") == "split"
         note = ("전체 화면을 녹화하며 RViz·MORAI를 반반 배치하고 GUI를 하단 모니터 바로 바꿉니다. "
                 "창 배치가 실패하면 수동으로 조정해 주세요. 중단은 GUI 버튼 또는 터미널 Ctrl+C입니다."
                 if video_enabled and split else
@@ -1252,8 +1283,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         active.update(process=process, execution=cfg, document=document, stopping=False, mode="single")
         refresh_history()
         set_running_ui(True)
-        if video_enabled and document["recording"]["video"].get("window_layout") == "split":
-            set_compact_mode(True, document["recording"]["video"].get("bottom_bar_px", "auto"))
+        if video_enabled and video.get("window_layout") == "split":
+            set_compact_mode(True, video.get("bottom_bar_px", "auto"))
         status.set("주행 검증 실행 중: {}".format(cfg['name']))
         threading.Thread(target=command_reader,
             args=(process, "run", cfg['output'] / 'stack_logs/runner_console.log'), daemon=True).start()

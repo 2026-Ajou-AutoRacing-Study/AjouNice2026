@@ -14,6 +14,7 @@
   <arg name="detector_imgsz" default="960" />
   <!-- One full-frame 640 retry only after a near/large current map-head miss. -->
   <arg name="near_rescue_enabled" default="true" />
+  <arg name="planner_compliance_observations" default="true" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
@@ -42,7 +43,7 @@
   <arg name="map_packet_max_image_delta_sec" default="0.0" />
   <arg name="map_packet_wait_sec" default="0.03" />
 
-  <arg name="publish_debug_image" default="true" />
+  <arg name="publish_debug_image" default="false" />
   <arg name="debug_jpeg_quality" default="60" />
 
   <!-- ===== 화살표 템플릿 수집용 (임시 디버그 기능, 비어있으면 비활성) ===== -->
@@ -54,6 +55,7 @@
 
   <!-- ===== group_id 매칭: route 기반(1순위, v3, 정석 Autoware 방식) ===== -->
   <arg name="enable_route_matching" default="true" />
+  <arg name="route_progress_guard" default="true" />
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
   <arg name="group_id_table_path"
        default="$(find traffic_light_detection)/traffic_light_group_id_table.json" />
@@ -87,6 +89,7 @@
       <param name="route_topic" value="$(arg route_topic)" />
       <param name="route_state_topic" value="$(arg route_state_topic)" />
       <param name="odometry_topic" value="$(arg odometry_topic)" />
+      <param name="route_progress_guard" value="$(arg route_progress_guard)" />
       <param name="output_topic" value="$(arg route_group_id_topic)" />
       <!-- Map candidate skips old D-1 and all other non-mission rules while
            finding the NEXT light; legacy route-provider output is unchanged. -->
@@ -138,6 +141,7 @@
     <param name="device" value="$(arg device)" />
     <param name="detector_imgsz" value="$(arg detector_imgsz)" />
     <param name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
+    <param name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="selection_mode" value="$(arg selection_mode)" />
     <param name="classifier_mode" value="$(arg classifier_mode)" />

@@ -157,11 +157,14 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
         "prediction_model": "$(arg prediction_model)",
         "force_unknown_stationary": "$(arg force_unknown_stationary)",
         "prediction_time_step": "0.1",
-        "prediction_horizon": "3.0",
+        "prediction_horizon": "$(arg prediction_horizon)",
     }
     for name, value in expected.items():
         assert values.get(name) == value, (name, values.get(name))
     assert top_level["maximum_tracking_internal_prediction_age_sec"]["default"] == "0.25"
+    # Empty preserves object_pipeline's current general/highway horizon policy;
+    # the integration launch must not silently force the historical 3s override.
+    assert top_level["prediction_horizon"]["default"] == ""
     assert values["map_file"].endswith("/lanelet2_map_v87.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
