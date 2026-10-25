@@ -66,6 +66,7 @@ public:
   }
 
 private:
+  friend class LaneChangeHandoffTestPeer;
   std::string module_name_;
   ros::Subscriber lc_commitment_sub_;
   std::mutex lc_commitment_mutex_;

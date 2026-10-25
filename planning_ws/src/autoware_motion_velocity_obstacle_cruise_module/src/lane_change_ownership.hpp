@@ -15,7 +15,7 @@
 namespace autoware::motion_velocity_planner
 {
 // A fresh approved OUTPUT path is a lease, not a global LC-running boolean.
-// Match the actual downstream geometry AND longitudinal profile before handing
+// Match the actual downstream geometry and speed envelope before handing
 // off. Candidate topics and RTC safe flags never enter this predicate.
 inline std::string lane_change_ownership_rejection(
   const autoware_internal_planning_msgs::PathWithLaneId & commitment,
@@ -29,6 +29,9 @@ inline std::string lane_change_ownership_rejection(
       (now-commitment.header.stamp).toSec() > 0.3 || (now-received).toSec() > 0.3) {
     return "commitment_expired";
   }
+  // A downstream reduction remains LC-owned and is checked by LC final-profile
+  // feedback. Re-enabling ordinary following here would add a second speed
+  // controller precisely when the constrained maneuver needs re-evaluation.
   if (trajectory.size() < 2) return "trajectory_missing";
   auto closest = std::min_element(trajectory.begin(), trajectory.end(), [&](const auto & a, const auto & b) {
     return std::hypot(a.pose.position.x-ego.position.x,a.pose.position.y-ego.position.y) <
@@ -57,9 +60,9 @@ inline std::string lane_change_ownership_rejection(
         speed = a.longitudinal_velocity_mps + ratio*(b.longitudinal_velocity_mps-a.longitudinal_velocity_mps);
       }
     }
-    if (!std::isfinite(distance) || distance > 0.35) return "lc_geometry_changed";
+    if (!std::isfinite(distance) || distance > 0.5) return "lc_geometry_changed";
     if (!std::isfinite(it->longitudinal_velocity_mps) || !std::isfinite(speed) ||
-        std::abs(it->longitudinal_velocity_mps-speed) > 0.5) return "lc_speed_changed";
+        it->longitudinal_velocity_mps < 0.0 || it->longitudinal_velocity_mps > speed + 0.5) return "lc_speed_changed";
     ++checked;
   }
   return checked >= 2 ? "" : "trajectory_too_short";

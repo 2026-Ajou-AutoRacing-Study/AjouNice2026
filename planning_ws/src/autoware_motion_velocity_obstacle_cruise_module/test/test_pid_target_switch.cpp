@@ -107,6 +107,15 @@ protected:
   }
 };
 
+TEST_F(PIDTargetSwitch, LaneChangeHandoffDropsHistoryEvenForTheSameReacquiredUuid)
+{
+  PIDBasedPlanner planner(node_,common_,rss_);
+  PIDBasedPlanner fresh(node_,common_,rss_);
+  for(int i=0;i<5;++i) cycle(planner,obstacle(1,150));
+  planner.resetForLongitudinalHandoff();
+  EXPECT_NEAR(cycle(planner,obstacle(1,20)),cycle(fresh,obstacle(1,20)),1e-9);
+}
+
 TEST_F(PIDTargetSwitch, NearTargetDoesNotInheritFarTargetFiltersOrPidHistory)
 {
   PIDBasedPlanner planner(node_, common_, rss_);
