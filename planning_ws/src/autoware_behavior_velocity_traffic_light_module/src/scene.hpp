@@ -181,6 +181,7 @@ private:
   TrafficSignal prev_looking_tl_state_;  // Store previous state
 
   friend class TrafficLightModuleTest;
+  friend class TrafficLightComplianceModuleTest;
 };
 }  // namespace autoware::behavior_velocity_planner
 

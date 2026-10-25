@@ -13,6 +13,19 @@ namespace autoware::behavior_velocity_planner::signal_compliance
 // Authorization is route-direction-aware before it reaches this pure state machine.
 enum class Observation { Missing, Stale, Unknown, Stop, AuthorizedGreen, Yellow };
 
+inline const char * observationName(Observation value)
+{
+  switch(value) {
+    case Observation::Missing: return "missing";
+    case Observation::Stale: return "stale";
+    case Observation::Unknown: return "unknown";
+    case Observation::Stop: return "stop";
+    case Observation::AuthorizedGreen: return "direction_authorized_green";
+    case Observation::Yellow: return "yellow";
+  }
+  return "invalid";
+}
+
 class Guard
 {
 public:
@@ -68,6 +81,7 @@ public:
 
   bool yellowTransitionEligible() const { return yellow_from_authorized_green_; }
   std::size_t greenConfirmationCount() const { return green_confirmations_; }
+  Observation lastObservation() const { return previous_; }
 
   void reset()
   {
@@ -87,6 +101,56 @@ private:
   std::optional<double> last_source_;
   std::optional<double> last_now_;
 };
+
+inline std::optional<double> candidateStoppingDistance(
+  double velocity_mps, double acceleration_mps2, double max_stop_acceleration_mps2,
+  double max_stop_jerk_mps3, double delay_response_sec, double legacy_distance_m)
+{
+  if (!std::isfinite(velocity_mps) || !std::isfinite(acceleration_mps2) ||
+      !std::isfinite(max_stop_acceleration_mps2) || !std::isfinite(max_stop_jerk_mps3) ||
+      !std::isfinite(delay_response_sec) || !std::isfinite(legacy_distance_m) ||
+      max_stop_acceleration_mps2 >= 0.0 || max_stop_jerk_mps3 >= 0.0 ||
+      delay_response_sec < 0.0 || legacy_distance_m < 0.0) {
+    return std::nullopt;
+  }
+  if (velocity_mps <= 0.0) {
+    return 0.0;
+  }
+  const double velocity_at_acceleration_limit = velocity_mps +
+    (max_stop_acceleration_mps2 * max_stop_acceleration_mps2 -
+     acceleration_mps2 * acceleration_mps2) / (2.0 * max_stop_jerk_mps3);
+  if (!std::isfinite(velocity_at_acceleration_limit)) {
+    return std::nullopt;
+  }
+  if (velocity_at_acceleration_limit > 0.0) {
+    // Bounded traffic-light-only correction: leave the common library's
+    // trapezoidal branch byte-for-byte numerically unchanged.
+    return legacy_distance_m;
+  }
+
+  // Triangular braking stops before reaching the acceleration limit. The
+  // positive root of v + a0*t + j*t^2/2 = 0 must use current acceleration a0,
+  // NOT the unused maximum braking acceleration. Rationalize for a0<0 to
+  // avoid subtracting two nearly equal values at very low forward velocity.
+  const double discriminant = acceleration_mps2 * acceleration_mps2 -
+    2.0 * max_stop_jerk_mps3 * velocity_mps;
+  if (!std::isfinite(discriminant) || discriminant < 0.0) {
+    return std::nullopt;
+  }
+  const double root = std::sqrt(discriminant);
+  const double stop_time = acceleration_mps2 < 0.0 ?
+    2.0 * velocity_mps / (root - acceleration_mps2) :
+    -(acceleration_mps2 + root) / max_stop_jerk_mps3;
+  if (!std::isfinite(stop_time) || stop_time < 0.0) {
+    return std::nullopt;
+  }
+  // Retain the original constant-velocity response-delay approximation.
+  // This is not a guarantee of the measured vehicle's physical braking range.
+  const double distance = velocity_mps * delay_response_sec + velocity_mps * stop_time +
+    acceleration_mps2 * stop_time * stop_time / 2.0 +
+    max_stop_jerk_mps3 * stop_time * stop_time * stop_time / 6.0;
+  return std::isfinite(distance) ? std::optional<double>(std::fmax(0.0, distance)) : std::nullopt;
+}
 
 inline bool yellowPassthroughAllowed(
   bool enabled, bool transition_eligible, bool previous_stop, double velocity_mps,

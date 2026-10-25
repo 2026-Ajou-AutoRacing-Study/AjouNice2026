@@ -1,7 +1,8 @@
 # 황색 새 출발·신호 상실 정책 제안
 
 종류: PROPOSAL + IMPLEMENTED CANDIDATE / 2026-10-25.
-**준수 가드는 구현·국소 시험한 후보이며 기본 OFF다. 운영 기본값으로 승격한 문서가 아니다.**
+**아래 본문은 10/25 기본 OFF 후보 당시 기록이다. 10/26 추가 시험과 운영 전환은
+[후속 절](#production-261026)을 따른다. 과거 시험 결과·실패 분류는 소급 변경하지 않는다.**
 현행 코드 사실은 [통합 감사](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md), 모델 상태는 [CURRENT](CURRENT.md)를 따른다.
 MORAI 대회 시뮬레이션을 위한 제안이지 실제 도로용 안전 인증이나 법률 해석이 아니다.
 
@@ -191,3 +192,116 @@ C의 route/trajectory 누락 경고도 controller 시작 전 종료와 구분하
 
 평가는 위험 오출발, 신호 위반, 교차로 내부 불필요 정지, 허가 후 재출발 지연을 함께 본다.
 "정지율이 높음"이나 단일 이미지 색 정확도만으로 채택하지 않는다.
+
+<a id="production-261026"></a>
+
+## 2026-10-26 추가 검증과 운영 전환
+
+사용자 요청에 따라 v5 모델은 그대로 두고 **준수 가드·직접 관측 전달·route 진행 보호**를
+새 실행 기본으로 전환한다. 전체 대회 주행의 무위반 인증은 아니며 팀 4090 LAN 검증은 별도다.
+기존 본문의 `기본 OFF`는 당시 상태이고, 현재 실행·복귀는 [CURRENT](CURRENT.md)와
+[팀 설치 안내](V5_CANDIDATE_HANDOFF.md)를 따른다.
+
+### 시험 방식과 증거 경계
+
+양수 native override도 C 두 head 불일치·GO 유지 실패가 있어, 이를 허용하며 시험 PASS를 만들지 않았다.
+대신 `synth_traffic_light_planner_trial.py`가 **개발 전용 별도 토픽**으로 합성 신호를 내고,
+소유 wrapper가 시험 구간에만 표준 신호로 중계했다. native GET은 독립 기록만 하고 native SET은 하지 않는다.
+이때 실제 YOLO/CNN은 계속 실행하지만 합성 구간에 planner로 전달하지 않는다. 따라서 아래 결과는
+**실제 localization/planner/controller의 정책 시험이지 YOLO 정확도·실제 램프 준수 시험이 아니다.**
+완료된 실제 이동/정차 구간만 후속 카메라 관측에 handoff한다. helper 오류·heartbeat 상실·미수행은
+조용히 실관측으로 바꾸지 않고 해당 시험을 중단·정지/P로 마감한다. 종료 정리 뒤 heartbeat 만료는
+시험 중 단절과 구분한다. 원본·실패 시도·native 상태·source stamp는 그대로 보존한다.
+
+공통 준비 자료는 `artifacts/evaluation/traffic_light_robustness_261025/production_trials_abcd_261026_v4/`다.
+유한 OSM 정지선, 실제 route, raw Ego heading −1.347° 한 번 보정 + 기록된 TF + 앞축 3m를 사용한다.
+평가는 앞바퀴 중심 proxy이며 공식 판정 프로그램을 재구현한 것은 아니다.
+
+| 시험 | 관찰 | 해석 |
+| --- | --- | --- |
+| A 이동 중 제동 가능, Y 2초 | 선앞 14.20m·1.03m/s에서 전환. Y 구간에는 가속했지만 선을 넘지 않았고, 후속 R에서 선앞 약 0.86m에 정차 | 황색 즉시 제동으로 설명하지 않음. 실제 정지 계획과 물리 응답을 구분 |
+| A 근접 Y 3초 | 선앞 0.882m·9.03m/s, wire Y 30/30, 약 64ms 뒤 선 통과 | 가까워 제동이 어려운 조건의 통과. 공식 황색 허가를 보증하지 않음 |
+| A 선 전 신호 단절 2초 | 실제 표준 메시지 공백 2.097초. 약 0.5초 뒤 정지 궤적, 약 0.89초 뒤 첫 제동. 선앞 약 0.883m에 정지 | timeout 뒤에도 계속 GO라는 증거가 아님. 감속 전환·제어 추종 지연 존재 |
+| D 근접 R+Y 2초 | 선앞 0.871m·7.87m/s, wire R+Y 20/20. DEBUG 정지거리 13.026m·통과 결정, 약 81ms 뒤 선 통과 | 최근 허가 좌회전→황색의 이동 중 예외가 실제로 적용됨 |
+| C 선 통과 후 신호 단절 2초 | 원시 선 통과 35ms 뒤 단절, wire 공백 2.238초. 속도 7.90~8.32m/s, 제동 0 | DEBUG GO_OUT 확인. 해당 신호 상실만으로 교차로 내부 급정지하지 않음 |
+| B 정차 중 Y 3초 | wire Y 30/30, raw 최대 속도 0.000347m/s·최대 이동 약 0.016mm, 선앞 약 0.875m 유지 | 황색 새 출발 없음. 실제 G 재관측 뒤 정상 진행 |
+| D 선 통과 후 R 2초 | 실제 선 통과 약 48ms 뒤 R, wire R 20/20. DEBUG GO_OUT, 구간 끝에도 7.16m/s | 이후 적색만으로 교차로 안 급정지하지 않음. 다른 감속은 해제하지 않음 |
+
+위 일곱 시험은 각각 목적지 SUCCESS와 별도로 최종 정지/P VERIFIED를 확인했다.
+원본 wrapper 경로는 순서대로 `production_fixture_A_yellow_stoppable2_261026_v3`,
+`production_fixture_A_yellow_close3_261026_v1`, `production_fixture_A_loss_prefront_261026_v1`,
+`production_fixture_D_yellow_close2_261026_v1`, `production_fixture_C_loss_postfront_261026_v1`이다.
+추가 둘은 `production_fixture_B_stopped_yellow3_261026_v1`, `production_fixture_D_postfront_red_261026_v1`이다.
+원본 입력 70개 SHA·원시 Ego exact-header 조인·유한 선 교차·표준 메시지 원stamp·정지/P를
+[독립 파생 검토](../../../artifacts/evaluation/traffic_light_robustness_261025/production_fixture_independent_review_261026_v1.json)에 보존했다.
+이전 A stoppable v1/v2는 각각 debug argv 오류·helper snapshot clock race로 중단됐고 성공 표본에 섞지 않는다.
+
+### 이번에 바로잡은 코드·설치 문제
+
+- 선 통과 GO_OUT 뒤 큰 재배치가 있으면 같은 callback에서 접근을 다시 평가한다.
+  이전에는 다음 callback까지 한 번 GO로 남을 수 있었다. 가드 ON만 수정하며 OFF는 유지한다.
+- 저속 triangular jerk 제동 분기에서 기존 공통 함수가 음수 종료 시간을 쓸 수 있음을 독립 적분과
+  설치 라이브러리 호출로 확인했다. 1m/s·초기가속도 0·최대감속 −6·jerk −10·지연 0.5초에서
+  기존 0.353m 대비 보정 0.798m, 1.8m/s 경계에는 기존 약 0.72m 불연속이 있었다.
+  **신호등 가드 ON의 해당 분기만** 초기가속도로 구한 양의 종료 시간으로 보정한다.
+  공통 라이브러리·다른 판단 consumer·가드 OFF·기존 trapezoid 값은 바꾸지 않는다.
+  지연 구간의 기존 `v×delay` 근사까지 완전한 차량 동역학 모델로 바꾼 것은 아니다.
+- 개발 DEBUG는 실제 planner 하위 launch까지 전달하되 운영 기본 logging은 기존대로 둔다.
+  내부 분기 로그가 없던 앞선 시험에 새 로그를 소급 적용하지 않는다.
+- 딸깍 설치기는 Python 모델뿐 아니라 신호등 C++ plugin을 재빌드·설치하고 source/build/install을
+  대조한다. CMake RPATH 제거에 따른 정당한 ELF 차이만 정규화하며 다른 section 변경은 거부한다.
+  이 검사는 설치 단계이고, 대회 기동 중 새 refusal/정지 gate를 추가한 것이 아니다.
+
+### 운영 기본값 그대로의 자연 신호 확인
+
+wrapper의 `--mode production`은 신호 준수/관측/route 인자를 덮어쓰지 않는다.
+`--compliance-debug`는 개발용 내부 판단 로그만 켜며 정책 옵션은 아니다. native SET과 합성 proxy는 없다.
+실제 parameter snapshot에서 가드 ON·직접 관측 ON·route 보호 ON·timeout 0.5초를 확인했다.
+
+Sunny13 전체 경로 `production_full_natural_sunny13_261026_v1`은 SUCCESS·정지/P VERIFIED였다.
+4회 통과는 A/B G16, C 두 head G+L48, D R+L33으로 전후 0.25/0.5초 bracket에서 모두 허가였다.
+route는 `0→A→B→C→D→0`, 지난 미션 matched 재선택은 없었다.
+matched 562프레임 callback p50/p95는 34.02/50.44ms이며 전체 접근/미가시 포함 값과 구분한다.
+[독립 검토](../../../artifacts/evaluation/traffic_light_robustness_261025/production_full_natural_sunny13_independent_review_261026_v1.json)는
+raw Ego header·TF 재계산·원본 10개/JPEG 8장의 SHA와 실제 설치 plugin SHA를 보존한다.
+
+Foggy13 첫 전체 주행 `production_full_natural_foggy13_261026_v1`은 **외부 종료 신호에 의한
+MANUAL_ABORT/ERROR**로 남긴다. 신호를 누가 보냈는지는 미확인이다. SUCCESS로 소급 변경하지 않는다.
+KST 01:21:42에 시험이 중단됐고 01:21:47.335에 정지/P를 확인했다.
+D는 그 전까지 native16=직진 G였으므로 좌회전 정지 판단이 맞았다. 안정 정차 마지막 3.61초의
+30프레임은 current G27 + bounded hold3으로 표준 출력도 G30/30이었다.
+실제 R+L33 최초 GET는 01:21:47.847, 최초 원본 CNN은 47.924, 표준 발행은 47.958,
+판단 3개 확인·정지 해제는 48.321이었다. **이때는 이미 controller를 내리고 P 정리 중이므로
+R+L가 켜져도 차가 출발하지 않는 장면을 신호 인식 실패로 집계하지 않는다.**
+별도 `production_D_natural_foggy13_recheck_261026_v1`은 실제 출발·목적지 SUCCESS·정지/P VERIFIED였다.
+첫 전체 ERROR·D 재시험·후속 전체 시험을 구분하고 중단 전후 기록을 합쳐 가짜 완주를 만들지 않는다.
+
+Foggy13 전체 재시험 `production_full_natural_foggy13_261026_v2`도 SUCCESS·정지/P VERIFIED였다.
+4회 통과 A16/B16/C48(두 head)/D33 모두 전후 0.25/0.5초 native 허가를 확인했고,
+route는 `0→A→B→C→D→0`, 지난 미션 재선택은 없었다. matched 603프레임 callback p50/p95는
+30.34/44.18ms였다. [독립 검토](../../../artifacts/evaluation/traffic_light_robustness_261025/production_full_natural_foggy13_v2_independent_review_261026_v1.json)는
+원본 9개/JPEG 8장의 SHA와 정확한 source stamp를 보존한다.
+D 통과 전후 유지 관측 age 0.241/0.370초는 원래 stamp 그대로이며 0.5초 이내였다.
+B의 fallback R은 교차 추정 시각과 약 58μs 차이여서 선 전/후의 정밀 인과는 단정하지 않는다.
+이 pipeline fallback과 실제 native 허가 상태는 별개다. 로컬 주행 결과만으로 LAN 부하 여유를 보증하지 않는다.
+실험을 마친 뒤 API에서 Sunny13 복원 readback을 확인했고 차량은 P·정지 상태로 남겼다.
+
+### 최종 코드·설치 검사
+
+- Python 관련 310개(신호등 167개 포함), 실제 C++ 모듈/독립 oracle/기존 황색 회귀 42개 통과.
+- 과거 정책을 기대하던 테스트는 근거 커밋에 맞춰 exact 조합으로 교정했으며 xfail/검사 제거는 하지 않았다.
+  통합 launch의 옛 고정 3초 기대값도 현재 인자 전달 계약으로 교정했고 prediction runtime은 바꾸지 않았다.
+- 딸깍 설치와 `--check` 모두 완료. 최종 설치 plugin SHA256은
+  `9799944cde843f566dc45a5317db0a6adb9c4b353d85008451bc69393bd895f3`이다.
+  [설치 receipt 사본](../../../artifacts/evaluation/traffic_light_robustness_261025/production_runtime_install_receipt_261026.json)은
+  build/install 일치 근거이며 주행·공식 신호 준수 인증이 아니다.
+  테스트 소스 수정 직후의 이전 receipt 불일치는 정상 재빌드로 해소했고 검사를 우회하지 않았다.
+
+### 운영 계약과 남은 범위
+
+정차 중 Y/R+Y 새 출발 금지, 신선한 경로 허가 관측 3개 확인, 원래 관측 stamp 기준 0.5초 만료가 기본이다.
+앞축 통과 뒤에는 현재 교차로를 이어가며, 최근 허가→황색에서 실제 제동 불가인 경우만 통과 예외를 둔다.
+D의 기존 4초 장기 황색 관측 상한은 유지하며 잔여 황색 예측에 사용하지 않는다.
+단절을 GO로 덮지 않으므로 장기 인지/TF/route 상실 시 정차가 계속될 수 있다. 원인을 해결해야 한다.
+프로필 이름 `v5_candidate`·가중치 metadata는 호환을 위해 보존하고 모델 재학습/재업로드는 하지 않는다.
+합성 정책 시험·로컬 무객체 자연 주행·공식 LAN/BEVFusion 부하 검증을 서로 대체하지 않는다.

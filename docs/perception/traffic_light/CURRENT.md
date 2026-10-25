@@ -1,13 +1,13 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-26 검토. **v5 지도+CNN은 traffic·Validator 기본**, 새 준수 가드는 기본 OFF 후보다.
+상태: 2026-10-26. **v5 지도+CNN·준수 가드·직접 관측·route 진행 보호가 운영 기본**이다.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다.
 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
 ## 운영 기준
 
 - `traffic_light_node.launch`: front JPEG 1280×720, YOLO housing 1클래스,
-  confidence 0.25, 최대 처리 10Hz, smoother 7/4.
+  confidence 0.25, 최대 처리 10Hz. 운영은 직접 관측 전달 + 판단의 서로 다른 허가 관측 3개 확인이다.
 - 기본은 YOLO26n960 + 지도 연결 + CNN v5, `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다.
   고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
 - 관측은 CNN 4-bit 분류, route별 보정은 기존 `traffic_signal_profiles.yaml`이다.
@@ -34,9 +34,9 @@
 - 후보의 학습·score 문제·실ROS 입력·연속 평가·제약은
   [통합 검증 기록](261025_YOLO_CNN_MAP_RUNTIME_EVALUATION.md)을 본다.
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
-- yellow/R+Y/unknown을 인지와 BVP가 다르게 처리하는 현재 계약은
-  [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)를 본다.
-  [새 출발·신호 상실 후보](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)는 기본 OFF다. D의 황색·단절 시험과 A/B/C/D 추가 검증을 구분한다.
+- 이전 yellow/R+Y/unknown 계약은 [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)의 당시 기록이다.
+  현재는 선 전 정차의 Y/R+Y 새 출발을 막고, missing·stale·UNKNOWN을 GO로 풀지 않는다.
+  [정책·승격 검증](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#production-261026)에서 합성 입력과 자연 신호 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
   승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
@@ -58,8 +58,8 @@
 특히 D-2에서 G와 Y 단독은 좌회전 신호가 아니다.
 R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미를 복원하지 않는다.
 위 표는 영상 관측을 평가하는 기준이며 CNN 입력에 구간 GT나 phase 정답을 넣는 기능이 아니다.
-현행 D-2의 R+Y 통과 설정은 코드 사실이지, 황색을 처음 보고 새로 출발해도 된다는
-규정·팀 정책의 확정이 아니다. 공식 정지선 통과와 이미 진행 중인 경우를 구분한 문의가 남아 있다.
+기존 D-2 프로필의 R+Y 관측을 유지하되 판단 준수 가드는 황색만 보고 새로 출발하지 않는다.
+이동 중 최근 허가→황색의 제동 불가 예외는 잔여 황색이나 공식 무패널티를 보증하지 않는다.
 사용자가 재확인한 미션 명칭은 A·B·C(두 physical head)·D(옛 D-2)다.
 동적 교차로 뒤에 보이는 옛 D-1은 검출 라벨로 존재해도 미션 신호 허용 대상으로 쓰지 않는다.
 
@@ -68,8 +68,8 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
-4. 통과한 D의 재선택을 막는 `route_progress_guard`는 기본 OFF 후보다. 자연 Sunny13 무객체 1회에서
-   A→B→C→D→none과 허가 신호 4회 통과를 확인했다. [후보 범위·남은 시험](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 따른다.
+4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
+   0.5초 freshness는 원래 관측 stamp 기준이며, 앞바퀴가 선을 넘은 뒤에는 해당 신호만으로 급정지시키지 않는다.
 
 ## 평가·학습 경계
 
@@ -87,8 +87,8 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
   가려짐·판독 불가를 소등 또는 음성 라벨로 강제하지 않는다.
 - 개발용 투영은 raw Ego heading에서 −1.347°를 한 번 적용한 MGeo 좌표 기준이다.
   이미 보정된 운영 localization/TF에 이 보정을 다시 적용하면 안 된다.
-- 운영 승격은 별도다. 원시 관측, 정책 보정 후 출력, 전환 지연, 위험 오통과,
-  장기 정차, 실제 ROS 입력·출력을 각각 검증해야 한다.
+- 이 승격은 로컬 개발 검증 범위다. 공식 LAN·팀 4090·BEVFusion 동시 부하에서의
+  전환 지연·실제 센서 단절·공식 신호 준수는 후속 확인이며 주행 100% 인증이 아니다.
 - 신호를 처음 본 시점은 점등 시작 시점이 아니다. 고정 2.5초 카운트로 황색 잔여 시간을
   보장하지 않으며, 팀 대화의 대회 주기 단축 예상도 운영 상수로 쓰지 않는다.
 

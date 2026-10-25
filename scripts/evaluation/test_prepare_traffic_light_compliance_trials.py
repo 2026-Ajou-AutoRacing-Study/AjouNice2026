@@ -120,6 +120,9 @@ def test_trial_copy_is_low_volume_and_preserves_full_default_case(tmp_path):
                   '/evaluation/traffic_light_policy/fault',
                   '/evaluation/traffic_light_policy/source_signals'):
         assert topic in full['recording']['selected_topics']
+    for topic in ('/evaluation/traffic_light_policy/planner_fixture_signals',
+                  '/evaluation/traffic_light_policy/planner_fixture_status'):
+        assert topic in full['recording']['selected_topics']
     focus = trial.trial_document(original, tmp_path, 'A', 'A.json', dict(x=3))
     assert focus['default_case']['waypoints'] == []
     assert focus['default_case']['goal'] == dict(x=3)

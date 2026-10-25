@@ -43,6 +43,8 @@ TOPICS = ['/Ego_topic', '/Competition_topic', '/CollisionData', '/VehicleCollisi
           '/traffic_light_node/debug_observed_label', '/traffic_light_node/debug_raw_label',
           '/evaluation/traffic_light_policy/fault',
           '/evaluation/traffic_light_policy/source_signals',
+          '/evaluation/traffic_light_policy/planner_fixture_signals',
+          '/evaluation/traffic_light_policy/planner_fixture_status',
           '/diagnostics', '/rosout', '/rosout_agg']
 
 

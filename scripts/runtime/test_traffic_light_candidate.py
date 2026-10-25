@@ -3,6 +3,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tarfile
@@ -12,6 +13,37 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import traffic_light_candidate as assets
+
+
+MOCK_ELF_SOURCE = r'''import struct
+def plugin_elf(strip_rpath=False, tamper='', old=False):
+    names=['','.note.gnu.build-id','.text','.rodata','.dynstr','.dynsym','.dynamic','.shstrtab']
+    shstr=b'\0';name_offsets={}
+    for name in names[1:]:name_offsets[name]=len(shstr);shstr+=name.encode()+b'\0'
+    strings=b'\0symbol\0libmock.so\0';path_offset=len(strings);path=b'/mock/build/rpath\0';strings+=path
+    if strip_rpath:strings=strings[:path_offset]+b'\0'*len(path)
+    entries=[(1,8),(29,path_offset),(12,0x1234)]
+    if strip_rpath:entries=[entry for entry in entries if entry[0]!=29]
+    dynamic=b''.join(struct.pack('<qQ',*entry) for entry in entries).ljust(80,b'\0')
+    markers=b'enable_signal_compliance_guard signal_compliance_front_axle_offset_m'
+    data=[b'',struct.pack('<III',4,20,3)+b'GNU\0'+b'b'*20,b'\x90\xc3',
+          b'old plugin' if old else markers,strings,b'\0'*24+struct.pack('<IBBHQQ',1,0,0,0,0,0),dynamic,shstr]
+    if tamper=='text':data[2]=b'\xcc'+data[2][1:]
+    if tamper=='rodata':data[3]=b'X'+data[3][1:]
+    if tamper=='dynsym':data[5]=data[5][:-1]+b'\x01'
+    if tamper=='build_id':data[1]=data[1][:-1]+b'c'
+    kinds=[0,7,1,1,3,11,6,3];flags=[0,2,6,2,2,2,3,0]
+    links=[0,0,0,0,0,4,4,0];sizes=[0,0,0,0,0,24,16,0]
+    body=bytearray(64);headers=[(0,)*10]
+    for index in range(1,len(names)):
+        body+=b'\0'*(-len(body)%8);offset=len(body);body+=data[index]
+        headers.append((name_offsets[names[index]],kinds[index],flags[index],0,offset,len(data[index]),links[index],0,8,sizes[index]))
+    body+=b'\0'*(-len(body)%8);section_offset=len(body)
+    for header in headers:body+=struct.pack('<IIQQQQIIQQ',*header)
+    body[:64]=struct.pack('<16sHHIQQQIHHHHHH',b'\x7fELF\x02\x01\x01'+b'\0'*9,
+                          3,62,1,0,0,section_offset,0,64,0,0,64,len(headers),7)
+    return bytes(body)
+'''
 
 
 class PublicResponse(io.BytesIO):
@@ -214,6 +246,227 @@ class AssetsTest(unittest.TestCase):
         for name in ('install_traffic_light_candidate.sh','setup_traffic_light_env.sh'):
             result=subprocess.run(['bash',str(assets.ROOT/'scripts/runtime'/name),'--help'],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
+
+
+class InstallerRuntimeTest(unittest.TestCase):
+    """Run the shell in a tiny fake checkout; no real build/model/ROS/network."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)/'repo';self.root.mkdir()
+        self.bin=self.root/'mock-bin';self.bin.mkdir()
+        self.log=self.root/'commands.jsonl'
+        self.cpp='autoware_behavior_velocity_traffic_light_module'
+        self.traffic=self.root/'base_ws/src/perception/traffic_light_detection'
+        self.integration=self.root/'base_ws/src/planning_addons/ajounice_planning_integration'
+        self.plugin=self.root/'planning_ws/install_isolated/lib'/('lib'+self.cpp+'.so')
+        self.receipt=self.root/'base_ws/install_aw149/share/traffic_light_detection/oneclick_runtime_receipt.json'
+        self.write('scripts/runtime/install_traffic_light_candidate.sh',
+            (assets.ROOT/'scripts/runtime/install_traffic_light_candidate.sh').read_text())
+        for relative in ('base_ws/src/perception/traffic_light_detection/CMakeLists.txt',
+                         'base_ws/src/planning_addons/ajounice_planning_integration/CMakeLists.txt',
+                         'planning_ws/src/'+self.cpp+'/CMakeLists.txt'):
+            self.write(relative,'# mock source\n')
+        self.write('planning_ws/src/'+self.cpp+'/src/scene.cpp','// mock compliance source\n')
+        self.write('planning_ws/src/'+self.cpp+'/include/guard.hpp','// mock guard header\n')
+        self.write('planning_ws/src/'+self.cpp+'/plugins.xml','<library/>\n')
+        self.write('planning_ws/src/'+self.cpp+'/config/policy.yaml','guard: false\n')
+        self.write('base_ws/src/perception/traffic_light_detection/scripts/node.py','#!/usr/bin/env python3\n# node body\n')
+        self.write('base_ws/src/perception/traffic_light_detection/launch/traffic.launch','<launch/>\n')
+        self.write('base_ws/src/perception/traffic_light_detection/config/policy.yaml','guard: true\n')
+        self.write('base_ws/src/planning_addons/ajounice_planning_integration/launch/planning.launch','<launch/>\n')
+        self.write('base_ws/src/planning_addons/ajounice_planning_integration/config/planning.yaml','value: 1\n')
+        self.write('scripts/workspace/source_aw149.sh','# fake source; never calls ROS\n')
+        self.write('planning_ws/tools/build.sh','#!/usr/bin/env bash\nexec mock_planning_build "$@"\n')
+        self.write('scripts/runtime/setup_traffic_light_env.sh','#!/usr/bin/env bash\nexec mock_env "$@"\n')
+        self.write('scripts/runtime/check_traffic_light_env.py','import os,json\nwith open(os.environ["MOCK_LOG"],"a") as f:f.write(json.dumps(["check_env"])+"\\n")\n')
+        self.write('scripts/runtime/traffic_light_candidate.py', '''import json,os
+def load_release():return {'models':{'yolo':{'sha256':'a'*64},'cnn':{'sha256':'b'*64}}}
+def paths(directory,doc):return {'yolo':'/mock/yolo.pt','cnn':'/mock/cnn.pt'}
+if __name__=='__main__':
+    with open(os.environ['MOCK_LOG'],'a') as f:f.write(json.dumps(['models'])+'\\n')
+''')
+        self.write('mock_elf.py',MOCK_ELF_SOURCE)
+        # One mock executable handles only commands the installer may invoke.
+        self.write('mock-bin/dispatch', '''#!/usr/bin/python3
+import json,os,shutil,sys
+from pathlib import Path
+r=Path(os.environ['MOCK_ROOT']);name=Path(sys.argv[0]).name
+sys.path.insert(0,str(r))
+from mock_elf import plugin_elf
+with open(os.environ['MOCK_LOG'],'a') as f:f.write(json.dumps([name]+sys.argv[1:])+'\\n')
+cpp='autoware_behavior_velocity_traffic_light_module'
+def install_assets():
+    for package,source in [('traffic_light_detection',r/'base_ws/src/perception/traffic_light_detection'),
+                           ('ajounice_planning_integration',r/'base_ws/src/planning_addons/ajounice_planning_integration')]:
+        for folder in ('launch','config'):
+            shutil.copytree(source/folder,r/'base_ws/install_aw149/share'/package/folder,dirs_exist_ok=True)
+        if package=='traffic_light_detection':
+            target=r/'base_ws/install_aw149/lib'/package;target.mkdir(parents=True,exist_ok=True)
+            for p in (source/'scripts').glob('*.py'):shutil.copy2(p,target/p.name)
+    (r/'base_ws/install_aw149/share/planning_scenario_validator').mkdir(parents=True,exist_ok=True)
+if name=='mock_planning_build':
+    if os.environ.get('MOCK_BUILD_FAIL'):raise SystemExit(9)
+    old=bool(os.environ.get('MOCK_OLD_PLUGIN'))
+    built=plugin_elf(old=old)
+    installed=plugin_elf(strip_rpath=bool(os.environ.get('MOCK_STRIP_RPATH')),tamper=os.environ.get('MOCK_TAMPER',''),old=old)
+    for p,body in [(r/'planning_ws/install_isolated/lib'/('lib'+cpp+'.so'),installed),
+                   (r/'planning_ws/devel_isolated'/cpp/'lib'/('lib'+cpp+'.so'),built)]:
+        p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(body)
+    (r/'planning_ws/install_isolated/share'/cpp).mkdir(parents=True,exist_ok=True)
+    shutil.copy2(r/'planning_ws/src'/cpp/'plugins.xml',r/'planning_ws/install_isolated/share'/cpp/'plugins.xml')
+    shutil.copytree(r/'planning_ws/src'/cpp/'config',r/'planning_ws/install_isolated/share'/cpp/'config',dirs_exist_ok=True)
+elif name=='cmake':
+    if 'install' in sys.argv:install_assets()
+elif name=='catkin_make_isolated':install_assets()
+elif name=='rospack':
+    package=sys.argv[2]
+    if os.environ.get('MOCK_WRONG_OVERLAY'):print('/other/share/'+package)
+    else:print(r/('planning_ws/install_isolated/share' if package==cpp else 'base_ws/install_aw149/share')/package)
+elif name=='ldd':
+    print('libmock.so => not found' if os.environ.get('MOCK_BAD_LINK') else 'libmock.so => /mock/libmock.so')
+elif name!='mock_env':raise SystemExit('Unexpected external command '+name)
+''',executable=True)
+        for name in ('cmake','catkin_make_isolated','rospack','ldd','mock_planning_build','mock_env'):
+            (self.bin/name).symlink_to(self.bin/'dispatch')
+        self.env=dict(os.environ,MOCK_ROOT=str(self.root),MOCK_LOG=str(self.log),
+                      PATH=str(self.bin)+os.pathsep+os.environ['PATH'])
+        self.caches()
+
+    def write(self,relative,text,executable=False):
+        path=self.root/relative;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
+        if executable:path.chmod(0o755)
+        return path
+
+    def caches(self):
+        for package in ('traffic_light_detection','planning_scenario_validator','ajounice_planning_integration',self.cpp):
+            planning=package==self.cpp
+            workspace='planning_ws' if planning else 'base_ws'
+            build='build_isolated' if planning else 'build_aw149'
+            source=('planning_ws/src/'+package if planning else 'base_ws/src/'+
+                    ('perception/' if package=='traffic_light_detection' else 'planning_addons/')+package)
+            prefix=self.root/workspace/('install_isolated' if planning else 'install_aw149')
+            self.write(workspace+'/'+build+'/'+package+'/CMakeCache.txt',
+                'CMAKE_HOME_DIRECTORY:INTERNAL='+str(self.root/source)+'\nCMAKE_INSTALL_PREFIX:PATH='+str(prefix)+'\n')
+
+    def run_installer(self,*arguments,**environment):
+        return subprocess.run(['bash',str(self.root/'scripts/runtime/install_traffic_light_candidate.sh'),
+                               *arguments],env=dict(self.env,**environment),text=True,capture_output=True)
+
+    def commands(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def test_default_rebuilds_only_plugin_and_three_base_packages_then_verifies(self):
+        result=self.run_installer()
+        self.assertEqual(result.returncode,0,result.stderr)
+        calls=self.commands()
+        build=next(c for c in calls if c[0]=='mock_planning_build')
+        self.assertEqual(build[1:],['--pkg',self.cpp,'--force-cmake','--make-args','-j2','-l2'])
+        cmake=[c for c in calls if c[0]=='cmake']
+        self.assertEqual(len(cmake),4)
+        self.assertIn('clean',cmake[0]);self.assertIn(self.cpp,cmake[0][2])
+        self.assertEqual([Path(c[2]).name for c in cmake[1:]],
+                         ['traffic_light_detection','planning_scenario_validator','ajounice_planning_integration'])
+        self.assertTrue(self.receipt.is_file())
+        self.assertIn('[RUNTIME VERIFIED]',result.stdout)
+        self.assertIn('[V5 READY]',result.stdout)
+
+    def test_check_is_build_free_and_rejects_stale_cpp_source(self):
+        self.assertEqual(self.run_installer().returncode,0)
+        before=self.receipt.read_bytes();self.log.unlink()
+        checked=self.run_installer('--check')
+        self.assertEqual(checked.returncode,0,checked.stderr)
+        self.assertFalse(any(c[0] in ('cmake','mock_planning_build','catkin_make_isolated') for c in self.commands()))
+        self.assertEqual(self.receipt.read_bytes(),before)
+        (self.root/'planning_ws/src'/self.cpp/'src/scene.cpp').write_text('// newer source\n')
+        stale=self.run_installer('--check')
+        self.assertNotEqual(stale.returncode,0)
+        self.assertIn('Runtime receipt differs',stale.stderr)
+        self.assertNotIn('[V5 READY]',stale.stdout)
+
+    def test_build_failure_keeps_installed_plugin_and_never_claims_ready(self):
+        self.plugin.parent.mkdir(parents=True);self.plugin.write_bytes(b'user existing installed plugin')
+        result=self.run_installer(MOCK_BUILD_FAIL='1')
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(self.plugin.read_bytes(),b'user existing installed plugin')
+        self.assertFalse(self.receipt.exists())
+        self.assertNotIn('[V5 READY]',result.stdout)
+
+    def test_old_plugin_missing_dependency_and_wrong_overlay_cannot_pass_install(self):
+        for environment in ({'MOCK_OLD_PLUGIN':'1'},{'MOCK_BAD_LINK':'1'},{'MOCK_WRONG_OVERLAY':'1'}):
+            with self.subTest(environment=environment):
+                result=self.run_installer(**environment)
+                self.assertNotEqual(result.returncode,0)
+                self.assertFalse(self.receipt.exists())
+                self.assertNotIn('[V5 READY]',result.stdout)
+
+    def test_cmake_rpath_removal_is_accepted_with_distinct_raw_hashes(self):
+        result=self.run_installer(MOCK_STRIP_RPATH='1')
+        self.assertEqual(result.returncode,0,result.stderr)
+        receipt=json.loads(self.receipt.read_text())
+        self.assertNotEqual(receipt['built_plugin_sha256'],receipt['installed_plugin_sha256'])
+        elf=receipt['plugin_elf_identity']
+        self.assertEqual(elf['gnu_build_id'],(b'b'*20).hex())
+        self.assertEqual(set(elf['normalized_alloc_section_sha256']),
+                         {'.note.gnu.build-id','.text','.rodata','.dynstr','.dynsym','.dynamic'})
+        checked=self.run_installer('--check')
+        self.assertEqual(checked.returncode,0,checked.stderr)
+
+    def test_code_data_symbol_tampering_with_reused_build_id_is_rejected(self):
+        for section in ('text','rodata','dynsym'):
+            with self.subTest(section=section):
+                result=self.run_installer(MOCK_STRIP_RPATH='1',MOCK_TAMPER=section)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('differs outside expected RPATH relocation',result.stderr)
+                self.assertIn('.'+section,result.stderr)
+                self.assertFalse(self.receipt.exists())
+                self.assertNotIn('[V5 READY]',result.stdout)
+
+    def test_different_gnu_build_id_is_rejected(self):
+        result=self.run_installer(MOCK_TAMPER='build_id')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('GNU build-id differs',result.stderr)
+        self.assertFalse(self.receipt.exists())
+
+    def test_models_only_and_explicit_skip_build_preserve_their_narrow_scope(self):
+        result=self.run_installer('--models-only')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.commands(),[['models']])
+        self.log.unlink()
+        result=self.run_installer('--skip-build','--existing-python','/usr/bin/python3')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.commands(),[['models'],['check_env']])
+        self.assertIn('[MODEL/ENV ONLY]',result.stdout)
+        self.assertNotIn('[V5 READY]',result.stdout)
+
+    def test_missing_base_cache_uses_only_scoped_base_fallback(self):
+        (self.root/'base_ws/build_aw149/ajounice_planning_integration/CMakeCache.txt').unlink()
+        result=self.run_installer()
+        self.assertEqual(result.returncode,0,result.stderr)
+        command=next(c for c in self.commands() if c[0]=='catkin_make_isolated')
+        index=command.index('--pkg')
+        self.assertEqual(command[index+1:index+4],
+                         ['traffic_light_detection','planning_scenario_validator','ajounice_planning_integration'])
+
+    def test_foreign_planning_cache_is_not_cleaned_or_reused(self):
+        path=self.root/'planning_ws/build_isolated'/self.cpp/'CMakeCache.txt'
+        original=path.read_text().replace(str(self.root/'planning_ws/src'/self.cpp),'/other/source')
+        path.write_text(original)
+        result=self.run_installer()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Refusing foreign/moved CMake cache',result.stderr)
+        self.assertEqual(path.read_text(),original)
+        self.assertFalse(any(c[0] in ('cmake','mock_planning_build') for c in self.commands()))
+
+    def test_foreign_base_cache_with_missing_cache_is_rejected_before_any_build(self):
+        (self.root/'base_ws/build_aw149/ajounice_planning_integration/CMakeCache.txt').unlink()
+        path=self.root/'base_ws/build_aw149/traffic_light_detection/CMakeCache.txt'
+        original=path.read_text().replace(str(self.traffic),'/other/traffic/source')
+        path.write_text(original)
+        result=self.run_installer()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Refusing foreign/moved CMake cache',result.stderr)
+        self.assertEqual(path.read_text(),original)
+        self.assertFalse(any(c[0] in ('cmake','mock_planning_build','catkin_make_isolated') for c in self.commands()))
 
 
 if __name__=='__main__':unittest.main()

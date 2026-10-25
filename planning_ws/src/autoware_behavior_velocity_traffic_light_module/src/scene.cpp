@@ -116,6 +116,9 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
       if (planner_param_.enable_signal_compliance_guard) {
         setSafe(true);
         is_prev_state_stop_ = false;
+        RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+          "[signal_compliance] reg=%ld state=GO_OUT front_line_m=%.3f decision=clear_crossed_line",
+          traffic_light_reg_elem_.id(), *front_axle_distance);
       }
       return true;
     }
@@ -199,6 +202,13 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
         RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
         state_ = State::APPROACH;
         signal_compliance_guard_.reset();
+        if (planner_param_.enable_signal_compliance_guard) {
+          // The previous crossing no longer authorizes a new approach after
+          // relocation. Re-evaluate once in this callback, not one GO cycle later.
+          // Recursion is bounded: state is APPROACH and front distance is >1m.
+          stop_signal_received_time_ptr_.reset();
+          return modifyPathVelocity(path);
+        }
       }
     }
     stop_signal_received_time_ptr_.reset();
@@ -238,9 +248,15 @@ bool TrafficLightModule::isStopSignal()
           Observation::Stop : Observation::AuthorizedGreen;
       }
     }
-    return signal_compliance_guard_.observe(
+    const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout);
+    RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+      "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d",
+      traffic_light_reg_elem_.id(), signal_compliance::observationName(observation),
+      traffic_signal_stamp_ ? (clock_->now()-*traffic_signal_stamp_).toSec() : -1.,
+      signal_compliance_guard_.greenConfirmationCount(), require_stop);
+    return require_stop;
   }
 
   // If there is no upcoming traffic signal information,
@@ -417,15 +433,30 @@ bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
   if (planner_param_.enable_signal_compliance_guard) {
     // Failing to stop at the conservative bumper target is NOT sufficient to
     // authorize a yellow crossing if the front axle can still stop before the line.
+    const auto candidate_stop_distance = signal_compliance::candidateStoppingDistance(
+      planner_data_->current_velocity->twist.linear.x,
+      planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
+      delay_response_time, pass_judge_line_distance);
     const auto front_line_distance = signal_compliance::frontAxleDistanceFromBumperStop(
       signed_arc_length, planner_param_.stop_margin,
       planner_data_->vehicle_info_.max_longitudinal_offset_m,
       planner_param_.signal_compliance_front_axle_offset_m);
-    return front_line_distance && signal_compliance::yellowPassthroughAllowed(
+    const bool allow_pass = front_line_distance && candidate_stop_distance &&
+      signal_compliance::yellowPassthroughAllowed(
       planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
       is_prev_state_stop_ || planner_data_->isVehicleStopped(),
       planner_data_->current_velocity->twist.linear.x, planner_param_.yellow_light_stop_velocity,
-      pass_judge_line_distance, *front_line_distance);
+      *candidate_stop_distance, *front_line_distance);
+    RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+      "[signal_compliance] reg=%ld state=APPROACH class=%s front_line_m=%.3f judge_stop_m=%.3f legacy_judge_stop_m=%.3f velocity_mps=%.3f source_age_sec=%.3f green_count=%zu yellow_eligible=%d passthrough=%d",
+      traffic_light_reg_elem_.id(), signal_compliance::observationName(signal_compliance_guard_.lastObservation()),
+      front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
+      candidate_stop_distance.value_or(std::numeric_limits<double>::quiet_NaN()), pass_judge_line_distance,
+      planner_data_->current_velocity->twist.linear.x,
+      traffic_signal_stamp_ ? (clock_->now()-*traffic_signal_stamp_).toSec() : -1.,
+      signal_compliance_guard_.greenConfirmationCount(),
+      signal_compliance_guard_.yellowTransitionEligible(), allow_pass);
+    return allow_pass;
   }
 
   const bool distance_stoppable = pass_judge_line_distance < signed_arc_length;

@@ -1,9 +1,9 @@
 # 신호등 v5 후보 설치·팀 시험
 
-현재 상태: 2026-10-25 사용자 요청으로 **traffic·Validator 기본값**으로 전환했다.
+현재 상태: 2026-10-26 **v5와 신호 준수 정책이 traffic·Validator·planning의 새 실행 기본값**이다.
 [CURRENT](CURRENT.md)와 [황색·상실 정책 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 함께 읽는다.
 새 모델은 YOLO26n960 + 지도 housing 연결 + ResNet18 CNN v5다.
-옛 YOLO640/HSV는 명시적 복귀로 보존한다. planning 황색·fail-open 값은 바꾸지 않았다.
+옛 YOLO640/HSV는 명시적 복귀로 보존한다. 준수 가드 ON은 기존 황색 GO·상실 fail-open보다 우선한다.
 **D 근접 누락은 [조건부 재검출·지도 보완](261025_NEAR_SIGNAL_RECOVERY.md)으로 수정했다.
 로컬 Sunny13·Foggy13 무객체 폐루프 PASS이며 LAN·BEVFusion 동시 주행 인증은 아니다.**
 파일명/profile의 `candidate`와 가중치의 연구 metadata는 호환·원본 보존용이다. 현재 실행 선택은 CURRENT를 따른다.
@@ -24,7 +24,8 @@ source scripts/workspace/source_aw149.sh
 ```
 
 설치기는 모델 다운로드·해시 검사·전용 Python/CUDA 환경·실제 YOLO/CNN 추론 및 ROS import 검사·
-관련 패키지 증분 설치를 한다. **노드/주행/환경 활성화/GUI/운영 전환은 시작하지 않는다.**
+신호등 C++ plugin만 재빌드하고 관련 base 패키지를 설치한다. build/install ELF·launch·Python 일치를
+receipt로 확인한다. **노드/주행/환경 활성화/GUI는 시작하지 않는다.** 기동 중인 스택은 먼저 정상 종료한다.
 실행 시에도 없는 모델을 조용히 다른 모델로 바꾸지 않는다.
 
 ### 모델 다운로드·공유 범위
@@ -47,8 +48,9 @@ bash scripts/runtime/install_traffic_light_candidate.sh --archive /path/to/final
 압축본 SHA256: `8e9e184812ff87e0bba4215483893b6453207df5d4ed163f46239bab4fc5e78e`.
 배포 계약은 [release JSON](../../../configs/perception/traffic_light_v5_candidate_release.json) 한 곳에서 관리한다.
 모델 단독 준비 `--models-only`는 GPU/ROS 검증 완료가 아니다.
-이미 별도 환경이 있다면 `--existing-python /absolute/bin/python --skip-build`로 **변경 없이 검사**할 수 있다.
-`--check`는 다운로드·설치·빌드 없이 기존 모델/환경을 검사한다.
+이미 별도 환경이 있다면 `--existing-python /absolute/bin/python`으로 재사용한다.
+`--skip-build`는 모델/환경 검사만 하며 runtime READY가 아니다. `--check`는 다운로드·설치·빌드 없이
+기존 모델/환경과 source/build/install receipt를 검사한다. 검사는 기동 중 차를 멈추는 runtime gate가 아니다.
 
 ### 시스템 Python에 관하여
 
@@ -92,9 +94,30 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 
 - 실제 route·localization/TF에서 A/B/C(두 head)/D가 맞게 선택되고 옛 D-1은 제외되는지.
 - 검출·원시 CNN·보정·유지된 출력·planning 최종 동작을 같은 source stamp로 대조.
-- 정차 중 Y/R+Y 새 출발, 선 전 카메라/신호 단절, 선 통과 후 정상 화각 이탈은 별도 정책 시험.
+- 정차 중 Y/R+Y 새 출발·선 전/후 상실은 [추가 개발 시험](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#production-261026)과 실제 LAN 단절을 구분한다.
 - 4090에서 BEVFusion 동시 실행 시 처리시간/입력 밀림/실제 device/VRAM 확인.
 - 로컬 무객체 Sunny13·Foggy13은 주행 PASS. LAN·팀4090 동시 부하·공식 신호 준수는 별도다.
 
 복귀하려면 `traffic_legacy` 또는 GUI의 `기존 YOLO+HSV`를 명시적으로 선택해 새 실행한다. 과거 모델·환경을 삭제하거나
 실패 실행을 PASS로 바꿔 재개하지 않는다.
+
+### 정책 기본값과 명시적 복귀
+
+`traffic_light_node.launch`/`traffic_light_v5_candidate.launch`는
+`planner_compliance_observations:=true route_progress_guard:=true`가 기본이다.
+`planning.launch`는 `enable_signal_compliance_guard:=true traffic_light_state_timeout_sec:=0.5`다.
+`morai_planning_stack.launch`도 같은 인자를 전달한다. 정차 중 황색/R+Y는 출발하지 않고,
+이동 중 최근 허가→황색만 제동 경계 예외를 검토한다. 관측 3개는 3초가 아니다.
+신호 상실/불확실 시 선 전에는 정지를 요구하므로, 장기 상실은 수동 원인 해결이 필요할 수 있다.
+선 통과 후에는 해당 교차로 통과를 이어가지만 다른 장애물 제동을 해제하지 않는다.
+
+모델 복귀와 정책 복귀는 별개다. **개발 대조용** 옛 정책은 planning에
+`enable_signal_compliance_guard:=false traffic_light_state_timeout_sec:=1.0`, traffic에
+`planner_compliance_observations:=false route_progress_guard:=false`를 명시한다.
+그 경우 기존 황색 GO·상실 fail-open이 복원되므로 권장 운영 복귀가 아니다.
+`traffic_light_legacy.launch`는 모델/상류 두 옵션만 되돌리고 planning 가드를 임의 해제하지 않는다.
+새 git 코드로 과거 실행 snapshot의 resume 계약을 우회하지 말고 **새 실험**을 시작한다.
+
+운영 기본값 그대로 로컬 Sunny13·Foggy13 무객체 전체 경로를 각각 완료했고 A/B/C/D의 허가 신호
+통과와 마지막 정지/P를 대조했다. 중단된 첫 Foggy 주행은 ERROR로 별도 보존했다.
+이는 실제 planner/controller·localization 시험이며 팀 4090/LAN·BEVFusion 동시 부하 인증은 아니다.

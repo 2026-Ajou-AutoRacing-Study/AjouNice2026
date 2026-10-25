@@ -21,11 +21,19 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE_TOPIC = '/evaluation/traffic_light_policy/source_signals'
 FAULT_TOPIC = '/evaluation/traffic_light_policy/fault'
 CANONICAL = '/perception/traffic_light_recognition/traffic_signals'
+FIXTURE_TOPIC = '/evaluation/traffic_light_policy/planner_fixture_signals'
+FIXTURE_STATUS_TOPIC = '/evaluation/traffic_light_policy/planner_fixture_status'
+FIXTURE_MODES = ('stopped-yellow', 'moving-yellow-stoppable', 'moving-yellow-close',
+                 'loss-prefront', 'loss-postfront', 'postfront-red')
 
 
 def launch_arguments(package, filename, arguments, guarded, route_progress, proxy,
                      temporal_direct=False, signal_timeout_sec=1.0):
     result = dict(arguments)
+    if guarded is None:
+        if proxy:
+            raise ValueError('Unmodified production defaults cannot use a signal proxy')
+        return result
     if package == 'ajounice_planning_integration' and filename == 'planning.launch':
         result.update(enable_signal_compliance_guard=guarded,
                       signal_compliance_front_axle_offset_m=3.0,
@@ -65,7 +73,8 @@ def require_trial_contract(cfg):
 
 
 def signal_topic_conflicts(publishers):
-    return {topic: publishers[topic] for topic in (CANONICAL, SOURCE_TOPIC, FAULT_TOPIC)
+    return {topic: publishers[topic] for topic in (
+            CANONICAL, SOURCE_TOPIC, FAULT_TOPIC, FIXTURE_TOPIC, FIXTURE_STATUS_TOPIC)
             if publishers.get(topic)}
 
 
@@ -73,6 +82,41 @@ def active_fault_mode(state, now):
     if state.get('received') and not state.get('terminal') and now-state['receipt_monotonic'] > .5:
         raise RuntimeError('Fault-control lease expired; experiment is not qualified')
     return state['mode']
+
+
+def fixture_relay_mode(state, now):
+    """An explicit, live completed status is the ONLY handoff to real vision."""
+    if not state.get('received'):
+        if now-state['started_monotonic'] > 15.:
+            raise RuntimeError('Planner fixture did not publish its startup heartbeat')
+        return 'fixture'
+    if not 0 <= now-state['receipt_monotonic'] <= .5:
+        raise RuntimeError('Planner fixture heartbeat expired or clock reversed')
+    if state.get('error'):
+        raise RuntimeError('Planner fixture error/not-applicable; never fall back to vision')
+    return 'real' if state.get('handoff_real') else 'fixture'
+
+
+def validated_fixture_status(body, group_id, mode):
+    if (not isinstance(body, dict) or body.get('group_id') != group_id or
+            body.get('mode') != mode or body.get('planner_only') is not True):
+        raise ValueError('Incorrect planner-only fixture identity/scope')
+    handoff = body.get('handoff_real', False)
+    if type(handoff) is not bool:
+        raise ValueError('Fixture handoff must be an explicit bool')
+    if handoff and (body.get('stage') != 'fixture_complete' or
+                    body.get('motion_stage_captured') is not True):
+        raise ValueError('Fixture handoff lacks an observed, completed motion stage')
+    return dict(handoff_real=handoff,
+                error=bool(body.get('error')) or body.get('stage') in ('error', 'not_applicable'))
+
+
+def with_compliance_debug(command, package, filename, config):
+    if config is not None and package == 'ajounice_planning_integration' and filename == 'planning.launch':
+        if not isinstance(command, (list, tuple)):
+            raise TypeError('Validator launch commands must remain argv lists, not shell strings')
+        return list(command) + ['planning_rosconsole_config:='+str(config)]
+    return command
 
 
 def run_owned_trial(prepare_helpers, run_campaign, close_helpers):
@@ -90,7 +134,8 @@ def main():
     parser.add_argument('config', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--geometry', type=Path, required=True)
-    parser.add_argument('--mode', choices=('baseline', 'guarded'), required=True)
+    parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
+                        help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
     parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss'), default='natural')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
@@ -98,12 +143,21 @@ def main():
     parser.add_argument('--group-id', type=int, choices=(201351, 201365, 201290, 201326), default=201326)
     parser.add_argument('--yellow-durations-sec', type=parse_yellow_durations,
                         help='Explicit stopped-yellow stress durations, for example 2,3; not an operating-time assumption')
+    parser.add_argument('--planner-fixture', choices=FIXTURE_MODES,
+                        help='Explicit synthetic planner-only input; no native SET or perception qualification')
+    parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
+    parser.add_argument('--compliance-debug', action='store_true',
+                        help='Development-only traffic C++ DEBUG trace; never a production logger default')
     parser.add_argument('--native-python', type=Path,
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     if args.yellow_durations_sec is not None and args.experiment != 'stopped-yellow':
         parser.error('Explicit yellow durations apply only to the stopped-yellow experiment')
+    if args.planner_fixture and args.experiment != 'natural':
+        parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
+    if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
+        parser.error('Unmodified production defaults require natural signals without a proxy')
     if not .2 <= args.signal_timeout_sec <= 2.0:
         parser.error('Observation freshness timeout must be within 0.2..2 seconds')
     sys.path.insert(0, str(ROOT/'base_ws/src/planning_addons/planning_scenario_validator/src'))
@@ -122,14 +176,25 @@ def main():
     if not args.native_python.is_file() or not args.geometry.is_file():
         parser.error('Existing native Python and explicit geometry are required')
     load_geometry(args.geometry)
-    guarded, progress = args.mode == 'guarded', args.route_progress == 'true'
-    proxy = args.experiment != 'natural'
+    production = args.mode == 'production'
+    guarded = None if production else args.mode == 'guarded'
+    progress = None if production else args.route_progress == 'true'
+    fixture = args.planner_fixture is not None
+    proxy = args.experiment != 'natural' or fixture
+    plugin = ROOT/'planning_ws/install_isolated/lib/libautoware_behavior_velocity_traffic_light_module.so'
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
-        planner_compliance_observations=args.temporal_direct=='true',
-        signal_observation_timeout_sec=args.signal_timeout_sec,
+        production_policy_defaults_unmodified=production,
+        planner_compliance_observations=None if production else args.temporal_direct=='true',
+        signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
         yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
                               if args.experiment == 'stopped-yellow' else None),
         group_id=args.group_id, source_config=str(args.config.resolve()),
+        planner_fixture=args.planner_fixture, planner_fixture_is_synthetic=fixture,
+        fixture_probe_seconds=args.fixture_probe_seconds if fixture else None,
+        native_signal_SET_enabled=proxy and not fixture,
+        perception_qualification=not fixture,
+        compliance_debug_enabled=args.compliance_debug,
+        installed_traffic_plugin_sha256=digest(plugin) if plugin.is_file() else None,
         config_sha256=digest(args.config), geometry_sha256=digest(args.geometry),
         wrapper_sha256=digest(__file__), native_python=str(args.native_python),
         front_axle_offset_m=3.0,
@@ -147,11 +212,18 @@ def main():
     if conflicts:
         raise RuntimeError('Existing signal/fault publisher; nothing started: '+repr(conflicts))
     args.output.mkdir(parents=True)
+    debug_config = args.output/'traffic_cpp_debug.conf' if args.compliance_debug else None
+    if debug_config is not None:
+        debug_config.write_text('log4j.logger.ros=INFO\n'
+            'log4j.logger.ros.autoware_behavior_velocity_traffic_light_module=DEBUG\n')
+        receipt['compliance_debug_config_sha256'] = digest(debug_config)
     (args.output/'selection.json').write_text(json.dumps(receipt, indent=2)+'\n')
     lock, done, fatal = threading.Lock(), threading.Event(), threading.Event()
     phase_teardown = threading.Event()
     children, handles, subscriptions = [], [], []
     state = dict(mode='none', group_id=args.group_id, receipt_monotonic=0., received=False, terminal=False)
+    fixture_state = dict(received=False, started_monotonic=time.monotonic(),
+                         receipt_monotonic=0., handoff_real=False, error=False)
 
     def event(value):
         value = dict(value, monotonic=time.monotonic(), wall_time=time.time())
@@ -182,6 +254,57 @@ def main():
             from autoware_perception_msgs.msg import TrafficLightGroupArray
             from std_msgs.msg import String
             publisher = rospy.Publisher(CANONICAL, TrafficLightGroupArray, queue_size=1)
+            if fixture:
+                # The runner initializes rospy during stack setup, after the
+                # helper starts. Start its receive allowance when subscriptions
+                # can actually exist, not during preceding ROS/model preflight.
+                with lock:
+                    fixture_state['started_monotonic'] = time.monotonic()
+                def fixture_status(message):
+                    try:
+                        body = json.loads(message.data)
+                        accepted = validated_fixture_status(body, args.group_id, args.planner_fixture)
+                        with lock:
+                            fixture_state.update(accepted, received=True,
+                                                 receipt_monotonic=time.monotonic())
+                        event(dict(event='planner_fixture_status', status=body))
+                    except Exception as error:
+                        fatal.set()
+                        event(dict(event='planner_fixture_status_error', error=str(error)))
+
+                def fixture_forward(message):
+                    try:
+                        with lock:
+                            relay = fixture_relay_mode(fixture_state, time.monotonic())
+                        if relay != 'fixture' or phase_teardown.is_set():
+                            return
+                        ids = [int(group.traffic_light_group_id) for group in message.traffic_light_groups]
+                        if ids != [args.group_id]:
+                            raise ValueError('Fixture wire message must contain only its explicit mission group')
+                        publisher.publish(message)
+                        event(dict(event='planner_fixture_relay', planner_only=True, synthetic=True,
+                            source_stamp_ns=int(message.stamp.sec)*10**9+int(message.stamp.nanosec),
+                            output_ids=ids))
+                    except Exception as error:
+                        fatal.set()
+                        event(dict(event='planner_fixture_signal_error', error=str(error)))
+
+                def real_after_fixture(message):
+                    try:
+                        with lock:
+                            relay = fixture_relay_mode(fixture_state, time.monotonic())
+                        if relay == 'real' and not phase_teardown.is_set():
+                            publisher.publish(message)
+                    except Exception as error:
+                        fatal.set()
+                        event(dict(event='planner_fixture_handoff_error', error=str(error)))
+                subscriptions.extend((rospy.Subscriber(FIXTURE_STATUS_TOPIC, String, fixture_status, queue_size=1),
+                                      rospy.Subscriber(FIXTURE_TOPIC, TrafficLightGroupArray, fixture_forward, queue_size=1),
+                                      rospy.Subscriber(SOURCE_TOPIC, TrafficLightGroupArray, real_after_fixture, queue_size=1)))
+                proxy_started = True
+                command = original_launch(package, filename, **selected)
+                event(dict(event='launch', package=package, filename=filename, command=command))
+                return command
             def control(message):
                 try:
                     body = json.loads(message.data)
@@ -211,7 +334,8 @@ def main():
             subscriptions.extend((rospy.Subscriber(FAULT_TOPIC,String,control,queue_size=1),
                                   rospy.Subscriber(SOURCE_TOPIC,TrafficLightGroupArray,forward,queue_size=1)))
             proxy_started = True
-        command = original_launch(package, filename, **selected)
+        command = with_compliance_debug(original_launch(package, filename, **selected),
+                                        package, filename, debug_config)
         event(dict(event='launch', package=package, filename=filename, command=command))
         return command
 
@@ -280,7 +404,14 @@ def main():
             start('observer', [str(args.native_python), str(ROOT/'scripts/evaluation/observe_traffic_light_compliance.py'),
                 '--output', str(args.output/'observer'), '--geometry', str(args.geometry), '--duration-sec',str(duration),
                 '--crossing-jpegs'])
-            if proxy:
+            if fixture:
+                with lock:
+                    fixture_state['started_monotonic'] = time.monotonic()
+                start('phase_controller', [str(args.native_python), str(ROOT/'scripts/evaluation/synth_traffic_light_planner_trial.py'),
+                    '--output', str(args.output/'planner_fixture'), '--geometry', str(args.geometry),
+                    '--group-id', str(args.group_id), '--mode', args.planner_fixture,
+                    '--probe-seconds', str(args.fixture_probe_seconds), '--max-seconds', str(duration)])
+            elif proxy:
                 phase_script = ('control_traffic_light_green_loss_trial.py' if args.experiment=='green-loss'
                                 else 'control_traffic_light_policy_trial.py')
                 phase_command = [str(args.native_python), str(ROOT/'scripts/evaluation'/phase_script),
@@ -295,7 +426,10 @@ def main():
                     try:
                         with lock:
                             if not phase_teardown.is_set():
-                                active_fault_mode(state, time.monotonic())
+                                if fixture and proxy_started:
+                                    fixture_relay_mode(fixture_state, time.monotonic())
+                                elif not fixture:
+                                    active_fault_mode(state, time.monotonic())
                     except RuntimeError:
                         fatal.set()
                     if fatal.is_set() and not phase_teardown.is_set():
@@ -304,7 +438,7 @@ def main():
                         return
                     for name, process in children:
                         code = process.poll()
-                        if (code is not None and (code != 0 or name == 'observer') and
+                        if (code is not None and (code != 0 or name == 'observer' or fixture) and
                                 not (name == 'phase_controller' and phase_teardown.is_set())):
                             event(dict(event='child_error_abort', name=name, returncode=code))
                             os.kill(os.getpid(), signal.SIGTERM)

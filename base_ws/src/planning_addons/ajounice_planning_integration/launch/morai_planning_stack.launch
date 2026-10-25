@@ -50,8 +50,12 @@
        controls the planner plugin consuming traffic-light observations. -->
   <arg name="enable_traffic_light_planner" default="true"/>
   <arg name="traffic_light_inference_python"
-       default="/usr/bin/python3"/>
+       default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python"/>
   <arg name="traffic_light_device" default="0"/>
+  <arg name="enable_signal_compliance_guard" default="true"/>
+  <arg name="traffic_light_state_timeout_sec" default="0.5"/>
+  <arg name="planner_compliance_observations" default="true"/>
+  <arg name="route_progress_guard" default="true"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
@@ -137,6 +141,9 @@
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="inference_python" value="$(arg traffic_light_inference_python)"/>
       <arg name="device" value="$(arg traffic_light_device)"/>
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)"/>
+      <arg name="route_progress_guard" value="$(arg route_progress_guard)"/>
     </include>
   </group>
 
@@ -148,6 +155,8 @@
     <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
     <arg name="enable_traffic_light_planner"
          value="$(arg enable_traffic_light_planner)"/>
+    <arg name="enable_signal_compliance_guard" value="$(arg enable_signal_compliance_guard)"/>
+    <arg name="traffic_light_state_timeout_sec" value="$(arg traffic_light_state_timeout_sec)"/>
     <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
