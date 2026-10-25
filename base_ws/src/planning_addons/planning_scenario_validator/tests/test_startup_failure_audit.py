@@ -242,7 +242,7 @@ class StartupFailureAuditTests(unittest.TestCase):
         self.assertEqual(receipt['probe_report_status'], 'PASS')
         self.assertTrue(receipt['reported_pass_but_process_failed'])
         self.assertEqual((self.root / 'stack_logs/traffic_light_preflight.log').read_text(), stdout)
-        self.assertEqual(receipt['python'], '/usr/bin/python3')
+        self.assertEqual(receipt['python'], str(Path.home()/'.local/share/ajounice/traffic_light_gpu/bin/python'))
         self.assertEqual(receipt['device'], '0')
         self.assertTrue(receipt['command'])
         self.assertTrue(receipt['started_at'])

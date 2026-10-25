@@ -11,13 +11,13 @@ BEVFusion 학습·dataset 문서를 먼저 읽을 필요는 없다.
 | `traffic_light_node` | `inference_python` interpreter의 YOLO GPU 추론 |
 | Output | AW149 표준 `/perception/traffic_light_recognition/traffic_signals` |
 
-팀 공유 기본 `inference_python`은 `/usr/bin/python3`다. Python 경로만으로 CPU/GPU를 단정하지 않는다.
+기본 `inference_python`은 `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다. 설치기를 먼저 실행한다.
 이 RTX5060Ti 호스트는 Python3.11 CUDA runtime과 Python3.8 Lanelet2 binding을 분리한다.
 planning 전체를 Conda에서 실행하지 말고 정상 sourced ROS shell을 사용한다.
 
 ```bash
 roslaunch traffic_light_detection traffic_light_node.launch \
-  inference_python:=$HOME/miniconda3/envs/traffic_light_gpu/bin/python device:=0
+  device:=0
 ```
 
 ## 환경·입력
@@ -25,17 +25,17 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - GPU에 맞는 PyTorch wheel을 먼저 설치한 후 `requirements-runtime.txt`를 설치한다. CUDA/PyTorch는 rosdep 외부 계약이다.
 - 이 호스트의 확인 이력은 Python3.11.15·PyTorch2.7.1+cu128·Torchvision0.22.1+cu128·NumPy1.26.4·OpenCV4.8.1이다. 다른 GPU에 동일 wheel을 강제하지 않는다.
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
-- 활성화 전에 `weights/best.pt` CUDA load를 확인한다. MORAI front 1280×720·검증된 10Hz 판단 cadence·confidence·temporal semantics를 유지한다.
+- 설치기는 고정 v5 두 모델의 CUDA load를 확인한다. MORAI front1280×720·10Hz cadence·confidence·temporal semantics는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
 - map 기본은 v87다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
 ## Competition signal policy
 
 `config/traffic_signal_profiles.yaml`은 route matcher가 선택한 regulatory-element ID를 재사용 가능한 신호 program에 연결한다.
-Profile은 supported lamps·유효 Autoware element 조합·detector correction·route-compatible fail-open phase를 정의한다.
+Profile은 supported lamps·유효 Autoware element 조합·detector correction·fallback phase를 정의한다.
 출력은 표준 `TrafficLightGroup.elements[]`를 유지하며 A/B/C/D 동작을 detector code 변경 없이 설정한다.
 
-Route helper의 invalid match는 group ID `0`을 발행하여 기존 distance fallback으로 즉시 전환한다.
+Route helper의 invalid match는 group ID `0`을 발행하며 지도 모드에서 다른 신호등으로 대체하지 않는다.
 별도 2초 message timeout은 helper process 상실에만 적용한다. 옛 route ID를 계속 유지하지 않는다.
 Planning `competition_fail_open`도 missing/stale/entirely unknown 신호에서 영구 정지를 피하도록 허용한다.
 두 fail-open 정책은 **simulation competition 전용**이며 실제 차량 안전 정책이 아니다.
@@ -49,12 +49,12 @@ Planning `competition_fail_open`도 missing/stale/entirely unknown 신호에서 
 [신호등 CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)에서 관리한다.
 이 README에는 과거 실험 결과를 누적하지 않는다.
 v5 시험 배포는 [설치·GUI 선택 안내](../../../../docs/perception/traffic_light/V5_CANDIDATE_HANDOFF.md)를 따른다.
-`install_traffic_light_candidate.sh`는 두 가중치·전용 환경을 준비하며 운영 기본값은 바꾸지 않는다.
+`install_traffic_light_candidate.sh`는 두 가중치·전용 환경을 준비한다. 사용자 요청으로 v5가 현재 기본이다.
 
-## 지도 선택·CNN 시험 옵션
+## 지도 선택·CNN 실행 옵션
 
-기본 `selection_mode:=legacy_center classifier_mode:=hsv`는 유지한다. 새 source를
-install한 뒤에만 다음 인자를 사용할 수 있다. 설치본이 옛 파일인지 먼저 확인한다.
+기본은 `selection_mode:=map_association classifier_mode:=cnn detector_imgsz:=960`다.
+명시적 복귀는 `traffic_light_legacy.launch`(또는 `traffic_legacy`)다. 설치본이 옛 파일인지 확인한다.
 
 ```bash
 roslaunch traffic_light_detection traffic_light_node.launch \
@@ -109,7 +109,7 @@ helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms�
 (`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
 빈 관측이며 HSV로 몰래 전환하지 않는다. 이 빈 관측에도 **기존** route policy와
 smoother가 적용되므로 원시 missing/UNKNOWN을 최종 정책 출력과 분리 평가해야 한다.
-`detector_imgsz` 기본 640을 유지하며 시험에서 960/1280 등을 명시할 수 있다.
+`detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
 `debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
 장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이
 CPU에 남았다는 이유만으로 실제 추론을 CPU로 단정하거나 CUDA 메모리를 0으로 쓰지 않는다.

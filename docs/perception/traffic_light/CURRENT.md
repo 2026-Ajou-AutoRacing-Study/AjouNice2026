@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-25 v5 설치기·GUI·CUDA smoke 완료. D 근접 주행 실패로 **운영 모델·정책 변경 없음.**
+상태: 2026-10-25 사용자 요청으로 **v5 지도+CNN을 traffic·Validator 기본으로 전환**. 신호 정책은 불변.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다.
 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
@@ -8,9 +8,9 @@
 
 - `traffic_light_node.launch`: front JPEG 1280×720, YOLO housing 1클래스,
   confidence 0.25, 최대 처리 10Hz, smoother 7/4.
-- 현재 `best.pt` SHA256:
-  `2bb73720568a975c94d79a54cc097a0a4b70ec7c8de23552b4d0e71112160818`.
-- 관측은 HSV/형태 분류, route별 보정은 `traffic_signal_profiles.yaml`이다.
+- 기본은 YOLO26n960 + 지도 연결 + CNN v5, `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다.
+  고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
+- 관측은 CNN 4-bit 분류, route별 보정은 기존 `traffic_signal_profiles.yaml`이다.
   `debug_observed_label`은 보정 전, `debug_raw_label`은 이름과 달리 보정 후다.
 - A/B/C/D-2의 fallback은 적색이다. D-1은 우회전 passthrough이고
   판단 모듈에서 제외된다. 별도 planning competition fail-open과 혼동하지 않는다.
@@ -18,12 +18,12 @@
   운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
   개발 수집·평가 도구를 대회 알고리즘의 의존성으로 연결하지 않았다.
 
-## 새 통합 후보 — 명시적으로 선택할 때만 실행
+## 현재 v5 기본과 명시적 복귀
 
 - `selection_mode:=map_association`: route regulatory ID에 속한 실제 housing만
-  지도 투영과 YOLO 박스로 연결한다. 기본은 계속 `legacy_center`다.
+  지도 투영과 YOLO 박스로 연결하며 현재 기본이다. 옛 D-1은 미션에서 제외한다.
 - `classifier_mode:=cnn`: RGB letterbox224×128의 ResNet18 4비트 분류기를 사용한다.
-  기본은 계속 `hsv`다. 잘못된/미설치 CNN을 조용히 HSV로 바꾸지 않는다.
+  현재 기본이다. 잘못된/미설치 CNN을 조용히 HSV로 바꾸지 않는다.
 - 최종 후보는 YOLO26n 960 + 지도 선택 + ResNet18 CNN v5다. YOLO 자료는
   6환경 816장/1,374박스, CNN은 기존792개를 보존하고 작은 D 신호60개를 보강했다.
 - 고정 자연 현시의 같은939장에서는 기존 HSV856개 → 새 조합939개가 일치했고,
@@ -39,8 +39,8 @@
   [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
   승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
-- 실제 주행에서 D 근접 YOLO score·지도 gate 실패를 재현해 승격을 보류했다.
-  [설치·경로·폐루프 근거와 후속](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md)을 먼저 본다.
+- D 근접 YOLO score·지도 gate 실패는 미해결이며 기본 전환이 주행 PASS 인증은 아니다.
+  [폐루프 근거](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md) 보존. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
 ## 구간 계약과 자연 현시
 

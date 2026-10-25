@@ -291,7 +291,7 @@ def _load_case(source, default):
                 goal, waypoints, positive(raw.get("timeout_sec"), "timeout_sec"), mode)
 
 
-def load_campaign(path, *, check_install=True):
+def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     path = resolve_path(path)
     if path.name.endswith(".case.yaml"):
         raise ConfigError(".case.yaml은 폐기된 보조 설정입니다. base/example.yaml 또는 본인의 캠페인 YAML을 선택하세요")
@@ -356,7 +356,11 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("Ego Network의 PUBSUB_TYPE=783 슬롯이 중복됐습니다. install.sh를 다시 실행하세요")
     from .network_contract import inspect_network_contract
     network_contract = inspect_network_contract(document, ego_network, sensor_config)
-    stack = document.get("stack", {})
+    stack = dict(document.get("stack", {}))
+    if (path.name == 'config_snapshot.yaml' or legacy_traffic_defaults) and 'traffic_light_profile' not in stack:
+        # Old frozen runs used implicit legacy. Preserve their effective model
+        # in memory only; never rewrite snapshots or turn a resume into v5.
+        stack['traffic_light_profile'] = 'legacy'
     if stack.get("pose_source") not in ("localization", "maptf_morai"):
         raise ConfigError("stack.pose_source는 localization 또는 maptf_morai입니다")
     if stack.get("detector") not in ("od_gt", "bevfusion"):

@@ -200,7 +200,9 @@ class AssetsTest(unittest.TestCase):
 
     def test_legacy_defaults_and_candidate_launch_match_release(self):
         package=assets.ROOT/'base_ws/src/perception/traffic_light_detection/launch'
-        legacy={n.attrib['name']:n.attrib.get('default') for n in ET.parse(package/'traffic_light_node.launch').getroot().findall('arg')}
+        defaults={n.attrib['name']:n.attrib.get('default') for n in ET.parse(package/'traffic_light_node.launch').getroot().findall('arg')}
+        self.assertEqual((defaults['selection_mode'],defaults['classifier_mode'],defaults['detector_imgsz']),('map_association','cnn','960'))
+        legacy={n.attrib['name']:n.attrib['value'] for n in ET.parse(package/'traffic_light_legacy.launch').getroot().find('include').findall('arg')}
         self.assertEqual((legacy['selection_mode'],legacy['classifier_mode'],legacy['detector_imgsz']),('legacy_center','hsv','640'))
         candidate=ET.parse(package/'traffic_light_v5_candidate.launch').getroot()
         args={n.attrib['name']:n.attrib['value'] for n in candidate.find('include').findall('arg')}

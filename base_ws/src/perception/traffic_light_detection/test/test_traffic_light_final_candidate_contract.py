@@ -28,16 +28,20 @@ class LaunchContractTest(unittest.TestCase):
         cls.launch = ET.parse(PACKAGE / "launch/traffic_light_node.launch").getroot()
         cls.args = {item.get("name"): item.get("default") for item in cls.launch.findall("arg")}
 
-    def test_production_defaults_remain_legacy_hsv_640_and_existing_cadence(self):
-        expected = {"selection_mode": "legacy_center", "classifier_mode": "hsv",
-                    "detector_imgsz": "640", "conf": "0.25", "max_rate_hz": "10.0",
+    def test_default_is_v5_with_existing_cadence_and_explicit_legacy_rollback(self):
+        expected = {"selection_mode": "map_association", "classifier_mode": "cnn",
+                    "detector_imgsz": "960", "conf": "0.25", "max_rate_hz": "10.0",
                     "smoothing_window_size": "7", "smoothing_majority_count": "4",
-                    "cnn_checkpoint_path": "",
+                    "cnn_checkpoint_path": "$(arg models_root)/cnn_v5/best.pt",
                     "output_topic": "/perception/traffic_light_recognition/traffic_signals"}
         for key, value in expected.items():
             with self.subTest(parameter=key):
                 self.assertEqual(self.args[key], value)
-        self.assertTrue(self.args["weights_path"].endswith("/weights/best.pt"))
+        self.assertTrue(self.args["weights_path"].endswith('/yolo_final/selected.pt'))
+        self.assertIn('traffic_light_gpu/bin/python',self.args['inference_python'])
+        rollback=ET.parse(PACKAGE/'launch/traffic_light_legacy.launch').getroot().find('include')
+        old={a.get('name'):a.get('value') for a in rollback.findall('arg')}
+        self.assertEqual((old['selection_mode'],old['classifier_mode'],old['detector_imgsz']),('legacy_center','hsv','640'))
 
     def test_map_helper_and_route_allowlist_are_opt_in_and_system_python(self):
         helper_group = next(group for group in self.launch.findall("group")
