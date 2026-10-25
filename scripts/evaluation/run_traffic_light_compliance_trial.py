@@ -28,7 +28,7 @@ FIXTURE_MODES = ('stopped-yellow', 'moving-yellow-stoppable', 'moving-yellow-clo
 
 
 def launch_arguments(package, filename, arguments, guarded, route_progress, proxy,
-                     temporal_direct=False, signal_timeout_sec=1.0):
+                     temporal_direct=False, signal_timeout_sec=1.0, yellow_passthrough=False):
     result = dict(arguments)
     if guarded is None:
         if proxy:
@@ -36,6 +36,7 @@ def launch_arguments(package, filename, arguments, guarded, route_progress, prox
         return result
     if package == 'ajounice_planning_integration' and filename == 'planning.launch':
         result.update(enable_signal_compliance_guard=guarded,
+                      enable_yellow_passthrough=yellow_passthrough,
                       signal_compliance_front_axle_offset_m=3.0,
                       traffic_light_state_timeout_sec=signal_timeout_sec)
     if package == 'traffic_light_detection' and filename in (
@@ -140,6 +141,8 @@ def main():
     parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss'), default='natural')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
     parser.add_argument('--signal-timeout-sec', type=float, default=1.0)
+    parser.add_argument('--yellow-passthrough', choices=('true', 'false'), default='false',
+                        help='Explicit pre-line yellow dilemma override; default OFF, production keeps launch defaults')
     parser.add_argument('--group-id', type=int, choices=(201351, 201365, 201290, 201326), default=201326)
     parser.add_argument('--yellow-durations-sec', type=parse_yellow_durations,
                         help='Explicit stopped-yellow stress durations, for example 2,3; not an operating-time assumption')
@@ -185,6 +188,7 @@ def main():
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
         planner_compliance_observations=None if production else args.temporal_direct=='true',
+        enable_yellow_passthrough=None if production else args.yellow_passthrough=='true',
         signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
         yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
                               if args.experiment == 'stopped-yellow' else None),
@@ -248,7 +252,8 @@ def main():
     def selected_launch(package, filename, **kwargs):
         nonlocal proxy_started, publisher
         selected = launch_arguments(package, filename, kwargs, guarded, progress, proxy,
-            temporal_direct=args.temporal_direct=='true', signal_timeout_sec=args.signal_timeout_sec)
+            temporal_direct=args.temporal_direct=='true', signal_timeout_sec=args.signal_timeout_sec,
+            yellow_passthrough=args.yellow_passthrough=='true')
         if proxy and package == 'traffic_light_detection' and not proxy_started:
             import rospy
             from autoware_perception_msgs.msg import TrafficLightGroupArray

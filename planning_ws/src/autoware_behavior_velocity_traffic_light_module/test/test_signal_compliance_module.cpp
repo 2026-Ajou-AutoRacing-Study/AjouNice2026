@@ -56,7 +56,7 @@ protected:
     node_.deleteParam("/traffic_light_compliance_test");
   }
 
-  void configure(int64_t group, bool guarded=true)
+  void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true)
   {
     group_=group;
     lanelet::Points3d points{
@@ -70,6 +70,8 @@ protected:
     params.tl_state_timeout=1.; params.yellow_lamp_period=2.75;
     params.yellow_light_stop_velocity=1.; params.stop_time_hysteresis=.1;
     params.enable_pass_judge=true; params.yellow_light_is_go=true;
+    // Existing dilemma/legacy tests are explicit ON comparisons, not defaults.
+    params.enable_yellow_passthrough=yellow_passthrough;
     params.competition_fail_open=true; params.enable_signal_compliance_guard=guarded;
     params.signal_compliance_front_axle_offset_m=3.;
     module_ = std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
@@ -233,6 +235,48 @@ TEST_F(TrafficLightComplianceModuleTest, AlreadyCrossedFrontAxleLineNeverAddsRed
     tick(); put(red()); EXPECT_FALSE(modifiesToStop());
     data_->traffic_light_id_map_raw_.clear(); tick(2.); EXPECT_FALSE(modifiesToStop());
     pose(6.6,2.); EXPECT_FALSE(modifiesToStop());  // <1m backward localization jitter.
+    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, YellowMasterOffBlocksEveryPreLineOverrideForABCD)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    for(const bool guarded:{true,false}) {
+      SCOPED_TRACE(group);
+      SCOPED_TRACE(guarded);
+      configure(group,guarded,false);
+      if(guarded) confirmGreenOnRealPath(6.,5.);
+      else { tick(); pose(6.,5.); put(green()); EXPECT_FALSE(modifiesToStop()); }
+      tick(); put(yellow());
+      EXPECT_TRUE(signalStop());
+      EXPECT_FALSE(pass(.155));
+      EXPECT_TRUE(modifiesToStop());
+    }
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, DefaultYellowMasterOffDoesNotBlockAuthorizedGreen)
+{
+  EXPECT_FALSE(TrafficLightModule::PlannerParam{}.enable_yellow_passthrough);
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,false);
+    confirmGreenOnRealPath(6.,0.);
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, StoppedPastFrontAxleLineClearsEvenAfterFreshModuleWithYellowOff)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,false); tick(); pose(6.3,0.); put(red());
+    // Bumper is past the line, but front axle is still 0.7m BEFORE it.
+    EXPECT_TRUE(modifiesToStop());
+    pose(7.1,0.); put(red());
+    EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+    configure(group,true,false); pose(7.1,0.);
+    data_->traffic_light_id_map_raw_.clear();
+    EXPECT_FALSE(modifiesToStop());
     EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
   }
 }

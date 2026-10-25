@@ -21,7 +21,8 @@ from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resol
                      prediction_highway_horizon, prediction_highway_mode)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
-from .traffic_light import runtime_mode, runtime_settings, profile_name, candidate_assets, profile_check_arguments
+from .traffic_light import (runtime_mode, runtime_settings, profile_name, candidate_assets,
+                           profile_check_arguments, launch_options as traffic_launch_options)
 from .models import resolve_contract, verify_contract, selected_model, runtime_image_selection, CANONICAL
 from .recording_audit import audit_bag
 from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
@@ -178,6 +179,7 @@ def _start_persistent(cfg, processes, monitor):
 
 def _start_case_stack(cfg, processes, monitor):
     stack, network = cfg["stack"], cfg["network"]
+    traffic_options = cfg.get('traffic_light_options', traffic_launch_options(stack))
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
     after = time.monotonic()
     if stack["pose_source"] == "localization":
@@ -209,16 +211,23 @@ def _start_case_stack(cfg, processes, monitor):
         filename = 'traffic_light_legacy.launch' if selected is None else 'traffic_light_v5_candidate.launch'
         processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
-            isolate_python=runtime_mode(stack) == "virtualenv", **extra))
+            isolate_python=runtime_mode(stack) == "virtualenv",
+            publish_debug_image=traffic_options['publish_debug_image'], **extra))
+        if traffic_options['debug_view']:
+            processes.start('traffic_light_debug_view', _launch('traffic_light_detection',
+                'traffic_light_debug_view.launch',
+                image_topic='/traffic_light_node/debug_image/compressed',
+                display=cfg['recording']['video']['display']))
     processes.start("planning", _launch("ajounice_planning_integration", "planning.launch",
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
         enable_traffic_light_planner=stack.get("traffic_light", False),
+        enable_yellow_passthrough=traffic_options['yellow_passthrough'],
         publish_fixed_autonomous_mode=True, use_ground_pointcloud=False,
         use_occupancy_grid=False))
 
 
-CASE_STACK = ["controller", "planning", "traffic_light", "tracking", "detector", "pose"]
+CASE_STACK = ["controller", "planning", "traffic_light_debug_view", "traffic_light", "tracking", "detector", "pose"]
 
 
 def _load_scene(cfg, installed, monitor, ego_xy):
@@ -548,6 +557,7 @@ def _run_case(cfg, processes, monitor, case, state):
                     "pose_source": cfg["stack"]["pose_source"],
                     "detector": cfg["stack"]["detector"],
                     "model": cfg.get('model_contract'),
+                    "traffic_light_options": cfg.get('traffic_light_options', traffic_launch_options(cfg['stack'])),
                     "git_sha": subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(ROOT), text=True).strip(),
                     "sensor_json": str(cfg["network"]["sensor_json"]),
                     "ego_network_json": str(cfg["network"]["ego_network_json"]),

@@ -42,6 +42,8 @@ protected:
     planner_param_.yellow_light_stop_velocity = 1.0;
     planner_param_.stop_time_hysteresis = 0.0;
     planner_param_.enable_pass_judge = false;
+    // Historical tests explicitly opt in; production now defaults to OFF.
+    planner_param_.enable_yellow_passthrough = true;
     planner_param_.enable_arrow_aware_yellow_passing = true;  // Key param for this test
     planner_param_.max_behind_dist_to_stop_for_restart_suppression = 0.0;
     planner_param_.min_behind_dist_to_stop_for_restart_suppression = 0.0;

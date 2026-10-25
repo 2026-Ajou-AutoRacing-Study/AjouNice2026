@@ -53,6 +53,8 @@
        default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python"/>
   <arg name="traffic_light_device" default="0"/>
   <arg name="enable_signal_compliance_guard" default="true"/>
+  <arg name="enable_yellow_passthrough" default="false"/>
+  <arg name="traffic_light_debug_image" default="false"/>
   <arg name="traffic_light_state_timeout_sec" default="0.5"/>
   <arg name="planner_compliance_observations" default="true"/>
   <arg name="route_progress_guard" default="true"/>
@@ -143,6 +145,7 @@
       <arg name="device" value="$(arg traffic_light_device)"/>
       <arg name="sensor_config" value="$(arg sensor_config)"/>
       <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)"/>
+      <arg name="publish_debug_image" value="$(arg traffic_light_debug_image)"/>
       <arg name="route_progress_guard" value="$(arg route_progress_guard)"/>
     </include>
   </group>
@@ -156,6 +159,7 @@
     <arg name="enable_traffic_light_planner"
          value="$(arg enable_traffic_light_planner)"/>
     <arg name="enable_signal_compliance_guard" value="$(arg enable_signal_compliance_guard)"/>
+    <arg name="enable_yellow_passthrough" value="$(arg enable_yellow_passthrough)"/>
     <arg name="traffic_light_state_timeout_sec" value="$(arg traffic_light_state_timeout_sec)"/>
     <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>

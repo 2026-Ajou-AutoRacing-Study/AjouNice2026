@@ -24,6 +24,7 @@ def test_ordinary_and_v5_entrypoints_enable_the_same_production_observation_cont
         args = arguments(TRAFFIC / filename)
         assert args['planner_compliance_observations'] == 'true'
         assert args['route_progress_guard'] == 'true'
+        assert args['publish_debug_image'] == 'false'
         assert args['inference_python'].endswith('/.local/share/ajounice/traffic_light_gpu/bin/python')
 
 
@@ -39,6 +40,7 @@ def test_explicit_legacy_model_keeps_its_original_observation_filter_and_route_m
 def test_planning_default_is_compliance_with_explicit_front_axle_and_freshness_not_yellow_period():
     args = arguments(INTEGRATION/'planning.launch')
     assert args['enable_signal_compliance_guard'] == 'true'
+    assert args['enable_yellow_passthrough'] == 'false'
     assert args['signal_compliance_front_axle_offset_m'] == '3.0'
     assert args['traffic_light_state_timeout_sec'] == '0.5'
     params = {node.attrib['name']: node.attrib.get('value')
@@ -48,6 +50,8 @@ def test_planning_default_is_compliance_with_explicit_front_axle_and_freshness_n
                value == '$(arg enable_signal_compliance_guard)' for name, value in params.items())
     assert any(name.endswith(suffix+'tl_state_timeout') and
                value == '$(arg traffic_light_state_timeout_sec)' for name, value in params.items())
+    assert any(name.endswith(suffix+'enable_yellow_passthrough') and
+               value == '$(arg enable_yellow_passthrough)' for name, value in params.items())
     assert args['planning_rosconsole_config'].endswith('/config/lane_change_diagnostics.rosconsole')
     envs = list(ET.parse(INTEGRATION/'planning.launch').getroot().iter('env'))
     assert any(node.attrib.get('name') == 'ROSCONSOLE_CONFIG_FILE' and
@@ -66,5 +70,9 @@ def test_integrated_stack_forwards_policy_and_local_or_lan_sensor_settings():
     assert traffic['sensor_config'] == '$(arg sensor_config)'
     assert args['enable_signal_compliance_guard'] == 'true'
     assert planning['enable_signal_compliance_guard'] == '$(arg enable_signal_compliance_guard)'
+    assert args['enable_yellow_passthrough'] == 'false'
+    assert planning['enable_yellow_passthrough'] == '$(arg enable_yellow_passthrough)'
+    assert args['traffic_light_debug_image'] == 'false'
+    assert traffic['publish_debug_image'] == '$(arg traffic_light_debug_image)'
     assert args['traffic_light_state_timeout_sec'] == '0.5'
     assert planning['traffic_light_state_timeout_sec'] == '$(arg traffic_light_state_timeout_sec)'

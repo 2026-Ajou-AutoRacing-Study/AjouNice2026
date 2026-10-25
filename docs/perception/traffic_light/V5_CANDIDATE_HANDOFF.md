@@ -107,7 +107,7 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 `planner_compliance_observations:=true route_progress_guard:=true`가 기본이다.
 `planning.launch`는 `enable_signal_compliance_guard:=true traffic_light_state_timeout_sec:=0.5`다.
 `morai_planning_stack.launch`도 같은 인자를 전달한다. 정차 중 황색/R+Y는 출발하지 않고,
-이동 중 최근 허가→황색만 제동 경계 예외를 검토한다. 관측 3개는 3초가 아니다.
+`enable_yellow_passthrough:=false`가 현재 기본이며, ON일 때만 이동 중 최근 허가→황색의 제동 경계 예외를 검토한다. 관측 3개는 3초가 아니다.
 신호 상실/불확실 시 선 전에는 정지를 요구하므로, 장기 상실은 수동 원인 해결이 필요할 수 있다.
 선 통과 후에는 해당 교차로 통과를 이어가지만 다른 장애물 제동을 해제하지 않는다.
 
@@ -121,3 +121,31 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 운영 기본값 그대로 로컬 Sunny13·Foggy13 무객체 전체 경로를 각각 완료했고 A/B/C/D의 허가 신호
 통과와 마지막 정지/P를 대조했다. 중단된 첫 Foggy 주행은 ERROR로 별도 보존했다.
 이는 실제 planner/controller·localization 시험이며 팀 4090/LAN·BEVFusion 동시 부하 인증은 아니다.
+
+## Validator 황색 스위치·전방 디버그 녹화
+
+GUI 행은 **신호등 인지 → 황색 통과 허용 → 신호등 디버그 화면 → 화면 영상 녹화**다.
+새 두 옵션은 새 실험에서 기본 OFF이며, 기존 창은 정상 종료 후 다시 열어야 보인다.
+로컬 설치가 끝났으면 `source scripts/workspace/source_aw149.sh` 후 `./planning_validator_gui`다.
+전체 코스의 개인 YAML을 불러와 `탐지=od_gt`, `측위=localization`으로 두면 BEVFusion을 제외한
+실제 판단·제어와 신호등을 시험할 수 있다. 신호등·디버그 화면·화면 녹화를 켜고, 황색은 우선 OFF로 둔다.
+기본 bag을 켜면 디버그 compressed 토픽도 요청한다. bag OFF는 존중하며 화면 영상 체크와 독립이다.
+원본 JPEG까지 필요하면 토픽 선택에서 `/sensor/camera/front/compressed`도 선택한다.
+화면 녹화는 전체 DISPLAY를 녹화하므로 디버그 창을 다른 창으로 가리거나 최소화하지 않는다.
+
+```yaml
+stack:
+  traffic_light: true
+  traffic_light_yellow_passthrough: false
+  traffic_light_debug_view: true
+recording:
+  video:
+    enabled: true
+```
+
+디버그 창은 읽기 전용이며 주행·인지 노드를 추가로 시작하지 않는다. 수동 스택이 이미 신호등 debug
+이미지를 발행할 때만 `roslaunch traffic_light_detection traffic_light_debug_view.launch`로 단독 열 수 있다.
+직접 신호등을 실행하면 `publish_debug_image:=true`가 필요하고, 판단 쪽 스위치는 별개다.
+원시 CNN·profile 보정·최종 램프·미션/head·held/missing·관측 age·황색 **설정**을 표시하며 실제 GO 판정으로 부르지 않는다.
+수신/원본 시각이 오래되면 STALE로 표시한다. 과거 frozen snapshot 미기재 키는 당시 yellow ON·image 발행 계약을
+읽기 전용으로 유지하고 원문/hash 보호를 바꾸지 않는다. 새 기본을 쓰려면 새 실험을 만든다.

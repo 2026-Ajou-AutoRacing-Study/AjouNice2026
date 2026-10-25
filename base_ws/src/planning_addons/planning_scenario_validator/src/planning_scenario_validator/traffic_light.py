@@ -12,6 +12,21 @@ LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
 
 
+def launch_options(stack, *, legacy_snapshot=False):
+    """Resolve opt-in controls without migrating an immutable old execution.
+
+    Before these switches existed, yellow passthrough and debug image publishing
+    were enabled but no debug viewer was owned by Validator. Only old snapshots
+    use that compatibility default; new authoring documents default both OFF.
+    """
+    for key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
+        if key in stack and type(stack[key]) is not bool:
+            raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
+    return dict(yellow_passthrough=stack.get('traffic_light_yellow_passthrough', legacy_snapshot),
+                debug_view=stack.get('traffic_light_debug_view', False),
+                publish_debug_image=stack.get('traffic_light_debug_view', legacy_snapshot))
+
+
 def profile_name(stack):
     profile = stack.get('traffic_light_profile', DEFAULT_PROFILE)
     if not isinstance(profile, str) or profile not in PROFILE_LABELS:

@@ -40,6 +40,8 @@ COMMENTS = {
     'recording.bag_enabled': 'false=rosbag 프로세스 자체를 실행하지 않음. 실시간 판정·JSON·CSV와 별도 영상 설정은 유지. 생략 시 기존처럼 true.',
     'recording.selected_topics': '직접 선택한 절대 토픽 목록. topic_profile 대신 사용. include_sensors가 true면 센서 5개를 추가.',
     "stack.traffic_light": "이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.",
+    "stack.traffic_light_yellow_passthrough": "기본 false. true도 정차 중 황색 출발을 허용하지 않고, 움직이는 허가→황색 제동불가 예외만 활성화합니다.",
+    "stack.traffic_light_debug_view": "기본 false. true는 YOLO/CNN 디버그 창을 열고, bag ON일 때 디버그 JPEG도 기록합니다. 화면 영상 녹화와 별도입니다.",
     "stack.traffic_light_runtime": "system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.",
     "stack.traffic_light_python": "가상환경 bin/python 경로. conda activate는 필요 없습니다.",
     "stack.traffic_light_device": "GPU 한 개면 '0'. CPU 시험은 cpu. 신호등 off면 사용하지 않습니다.",
@@ -182,7 +184,8 @@ def updated_yaml(text, document):
     return text
 
 
-def quick_test_document(template, names, *, detector, pose_source, traffic_light):
+def quick_test_document(template, names, *, detector, pose_source, traffic_light,
+                        traffic_light_yellow_passthrough=None, traffic_light_debug_view=None):
     if not 1 <= len(names) <= 2 or len(set(names)) != len(names):
         raise ValueError("planning 빠른 테스트는 JSON 1~2개를 선택하세요")
     if detector not in ("bevfusion", "od_gt") or pose_source not in ("localization", "maptf_morai"):
@@ -196,5 +199,11 @@ def quick_test_document(template, names, *, detector, pose_source, traffic_light
         result["scenarios"]["randomization"]["enabled"] = False
     result["stack"].update(detector=detector, pose_source=pose_source,
                            traffic_light=bool(traffic_light))
+    for key, value in (('traffic_light_yellow_passthrough', traffic_light_yellow_passthrough),
+                       ('traffic_light_debug_view', traffic_light_debug_view)):
+        if value is not None:
+            if type(value) is not bool:
+                raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
+            result['stack'][key] = value
     result.setdefault("upload", {})["enabled"] = False
     return result

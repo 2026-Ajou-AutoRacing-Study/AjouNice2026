@@ -199,7 +199,8 @@ if not library.is_file() or not built.is_file():
 elf=compare_plugin_elf(built.read_bytes(),library.read_bytes())
 payload=library.read_bytes()
 if not payload.startswith(b'\x7fELF') or any(marker not in payload for marker in (
-        b'enable_signal_compliance_guard',b'signal_compliance_front_axle_offset_m')):
+        b'enable_signal_compliance_guard',b'signal_compliance_front_axle_offset_m',
+        b'enable_yellow_passthrough')):
     raise RuntimeError('Traffic C++ plugin lacks the new compliance interface; old binary is not qualified')
 linked=subprocess.run(['ldd',str(library)],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
 if linked.returncode or 'not found' in linked.stdout:

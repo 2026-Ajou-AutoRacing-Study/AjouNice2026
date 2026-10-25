@@ -71,6 +71,9 @@ public:
     double yellow_light_stop_velocity;
     double stop_time_hysteresis;
     bool enable_pass_judge;
+    // Master switch for pre-line yellow overrides, including legacy branches.
+    // Already-crossed GO_OUT clearing is intentionally independent of this.
+    bool enable_yellow_passthrough{false};
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
     bool enable_signal_compliance_guard{false};

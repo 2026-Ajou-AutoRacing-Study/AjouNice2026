@@ -142,6 +142,7 @@ bool TrafficLightModule::modifyPathVelocity(
         ? std::max((clock_->now() - *stop_signal_received_time_ptr_).toSec(), 0.0)
         : 0.0;
     bool to_be_stopped = is_stop_signal && (planner_param_.enable_signal_compliance_guard ||
+      (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) ||
       is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
 
     debug_data_.is_remaining_time_used = false;
@@ -209,6 +210,11 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
   prev_looking_tl_state_ = looking_tl_state_;
 
   updateTrafficSignal(planner_data);
+
+  if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow() &&
+      !planner_param_.enable_signal_compliance_guard) {
+    return true;
+  }
 
   if (planner_param_.enable_signal_compliance_guard) {
     using signal_compliance::Observation;
@@ -403,6 +409,9 @@ void TrafficLightModule::updateTrafficSignal(const PlannerData & planner_data)
 bool TrafficLightModule::isPassthrough(
   const double & signed_arc_length, const PlannerData & planner_data) const
 {
+  if (!planner_param_.enable_yellow_passthrough) {
+    return false;
+  }
   if (is_prev_state_stop_) {
     return false;
   }

@@ -10,9 +10,12 @@ def test_only_explicit_trial_launch_arguments_change():
     original = {'repo_root': '/repo', 'is_simulation': False}
     result = launch_arguments('ajounice_planning_integration', 'planning.launch', original, True, True, True)
     assert result['enable_signal_compliance_guard'] is True
+    assert result['enable_yellow_passthrough'] is False
     assert result['signal_compliance_front_axle_offset_m'] == 3.0
     assert original == {'repo_root': '/repo', 'is_simulation': False}
     assert launch_arguments('bringup', 'localization.launch', original, True, True, True) == original
+    assert launch_arguments('ajounice_planning_integration', 'planning.launch', original,
+                            True, True, False, yellow_passthrough=True)['enable_yellow_passthrough'] is True
 
 
 def test_production_mode_does_not_override_any_policy_launch_defaults():

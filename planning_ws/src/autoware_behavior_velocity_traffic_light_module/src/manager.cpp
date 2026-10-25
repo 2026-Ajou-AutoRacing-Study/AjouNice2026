@@ -48,6 +48,7 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
     require_parameter<double>(node, ns + ".stop_time_hysteresis");
   planner_param_.enable_pass_judge =
     require_parameter<bool>(node, ns + ".enable_pass_judge");
+  node.param<bool>(ns + "/enable_yellow_passthrough", planner_param_.enable_yellow_passthrough, false);
   node.param<bool>(ns + "/yellow_light_is_go", planner_param_.yellow_light_is_go, false);
   node.param<bool>(ns + "/competition_fail_open", planner_param_.competition_fail_open, false);
   node.param<bool>(ns + "/enable_signal_compliance_guard", planner_param_.enable_signal_compliance_guard, false);

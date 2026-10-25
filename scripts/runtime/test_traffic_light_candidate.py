@@ -25,7 +25,7 @@ def plugin_elf(strip_rpath=False, tamper='', old=False):
     entries=[(1,8),(29,path_offset),(12,0x1234)]
     if strip_rpath:entries=[entry for entry in entries if entry[0]!=29]
     dynamic=b''.join(struct.pack('<qQ',*entry) for entry in entries).ljust(80,b'\0')
-    markers=b'enable_signal_compliance_guard signal_compliance_front_axle_offset_m'
+    markers=b'enable_signal_compliance_guard signal_compliance_front_axle_offset_m enable_yellow_passthrough'
     data=[b'',struct.pack('<III',4,20,3)+b'GNU\0'+b'b'*20,b'\x90\xc3',
           b'old plugin' if old else markers,strings,b'\0'*24+struct.pack('<IBBHQQ',1,0,0,0,0,0),dynamic,shstr]
     if tamper=='text':data[2]=b'\xcc'+data[2][1:]

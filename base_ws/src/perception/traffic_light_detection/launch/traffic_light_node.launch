@@ -43,7 +43,7 @@
   <arg name="map_packet_max_image_delta_sec" default="0.0" />
   <arg name="map_packet_wait_sec" default="0.03" />
 
-  <arg name="publish_debug_image" default="true" />
+  <arg name="publish_debug_image" default="false" />
   <arg name="debug_jpeg_quality" default="60" />
 
   <!-- ===== 화살표 템플릿 수집용 (임시 디버그 기능, 비어있으면 비활성) ===== -->

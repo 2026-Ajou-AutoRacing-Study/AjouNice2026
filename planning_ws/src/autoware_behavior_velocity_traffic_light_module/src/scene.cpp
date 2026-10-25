@@ -143,6 +143,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
         ? std::max((clock_->now() - *stop_signal_received_time_ptr_).toSec(), 0.0)
         : 0.0;
     bool to_be_stopped = is_stop_signal && (planner_param_.enable_signal_compliance_guard ||
+      (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) ||
       is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
 
     debug_data_.is_remaining_time_used = false;
@@ -223,6 +224,14 @@ bool TrafficLightModule::isStopSignal()
   // Store previous state before updating
   prev_looking_tl_state_ = looking_tl_state_;
   updateTrafficSignal();
+
+  if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) {
+    // Do not let legacy yellow_light_is_go/arrow overrides bypass the master.
+    // The guarded branch below still records Yellow and clears green history.
+    if (!planner_param_.enable_signal_compliance_guard) {
+      return true;
+    }
+  }
 
   if (planner_param_.enable_signal_compliance_guard) {
     using signal_compliance::Observation;
@@ -416,6 +425,9 @@ void TrafficLightModule::updateTrafficSignal()
 
 bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
 {
+  if (!planner_param_.enable_yellow_passthrough) {
+    return false;
+  }
   const double max_acc = planner_data_->max_stop_acceleration_threshold;
   const double max_jerk = planner_data_->max_stop_jerk_threshold;
   const double delay_response_time = planner_data_->delay_response_time;
