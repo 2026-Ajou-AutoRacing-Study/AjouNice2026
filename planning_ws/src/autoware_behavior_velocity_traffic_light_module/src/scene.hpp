@@ -27,6 +27,7 @@
 #include <autoware/behavior_velocity_rtc_interface/scene_module_interface_with_rtc.hpp>
 #include <autoware_lanelet2_extension/utility/query.hpp>
 #include <autoware/behavior_velocity_traffic_light_module/ros1_support.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp>
 
 #include <lanelet2_core/LaneletMap.h>
 #include <lanelet2_routing/RoutingGraph.h>
@@ -72,6 +73,8 @@ public:
     bool enable_pass_judge;
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
+    bool enable_signal_compliance_guard{false};
+    double signal_compliance_front_axle_offset_m{-1.0};
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter
@@ -161,6 +164,7 @@ private:
 
   // Parameter
   PlannerParam planner_param_;
+  signal_compliance::Guard signal_compliance_guard_;
 
   // Debug
   DebugData debug_data_;

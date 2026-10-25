@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "manager.hpp"
+#include <cmath>
+#include <stdexcept>
 #include "../utils.hpp"
 
 #include <autoware/lanelet2_utils/intersection.hpp>
@@ -44,6 +46,13 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
     require_parameter<bool>(node, ns + ".enable_pass_judge");
   node.param<bool>(ns + "/yellow_light_is_go", planner_param_.yellow_light_is_go, false);
   node.param<bool>(ns + "/competition_fail_open", planner_param_.competition_fail_open, false);
+  node.param<bool>(ns + "/enable_signal_compliance_guard", planner_param_.enable_signal_compliance_guard, false);
+  node.param<double>(ns + "/signal_compliance_front_axle_offset_m", planner_param_.signal_compliance_front_axle_offset_m, -1.0);
+  if (planner_param_.enable_signal_compliance_guard &&
+      (!std::isfinite(planner_param_.signal_compliance_front_axle_offset_m) ||
+       planner_param_.signal_compliance_front_axle_offset_m < 0.0)) {
+    throw std::invalid_argument("signal compliance candidate requires an explicitly qualified front axle offset");
+  }
   planner_param_.yellow_lamp_period =
     require_parameter<double>(node, ns + ".yellow_lamp_period");
   planner_param_.yellow_light_stop_velocity =

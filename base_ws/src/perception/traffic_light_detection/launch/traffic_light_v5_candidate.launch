@@ -18,6 +18,8 @@
   <arg name="route_group_id_topic" default="/perception/traffic_light_recognition/route_group_id" />
   <arg name="publish_debug_image" default="true" />
   <arg name="near_rescue_enabled" default="true" />
+  <arg name="planner_compliance_observations" default="false" />
+  <arg name="route_progress_guard" default="false" />
   <arg name="map_max_vertical_padding_px" default="200.0" />
   <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
     <arg name="inference_python" value="$(arg inference_python)" />
@@ -46,6 +48,8 @@
     <arg name="route_group_id_topic" value="$(arg route_group_id_topic)" />
     <arg name="publish_debug_image" value="$(arg publish_debug_image)" />
     <arg name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
+    <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <arg name="route_progress_guard" value="$(arg route_progress_guard)" />
     <arg name="map_max_vertical_padding_px" value="$(arg map_max_vertical_padding_px)" />
   </include>
 </launch>

@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-25 사용자 요청으로 **v5 지도+CNN을 traffic·Validator 기본으로 전환**. 신호 정책은 불변.
+상태: 2026-10-26 검토. **v5 지도+CNN은 traffic·Validator 기본**, 새 준수 가드는 기본 OFF 후보다.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다.
 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
@@ -36,7 +36,7 @@
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
 - yellow/R+Y/unknown을 인지와 BVP가 다르게 처리하는 현재 계약은
   [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)를 본다.
-  [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
+  [새 출발·신호 상실 후보](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)는 기본 OFF다. D의 황색·단절 시험과 A/B/C/D 추가 검증을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
   승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
@@ -68,8 +68,8 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
-4. 실제 route bag 재생에서 통과한 D의 재선택이 나왔다. 당시 지도와 현행 v87의 누락 lane ID도 있어
-   전체 미션 선택 인증은 보류한다. `audit_traffic_light_route_replay.py`로 원래 지도·새 주행을 대조한다.
+4. 통과한 D의 재선택을 막는 `route_progress_guard`는 기본 OFF 후보다. 자연 Sunny13 무객체 1회에서
+   A→B→C→D→none과 허가 신호 4회 통과를 확인했다. [후보 범위·남은 시험](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 따른다.
 
 ## 평가·학습 경계
 

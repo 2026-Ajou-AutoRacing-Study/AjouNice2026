@@ -224,6 +224,9 @@ class TrafficLightNode:
 
         self.status = _StatusLog(float(rospy.get_param("~log_interval_sec", 1.0)))
 
+        self.planner_compliance_observations = rospy.get_param("~planner_compliance_observations", False)
+        if type(self.planner_compliance_observations) is not bool:
+            raise ValueError("planner_compliance_observations must be an explicit bool")
         smoothing_window_size = int(rospy.get_param("~smoothing_window_size", 5))
         smoothing_majority_count = rospy.get_param("~smoothing_majority_count", None)
         if smoothing_majority_count is not None:
@@ -261,6 +264,7 @@ class TrafficLightNode:
             "detector_weights_path": os.path.abspath(os.path.expanduser(weights_path)),
             "detector_requested_device": str(self.inference_device), "detector_imgsz": self.detector_imgsz,
             "cnn_crop_margin_px": self.cnn_crop_margin_px,
+            "planner_compliance_observations": self.planner_compliance_observations,
             "near_rescue": dict(enabled=self.near_rescue_config.enabled,
                                 imgsz=self.near_rescue_config.imgsz,
                                 max_depth_m=self.near_rescue_config.max_depth_m,
@@ -578,7 +582,30 @@ class TrafficLightNode:
         color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
             raw_color_results, policy_reason, group.traffic_light_group_id,
             now.to_sec(), raw_det_conf, self.signal_smoother,
+            source_stamp_ns=msg.header.stamp.to_nsec(),
+            use_smoothing=not self.planner_compliance_observations,
         )
+        observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
+        adopted_ns = observation_timing.get("adopted_observation_source_stamp_ns")
+        if observation_timing.get("output_is_observed"):
+            # A held/smoothed winner is not a new observation of this JPEG.
+            # Preserve integer ns; from_sec(float) would lose epoch precision.
+            output_stamp = (msg.header.stamp if adopted_ns == msg.header.stamp.to_nsec() else
+                            rospy.Time(adopted_ns // 1000000000, adopted_ns % 1000000000)
+                            if adopted_ns is not None else rospy.Time(0))
+        else:
+            # Synthetic fallback RED is a fresh policy decision, not lamp GT.
+            output_stamp = source_stamp
+        group_array.stamp = builtin_time_from_ros(output_stamp)
+        output_now_ns = rospy.Time.now().to_nsec()
+        last_trusted_ns = observation_timing.get("last_trusted_observation_source_stamp_ns")
+        observation_timing.update(
+            output_source_stamp_ns=output_stamp.to_nsec(),
+            output_observation_age_sec=((output_now_ns-adopted_ns)/1e9 if adopted_ns is not None else None),
+            last_trusted_observation_age_sec=((output_now_ns-last_trusted_ns)/1e9
+                                             if last_trusted_ns is not None else None),
+            output_stamp_basis=("adopted_lamp_observation" if observation_timing.get("output_is_observed")
+                                else "current_image_policy_fallback"))
         if policy_reason.endswith(":fail_open"):
             self.status.note(_StatusLog.WARN, "검출 없음 -> fallback")
         elif transition_reason.startswith("observation_guard"):
@@ -651,6 +678,8 @@ class TrafficLightNode:
             "normalized_tuples": raw_color_results,
             "final_tuples": color_results,
             "final_confidence": det_conf,
+            "planner_compliance_observations": self.planner_compliance_observations,
+            "observation_timing": observation_timing,
             "policy_reason": policy_reason,
             "transition_reason": transition_reason})
 

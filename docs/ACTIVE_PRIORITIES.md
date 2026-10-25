@@ -21,7 +21,7 @@
 | --- | --- |
 | 팀 4090 LAN 단계별 지연 분석 | Windows MORAI + Linux 알고리즘 동시 기록 수령 후, 입력 주기·큐·전처리·GPU·발행·후단 비용과 누락을 같은 frame/clock 기준으로 분리. 기존 bag에 없는 단계는 미측정으로 남김 |
 | 중복·분류 일관성 후보의 운영 판단 | 오프라인/native/ROS 대조 결과를 판단 팀과 확인. shape/class 후보 기본 OFF 유지. 새 입력과 폐루프 손익 확인 전 자동 승격하지 않음 |
-| 신호등 v5 팀 폐루프 확인 | D 근접 검출·지도 보완 및 로컬 Sunny13/Foggy13 무객체 폐루프 완료. 팀 LAN/4090·BEVFusion 동시 부하와 통과 후 route 재선택을 별도 확인. 황색·R+Y 새 출발·카메라 상실 정책은 불변 |
+| 신호등 v5 팀 폐루프 확인 | D 근접 보완과 로컬 무객체 폐루프 완료. 준수 가드·직접 관측·route 진행 후보는 기본 OFF이며 Sunny13 자연 1회와 D/황색 국소 시험을 구분. A/B/C/D 이동 중 황색의 제동 경계·미관측·재출발 지연 및 팀 LAN/4090·BEVFusion 동시 부하는 [후보 기록](perception/traffic_light/261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 따라 검증 |
 | 측위 현장 재검증 | 현재 Smooth/음영 계약을 유지하고, 운영측 CP14 환경 갱신 후 해당 복귀와 실제 LAN 기록을 재검증. 세부 순서는 측위 CURRENT |
 | 팀 배포 후 프로필 확인 | 현장 원본 + LAN adapter + Ego 수신 OFF + 공식 START 초기화 명시 기준. 팀 PC의 실제 NIC·로드본·설치본과 초기 pose 발행을 확인하며 새 LAN 기동 검증은 별도로 기록 |
 

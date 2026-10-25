@@ -94,14 +94,30 @@ bool TrafficLightModule::modifyPathVelocity(
   const auto signed_arc_length_to_stop_point = *stop_point_s - ego_s;
   setDistance(signed_arc_length_to_stop_point);
 
+  const auto front_axle_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+    signed_arc_length_to_stop_point, planner_param_.stop_margin,
+    planner_data.vehicle_info_.max_longitudinal_offset_m,
+    planner_param_.signal_compliance_front_axle_offset_m);
+  if (planner_param_.enable_signal_compliance_guard && !front_axle_distance) {
+    setSafe(false);
+    path = insertStopVelocity(path, *stop_point_s, planner_data);
+    is_prev_state_stop_ = true;
+    return true;
+  }
+
   // Check state
   if (state_ == State::APPROACH) {
     // Move to go out state if ego vehicle over deadline.
     constexpr double signed_deadline_length = -2.0;
-    if (signed_arc_length_to_stop_point < signed_deadline_length) {
+    if (planner_param_.enable_signal_compliance_guard ? *front_axle_distance < 0.0 :
+        signed_arc_length_to_stop_point < signed_deadline_length) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
       stop_signal_received_time_ptr_.reset();
+      if (planner_param_.enable_signal_compliance_guard) {
+        setSafe(true);
+        is_prev_state_stop_ = false;
+      }
       return true;
     }
 
@@ -122,8 +138,8 @@ bool TrafficLightModule::modifyPathVelocity(
       stop_signal_received_time_ptr_
         ? std::max((clock_->now() - *stop_signal_received_time_ptr_).toSec(), 0.0)
         : 0.0;
-    bool to_be_stopped =
-      is_stop_signal && (is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
+    bool to_be_stopped = is_stop_signal && (planner_param_.enable_signal_compliance_guard ||
+      is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
 
     debug_data_.is_remaining_time_used = false;
     if (planner_param_.v2i_use_remaining_time) {
@@ -167,9 +183,11 @@ bool TrafficLightModule::modifyPathVelocity(
     // Initialize if vehicle is far from stop_line
     constexpr bool use_initialization_after_start = true;
     constexpr double restart_length = 1.0;
-    if (use_initialization_after_start && signed_arc_length_to_stop_point > restart_length) {
+    if (use_initialization_after_start && (planner_param_.enable_signal_compliance_guard ?
+        *front_axle_distance > restart_length : signed_arc_length_to_stop_point > restart_length)) {
       RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
       state_ = State::APPROACH;
+      signal_compliance_guard_.reset();
     }
     stop_signal_received_time_ptr_.reset();
     return true;
@@ -184,6 +202,35 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
   prev_looking_tl_state_ = looking_tl_state_;
 
   updateTrafficSignal(planner_data);
+
+  if (planner_param_.enable_signal_compliance_guard) {
+    using signal_compliance::Observation;
+    auto observation = Observation::Missing;
+    if (traffic_signal_stamp_) {
+      const auto & elements = looking_tl_state_.elements;
+      const double age = (clock_->now() - *traffic_signal_stamp_).toSec();
+      if (age < 0.0 || age > planner_param_.tl_state_timeout) {
+        observation = Observation::Stale;
+      } else if (elements.empty() || std::any_of(elements.begin(), elements.end(), [](const auto & element) {
+          return element.color == TrafficSignalElement::UNKNOWN ||
+                 element.shape == TrafficSignalElement::UNKNOWN ||
+                 element.status != TrafficSignalElement::SOLID_ON;
+        })) {
+        observation = Observation::Unknown;
+      } else if (isTrafficSignalYellow()) {
+        const bool green = std::any_of(elements.begin(), elements.end(), [](const auto & element) {
+          return element.color == TrafficSignalElement::GREEN;
+        });
+        observation = green ? Observation::Unknown : Observation::Yellow;
+      } else {
+        observation = autoware::traffic_light_utils::isTrafficSignalStop(lane_, looking_tl_state_) ?
+          Observation::Stop : Observation::AuthorizedGreen;
+      }
+    }
+    return signal_compliance_guard_.observe(
+      observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
+      clock_->now().toSec(), planner_param_.tl_state_timeout);
+  }
 
   // If there is no upcoming traffic signal information,
   //   SIMULATION: it will PASS to prevent stopping on the planning simulator
@@ -324,6 +371,9 @@ void TrafficLightModule::updateTrafficSignal(const PlannerData & planner_data)
 {
   TrafficSignalStamped signal;
   if (!findValidTrafficSignal(signal, planner_data)) {
+    if (planner_param_.enable_signal_compliance_guard) {
+      traffic_signal_stamp_.reset();
+    }
     // Don't stop if it never receives traffic light topic.
     // Reset looking_tl_state
     looking_tl_state_.elements.clear();
@@ -357,6 +407,18 @@ bool TrafficLightModule::isPassthrough(
     planner_data.current_velocity->twist.linear.x,
     planner_data.current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
     delay_response_time);
+
+  if (planner_param_.enable_signal_compliance_guard) {
+    const auto front_line_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+      signed_arc_length, planner_param_.stop_margin,
+      planner_data.vehicle_info_.max_longitudinal_offset_m,
+      planner_param_.signal_compliance_front_axle_offset_m);
+    return front_line_distance && signal_compliance::yellowPassthroughAllowed(
+      planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
+      is_prev_state_stop_ || planner_data.isVehicleStopped(),
+      planner_data.current_velocity->twist.linear.x, planner_param_.yellow_light_stop_velocity,
+      pass_judge_line_distance, *front_line_distance);
+  }
 
   const bool distance_stoppable = pass_judge_line_distance < signed_arc_length;
   const bool slow_velocity =
