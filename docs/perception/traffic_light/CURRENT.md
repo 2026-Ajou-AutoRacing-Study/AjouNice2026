@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-25 YOLO 재학습·CNN·지도 연결 후보 및 정지 ROS 시험 완료. **운영 모델·정책 변경 없음.**
+상태: 2026-10-25 v5 설치기·GUI·CUDA smoke 완료. D 근접 주행 실패로 **운영 모델·정책 변경 없음.**
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다.
 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
@@ -36,7 +36,11 @@
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
 - yellow/R+Y/unknown을 인지와 BVP가 다르게 처리하는 현재 계약은
   [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)를 본다.
-  CNN 성능이 좋아져도 황색 진입 허용의 공식 해석이 자동 확정되지는 않는다.
+  [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
+- 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
+  개인 Drive 읽기 권한 또는 전달받은 모델 압축본이 필요하며 전체 주행·4090 동시 검증은 별도다.
+- 실제 주행에서 D 근접 YOLO score·지도 gate 실패를 재현해 승격을 보류했다.
+  [설치·경로·폐루프 근거와 후속](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md)을 먼저 본다.
 
 ## 구간 계약과 자연 현시
 
@@ -61,15 +65,11 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 
 ## 확인된 문제와 후보
 
-1. C에서 가까운 housing을 놓치고 더 작은 뒤쪽 housing만 검출하는 사례를 재현했다.
-   두 등 C016/C018은 **같은 신호 프로그램**이다. 단일 등 강제 제어로 생긴 불일치를
-   자연 주행의 다른 신호 선택 오류로 해석하지 않는다. 검출·선택·화질은 분리 평가한다.
-2. 올바른 housing crop에서도 좌화살표를 원으로 분류하는 사례를 6환경에서 재현했다.
-   HSV 보완 및 multi-label CNN을 같은 crop으로 비교한다.
-3. 지도 투영 crop은 근사치다. 초기 시험에서 상단 잘림과 판독 불가 표본을 발견했다.
-   native 상태가 맞아도 픽셀 정답·crop 품질이 자동 보증되는 것은 아니다.
-4. 초기 CNN crop 시험은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md),
-   최종 모델·연속 비교·ROS UNKNOWN은 위 통합 검증 기록을 따른다.
+1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
+2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
+3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
+4. 실제 route bag 재생에서 통과한 D의 재선택이 나왔다. 당시 지도와 현행 v87의 누락 lane ID도 있어
+   전체 미션 선택 인증은 보류한다. `audit_traffic_light_route_replay.py`로 원래 지도·새 주행을 대조한다.
 
 ## 평가·학습 경계
 

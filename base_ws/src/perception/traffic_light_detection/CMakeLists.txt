@@ -46,6 +46,7 @@ install(DIRECTORY config launch weights
 install(FILES
   README.md
   requirements-runtime.txt
+  requirements-candidate.txt
   traffic_light_group_id_table.json
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

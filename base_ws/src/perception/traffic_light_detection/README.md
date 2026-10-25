@@ -48,6 +48,8 @@ Planning `competition_fail_open`도 missing/stale/entirely unknown 신호에서 
 운영 기준·후보 상태·구간별 관찰 계약은
 [신호등 CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)에서 관리한다.
 이 README에는 과거 실험 결과를 누적하지 않는다.
+v5 시험 배포는 [설치·GUI 선택 안내](../../../../docs/perception/traffic_light/V5_CANDIDATE_HANDOFF.md)를 따른다.
+`install_traffic_light_candidate.sh`는 두 가중치·전용 환경을 준비하며 운영 기본값은 바꾸지 않는다.
 
 ## 지도 선택·CNN 시험 옵션
 

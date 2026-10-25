@@ -21,7 +21,7 @@ from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resol
                      prediction_highway_horizon, prediction_highway_mode)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
-from .traffic_light import runtime_mode, runtime_settings
+from .traffic_light import runtime_mode, runtime_settings, profile_name, candidate_assets, profile_check_arguments
 from .models import resolve_contract, verify_contract, selected_model, runtime_image_selection, CANONICAL
 from .recording_audit import audit_bag
 from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
@@ -77,11 +77,12 @@ def _check_traffic_light(cfg):
                 "--device", device, "--check-ros"]
     if runtime_mode(cfg["stack"]) == "virtualenv":
         command.append("--isolate-python")
+    command += profile_check_arguments(cfg['stack'], ROOT)
     print("신호등 실행 환경 검사: {} / device={}".format(python, device), flush=True)
     logs = cfg['output'] / 'stack_logs'
     logs.mkdir(parents=True, exist_ok=True)
     receipt = {'schema_version': 1, 'command': command, 'started_at': now(),
-               'python': python, 'device': device, 'status': 'RUNNING'}
+               'python': python, 'device': device, 'profile': profile_name(cfg['stack']), 'status': 'RUNNING'}
     atomic_json(logs / 'traffic_light_preflight.json', receipt)
     try:
         checked = subprocess.run(command, env=_env(), stdout=subprocess.PIPE,
@@ -202,9 +203,13 @@ def _start_case_stack(cfg, processes, monitor):
         maximum_tracking_internal_prediction_age_sec=0.5))
     if stack.get("traffic_light", False):
         python, device = runtime_settings(stack, ROOT, check_exists=True)
-        processes.start("traffic_light", _launch("traffic_light_detection", "traffic_light_node.launch",
+        selected = candidate_assets(stack, ROOT, check_exists=True)
+        extra = {} if selected is None else dict(models_root=selected['root'], repo_root=ROOT,
+                                                sensor_config=cfg['network']['sensor_json'])
+        filename = 'traffic_light_node.launch' if selected is None else 'traffic_light_v5_candidate.launch'
+        processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
-            isolate_python=runtime_mode(stack) == "virtualenv"))
+            isolate_python=runtime_mode(stack) == "virtualenv", **extra))
     processes.start("planning", _launch("ajounice_planning_integration", "planning.launch",
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
