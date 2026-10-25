@@ -72,7 +72,8 @@ class LaunchContractTest(unittest.TestCase):
         cmake = (PACKAGE / "CMakeLists.txt").read_text()
         for name in ("traffic_light_node.py", "traffic_light_route_group_id_node.py",
                      "traffic_light_map_selector.py", "traffic_light_map_roi_node.py",
-                     "traffic_light_cnn_classifier.py", "signal_phase_policy.py", "signal_smoother.py"):
+                     "traffic_light_near_rescue.py", "traffic_light_cnn_classifier.py",
+                     "signal_phase_policy.py", "signal_smoother.py"):
             self.assertIn("scripts/" + name, cmake)
         self.assertIn("install(DIRECTORY config launch weights", cmake)
         self.assertIn("<depend>tf2_ros</depend>", (PACKAGE / "package.xml").read_text())

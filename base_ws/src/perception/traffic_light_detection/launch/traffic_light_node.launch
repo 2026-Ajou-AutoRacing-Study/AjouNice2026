@@ -12,6 +12,8 @@
   <arg name="isolate_python" default="true" />
   <arg name="device" default="0" />
   <arg name="detector_imgsz" default="960" />
+  <!-- One full-frame 640 retry only after a near/large current map-head miss. -->
+  <arg name="near_rescue_enabled" default="true" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
@@ -29,7 +31,7 @@
   <arg name="map_base_margin_px" default="12.0" />
   <arg name="map_pitch_tolerance_degrees" default="1.0" />
   <arg name="map_max_padding_px" default="90.0" />
-  <arg name="map_max_vertical_padding_px" default="180.0" />
+  <arg name="map_max_vertical_padding_px" default="200.0" />
   <arg name="map_min_aspect_ratio_factor" default="0.4" />
   <arg name="map_max_aspect_ratio_factor" default="2.5" />
   <arg name="map_max_position_sigma_m" default="1.5" />
@@ -135,6 +137,7 @@
     <param name="conf" value="$(arg conf)" />
     <param name="device" value="$(arg device)" />
     <param name="detector_imgsz" value="$(arg detector_imgsz)" />
+    <param name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="selection_mode" value="$(arg selection_mode)" />
     <param name="classifier_mode" value="$(arg classifier_mode)" />

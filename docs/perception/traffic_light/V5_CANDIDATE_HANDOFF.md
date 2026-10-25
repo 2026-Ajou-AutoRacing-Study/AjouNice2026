@@ -4,7 +4,8 @@
 [CURRENT](CURRENT.md)와 [황색·상실 정책 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 함께 읽는다.
 새 모델은 YOLO26n960 + 지도 housing 연결 + ResNet18 CNN v5다.
 옛 YOLO640/HSV는 명시적 복귀로 보존한다. planning 황색·fail-open 값은 바꾸지 않았다.
-**D 근접 문제는 미해결이며, 기본값 전환이 전체 주행 검증 완료를 뜻하지 않는다.**
+**D 근접 누락은 [조건부 재검출·지도 보완](261025_NEAR_SIGNAL_RECOVERY.md)으로 수정했다.
+로컬 Sunny13·Foggy13 무객체 폐루프 PASS이며 LAN·BEVFusion 동시 주행 인증은 아니다.**
 파일명/profile의 `candidate`와 가중치의 연구 metadata는 호환·원본 보존용이다. 현재 실행 선택은 CURRENT를 따른다.
 
 ## 팀장님 4090 — 설치
@@ -93,7 +94,7 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 - 검출·원시 CNN·보정·유지된 출력·planning 최종 동작을 같은 source stamp로 대조.
 - 정차 중 Y/R+Y 새 출발, 선 전 카메라/신호 단절, 선 통과 후 정상 화각 이탈은 별도 정책 시험.
 - 4090에서 BEVFusion 동시 실행 시 처리시간/입력 밀림/실제 device/VRAM 확인.
-- 현재 full-route 주행 통과 및 LAN 실시간성 인증은 아직 아니다.
+- 로컬 무객체 Sunny13·Foggy13은 주행 PASS. LAN·팀4090 동시 부하·공식 신호 준수는 별도다.
 
 복귀하려면 `traffic_legacy` 또는 GUI의 `기존 YOLO+HSV`를 명시적으로 선택해 새 실행한다. 과거 모델·환경을 삭제하거나
 실패 실행을 PASS로 바꿔 재개하지 않는다.

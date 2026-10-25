@@ -16,6 +16,7 @@ import numpy as np
 PACKAGE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE / "scripts"))
 from traffic_light_map_selector import DEFAULT_SELECTOR_CONFIG, SELECTOR_CONTRACT_VERSION
+from traffic_light_near_rescue import NearRescueConfig
 
 
 class Duration:
@@ -83,6 +84,7 @@ class CandidateNodeTest(unittest.TestCase):
         node.model = types.SimpleNamespace(predict=Mock(return_value=[types.SimpleNamespace(boxes=[detection])]))
         node.conf_threshold, node.inference_device = .25, "cpu"
         node.detector_imgsz = 640
+        node.near_rescue_config = NearRescueConfig()
         node.runtime_metadata = {"detector_imgsz": 640}
         node.publish_debug_image, node.debug_pub = False, None
         node._resolve_group_id = lambda: 201290
@@ -120,6 +122,317 @@ class CandidateNodeTest(unittest.TestCase):
 
     def debug(self, node, publisher):
         return json.loads(getattr(node, publisher).publish.call_args[0][0].data)
+
+    def detector_results(self, *bboxes):
+        return [types.SimpleNamespace(boxes=[types.SimpleNamespace(
+            xyxy=np.array([bbox], dtype=float), conf=np.array([.9])) for bbox in bboxes])]
+
+    def near_node(self, group=201290):
+        node = self.node()
+        node.detector_imgsz = node.runtime_metadata["detector_imgsz"] = 960
+        node.near_rescue_config = NearRescueConfig(enabled=True)
+        node._resolve_group_id = lambda: group
+        packet = self.packet(group=group)
+        packet["generated_stamp_ns"] = 9990000000
+        packet["reason"] = "projected"
+        packet["rois"][0].update(group_id=group, eligible=True, depth_m=10.,
+            bbox_xyxy=[480., 180., 560., 200.], gate_xyxy=[450., 150., 590., 230.])
+        node._map_packet_for_image.return_value = packet
+        return node
+
+    def assert_missing_signal(self, node):
+        node.pub.publish.assert_called_once()
+        self.assertEqual(node.signal_phase_policy.apply.call_args[0][0], [])
+        self.assertEqual(self.debug(node, "selection_debug_pub")["status"], "missing")
+        self.assertFalse(self.debug(node, "classifier_debug_pub")["known"])
+
+    def test_near_retry_uses_same_image_and_identity_gate_for_all_mission_groups(self):
+        for group in (201351, 201365, 201290, 201326):
+            with self.subTest(group=group):
+                node = self.near_node(group=group)
+                node.model.predict.side_effect = [self.detector_results(),
+                    self.detector_results([480., 180., 560., 200.])]
+                message = self.image()
+                with patch.object(self.module, "classify_crop", return_value=([("red", "circle", None)], {})) as classify:
+                    node.image_callback(message)
+                self.assertEqual(node.model.predict.call_count, 2)
+                first, second = [call.kwargs for call in node.model.predict.call_args_list]
+                self.assertEqual([first["imgsz"], second["imgsz"]], [960, 640])
+                self.assertIs(first["source"], second["source"])
+                self.assertEqual(first["conf"], second["conf"])
+                self.assertEqual(first["device"], second["device"])
+                classify.assert_called_once()
+                selection = self.debug(node, "selection_debug_pub")
+                self.assertEqual(selection["status"], "matched")
+                self.assertEqual(selection["group_id"], group)
+                self.assertEqual(selection["source_stamp_ns"], message.header.stamp.to_nsec())
+                self.assertEqual(selection["projection_source_stamp_ns"], message.header.stamp.to_nsec())
+                rescue = selection["near_rescue"]
+                self.assertTrue(rescue["attempted"])
+                self.assertTrue(rescue["accepted"])
+                self.assertEqual(rescue["eligible_head_ids"], [selection["head_id"]])
+                report = self.debug(node, "runtime_debug_pub")
+                self.assertEqual(report["source_stamp_ns"], message.header.stamp.to_nsec())
+                self.assertEqual(report["frame_decision"]["near_rescue"], rescue)
+                timing = report["frame_timing"]
+                self.assertGreater(timing["near_rescue_detector_and_association_sec"], 0)
+                self.assertLessEqual(timing["near_rescue_detector_and_association_sec"],
+                                     timing["selection_including_map_wait_sec"])
+                # Rescue is a subset of selection, not an additional additive stage.
+                self.assertAlmostEqual(timing["callback_to_output_sec"], sum(timing[key] for key in
+                    ("decode_sec", "detector_and_box_readback_sec", "selection_including_map_wait_sec",
+                     "crop_and_classifier_sec", "policy_and_publish_sec")))
+                self.assertEqual(self.debug(node, "classifier_debug_pub")["source_stamp_ns"],
+                                 message.header.stamp.to_nsec())
+                self.assertIs(node.pub.publish.call_args[0][0].stamp, message.header.stamp)
+
+    def test_near_retry_context_accepts_fresh_generation_stamp_at_inclusive_boundaries(self):
+        # The fake ROS clock is fixed at 10 s. Retry may accept a packet
+        # generated now or exactly max_age ago, but never future/expired data.
+        node = self.near_node()
+        node.map_packet_max_age_sec = .5
+        packet = node._map_packet_for_image.return_value
+        for generated_stamp_ns in (10000000000, 9990000000, 9500000000):
+            with self.subTest(generated_stamp_ns=generated_stamp_ns):
+                packet["generated_stamp_ns"] = generated_stamp_ns
+                self.assertIsNone(node._near_retry_context_reason(packet, 201290))
+
+    def test_context_change_during_secondary_inference_preserves_missing_publication(self):
+        cases = (
+            ("route_changed", "route_changed_during_retry"),
+            ("route_became_unknown", "route_changed_during_retry"),
+            ("expired", "map_packet_expired_during_retry"),
+            ("future", "map_packet_expired_during_retry"),
+            ("missing_generation", "invalid_retry_packet_generation_stamp"),
+        )
+        for condition, expected_reason in cases:
+            with self.subTest(condition=condition):
+                node = self.near_node()
+                packet = node._map_packet_for_image.return_value
+                calls = []
+
+                def predict(**kwargs):
+                    calls.append(kwargs)
+                    if len(calls) == 1:
+                        return self.detector_results()
+                    # The first selection is valid. Change context only while
+                    # the secondary detector runs to exercise the final guard.
+                    if condition == "route_changed":
+                        node._resolve_group_id = lambda: 201326
+                    elif condition == "route_became_unknown":
+                        node._resolve_group_id = lambda: 0
+                    elif condition == "expired":
+                        packet["generated_stamp_ns"] = 9499999999
+                    elif condition == "future":
+                        packet["generated_stamp_ns"] = 10000000001
+                    else:
+                        packet.pop("generated_stamp_ns")
+                    return self.detector_results([480., 180., 560., 200.])
+
+                node.model.predict.side_effect = predict
+                message = self.image()
+                with patch.object(self.module, "classify_crop") as classify:
+                    node.image_callback(message)
+                self.assertEqual(node.model.predict.call_count, 2)
+                classify.assert_not_called()
+                self.assert_missing_signal(node)
+                selection = self.debug(node, "selection_debug_pub")
+                self.assertEqual(selection["reason"], "no_unambiguous_route_detection")
+                self.assertNotIn("head_id", selection)
+                self.assertIsNone(node._selected_head_id)
+                rescue = selection["near_rescue"]
+                self.assertTrue(rescue["attempted"])
+                self.assertFalse(rescue["accepted"])
+                self.assertEqual(rescue["context_rejection"], expected_reason)
+                # A geometrically valid retry detection must not bypass the
+                # context guard or reach the classifier/permission policy.
+                self.assertEqual(rescue["result"]["status"], "matched")
+                self.assertEqual(selection["source_stamp_ns"], message.header.stamp.to_nsec())
+                self.assertIs(node.pub.publish.call_args[0][0].stamp, message.header.stamp)
+                report = self.debug(node, "runtime_debug_pub")
+                self.assertEqual(report["frame_decision"]["near_rescue"], rescue)
+                self.assertGreater(report["frame_timing"]["near_rescue_detector_and_association_sec"], 0)
+
+    def test_near_first_match_does_not_run_secondary_detector(self):
+        node = self.near_node()
+        node.model.predict.return_value = self.detector_results([480., 180., 560., 200.])
+        with patch.object(self.module, "classify_crop", return_value=([], {})) as classify:
+            node.image_callback(self.image())
+        node.model.predict.assert_called_once()
+        classify.assert_called_once()
+        rescue = self.debug(node, "selection_debug_pub")["near_rescue"]
+        self.assertFalse(rescue["attempted"])
+        self.assertEqual(rescue["reason"], "first_selection_not_missing")
+
+    def test_near_retry_remains_off_without_explicit_enable(self):
+        node = self.near_node()
+        node.near_rescue_config = NearRescueConfig()
+        node.model.predict.return_value = self.detector_results()
+        with patch.object(self.module, "classify_crop") as classify:
+            node.image_callback(self.image())
+        node.model.predict.assert_called_once()
+        classify.assert_not_called()
+        self.assert_missing_signal(node)
+        self.assertEqual(self.debug(node, "selection_debug_pub")["near_rescue"]["reason"], "disabled")
+
+    def test_far_missing_stale_and_invalid_packets_never_trigger_near_retry(self):
+        for condition in ("far", "missing", "projection_missing", "old_contract", "invalid_rois"):
+            with self.subTest(condition=condition):
+                node = self.near_node()
+                node.model.predict.return_value = self.detector_results()
+                packet = node._map_packet_for_image.return_value
+                if condition == "far":
+                    packet["rois"][0]["depth_m"] = 15.01
+                elif condition == "missing":
+                    node._map_packet_for_image.return_value = None
+                elif condition == "projection_missing":
+                    packet.update(status="missing", reason="localization_stale")
+                elif condition == "old_contract":
+                    packet["selector_contract_version"] = SELECTOR_CONTRACT_VERSION - 1
+                else:
+                    packet["rois"] = None
+                with patch.object(self.module, "classify_crop") as classify:
+                    node.image_callback(self.image())
+                node.model.predict.assert_called_once()
+                classify.assert_not_called()
+                self.assert_missing_signal(node)
+                rescue = self.debug(node, "selection_debug_pub")["near_rescue"]
+                self.assertFalse(rescue["attempted"])
+                if condition in ("missing", "projection_missing"):
+                    self.assertEqual(rescue["reason"], "map_packet_missing_or_stale"
+                                     if condition == "missing" else "localization_stale")
+                    self.assertEqual(self.debug(node, "runtime_debug_pub")["frame_decision"]["near_rescue"],
+                                     rescue)
+
+    def test_ambiguous_primary_never_retries_or_classifies(self):
+        node = self.near_node()
+        packet = node._map_packet_for_image.return_value
+        packet["rois"].append(dict(packet["rois"][0], head_id="other_mission",
+                                   group_id=201351, eligible=False))
+        node.model.predict.return_value = self.detector_results([480., 180., 560., 200.])
+        with patch.object(self.module, "classify_crop") as classify:
+            node.image_callback(self.image())
+        node.model.predict.assert_called_once()
+        classify.assert_not_called()
+        self.assert_missing_signal(node)
+        rescue = self.debug(node, "selection_debug_pub")["near_rescue"]
+        self.assertFalse(rescue["attempted"])
+        self.assertEqual(rescue["reason"], "other_head_identity_ambiguous")
+
+    def test_neighbor_projection_cannot_authorize_retry_even_if_packet_lookup_returns_it(self):
+        node = self.near_node()
+        # A nonzero primary projection tolerance must not silently widen the
+        # stricter same-image retry contract.
+        node._map_packet_for_image.return_value["source_stamp_ns"] = 9980000000
+        node.model.predict.return_value = self.detector_results()
+        with patch.object(self.module, "classify_crop") as classify:
+            node.image_callback(self.image())
+        node.model.predict.assert_called_once()
+        classify.assert_not_called()
+        self.assert_missing_signal(node)
+        selection = self.debug(node, "selection_debug_pub")
+        self.assertEqual(selection["source_stamp_ns"], 9990000000)
+        self.assertEqual(selection["projection_source_stamp_ns"], 9980000000)
+        self.assertFalse(selection["near_rescue"]["retry"])
+        self.assertFalse(selection["near_rescue"]["attempted"])
+        self.assertEqual(selection["near_rescue"]["reason"], "retry_requires_exact_image_stamp")
+
+    def test_ambiguous_secondary_cannot_override_identity_gate(self):
+        node = self.near_node()
+        packet = node._map_packet_for_image.return_value
+        packet["rois"].append(dict(packet["rois"][0], head_id="other_mission",
+                                   group_id=201351, eligible=False))
+        node.model.predict.side_effect = [self.detector_results(),
+            self.detector_results([480., 180., 560., 200.])]
+        with patch.object(self.module, "classify_crop") as classify:
+            node.image_callback(self.image())
+        self.assertEqual(node.model.predict.call_count, 2)
+        classify.assert_not_called()
+        self.assert_missing_signal(node)
+        rescue = self.debug(node, "selection_debug_pub")["near_rescue"]
+        self.assertTrue(rescue["attempted"])
+        self.assertFalse(rescue["accepted"])
+        self.assertEqual(rescue["result"]["rejected"][0]["reason"], "other_head_identity_ambiguous")
+
+    def test_retry_cannot_accept_another_head_even_if_it_is_same_mission(self):
+        for other_group in (201290, 201351):
+            with self.subTest(other_group=other_group):
+                node = self.near_node()
+                packet = node._map_packet_for_image.return_value
+                packet["rois"].append(dict(packet["rois"][0], head_id="other_head",
+                    group_id=other_group, eligible=other_group == 201290, depth_m=30.,
+                    bbox_xyxy=[800., 180., 880., 200.], gate_xyxy=[770., 150., 910., 230.]))
+                node.model.predict.side_effect = [self.detector_results(),
+                    self.detector_results([800., 180., 880., 200.])]
+                with patch.object(self.module, "classify_crop") as classify:
+                    node.image_callback(self.image())
+                self.assertEqual(node.model.predict.call_count, 2)
+                classify.assert_not_called()
+                self.assert_missing_signal(node)
+                selection = self.debug(node, "selection_debug_pub")
+                self.assertNotIn("head_id", selection)
+                self.assertIsNone(node._selected_head_id)
+                rescue = selection["near_rescue"]
+                self.assertTrue(rescue["attempted"])
+                self.assertFalse(rescue["accepted"])
+                self.assertNotIn("other_head", rescue["eligible_head_ids"])
+                if other_group == 201290:
+                    self.assertEqual(rescue["result"]["head_id"], "other_head")
+
+    def test_retry_error_preserves_missing_publication_and_source_stamp(self):
+        node = self.near_node()
+        node.model.predict.side_effect = [self.detector_results(), RuntimeError("secondary failed")]
+        message = self.image()
+        with patch.object(self.module, "classify_crop") as classify:
+            node.image_callback(message)
+        self.assertEqual(node.model.predict.call_count, 2)
+        classify.assert_not_called()
+        self.assert_missing_signal(node)
+        selection = self.debug(node, "selection_debug_pub")
+        self.assertEqual(selection["reason"], "no_unambiguous_route_detection")
+        self.assertEqual(selection["near_rescue"]["error_type"], "RuntimeError")
+        self.assertFalse(selection["near_rescue"]["accepted"])
+        self.assertEqual(selection["source_stamp_ns"], message.header.stamp.to_nsec())
+        self.assertIs(node.pub.publish.call_args[0][0].stamp, message.header.stamp)
+        self.assertEqual(self.debug(node, "runtime_debug_pub")["source_stamp_ns"],
+                         message.header.stamp.to_nsec())
+
+    def test_legacy_and_primary_640_never_run_duplicate_retry(self):
+        for condition in ("legacy", "already_640"):
+            with self.subTest(condition=condition):
+                node = self.near_node()
+                node.model.predict.return_value = self.detector_results()
+                if condition == "legacy":
+                    node.selection_mode = "legacy_center"
+                else:
+                    node.detector_imgsz = 640
+                with patch.object(self.module, "classify_crop") as classify:
+                    node.image_callback(self.image())
+                node.model.predict.assert_called_once()
+                classify.assert_not_called()
+                rescue = self.debug(node, "selection_debug_pub")["near_rescue"]
+                self.assertFalse(rescue["attempted"])
+                self.assertEqual(rescue["reason"], "not_map_association" if condition == "legacy"
+                                 else "primary_already_retry_scale")
+                if condition == "legacy":
+                    node._map_packet_for_image.assert_not_called()
+
+    def test_matched_detector_with_unknown_cnn_is_not_a_retry_request(self):
+        node = self.near_node()
+        node.classifier_mode = "cnn"
+        node.model.predict.return_value = self.detector_results([480., 180., 560., 200.])
+        observation = types.SimpleNamespace(known=False, tuples=(), confidence=0.,
+            to_dict=lambda: {"known": False, "reason": "low_confidence_bits:left_arrow"})
+        node._cnn_startup = types.SimpleNamespace(ready=True,
+            classifier=types.SimpleNamespace(classify_bgr=Mock(return_value=observation)))
+        with patch.object(self.module, "classify_crop") as hsv:
+            node.image_callback(self.image())
+        hsv.assert_not_called()
+        node.model.predict.assert_called_once()
+        self.assertEqual(self.debug(node, "selection_debug_pub")["status"], "matched")
+        self.assertFalse(self.debug(node, "selection_debug_pub")["near_rescue"]["attempted"])
+        self.assertFalse(self.debug(node, "classifier_debug_pub")["known"])
+        self.assertEqual(node.signal_phase_policy.apply.call_args[0][0], [])
 
     def test_map_missing_does_not_classify_unrelated_center_box_or_abort(self):
         node = self.node()

@@ -39,8 +39,8 @@
   [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
   승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
-- D 근접 YOLO score·지도 gate 실패는 미해결이며 기본 전환이 주행 PASS 인증은 아니다.
-  [폐루프 근거](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md) 보존. `traffic_legacy`/GUI legacy는 명시적 복귀다.
+- D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
+  [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
 ## 구간 계약과 자연 현시
 
