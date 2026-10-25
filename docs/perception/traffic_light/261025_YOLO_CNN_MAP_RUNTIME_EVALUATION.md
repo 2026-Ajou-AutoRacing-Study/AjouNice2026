@@ -425,3 +425,29 @@ ROS_NAMESPACE=/traffic_light_trial roslaunch traffic_light_detection traffic_lig
   현재 신호등 CURRENT는100줄 이내를 유지하고 상세 근거만 이 기록에 둔다.
 - traffic 패키지를 증분 설치했고 실제 설치본으로 최종 ROS 시험을 수행했다.
   모델과 자료는 ignored artifacts에 보존하며 code/docs만 커밋한다.
+
+## 승인 후 Drive 백업·Vast 복원 — 2026-10-25 후속
+
+사용자가 합성 JPEG·라벨·학습 소스의 Drive 경유와 최종 YOLO/CNN v5 가중치의
+백업을 각각 명시 승인했다. 앞선 느린 SSH 부분 전송·미완료 영수증은 그대로 보존하고,
+새 경로에서 완료했다. 이전 실패를 성공으로 덮어쓰지 않았다.
+
+- Drive: `ajou_drive_private:dataset/traffic_light_robustness_261025/backup_20261025_145041_cc6eba71/`.
+- `final_weights_bundle.tar.gz`: 46,379,169bytes, 최종 두 가중치와 동결·학습 메타데이터.
+  SHA256 `8e9e184812ff87e0bba4215483893b6453207df5d4ed163f46239bab4fc5e78e`.
+- `reproduction_bundle.tar.gz`: 100,764,204bytes, 고유 원본 JPEG936개·CNN852행·
+  YOLO816장/1,374박스·학습 source/portable recipe·별도 TEST_ONLY holdout60장.
+  JPEG 재인코딩·holdout 학습 편입·추가 pretrained 실파일 포함은 없다.
+  SHA256 `2014dbcda7a9cac143762dc3508e325ff931fbd9e42b7b3c94277cd5c3aa3a89`.
+- 두 Drive 객체의 서버 MD5/크기를 확인했고 Vast에서 두 archive SHA256,
+  최종 두 모델 SHA256 및 재현 manifest의2,622개 파일 SHA256을 다시 대조했다.
+- Vast 신규 폴더는 `/workspace/traffic_light_robustness_261025/` 아래
+  `drive_import_20261025_145041_cc6eba71_models/`와
+  `drive_import_20261025_145041_cc6eba71_reproduction/`이다.
+  각 archive를 별도의 `*_unpacked/`에 풀었고 기존 경로·모델 alias는 바꾸지 않았다.
+- 갱신 token/client secret은 로컬에 남겼다. 원격은 단기 access token만 RAM memfd에서
+  사용하고 종료 후 닫았다. 자격증명은 archive·영수증에 없으며 공유 권한도 변경하지 않았다.
+- 학습·추론 재실행, production 변경, 기존 파일 삭제·덮어쓰기는 하지 않았다.
+
+최종 영수증은 R의 `drive_delivery_20261025_145041_cc6eba71/completion_receipt.json`과
+같은 폴더의 Drive/Vast 검증 기록이다. 이번 복원은 팀 설치기의 자동 배포 완료를 뜻하지 않는다.
