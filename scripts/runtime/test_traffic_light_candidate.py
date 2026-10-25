@@ -14,11 +14,25 @@ import xml.etree.ElementTree as ET
 import traffic_light_candidate as assets
 
 
+class PublicResponse(io.BytesIO):
+    def __init__(self, payload, headers=None, url=None, status=200):
+        super().__init__(payload)
+        self.headers = {'Content-Type': 'application/octet-stream'} if headers is None else headers
+        self.url = url or 'https://drive.usercontent.google.com/download?id=testPublicFile1234'
+        self.status = status
+
+    def geturl(self):
+        return self.url
+
+
 class AssetsTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.archive = self.root / 'bundle.tar.gz'
         self.doc = assets.load_release()
+        # Legacy/offline fixtures remain meaningful after an approved release
+        # opts into public delivery; tests never depend on live sharing state.
+        self.doc.pop('public_file_id', None)
         self.payload = {'yolo_final/selected.pt': b'fake yolo for pure test',
                         'cnn_v5/best.pt': b'fake cnn for pure test'}
         self.pack()
@@ -100,6 +114,89 @@ class AssetsTest(unittest.TestCase):
             doc=copy.deepcopy(self.doc);doc['models']['cnn'][key]=value
             path=self.root/'descriptor.json';path.write_text(json.dumps(doc))
             with self.assertRaises(ValueError):assets.load_release(path)
+
+    def test_public_file_id_is_opt_in_and_never_a_url_or_token(self):
+        self.assertNotIn('public_file_id', self.doc)
+        for value in (None, True, 123, '', 'short', 'a' * 201,
+                      'https://drive.google.com/file/d/1234567890/view',
+                      '1234567890?access_token=secret', '../1234567890', '1234567890\n'):
+            doc=copy.deepcopy(self.doc);doc['public_file_id']=value
+            path=self.root/'descriptor.json';path.write_text(json.dumps(doc))
+            with self.subTest(value=value),self.assertRaises(ValueError):assets.load_release(path)
+        doc['public_file_id']='testPublicFile1234567890'
+        path.write_text(json.dumps(doc))
+        self.assertEqual(assets.load_release(path)['public_file_id'],doc['public_file_id'])
+
+    def test_public_success_uses_no_rclone_credentials_and_keeps_hash_checks(self):
+        doc=copy.deepcopy(self.doc);doc['public_file_id']='testPublicFile1234567890'
+        response=PublicResponse(self.archive.read_bytes(),
+                                {'Content-Type':'application/gzip','Content-Length':str(doc['archive_bytes'])})
+        with patch.object(assets,'urlopen',return_value=response) as fetch, \
+             patch.object(assets.Path,'home',return_value=self.root), \
+             patch.object(assets.subprocess,'run') as rclone:
+            result=assets.install(None,self.root/'public-models',release=doc)
+        rclone.assert_not_called()
+        request=fetch.call_args.args[0]
+        self.assertEqual(request.full_url,'https://drive.usercontent.google.com/download?id='+doc['public_file_id']+'&export=download&confirm=t')
+        self.assertNotIn('Authorization',dict(request.header_items()))
+        self.assertNotIn('Cookie',dict(request.header_items()))
+        self.assertEqual(fetch.call_args.kwargs['timeout'],assets.PUBLIC_DOWNLOAD_SOCKET_TIMEOUT_SEC)
+        self.assertTrue(result['downloaded']);self.assertFalse(result['production_changed'])
+        self.assertEqual(assets.validate_install(self.root/'public-models',doc),result['models'])
+        # A fully received gzip is still untrusted until its frozen SHA matches.
+        damaged=bytearray(self.archive.read_bytes());damaged[-1]^=1
+        with patch.object(assets,'urlopen',return_value=PublicResponse(bytes(damaged))), \
+             patch.object(assets.Path,'home',return_value=self.root):
+            with self.assertRaisesRegex(ValueError,'checksum'):
+                assets.install(None,self.root/'bad-public-models',release=doc)
+        self.assertFalse((self.root/'bad-public-models').exists())
+
+    def test_public_html_size_redirect_and_network_failures_publish_nothing(self):
+        doc=copy.deepcopy(self.doc);doc['public_file_id']='testPublicFile1234567890'
+        payload=self.archive.read_bytes()
+        responses=[PublicResponse(b'<html>confirm</html>',{'Content-Type':'text/html'}),
+                   PublicResponse(b'<html>permission</html>'),
+                   PublicResponse(payload,{'Content-Length':str(len(payload)+1)}),
+                   PublicResponse(payload+b'extra'),PublicResponse(payload[:-1]),
+                   PublicResponse(payload,url='https://example.com/other'),
+                   PublicResponse(payload,status=403)]
+        for number,response in enumerate(responses):
+            destination=self.root/('failed-public-'+str(number))
+            with self.subTest(number=number), \
+                 patch.object(assets,'urlopen',return_value=response), \
+                 patch.object(assets.Path,'home',return_value=self.root):
+                with self.assertRaisesRegex(RuntimeError,'--archive'):
+                    assets.install(None,destination,release=doc)
+            self.assertFalse(destination.exists())
+        with patch.object(assets,'urlopen',side_effect=assets.URLError('offline')), \
+             patch.object(assets.Path,'home',return_value=self.root):
+            with self.assertRaisesRegex(RuntimeError,'--archive'):
+                assets.install(None,self.root/'offline-public',release=doc)
+        self.assertFalse((self.root/'offline-public').exists())
+
+    def test_public_download_honors_total_deadline_and_split_gzip_signature(self):
+        destination=self.root/'deadline.tar.gz'
+        with patch.object(assets,'urlopen',return_value=PublicResponse(self.archive.read_bytes())), \
+             patch.object(assets.time,'monotonic',side_effect=[0,assets.PUBLIC_DOWNLOAD_MAX_SEC+1]):
+            with self.assertRaisesRegex(RuntimeError,'time budget'):
+                assets.download_public_archive('testPublicFile1234',destination,self.doc['archive_bytes'])
+        class FragmentedResponse(PublicResponse):
+            def read1(self, size=-1):
+                return super().read1(min(size,1))
+        with patch.object(assets,'urlopen',return_value=FragmentedResponse(self.archive.read_bytes())):
+            assets.download_public_archive('testPublicFile1234',self.root/'fragmented.tar.gz',self.doc['archive_bytes'])
+        self.assertEqual((self.root/'fragmented.tar.gz').read_bytes(),self.archive.read_bytes())
+
+    def test_no_public_field_preserves_authorized_rclone_path(self):
+        doc=copy.deepcopy(self.doc)
+        def copy_archive(command,**kwargs):
+            self.assertEqual(command[:3],['rclone','copyto','team_remote:'+doc['archive']])
+            Path(command[3]).write_bytes(self.archive.read_bytes())
+        with patch.object(assets,'urlopen') as public, \
+             patch.object(assets.Path,'home',return_value=self.root), \
+             patch.object(assets.subprocess,'run',side_effect=copy_archive):
+            result=assets.install(None,self.root/'rclone-models',remote='team_remote',release=doc)
+        public.assert_not_called();self.assertTrue(result['downloaded'])
 
     def test_legacy_defaults_and_candidate_launch_match_release(self):
         package=assets.ROOT/'base_ws/src/perception/traffic_light_detection/launch'

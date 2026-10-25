@@ -38,7 +38,7 @@
   [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)를 본다.
   [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
-  개인 Drive 읽기 권한 또는 전달받은 모델 압축본이 필요하며 전체 주행·4090 동시 검증은 별도다.
+  승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
 - 실제 주행에서 D 근접 YOLO score·지도 gate 실패를 재현해 승격을 보류했다.
   [설치·경로·폐루프 근거와 후속](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md)을 먼저 본다.
 

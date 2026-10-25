@@ -9,11 +9,13 @@
 
 이미 준비된 AjouNice2026 ROS1 workspace·NVIDIA 드라이버가 필요하다.
 Ubuntu20.04/Noetic x86_64 기준이며 시스템 Python/pip·기존 Conda 환경은 업그레이드하지 않는다.
-전용 환경은 `~/.local/share/ajounice/traffic_light_gpu`, 모델은
+전용 환경이 이미 있으면 재사용하고, 없을 때만 설치한다. 전용 환경은
+`~/.local/share/ajounice/traffic_light_gpu`, 모델은
 `~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f`에 별도로 둔다.
 
 ```bash
 cd ~/AjouNice2026
+git pull --ff-only origin planning/autoware-universe-to-ros1
 bash scripts/runtime/install_traffic_light_candidate.sh
 source scripts/workspace/source_aw149.sh
 ```
@@ -22,13 +24,14 @@ source scripts/workspace/source_aw149.sh
 관련 패키지 증분 설치를 한다. **노드/주행/환경 활성화/GUI/운영 전환은 시작하지 않는다.**
 실행 시에도 없는 모델을 조용히 다른 모델로 바꾸지 않는다.
 
-### Drive 읽기 권한이 없는 PC
+### 모델 다운로드·공유 범위
 
-모델 백업은 사용자 개인 Drive다. Git이나 설치기에 OAuth secret/refresh token을 넣지 않았고,
-이 작업으로 공개 링크 권한을 새로 열지 않았다. 기존 인증 rclone remote `ajou_drive`가 해당 폴더를
-읽을 수 있어야 기본 자동 다운로드가 된다. 본인 remote 이름이 다르면 `--remote NAME`을 쓴다.
-권한이 없다면 소유자가 **모델 압축본만** 전달하거나 해당 팀원에게 읽기 권한을 먼저 부여한다.
-인증파일 전체를 다른 PC에 복사하는 방식은 사용하지 않는다.
+2026-10-25 사용자 승인으로 **모델 압축본 한 파일만 링크 공개 읽기**를 허용했다.
+기본 설치는 Drive 로그인·rclone 인증 없이 고정 file ID로 내려받아 SHA를 검사한다.
+부모 폴더·재현 데이터 백업은 계속 비공개이며, 설치기는 공유 권한을 바꾸지 않는다.
+Git/설치기에 OAuth secret·refresh token을 넣거나 다른 PC에 인증파일을 복사하지 않는다.
+공개 다운로드가 차단/할당량 초과되면 모델 압축본을 직접 전달해 아래 오프라인 경로를 사용한다.
+`public_file_id`가 없는 별도 사내 배포 계약에서만 기존 인증 rclone `--remote NAME` 경로를 쓴다.
 
 압축본 `final_weights_bundle.tar.gz`를 Downloads에 받았다면 위 기본 명령이 먼저 재사용한다.
 다른 위치라면 다음과 같이 지정한다. 이 경로는 모델 파일만 설치하며 전체 데이터셋은 필요 없다.
@@ -43,6 +46,14 @@ bash scripts/runtime/install_traffic_light_candidate.sh --archive /path/to/final
 모델 단독 준비 `--models-only`는 GPU/ROS 검증 완료가 아니다.
 이미 별도 환경이 있다면 `--existing-python /absolute/bin/python --skip-build`로 **변경 없이 검사**할 수 있다.
 `--check`는 다운로드·설치·빌드 없이 기존 모델/환경을 검사한다.
+
+### 시스템 Python에 관하여
+
+이번 고정 검증 조합은 Python3.11·Torch2.7.1/cu128·Pillow12.2다. Ubuntu20.04의 기본
+Python3.8에는 이 조합을 그대로 설치할 수 없다. 팀장님 시스템 환경을 원격 확인한 것이 아니므로
+기존 YOLO가 돌아간다는 이유만으로 새 YOLO26/CNN도 된다고 보장하지 않는다.
+이번에는 검증된 전용 환경 재사용/설치를 기본으로 한다. `--existing-python`도 동일한 고정 버전과
+CUDA/두 모델/ROS를 실제 검사하며, 임의의 시스템/user-site 환경을 인증하는 우회 옵션이 아니다.
 
 ## Validator에서 새 실행으로 선택
 

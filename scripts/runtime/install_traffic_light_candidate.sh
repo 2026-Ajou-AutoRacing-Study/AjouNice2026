@@ -13,7 +13,7 @@ SKIP_BUILD=false
 usage() {
   echo '사용: bash scripts/runtime/install_traffic_light_candidate.sh [--archive TAR] [--remote RCLONE_NAME] [--models-dir DIR] [--env-prefix DIR] [--existing-python PYTHON] [--device 0|cpu] [--models-only] [--skip-build] [--check]'
   echo '기존 ROS/풀스택 workspace가 필요합니다. 기본값은 새 모델 설치 + 전용 Python 환경 준비 + 두 모델 GPU 검사 + 관련 패키지 증분 설치입니다.'
-  echo 'Drive 읽기 권한/이미 인증된 rclone이 필요합니다. 없으면 Downloads/final_weights_bundle.tar.gz 또는 --archive를 사용하세요. 공개 권한·시스템 Python·기존 모델 기본값은 바꾸지 않습니다.'
+  echo '승인된 모델 압축본은 Drive 로그인/rclone 없이 받습니다. 오프라인은 Downloads/final_weights_bundle.tar.gz 또는 --archive를 사용하세요. 공유 권한·시스템 Python·기존 모델 기본값은 바꾸지 않습니다.'
   echo '--models-only: 모델 파일만 준비, 환경 설치/추론/빌드 없음. --existing-python: 지정 interpreter를 변경하지 않고 검사. --check: 다운로드/설치/빌드 없이 기존 모델·환경 검사.'
 }
 while (($#)); do

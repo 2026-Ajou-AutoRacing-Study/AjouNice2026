@@ -4,6 +4,7 @@ import argparse
 import ctypes
 import fcntl
 import hashlib
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -12,10 +13,17 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+from urllib.error import URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 DESCRIPTOR = ROOT / 'configs/perception/traffic_light_v5_candidate_release.json'
 SCHEMA = 'ajounice_traffic_light_candidate_v1'
+PUBLIC_FILE_ID_PATTERN = r'[A-Za-z0-9_-]{10,200}'
+PUBLIC_DOWNLOAD_SOCKET_TIMEOUT_SEC = 20
+PUBLIC_DOWNLOAD_MAX_SEC = 180
 
 
 def publish_no_replace(source, destination):
@@ -48,6 +56,67 @@ def safe_member(value):
     return value
 
 
+def validate_public_file_id(value):
+    if not isinstance(value, str) or not re.fullmatch(PUBLIC_FILE_ID_PATTERN, value):
+        raise ValueError('public_file_id must be an explicit Google Drive file ID, not a URL or path')
+    return value
+
+
+def download_public_archive(file_id, destination, expected_bytes):
+    """Read only an explicitly opted-in Drive file; no OAuth/cookies or retries.
+
+    Bounds apply before trusting Content-Length, and the archive SHA is still
+    mandatory in validate_archive(). HTML confirmation/quota pages are errors,
+    not instructions to run JavaScript or follow arbitrary form URLs.
+    """
+    file_id = validate_public_file_id(file_id)
+    if type(expected_bytes) is not int or not 0 < expected_bytes < 128 * 1024**2:
+        raise ValueError('Expected public archive size must be explicitly bounded')
+    url = 'https://drive.usercontent.google.com/download?id=' + file_id + '&export=download&confirm=t'
+    request = Request(url, headers={'Accept-Encoding': 'identity',
+                                   'User-Agent': 'AjouNiceTrafficLightAssets/1'})
+    deadline = time.monotonic() + PUBLIC_DOWNLOAD_MAX_SEC
+    try:
+        with urlopen(request, timeout=PUBLIC_DOWNLOAD_SOCKET_TIMEOUT_SEC) as response:
+            final = urlsplit(response.geturl())
+            host = final.hostname or ''
+            if final.scheme != 'https' or not any(host == domain or host.endswith('.' + domain)
+                                                for domain in ('google.com', 'googleusercontent.com')):
+                raise ValueError('Unexpected public download redirect')
+            if response.status != 200:
+                raise ValueError('Unexpected public download HTTP status')
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'text/' in content_type or 'html' in content_type:
+                raise ValueError('Drive returned a confirmation/permission/quota page instead of an archive')
+            length = response.headers.get('Content-Length')
+            if length is not None and int(length) != expected_bytes:
+                raise ValueError('Public download Content-Length differs from the frozen archive size')
+            total = 0
+            signature = b''
+            with Path(destination).open('xb') as stream:
+                while True:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('Public download exceeded its total time budget')
+                    # read1 performs at most one buffered raw read. A server
+                    # sending very slowly cannot keep read(N) inside a hidden
+                    # receive loop forever between total-deadline checks.
+                    block = response.read1(min(64 * 1024, expected_bytes + 1 - total))
+                    if not block:
+                        break
+                    if len(signature) < 2:
+                        signature += block[:2 - len(signature)]
+                    if len(signature) == 2 and signature != b'\x1f\x8b':
+                        raise ValueError('Drive returned non-gzip content (possible confirmation/permission page)')
+                    total += len(block)
+                    if total > expected_bytes:
+                        raise ValueError('Public download exceeded the frozen archive size')
+                    stream.write(block)
+            if total != expected_bytes:
+                raise ValueError('Public download ended before the complete frozen archive was received')
+    except (OSError, URLError, HTTPException, ValueError) as error:
+        raise RuntimeError('Public Drive download unavailable: {}. Use --archive /path/to/final_weights_bundle.tar.gz; no credentials or sharing settings were changed'.format(error)) from error
+
+
 def load_release(path=DESCRIPTOR):
     doc = json.loads(Path(path).read_text())
     if (doc.get('schema') != SCHEMA or doc.get('status') != 'opt_in_candidate_not_production'
@@ -64,6 +133,8 @@ def load_release(path=DESCRIPTOR):
     members = [safe_member(item['member']) for item in doc['models'].values()]
     if len(set(members)) != 2:
         raise ValueError('Distinct model members required')
+    if 'public_file_id' in doc:
+        validate_public_file_id(doc['public_file_id'])
     return doc
 
 
@@ -138,16 +209,19 @@ def install(archive=None, models_dir=None, remote='ajou_drive', release=None):
                 if candidate.is_file() and candidate.stat().st_size == release['archive_bytes'] and digest(candidate) == release['archive_sha256']:
                     archive, downloaded = candidate, False
                 else:
-                    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*', remote):
-                        raise ValueError('Use an existing authorized rclone remote NAME, not a path or URL')
                     archive = temp / release['archive']
-                    try:
-                        subprocess.run(['rclone', 'copyto', remote + ':' + release['archive'], str(archive),
-                            '--drive-root-folder-id', release['drive_root_folder_id'], '--immutable',
-                            '--progress', '--retries', '1', '--low-level-retries', '2',
-                            '--contimeout', '10s', '--timeout', '30s'], check=True, timeout=600)
-                    except (OSError, subprocess.SubprocessError) as error:
-                        raise RuntimeError('Drive download unavailable. Use a read-authorized rclone remote or --archive /path/to/final_weights_bundle.tar.gz; no sharing permissions were changed') from error
+                    if 'public_file_id' in release:
+                        download_public_archive(release['public_file_id'], archive, release['archive_bytes'])
+                    else:
+                        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*', remote):
+                            raise ValueError('Use an existing authorized rclone remote NAME, not a path or URL')
+                        try:
+                            subprocess.run(['rclone', 'copyto', remote + ':' + release['archive'], str(archive),
+                                '--drive-root-folder-id', release['drive_root_folder_id'], '--immutable',
+                                '--progress', '--retries', '1', '--low-level-retries', '2',
+                                '--contimeout', '10s', '--timeout', '30s'], check=True, timeout=600)
+                        except (OSError, subprocess.SubprocessError) as error:
+                            raise RuntimeError('Drive download unavailable. Use a read-authorized rclone remote or --archive /path/to/final_weights_bundle.tar.gz; no sharing permissions were changed') from error
             validate_archive(archive, release)
             staged = temp / 'models'; staged.mkdir()
             with tarfile.open(archive, 'r:gz') as tar:

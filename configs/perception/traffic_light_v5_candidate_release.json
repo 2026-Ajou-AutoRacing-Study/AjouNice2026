@@ -6,6 +6,7 @@
   "archive_bytes": 46379169,
   "archive_sha256": "8e9e184812ff87e0bba4215483893b6453207df5d4ed163f46239bab4fc5e78e",
   "drive_root_folder_id": "1DGyW9FPXrjL-Ql9cbxREMS7EzlYRRZ9f",
+  "public_file_id": "1OOT_cVJxBn_Es4sEZYUmf3QskcBT2Gzg",
   "models": {
     "yolo": {
       "member": "yolo_final/selected.pt",
@@ -27,5 +28,5 @@
     "cnn_crop_margin_px": 12,
     "max_rate_hz": 10.0
   },
-  "sharing_note": "No public sharing permission is granted by this descriptor. Use an already authorized rclone account or --archive."
+  "sharing_note": "User approved anyone-with-link reader access to this exact model archive only on 2026-10-25. Parent folder and reproduction/data backup remain private. Installer never changes sharing permissions."
 }
