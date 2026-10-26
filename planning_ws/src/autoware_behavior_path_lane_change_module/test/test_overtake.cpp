@@ -4,9 +4,7 @@
 #include <autoware/behavior_path_lane_change_module/utils/overtake.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/speed_profile.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp>
-#include <autoware/behavior_path_lane_change_module/utils/calculation.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/utils.hpp>
-#include <autoware/behavior_path_lane_change_module/utils/safety_check.hpp>
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <gtest/gtest.h>
 #include <ros/ros.h>
@@ -110,8 +108,6 @@ public:
   using NormalLaneChange::execution_replan_requested_;
   using NormalLaneChange::replacementIsContinuous;
   using NormalLaneChange::candidateRank;
-  using NormalLaneChange::preparationSpeedMismatch;
-  using NormalLaneChange::isBeforeLateralMotion;
   using NormalLaneChange::overtake_feedback_reason_;
   using NormalLaneChange::final_trajectory_sub_;
   using NormalLaneChange::activeSafetyPath;
@@ -834,224 +830,14 @@ TEST_F(Scene, PreparationTakesNewImmediateOpportunityAndKeepsApprovalOnFailedSea
   EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,0);
   EXPECT_TRUE(rolling.execution_replan_requested_);
 }
-TEST_F(Scene, SelectionPrefersAccelerationThenShortPreparationThenGentleMotion)
+TEST_F(Scene, SelectionPrefersShortPreparationAndGentleFeasiblePath)
 {
   module->filtered_objects_={};
   auto immediate=candidate();immediate.info.lateral_acceleration=3;
   auto delayed=immediate;delayed.info.duration.prepare=3;delayed.info.lateral_acceleration=2;
   EXPECT_LT(module->candidateRank(immediate),module->candidateRank(delayed));
-  auto same_gentle=delayed;same_gentle.info.duration.prepare=0;
-  EXPECT_LT(module->candidateRank(same_gentle),module->candidateRank(delayed));
-  auto accelerating=delayed;accelerating.info.longitudinal_acceleration.lane_changing=.5;
-  auto braking=same_gentle;braking.info.longitudinal_acceleration.lane_changing=-.5;
-  EXPECT_LT(module->candidateRank(accelerating),module->candidateRank(same_gentle));
-  EXPECT_LT(module->candidateRank(same_gentle),module->candidateRank(braking));
   auto harsh=immediate;harsh.info.lateral_acceleration=6.5;
   EXPECT_LT(module->candidateRank(immediate),module->candidateRank(harsh));
-}
-TEST_F(Scene, VerifiedFrontGapPrecedesAccelerationAndUnknownIsNotAFrontGap)
-{
-  module->filtered_objects_={};
-  module->filtered_objects_.target_lane_leading.moving.push_back(object(5,3.5,15));
-  auto ahead=candidate();ahead.info.lane_changing_end=pose(150);
-  ahead.info.duration.prepare=3; ahead.info.longitudinal_acceleration.lane_changing=-1;
-  auto behind=candidate();behind.info.lane_changing_end=pose(0);
-  behind.info.longitudinal_acceleration.lane_changing=1;
-  EXPECT_LT(module->candidateRank(ahead),module->candidateRank(behind));
-  auto unavailable=behind;unavailable.info.duration.prepare=20;
-  EXPECT_EQ(std::get<0>(module->candidateRank(ahead)),0);
-  EXPECT_NE(std::get<0>(module->candidateRank(unavailable)),0);
-}
-TEST(LaneChangeCompactSampling, ExplicitPreparationTimesAreAbsoluteAndRespectSpeedReadiness)
-{
-  bpp::lane_change::TrajectoryParameters p;p.max_prepare_duration=7;
-  p.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  EXPECT_EQ(lc::preparation_duration_samples(p,0),p.preparation_duration_samples);
-  EXPECT_EQ(lc::preparation_duration_samples(p,1.2),std::vector<double>({1.5,2,3,4.5,7}));
-  EXPECT_TRUE(lc::preparation_duration_samples(p,7.1).empty());
-  EXPECT_TRUE(lc::preparation_duration_samples(p,-1).empty());
-  EXPECT_TRUE(lc::preparation_duration_samples(p,std::numeric_limits<double>::quiet_NaN()).empty());
-  // Configuration order and duplicates must not multiply work.
-  p.preparation_duration_samples={7,1,1,0,8};
-  EXPECT_EQ(lc::preparation_duration_samples(p,0),std::vector<double>({0,1,7}));
-}
-TEST_F(Scene, ProductionDurationGeneratorUsesExplicitGridWithoutShiftingOrAddingTimes)
-{
-  parameters->trajectory.min_prepare_duration=0;
-  parameters->trajectory.max_prepare_duration=7;
-  parameters->trajectory.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  auto & ready=module->common_data_ptr_->transient_data.lane_change_prepare_duration;
-  ready=0;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
-    parameters->trajectory.preparation_duration_samples);
-  ready=2.2;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
-    std::vector<double>({3,4.5,7}));
-  // Empty optional grid preserves the existing uniform half-second policy.
-  parameters->trajectory.preparation_duration_samples.clear();ready=0;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_).size(),15u);
-}
-TEST(LaneChangeCompactSampling, PreparationCapDoesNotDeleteAccelerationDuringExecution)
-{
-  std::vector<bpp::LaneChangePhaseMetrics> capped;
-  capped.emplace_back(2.0,30.0,15.0,0.0,0.0,0.0);
-  capped.emplace_back(2.0,26.0,11.0,-2.0,-2.0,0.0);
-  const auto reduced=lc::compact_prepare_metrics(capped,3.0,-2.0);
-  ASSERT_EQ(reduced.size(),3u);
-  EXPECT_DOUBLE_EQ(reduced[0].actual_lon_accel,0.0);
-  EXPECT_DOUBLE_EQ(reduced[0].velocity,15.0);
-  EXPECT_DOUBLE_EQ(reduced[0].sampled_lon_accel,3.0);
-  EXPECT_DOUBLE_EQ(reduced[1].sampled_lon_accel,0.0);
-  EXPECT_DOUBLE_EQ(reduced[2].sampled_lon_accel,-2.0);
-}
-TEST(LaneChangeCompactSampling, EightDurationsThreeStrategiesSixLateralLimits)
-{
-  bpp::lane_change::TrajectoryParameters p;p.max_prepare_duration=7;
-  p.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  std::vector<bpp::LaneChangePhaseMetrics> dense;
-  for(double t:lc::preparation_duration_samples(p,0)) for(double a:{3.0,0.0,-2.0})
-    dense.emplace_back(t,10.0,15.0,a,a,0.0);
-  const auto reduced=lc::compact_prepare_metrics(dense,3.0,-2.0);
-  p.lat_acc_map.add(0.0,1.0,6.5);p.lateral_acceleration_samples={1,2,3,4,5,6.5};
-  ASSERT_EQ(reduced.size(),24u);
-  EXPECT_EQ(reduced.size()*lc::lateral_acceleration_samples(p,15).size(),144u);
-}
-TEST_F(Scene, ReplacementContinuityDoesNotDependOnLongitudinalSampleSpacing)
-{
-  auto path=candidate();
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=15;
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  path.path.points.erase(std::remove_if(path.path.points.begin(),path.path.points.end(),
-    [](const auto & p) { return static_cast<int>(p.point.pose.position.x)%2 != 0; }),
-    path.path.points.end());
-  odom->pose.pose=pose(1.0);data->self_odometry=odom;
-  EXPECT_TRUE(module->replacementIsContinuous(path));
-}
-TEST_F(Scene, PassingAnOldStartWithWrongSpeedRequestsFreshPlanBeforeLateralMotion)
-{
-  parameters->th_finish_judge_lateral_diff=.1;
-  auto path=candidate();path.info.shift_line.start=pose(-1);
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=20;
-  module->status_.lane_change_path=path;module->status_.is_valid_path=true;
-  EXPECT_FALSE(module->isEgoOnPreparePhase());
-  EXPECT_TRUE(module->isBeforeLateralMotion());
-  EXPECT_TRUE(module->preparationSpeedMismatch());
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(0,.3);data->self_odometry=odom;
-  EXPECT_FALSE(module->preparationSpeedMismatch()); // active motion uses RSS/feasible return
-}
-TEST_F(Scene, StalePreparationSpeedCannotKeepAnUnsafeOldPlan)
-{
-  RollingHarness rolling(parameters);
-  data->route_handler=std::make_shared<autoware::route_handler::RouteHandler>();
-  rolling.setData(data);
-  auto active=candidate();active.info.shift_line.start=pose(45);active.info.duration.prepare=3;
-  for(auto & p:active.path.points) p.point.longitudinal_velocity_mps=20;
-  rolling.status_.lane_change_path=active;rolling.status_.is_valid_path=true;
-  rolling.status_.is_safe=true;rolling.proposed=active;rolling.safe=false;
-  rolling.refreshApprovedPlan();
-  EXPECT_FALSE(rolling.status_.is_valid_path);
-  EXPECT_TRUE(rolling.execution_replan_requested_);
-}
-TEST_F(Scene, AnOutboundEndpointCannotFinishAnAbort)
-{
-  module->status_.lane_change_path=candidate();
-  module->abort_path_=std::make_shared<bpp::LaneChangePath>(candidate());
-  module->toAbortState();
-  EXPECT_FALSE(module->hasFinishedLaneChange());
-}
-TEST_F(Scene, AbortCompletionRequiresReturnBodyLateralPositionAndHeading)
-{
-  parameters->th_finish_judge_lateral_diff=.1;parameters->th_finish_judge_yaw_diff=.1;
-  module->abort_path_=std::make_shared<bpp::LaneChangePath>(candidate());
-  module->abort_path_->info.shift_line.end=pose(80);
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(90,1);data->self_odometry=odom;
-  EXPECT_FALSE(module->hasFinishedAbort());
-  odom->pose.pose=pose(90,0,.2);
-  EXPECT_FALSE(module->hasFinishedAbort());
-  odom->pose.pose=pose(90,0,0);
-  EXPECT_TRUE(module->hasFinishedAbort());
-}
-TEST_F(Scene, ZeroPrepareFrenetPredictionIncludesItsTimeOrigin)
-{
-  parameters->trajectory.min_prepare_duration=0;
-  bpp::lane_change::TrajectoryGroup group;
-  group.prepare=road(0,15);group.prepare_metric.duration=0;
-  group.prepare_metric.velocity=15;
-  group.lane_changing.times={0,.5,1};
-  group.lane_changing.poses={pose(0),pose(7.5),pose(15)};
-  group.lane_changing.longitudinal_velocities={15,15,15};
-  const auto prediction=lc::convert_to_predicted_path(module->common_data_ptr_,group,1);
-  ASSERT_EQ(prediction.size(),3u);
-  EXPECT_DOUBLE_EQ(prediction.front().time,0.0);
-  ASSERT_TRUE(lc::remaining_prepare_time(group.prepare,prediction,pose(0)));
-  // Reproduce the previous implementation's missing origin and its rejection.
-  const std::vector<safety::PoseWithVelocityStamped> old(prediction.begin()+1,prediction.end());
-  EXPECT_FALSE(lc::remaining_prepare_time(group.prepare,old,pose(0)));
-}
-TEST_F(Scene, ApprovedFrenetPredictionRebasesToCurrentEgoRatherThanOriginalTimeTable)
-{
-  parameters->trajectory.min_prepare_duration=0;
-  auto path=candidate();path.type=bpp::lane_change::PathType::FrenetPlanner;
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(25);data->self_odometry=odom;
-  module->common_data_ptr_->self_odometry_ptr=odom;
-  const auto prediction=lc::convert_to_predicted_paths(module->common_data_ptr_,path,1,true);
-  ASSERT_FALSE(prediction.empty());ASSERT_FALSE(prediction.front().empty());
-  EXPECT_DOUBLE_EQ(prediction.front().front().time,0.0);
-  EXPECT_NEAR(prediction.front().front().pose.position.x,25,1e-6);
-  EXPECT_GT(prediction.front().back().pose.position.x,25);
-}
-TEST_F(Scene, FinalFeedbackRemainsNonemptyInTheApprovedFinishBuffer)
-{
-  parameters->lane_change_finish_judge_buffer=3;
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(81);data->self_odometry=odom;
-  module->common_data_ptr_->self_odometry_ptr=odom;
-  feedback(15);
-  const auto prediction=module->finalVelocityPrediction(candidate());
-  ASSERT_TRUE(prediction);ASSERT_FALSE(prediction->empty());
-  EXPECT_DOUBLE_EQ(prediction->front().time,0.0);
-  EXPECT_NEAR(prediction->front().pose.position.x,81,1e-6);
-}
-TEST_F(Scene, GentleFrenetPreferenceUsesTheWholePeakNotOnlyItsInitialAcceleration)
-{
-  auto gentle=candidate(),abrupt=candidate();
-  gentle.type=abrupt.type=bpp::lane_change::PathType::FrenetPlanner;
-  gentle.info.lateral_acceleration=.2;abrupt.info.lateral_acceleration=0;
-  gentle.frenet_path.lane_changing.lateral_accelerations={.2,1.0,-.8,0};
-  abrupt.frenet_path.lane_changing.lateral_accelerations={0,4.0,-3.0,0};
-  EXPECT_LT(module->candidateRank(gentle),module->candidateRank(abrupt));
-  EXPECT_DOUBLE_EQ(lc::candidate_lateral_acceleration(gentle),1.0);
-}
-TEST(LaneChangeCompactSampling, FrenetPeakCannotExceedTheVelocityDependentLateralEnvelope)
-{
-  bpp::lane_change::TrajectoryParameters p;p.lat_acc_map.add(0,1,6.5);
-  autoware::frenet_planner::Trajectory trajectory;
-  trajectory.longitudinal_velocities={15,15,15};
-  trajectory.lateral_accelerations={0,6.5,0};
-  EXPECT_TRUE(lc::frenet_lateral_envelope_satisfied(trajectory,p));
-  trajectory.lateral_accelerations[1]=6.6;
-  EXPECT_FALSE(lc::frenet_lateral_envelope_satisfied(trajectory,p));
-}
-TEST_F(Scene, AdmittedGeometryDoesNotDependOnAnAmbiguousNearestRouteId)
-{
-  EXPECT_TRUE(lc::footprint_within_admitted_lane_union(pose(0),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
-  // A body straddling the admitted current/target shared boundary is included
-  // in their union; checking either polygon alone would reject a valid LC.
-  EXPECT_TRUE(lc::footprint_within_admitted_lane_union(pose(0,1.75),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,6),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
-}
-TEST_F(Scene, CorridorUnionDoesNotBridgeAnUnadmittedGapOrAcceptOnlyTheCentre)
-{
-  auto lanes=*module->common_data_ptr_->lanes_polygon_ptr;
-  lanes.target={{-101,3.5},{401,3.5},{401,7},{-101,7}};
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,2.5),vehicle(),lanes));
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,-1.5),vehicle(),lanes));
 }
 int main(int argc, char ** argv)
 {

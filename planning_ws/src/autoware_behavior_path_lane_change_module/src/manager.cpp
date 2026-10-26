@@ -90,8 +90,6 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
   }
 
   node->param("lane_change/trajectory/compact_sampling", p.trajectory.compact_sampling, false);
-  node->getParam("lane_change/trajectory/preparation_duration_samples",
-                 p.trajectory.preparation_duration_samples);
   node->getParam("lane_change/trajectory/lateral_acceleration_samples",
                  p.trajectory.lateral_acceleration_samples);
   for (const double value : p.trajectory.lateral_acceleration_samples) {
@@ -106,11 +104,6 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
       get_or_declare_parameter<double>(*node, parameter("trajectory.max_prepare_duration"));
     p.trajectory.min_prepare_duration =
       get_or_declare_parameter<double>(*node, parameter("trajectory.min_prepare_duration"));
-    for (const double value : p.trajectory.preparation_duration_samples) {
-      if (!std::isfinite(value) || value < 0.0 || value > p.trajectory.max_prepare_duration) {
-        throw std::invalid_argument("LC preparation samples must be finite and within [0, max_prepare_duration]");
-      }
-    }
     p.trajectory.lateral_jerk =
       get_or_declare_parameter<double>(*node, parameter("trajectory.lateral_jerk"));
     p.trajectory.min_longitudinal_acc =

@@ -1,6 +1,5 @@
 // Diagnostic observation only: counterfactual checks never approve a maneuver.
 #include "autoware/behavior_path_lane_change_module/scene.hpp"
-#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/safety_check.hpp"
 
 #include <nlohmann/json.hpp>
@@ -126,14 +125,7 @@ void NormalLaneChange::publishSafetyDiagnostics(
       {"prepare_velocity", candidate.info.velocity.prepare},
       {"execution_velocity", candidate.info.velocity.lane_changing},
       {"prepare_duration", candidate.info.duration.prepare},
-      {"execution_duration", candidate.info.duration.lane_changing},
-      {"lateral_acceleration", utils::lane_change::candidate_lateral_acceleration(candidate)},
-      {"lateral_metric", candidate.type == lane_change::PathType::FrenetPlanner ? "frenet_peak" : "path_shifter_limit"},
-      {"terminal_execution_velocity", candidate.info.terminal_lane_changing_velocity},
-      {"start_pose", pose_json(candidate.info.lane_changing_start)},
-      {"end_pose", pose_json(candidate.info.lane_changing_end)},
-      {"before_lateral_motion", isBeforeLateralMotion()},
-      {"preparation_speed_mismatch", preparationSpeedMismatch()}};
+      {"execution_duration", candidate.info.duration.lane_changing}};
     document["selected_candidate"]["frame_id"] = candidate.path.header.frame_id;
   }
   if (const auto stop = getStopPose()) {

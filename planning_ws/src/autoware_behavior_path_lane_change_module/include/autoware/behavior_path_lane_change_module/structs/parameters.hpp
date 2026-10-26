@@ -137,7 +137,6 @@ struct TrajectoryParameters
   int lat_acc_sampling_num{10};
   LateralAccelerationMap lat_acc_map{};
   bool compact_sampling{false};
-  std::vector<double> preparation_duration_samples{};
   std::vector<double> lateral_acceleration_samples{};
 };
 

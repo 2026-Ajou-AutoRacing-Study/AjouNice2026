@@ -441,7 +441,7 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
       lane_change_parameters_->safety.collision_check.prediction_time_resolution,
       candidate.info.duration.sum());
     const auto predictions = lc::convert_to_predicted_paths(
-      common_data_ptr_, capped, 1, true, observation_horizon);
+      common_data_ptr_, capped, 1, false, observation_horizon);
     if (predictions.empty() || predictions.front().empty()) return reject("feedback_prediction_empty");
     // Validate the full body on the currently admitted current/target corridor.
     // A phase-delay allowance never grants permission to leave the road.
