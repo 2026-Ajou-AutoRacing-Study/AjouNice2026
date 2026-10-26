@@ -1,6 +1,6 @@
 # Tracking·Prediction production 현재 상태
 
-상태: CURRENT. 문서·launch 대조: 2026-10-26.
+상태: CURRENT. 문서·launch 대조: 2026-10-27.
 Detector는 [BEVFusion CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)의 E12이며 E24/E25는 명시적 복귀다.
 현재 E12/E24 detection은 geometric/gravity center다. bottom center와 섞지 않고 fresh stack으로 전환한다.
 과거 bag 실측·긴 설명은 [정리 전 원문](legacy/context_261024/TRACKING_PREDICTION_CURRENT.md)에 보존했다.
@@ -20,6 +20,10 @@ DetectedObjects → EKF → UNKNOWN stationary policy → Lanelet2 Map-CV → Pr
 | Measurement track | `/perception/object_recognition/tracking/measurement_objects` |
 | Motion-policy track | `/perception/object_recognition/tracking/objects` |
 | Prediction | `/perception/object_recognition/objects` |
+
+Production `tracking`/`tracking_prediction.launch`는 Route A/B 공통 구간에서 **판단에 보내는 Prediction만 vehicle-only**로 제한한다. 검출·measurement track·motion-policy track은 그대로 남으므로 이 정책은 객체 분류나 tracker 자체를 고치는 기능이 아니다. C 신호 동적 횡단 객체를 지난 lanelet `200258`의 30m 지점(지도 약 **71,587**)에서 ON, 고주로 끝 lanelet `200088` 종단(약 **202,160**)에서 OFF다. 로터리·고주로 전체를 포함하고 GPS 음영 예제의 가장 가까운 객체까지 해제 지점에서 약 118m다. 전체 그림은 `python3 scripts/evaluation/render_vehicle_only_corridor_map.py --map-version 94 --output /tmp/vehicle_only_corridor.png`로 생성한다. 현재 이 경계는 샘플 장면·v94 bag 기반으로 선택한 것으로 대회 객체 위치의 보장은 아니다.
+
+v88/v94 지도 SHA와 Route A/B 경로 일치·ego `map` pose·수신 freshness(0.5초)·주행 방향/횡거리(≤12m)가 모두 맞을 때만 필터링한다. 불명확하면 **fail-open**으로 모든 class를 전달한다. 상태는 `/map_based_prediction/diagnostics/vehicle_only_active`에 `Bool`로 나온다. 임시 복귀는 `tracking vehicle_only_corridor_enabled:=false` 후 fresh stack 재시작이다. standalone `object_prediction.launch`는 기본 OFF다. [경계·저장 bag·로컬 MORAI 대조군](../../../../docs/bevfusion/evidence/261027_VEHICLE_ONLY_PREDICTION_CORRIDOR.md)의 ON/OFF 시험을 실제 측위+실검출+LAN 풀스택 안전성 인증으로 확대 해석하지 않는다.
 
 World frame은 `map`이다. 내부 measurement state·30Hz predicted copy·마지막 detector 관측 age를 구분한다.
 MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통제 실험이지 production fallback이 아니다.

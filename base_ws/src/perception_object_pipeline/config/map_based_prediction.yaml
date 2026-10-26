@@ -9,6 +9,15 @@ highway_prediction_mode: native
 highway_direction_recovery: true
 prediction_time_step: 0.1
 
+## Vehicle-only planner-facing predictions on the shared Route A/B corridor.
+## Starts after the C dynamic crossing (pedestrian at map y~534), and ends
+## before the GPS-shadow objects can enter the 100m detector range.
+## Enabled only by production launch args; standalone predictor defaults OFF.
+vehicle_only_start_lanelet_id: 200258
+vehicle_only_start_s_m: 30.0
+vehicle_only_end_lanelet_id: 200088
+vehicle_only_max_lateral_m: 12.0
+
 maximum_lane_distance_m: 3.0
 maximum_lane_yaw_error_rad: 0.7853981634
 lane_distance_sigma_m: 0.75
