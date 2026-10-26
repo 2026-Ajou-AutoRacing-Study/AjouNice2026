@@ -33,6 +33,8 @@
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
   <arg name="traffic_light_state_timeout_sec" default="1.0"/>
+  <arg name="traffic_light_judging_lines_config"
+       default="$(find traffic_light_detection)/config/traffic_signal_judging_lines.yaml"/>
   <!-- Keep normal LC logging; explicit development trials may select a scoped trace config. -->
   <arg name="planning_rosconsole_config"
        default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
@@ -105,6 +107,9 @@
          value="$(arg signal_compliance_required_green_observations)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_front_axle_offset_m"
          value="$(arg signal_compliance_front_axle_offset_m)"/>
+  <!-- Independent original MGeo judging line, NOT the camera-friendly Lanelet stop target. -->
+  <rosparam file="$(arg traffic_light_judging_lines_config)" command="load"
+            ns="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/tl_state_timeout"
          value="$(arg traffic_light_state_timeout_sec)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">

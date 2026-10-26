@@ -182,6 +182,30 @@ class MapRoiNodeTest(unittest.TestCase):
         self.assertEqual(packet["position_sigma_z_m"], 1.)
         self.assertEqual(packet["pose_covariance_diagonal_xyz_yaw"][2], 1.)
 
+    def test_motion_evidence_includes_aligned_and_latest_pose_not_ego_input(self):
+        node=self.node()
+        aligned=node._poses[0][0];aligned.twist.twist.linear.x=3.
+        latest=copy.deepcopy(aligned);latest.header.stamp=Stamp(10.)
+        latest.twist.twist.linear.x=0.
+        node._poses.append((latest,Stamp(10.)))
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        evidence=packet['motion_evidence']
+        self.assertTrue(evidence['valid'])
+        self.assertEqual(evidence['aligned_speed_mps'],3.)
+        self.assertEqual(evidence['latest_speed_mps'],0.)
+        self.assertEqual(evidence['aligned_pose_stamp_ns'],9_990_000_000)
+        self.assertEqual(evidence['latest_pose_stamp_ns'],10_000_000_000)
+
+    def test_invalid_latest_motion_disables_evidence_without_losing_map_projection(self):
+        node=self.node()
+        latest=copy.deepcopy(node._poses[0][0]);latest.header.stamp=Stamp(10.)
+        latest.twist.twist.linear.x=float('nan')
+        node._poses.append((latest,Stamp(10.)))
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        self.assertFalse(packet['motion_evidence']['valid'])
+
 
 if __name__ == "__main__":
     unittest.main()

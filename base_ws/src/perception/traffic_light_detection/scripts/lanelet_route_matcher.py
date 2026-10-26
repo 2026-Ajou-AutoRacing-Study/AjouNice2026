@@ -33,6 +33,7 @@ import threading
 import xml.etree.ElementTree as ET
 
 import rospy
+from signal_judging_line_geometry import parse_judging_lines, route_judging_progress
 
 try:
     from lanelet2 import core, geometry, io, projection, traffic_rules
@@ -241,7 +242,8 @@ class LaneletRouteGroupIdMatcher:
                  crossing_reference="bulb", route_progress_guard=False,
                  route_progress_hysteresis_m=1.0,
                  route_progress_max_lateral_m=8.0,
-                 route_progress_pose_jump_m=8.0):
+                 route_progress_pose_jump_m=8.0,
+                 signal_judging_lines=None):
         if crossing_reference not in ("bulb", "stopline"):
             raise ValueError('crossing_reference는 "bulb" 또는 "stopline"이어야 합니다')
         self.available = False
@@ -263,6 +265,11 @@ class LaneletRouteGroupIdMatcher:
         self.route_progress_hysteresis_m = float(route_progress_hysteresis_m)
         self.route_progress_max_lateral_m = float(route_progress_max_lateral_m)
         self.route_progress_pose_jump_m = float(route_progress_pose_jump_m)
+        self._judging_lines,self._judging_line_errors=parse_judging_lines(signal_judging_lines)
+        if signal_judging_lines is None and route_progress_guard:
+            rospy.logwarn('[lanelet_route_matcher] optional judging geometry absent; using legacy Lanelet release reference')
+        for error in self._judging_line_errors:
+            rospy.logwarn('[lanelet_route_matcher] judging geometry ignored: %s',error)
         self._route_identity = None
         self._route_progress_lock = threading.RLock()
         self._route_geometry = []
@@ -425,6 +432,25 @@ class LaneletRouteGroupIdMatcher:
                     self._route_events.append(dict(group_id=gid, segment_index=index, progress_m=event_s))
             start += preferred_length
         self._route_events.sort(key=lambda event: event['progress_m'])
+        # Changing the stopping target must not retire the mission before its
+        # original-MGeo crossing. Keep route occurrence order rather than sort
+        # again: an unavailable crossing must not promote a later signal.
+        for event in self._route_events:
+            original=self._judging_lines.get(event['group_id'])
+            if original is None:
+                continue  # Absent/invalid optional profile: legacy compatibility.
+            event['virtual_progress_m']=event['progress_m']
+            crossing=route_judging_progress(original,self._route_geometry,event['progress_m'])
+            event['judging_line_reference']='original_MGeo'
+            if crossing is None:
+                # A short route ending before the paint does not prove that the
+                # signal was crossed. New/cleared routes reset this retention.
+                event['progress_m']=float('inf')
+                event['judging_line_reason']='original_judging_line_not_on_route'
+                rospy.logwarn('[lanelet_route_matcher] reg=%d original line absent from route; retaining mission until route reset',event['group_id'])
+            else:
+                event['progress_m']=crossing
+                event['judging_line_reason']='finite_original_line_route_intersection'
 
     def start_subscribers(self, route_topic, odom_topic, route_state_topic="/planning/route_state"):
         if not self.available:
@@ -611,4 +637,7 @@ class LaneletRouteGroupIdMatcher:
         self._progress_debug = dict(reason='next_route_stopline' if remaining else 'all_route_stoplines_passed',
                                     progress_m=self._progress_s, segment_index=index,
                                     lanelet_id=lane_id, lateral_m=lateral, group_id=selected)
+        if remaining and 'judging_line_reference' in remaining[0]:
+            self._progress_debug.update(judging_line_reference=remaining[0]['judging_line_reference'],
+                judging_line_reason=remaining[0]['judging_line_reason'])
         return selected

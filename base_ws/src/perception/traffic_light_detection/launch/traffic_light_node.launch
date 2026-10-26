@@ -17,6 +17,8 @@
   <arg name="planner_compliance_observations" default="true" />
   <!-- Detector-only same-housing dropout budget, measured from ORIGINAL image. -->
   <arg name="detection_miss_hold_sec" default="0.2" />
+  <!-- Matched moving head's soft CNN abstention only; 0 disables. -->
+  <arg name="low_confidence_hold_sec" default="0.3" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
@@ -92,6 +94,8 @@
       <param name="route_state_topic" value="$(arg route_state_topic)" />
       <param name="odometry_topic" value="$(arg odometry_topic)" />
       <param name="route_progress_guard" value="$(arg route_progress_guard)" />
+      <rosparam if="$(arg route_progress_guard)" command="load"
+                file="$(find traffic_light_detection)/config/traffic_signal_judging_lines.yaml"/>
       <param name="output_topic" value="$(arg route_group_id_topic)" />
       <!-- Map candidate skips old D-1 and all other non-mission rules while
            finding the NEXT light; legacy route-provider output is unchanged. -->
@@ -146,6 +150,7 @@
     <param name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <param name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
     <param name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
+    <param name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="selection_mode" value="$(arg selection_mode)" />
     <param name="classifier_mode" value="$(arg classifier_mode)" />

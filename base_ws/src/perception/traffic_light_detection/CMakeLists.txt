@@ -27,6 +27,7 @@ catkin_package(CATKIN_DEPENDS
 
 catkin_install_python(PROGRAMS
   scripts/lanelet_route_matcher.py
+  scripts/signal_judging_line_geometry.py
   scripts/light_color_utils.py
   scripts/signal_phase_policy.py
   scripts/signal_smoother.py

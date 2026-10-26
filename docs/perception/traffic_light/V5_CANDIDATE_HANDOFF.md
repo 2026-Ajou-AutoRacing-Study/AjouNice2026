@@ -8,6 +8,9 @@
 로컬 Sunny13·Foggy13 무객체 폐루프 PASS이며 LAN·BEVFusion 동시 주행 인증은 아니다.**
 파일명/profile의 `candidate`와 가중치의 연구 metadata는 호환·원본 보존용이다. 현재 실행 선택은 CURRENT를 따른다.
 
+짧은 이동 중 저확신 완충과 원본 MORAI 판정선 계산은 [최신 개정](261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 따른다.
+`low_confidence_hold_sec=0.3`(0이면 OFF), 황색 master/timed는 OFF 유지다. 새 C++·YAML·helper가 함께 필요하므로 아래 설치기를 다시 실행한다.
+
 ## 팀장님 4090 — 설치
 
 이미 준비된 AjouNice2026 ROS1 workspace·NVIDIA 드라이버가 필요하다.

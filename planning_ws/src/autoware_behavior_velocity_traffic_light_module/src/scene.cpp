@@ -71,11 +71,37 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   const auto input_path = *path;
 
   const auto & self_pose = planner_data_->current_odometry;
+  std::optional<double> official_crossing_distance;
+  const auto * official_line = signal_compliance::findSignalJudgingLine(
+    planner_param_.signal_judging_lines, traffic_light_reg_elem_.id());
+  signal_compliance::JudgingPoint official_front;
+  if (planner_param_.enable_signal_compliance_guard && planner_param_.use_official_judging_lines && official_line) {
+    const double yaw = tf2::getYaw(self_pose->pose.orientation);
+    official_front = {
+      self_pose->pose.position.x + planner_param_.signal_compliance_front_axle_offset_m * std::cos(yaw),
+      self_pose->pose.position.y + planner_param_.signal_compliance_front_axle_offset_m * std::sin(yaw)};
+    official_crossing_distance = signal_compliance::finiteJudgingLineDistance(*official_line, official_front);
+    if (planner_param_.enable_yellow_passthrough && official_crossing_distance && *official_crossing_distance < 0.0) {
+      state_ = State::GO_OUT;
+      stop_signal_received_time_ptr_.reset();
+      is_prev_state_stop_ = false;
+      setSafe(true);
+      return true;
+    }
+  }
 
   // Calculate stop pose and insert index
-  const auto stop_line = calcStopPointAndInsertIndex(
+  auto stop_line = calcStopPointAndInsertIndex(
     input_path, stop_line_,
     planner_param_.stop_margin + planner_data_->vehicle_info_.max_longitudinal_offset_m);
+  if (!stop_line && planner_param_.enable_signal_compliance_guard &&
+      planner_param_.use_official_judging_lines && planner_param_.enable_yellow_passthrough && official_crossing_distance &&
+      *official_crossing_distance >= 0.0) {
+    // A shifted map line may already be outside the rear path horizon. It
+    // must not clear signal compliance before crossing the original line.
+    const auto index = autoware::motion_utils::findNearestSegmentIndex(input_path.points, self_pose->pose.position);
+    stop_line = std::make_pair(index + 1, Eigen::Vector2d(self_pose->pose.position.x, self_pose->pose.position.y));
+  }
 
   if (!stop_line.has_value()) {
     RCLCPP_WARN_STREAM_ONCE(
@@ -98,6 +124,26 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     signed_arc_length_to_stop_point, planner_param_.stop_margin,
     planner_data_->vehicle_info_.max_longitudinal_offset_m,
     planner_param_.signal_compliance_front_axle_offset_m);
+  official_front_line_distance_.reset();
+  if (planner_param_.enable_signal_compliance_guard && planner_param_.use_official_judging_lines) {
+    if (official_line) {
+      std::vector<signal_compliance::JudgingPoint> route;
+      route.reserve(input_path.points.size());
+      for (const auto & point : input_path.points) {
+        route.push_back({point.point.pose.position.x, point.point.pose.position.y});
+      }
+      official_front_line_distance_ = signal_compliance::pathJudgingLineDistance(*official_line, route, official_front);
+    }
+    if (!official_front_line_distance_) {
+      RCLCPP_WARN_THROTTLE(logger_, *clock_, 5000,
+        "[signal_judging_line] reg=%ld original-line ETA unavailable; yellow override disabled",
+        traffic_light_reg_elem_.id());
+    }
+  }
+  // Keep the proven yellow-OFF clearing behavior. The explicit yellow
+  // candidate must retain judging-line compliance through the original line.
+  const auto crossing_distance = planner_param_.use_official_judging_lines && planner_param_.enable_yellow_passthrough ?
+    official_crossing_distance : front_axle_distance;
   if (planner_param_.enable_signal_compliance_guard && !front_axle_distance) {
     setSafe(false);
     *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
@@ -109,7 +155,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   if (state_ == State::APPROACH) {
     // Move to go out state if ego vehicle over deadline.
     constexpr double signed_deadline_length = -2.0;
-    if (planner_param_.enable_signal_compliance_guard ? *front_axle_distance < 0.0 :
+    if (planner_param_.enable_signal_compliance_guard ? (crossing_distance && *crossing_distance < 0.0) :
         signed_arc_length_to_stop_point < signed_deadline_length) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
@@ -119,7 +165,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
         is_prev_state_stop_ = false;
         RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
           "[signal_compliance] reg=%ld state=GO_OUT front_line_m=%.3f decision=clear_crossed_line",
-          traffic_light_reg_elem_.id(), *front_axle_distance);
+          traffic_light_reg_elem_.id(), *crossing_distance);
       }
       return true;
     }
@@ -189,7 +235,18 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
 
     // Decide whether to stop or pass even if a stop signal is received.
     if (!isPassthrough(signed_arc_length_to_stop_point)) {
-      *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
+      if (planner_param_.enable_signal_compliance_guard && planner_param_.use_official_judging_lines && planner_param_.enable_yellow_passthrough &&
+          signed_arc_length_to_stop_point < 0.0) {
+        // The camera-friendly stop target is behind us, but the official line
+        // is not crossed. Request braking at the current path position, never
+        // insert a zero-velocity point behind ego and silently keep driving.
+        const auto index = autoware::motion_utils::findNearestSegmentIndex(
+          input_path.points, self_pose->pose.position);
+        *path = insertStopPose(input_path, index + 1,
+          Eigen::Vector2d(self_pose->pose.position.x, self_pose->pose.position.y));
+      } else {
+        *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
+      }
       is_prev_state_stop_ = true;
     }
     return true;
@@ -199,7 +256,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     constexpr bool use_initialization_after_start = true;
     constexpr double restart_length = 1.0;
     if (use_initialization_after_start) {
-      if (planner_param_.enable_signal_compliance_guard ? *front_axle_distance > restart_length :
+      if (planner_param_.enable_signal_compliance_guard ? (crossing_distance && *crossing_distance > restart_length) :
           signed_arc_length_to_stop_point > restart_length) {
         RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
         state_ = State::APPROACH;
@@ -461,10 +518,9 @@ bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
       planner_data_->current_velocity->twist.linear.x,
       planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
       delay_response_time, pass_judge_line_distance);
-    const auto front_line_distance = signal_compliance::frontAxleDistanceFromBumperStop(
-      signed_arc_length, planner_param_.stop_margin,
-      planner_data_->vehicle_info_.max_longitudinal_offset_m,
-      planner_param_.signal_compliance_front_axle_offset_m);
+    // Yellow timing/physical pass judgement must NEVER substitute the earlier
+    // camera stop target for the original MORAI judging line.
+    const auto front_line_distance = official_front_line_distance_;
     if (planner_param_.signal_compliance_enable_timed_yellow) {
       const auto decision = signal_compliance::timedYellowDecision(
         planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
@@ -476,7 +532,7 @@ bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
         clock_->now().toSec(), signal_compliance_guard_.yellowStartLowerBoundSec(),
         planner_param_.signal_compliance_min_yellow_sec, planner_param_.signal_compliance_yellow_time_margin_sec);
       RCLCPP_INFO_THROTTLE(logger_, *clock_, 200,
-        "[signal_timed_yellow] reg=%ld allow=%d reason=%s remaining_sec=%.3f arrival_sec=%.3f margin_sec=%.3f front_line_m=%.3f min_yellow_assumption_sec=%.3f",
+        "[signal_timed_yellow] reg=%ld allow=%d reason=%s remaining_sec=%.3f arrival_sec=%.3f margin_sec=%.3f front_line_m=%.3f min_yellow_assumption_sec=%.3f line_basis=original_morai_mgeo",
         traffic_light_reg_elem_.id(), decision.allow, decision.reason, decision.remaining_sec,
         decision.arrival_sec, planner_param_.signal_compliance_yellow_time_margin_sec,
         front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),

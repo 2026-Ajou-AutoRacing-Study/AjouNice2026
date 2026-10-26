@@ -25,6 +25,32 @@ def transform_parts(message):
     return (t.x, t.y, t.z), (q.x, q.y, q.z, q.w)
 
 
+def motion_evidence(poses, aligned_pose, now, map_frame, base_frame):
+    """Evidence only: no velocity inference from displacement or Ego/native data.
+
+    Use both the image-aligned pose and the latest received localization sample.
+    Missing/invalid motion does not invalidate otherwise useful map projection.
+    """
+    result = {"schema_version": 1, "valid": False}
+    try:
+        latest, receipt = poses[-1]
+        for pose in (aligned_pose, latest):
+            if (pose.header.frame_id.strip('/') != map_frame.strip('/') or
+                    pose.child_frame_id.strip('/') != base_frame.strip('/')):
+                return result
+        speeds = [math.sqrt(sum(float(getattr(pose.twist.twist.linear, axis))**2
+                                for axis in 'xyz')) for pose in (aligned_pose, latest)]
+        if not all(math.isfinite(v) for v in speeds):
+            return result
+        result.update(valid=True, aligned_pose_stamp_ns=aligned_pose.header.stamp.to_nsec(),
+                      latest_pose_stamp_ns=latest.header.stamp.to_nsec(),
+                      latest_pose_receipt_stamp_ns=receipt.to_nsec(),
+                      aligned_speed_mps=speeds[0], latest_speed_mps=speeds[1])
+    except (AttributeError, IndexError, TypeError, ValueError, OverflowError):
+        pass
+    return result
+
+
 class TrafficLightMapRoiNode:
     def __init__(self):
         self.geometry = load_geometry(rospy.get_param("~geometry_path"))
@@ -124,6 +150,7 @@ class TrafficLightMapRoiNode:
             packet.update(status="ready", reason="projected" if any(r["eligible"] for r in rois)
                           else "no_visible_route_head", rois=rois, rejected_heads=rejected,
                           pose_stamp_ns=pose.header.stamp.to_nsec(), pose_image_delta_sec=delta,
+                          motion_evidence=motion_evidence(poses, pose, now, self.map_frame, self.base_frame),
                           position_sigma_m=position_sigma, yaw_sigma_radians=yaw_sigma,
                           position_sigma_xy_m=position_sigma, position_sigma_z_m=vertical_sigma,
                           position_sigma_m_legacy_alias_means_XY_only=True,

@@ -51,7 +51,8 @@ protected:
   }
 
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
-                 double min_yellow=2., double stop_margin=0., bool fail_open=true)
+                 double min_yellow=2., double stop_margin=0., bool fail_open=true,
+                 double judging_x=10., bool original_available=true)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -72,6 +73,8 @@ protected:
     params.signal_compliance_min_yellow_sec=min_yellow;
     params.signal_compliance_yellow_time_margin_sec=.2;
     params.signal_compliance_front_axle_offset_m=3.;
+    params.use_official_judging_lines=true;
+    if(original_available) params.signal_judging_lines={{group,{{judging_x,-3.},{judging_x,3.}},{1.,0.}}};
     module_=std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
       group==201326,true,params,node_,"traffic_timed_yellow_experimental_test",clock_,nullptr,factors_);
     module_->setRTCEnabled(false);
@@ -141,6 +144,27 @@ protected:
     }
   }
 };
+
+TEST_F(TrafficTimedYellowExperimentalTest, YellowETAMustReachOriginalLineNotEarlierCameraStopTarget)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,3,2.,0.,true,20.);
+    confirmedGreen(0.,5.); tick(); pose(0.,5.); put(yellow());
+    // Virtual line10m would give1.4s. Original line20m gives3.4s: deny.
+    EXPECT_TRUE(stops());
+    configure(group,true,true,3,2.,0.,true,20.);
+    confirmedGreen(10.,5.); tick(); pose(10.,5.); put(yellow());
+    // The virtual stop target is behind ego, but real judging ETA is1.4s.
+    EXPECT_FALSE(stops());
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, MissingOriginalLineDisablesTimeOverrideWithoutStartupFailure)
+{
+  configure(201351,true,true,3,2.,0.,true,20.,false);
+  confirmedGreen(); tick(); pose(); put(yellow());
+  EXPECT_TRUE(stops());
+}
 
 TEST_F(TrafficTimedYellowExperimentalTest, ABCDTimeCandidatePassesWhereOldPhysicalExceptionStops)
 {

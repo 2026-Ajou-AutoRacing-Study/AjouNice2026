@@ -11,7 +11,7 @@
   고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
 - 운영은 CNN 4-bit 관측 보존이며, 색·화살표를 추가하는 보정은 명시적 legacy에만 남는다.
   `debug_observed_label`은 보정 전, `debug_raw_label`은 이름과 달리 보정 후다.
-- 운영 A/B/C/D의 판독 불가·모순 조합은 UNKNOWN이며 가짜 적색/녹색을 만들지 않는다. D-1은 passthrough이고
+- 운영 A/B/C/D의 미완충 판독 불가·모순 조합은 UNKNOWN이다. 같은 head의 이동 중 저확신만 짧게 이전 관측으로 완충한다. D-1은 passthrough이고
   판단 모듈에서 제외된다. 별도 planning competition fail-open과 혼동하지 않는다.
 - native 신호 조회·제어 및 `/Ego_topic`은 **개발 평가용**이다. 운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
   개발 수집·평가 도구를 대회 알고리즘의 의존성으로 연결하지 않았다.
@@ -33,13 +33,13 @@
   [통합 검증 기록](261025_YOLO_CNN_MAP_RUNTIME_EVALUATION.md)을 본다.
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
 - 이전 yellow/R+Y/unknown 계약은 [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)의 당시 기록이다.
-  선 전 정차의 Y/R+Y 새 출발과 신선한 UNKNOWN은 정지 판단이다. 사용자·판단팀 요청으로 기존
+  선 전 정차의 Y/R+Y 새 출발과 완충되지 않은 최신 UNKNOWN은 정지 판단이다. 사용자·판단팀 요청으로 기존
   `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
 - 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. 검증한 **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로 수정에 합친 [v94 자산](../../../configs/map/kcity_v94_merged_asset.yaml)을 만들었다. [v93 계열 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)은 A94.6/B93.0/C94.9/D92.5px·차이2.34px이며 통합 후 새 주행 인증은 아니다. 운영 기본v87 유지. PR55는 병합 완료했으며 지도 기본 승격과는 별개다.
-- 단발 detector 누락만 동일 head·유효 지도에서 원본 관측 age 0.2초까지 보존한다. CNN UNKNOWN·모순·지도/TF 실패·기한 만료는 UNKNOWN이다.
+- 단발 detector 누락은 원본 age 0.2초, 동일 head·이동 중 CNN soft 저확신은 마지막 관측 처리 후 0.3초/원본 age 0.5초까지 보존한다. 소등·모순·지도/TF 실패는 즉시 UNKNOWN이다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
@@ -69,9 +69,9 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
-   timeout은 기존 1.0초로 복구했으며 원본 stamp 기준이다. 기본 GO_OUT은 아직 지도 정차선 기준이며 공식 도색선 통과 인증이 아니다.
+   timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
 
-- [기본값 재점검](261026_TIMEOUT_RESTORE_AND_POLICY_AUDIT.md): 1초 복구·기존값·승인한 개선·남은 한계를 구분한다.
+- [기본값 재점검](261026_TIMEOUT_RESTORE_AND_POLICY_AUDIT.md)·[이전 검토](261026_UNKNOWN_HOLD_ROUTE_REVIEW.md)·[짧은 저확신 완충/원본 판정선](261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md): 정책 개정과 ID0 fail-open 경계를 구분한다.
 
 ## 평가·학습 경계
 
