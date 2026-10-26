@@ -18,6 +18,9 @@ def test_map_candidate_is_shared_without_overriding_policy_or_models():
     traffic = map_launch_arguments('traffic_light_detection', 'traffic_light_v5_candidate.launch',
                                    original, '/candidate', 'sha')
     assert traffic == dict(device='0', lanelet2_map_file='/candidate')
+    prediction = map_launch_arguments('perception_object_pipeline', 'object_pipeline.launch',
+                                      original, '/candidate', 'sha')
+    assert prediction == dict(device='0', map_file='/candidate')
     assert original == dict(device='0')
 
 

@@ -1,6 +1,6 @@
 # Tracking·Prediction production 현재 상태
 
-상태: CURRENT. 문서·launch 대조: 2026-10-24.
+상태: CURRENT. 문서·launch 대조: 2026-10-26.
 Detector는 [BEVFusion CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)의 E12이며 E24/E25는 명시적 복귀다.
 현재 E12/E24 detection은 geometric/gravity center다. bottom center와 섞지 않고 fresh stack으로 전환한다.
 과거 bag 실측·긴 설명은 [정리 전 원문](legacy/context_261024/TRACKING_PREDICTION_CURRENT.md)에 보존했다.
@@ -47,8 +47,8 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 
 | 항목 | 현재 계약 |
 |---|---|
-| Map | `kcity_map/lanelet_map/lanelet2_map_v87.osm` 기본. 실제 `map_file` override도 확인 |
-| Horizon | **로터리/일반 최대 3초·고주로 최대 8초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
+| Map | `kcity_map/lanelet_map/lanelet2_map_v88.osm` 기본. `map_version:=94`로 명시 선택 가능하며 실제 `map_file` override·설치본도 확인 |
+| Horizon | **로터리/일반 최대 3초·고주로 최대 10초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
 | Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
 | 경로 | start lanelet 최대 3개, 최종 path 최대 6개, centerline lateral convergence 1.5s |
 | 중복 hypothesis | 같은 downstream lanelet·전체 horizon 0.75m 이내 경로를 하나로 묶음 |
@@ -64,7 +64,8 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 
 ## 승격 범위와 기본 OFF 후보
 
-- 사용자·판단팀 최종 승인(2026-10-24): 고주로 최대 8초·로터리 최대 3초이며 NPC 소멸 종단이 먼저면 5.6초·1.8초처럼 가용 Map-CV만 출력한다. CTRV 8초·직선 연장·끝점 padding은 쓰지 않는다. 시간은 `config/map_based_prediction.yaml`에서 바꾸고 코드 설치·tracking 재시작 후 적용한다. [설정·근거](HIGHWAY_EIGHT_SECOND_HANDOFF.md)를 따른다.
+- 현재 source 기본 10초는 팀 planning `3e598eb5` 통합으로 넘어온 `config/map_based_prediction.yaml`의 고주로 설정이다. 일반 3초는 유지하며 설치·tracking 재시작 전 live 값은 별도로 확인한다. 이전 8초 시험을 새 10초 폐루프 인증으로 전용하지 않는다.
+- 이전 승인·검증 기록(2026-10-24): 사용자·판단팀은 고주로 최대 8초·로터리 최대 3초를 승인했고 NPC 소멸 종단이 먼저면 5.6초·1.8초처럼 가용 Map-CV만 출력했다. CTRV 8초·직선 연장·끝점 padding은 쓰지 않았다. [당시 설정·근거](HIGHWAY_EIGHT_SECOND_HANDOFF.md)는 그 revision의 기록이며 현재 10초 기본값의 근거로 대체하지 않는다.
 - 고주로 저속/정지도 지도 근거가 있으면 Map-CV를 사용한다. 방향 매칭 실패는 명확한 고주로 위치·도로 방향 합의가 있을 때 미래 경로만 복구한다. 현재 상태·score·수명은 불변이며 오검출 판별기가 아니다. 소멸차선의 종단을 무조건 지도 결함으로 단정하지 않는다. 기존 3/6초 시험은 [당시 기록](MIXED_PREDICTION_HORIZON.md)에 보존한다.
 - [관측 일관성 후보](OBSERVATION_CONSISTENCY_REVIEW.md)의 `shape_consistent_association_ranking=false`, `guard_inconsistent_class_transitions=false`를 유지한다. [실제 ROS·Cruise 확인](OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)은 LC·로터리·최종 제어 폐루프 인증이 아니다.
 - 긴 coasting 0.75/1/2초, mature 차량 전용 확대, 빠른 차량 승격, 저점수 EKF 갱신, 초기 방향 guard, 재취득 공분산/reset, lane history·횡이동 순위 후보는 운영 미적용이다.

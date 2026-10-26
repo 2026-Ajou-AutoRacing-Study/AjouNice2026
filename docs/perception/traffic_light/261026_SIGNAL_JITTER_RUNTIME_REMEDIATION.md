@@ -131,7 +131,7 @@ B/C의 기존0회는 회귀 기준이며 새 후보의 개선율이 아니다. D
 - **후보 C 실제 반복 주행:** PASS·최종 P 확인. 원본선 전 UNKNOWN·재제동·STOP 재발0, 출발0.3초 뒤 계획속도 최저1.092m/s였다. 현재 녹색+좌화살표 visual 판독1개는 원본선 뒤0.930초이므로 선 전 개선의 인과 증거로 세지 않는다.
 - **A 이동 중 uncertainty 통제 stress:** OFF/ON 모두 yaw sigma3.2도를 신호등용 평가 odometry에만0.2초 부여했다. 실제 pose·TF·planner 입력은 보존했다. ON 첫 실행은 Ego 입력1.249초 단절로 안전 중단·P 확인, pulse0회라 비교에서 제외했다. ON 재시험은 완주·P 확인했고 아래와 같이 보완 효과를 확인했다.
 - **D 후보 자연 주행:** 완주 PASS·native R+좌화살표 허가·최종 P 확인. 이번도 정차 없이 통과했으므로 정차 후 재출발은 N/A다. 약한 양의 목표속도 감속과 목표 정차를 신호 재제동으로 세지 않는다.
-- **반영:** 독립 검토·로컬 실주행 이후 이 브랜치의 두 v5 launch 기본을 `visual_continuation_sec=0.3`으로 적용했다. raw Python 기본0과 명시적 `:=0` 복귀는 유지한다. planning 브랜치 PR 통합 전이며, 다른 PC의 기존 설치본이 자동 변경된 것은 아니다.
+- **반영:** 독립 검토·로컬 실주행 이후 두 v5 launch 기본을 `visual_continuation_sec=0.3`으로 적용했다. raw Python 기본0과 명시적 `:=0` 복귀는 유지한다. 다른 PC의 기존 설치본이 자동 변경된 것은 아니며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)로 설치한다.
 
 | A stress 동일 정의 | OFF | ON |
 |---|---:|---:|
@@ -150,3 +150,47 @@ ON은 pulse 중 현재 GREEN crop2개, 후속 자연 ROI gap에서1개를 새로
 `independent_review.md`와 `hardening_saved_predictions_v1/report.json`을 본다.
 새 학습은 필요하지 않으며, 새 runtime helper가 있으므로 팀 배포에는 기존 설치기의 source/install 확인과
 스택 재시작이 필요하다. 이 기록은 새 LAN·대회 4090 풀스택 또는 모든 날씨의 무움찔 인증은 아니다.
+
+## 추가 수령한 실제 v94 bag 대조 (2026-10-27 정리)
+
+`planning_rviz_20261026_222146.bag`은 7,692,098,685바이트이며 Drive MD5와 일치한다.
+녹화된 vector map의 실제 버전도94다. 원본은
+`rosbags/traffic_light/261026_teamlead_v94_222146/`에 보존했다.
+구형 July bag16개만 정리해17,189,191,330바이트를 확보했고 새 bag·기존 신호 비교 bag은 보존했다.
+
+| 구간 | 이번 bag에서 실제 확인한 행동 |
+|---|---|
+| A | 정차 후 한 번 출발했고 이후 ZERO 목표로 돌아오지 않았다. |
+| B | 출발→정지 목표 복귀5회. 그중 이동 중 명확한 재제동3회, 나머지2회는0.3m/s 미만 출발 취소다. |
+| C | 신호 앞 정차·재출발이 아닌 연속 감속이며, 직후 별도 급제동에는 run_out/crosswalk 증거가 있다. |
+| D | 정차 없이 통과했다. 약8.83→8.34m/s의 작은 속도 dip은 있으나 신호 STOP pulse는 확인되지 않았다. |
+
+B의 같은 창에서 BPP 최근접 목표속도는60개 모두16.3889m/s였지만 후속 behavior path에는
+ZERO가 반복됐다. 제어기 단독 떨림은 아니며, 이번 bag에는 이전 optimizer fallback 제동 로그도 없다.
+다만 실제 신호 출력·신호 모듈 상태·실행 SHA가 빠져 어느 BVP 모듈이 ZERO를 넣었는지 최종 확정할 수는 없다.
+
+전방 원본1,083장을 현재 고정 v5로 연속 재처리했다. B의 STOP5개 시각 모두±0.25초 안에
+visual OFF의 uncertainty 거부 UNKNOWN을 ON의 **현재 GREEN crop 판독**으로 회복하는 원본이 있었다
+(고유6프레임). B 추가 GREEN7개 전수 화면 검토에서 같은 head와 실제 녹색을 확인했고,
+추가 RED5개도 그대로 적색으로 전달됐다. 오래된 녹색 유지가 아니다.
+이는 구체적인 반사실 대조이며 당시 실제 신호 입력의 인과 확정이나 실차 제동5/5 해결 인증은 아니다.
+UNKNOWN 총량에는 초기 미관측·통과 후 프레임도 있어 제동 오류율로 환산하지 않는다.
+
+상세 시각·분모·표·이미지는 `planner_logs/analysis/261026_v94_latest_bag/`의
+`BRAKE_CLASSIFICATION.md`, `B_stop_replay_overlay_v1.md`, `visual_review_v1/`에 있다.
+이전8회→이번3회를 개선율로 쓰지 않는다. 이번 C/D는 정차·재출발 조건 자체가 달랐다.
+
+## 최신 planning 통합·설치 뒤의 추가 A 시험
+
+`traffic_light_compliance_A_map_candidate_261026_233610`은 실제 planner/controller로 완주했고
+최종 정지/P를 확인했다. 첫 GREEN148.733초, 최종 계획 출발149.083초,
+원본 MGeo선 통과150.479초이며, 출발→원본선의 목표 ZERO 복귀0/15·이동 중 재제동0회였다.
+정차 hold 해제 때 속도가 사실상0인 단일 brake 표본은 이동 중 재제동으로 세지 않았다.
+
+그러나 **실행 전체가 무움찔은 아니다.** 앞선 적색 접근·대기97~120초의 callback은 평균241ms,
+p95 615ms·최대813ms였고, 출력 source age 최대888ms와 중간 미수신이 있었다.
+기존 timeout1초 fail-open GO 로그와118.187초 MOVE→118.553초 ZERO,
+속도0.321m/s에서 실제 재제동1표본을 확인했다. 최종 GREEN 구간은 callback 평균28ms·p95 34.9ms였다.
+실제 추론549건은cuda:0이며 startup의 model.device CPU 표기1개를 CPU 추론 증거로 읽지 않는다.
+부하가 CPU·GPU 중 어디서 생겼는지는 확정하지 못했다. 팀과 합의한 timeout1초 fail-open은
+이 보완에서 바꾸지 않았으며, 이 별도 지연 사례를 지도 연결 보완의 해결 성과로 포함하지 않는다.

@@ -2,6 +2,7 @@
   <!-- Production remains true. Set false only for local localization/control
        load tests that intentionally ignore every traffic signal. -->
   <arg name="enable_traffic_light_planner" default="true"/>
+  <arg name="map_version" default="88"/>
   <!--
     No-argument AjouNice competition planning entrypoint.
 
@@ -13,6 +14,7 @@
   -->
   <include file="$(find ajounice_planning_integration)/launch/planning.launch">
     <arg name="repo_root" value="$(env AJOUNICE_ROOT)"/>
+    <arg name="map_version" value="$(arg map_version)"/>
     <arg name="start_requester" value="true"/>
     <arg name="is_simulation" value="false"/>
     <arg name="behavior_path_forward_length" value="400.0"/>

@@ -86,6 +86,8 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
     if package == 'traffic_light_detection' and filename in (
             'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
         result['lanelet2_map_file'] = str(map_file)
+    if package == 'perception_object_pipeline' and filename == 'object_pipeline.launch':
+        result['map_file'] = str(map_file)
     return result
 
 

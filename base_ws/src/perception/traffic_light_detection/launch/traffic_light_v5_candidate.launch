@@ -7,7 +7,8 @@
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
   <arg name="image_topic" default="/sensor/camera/front/compressed" />
   <arg name="sensor_config" default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json" />
-  <arg name="lanelet2_map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v88.osm" />
+  <arg name="map_version" default="88" />
+  <arg name="lanelet2_map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm" />
   <arg name="lanelet2_projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
   <arg name="route_topic" default="/planning/mission_planning/route" />
@@ -41,6 +42,7 @@
     <arg name="image_topic" value="$(arg image_topic)" />
     <arg name="sensor_config" value="$(arg sensor_config)" />
     <arg name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
+    <arg name="map_version" value="$(arg map_version)" />
     <arg name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
     <arg name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
     <arg name="route_topic" value="$(arg route_topic)" />

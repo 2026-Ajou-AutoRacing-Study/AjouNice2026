@@ -33,7 +33,11 @@ from tf.transformations import quaternion_from_euler
 
 repo = Path(os.environ["AJOUNICE_ROOT"]).resolve()
 result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
-route_path = repo / "base_ws/src/planning_addons/competition_route_requester/config/kcity_v88_competition_route.yaml"
+map_version = os.environ.get("AW149_OUTPUT_PROBE_MAP_VERSION", "88")
+if map_version not in ("88", "94"):
+    raise ValueError("AW149_OUTPUT_PROBE_MAP_VERSION must be 88 or explicit 94")
+route_path = repo / ("base_ws/src/planning_addons/competition_route_requester/config/kcity_v" +
+                     map_version + "_competition_route.yaml")
 route_config = yaml.safe_load(route_path.read_text())
 selected = route_config["route_a"]
 use_requester = os.environ.get("AW149_OUTPUT_PROBE_USE_REQUESTER", "0") == "1"
@@ -170,6 +174,7 @@ requester_launch = Path(packages.get_path("competition_route_requester")) / "lau
 # config with automatic initial dispatch so they remain non-interactive.
 launch_requester_in_stack = False
 launch_specs = [(str(launch_file), [
+    "map_version:=" + map_version,
     "start_localization:=false",
     "start_sensor_tf:=false",
     "start_object_pipeline:=false",
@@ -198,6 +203,12 @@ if use_requester and not launch_requester_in_stack:
 launch_id = roslaunch.rlutil.get_or_generate_uuid(None, False)
 roslaunch.configure_logging(launch_id)
 parent = roslaunch.parent.ROSLaunchParent(launch_id, launch_specs)
+if os.environ.get("AW149_OUTPUT_PROBE_BPP_GDB", "0") == "1":
+    # Isolated output-only diagnosis; never changes the deployed node defaults.
+    parent._load_config()
+    for node in parent.config.nodes:
+        if node.name == "behavior_path_planner":
+            node.launch_prefix = "gdb -batch -ex run -ex 'bt 25' --args"
 deaths = []
 
 
@@ -538,6 +549,7 @@ result = {
     "pass": False,
     "launch": str(launch_file),
     "route_fixture": str(route_path),
+    "map_version": map_version,
     "counts": counts,
     "route_request_mode": "competition_route_requester" if use_requester else "direct_service_probe",
     "route_operation_case": route_case,

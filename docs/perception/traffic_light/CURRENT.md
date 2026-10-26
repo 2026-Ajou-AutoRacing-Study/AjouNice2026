@@ -38,7 +38,7 @@
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
-- 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. 검증한 **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로 수정에 합친 [v94 자산](../../../configs/map/kcity_v94_merged_asset.yaml)을 만들었다. [v93 계열 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)은 A94.6/B93.0/C94.9/D92.5px·차이2.34px이며 통합 후 새 주행 인증은 아니다. 운영 기본v87 유지. PR55는 병합 완료했으며 지도 기본 승격과는 별개다.
+- 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml)는 명시적 `map_version:=94`로 지도·SHA·Route A/B를 함께 고른다. 최신 planning 기본v88은 유지하며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. [v93 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93) 차이2.34px를 새 LAN 인증으로 쓰지 않는다.
 - 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 소등·모순·TF/route/실제 화각 실패는 UNKNOWN이다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
@@ -71,7 +71,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
    timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
 
-- [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **이 브랜치 launch 기본0.3초로 적용**(planning PR 통합 전). [기본값 재점검](261026_TIMEOUT_RESTORE_AND_POLICY_AUDIT.md)·[원본 판정선](261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)의 timeout1초·황색OFF·허가3회·ID0 경계는 유지한다.
+- [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)로 설치하며 timeout1초·황색OFF·허가3회·ID0 경계는 유지한다.
 
 ## 평가·학습 경계
 

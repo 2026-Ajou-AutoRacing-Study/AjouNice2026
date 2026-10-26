@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 ROOT=Path(__file__).resolve().parents[2]
-GROUPS=dict(A=201351,C=201290,D=201326)
+GROUPS=dict(A=201351,B=201365,C=201290,D=201326)
 
 
 def phase(group,lamps):
@@ -53,7 +53,7 @@ def run(source,output):
         summary[mode+':'+section]=dict(frames=len(rows),stop_request_frames=sum(r['require_stop'] for r in rows),
             go_to_stop_transitions=to_stop,first_permitted_t=next((r['t'] for r in rows if not r['require_stop']),None))
     result=dict(source=str(source),summary=summary,limitations=[__doc__,
-        'Direction classification follows A/C straight and D protected-left contract; native lamp GT absent.'])
+        'Direction classification follows A/B/C straight and D protected-left contract; native lamp GT absent.'])
     (output/'summary.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result))
 

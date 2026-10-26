@@ -14,6 +14,7 @@
   -->
   <include file="$(find ajounice_planning_integration)/launch/planning.launch">
     <arg name="repo_root" value="$(env AJOUNICE_ROOT)"/>
+    <arg name="map_version" value="88"/>
     <arg name="mission_planner_param_path" value="$(arg repo_root)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v88.yaml"/>
     <arg name="map_file" value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v88.osm"/>
     <arg name="map_sha256" value="dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37"/>

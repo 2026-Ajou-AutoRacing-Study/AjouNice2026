@@ -13,8 +13,9 @@
   <arg name="prediction_highway_horizon" default=""/>
   <arg name="prediction_highway_mode" default=""/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
+  <arg name="map_version" default="88"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v88.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <!-- Enable this to replace PointPainting detection only with MORAI GT. -->
@@ -70,6 +71,7 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="map_version" value="$(arg map_version)"/>
     <arg name="publish_association_diagnostics" value="$(arg tracker_publish_association_diagnostics)"/>
     <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"

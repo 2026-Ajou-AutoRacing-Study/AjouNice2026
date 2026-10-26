@@ -11,7 +11,7 @@
 짧은 이동 중 저확신 완충과 원본 MORAI 판정선 계산은 [최신 개정](261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 따른다.
 `low_confidence_hold_sec=0.3`(0이면 OFF), 황색 master/timed는 OFF 유지다. 새 C++·YAML·helper가 함께 필요하므로 아래 설치기를 다시 실행한다.
 이 브랜치는 [실제 재제동 보완](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)의 `visual_continuation_sec=0.3`도 기본이다.
-같은 신호등의 현재 색 재판독이며 0이면 이 보완만 OFF다. planning 브랜치 PR 전에는 그쪽 pull만으로 반영되지 않는다.
+같은 신호등의 현재 색 재판독이며 0이면 이 보완만 OFF다. 최신 planning 동기화·v94 선택은 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. v94 선택만으로 기본v88을 바꾸지 않는다.
 
 ## 팀장님 4090 — 설치
 
