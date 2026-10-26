@@ -83,3 +83,16 @@ def test_refined_visibility_candidate_does_not_move_roads_or_old_map(b_shift, ex
     assert report['candidate_sha256'] == expected_sha
     assert [x['upstream_shift_m'] for x in report['changes']] == [.75,b_shift,.75,2.75]
     assert len(ET.fromstring(raw)) == len(ET.fromstring(output))
+
+
+def test_abcd_alignment_v93_changes_only_qualified_stop_nodes():
+    root = Path(__file__).resolve().parents[2]
+    raw = (root/'kcity_map/lanelet_map/lanelet2_map_v87.osm').read_bytes()
+    geometry = json.loads((root/'base_ws/src/perception/traffic_light_detection/config/traffic_light_map_geometry.json').read_text())
+    output, report = shifted_map(raw, dict(A=.75,B=2.6,C=.35,D=2.6), geometry)
+    assert report['candidate_sha256'] == '363f107d6a1460af6a71c1dc0c129f73f7a1da049686f5df159bf557cd3133e3'
+    assert report['changed_node_ids'] == [92992,92993,92998,92999,93020,93021,93034,93035]
+    assert [c['upstream_shift_m'] for c in report['changes']] == [.75,2.6,.35,2.6]
+    # The builder's byte-exact reversal check also guards lane boundaries,
+    # successors, IDs, elevation and every other non-target source byte.
+    assert len(ET.fromstring(raw)) == len(ET.fromstring(output))

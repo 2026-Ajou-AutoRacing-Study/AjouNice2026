@@ -3,11 +3,11 @@
 현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v87.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
-2026-10-26: 선정 후보는 **v91: v87 대비 A/C+0.75m·B+3m·D+2.75m 상류 이동**이다.
-도로 경계·연결·ID는 그대로다. B 개별 및A→B→C→D 연속 구간의 실제 정차·시야·재출발을 확인했다.
-**운영 기본은 아직v87**이며 v91은 명시적으로 선택하는 검증 후보다. 이전 후보·중단 증거도 보존한다.
-[후보 상태·정차/통과 경계](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-visibility-v91)를 먼저 확인한다.
-정차 housing 상단 median90~105px·관측 최소80px의 [공통 기준](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#common-stopline-standard)으로 A/B/C/D 모두 수용해 추가 이동하지 않는다. 신호 선택 끊김은 별도 미해결 사항이다.
+2026-10-26: 선정 후보는 **v93: v87 대비 A+0.75m·B+2.6m·C+0.35m·D+2.6m 상류 이동**이다.
+도로 경계·연결·ID는 그대로다. 고정 신호등의 안정 정차 상단 여유가 A94.6/B93.0/C94.9/D92.5px로,
+요청한 구간 간 중앙값 차이5px 이내(실측2.34px)로 맞췄다. [측정 조건·이전 후보와 차이](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)를 확인한다.
+**운영 기본은 아직v87**이며 v93은 명시적으로 선택하는 검증 후보다. 이전 후보·중단 증거도 보존한다.
+모든 제동 순간·다른 주행에서의 픽셀 일치를 보장하지 않으며 신호 선택 끊김은 별도 미해결 사항이다.
 
 | 구분 | 경로·기준 |
 | --- | --- |

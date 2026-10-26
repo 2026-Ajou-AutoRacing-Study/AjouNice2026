@@ -590,3 +590,66 @@ A9/B6/D3개 있었다. 양상은 B/D에만 한정되지 않는다.
 선택 거부 세부 내역은 기존 분석기에 추가했으며
 `planner_logs/analysis/signal_braking_comparison_261026_v4/measurements.json`에 보존했다.
 원본 bag·JPEG·이전 결과·지도 좌표·운영 프로세스는 변경하지 않았다.
+
+<a id="pixel-alignment-v93"></a>
+## 사용자 요청의 약5px 이내 정렬: v93 선정
+
+앞 절의90~105px 사후 수용 범위 대신, 사용자가 **네 구간 안정 정차 중앙값을 약5px 이내**로
+맞추도록 명시했다. B의 마지막0.5m 추가 후퇴를 필수로 보았던 근거가 약했던 점도 함께 반영했다.
+기존 신호 판단·허가3회·freshness·UNKNOWN 정지·제어기·카메라는 바꾸지 않고 지도 후보만 수정했다.
+
+동일1280×720 입력, 앞범퍼`base_link +3.845m`, `stop_margin: 0.0`이다.
+각3초 이상 정차창에서 시작2초~끝0.5초를 제외하고 최소5개 원본 검출 관측의 상단 중앙값을 계산한다.
+고정 physical head A077/B091/C016/D052만 비교하며 C018과 섞지 않는다.
+짧은 재정지·녹색 무정차·검출 없는 창은 통과가 아니라 자료 부족이다. 반복 유효 정차창이 있으면
+그 중앙값 전체의 범위를 검사해, 서로 다른 정차를 평균하여 불일치를 감추지 않는다.
+
+v92는 v87 대비 A0.75/B2.60/C0.55/D2.60m로 시작했다. 원본 안정창의 깊이와 핀홀 근사로
+초기 이동량을 계산했지만 이를 실측으로 간주하지 않았다. 실제 개별 정차는 A94.62/B93.03/C98.69px로
+차이5.66px여서 C만0.20m 더 하류 이동한 **v93: A0.75/B2.60/C0.35/D2.60m**로 재시험했다.
+v91 대비 A유지·B0.40m·C0.40m·D0.15m 덜 일찍 서는 위치다. Exclusive stop-line8개 node만 바뀌며
+도로 경계·연결·ID·고도·속도 속성과 원본v87은 그대로다.
+
+| 구간 | v87 대비 상류 이동 | 안정 정차 중앙값 | 안정 관측 수 | 접근 관측 최소 | 정차 시간 |
+|---|---:|---:|---:|---:|---:|
+| A |0.75m|94.62px|374|88.18px|47.76초|
+| B |2.60m|93.03px|371|86.65px|47.88초|
+| C |0.35m|94.85px|630|87.94px|77.38초|
+| D |2.60m|92.52px|66|89.30px|10.34초|
+
+**안정 중앙값 최대−최소=2.337px로 요청한5px 이내다. 이 위치에서 조정을 마감한다.**
+A/B는v92 개별 시험이며 v93에서도 해당 미션의 전체 stop-line geometry와frame이 정확히 같음을
+원본 geometry SHA와 group 전체 비교로 확인해 재사용했다. C는v93 개별, D는v93 A→D corridor다.
+따라서 이 표를 '한 번의 같은 지도 연속 주행에서 네 구간 모두 정차했다'고 읽으면 안 된다.
+다른 환경·접근 자세·제어 오차·제동 순간마다5px를 보장하거나 별도 pixel GT를 얻은 것도 아니다.
+
+v92 A/B/C/D, v93 C/D, v93 corridor 총7회는 모두 PASS·충돌0·최종 정지/P VERIFIED였다.
+두 D 집중 시험은 허가 도착으로 정차하지 않아 정차 검증에서 제외했다. 두 번째는 시험 준비의
+P 확인 hold만1→6초로 늘려 자연 현시 도착을 달리했으며, 신호 프로그램을 변경하거나 native SET을
+쓰지 않았다. 최종 D는 정상1초 hold의 기존 실제 A→B→C→D 경로에서 정차를 확보했다.
+마지막 corridor는 기존 D exit waypoint에서 끝난 것이지 남쪽 복귀까지 full-course PASS가 아니다.
+시험 후 ROS graph는`/rosout`만 남고, MORAI는 최종 정지/P 확인 후 그대로 두었다.
+
+기존4구간 경량 기록이 각각20~89MiB였으므로, 새 실행 사본에는 최소1GiB 디스크 reserve를
+명시하고 원본 카메라 전체 bag는 제외했다. 실제 controller/안전 guard를 완화한 것이 아니며,
+원본 detector 진단·측위·신호·제어·native GET·교차 시점 JPEG 및 종료 안전 증거는 기록했다.
+정차 중 원본 JPEG 전체는 없으므로 이번 표는 detector box 진단이고 새 정차 이미지 검사는 아니다.
+원본 모델과 SHA 동일한 미사용 임시 checkpoint 두 복사본만 약1GiB 정리했고 원본 가중치는 보존했다.
+
+현재 후보 manifest는 `configs/map/kcity_v93_stopline_candidate.yaml`이다.
+OSM SHA256은 `363f107d6a1460af6a71c1dc0c129f73f7a1da049686f5df159bf557cd3133e3`,
+MD5는 `1b605c43f0b2225649106c3ee6a5b9e0`이다. 운영 기본v87·PR55 draft는 유지한다.
+신호 선택 불확실성에 따른 끊김은 여전히 별도 문제이며, 시야 정렬로 해결했다고 주장하지 않는다.
+
+근거: `artifacts/evaluation/traffic_light_robustness_261025/` 아래
+`v92_abcd_alignment_261026_v1`, `v93_cd_alignment_261026_v1`,
+`v93_corridor_alignment_261026_v1` 및 각 `map_v92_*`/`map_v93_*_clearance_analysis_261026_v1`이다.
+최종 비교는 `planner_logs/analysis/signal_stopline_alignment_261026_v2/measurements.json`이다.
+이전v1 결과의 D 자료 부족도 보존했다. 재검산 도구는
+`scripts/evaluation/audit_signal_stopline_alignment.py`, 실행기는
+`scripts/evaluation/retest_signal_latency.py`이며 source trial을 변경하지 않고 새 사본을 만든다.
+
+로컬 v93 생성·주행·비교와 관련30개 회귀 테스트·문서 검사·diff 검사는 통과했다.
+Drive 업로드는 `ajou_drive`의403 rateLimitExceeded로 실패했고, 전용 `ajou_drive_private` 조회도
+invalid_grant(인증 만료/취소)여서 재시도 루프 없이 중단했다. **새 v93의 Drive 업로드는 미완료**이며
+이전v91 원격 자산을 덮어쓰지 않았다. Git의 builder와 manifest 이동량으로 동일 SHA를 재생성할 수 있다.
