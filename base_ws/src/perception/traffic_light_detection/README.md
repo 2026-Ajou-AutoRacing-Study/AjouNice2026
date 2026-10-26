@@ -148,6 +148,11 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 최대 원본 age 0.5초를 추가로 요구한다. `0`이면 새 완충만 OFF다. 양쪽 모두 원본 stamp를 보존하고
 실제 R/Y·확신 소등·모순·TF/지도/identity 실패는 즉시 반영한다.
 
+`visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
+현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 색 hold가 아니며
+anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
+`visual_continuation_sec:=0`으로 이 보완만 끈다. [연속 bag·실제 주행 근거](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)와 planning 통합 상태는 CURRENT를 따른다.
+
 팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`의
 `traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.

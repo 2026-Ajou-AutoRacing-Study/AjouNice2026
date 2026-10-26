@@ -26,6 +26,7 @@ def test_ordinary_and_v5_entrypoints_enable_the_same_production_observation_cont
         assert args['route_progress_guard'] == 'true'
         assert args['publish_debug_image'] == 'false'
         assert args['low_confidence_hold_sec'] == '0.3'
+        assert args['visual_continuation_sec'] == '0.3'
         assert args['inference_python'].endswith('/.local/share/ajounice/traffic_light_gpu/bin/python')
 
 

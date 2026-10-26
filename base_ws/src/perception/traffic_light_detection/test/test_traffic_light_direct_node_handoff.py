@@ -41,7 +41,7 @@ class RealPolicyNodeHandoffTest(unittest.TestCase):
 
     def step(self, node, now, source, raw=(G,), detected=True, ready=True,
              head='test_head', group=None, projection_head=None, unknown=False,
-             observation=None, motion_speed=None, latest_motion_speed=None):
+             observation=None, motion_speed=None, latest_motion_speed=None,packet_extra=None):
         group = node._resolve_group_id() if group is None else group
         message = self.image();message.header.stamp = fixture.Stamp(source)
         packet = fixture.CandidateNodeTest.packet(self, group=group)
@@ -57,6 +57,7 @@ class RealPolicyNodeHandoffTest(unittest.TestCase):
                 aligned_pose_stamp_ns=message.header.stamp.to_nsec(),
                 latest_pose_stamp_ns=message.header.stamp.to_nsec(),
                 latest_pose_receipt_stamp_ns=fixture.Stamp(now).to_nsec())
+        if packet_extra:packet.update(packet_extra)
         node._map_packet_for_image.return_value = packet
         node.model.predict.return_value = self.detector_results([480,180,530,194]) if detected else self.detector_results()
         obs = types.SimpleNamespace(known=not unknown, tuples=list(raw) if not unknown else [], confidence=.95)
@@ -274,6 +275,42 @@ class RealPolicyNodeHandoffTest(unittest.TestCase):
         self.step(node,10.01,10.,motion_speed=2.)
         _,decision=self.step(node,10.08,10.07,
             observation=observation_from_probabilities((.01,.01,.5,.01)),motion_speed=2.)
+        self.assertEqual(decision['final_tuples'],[])
+
+    def test_visual_continuation_reads_current_red_yellow_not_previous_green(self):
+        for raw in ([R],[Y]):
+            node=self.node();node.visual_continuation_sec=.3
+            self.step(node,10.01,10.)
+            extra=self.visual_packet()
+            output,decision=self.step(node,10.11,10.10,raw=raw,ready=False,packet_extra=extra)
+            self.assertEqual(decision['visual_continuation']['status'],'matched')
+            self.assertEqual(decision['final_tuples'],[list(x) for x in raw])
+            self.assertEqual(output.stamp.to_nsec(),10_100_000_000)
+            self.assertFalse(decision['observation_timing']['output_is_held'])
+
+    def visual_packet(self):
+        return dict(reason='localization_uncertainty_exceeds_bound',nominal_continuation=dict(
+            schema_version=1,status='ready',normal_eligibility=False,
+            validated_image_time_tf_pose_extrinsic=True,actual_xy_sigma_m=.03,actual_z_sigma_m=1.,
+            actual_yaw_sigma_degrees=3.2,rois=[dict(head_id='test_head',group_id=201351,eligible=False,
+                normal_rejection_reason='localization_uncertainty_exceeds_bound',depth_m=10.,
+                bbox_xyxy=[480.,180.,530.,194.],gate_xyxy=[390.,-20.,620.,394.])]))
+
+    def test_visual_continuation_cnn_unknown_is_not_replaced_by_old_green(self):
+        node=self.node();node.visual_continuation_sec=.3
+        self.step(node,10.01,10.)
+        output,decision=self.step(node,10.11,10.10,unknown=True,ready=False,packet_extra=self.visual_packet())
+        self.assertEqual(decision['visual_continuation']['status'],'matched')
+        self.assertEqual(decision['final_tuples'],[])
+        self.assertEqual(output.stamp.to_nsec(),10_100_000_000)
+
+    def test_visual_continuation_does_not_renew_normal_map_anchor(self):
+        node=self.node();node.visual_continuation_sec=.3
+        self.step(node,10.01,10.)
+        for now,source in ((10.11,10.10),(10.25,10.24)):
+            _,decision=self.step(node,now,source,ready=False,packet_extra=self.visual_packet())
+            self.assertEqual(decision['final_tuples'],[list(G)])
+        _,decision=self.step(node,10.32,10.31,ready=False,packet_extra=self.visual_packet())
         self.assertEqual(decision['final_tuples'],[])
 
 

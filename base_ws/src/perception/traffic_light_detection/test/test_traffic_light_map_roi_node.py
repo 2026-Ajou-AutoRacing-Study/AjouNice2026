@@ -5,6 +5,7 @@ import importlib.util
 import json
 import sys
 import threading
+import math
 import types
 import unittest
 from collections import deque
@@ -205,6 +206,40 @@ class MapRoiNodeTest(unittest.TestCase):
         packet=self.call(node)
         self.assertEqual(packet['status'],'ready')
         self.assertFalse(packet['motion_evidence']['valid'])
+
+    def test_uncertainty_candidate_preserves_real_sigma_and_normal_missing(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node._poses[0][0].pose.covariance[14]=1.
+        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'missing')
+        self.assertEqual(packet['reason'],'localization_uncertainty_exceeds_bound')
+        self.assertEqual(packet['rois'],[])
+        evidence=packet['nominal_continuation']
+        self.assertAlmostEqual(evidence['actual_yaw_sigma_degrees'],4.)
+        self.assertEqual(evidence['actual_z_sigma_m'],1.)
+        self.assertFalse(evidence['normal_eligibility'])
+        self.assertTrue(evidence['rois'])
+        self.assertTrue(all(row['eligible'] is False for row in evidence['rois']))
+
+    def test_uncertainty_with_tf_failure_has_no_nominal_continuation_evidence(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        node.buffer.lookup_transform.side_effect=TransformError('image-time TF unavailable')
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'missing')
+        self.assertNotIn('nominal_continuation',packet)
+
+    def test_per_head_padding_rejection_gets_nominal_evidence_but_normal_caps_unchanged(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node.geometry['heads'][0]['point'][0]=10.
+        node._poses[0][0].pose.covariance[35]=math.radians(2.9)**2
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        self.assertEqual(packet['reason'],'no_visible_route_head')
+        self.assertTrue(any(r['reason']=='projection_uncertainty_exceeds_bound' for r in packet['rejected_heads']))
+        self.assertEqual(packet['selector_config']['max_padding_px'],90.)
+        self.assertFalse(packet['nominal_continuation']['rois'][0]['eligible'])
 
 
 if __name__ == "__main__":
