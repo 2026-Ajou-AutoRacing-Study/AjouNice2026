@@ -176,3 +176,73 @@ ON 통과 전 기록된 allow→deny 반전은 없었지만, 모든 장면의 �
 `421859c533ef98745e2ba02436710fd9088488c0b42ea7ef0f77c0343016baef`로 같다.
 시험 중 native UDP를 사용했으므로 자연 주기 재시험 전에는 MORAI를 새로 시작해 현시를 재확인해야 한다.
 이 문서만으로 후보 기본 ON이나 PR 병합을 승인하지 않는다.
+
+<a id="stopline-followup"></a>
+## 정차 목표와 도색 통과선 분리 후속
+
+이 절은 위 황색 실험 이후의 변경이다. 이전 입력·결과를 소급 수정하지 않는다.
+v87 ref_line과 MGeo type530을 비교한 상류 차이는 A0.75/B6.73/C0.75/D7.75m였다.
+MGeo 도색선도 공식 판정 프로그램의 인증된 판정선은 아니며 명시적 비교 proxy다.
+기존 황색 ON D의 지도선 통과는 R+Y였지만, 원본선 proxy 통과는 약0.924초 뒤이며
+native R+Y→R 전환 bracket에 걸렸다. 적색 위반 확정도 황색 통과 확정도 아니다.
+
+### 구현과 기본 선택
+
+- 공유 설정: `base_ws/src/perception/traffic_light_detection/config/traffic_signal_stop_lines.yaml`.
+  v87 예상 ref_line·원본 도색 polyline·출처 SHA를 가진다. 지도 자체는 변경하지 않는다.
+- 현재 지도 anchor가 정합되면 B/D `additional_stop_margin_m: 0.75`를 적용한다.
+  A/C는0이며, 틀린 지도·잘못된 profile은 경고 후 기존 지도 동작으로 돌아간다.
+- `signal_stop_line_crossing_reference_enabled:=true`는 **별도 시험 후보**다.
+  planner GO_OUT·황색 ETA와 route helper의 미션 전환을 원본 도색선 기준으로 바꾼다.
+  동일 인자를 planner와 traffic 양쪽에 사용해야 하며 `morai_planning_stack.launch`는 함께 전달한다.
+- 후보는 기본 OFF다. 유효 profile이 있지만 물리 통과선이 OFF/불일치이면 잘못된
+  virtual ETA를 쓰지 않도록 황색 override를 허용하지 않는다. GUI의 황색 체크만으로 우회하지 않는다.
+- YOLO/CNN 가중치는 그대로다. 운영 direct 경로는 색·화살표를 추론해 추가하지 않는다.
+  미관측·모순은 UNKNOWN이고, 기존 색 보정·1.5초 유지·4초 황색 cap은 명시적 legacy에만 남는다.
+- 같은 head의 detector 누락만 원본 source age0.2초까지 보존한다. 실제 R/Y는 즉시 갱신하고,
+  CNN UNKNOWN/all-OFF·지도/TF 실패·identity 모호성·기한 만료는 보존하지 않는다.
+  held stamp로 허가3회 확인을 늘리거나 GO 유효기간을 새로 시작하지 않는다.
+
+### 실제 D 시험에서 확인한 미완료 경계
+
+실제 localization·YOLO/CNN·ROS1 planner/controller·OD_GT 조건으로 시험했다.
+첫 실행은 평가용 원본선을 정차 준비 gate에도 사용해 시작 조건을 충족하지 못했고,
+정지/P를 확인하여 마감했다. 준비 gate와 관측 crossing geometry를 별도 지정하도록 고쳤다.
+
+다음 실행은 R+Y 정차 유지 후 실제 좌회전 허가에서 출발했지만, 앞축 map X≈111.38m에서
+재정지했다. 원본 도색선 X≈118.86m까지 약7.48m 남았으며, 이 구간에 실제 허가가 유지되는
+동안에도 관측이 끊겼다. 기록된 지도 사유는 `housing_not_fully_in_image`였다.
+종료 후 같은 위치에서 정지 상태의 원본 JPEG를 다시 받아 신호등이 화면 상단에 잘린 것을 확인했다.
+후반 native override도 불일치하여 전체 실행은 ERROR이며, 이 실행을 주행 PASS로 세지 않는다.
+종료 정지/P는 VERIFIED다. 단발 누락 완충을 늘려 영구 사각을 숨기거나 timeout GO를 넣지 않았다.
+
+따라서 **물리 통과선 분리의 코드·단위 시험 완료와 운영 적용 완료는 다르다.**
+현재는 추가 정차여유와 관측 보존/짧은 detector 완충만 운영 경로에 두고,
+물리선 후보는 OFF로 남긴다. 기존 virtual GO_OUT의 조기 통과 판정 한계는 아직 남아 있다.
+물리선까지 관측이 없는 이동 구간의 승인/취소 정책을 별도로 결정·검증해야 한다.
+
+근거: `artifacts/evaluation/traffic_light_robustness_261025/`의
+`stopline_map_visibility_review_261026_v1/`, `stopline_separation_D_261026_v1/`와 `v2/`,
+`stopline_separation_trials_261026_v1/D_after_abort_original.jpg`.
+새 frozen 시험 준비는 `prepare_signal_stop_line_trials.py`, 실행기의
+`--preparation-geometry`는 정차 준비용이고 `--geometry`는 관측 통과선용이다.
+
+### 기본 stop-only 경로의 재검증
+
+물리선 후보를 OFF로 명시하고, B/D 추가 정차여유0.75m·관측 보존·허가3회·황색OFF로
+각 구간을 다시 실행했다. B/D 모두 목적지 PASS·충돌0·종료 정지/P VERIFIED였다.
+각 약2.025초의 Y/R+Y 정차 구간에 양의 출발 요청은 B0/101, D0/102였다.
+정차 중 검출 박스 상단 여유는 B약45px/D약42px였고, 원본 도색선 통과는 각각
+native G16/R+좌화살표33의 전후0.25/0.5초 bracket이 일치했다.
+허가 확인→양의 제어는 B0.630/D0.691초, 실속도0.2m/s 초과는 B0.806/D0.809초였다.
+이는 로컬·무객체·OD_GT 조건의 기술 통계이며 LAN/BEVFusion 부하나 반복 신뢰도 인증이 아니다.
+
+기본 stop-only PASS는 기존 virtual GO_OUT을 유지한 결과이며, 사각 구간의 신호 전환 문제를
+해결했다는 뜻이 아니다. 이 한계 때문에 물리선 후보와 황색 override를 기본 승격하지 않았다.
+전체 인지 Python276개·Native107개 회귀가 통과했고 source/install 일치 검사도 마감한다.
+근거: `stopline_stop_only_{B,D}_261026_v1/`, `stopline_BD_final_safety_review_261026_v2.json`,
+`stopline_separation_native_tests_final_261026_v1/`. 이전 실패 원본은 보존했다.
+
+사용자 승인 후 Drive `kcity_map/lanelet_map`과 최신 planning ref도 확인했지만
+현재와 같은 v87(size/MD5 일치)이 최신이었으므로 지도 재다운로드·수정·업로드는 하지 않았다.
+정차여유는 작은 공유 설정으로 적용하며, 대규모 지도 자산 갱신으로 사각 문제를 덮지 않는다.

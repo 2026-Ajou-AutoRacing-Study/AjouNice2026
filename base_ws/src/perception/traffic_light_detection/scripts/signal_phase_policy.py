@@ -6,6 +6,7 @@ only converts detector tuples to a phase allowed by the profile assigned to
 the current Lanelet traffic-light regulatory-element ID.
 """
 
+import math
 import yaml
 
 
@@ -42,6 +43,8 @@ class SignalPhasePolicy:
         self._observation_state = {}
         self._output_observation = {}
         self._last_trusted_source_stamp_ns = {}
+        self._direct_observation_state = {}
+        self._direct_active_group = None
         self._validate()
 
     @classmethod
@@ -71,6 +74,10 @@ class SignalPhasePolicy:
                 self._validate_phase(phase, f"{profile_name}.valid_phases[{index}]")
                 if not set(phase).issubset(supported_set):
                     raise ValueError(f"{profile_name}.valid_phases[{index}] uses unsupported lamps")
+            for index, phase in enumerate(profile.get("observed_phases", [])):
+                self._validate_phase(phase, f"{profile_name}.observed_phases[{index}]")
+                if not phase or not set(phase).issubset(supported_set):
+                    raise ValueError(f"{profile_name}.observed_phases[{index}] must be nonempty supported lamps")
             fallback = profile.get("fallback_phase", [])
             self._validate_phase(fallback, f"{profile_name}.fallback_phase")
             if not set(fallback).issubset(supported_set):
@@ -91,11 +98,27 @@ class SignalPhasePolicy:
     def profile_name(self, group_id):
         return self.assignments.get(int(group_id), self.default_profile)
 
-    def apply(self, color_results, group_id):
+    def apply(self, color_results, group_id, *, observed_only=False):
+        if type(observed_only) is not bool:
+            raise ValueError("observed_only must be an explicit bool")
         profile_name = self.profile_name(group_id)
         profile = self.profiles[profile_name]
         if profile.get("passthrough", False):
             return list(color_results), f"{profile_name}:passthrough"
+
+        if observed_only:
+            # Production camera observations must not acquire an unobserved
+            # green/arrow/red from a route-program assumption. Contradictions
+            # and unsupported lamp combinations abstain; C++ owns permission.
+            if any(tuple(result) not in RESULT_TO_TOKEN for result in color_results):
+                return [], f"{profile_name}:observation_rejected"
+            observed_tokens = {RESULT_TO_TOKEN[tuple(result)] for result in color_results}
+            phases = {_phase_key(phase) for phase in profile.get("observed_phases", [])}
+            if not observed_tokens:
+                return [], f"{profile_name}:observation_missing"
+            if _phase_key(observed_tokens) not in phases:
+                return [], f"{profile_name}:observation_rejected"
+            return [result for token, result in TOKEN_TO_RESULT.items() if token in observed_tokens], f"{profile_name}:observed"
 
         observed_tokens = [
             RESULT_TO_TOKEN[result] for result in color_results if result in RESULT_TO_TOKEN
@@ -157,10 +180,75 @@ class SignalPhasePolicy:
             self._observation_state.clear()
             self._output_observation.clear()
             self._last_trusted_source_stamp_ns.clear()
+            self._direct_observation_state.clear()
+            self._direct_active_group = None
         else:
             self._observation_state.pop(int(group_id), None)
             self._output_observation.pop(int(group_id), None)
             self._last_trusted_source_stamp_ns.pop(int(group_id), None)
+            self._direct_observation_state.pop(int(group_id), None)
+            if self._direct_active_group == int(group_id):
+                self._direct_active_group = None
+
+    def _process_direct_observation(self, normalized, reason, group_id, stamp, confidence,
+                                    source_stamp_ns, observation_head_id,
+                                    detection_miss_hold_eligible, detection_miss_hold_sec):
+        """Production-only brief detection gap, not a lamp majority vote.
+
+        The caller establishes fresh map/TF/identity and detection-only failure.
+        A held result keeps the original image source stamp and cannot extend
+        its own deadline or count as another green confirmation downstream.
+        """
+        if type(detection_miss_hold_eligible) is not bool:
+            raise ValueError("detection_miss_hold_eligible must be an explicit bool")
+        if (isinstance(detection_miss_hold_sec, bool) or not isinstance(detection_miss_hold_sec, (int, float))
+                or not math.isfinite(detection_miss_hold_sec) or not 0 <= detection_miss_hold_sec <= .2):
+            raise ValueError("detection_miss_hold_sec must be finite in [0, 0.2]")
+        group_id = int(group_id)
+        if self._direct_active_group != group_id:
+            self._direct_observation_state.clear()
+            self._direct_active_group = group_id
+        state = self._direct_observation_state.setdefault(group_id, {})
+        time_valid = isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and math.isfinite(stamp)
+        if (not time_valid or stamp < state.get("clock", stamp) or
+                (source_stamp_ns is not None and source_stamp_ns < state.get("last_image_source", source_stamp_ns))):
+            state.clear()
+            self._last_trusted_source_stamp_ns.pop(group_id, None)
+        if time_valid:
+            state["clock"] = stamp
+        if source_stamp_ns is not None:
+            state["last_image_source"] = source_stamp_ns
+        valid = (time_valid and source_stamp_ns is not None and
+                 source_stamp_ns <= stamp * 1e9 and bool(normalized) and
+                 not reason.endswith((":fail_open", ":observation_missing", ":observation_rejected")) and
+                 isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and
+                 math.isfinite(confidence) and confidence > 0)
+        head_valid = isinstance(observation_head_id, str) and bool(observation_head_id)
+        if valid:
+            lamps = list(normalized)
+            self._last_trusted_source_stamp_ns[group_id] = source_stamp_ns
+            # A missing identity cannot establish a cache for later reuse.
+            state.pop("observation", None)
+            if head_valid:
+                state["observation"] = (lamps, confidence, stamp, source_stamp_ns, observation_head_id)
+            self._record_output_observation(group_id, stamp, source_stamp_ns,
+                                            source_stamp_ns, stamp, True, "current_observation")
+            return lamps, confidence, "direct_observation:current"
+        cached = state.get("observation")
+        cache_age_sec = ((stamp * 1e9 - cached[3]) / 1e9 if time_valid and cached else float("inf"))
+        if (detection_miss_hold_eligible and head_valid and source_stamp_ns is not None and cached and
+                cached[4] == observation_head_id and source_stamp_ns <= stamp * 1e9 and
+                not normalized and not reason.endswith(":observation_rejected") and
+                0 <= cache_age_sec <= detection_miss_hold_sec):
+            lamps, conf, observed_clock, observed_source, _ = cached
+            self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
+                                            observed_clock, True, "detection_miss_hold")
+            return list(lamps), conf, "direct_observation:detection_miss_hold"
+        # Unknown/low-confidence/explicitly dark lamps, TF or identity loss,
+        # invalid time, changed head and expired gaps must invalidate the cache.
+        state.pop("observation", None)
+        self._record_output_observation(group_id, stamp, source_stamp_ns, origin="direct_unknown")
+        return [], 0.0, "direct_observation:unknown"
 
     def output_observation_metadata(self, group_id):
         """Snapshot the chosen lamp's provenance, separate from a fresh decision.
@@ -187,7 +275,9 @@ class SignalPhasePolicy:
         }
 
     def process_normalized(self, normalized, reason, group_id, stamp, confidence, smoother,
-                           *, source_stamp_ns=None, use_smoothing=True):
+                           *, source_stamp_ns=None, use_smoothing=True,
+                           observation_head_id=None, detection_miss_hold_eligible=False,
+                           detection_miss_hold_sec=.2):
         """Keep missing observations out of the phase vote and history (D-2).
 
         ``stamp`` remains the advancing guard clock, normally rospy.now(). The
@@ -204,6 +294,9 @@ class SignalPhasePolicy:
             raise ValueError("use_smoothing must be an explicit bool")
         source_stamp_ns = (source_stamp_ns if type(source_stamp_ns) is int and source_stamp_ns > 0
                            else None)
+        if not use_smoothing:
+            return self._process_direct_observation(normalized, reason, group_id, stamp, confidence,
+                source_stamp_ns, observation_head_id, detection_miss_hold_eligible, detection_miss_hold_sec)
         valid = not reason.endswith(":fail_open")
         profile = self.profiles[self.profile_name(group_id)]
         limits = profile.get("observation_guard")

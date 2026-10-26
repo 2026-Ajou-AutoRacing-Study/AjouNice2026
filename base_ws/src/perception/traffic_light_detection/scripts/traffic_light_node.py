@@ -52,6 +52,7 @@ from traffic_light_map_selector import (MISSION_GROUP_IDS, associate_boxes, sele
 from traffic_light_near_rescue import (near_rescue_config, near_rescue_decision,
                                        accept_near_rescue_selection)
 from traffic_light_debug_view import render_node_overlay
+from traffic_light_observation_handoff import detection_miss_context
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -228,6 +229,10 @@ class TrafficLightNode:
         self.planner_compliance_observations = rospy.get_param("~planner_compliance_observations", False)
         if type(self.planner_compliance_observations) is not bool:
             raise ValueError("planner_compliance_observations must be an explicit bool")
+        self.detection_miss_hold_sec = float(rospy.get_param("~detection_miss_hold_sec", .2))
+        if not 0 <= self.detection_miss_hold_sec <= .2:
+            rospy.logwarn("[Traffic] invalid detection hold; disabling optional dropout hold")
+            self.detection_miss_hold_sec = 0.
         smoothing_window_size = int(rospy.get_param("~smoothing_window_size", 5))
         smoothing_majority_count = rospy.get_param("~smoothing_majority_count", None)
         if smoothing_majority_count is not None:
@@ -459,6 +464,8 @@ class TrafficLightNode:
             self._last_policy_group_id = group.traffic_light_group_id
             self._selected_head_id = None
 
+        previous_head_id = self._selected_head_id
+        packet = None
         selection = {"status": "legacy", "reason": "legacy_center"}
         if self.selection_mode == "legacy_center":
             best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
@@ -521,9 +528,17 @@ class TrafficLightNode:
                     best, selection = None, {"status": "missing", "reason": "invalid_map_rois:" + str(error)}
                 selection["projection_source_stamp_ns"] = packet["source_stamp_ns"]
             self._selected_head_id = selection.get("head_id")
+        hold_context = detection_miss_context(packet, selection, previous_head_id,
+            group.traffic_light_group_id, msg.header.stamp.to_nsec(), rospy.Time.now().to_nsec(),
+            self.map_packet_max_age_sec)
+        if hold_context["eligible"] and self._near_retry_context_reason(packet, group.traffic_light_group_id) is not None:
+            hold_context.update(eligible=False, reason="route_or_packet_changed_before_handoff")
+        if hold_context["eligible"]:
+            # Identity continuity only. This is not a fresh detection or lamp.
+            self._selected_head_id = previous_head_id
         selection.update(mode=self.selection_mode, group_id=group.traffic_light_group_id,
                          source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes),
-                         near_rescue=rescue_debug)
+                         near_rescue=rescue_debug, detection_miss_hold=hold_context)
         self.selection_debug_pub.publish(String(data=json.dumps(selection, allow_nan=False)))
         t_selected = time.monotonic()
         label_text = "off"
@@ -568,7 +583,8 @@ class TrafficLightNode:
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         detected_color_results = list(raw_color_results)
         fixed, policy_reason = self.signal_phase_policy.apply(
-            raw_color_results, group.traffic_light_group_id
+            raw_color_results, group.traffic_light_group_id,
+            observed_only=self.planner_compliance_observations,
         )
         if fixed != raw_color_results:
             self._n_conflict_fixed += 1
@@ -582,9 +598,13 @@ class TrafficLightNode:
 
         color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
             raw_color_results, policy_reason, group.traffic_light_group_id,
-            now.to_sec(), raw_det_conf, self.signal_smoother,
+            (rospy.Time.now().to_sec() if self.planner_compliance_observations else now.to_sec()),
+            raw_det_conf, self.signal_smoother,
             source_stamp_ns=msg.header.stamp.to_nsec(),
             use_smoothing=not self.planner_compliance_observations,
+            observation_head_id=selection.get("head_id") or hold_context.get("head_id"),
+            detection_miss_hold_eligible=hold_context["eligible"],
+            detection_miss_hold_sec=getattr(self, "detection_miss_hold_sec", .2),
         )
         observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
         adopted_ns = observation_timing.get("adopted_observation_source_stamp_ns")
@@ -662,6 +682,7 @@ class TrafficLightNode:
             "head_id": selection.get("head_id"),
             "selection_status": selection.get("status"),
             "near_rescue": rescue_debug,
+            "detection_miss_hold": hold_context,
             "classifier_known": classifier_debug.get("known"),
             "observed_tuples": detected_color_results,
             "normalized_tuples": raw_color_results,

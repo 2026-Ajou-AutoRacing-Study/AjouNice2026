@@ -51,7 +51,9 @@ protected:
   }
 
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
-                 double min_yellow=2.)
+                 double min_yellow=2.,
+                 const std::vector<signal_compliance::StopLineContract> & contracts={},
+                 bool crossing_reference=false)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -71,6 +73,8 @@ protected:
     params.signal_compliance_min_yellow_sec=min_yellow;
     params.signal_compliance_yellow_time_margin_sec=.2;
     params.signal_compliance_front_axle_offset_m=3.;
+    params.signal_stop_line_contracts=contracts;
+    params.signal_stop_line_crossing_reference_enabled=crossing_reference;
     module_=std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
       group==201326,true,params,node_,"traffic_timed_yellow_experimental_test",clock_,nullptr,factors_);
     module_->setRTCEnabled(false);
@@ -117,10 +121,10 @@ protected:
     TrafficSignalStamped m;m.stamp=ros::Time::now();m.signal=s;data_->traffic_light_id_map_raw_[group_]=m;
   }
 
-  bool stops()
+  bool stops(double path_start=-30.,double path_end=40.)
   {
     std::vector<autoware_internal_planning_msgs::PathPointWithLaneId> points;
-    for(double x=-30.;x<=40.;x+=.25) {
+    for(double x=path_start;x<=path_end;x+=.25) {
       autoware_internal_planning_msgs::PathPointWithLaneId p;
       p.point.pose.position.x=x;p.point.pose.orientation.w=1.;
       p.point.longitudinal_velocity_mps=8.;p.lane_ids={group_+1000};points.push_back(p);
@@ -138,6 +142,12 @@ protected:
     for(int n=0;n<count;++n) {
       tick();pose(rear_x,speed);put(green());EXPECT_EQ(stops(),n<count-1);
     }
+  }
+  signal_compliance::StopLineContract crossingContract()
+  {
+    signal_compliance::StopLineContract c;
+    c.regulatory_id=201365;c.expected_stop_line={{10.,-3.},{10.,3.}};
+    c.crossing_line={{17.,-3.},{17.,3.}};c.additional_stop_margin_m=.75;return c;
   }
 };
 
@@ -225,6 +235,42 @@ TEST_F(TrafficTimedYellowExperimentalTest, AlreadyCrossedClearsRedEvenWithMaster
     configure(group,false,true);tick();pose(7.1,0.);put(red());EXPECT_FALSE(stops());
     EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
   }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, QualifiedVirtualStopLineDoesNotClearPhysicalPaint)
+{
+  configure(201365,false,true,3,2.,{crossingContract()},true);tick();pose(8.,0.);put(red());
+  EXPECT_TRUE(stops());EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+  tick();pose(14.1,0.);put(red());EXPECT_FALSE(stops());
+  EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, QualifiedPhysicalLineOutsideHorizonCannotEarlyClear)
+{
+  configure(201365,false,true,3,2.,{crossingContract()},true);tick();pose(11.,0.);put(red());
+  EXPECT_TRUE(stops(11.,14.));EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, TimedYellowUsesPhysicalPaintRatherThanVirtualTarget)
+{
+  configure(201365,true,true,3,2.,{crossingContract()},true);confirmedGreen();
+  tick();pose();put(yellow());EXPECT_TRUE(stops());
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, MismatchedAnchorRunsLegacyButDisablesTimedGo)
+{
+  auto c=crossingContract();c.expected_stop_line[0].x=9.;c.expected_stop_line[1].x=9.;
+  configure(201365,true,true,3,2.,{c},true);confirmedGreen();
+  tick();pose();put(yellow());EXPECT_TRUE(stops());
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, DefaultOffAppliesMarginButKeepsVirtualClearing)
+{
+  configure(201365,false,true,3,2.,{crossingContract()});tick();pose(0.,0.);put(red());
+  EXPECT_TRUE(stops());ASSERT_TRUE(module_->getFirstStopPointArcLength());
+  EXPECT_NEAR(*module_->getFirstStopPointArcLength(),30.+10.-3.845-.75,1e-5);
+  tick();pose(8.,0.);put(red());EXPECT_FALSE(stops());
+  EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
 }
 }  // namespace autoware::behavior_velocity_planner::experimental
 

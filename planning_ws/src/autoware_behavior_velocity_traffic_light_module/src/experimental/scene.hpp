@@ -19,6 +19,7 @@
 
 #include <autoware/behavior_velocity_rtc_interface/experimental/scene_module_interface_with_rtc.hpp>
 #include <autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_stop_line_contract.hpp>
 
 #include <lanelet2_core/primitives/BasicRegulatoryElements.h>
 
@@ -78,6 +79,8 @@ public:
     bool signal_compliance_enable_timed_yellow{false};
     double signal_compliance_min_yellow_sec{2.0};
     double signal_compliance_yellow_time_margin_sec{0.2};
+    std::vector<signal_compliance::StopLineContract> signal_stop_line_contracts;
+    bool signal_stop_line_crossing_reference_enabled{false};
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter
@@ -170,6 +173,13 @@ private:
   // Parameter
   PlannerParam planner_param_;
   signal_compliance::Guard signal_compliance_guard_;
+  void qualifyStopLineContract();
+  double effectiveStopMargin() const {return planner_param_.stop_margin+additional_stop_margin_m_;}
+  bool crossing_contract_requested_{false};
+  std::optional<signal_compliance::StopLineContract> crossing_contract_;
+  double additional_stop_margin_m_{0.};
+  std::optional<double> crossing_front_distance_;
+  std::optional<double> yellow_front_distance_;
 
   // Debug
   DebugData debug_data_;

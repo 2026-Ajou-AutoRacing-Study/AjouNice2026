@@ -135,6 +135,8 @@ def main():
     parser.add_argument('config', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--geometry', type=Path, required=True)
+    parser.add_argument('--preparation-geometry', type=Path,
+                        help='Optional virtual stop-target geometry for stationary control gate; observer still uses --geometry')
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
                         help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
@@ -157,6 +159,8 @@ def main():
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
+    if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'missing-signal'):
+        parser.error('Separate preparation geometry applies only to stationary native-control trials')
     if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'moving-native-yellow'):
         parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
     moving_native = args.experiment == 'moving-native-yellow'
@@ -185,6 +189,8 @@ def main():
     if not args.native_python.is_file() or not args.geometry.is_file():
         parser.error('Existing native Python and explicit geometry are required')
     load_geometry(args.geometry)
+    if args.preparation_geometry is not None:
+        load_geometry(args.preparation_geometry)
     production = args.mode == 'production'
     guarded = None if production else args.mode == 'guarded'
     progress = None if production else args.route_progress == 'true'
@@ -210,6 +216,8 @@ def main():
         compliance_debug_enabled=args.compliance_debug,
         installed_traffic_plugin_sha256=digest(plugin) if plugin.is_file() else None,
         config_sha256=digest(args.config), geometry_sha256=digest(args.geometry),
+        preparation_geometry=(str(args.preparation_geometry) if args.preparation_geometry else None),
+        preparation_geometry_sha256=(digest(args.preparation_geometry) if args.preparation_geometry else None),
         wrapper_sha256=digest(__file__), native_python=str(args.native_python),
         front_axle_offset_m=3.0,
         frame_provenance='configs/planning/vehicle_info.yaml and vehicle/README.md rear-axle base_link',
@@ -430,7 +438,7 @@ def main():
                 phase_script = ('control_traffic_light_green_loss_trial.py' if args.experiment=='green-loss'
                                 else 'control_traffic_light_policy_trial.py')
                 phase_command = [str(args.native_python), str(ROOT/'scripts/evaluation'/phase_script),
-                    '--output',str(args.output/'phase_controller'),'--geometry',str(args.geometry),
+                    '--output',str(args.output/'phase_controller'),'--geometry',str(args.preparation_geometry or args.geometry),
                     '--group-id',str(args.group_id),'--experiment',args.experiment,'--max-seconds','180']
                 if args.yellow_durations_sec is not None:
                     phase_command.extend(('--yellow-durations-sec',

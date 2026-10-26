@@ -15,6 +15,12 @@
   <!-- One full-frame 640 retry only after a near/large current map-head miss. -->
   <arg name="near_rescue_enabled" default="true" />
   <arg name="planner_compliance_observations" default="true" />
+  <!-- Detector-only same-housing dropout budget, measured from ORIGINAL image. -->
+  <arg name="detection_miss_hold_sec" default="0.2" />
+  <arg name="signal_stop_line_contract_path" default="$(find traffic_light_detection)/config/traffic_signal_stop_lines.yaml" />
+  <!-- Original-paint clearing requires a separate visibility/commit policy.
+       Keep opt-in until that policy passes real stopped-to-crossing trials. -->
+  <arg name="signal_stop_line_crossing_reference_enabled" default="false" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
   <arg name="max_rate_hz" default="10.0" />
@@ -90,10 +96,15 @@
       <param name="route_state_topic" value="$(arg route_state_topic)" />
       <param name="odometry_topic" value="$(arg odometry_topic)" />
       <param name="route_progress_guard" value="$(arg route_progress_guard)" />
+      <param name="signal_stop_line_crossing_reference_enabled" value="$(arg signal_stop_line_crossing_reference_enabled)" />
+      <rosparam if="$(eval arg('selection_mode') == 'map_association')" command="load"
+                file="$(arg signal_stop_line_contract_path)" />
+      <rosparam unless="$(eval arg('selection_mode') == 'map_association')" param="signal_stop_line_contracts">[]</rosparam>
       <param name="output_topic" value="$(arg route_group_id_topic)" />
       <!-- Map candidate skips old D-1 and all other non-mission rules while
            finding the NEXT light; legacy route-provider output is unchanged. -->
       <rosparam if="$(eval arg('selection_mode') == 'map_association')" param="allowed_group_ids">[201351, 201365, 201290, 201326]</rosparam>
+      <rosparam unless="$(eval arg('selection_mode') == 'map_association')" param="allowed_group_ids">[]</rosparam>
     </node>
   </group>
 
@@ -142,6 +153,7 @@
     <param name="detector_imgsz" value="$(arg detector_imgsz)" />
     <param name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <param name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <param name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="selection_mode" value="$(arg selection_mode)" />
     <param name="classifier_mode" value="$(arg classifier_mode)" />
