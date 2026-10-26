@@ -32,7 +32,7 @@
   <!-- configs/planning/vehicle_info.yaml: base_link is the rear axle center. -->
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
-  <arg name="traffic_light_state_timeout_sec" default="0.5"/>
+  <arg name="traffic_light_state_timeout_sec" default="1.0"/>
   <!-- Keep normal LC logging; explicit development trials may select a scoped trace config. -->
   <arg name="planning_rosconsole_config"
        default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>

@@ -42,7 +42,7 @@ def test_planning_default_is_compliance_with_explicit_front_axle_and_freshness_n
     assert args['enable_signal_compliance_guard'] == 'true'
     assert args['enable_yellow_passthrough'] == 'false'
     assert args['signal_compliance_front_axle_offset_m'] == '3.0'
-    assert args['traffic_light_state_timeout_sec'] == '0.5'
+    assert args['traffic_light_state_timeout_sec'] == '1.0'
     params = {node.attrib['name']: node.attrib.get('value')
               for node in ET.parse(INTEGRATION/'planning.launch').getroot().findall('param')}
     suffix = '/behavior_velocity_planner/traffic_light/'
@@ -74,5 +74,5 @@ def test_integrated_stack_forwards_policy_and_local_or_lan_sensor_settings():
     assert planning['enable_yellow_passthrough'] == '$(arg enable_yellow_passthrough)'
     assert args['traffic_light_debug_image'] == 'false'
     assert traffic['publish_debug_image'] == '$(arg traffic_light_debug_image)'
-    assert args['traffic_light_state_timeout_sec'] == '0.5'
+    assert args['traffic_light_state_timeout_sec'] == '1.0'
     assert planning['traffic_light_state_timeout_sec'] == '$(arg traffic_light_state_timeout_sec)'

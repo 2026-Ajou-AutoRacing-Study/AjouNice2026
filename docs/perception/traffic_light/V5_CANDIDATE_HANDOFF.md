@@ -105,7 +105,7 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 
 `traffic_light_node.launch`/`traffic_light_v5_candidate.launch`는
 `planner_compliance_observations:=true route_progress_guard:=true`가 기본이다.
-`planning.launch`는 `enable_signal_compliance_guard:=true traffic_light_state_timeout_sec:=0.5`다.
+`planning.launch`는 `enable_signal_compliance_guard:=true traffic_light_state_timeout_sec:=1.0`다.
 `morai_planning_stack.launch`도 같은 인자를 전달한다. 정차 중 황색/R+Y는 출발하지 않고,
 `enable_yellow_passthrough:=false`가 현재 기본이며, ON일 때만 이동 중 최근 허가→황색의 제동 경계 예외를 검토한다. 관측 3개는 3초가 아니다.
 신선한 적색·UNKNOWN에는 정지 판단을 유지한다. 기존 `competition_fail_open=true`에서는 미수신·timeout이면
