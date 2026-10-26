@@ -493,3 +493,51 @@ state source/receipt timeout0.5초였다. 분석 JSON의 header age>500ms 집계
 실행 도구는 `scripts/evaluation/retest_signal_latency.py`, 읽기 전용 분석기는
 `scripts/evaluation/analyze_signal_latency_retest.py`다. 시간 비교는 controller 시작~종료 창만 사용한다.
 추가 도구·기존 host sampler 대상17개 단위 테스트 통과. 지도/정책/운영 기본값/팀 배포 상태는 바꾸지 않았다.
+
+<a id="continuous-braking-comparison"></a>
+## 연속 주행 제동 대조: B/D 고유 현상이 아니었음
+
+사용자가 '연속 주행 제동에서 여유 감소/재정지가 B/D에만 반복됐는지' 확인하라고 지적했다.
+새 주행·지도 변경 없이 v89 full, v90 corridor, v91 corridor 원본 bag와 진단을 같은 기준으로 다시 읽었다.
+각 버전은 정차 위치·부하·신호 위상이 달라 통제된 인과 시험은 아니다. 특히 B는 세 연속 기록 중
+정차한 것이 v90 한 번뿐이고 나머지는 녹색 통과였다. 이를 B에서 계속 반복된 증거로 쓸 수 없다.
+
+최종 정차 위치0.3m 이내·속도0.3m/s 미만에서 상단 여유의 일시적인 감소를 비교했다.
+기준은 정차2초 이후~끝0.5초 전의 median이며 표본이 없으면 N/A로 남겼다.
+
+| 구간 | 같은 위치 부근의 median 대비 일시 감소 | v90 정차→짧은 이동→재정지 |
+|---|---|---|
+| A | 약8.0~11.5px | 있음, native Ego 순이동 약16.8cm |
+| B | v90 대기 창이2.24/2.46초로 짧아 안정 기준 N/A | 있음, 약17.5cm |
+| C | 약11.5~15.5px | 해당v90은 녹색 통과; 다른 두 기록은 한 번씩 정차 |
+| D | 약2.3~9.4px | 있음, 약7.9cm |
+
+따라서 화면 여유 감소는 A/C에도 있었고, 짧은 재정지는 A에도 있었다. v90 이동 구간의 측위 기록 간격은
+약20~21ms, 최대 관측 속도는 A0.77/B0.74/D0.43m/s였으며 native 위치 변화도 확인했다.
+단순 로그 공백을 반복 제동으로 오인한 경우는 아니었다. 다만 8초 창의 brake>0.05 pulse 개수는
+가속/곡선/제어 잔진동을 포함하므로 그 자체를 고장 횟수로 해석하지 않는다.
+
+더 직접적인 단서는 같은 시각의 신호 공급과 목표속도였다. v90 B/D 재정지 주변의 정확한 native ID
+조회 샘플은 각각 G(16)23개, R+좌화살표(33)22개로 허가 상태였지만, 영상 처리 출력은
+허가→missing/UNKNOWN→허가를 반복했다. 선택 사유에 `no_visible_route_head`,
+`localization_uncertainty_exceeds_bound`, `map_packet_missing_or_stale`가 함께 있었다.
+이는 실제 영상에서 신호등이 잘렸다는 증거가 아니며 CNN 오분류와도 구분해야 한다.
+A도 같은 종류의 선택 사유와 판독 중단이 있었다(관측 창 앞쪽은 R→G 자연 전환 포함).
+planner의 가까운 trajectory 목표속도는 A0→0.25→0, B0→약0.47→0, D0→0.25→0m/s로 바뀌었다.
+이 값은 posterior nearest-point 진단이며 controller가 실제 소비한 index의 직접 계측은 아니다.
+
+D 실제 planner 로그에서도 UNKNOWN 후 허가 관측 횟수가1로 다시 시작하고,
+이후 source_age0.539~0.748초 stale로 정지 요구가 유지되는 것을 확인했다. 일부 변화는 source stamp와
+planner receipt 시점이 달라 일대일 원인 시간을 엄밀히 확정할 수 없지만, 단순 제동거리 증가보다
+**유효 허가 신호의 연속성 상실→정지 요구 재발**이 더 직접적인 확인 경로다.
+왜 지도/측위 자격과 freshness가 흔들렸는지는 추가 점검 대상이며 CPU·물리 피치·정지선 위치 중
+하나가 단독 원인이라고 확정하지 않는다. IMU sensor pitch 변동도 A/C에 있었으나 camera pitch와 동일시하지 않는다.
+
+따라서 B의72px 짧은 재정지 표본을 안정 정차의 최적 위치 근거처럼 취급한 것은 불충분했다.
+정지선을 더 당기는 작업보다 선택 중단/freshness/측위 불확실성 경로를 먼저 확인해야 한다.
+이번 분석에서는 지도·모델·판단/제어·허가3회·UNKNOWN 정지 정책을 수정하지 않았다.
+현재 v91은 시야 확보 후보이지 이 연속성 문제까지 해결한 버전이 아니다.
+
+분석 도구: `scripts/evaluation/analyze_signal_braking_comparison.py`.
+근거: `planner_logs/analysis/signal_braking_comparison_261026_v1`, `_v2`, `_v3`의 JSON.
+v3은 native 위치·신호 조회·선택 변경·목표속도를 추가하며 이전 분석/원본은 보존한다.

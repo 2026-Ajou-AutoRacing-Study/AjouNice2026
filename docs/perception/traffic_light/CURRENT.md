@@ -67,7 +67,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 ## 확인된 문제와 후보
 
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
-2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
+2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
    0.5초 freshness는 원본 stamp 기준이다. 기본 GO_OUT은 아직 지도 정차선 기준이며 공식 도색선 통과 인증이 아니다.
