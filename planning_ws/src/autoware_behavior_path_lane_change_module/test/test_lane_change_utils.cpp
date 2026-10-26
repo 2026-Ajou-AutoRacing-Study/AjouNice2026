@@ -71,6 +71,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
   odometry->pose.pose.orientation.w = 1;
   odometry->twist.twist.linear.x = 10;
   data->self_odometry_ptr = odometry;
+  data->current_acceleration = boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
   LaneChangePath path;
   path.type = lane_change::PathType::SpatialSpeedProfile;
   std::vector<double> s, caps;
@@ -87,7 +88,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
   // Deliberately stale nominal duration must not truncate the spatial prediction.
   path.info.duration = {0, 1};
   const auto predictions = utils::lane_change::convert_to_predicted_paths(data, path, 1, false);
-  ASSERT_EQ(predictions.size(), 1U);
+  ASSERT_EQ(predictions.size(), 2U);
   EXPECT_NEAR(predictions[0].back().pose.position.x, 100, 1e-5);
   EXPECT_GT(predictions[0].back().time, 2);
   for (const auto & state : predictions[0]) {

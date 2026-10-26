@@ -410,3 +410,9 @@ if(CATKIN_ENABLE_TESTING)
 endif()
 
 install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
+
+# Keep provider headers ahead of the merged install include tree (also added by
+# transitive dependencies). Mixing installed LC layouts with a candidate DSO is invalid.
+target_include_directories(autoware_behavior_path_planner BEFORE PRIVATE ${LANE_CHANGE_INCLUDE_DIR})
+target_include_directories(autoware_behavior_path_planner_full_source BEFORE PRIVATE ${LANE_CHANGE_INCLUDE_DIR})
+target_include_directories(behavior_path_planner_full_node BEFORE PRIVATE ${LANE_CHANGE_INCLUDE_DIR})

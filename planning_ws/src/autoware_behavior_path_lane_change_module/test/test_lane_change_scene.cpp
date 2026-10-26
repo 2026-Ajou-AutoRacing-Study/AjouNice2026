@@ -69,6 +69,9 @@ public:
 
     ego_pose_ = autoware::test_utils::createPose(-50.0, 1.75, 0.0, 0.0, 0.0, 0.0);
     planner_data_->self_odometry = set_odometry(ego_pose_);
+    // Candidate safety includes measured-motion prediction, which requires acceleration.
+    planner_data_->self_acceleration =
+      boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
     const auto objects_file =
       ros::package::getPath("autoware_behavior_path_lane_change_module") +
       "/test_data/test_object_filter.yaml";
@@ -177,8 +180,7 @@ int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "lane_change_scene_ros1_oracle");
   const int load_result = std::system(
-    "python3 \"$(rospack find autoware_behavior_path_lane_change_module)/scripts/"
-    "load_ros1_parameters.py\" /test_lane_change_scene "
+    "rosrun autoware_behavior_path_lane_change_module load_ros1_parameters.py /test_lane_change_scene "
     "--source \"$(rospack find autoware_behavior_path_lane_change_module)/config/"
     "lane_change.param.yaml\" "
     "--source \"$(rospack find autoware_test_utils)/config/test_common.param.yaml\" "

@@ -1,5 +1,6 @@
 // Diagnostic observation only: counterfactual checks never approve a maneuver.
 #include "autoware/behavior_path_lane_change_module/scene.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/safety_check.hpp"
 
 #include <nlohmann/json.hpp>
@@ -83,6 +84,9 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"side", direction_ == Direction::LEFT ? "left" : "right"},
     {"valid", status_.is_valid_path}, {"safe", approved ? safe : status_.is_safe},
     {"unsafe_trailing", trailing},
+    {"execution_recovery_time_s", params.execution_recovery_time},
+    {"required_recovery_time_s", std::isfinite(execution_required_recovery_time_)
+      ? Json(execution_required_recovery_time_) : Json(nullptr)},
     {"ego_pose", pose_json(getEgoPose())}, {"ego_speed", getEgoVelocity()},
     {"current_lanes", ids(get_current_lanes())}, {"target_lanes", ids(get_target_lanes())},
     {"search_ms", search_ms}, {"search_limit_ms", params.time_limit},
@@ -91,6 +95,12 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"prepare_params", params_json(params.safety.rss_params_for_prepare)},
     {"execution_params", params_json(params.safety.rss_params)},
     {"counterfactual_affects_decision", false}, {"samples", Json::array()}};
+  document["candidate_search"] = {{"prepare_metrics",search_prepare_metrics_},
+    {"generated",search_generated_}, {"safety_checked",search_checked_},
+    {"safe",search_safe_}, {"budget_exhausted",search_budget_exhausted_},
+    {"compact_sampling",params.trajectory.compact_sampling},
+    {"rolling_plan",rolling_plan_reason_}, {"replan_requested",execution_replan_requested_},
+    {"recovery_timeout_is_failure",false}};
   document["overtake"] = {{"enabled", params.overtake.enable},
     {"assume_cooperative_npc", params.overtake.assume_cooperative_npc},
     {"phase", overtakePhaseName()}, {"reason", overtake_.reason},
@@ -116,7 +126,14 @@ void NormalLaneChange::publishSafetyDiagnostics(
       {"prepare_velocity", candidate.info.velocity.prepare},
       {"execution_velocity", candidate.info.velocity.lane_changing},
       {"prepare_duration", candidate.info.duration.prepare},
-      {"execution_duration", candidate.info.duration.lane_changing}};
+      {"execution_duration", candidate.info.duration.lane_changing},
+      {"lateral_acceleration", utils::lane_change::candidate_lateral_acceleration(candidate)},
+      {"lateral_metric", candidate.type == lane_change::PathType::FrenetPlanner ? "frenet_peak" : "path_shifter_limit"},
+      {"terminal_execution_velocity", candidate.info.terminal_lane_changing_velocity},
+      {"start_pose", pose_json(candidate.info.lane_changing_start)},
+      {"end_pose", pose_json(candidate.info.lane_changing_end)},
+      {"before_lateral_motion", isBeforeLateralMotion()},
+      {"preparation_speed_mismatch", preparationSpeedMismatch()}};
     document["selected_candidate"]["frame_id"] = candidate.path.header.frame_id;
   }
   if (const auto stop = getStopPose()) {
