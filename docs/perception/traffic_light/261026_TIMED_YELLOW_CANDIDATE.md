@@ -308,3 +308,45 @@ Autoware Lanelet 확장 등록 후 후보를 실제 파서로 읽어 lanelet1302
 v85 참조 때문에 미통과다. 이 작업에서 해당 frozen/별도 범위를 일괄 수정하지 않았고,
 전체 설치공간이 최신이라는 주장 대신 위 시험 대상 launch의 실제 해석과 설치 일치만 확인했다.
 실주행은 아직0회이며 지도 후보는 로컬 생성본일 뿐 Git/Drive 운영 배포 자산으로 승격하지 않았다.
+
+<a id="map-stopline-live-validation"></a>
+## 후속 실주행: 자연 신호 개별4회 + 연속 풀코스1회
+
+위 '실주행0회'는 준비 완료 시점의 상태다. 사용자 MORAI 재시작 뒤 새 프로세스에서
+v88/stop_margin0.0으로 아래5회를 실시했다. native는 GET만 사용했고 강제 현시·가짜 lamp 입력은 없었다.
+실제 localization, OD_GT, YOLO/CNN v5, ROS1 planning 및 PP·PI 제어기를 사용했다.
+BEVFusion 동시 부하·LAN·팀장님4090 조건을 시험한 것은 아니다.
+
+| 실행 | 주행 시간 | 정차 검증 | 결과 |
+|---|---:|---|---|
+| A 개별 | 63.60초 | 약47.38초 R 대기 후 G 출발 | PASS·충돌0·최종정지/P 확인 |
+| B 개별 | 67.77초 | 약47.28초 R 대기 후 G 출발 | 동일 |
+| C 개별 | 94.77초 | 약76.90초 R 대기 후 G+좌화살표 출발 | 동일 |
+| D 개별 | 11.90초 | 처음부터 허가여서 무정차; 정차 검증으로 세지 않음 | 동일 |
+| 연속 풀코스 | 208.62초 | D에서11.00초 정차, 직진G/Y 유지→R+좌화살표 출발 | 동일 |
+
+5회 모두 지도선 앞차축 통과는 exact native 양쪽 bracket0.25초 조건으로 허가였다.
+별도 MGeo 원래 도색선 proxy에서도 개별4회 및 연속A/B/C/D 모두 허가였다.
+C는 두 physical head 모두 같은 상태를 확인했다. native 샘플 사이 전환·공식 벌점 판정까지 보증하지 않는다.
+
+정차 중 원본 JPEG를 직접 확인했으며 A/C는 신호등이 화면 안에 충분히 남았다.
+B/D도 보였지만 화면 상단 여유가 작다. 서로 다른 기록 runtime frame 중 matched/전체는
+A381/392, B352/390, C629/631, 연속D86/92였다. 이는 정차 중 기록 프레임 비율이지
+독립 test 정확도나 영상 전체 recall이 아니다. 누락을 GO로 풀지 않았고 각 허가 재관측 후 출발했다.
+정차 중 localization 앞범퍼의 지도선 기준 median gap은 A−0.042/B−0.043/C−0.141/D−0.037m였다.
+0 margin 목표의 작은 초과이며 앞차축·공식 도색선 초과와 같은 뜻이 아니다. 차량 자세·측위가 달라지면
+B/D 가시성 여유를 다시 확인해야 한다. 이 결과만으로 추가6~8m 이동이나 긴 관측유지를 도입하지 않는다.
+
+근거는 `artifacts/evaluation/traffic_light_robustness_261025/map_v88_{A,B,C,D,full}_natural_261026_v1/`,
+각 실행의 `planner_logs/validation/traffic_light_compliance_*_map_candidate*` 및
+`map_v88_*_stop_analysis_261026_v*`다. 원본 bag·JPEG·native 관측·안전 receipt를 보존했다.
+`scripts/evaluation/analyze_signal_map_stop_trial.py`는 닫힌 bag에서 정차를 재고 원본 JPEG를 추출하며
+`--paint-geometry`로 런타임과 독립된 원래 도색선 통과를 추가 대조한다. 원본 입력은 변경하지 않는다.
+
+v88 파일은 승인된 팀 Drive의 `kcity_map/lanelet_map/lanelet2_map_v88.osm`에 별도 공유한다.
+v87을 덮어쓰지 않으며 Git/launch 운영 기본은 아직v87이다. PR55는 이 결과를 반영한 draft로 유지한다.
+팀 기본 전환에는 route/map SHA 계약과 각 launch의 지도 선택을 함께 갱신해야 하며,
+지도 파일 하나만 바꾼 채 팀 환경에 이미 적용됐다고 설명하지 않는다.
+업로드 후 원격 MD5 `8e74ca03cc6b90452e23e38f48b6a68e`와 로컬이 일치함을 확인했다.
+후속 분석기의 원본 보존/active bag 거부 시험을 포함한 최종 Python321개가 통과했다.
+후보 manifest는 `configs/map/kcity_v88_stopline_candidate.yaml`이며 기본 전환 미실시를 명시한다.
