@@ -473,10 +473,6 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
         return reject("feedback_outside_corridor");
       }
     }
-    if (candidate.prediction_coverage_deferred) {
-      overtake_feedback_reason_ = "prediction_coverage_pending";
-      return predictions.front();
-    }
     updateExecutionManeuver(candidate);
     const auto profile = executionProfile(candidate);
     if (profile.size() < 2) return reject("feedback_phase_profile_invalid");

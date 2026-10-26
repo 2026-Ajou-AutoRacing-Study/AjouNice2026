@@ -67,7 +67,7 @@ struct Path
   // Travels with the approved maneuver, so execution cannot silently switch
   // its selected rear vehicle or revert to a different RSS policy.
   std::optional<unique_identifier_msgs::UUID> cooperative_overtake_target;
-  // Recomputed by safety checking. A deferred tail never authorizes lateral entry.
+  // Retained for diagnostic/ABI compatibility; strict coverage keeps this false.
   mutable bool prediction_coverage_deferred{false};
   Info info;
   PathWithLaneId path;

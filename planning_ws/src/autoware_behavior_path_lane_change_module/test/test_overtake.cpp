@@ -108,7 +108,6 @@ public:
   using NormalLaneChange::executionProfile;
   using NormalLaneChange::execution_replan_requested_;
   using NormalLaneChange::replacementIsContinuous;
-  using NormalLaneChange::applyPredictionCoverageStop;
   using NormalLaneChange::candidateRank;
   using NormalLaneChange::overtake_feedback_reason_;
   using NormalLaneChange::final_trajectory_sub_;
@@ -795,7 +794,7 @@ TEST_F(Scene, ReplacementMustJoinMeasuredPoseHeadingAndSpeed)
   for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=15;
   EXPECT_TRUE(module->replacementIsContinuous(path));
   auto shifted=path;
-  for(auto & p:shifted.path.points) p.point.pose.position.y=1;
+  for(auto & p:shifted.path.points) p.point.pose.position.y=1.1;
   EXPECT_FALSE(module->replacementIsContinuous(shifted));
   auto rotated=path;
   for(auto & p:rotated.path.points) p.point.pose.orientation=pose(0,0,.2).orientation;
@@ -912,21 +911,23 @@ TEST(LaneChangeCompactSampling, PreparationAndExecutionAccelerationsAreIndepende
   }
   EXPECT_TRUE(coast_then_accel);EXPECT_TRUE(accel_then_brake);
 }
-TEST_F(Scene, NineSecondPlanWithEightSecondForecastIsConditionalOnlyBeforeEntry)
+TEST_F(Scene, PreparationPlusExecutionBeyondForecastIsAlwaysRejected)
 {
   parameters->overtake.enable=false;
   auto path=candidate();path.info.duration={4,5};
   path.info.lane_changing_start=pose(60);path.info.shift_line.start=pose(60);
-  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(81);
-  auto ego=prediction(15,9);safety::CollisionCheckDebugMap debug;
-  EXPECT_FALSE(module->is_colliding(path,obj,ego,parameters->safety.rss_params,debug,false));
-  EXPECT_TRUE(path.prediction_coverage_deferred);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  auto ego=prediction(15,11);safety::CollisionCheckDebugMap debug;
+  path.info.duration={4,7};
+  EXPECT_TRUE(module->is_colliding(path,obj,ego,parameters->safety.rss_params,debug,false));
+  EXPECT_FALSE(path.prediction_coverage_deferred);
+  EXPECT_EQ(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
   path.prediction_coverage_deferred=false;
   path.info.duration.prepare=0;path.info.lane_changing_start=pose(0);
   EXPECT_TRUE(module->is_colliding(path,obj,ego,parameters->safety.rss_params,debug,false));
   EXPECT_EQ(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
 }
-TEST_F(Scene, ConditionalCoverageStillRejectsKnownCollisionAndMissingForecast)
+TEST_F(Scene, StrictCoverageRejectsKnownCollisionAndMissingForecast)
 {
   parameters->overtake.enable=false;
   auto path=candidate();path.info.duration={4,5};path.info.lane_changing_start=pose(60);
@@ -959,22 +960,6 @@ TEST_F(Scene, ExplicitPreparationSamplesSkipThreeAndThreePointFiveSeconds)
   EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
     std::vector<double>({1.5,2,2.5,4}));
 }
-TEST_F(Scene, DeferredCoveragePlacesStopBeforeLateralStartAndFullCoverageReleasesIt)
-{
-  auto path=candidate();path.info.lane_changing_start=pose(60);
-  module->status_.lane_change_path=path;
-  module->status_.lane_change_path.prediction_coverage_deferred=true;
-  auto held=path.path;module->applyPredictionCoverageStop(held);
-  const auto stop=std::find_if(held.points.begin(),held.points.end(),[](const auto & p) {
-    return p.point.longitudinal_velocity_mps==0;
-  });
-  ASSERT_NE(stop,held.points.end());
-  EXPECT_LE(stop->point.pose.position.x,60-data->parameters.base_link2front+1e-6);
-  for(auto p=stop;p!=held.points.end();++p) EXPECT_DOUBLE_EQ(p->point.longitudinal_velocity_mps,0);
-  module->status_.lane_change_path.prediction_coverage_deferred=false;
-  auto released=path.path;module->applyPredictionCoverageStop(released);
-  for(const auto & p:released.points) EXPECT_GT(p.point.longitudinal_velocity_mps,0);
-}
 TEST_F(Scene, OrdinaryFrontSearchDoesNotRequireCooperativeOvertake)
 {
   parameters->overtake.enable=false;module->overtake_.target.reset();
@@ -985,7 +970,7 @@ TEST_F(Scene, OrdinaryFrontSearchDoesNotRequireCooperativeOvertake)
   EXPECT_TRUE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Other));
   EXPECT_FALSE(front.cooperative_overtake_target);
 }
-TEST_F(Scene, DeferredCoverageIsRejectedAfterBodyHasLeftOriginalLane)
+TEST_F(Scene, StrictCoverageStillRejectsAfterBodyHasLeftOriginalLane)
 {
   parameters->overtake.enable=false;
   auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
@@ -995,6 +980,41 @@ TEST_F(Scene, DeferredCoverageIsRejectedAfterBodyHasLeftOriginalLane)
   safety::CollisionCheckDebugMap debug;
   EXPECT_TRUE(module->is_colliding(path,obj,prediction(15,9),parameters->safety.rss_params,debug,true));
   EXPECT_FALSE(path.prediction_coverage_deferred);
+}
+TEST_F(Scene, ReplacementUsesOneMetreTenDegreesTwoMetresPerSecondEnvelope)
+{
+  auto path=candidate();
+  for(auto & p:path.path.points) {
+    p.point.pose.position.y=.75;
+    p.point.pose.orientation=pose(0,0,8*M_PI/180).orientation;
+    p.point.longitudinal_velocity_mps=16.5;
+  }
+  EXPECT_TRUE(module->replacementIsContinuous(path));
+  auto too_far=path;for(auto & p:too_far.path.points) p.point.pose.position.y=1.01;
+  EXPECT_FALSE(module->replacementIsContinuous(too_far));
+  auto too_rotated=path;for(auto & p:too_rotated.path.points)
+    p.point.pose.orientation=pose(0,0,11*M_PI/180).orientation;
+  EXPECT_FALSE(module->replacementIsContinuous(too_rotated));
+  auto too_fast=path;for(auto & p:too_fast.path.points) p.point.longitudinal_velocity_mps=17.01;
+  EXPECT_FALSE(module->replacementIsContinuous(too_fast));
+}
+TEST_F(Scene, TenSecondForecastAllowsExactlyCoveredTenSecondManeuver)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,6};path.info.lane_changing_start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(path,obj,prediction(15,10),parameters->safety.rss_params,debug,false));
+  EXPECT_FALSE(path.prediction_coverage_deferred);
+}
+TEST_F(Scene, NominalTailCannotDisappearBetweenPredictionSamples)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,6.25};path.info.lane_changing_start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(path,obj,prediction(15,10),parameters->safety.rss_params,debug,false));
+  EXPECT_EQ(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
 }
 int main(int argc, char ** argv)
 {

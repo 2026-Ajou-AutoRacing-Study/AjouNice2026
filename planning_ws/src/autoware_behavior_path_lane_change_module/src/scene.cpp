@@ -414,11 +414,11 @@ bool NormalLaneChange::replacementIsContinuous(const LaneChangePath & candidate)
   if (idx+1>=points.size()) return false;
   const auto & pose = points[idx].point.pose;
   // This gate constrains a newly joined path, not deviation from stale approval.
-  if (autoware_utils::calc_distance2d(pose,getEgoPose())>0.5) return false;
+  if (autoware_utils::calc_distance2d(pose,getEgoPose())>1.0) return false;
   const double yaw = autoware_utils::normalize_radian(
     tf2::getYaw(pose.orientation)-tf2::getYaw(getEgoPose().orientation));
-  if (std::abs(yaw)>autoware_utils::deg2rad(5.0)) return false;
-  return std::abs(points[idx].point.longitudinal_velocity_mps-getEgoVelocity())<=1.0;
+  if (std::abs(yaw)>autoware_utils::deg2rad(10.0)) return false;
+  return std::abs(points[idx].point.longitudinal_velocity_mps-getEgoVelocity())<=2.0;
 }
 
 std::tuple<int,double,int,int,double,double> NormalLaneChange::candidateRank(
@@ -766,7 +766,6 @@ BehaviorModuleOutput NormalLaneChange::generateOutput()
     }
   }
 
-  applyPredictionCoverageStop(output.path);
   extendOutputDrivableArea(output);
 
   const auto turn_signal_info =
@@ -781,16 +780,6 @@ BehaviorModuleOutput NormalLaneChange::generateOutput()
     output.turn_signal_info.turn_signal.command != turn_signal_info.turn_signal.command);
 
   return output;
-}
-
-void NormalLaneChange::applyPredictionCoverageStop(PathWithLaneId & path)
-{
-  if (path.points.empty() || !status_.lane_change_path.prediction_coverage_deferred || isAbortState()) return;
-  const double start_arc = calcSignedArcLength(path.points,
-    path.points.front().point.pose.position,
-    status_.lane_change_path.info.lane_changing_start.position);
-  set_stop_pose(std::max(0.0, start_arc - planner_data_->parameters.base_link2front),
-    path, "prediction coverage pending before lateral entry");
 }
 
 void NormalLaneChange::extendOutputDrivableArea(BehaviorModuleOutput & output) const
@@ -2383,6 +2372,8 @@ bool NormalLaneChange::is_colliding(
   // Every object path used by this checker must cover this ego hypothesis.
   // Shorter lateral candidates remain searchable; do not manufacture an NPC
   // forecast by copying its last pose after the predictor's horizon.
+  const double required_horizon = is_approved ? ego_predicted_path.back().time :
+    std::max(ego_predicted_path.back().time, lane_change_path.info.duration.sum());
   bool covered = !obj.predicted_paths.empty();
   double available = std::numeric_limits<double>::infinity();
   for (const auto & object_path : obj.predicted_paths) {
@@ -2390,44 +2381,9 @@ bool NormalLaneChange::is_colliding(
     if (object_path.path.empty()) { available = 0.0; continue; }
     available = std::min(available, object_path.path.back().time);
     covered = covered && object_path.path.front().time <= ego_predicted_path.front().time + 1e-3 &&
-      object_path.path.back().time + 1e-3 >= ego_predicted_path.back().time;
+      object_path.path.back().time + 1e-3 >= required_horizon;
   }
   if (!covered) {
-    // A long preparation may retain a conditional plan. Only the observed
-    // prefix is checked; publication holds before lateral entry until every
-    // remaining hypothesis has complete coverage on fresh predictions.
-    const auto split = is_approved
-      ? utils::lane_change::remaining_prepare_time(
-          lane_change_path.path, ego_predicted_path, lane_change_path.info.lane_changing_start)
-      : std::optional<double>{lane_change_path.info.duration.prepare};
-    const double to_start = calcSignedArcLength(lane_change_path.path.points,
-      getEgoPosition(), lane_change_path.info.lane_changing_start.position);
-    const double braking = getEgoVelocity() * getEgoVelocity() /
-      (2.0 * std::max(0.1, std::abs(planner_data_->parameters.min_acc)));
-    const bool has_prefix = std::all_of(obj.predicted_paths.begin(), obj.predicted_paths.end(),
-      [&](const auto & path) { return !path.path.empty() &&
-        path.path.front().time <= ego_predicted_path.front().time + 1e-3; });
-    if (has_prefix && std::isfinite(available) && split && *split > 1e-3 &&
-        available + 1e-3 >= lane_change_path.info.duration.lane_changing &&
-        to_start > braking + planner_data_->parameters.base_link2front &&
-        utils::isEgoWithinOriginalLane(common_data_ptr_->lanes_polygon_ptr->current,
-          getEgoPose(), planner_data_->parameters, 0.0) &&
-        !lane_change_path.cooperative_overtake_target && !isAbortState()) {
-      std::vector<PoseWithVelocityStamped> prefix;
-      for (const auto & point : ego_predicted_path) {
-        if (point.time <= available + 1e-6) prefix.push_back(point);
-      }
-      if (const auto end = utils::path_safety_checker::calc_interpolated_pose_with_velocity(
-            ego_predicted_path, available)) {
-        if (prefix.empty() || prefix.back().time < available - 1e-6) prefix.push_back(*end);
-      }
-      if (prefix.size() >= 2) {
-        const bool collision = is_colliding(
-          lane_change_path, obj, prefix, rss_param, debug_data, is_approved);
-        if (!collision) lane_change_path.prediction_coverage_deferred = true;
-        return collision;
-      }
-    }
     auto & debug = debug_data[obj.uuid.uuid];
     debug.is_safe = false;
     debug.unsafe_reason = "prediction_coverage_short";
