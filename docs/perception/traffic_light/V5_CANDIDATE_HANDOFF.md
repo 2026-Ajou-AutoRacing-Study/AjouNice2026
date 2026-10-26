@@ -3,7 +3,7 @@
 현재 상태: 2026-10-26 **v5와 신호 준수 정책이 traffic·Validator·planning의 새 실행 기본값**이다.
 [CURRENT](CURRENT.md)와 [황색·상실 정책 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)을 함께 읽는다.
 새 모델은 YOLO26n960 + 지도 housing 연결 + ResNet18 CNN v5다.
-옛 YOLO640/HSV는 명시적 복귀로 보존한다. 준수 가드 ON은 기존 황색 GO·상실 fail-open보다 우선한다.
+옛 YOLO640/HSV는 명시적 복귀로 보존한다. 준수 가드 ON이어도 기존 competition fail-open의 미수신·timeout GO는 유지한다.
 **D 근접 누락은 [조건부 재검출·지도 보완](261025_NEAR_SIGNAL_RECOVERY.md)으로 수정했다.
 로컬 Sunny13·Foggy13 무객체 폐루프 PASS이며 LAN·BEVFusion 동시 주행 인증은 아니다.**
 파일명/profile의 `candidate`와 가중치의 연구 metadata는 호환·원본 보존용이다. 현재 실행 선택은 CURRENT를 따른다.
@@ -108,7 +108,9 @@ roslaunch traffic_light_detection traffic_light_node.launch device:=0
 `planning.launch`는 `enable_signal_compliance_guard:=true traffic_light_state_timeout_sec:=0.5`다.
 `morai_planning_stack.launch`도 같은 인자를 전달한다. 정차 중 황색/R+Y는 출발하지 않고,
 `enable_yellow_passthrough:=false`가 현재 기본이며, ON일 때만 이동 중 최근 허가→황색의 제동 경계 예외를 검토한다. 관측 3개는 3초가 아니다.
-신호 상실/불확실 시 선 전에는 정지를 요구하므로, 장기 상실은 수동 원인 해결이 필요할 수 있다.
+신선한 적색·UNKNOWN에는 정지 판단을 유지한다. 기존 `competition_fail_open=true`에서는 미수신·timeout이면
+가드보다 먼저 GO로 처리한다. 신호등 없는 planning 시험은 기존 명령 그대로 가능하지만, 노드 다운도 같은
+GO가 될 수 있다. 완전 fail-closed는 기존 설정을false로 바꾼 별도 운영 정책이며 이번 기본값은 아니다.
 선 통과 후에는 해당 교차로 통과를 이어가지만 다른 장애물 제동을 해제하지 않는다.
 
 모델 복귀와 정책 복귀는 별개다. **개발 대조용** 옛 정책은 planning에

@@ -58,7 +58,6 @@ TrafficLightModule::TrafficLightModule(
   is_prev_state_stop_(false)
 {
   planner_param_ = planner_param;
-  qualifyStopLineContract();
   signal_compliance_guard_.setRequiredGreenObservations(planner_param_.signal_compliance_required_green_observations);
   prev_looking_tl_state_.traffic_light_group_id = 0;
 }
@@ -72,38 +71,11 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   const auto input_path = *path;
 
   const auto & self_pose = planner_data_->current_odometry;
-  crossing_front_distance_.reset();
-  yellow_front_distance_.reset();
-  if(crossing_contract_) {
-    const auto & pose=self_pose->pose;
-    const double yaw=tf2::getYaw(pose.orientation);
-    const double axle=planner_param_.signal_compliance_front_axle_offset_m;
-    crossing_front_distance_=signal_compliance::finiteCrossingDistance(*crossing_contract_,
-      {pose.position.x+axle*std::cos(yaw),pose.position.y+axle*std::sin(yaw)});
-    std::vector<signal_compliance::MapPoint> points;
-    for(const auto & p:input_path.points) points.push_back({p.point.pose.position.x,p.point.pose.position.y});
-    yellow_front_distance_=signal_compliance::pathCrossingFrontDistance(
-      *crossing_contract_,points,{pose.position.x,pose.position.y},axle);
-  }
 
   // Calculate stop pose and insert index
-  auto stop_line = calcStopPointAndInsertIndex(
+  const auto stop_line = calcStopPointAndInsertIndex(
     input_path, stop_line_,
-    effectiveStopMargin() + planner_data_->vehicle_info_.max_longitudinal_offset_m);
-
-  if(!stop_line && crossing_contract_ && !input_path.points.empty()) {
-    // A shortened horizon may start after the virtual stop target but before
-    // the physical paint. Do not silently return safe/GO at the virtual line.
-    std::size_t closest=0;double distance=std::numeric_limits<double>::infinity();
-    for(std::size_t i=0;i<input_path.points.size();++i) {
-      const auto & p=input_path.points[i].point.pose.position;
-      const double d=std::hypot(p.x-self_pose->pose.position.x,p.y-self_pose->pose.position.y);
-      if(d<distance) {distance=d;closest=i;}
-    }
-    const auto & p=input_path.points[closest].point.pose.position;
-    stop_line=std::make_pair(closest,Eigen::Vector2d(p.x,p.y));
-    ROS_WARN_THROTTLE(5.,"[signal_stop_line_contract] reg=%ld virtual target outside horizon: stop at ego if required, never early GO_OUT",traffic_light_reg_elem_.id());
-  }
+    planner_param_.stop_margin + planner_data_->vehicle_info_.max_longitudinal_offset_m);
 
   if (!stop_line.has_value()) {
     RCLCPP_WARN_STREAM_ONCE(
@@ -122,12 +94,11 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     input_path.points, self_pose->pose.position, stop_line_point_msg);
   setDistance(signed_arc_length_to_stop_point);
 
-  const auto legacy_front_distance = signal_compliance::frontAxleDistanceFromBumperStop(
-    signed_arc_length_to_stop_point, effectiveStopMargin(),
+  const auto front_axle_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+    signed_arc_length_to_stop_point, planner_param_.stop_margin,
     planner_data_->vehicle_info_.max_longitudinal_offset_m,
     planner_param_.signal_compliance_front_axle_offset_m);
-  const auto front_axle_distance=crossing_contract_?crossing_front_distance_:legacy_front_distance;
-  if (planner_param_.enable_signal_compliance_guard && !crossing_contract_ && !front_axle_distance) {
+  if (planner_param_.enable_signal_compliance_guard && !front_axle_distance) {
     setSafe(false);
     *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
     is_prev_state_stop_ = true;
@@ -138,7 +109,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   if (state_ == State::APPROACH) {
     // Move to go out state if ego vehicle over deadline.
     constexpr double signed_deadline_length = -2.0;
-    if (planner_param_.enable_signal_compliance_guard ? (front_axle_distance && *front_axle_distance < 0.0) :
+    if (planner_param_.enable_signal_compliance_guard ? *front_axle_distance < 0.0 :
         signed_arc_length_to_stop_point < signed_deadline_length) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
@@ -228,7 +199,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     constexpr bool use_initialization_after_start = true;
     constexpr double restart_length = 1.0;
     if (use_initialization_after_start) {
-      if (planner_param_.enable_signal_compliance_guard ? (front_axle_distance && *front_axle_distance > restart_length) :
+      if (planner_param_.enable_signal_compliance_guard ? *front_axle_distance > restart_length :
           signed_arc_length_to_stop_point > restart_length) {
         RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
         state_ = State::APPROACH;
@@ -254,6 +225,17 @@ bool TrafficLightModule::isStopSignal()
   // Store previous state before updating
   prev_looking_tl_state_ = looking_tl_state_;
   updateTrafficSignal();
+
+  // Preserve the team's existing competition fail-open contract even when
+  // the newer observation guard is enabled. No publisher / expired transport
+  // must not block planning-only tests. Fresh RED/UNKNOWN still reach the guard.
+  if (planner_param_.competition_fail_open &&
+      (!traffic_signal_stamp_ || isTrafficSignalTimedOut())) {
+    signal_compliance_guard_.reset();
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] missing/stale signal: competition fail-open GO");
+    return false;
+  }
 
   if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) {
     // Do not let legacy yellow_light_is_go/arrow overrides bypass the master.
@@ -479,15 +461,10 @@ bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
       planner_data_->current_velocity->twist.linear.x,
       planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
       delay_response_time, pass_judge_line_distance);
-    const auto legacy_front_distance = signal_compliance::frontAxleDistanceFromBumperStop(
-      signed_arc_length, effectiveStopMargin(),
+    const auto front_line_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+      signed_arc_length, planner_param_.stop_margin,
       planner_data_->vehicle_info_.max_longitudinal_offset_m,
       planner_param_.signal_compliance_front_axle_offset_m);
-    const auto front_line_distance=crossing_contract_?yellow_front_distance_:legacy_front_distance;
-    if(crossing_contract_requested_ && (!crossing_contract_ || !front_line_distance)) {
-      ROS_WARN_THROTTLE(5.,"[signal_stop_line_contract] reg=%ld yellow override unavailable: anchor mismatch or finite crossing outside path",traffic_light_reg_elem_.id());
-      return false;
-    }
     if (planner_param_.signal_compliance_enable_timed_yellow) {
       const auto decision = signal_compliance::timedYellowDecision(
         planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
@@ -619,33 +596,6 @@ autoware_internal_planning_msgs::PathWithLaneId TrafficLightModule::insertStopPo
 void TrafficLightModule::updateStopLine(const lanelet::ConstLineString3d & stop_line)
 {
   stop_line_ = stop_line;
-  qualifyStopLineContract();
-}
-
-void TrafficLightModule::qualifyStopLineContract()
-{
-  const bool was_active=bool(crossing_contract_);
-  crossing_contract_.reset();crossing_contract_requested_=false;additional_stop_margin_m_=0.;
-  if(!planner_param_.enable_signal_compliance_guard) return;
-  for(const auto & c:planner_param_.signal_stop_line_contracts) {
-    if(c.regulatory_id!=traffic_light_reg_elem_.id()) continue;
-    crossing_contract_requested_=true;
-    std::vector<signal_compliance::MapPoint> actual;
-    for(const auto & p:stop_line_) actual.push_back({p.x(),p.y()});
-    if(!signal_compliance::stopLineAnchorMatches(c,actual)) {
-      ROS_WARN_THROTTLE(30.,"[signal_stop_line_contract] reg=%ld invalid/mismatched map anchor: retain map stop behavior, disable yellow override; no startup refusal",traffic_light_reg_elem_.id());
-      return;
-    }
-    additional_stop_margin_m_=c.additional_stop_margin_m;
-    if(!planner_param_.signal_stop_line_crossing_reference_enabled) {
-      ROS_WARN_ONCE("[signal_stop_line_contract] physical crossing reference OFF: qualified additional stop margin only; retain virtual-line clearing, yellow override disabled");
-      return;
-    }
-    crossing_contract_=c;
-    if(!was_active) ROS_INFO("[signal_stop_line_contract] reg=%ld qualified MGeo-paint proxy; extra stop margin=%.3f; crossing differs from virtual stop target",traffic_light_reg_elem_.id(),additional_stop_margin_m_);
-    return;
-  }
-  ROS_WARN_ONCE("[signal_stop_line_contract] unconfigured regulatory element retains existing map stop/crossing behavior");
 }
 
 }  // namespace autoware::behavior_velocity_planner

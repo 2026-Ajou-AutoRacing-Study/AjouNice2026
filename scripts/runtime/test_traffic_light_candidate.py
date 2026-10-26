@@ -389,6 +389,26 @@ elif name!='mock_env':raise SystemExit('Unexpected external command '+name)
         self.assertIn('Runtime receipt differs',stale.stderr)
         self.assertNotIn('[V5 READY]',stale.stdout)
 
+    def test_retired_profile_cleanup_preserves_custom_installed_files(self):
+        import hashlib
+        payload='old PR54 profile fixture\n'
+        installer=self.root/'scripts/runtime/install_traffic_light_candidate.sh'
+        installer.write_text(installer.read_text().replace(
+            'b03944d4e0a522c102a5cb3d256fd6b9b856ce410b4e61ee88fee2108caecc1e',
+            hashlib.sha256(payload.encode()).hexdigest()))
+        retired=self.root/'base_ws/install_aw149/share/traffic_light_detection/config/traffic_signal_stop_lines.yaml'
+        retired.parent.mkdir(parents=True,exist_ok=True)
+        retired.write_text(payload)
+        result=self.run_installer()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(retired.exists())
+        retired.write_text('locally customized, not ours\n')
+        result=self.run_installer()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(retired.read_text(),'locally customized, not ours\n')
+        self.assertIn('preserved without loading',result.stderr)
+        self.assertEqual(self.run_installer('--check').returncode,0)
+
     def test_validator_source_and_nested_modules_are_in_fingerprint_and_install_audit(self):
         installed=self.run_installer()
         self.assertEqual(installed.returncode,0,installed.stderr)

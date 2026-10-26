@@ -14,7 +14,6 @@
 
 #include "manager.hpp"
 #include "utils.hpp"
-#include <autoware/behavior_velocity_traffic_light_module/signal_stop_line_contract_ros.hpp>
 
 #include "autoware_lanelet2_extension/regulatory_elements/autoware_traffic_light.hpp"
 
@@ -58,10 +57,6 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);
   node.param<double>(ns + "/signal_compliance_min_yellow_sec", planner_param_.signal_compliance_min_yellow_sec, 2.0);
   node.param<double>(ns + "/signal_compliance_yellow_time_margin_sec", planner_param_.signal_compliance_yellow_time_margin_sec, 0.2);
-  planner_param_.signal_stop_line_contracts=signal_compliance::loadStopLineContracts(
-    node,ns+"/signal_stop_line_contracts");
-  node.param<bool>(ns+"/signal_stop_line_crossing_reference_enabled",
-    planner_param_.signal_stop_line_crossing_reference_enabled,false);
   if (planner_param_.signal_compliance_required_green_observations < 1 ||
       planner_param_.signal_compliance_required_green_observations > 3 ||
       !std::isfinite(planner_param_.signal_compliance_min_yellow_sec) ||

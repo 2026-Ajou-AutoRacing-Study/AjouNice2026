@@ -4,6 +4,21 @@ import pytest
 from run_traffic_light_compliance_trial import (CANONICAL, SOURCE_TOPIC, active_fault_mode,
     fault_copy, fixture_relay_mode, validated_fixture_status, launch_arguments,
     require_trial_contract, run_owned_trial, signal_topic_conflicts, with_compliance_debug)
+from run_traffic_light_compliance_trial import map_launch_arguments
+
+
+def test_map_candidate_is_shared_without_overriding_policy_or_models():
+    original = dict(device='0')
+    assert map_launch_arguments('x', 'x', original, '/candidate', 'sha') == original
+    assert map_launch_arguments('ajounice_planning_integration', 'planning.launch', original,
+                                None, None) == original
+    planning = map_launch_arguments('ajounice_planning_integration', 'planning.launch', original,
+                                    '/candidate', 'sha')
+    assert planning == dict(device='0', map_file='/candidate', map_sha256='sha')
+    traffic = map_launch_arguments('traffic_light_detection', 'traffic_light_v5_candidate.launch',
+                                   original, '/candidate', 'sha')
+    assert traffic == dict(device='0', lanelet2_map_file='/candidate')
+    assert original == dict(device='0')
 
 
 def test_only_explicit_trial_launch_arguments_change():

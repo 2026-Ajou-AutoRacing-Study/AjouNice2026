@@ -1,5 +1,8 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <!-- Explicit development map candidates; omitted arguments keep the released map. -->
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
+  <arg name="map_sha256" default="70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575"/>
   <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
             file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
@@ -30,9 +33,6 @@
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
   <arg name="traffic_light_state_timeout_sec" default="0.5"/>
-  <arg name="signal_stop_line_contract_path"
-       default="$(find traffic_light_detection)/config/traffic_signal_stop_lines.yaml"/>
-  <arg name="signal_stop_line_crossing_reference_enabled" default="false"/>
   <!-- Keep normal LC logging; explicit development trials may select a scoped trace config. -->
   <arg name="planning_rosconsole_config"
        default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
@@ -56,6 +56,8 @@
            file="$(find ajounice_planning_integration)/launch/fixed_autonomous_operation_mode.launch"/>
   <include file="$(find ajounice_planning_integration)/launch/map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="map_sha256" value="$(arg map_sha256)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
     <!-- LC runtime log level; detailed candidate traces are opt-in. -->
@@ -105,12 +107,6 @@
          value="$(arg signal_compliance_front_axle_offset_m)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/tl_state_timeout"
          value="$(arg traffic_light_state_timeout_sec)"/>
-  <!-- Separate conservative stopping targets from MGeo paint crossing proxies.
-       Consumers validate the current map anchor; no live native/Ego dependency. -->
-  <rosparam command="load" file="$(arg signal_stop_line_contract_path)"
-            ns="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light"/>
-  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_stop_line_crossing_reference_enabled"
-         value="$(arg signal_stop_line_crossing_reference_enabled)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
   </include>

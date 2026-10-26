@@ -196,6 +196,20 @@ if mode not in ('record','check'):raise RuntimeError('Unknown runtime audit mode
 if mode=='record' and json.loads(sys.argv[3]) != manifest:
     raise RuntimeError('Runtime source changed during build; rerun the installer before using the new stack')
 
+# CMake install does not remove files retired from a source config directory.
+# Remove only our exact PR54 profile, never a locally customized replacement.
+# --check remains non-mutating; no runtime node ever reads this retired file.
+if mode=='record':
+    retired_source=traffic/'config/traffic_signal_stop_lines.yaml'
+    retired_installed=base/'install_aw149/share/traffic_light_detection/config/traffic_signal_stop_lines.yaml'
+    retired_sha='b03944d4e0a522c102a5cb3d256fd6b9b856ce410b4e61ee88fee2108caecc1e'
+    if not retired_source.exists() and retired_installed.is_file():
+        if not retired_installed.is_symlink() and digest(retired_installed)==retired_sha:
+            retired_installed.unlink()
+            print('[RETIRED CONFIG REMOVED] PR54 traffic_signal_stop_lines.yaml')
+        else:
+            print('[WARN] Unused retired profile differs locally; preserved without loading: '+str(retired_installed),file=sys.stderr)
+
 prefix=planning/'install_isolated'
 library=prefix/'lib'/('lib'+package+'.so')
 built=planning/'devel_isolated'/package/'lib'/library.name

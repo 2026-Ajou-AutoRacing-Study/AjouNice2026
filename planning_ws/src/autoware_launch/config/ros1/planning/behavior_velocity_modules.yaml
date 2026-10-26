@@ -358,6 +358,7 @@ stop_line:
   vehicle_stopped_duration_threshold: 0.0
   hold_stop_margin_distance: 2.0
 traffic_light:
+  # Signal-specific stopping positions are owned by the Lanelet map.
   stop_margin: 0.0
   tl_state_timeout: 1.0
   stop_time_hysteresis: 0.1

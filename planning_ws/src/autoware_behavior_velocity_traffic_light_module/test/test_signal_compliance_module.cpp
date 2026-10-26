@@ -56,9 +56,7 @@ protected:
     node_.deleteParam("/traffic_light_compliance_test");
   }
 
-  void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true,
-                 const std::vector<signal_compliance::StopLineContract> & contracts={},
-                 bool crossing_reference=false)
+  void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true)
   {
     group_=group;
     lanelet::Points3d points{
@@ -76,8 +74,6 @@ protected:
     params.enable_yellow_passthrough=yellow_passthrough;
     params.competition_fail_open=true; params.enable_signal_compliance_guard=guarded;
     params.signal_compliance_front_axle_offset_m=3.;
-    params.signal_stop_line_contracts=contracts;
-    params.signal_stop_line_crossing_reference_enabled=crossing_reference;
     module_ = std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
       group==201326,true,params,node_,"traffic_light_compliance_test",clock_,nullptr,factors_);
     module_->setPlannerData(data_);
@@ -162,13 +158,8 @@ protected:
   bool pass(double bumper_target_distance) { return module_->isPassthrough(bumper_target_distance); }
   auto state() { return module_->getTrafficLightModuleState(); }
   void setPeriod(double seconds) { module_->planner_param_.yellow_lamp_period=seconds; }
-  void timed(bool value) {module_->planner_param_.signal_compliance_enable_timed_yellow=value;}
-  signal_compliance::StopLineContract crossingContract()
-  {
-    signal_compliance::StopLineContract c;
-    c.regulatory_id=201365;c.expected_stop_line={{10.,-3.},{10.,3.}};
-    c.crossing_line={{17.,-3.},{17.,3.}};c.additional_stop_margin_m=.75;return c;
-  }
+  void setStopMargin(double metres) { module_->planner_param_.stop_margin=metres; }
+  void setFailOpen(bool enabled) { module_->planner_param_.competition_fail_open=enabled; }
   double stoppingDistance()
   {
     return planning_utils::calcJudgeLineDistWithJerkLimit(data_->current_velocity->twist.linear.x,
@@ -226,7 +217,7 @@ TEST_F(TrafficLightComplianceModuleTest, StoppedYellowAndFirstMidYellowCannotCre
 TEST_F(TrafficLightComplianceModuleTest, BeforeLineRedMissingAndStaleCannotReuseGreenAuthorization)
 {
   for(const auto group:{201351,201365,201290,201326}) {
-    configure(group); confirmGreenOnRealPath(6.,.2);
+    configure(group); setFailOpen(false); confirmGreenOnRealPath(6.,.2);
     tick(); put(red()); EXPECT_TRUE(modifiesToStop());
     confirmGreenOnRealPath(6.,.2);
     data_->traffic_light_id_map_raw_.clear(); tick(); EXPECT_TRUE(modifiesToStop());
@@ -235,6 +226,20 @@ TEST_F(TrafficLightComplianceModuleTest, BeforeLineRedMissingAndStaleCannotReuse
     confirmGreenOnRealPath(6.,.2);
     Signal unknown; unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
     tick(); put(unknown); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, CompetitionDefaultMissingAndStaleGoWithoutNewLaunchFlags)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,false); pose(0.,0.);
+    EXPECT_FALSE(modifiesToStop());  // The traffic stack was never started.
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(1.1); EXPECT_FALSE(modifiesToStop());  // Existing timeout fail-open.
+    data_->traffic_light_id_map_raw_.clear(); tick(); EXPECT_FALSE(modifiesToStop());
+    Signal unknown; unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
+    tick(); put(unknown); EXPECT_TRUE(modifiesToStop()); // Fresh unreadable != no publisher.
+    confirmGreenOnRealPath(0.,0.); // Bypass did not retain an old green confirmation.
   }
 }
 
@@ -383,53 +388,27 @@ TEST_F(TrafficLightComplianceModuleTest, GuardOffRetainsLegacyTriangularPassJudg
   EXPECT_FALSE(pass(1.));  // Unchanged legacy distance says it can stop.
   EXPECT_TRUE(pass(.5));  // And still passes inside its old threshold.
 }
-
-TEST_F(TrafficLightComplianceModuleTest, VirtualStopCrossingDoesNotClearPhysicalPaintRed)
+TEST_F(TrafficLightComplianceModuleTest, StandardMarginAppliesToAllMissionsWithoutMovingCrossingLine)
 {
-  configure(201365,true,false,{crossingContract()},true);tick();pose(8.,0.);put(red());
-  EXPECT_TRUE(modifiesToStop());EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
-  tick();pose(14.1,0.);put(red());EXPECT_FALSE(modifiesToStop());
-  EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
-}
-
-TEST_F(TrafficLightComplianceModuleTest, AdditionalStopMarginDoesNotMoveCrossingLine)
-{
-  configure(201365,true,false,{crossingContract()},true);tick();pose(0.,0.);put(red());
-  auto p=path();ASSERT_TRUE(module_->modifyPathVelocity(&p));
-  const auto first=std::find_if(p.points.begin(),p.points.end(),[](const auto & q){return q.point.longitudinal_velocity_mps<.001;});
-  ASSERT_NE(first,p.points.end());EXPECT_NEAR(first->point.pose.position.x,10.-3.845-.75,1e-6);
-}
-
-TEST_F(TrafficLightComplianceModuleTest, CrossingOutsideShortHorizonDoesNotClearVirtualLine)
-{
-  configure(201365,true,false,{crossingContract()},true);tick();pose(11.,0.);put(red());
-  auto p=path();p.points.erase(std::remove_if(p.points.begin(),p.points.end(),[](const auto & q){return q.point.pose.position.x<11.||q.point.pose.position.x>14.;}),p.points.end());
-  ASSERT_TRUE(module_->modifyPathVelocity(&p));
-  EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
-  EXPECT_TRUE(std::any_of(p.points.begin(),p.points.end(),[](const auto & q){return q.point.longitudinal_velocity_mps<.001;}));
-}
-
-TEST_F(TrafficLightComplianceModuleTest, TimedYellowUsesFartherPhysicalPaint)
-{
-  configure(201365,true,true,{crossingContract()},true);timed(true);confirmGreenOnRealPath();
-  tick();pose(0.,5.);put(yellow());EXPECT_TRUE(modifiesToStop());
-}
-
-TEST_F(TrafficLightComplianceModuleTest, MismatchedAnchorPreservesLegacyStopAndDoesNotRefuseStartup)
-{
-  auto c=crossingContract();c.expected_stop_line[0].x=9.;c.expected_stop_line[1].x=9.;
-  configure(201365,true,false,{c},true);tick();pose(8.,0.);put(red());
-  EXPECT_FALSE(modifiesToStop());EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
-}
-
-TEST_F(TrafficLightComplianceModuleTest, DefaultOffSeparatesExtraMarginFromPhysicalCrossingResearch)
-{
-  configure(201365,true,false,{crossingContract()});tick();pose(0.,0.);put(red());
-  auto p=path();ASSERT_TRUE(module_->modifyPathVelocity(&p));
-  const auto first=std::find_if(p.points.begin(),p.points.end(),[](const auto & q){return q.point.longitudinal_velocity_mps<.001;});
-  ASSERT_NE(first,p.points.end());EXPECT_NEAR(first->point.pose.position.x,10.-3.845-.75,1e-6);
-  tick();pose(8.,0.);put(red());EXPECT_FALSE(modifiesToStop());
-  EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+  for (const auto group : {201351, 201365, 201290, 201326}) {
+    SCOPED_TRACE(group);
+    configure(group, true, false);
+    setStopMargin(.75);
+    tick(); pose(0., 0.); put(red());
+    auto result=path();
+    ASSERT_TRUE(module_->modifyPathVelocity(&result));
+    const auto stopped=std::find_if(result.points.begin(),result.points.end(),[](const auto & p) {
+      return p.point.longitudinal_velocity_mps < .001;
+    });
+    ASSERT_NE(stopped,result.points.end());
+    EXPECT_NEAR(stopped->point.pose.position.x,10.-3.845-.75,1e-5);
+    tick(); pose(6.99,0.);put(red());
+    EXPECT_TRUE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+    tick();pose(7.01,0.);put(red());
+    EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+  }
 }
 }  // namespace autoware::behavior_velocity_planner
 
