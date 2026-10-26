@@ -382,6 +382,8 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
         raise ConfigError("BEVFusion에는 카메라 4대와 LiDAR가 있는 sensor JSON이 필요합니다")
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
+    if type(document.get("morai", {}).get("clear_before_load", False)) is not bool:
+        raise ConfigError("morai.clear_before_load는 true/false입니다")
     recording = document.get("recording", {})
     if recording.get('analysis_mode', False) and recording.get('bag_enabled', True) and (
             not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
