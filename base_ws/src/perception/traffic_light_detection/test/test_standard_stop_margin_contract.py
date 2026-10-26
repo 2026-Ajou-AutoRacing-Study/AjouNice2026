@@ -12,15 +12,15 @@ TRAFFIC = ROOT/'base_ws/src/perception/traffic_light_detection'
 @pytest.mark.parametrize('name', ('behavior_velocity_modules.yaml', 'behavior_velocity_modules_normal.yaml'))
 def test_all_missions_use_existing_common_margin(name):
     config = yaml.safe_load((ROOT/'planning_ws/src/autoware_launch/config/ros1/planning'/name).read_text())
-    assert config['traffic_light']['stop_margin'] == .75
+    assert config['traffic_light']['stop_margin'] == 0.
     assert 'signal_stop_line_contracts' not in config['traffic_light']
 
 
 def test_component_fallback_defaults_match_the_common_margin():
     ros1 = yaml.safe_load((MODULE/'config/ros1/traffic_light.yaml').read_text())
     ros2 = yaml.safe_load((MODULE/'config/traffic_light.param.yaml').read_text())
-    assert ros1['traffic_light/stop_margin'] == .75
-    assert ros2['/**']['ros__parameters']['traffic_light']['stop_margin'] == .75
+    assert ros1['traffic_light/stop_margin'] == 0.
+    assert ros2['/**']['ros__parameters']['traffic_light']['stop_margin'] == 0.
 
 
 @pytest.mark.parametrize('path', (

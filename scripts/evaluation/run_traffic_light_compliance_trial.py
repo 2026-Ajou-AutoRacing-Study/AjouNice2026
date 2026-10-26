@@ -61,6 +61,19 @@ def fault_copy(message, mode, group_id):
     return output
 
 
+def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
+    """Use one explicit candidate for planning and signal route geometry alike."""
+    result = dict(arguments)
+    if map_file is None:
+        return result
+    if package == 'ajounice_planning_integration' and filename == 'planning.launch':
+        result.update(map_file=str(map_file), map_sha256=map_sha256)
+    if package == 'traffic_light_detection' and filename in (
+            'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
+        result['lanelet2_map_file'] = str(map_file)
+    return result
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -135,6 +148,8 @@ def main():
     parser.add_argument('config', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--geometry', type=Path, required=True)
+    parser.add_argument('--map-file', type=Path,
+                        help='Explicit map candidate shared by planning and signal route geometry')
     parser.add_argument('--preparation-geometry', type=Path,
                         help='Optional virtual stop-target geometry for stationary control gate; observer still uses --geometry')
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
@@ -189,6 +204,10 @@ def main():
     if not args.native_python.is_file() or not args.geometry.is_file():
         parser.error('Existing native Python and explicit geometry are required')
     load_geometry(args.geometry)
+    candidate_map_sha = None
+    if args.map_file is not None:
+        args.map_file = args.map_file.resolve(strict=True)
+        candidate_map_sha = digest(args.map_file)
     if args.preparation_geometry is not None:
         load_geometry(args.preparation_geometry)
     production = args.mode == 'production'
@@ -223,6 +242,8 @@ def main():
         frame_provenance='configs/planning/vehicle_info.yaml and vehicle/README.md rear-axle base_link',
         resume_allowed=False, native_GT_is_planner_input=False,
         planner='real ROS1 planner/controller through unmodified validator runner')
+    receipt['map_candidate'] = (dict(path=str(args.map_file), sha256=candidate_map_sha)
+                                if args.map_file is not None else None)
     if args.check:
         print(json.dumps(receipt, indent=2))
         return runner.main([str(args.config), '--check'])
@@ -269,9 +290,12 @@ def main():
     publisher = None
     def selected_launch(package, filename, **kwargs):
         nonlocal proxy_started, publisher
+        if args.map_file is not None and digest(args.map_file) != candidate_map_sha:
+            raise RuntimeError('Map candidate changed after qualification')
         selected = launch_arguments(package, filename, kwargs, guarded, progress, proxy,
             temporal_direct=args.temporal_direct=='true', signal_timeout_sec=args.signal_timeout_sec,
             yellow_passthrough=args.yellow_passthrough=='true')
+        selected = map_launch_arguments(package, filename, selected, args.map_file, candidate_map_sha)
         if proxy and package == 'traffic_light_detection' and not proxy_started:
             import rospy
             from autoware_perception_msgs.msg import TrafficLightGroupArray

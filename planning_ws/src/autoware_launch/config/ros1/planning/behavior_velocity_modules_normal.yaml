@@ -359,7 +359,7 @@ stop_line:
   hold_stop_margin_distance: 2.0
 traffic_light:
   # Same common front-bumper margin as the experimental planner profile.
-  stop_margin: 0.75
+  stop_margin: 0.0
   tl_state_timeout: 1.0
   stop_time_hysteresis: 0.1
   yellow_lamp_period: 2.75

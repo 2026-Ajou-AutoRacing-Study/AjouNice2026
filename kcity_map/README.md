@@ -3,6 +3,10 @@
 현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v87.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
+2026-10-26: A/C 정지선만 각0.75m 상류 이동한 **v88 개발 후보**가 있다.
+B/D·도로 경계·연결·ID는 그대로이며 실제 주행 검증 전에는 기본v87을 교체하거나 공유하지 않는다.
+[후보 상태·정차/통과 경계](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-candidate)를 먼저 확인한다.
+
 | 구분 | 경로·기준 |
 | --- | --- |
 | Lanelet2 | `lanelet_map/lanelet2_map_v87.osm` |

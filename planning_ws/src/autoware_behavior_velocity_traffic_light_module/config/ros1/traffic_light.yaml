@@ -1,4 +1,4 @@
-traffic_light/stop_margin: 0.75
+traffic_light/stop_margin: 0.0
 traffic_light/tl_state_timeout: 1.0
 traffic_light/stop_time_hysteresis: 0.1
 traffic_light/yellow_lamp_period: 2.75

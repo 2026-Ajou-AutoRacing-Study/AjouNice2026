@@ -273,3 +273,38 @@ PR54 정상 v87 조건과 비교하면 B/D의 정차 여유는 같고 A/C는0.75
 설치기는 CMake install에 남을 수 있는 PR54 전용 YAML도 과거 원본 SHA가 맞을 때만 지운다.
 사용자가 별도로 수정한 설치 파일은 보존하고 새 코드는 그 파일을 읽지 않는다.
 Native 근거는 `artifacts/evaluation/traffic_light_robustness_261025/standard_stop_margin_tests_261026_v1/`다.
+
+<a id="map-stopline-candidate"></a>
+## 후속 결정: 공통 margin 원복·지도 후보 검증 대기
+
+위 공통0.75m는 Git `d86fd564`/PR55 초안의 당시 설정이며 최종 운영 결정이 아니다.
+사용자는 팀장님이 관리하던 방식인 **stop_margin=0.0 + Lanelet ref_line 위치 조정**을 선택했다.
+4개 기존 모듈 설정을0.0으로 복원하며 PR54 전용 YAML/분리 코드 제거는 유지한다.
+
+v87 원본 SHA `70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575`는 보존한다.
+v88 후보 SHA는 `3cfb4dde4dbbbb44fc86f4e45c747576565793db48b04a631a61ab34af265d44`다.
+A/C만 각0.75m 상류 이동하고 B/D는 변경하지 않는다. 변경 노드는92992/92993/93034/93035뿐이며,
+이 노드의 좌표 이외 바이트·도로 경계·route topology·신호 ID·모델·센서는 그대로다.
+기존 MGeo 도색선 대비 상류 차이 A약0.75→1.50m/C약0.75→1.50m, B약6.73m/D약7.75m 유지다.
+이는 검증할 초기 후보이지 B/D만큼6~8m 일괄 이동하는 확정값이 아니다.
+
+생성 도구는 `scripts/map/shift_signal_stop_lines.py`이며 배포 지도를 덮어쓰지 않는다.
+검증 실행기는 `--map-file`로 실제 planning/map projector와 신호 route geometry에 같은 후보를
+명시 전달하고 SHA를 기록한다. 인자를 생략하면 기존 v87이며 production 기본 지도를 몰래 바꾸지 않는다.
+새 시험 입력은 `scripts/evaluation/prepare_signal_map_candidate_trials.py`로 만들고 전방 JPEG도 기록한다.
+원본 frozen 실행과 증거는 수정하지 않는다.
+
+현재는 **정적 검사·회귀 시험 단계**다. 자연 신호 복원을 위한 MORAI 재시작 뒤 실제 localization+
+OD_GT+ROS1 planner/PP·PI로 정차·재출발·최종정지/P·신호 가시성을 확인하기 전 배포/업로드하지 않는다.
+기존 강제 현시가 남은 프로세스의 결과를 자연 신호 검증으로 간주하지 않는다.
+통과 판정/GO_OUT은 여전히 지도 ref_line을 사용하므로 지도선을 당기면 해당 시점도 당겨진다.
+공식 도색선/벌점 판정선과 같은 의미가 아니며 황색 통과는 계속 기본OFF다.
+
+후속 준비 검증: Python318개·Native86개(8개 XML, 실패/오류0) 통과, 재빌드·설치기`--check` 통과.
+Autoware Lanelet 확장 등록 후 후보를 실제 파서로 읽어 lanelet1302개/regulatory78개를 확인했다.
+확장을 등록하지 않은 순수 Python 파서는 기존 roundabout/crosswalk 타입을 몰라 실패하므로 이를
+지도 자체의 새 오류로 해석하지 않는다. launch 해석에서도 후보 경로/SHA와 stop_margin0.0을 확인했다.
+넓은 `check_runtime_map_version.py --installed` 검사는 기존 평가 도구·사용자 workspace·오래된 설치본의
+v85 참조 때문에 미통과다. 이 작업에서 해당 frozen/별도 범위를 일괄 수정하지 않았고,
+전체 설치공간이 최신이라는 주장 대신 위 시험 대상 launch의 실제 해석과 설치 일치만 확인했다.
+실주행은 아직0회이며 지도 후보는 로컬 생성본일 뿐 Git/Drive 운영 배포 자산으로 승격하지 않았다.
