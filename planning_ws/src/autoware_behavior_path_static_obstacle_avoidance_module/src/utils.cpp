@@ -252,6 +252,13 @@ bool isMovingObject(
 {
   const auto object_type = autoware::object_recognition_utils::getHighestProbLabel(object.object.classification);
   const auto object_parameter = parameters->object_parameters.at(object_type);
+  if (parameters->path_generation_method == "optimization_base") {
+    // Spatial obstacle constraints must follow the newest motion observation.
+    // No dwell timer: one bad low-speed sample must not delay a later correction.
+    const auto & v = object.object.kinematics.initial_twist_with_covariance.twist.linear;
+    const double speed = std::hypot(v.x, v.y);
+    return std::isfinite(speed) && speed > object_parameter.moving_speed_threshold;
+  }
   return object.move_time > object_parameter.moving_time_threshold;
 }
 
@@ -2154,6 +2161,26 @@ void fillObjectAvoidableByDesiredShiftLength(
 
   object_data.is_avoidable_by_desired_shift_length =
     same_id_obj->is_avoidable_by_desired_shift_length;
+}
+
+void releaseMovingClipObjects(
+  const AvoidancePlanningData & observations, ObjectDataArray & stored_objects,
+  ObjectDataArray & clip_objects, const std::shared_ptr<AvoidanceParameters> & parameters)
+{
+  const auto moving = [&](const auto & cached) {
+    const auto matches = [&](const auto & observed) {
+      return observed.object.object_id == cached.object.object_id &&
+        filtering_utils::isMovingObject(observed, parameters);
+    };
+    return std::any_of(observations.target_objects.begin(), observations.target_objects.end(), matches) ||
+      std::any_of(observations.other_objects.begin(), observations.other_objects.end(), matches);
+  };
+  // Clear both memories before dropout compensation can restore an old static
+  // pose. Absence alone is not motion evidence: truly occluded static objects stay.
+  stored_objects.erase(std::remove_if(stored_objects.begin(), stored_objects.end(), moving),
+                       stored_objects.end());
+  clip_objects.erase(std::remove_if(clip_objects.begin(), clip_objects.end(), moving),
+                     clip_objects.end());
 }
 
 void compensateLostTargetObjects(

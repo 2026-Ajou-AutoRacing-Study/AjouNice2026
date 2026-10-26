@@ -48,6 +48,11 @@ bool isOnRight(const ObjectData & obj);
 // Use the current valid observation; preserve history only when it is unavailable.
 Polygon2d selectStaticEnvelope(const Polygon2d & previous, const Polygon2d & observed);
 
+// A fresh moving observation hands ownership back to dynamic prediction immediately.
+void releaseMovingClipObjects(
+  const AvoidancePlanningData & observations, ObjectDataArray & stored_objects,
+  ObjectDataArray & clip_objects, const std::shared_ptr<AvoidanceParameters> & parameters);
+
 /**
  * @brief calculate shift length from centerline of current lane.
  * @param object offset direction.
