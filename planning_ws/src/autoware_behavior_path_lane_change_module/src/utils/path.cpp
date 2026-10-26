@@ -1,3 +1,4 @@
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 // Copyright 2024 TIER IV, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -715,13 +716,9 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
       initial_state.lateral_acceleration);
 
     const auto & trajectory = common_data_ptr->lc_param_ptr->trajectory;
-    const auto [min_lat_acc, max_lat_acc] = trajectory.lat_acc_map.find(
-      std::max(trajectory.min_lane_changing_velocity, metric.velocity));
     std::vector<frenet_planner::Trajectory> frenet_trajectories;
-    for (int i = 0; i <= trajectory.lat_acc_sampling_num; ++i) {
-      if (i > 0 && std::abs(max_lat_acc - min_lat_acc) < 1e-6) break;
-      const double lateral_acc = min_lat_acc +
-        (max_lat_acc - min_lat_acc) * i / trajectory.lat_acc_sampling_num;
+    for (const double lateral_acc : lateral_acceleration_samples(
+           trajectory, std::max(trajectory.min_lane_changing_velocity, metric.velocity))) {
       const auto sampling_parameters_opt = init_sampling_parameters(
         common_data_ptr, metric, initial_state, reference_spline, lateral_acc,
         target_lane_reference_path.points.front().point.longitudinal_velocity_mps);
@@ -756,7 +753,10 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
           }
         }
       }
-      if (exceeds_propulsion) { ++rejected_sampling; continue; }
+      if (exceeds_propulsion || !frenet_lateral_envelope_satisfied(traj, trajectory)) {
+        ++rejected_sampling;
+        continue;
+      }
       if (!trajectory_groups.empty()) {
         const auto diff = std::abs(
           traj.frenet_points.back().s -

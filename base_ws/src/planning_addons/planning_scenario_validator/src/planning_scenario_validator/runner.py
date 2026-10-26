@@ -243,6 +243,20 @@ def _load_scene(cfg, installed, monitor, ego_xy):
     udp = cfg["document"].get("morai", {})
     host, port = udp.get("scenario_load_host", "127.0.0.1"), int(udp.get("scenario_load_port", 9095))
     timeout = float(cfg["document"].get("scenario_ready_timeout_sec", 35))
+    if udp.get("clear_before_load", False):
+        # MORAI delete_all clears selected actor classes instead of loading
+        # their new contents. Wait for that distinct scene state before reload;
+        # sending both packets in one physics step cannot establish a clean scene.
+        clear_request = dict(request, delete_all=True, load_ego_vehicle_data=False)
+        clear_payload = build_scenario_load_payload(installed.stem, clear_request)
+        clear_after = time.monotonic()
+        monitor.event("SCENE_CLEAR_REQUESTED", installed=installed.name)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+            if connection.sendto(clear_payload, (host, port)) != len(clear_payload):
+                raise RuntimeFailure("ScenarioLoad 객체 제거 패킷 일부만 송신됨")
+        monitor.wait_empty_scene(after=clear_after, timeout=timeout)
+        monitor.event("SCENE_CLEAR_CONFIRMED")
+        time.sleep(1.0)  # Let the unpaused physics scene process actor removal.
     for attempt in range(1, 4):
         baseline_xy = None if monitor.ego is None else (
             float(monitor.ego.position.x), float(monitor.ego.position.y))

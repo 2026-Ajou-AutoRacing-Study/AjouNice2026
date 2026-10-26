@@ -105,3 +105,7 @@ if(CATKIN_ENABLE_TESTING AND TARGET gtest)
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/third_party
     RENAME gtest-LICENSE)
 endif()
+
+# Keep provider headers ahead of the merged install include tree (also added by
+# transitive dependencies). Mixing installed LC layouts with a candidate DSO is invalid.
+target_include_directories(autoware_behavior_path_avoidance_by_lane_change_module BEFORE PRIVATE ${LANE_CHANGE_INCLUDE_DIR})

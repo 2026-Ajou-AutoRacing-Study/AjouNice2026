@@ -707,7 +707,7 @@ std::optional<PredictedPathWithPolygon> transform_predicted_path(
   const autoware_perception_msgs::Shape & obj_shape, const double obj_normal_velocity,
   const double time_resolution)
 {
-  if (path.path.empty()) {
+  if (path.path.empty() || !std::isfinite(time_resolution) || time_resolution <= 0.0) {
     return std::nullopt;
   }
   PredictedPathWithPolygon pred_path_with_poly;
@@ -716,11 +716,12 @@ std::optional<PredictedPathWithPolygon> transform_predicted_path(
   const auto end_time =
     (static_cast<double>(path.time_step.sec) + 1e-9 * static_cast<double>(path.time_step.nanosec)) *
     static_cast<double>(path.path.size() - 1);
-  constexpr auto eps = std::numeric_limits<double>::epsilon();
+  if (!std::isfinite(end_time) || end_time < 0.0) return std::nullopt;
   const auto num_iterations = static_cast<size_t>(std::ceil(end_time / time_resolution)) + 1;
   pred_path_with_poly.path.reserve(num_iterations);
 
-  for (double t = 0.0; t < end_time + eps; t += time_resolution) {
+  for (size_t i = 0; i * time_resolution < end_time - 1e-9; ++i) {
+    const double t = i * time_resolution;
     if (
       const auto obj_pose_opt = autoware::object_recognition_utils::calcInterpolatedPose(path, t)) {
       const auto obj_polygon = autoware_utils::to_polygon2d(*obj_pose_opt, obj_shape);
@@ -728,10 +729,9 @@ std::optional<PredictedPathWithPolygon> transform_predicted_path(
     }
   }
 
-  if (pred_path_with_poly.path.empty()) {
-    return std::nullopt;
-  }
-
+  const auto & last_pose = path.path.back();
+  pred_path_with_poly.path.emplace_back(end_time, last_pose, obj_normal_velocity,
+    autoware_utils::to_polygon2d(last_pose, obj_shape));
   return pred_path_with_poly;
 }
 
@@ -792,6 +792,29 @@ lanelet::ConstLanelets generateExpandedLanelets(
 rclcpp::Logger getLogger(const std::string & type)
 {
   return rclcpp::get_logger("lane_change").get_child(type);
+}
+
+bool footprint_within_admitted_lane_union(
+  const Pose & ego_pose, const VehicleInfo & ego_info,
+  const autoware::behavior_path_planner::lane_change::LanesPolygon & lanes)
+{
+  using MultiPolygon = boost::geometry::model::multi_polygon<Polygon2d>;
+  MultiPolygon corridor;
+  for (const auto * lane : {&lanes.current, &lanes.target}) {
+    if (lane->size() < 3) continue;
+    Polygon2d polygon;
+    for (const auto & point : *lane) polygon.outer().emplace_back(point.x(), point.y());
+    boost::geometry::correct(polygon);
+    if (!boost::geometry::is_valid(polygon)) return false;
+    if (corridor.empty()) corridor.push_back(polygon);
+    else {
+      MultiPolygon merged;
+      boost::geometry::union_(corridor, polygon, merged);
+      corridor = std::move(merged);
+    }
+  }
+  return !corridor.empty() && boost::geometry::covered_by(
+    get_ego_footprint(ego_pose, ego_info), corridor);
 }
 
 Polygon2d get_ego_footprint(const Pose & ego_pose, const VehicleInfo & ego_info)
@@ -1403,12 +1426,36 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
   const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
   const size_t deceleration_sampling_num, const bool is_approved)
 {
+  return convert_to_predicted_paths(
+    common_data_ptr, lane_change_path, deceleration_sampling_num, is_approved, 0.0);
+}
+
+std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
+  const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
+  const size_t deceleration_sampling_num, const bool is_approved,
+  const double stationary_horizon)
+{
+  if (is_approved && lane_change_path.type == PathType::FrenetPlanner) {
+    // Stored Frenet timestamps/poses describe the original proposal, not the
+    // remaining maneuver from today's ego pose. Rebase its published spatial
+    // speed profile just as we do for approved PathShifter output.
+    auto remaining = lane_change_path;
+    remaining.type = PathType::SpatialSpeedProfile;
+    return convert_to_predicted_paths(common_data_ptr, remaining, deceleration_sampling_num,
+      true, stationary_horizon > 0.0 ? stationary_horizon : std::max(
+        common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution,
+        lane_change_path.info.duration.sum()));
+  }
   if (lane_change_path.type == PathType::SpatialSpeedProfile) {
     const auto & points = lane_change_path.path.points;
     if (points.size() < 2) return {};
     const auto & bpp = *common_data_ptr->bpp_param_ptr;
     const double start = calc_arc_length(points, common_data_ptr->get_ego_pose(), bpp);
-    const double end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
+    const double maneuver_end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
+    // Approval remains active while the body settles past the nominal endpoint.
+    // Do not manufacture an empty/unsafe observation in that finish buffer.
+    const double end = maneuver_end + (is_approved
+      ? std::max(0.0, common_data_ptr->lc_param_ptr->lane_change_finish_judge_buffer) : 0.0);
     std::vector<double> s, v;
     double arc = 0.0;
     for (size_t i = 1; i < points.size(); ++i) {
@@ -1427,15 +1474,19 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
       arc = next;
     }
     if (s.size() < 2) return {};
-    const double duration = speed_profile_duration(s, v);
+    const double duration = stationary_horizon > 0.0
+      ? observed_speed_profile_duration(s, v, stationary_horizon)
+      : speed_profile_duration(s, v);
     const double resolution = common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution;
     std::vector<PoseWithVelocityStamped> prediction;
     for (double t = 0; t < duration; t += resolution) {
       const auto state = sample_speed_profile(s, v, t);
       prediction.emplace_back(t, autoware::motion_utils::calcInterpolatedPose(points, state.first), state.second);
     }
+    const auto terminal_state = sample_speed_profile(s, v, duration);
     prediction.emplace_back(duration,
-      autoware::motion_utils::calcInterpolatedPose(points, s.back()), v.back());
+      autoware::motion_utils::calcInterpolatedPose(points, terminal_state.first),
+      terminal_state.second);
     std::vector<std::vector<PoseWithVelocityStamped>> result{prediction};
     {
       // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
@@ -1509,8 +1560,9 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto & velocities = frenet_candidate.lane_changing.longitudinal_velocities;
   const auto & times = frenet_candidate.lane_changing.times;
 
-  for (const auto [t, pose, velocity] :
-       ranges::views::zip(times, poses, velocities) | ranges::views::drop(1)) {
+  // Preparation excludes its endpoint. Execution must include t=0 at that
+  // join, particularly when preparation itself is zero seconds.
+  for (const auto [t, pose, velocity] : ranges::views::zip(times, poses, velocities)) {
     predicted_path.emplace_back(prepare_time + t, pose, velocity);
   }
 

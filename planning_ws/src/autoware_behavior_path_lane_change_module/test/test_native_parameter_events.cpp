@@ -3,6 +3,7 @@
 #include <autoware/behavior_path_lane_change_module/manager.hpp>
 #include <gtest/gtest.h>
 #include <cstdlib>
+#include <limits>
 namespace autoware::behavior_path_planner {
 class ParameterEventManager : public LaneChangeLeftModuleManager {
 public:
@@ -31,15 +32,30 @@ TEST(LaneChangeNativeParameterEvents, OriginalCallbackUpdatesScalarsAndRetainsRe
   manager.updateModuleParams({rclcpp::Parameter("lane_change.time_limit",5.0)});
   EXPECT_DOUBLE_EQ(manager.parameters().time_limit,70.0);
 }
+TEST(LaneChangeNativeParameterEvents, RecoveryTimeLoadsAndRejectsInvalidUpdates) {
+  ros::NodeHandle node("/lane_change_native_events");
+  node.setParam("lane_change/execution/recovery_time",0.75);
+  ParameterEventManager manager;ASSERT_TRUE(manager.initialize(&node));
+  EXPECT_DOUBLE_EQ(manager.parameters().execution_recovery_time,0.75);
+  manager.updateModuleParams({rclcpp::Parameter("lane_change.execution.recovery_time",1.25)});
+  EXPECT_DOUBLE_EQ(manager.parameters().execution_recovery_time,1.25);
+  manager.updateModuleParams({rclcpp::Parameter("lane_change.execution.recovery_time",-1.0)});
+  EXPECT_DOUBLE_EQ(manager.parameters().execution_recovery_time,1.25);
+  manager.updateModuleParams({rclcpp::Parameter("lane_change.execution.recovery_time",
+    std::numeric_limits<double>::quiet_NaN())});
+  EXPECT_DOUBLE_EQ(manager.parameters().execution_recovery_time,1.25);
+  node.setParam("lane_change/execution/recovery_time",0.0);
+  ParameterEventManager invalid;EXPECT_THROW(invalid.initialize(&node),std::invalid_argument);
+  node.setParam("lane_change/execution/recovery_time",1.0);
+}
 }
 int main(int argc,char ** argv) {
   ros::init(argc,argv,"lane_change_native_events");
   const int load_result = std::system(
-    "python3 \"$(rospack find autoware_behavior_path_lane_change_module)/scripts/"
-    "load_ros1_parameters.py\" /lane_change_native_events "
+    "rosrun autoware_behavior_path_lane_change_module load_ros1_parameters.py /lane_change_native_events "
     "--source \"$(rospack find autoware_behavior_path_lane_change_module)/config/"
     "lane_change.param.yaml\" "
     "--source \"$(rospack find autoware_test_utils)/config/test_common.param.yaml\"");
-  if (load_result != 0) return load_result;
+  if (load_result != 0) return EXIT_FAILURE;
   ::testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();
 }

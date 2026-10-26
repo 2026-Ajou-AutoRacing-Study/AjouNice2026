@@ -1,3 +1,4 @@
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 
 // Copyright 2024 TIER IV, Inc.
 //
@@ -560,6 +561,9 @@ std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr
   if (lc_param_ptr->trajectory.min_prepare_duration <= eps) {
     const double earliest = common_data_ptr->transient_data.lane_change_prepare_duration;
     const double latest = lc_param_ptr->trajectory.max_prepare_duration;
+    if (!lc_param_ptr->trajectory.preparation_duration_samples.empty()) {
+      return utils::lane_change::preparation_duration_samples(lc_param_ptr->trajectory, earliest);
+    }
     std::vector<double> durations;
     if (!std::isfinite(earliest) || earliest < 0.0 || earliest > latest) return durations;
     // Try an immediate safe maneuver first, then delayed alternatives if the
@@ -645,13 +649,6 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
   const auto & min_lc_vel = common_data_ptr->lc_param_ptr->trajectory.min_lane_changing_velocity;
   const auto & max_vel = common_data_ptr->bpp_param_ptr->max_vel;
 
-  // get lateral acceleration range
-  const auto [min_lateral_acc, max_lateral_acc] =
-    common_data_ptr->lc_param_ptr->trajectory.lat_acc_map.find(initial_velocity);
-  const auto lateral_acc_resolution =
-    std::abs(max_lateral_acc - min_lateral_acc) /
-    common_data_ptr->lc_param_ptr->trajectory.lat_acc_sampling_num;
-
   std::vector<PhaseMetrics> metrics;
 
   auto is_skip = [&](const double lane_changing_length) {
@@ -665,8 +662,8 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
     return false;
   };
 
-  for (double lat_acc = min_lateral_acc; lat_acc < max_lateral_acc + eps;
-       lat_acc += lateral_acc_resolution) {
+  for (const double lat_acc : lateral_acceleration_samples(
+         common_data_ptr->lc_param_ptr->trajectory, initial_velocity)) {
     const auto lane_changing_duration = autoware::motion_utils::calc_shift_time_from_jerk(
       shift_length, common_data_ptr->lc_param_ptr->trajectory.lateral_jerk, lat_acc);
 

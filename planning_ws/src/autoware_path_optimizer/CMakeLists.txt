@@ -52,6 +52,8 @@ target_link_libraries(path_optimizer_node PRIVATE ${PROJECT_NAME})
 
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
+  add_rostest_gtest(test_reused_geometry_velocity test/reused_geometry_velocity.test test/test_reused_geometry_velocity.cpp)
+  target_link_libraries(test_reused_geometry_velocity ${PROJECT_NAME} ${catkin_LIBRARIES})
   add_rostest_gtest(test_mpt_history_reset test/mpt_history_reset.test test/test_mpt_history_reset.cpp)
   target_link_libraries(test_mpt_history_reset ${PROJECT_NAME} ${catkin_LIBRARIES})
   catkin_add_gtest(test_obstacle_collision test/test_obstacle_collision.cpp)

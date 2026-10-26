@@ -165,7 +165,7 @@ class LiveMonitor:
         import rospy
         from autoware_perception_msgs.msg import DetectedObjects
         from autoware_planning_msgs.msg import LaneletRoute, Trajectory
-        from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus, GPSMessage
+        from morai_msgs.msg import CollisionData, CtrlCmd, EgoVehicleStatus, GPSMessage, ObjectStatusList
         from nav_msgs.msg import Odometry
         from sensor_msgs.msg import Imu
         from std_msgs.msg import Int8
@@ -175,6 +175,7 @@ class LiveMonitor:
         self.route = None
         self.trajectory = None
         self.detections = None
+        self.gt_objects = None
         self.competition = None
         self.gps = None
         self.imu = None
@@ -190,6 +191,8 @@ class LiveMonitor:
         self.seen_collision_ids = set()
         self.collision_count = 0
         self.far_collision = None
+        self.prearm_far_contact_ids = set()
+        self.reported_far_contact_ids = set()
         self.armed = False
         self.events_path = None
         self.goal_min = float("inf")
@@ -219,6 +222,7 @@ class LiveMonitor:
         self.latest_detection_objects = None
         rospy.Subscriber("/Ego_topic", EgoVehicleStatus, self._ego, queue_size=10)
         rospy.Subscriber("/CollisionData", CollisionData, self._collision, queue_size=10)
+        rospy.Subscriber("/Object_topic", ObjectStatusList, self._gt_objects, queue_size=10)
         rospy.Subscriber("/localization/kinematic_state", Odometry, self._odom, queue_size=10)
         rospy.Subscriber("/planning/mission_planning/route", LaneletRoute, self._route, queue_size=10)
         rospy.Subscriber("/planning/trajectory", Trajectory, self._trajectory, queue_size=10)
@@ -304,6 +308,18 @@ class LiveMonitor:
                 self.trajectory_near_max_speed_mps = max(self.trajectory_near_max_speed_mps,
                                                           near_speed)
 
+    def _gt_objects(self, message):
+        # Evaluation/readiness only; never injected into perception or planning.
+        self.gt_objects = message
+        self.stamps["gt_objects"] = time.monotonic()
+
+    def wait_empty_scene(self, *, after, timeout):
+        self.wait(lambda: self.stamps.get("gt_objects", 0) > after
+                  and self.gt_objects is not None
+                  and not (self.gt_objects.npc_list or self.gt_objects.pedestrian_list
+                           or self.gt_objects.obstacle_list),
+                  timeout, "ScenarioLoad 객체 제거 확인")
+
     def _detections(self, message):
         self.detections = message
         self.stamps["detections"] = time.monotonic()
@@ -348,18 +364,24 @@ class LiveMonitor:
                 if object_id in self.seen_collision_ids:
                     continue
                 distance = self._ego_distance(obj.position)
-                if distance is not None and distance > COLLISION_EGO_RADIUS_M:
-                    # MORAI는 이전 실행에서 Ego와 부딪힌 unique_id를 재사용된 NPC에도
-                    # 충돌로 보고한다. Ego 충돌이 아니므로 FAIL로 세지 않고 오염으로 처리한다.
-                    self.far_collision = (object_id, round(distance, 1))
-                    self.event("COLLISION_FAR_FROM_EGO", object_id=object_id,
-                               distance_m=round(distance, 1),
-                               position=[round(float(obj.position.x), 1), round(float(obj.position.y), 1)])
+                if distance is not None and distance >= COLLISION_EGO_RADIUS_M:
+                    # Ignore reports at or beyond 10 m regardless of pre-arm history.
+                    # Never mark these IDs seen: a later nearby report from the
+                    # same object must still count as a collision.
+                    reported = getattr(self, "reported_far_contact_ids", set())
+                    self.reported_far_contact_ids = reported
+                    if object_id not in reported:
+                        self.event("COLLISION_FAR_FROM_EGO_IGNORED", object_id=object_id,
+                                   distance_m=round(distance, 3),
+                                   threshold_m=COLLISION_EGO_RADIUS_M,
+                                   position=[round(float(obj.position.x), 1),
+                                             round(float(obj.position.y), 1)])
+                        reported.add(object_id)
                     continue
                 self.collision_count += 1
+                self.seen_collision_ids.add(object_id)
                 self.event("COLLISION", object_id=object_id,
                            distance_m=None if distance is None else round(distance, 1))
-            self.seen_collision_ids.update(current)
         self.collision_ids = current
         self.stamps["collision"] = received_at
 
@@ -570,9 +592,23 @@ class LiveMonitor:
                   and bool(self.trajectory.points), timeout, "새 planning trajectory")
 
     def arm(self, events_path):
+        tick = time.monotonic()
+        # Only currently reported, fresh, pre-arm far contacts are eligible.
+        # New far reports during driving retain the existing fatal integrity gate.
+        prearm_far = {
+            object_id for object_id, detail in list(
+                getattr(self, "preparation_collisions", {}).items())
+            if object_id in self.collision_ids
+            and detail["distance_m"] is not None
+            and math.isfinite(detail["distance_m"])
+            and detail["distance_m"] > COLLISION_EGO_RADIUS_M
+            and 0.0 <= tick - detail["receipt_monotonic"] <= 1.0
+        }
         self.begin_case(events_path)
         self.collision_count = 0
         self.far_collision = None
+        self.prearm_far_contact_ids = prearm_far
+        self.reported_far_contact_ids = set()
         # 이전 scenario의 contact ID가 새 시나리오 첫 접촉을 숨기지 않게 한다.
         self.collision_ids.clear()
         self.seen_collision_ids.clear()
@@ -585,6 +621,8 @@ class LiveMonitor:
         with self.evidence_lock:
             self.drive_started_at = None
         self.event("RUN_ARMED", existing_collision_ids=sorted(self.collision_ids))
+        if prearm_far:
+            self.event("PREARM_SPATIALLY_INVALID_CONTACTS", object_ids=sorted(prearm_far))
 
     def start_driving(self, started_at):
         """Reset evidence after the controller is ready, excluding startup brake hold."""
@@ -626,6 +664,8 @@ class LiveMonitor:
                                    if len(recent) >= 2 else None)
             return {
                 "drive_observation_available": True,
+                "prearm_spatially_invalid_contact_ids": sorted(
+                    getattr(self, "prearm_far_contact_ids", set())),
                 "max_displacement_m": round(self.max_displacement_m, 3),
                 "final_speed_mps": None if final_speed is None else round(final_speed, 3),
                 "stationary_duration_sec": round(tick - self.last_motion_at, 2)
@@ -675,10 +715,6 @@ class LiveMonitor:
             elapsed = tick - started
             if self.collision_count:
                 return "COLLISION", elapsed
-            if self.far_collision:
-                raise RuntimeFailure(
-                    "MORAI가 Ego와 {1}m 떨어진 객체 {0}을 충돌로 보고했습니다. 이전 충돌 상태가 남은 것으로 "
-                    "보입니다. MORAI를 재시작한 뒤 재개하세요".format(*self.far_collision))
             if elapsed >= case.timeout_sec:
                 return "TIMEOUT", elapsed
             if tick - self.stamps.get("odom", started) > stale:

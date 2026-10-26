@@ -390,8 +390,8 @@ class CampaignTest(unittest.TestCase):
             unique_id=10, position=SimpleNamespace(x=-111.3, y=358.3))])
         monitor._collision(far)
         self.assertEqual(monitor.collision_count, 0)
-        self.assertEqual(monitor.far_collision, (10, 56.1))
-        self.assertEqual(events[0][0], "COLLISION_FAR_FROM_EGO")
+        self.assertIsNone(monitor.far_collision)
+        self.assertEqual(events[0][0], "COLLISION_FAR_FROM_EGO_IGNORED")
         # 실제 접촉(중심 간 5.5m)은 그대로 충돌
         monitor.ego = SimpleNamespace(position=SimpleNamespace(x=-98.3, y=321.0))
         near = SimpleNamespace(collision_object=[SimpleNamespace(

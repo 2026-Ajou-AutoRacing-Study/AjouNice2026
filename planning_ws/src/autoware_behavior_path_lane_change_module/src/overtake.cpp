@@ -10,6 +10,7 @@
 #include <autoware/motion_utils/trajectory/interpolation.hpp>
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <tf2/utils.h>
+#include <boost/geometry.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -299,6 +300,78 @@ bool NormalLaneChange::prepareCandidateForSearch(
   return true;
 }
 
+void NormalLaneChange::updateExecutionManeuver(const LaneChangePath & candidate) const
+{
+  const auto changed = [](const std::optional<Pose> & previous, const Pose & pose) {
+    return !previous || autoware_utils::calc_distance2d(*previous, pose) > 1e-3 ||
+      std::abs(std::atan2(std::sin(tf2::getYaw(previous->orientation) - tf2::getYaw(pose.orientation)),
+                        std::cos(tf2::getYaw(previous->orientation) - tf2::getYaw(pose.orientation)))) > 1e-3;
+  };
+  if (changed(recovery_maneuver_start_, candidate.info.lane_changing_start) ||
+      changed(recovery_maneuver_end_, candidate.info.lane_changing_end)) {
+    feedback_recovery_ = {}; ego_recovery_ = {};
+    recovery_maneuver_start_ = candidate.info.lane_changing_start;
+    recovery_maneuver_end_ = candidate.info.lane_changing_end;
+  }
+}
+
+std::vector<lc::ExecutionProgressPoint> NormalLaneChange::executionProfile(
+  const LaneChangePath & candidate) const
+{
+  const auto & reference = common_data_ptr_->current_lanes_path.points;
+  if (reference.size() < 2) return {};
+  const auto & origin = reference.front().point.pose.position;
+  const double end = autoware::motion_utils::calcSignedArcLength(
+    reference, origin, candidate.info.lane_changing_end.position);
+  std::vector<lc::ExecutionProgressPoint> profile;
+  double last_speed = 0.0;
+  for (const auto & point : candidate.path.points) {
+    const double s = autoware::motion_utils::calcSignedArcLength(reference, origin, point.point.pose.position);
+    if (!std::isfinite(s) || s > end + 1.0 ||
+        (!profile.empty() && s <= profile.back().s + 1e-3)) continue;
+    const double speed = std::abs(point.point.longitudinal_velocity_mps);
+    const double time = profile.empty() ? 0.0 : profile.back().time +
+      (s - profile.back().s) / std::max(0.1, 0.5 * (last_speed + speed));
+    profile.push_back({s, autoware::motion_utils::calcLateralOffset(reference, point.point.pose.position),
+                       time, tf2::getYaw(point.point.pose.orientation)});
+    last_speed = speed;
+  }
+  // Path point velocities can be map caps rather than the chosen maneuver's
+  // arrival times. Anchor the phase clock to the selected LC duration.
+  if (profile.size() < 2 || !std::isfinite(candidate.info.duration.lane_changing) ||
+      candidate.info.duration.lane_changing <= 0.0) return {};
+  const double start = autoware::motion_utils::calcSignedArcLength(
+    reference, origin, candidate.info.lane_changing_start.position);
+  const auto time_at = [&](double arc) {
+    for (size_t i = 1; i < profile.size(); ++i) {
+      if (arc > profile[i].s && i + 1 < profile.size()) continue;
+      const auto & a = profile[i - 1]; const auto & b = profile[i];
+      return a.time + std::clamp((arc - a.s) / (b.s - a.s), 0.0, 1.0) * (b.time - a.time);
+    }
+    return profile.back().time;
+  };
+  const double start_time = time_at(start), end_time = time_at(end);
+  if (end_time <= start_time) return {};
+  const double scale = candidate.info.duration.lane_changing / (end_time - start_time);
+  for (auto & point : profile) point.time = (point.time - start_time) * scale;
+  return profile;
+}
+
+double NormalLaneChange::executionRecoveryTime(
+  const Pose & pose, double speed, const std::vector<lc::ExecutionProgressPoint> & profile) const
+{
+  const auto & reference = common_data_ptr_->current_lanes_path.points;
+  if (reference.size() < 2) return std::numeric_limits<double>::infinity();
+  const auto & params = lane_change_parameters_->trajectory;
+  // The candidate generator uses this same speed-dependent lateral envelope.
+  if (params.lat_acc_map.base_vel.empty()) return std::numeric_limits<double>::infinity();
+  const double max_acc = params.lat_acc_map.find(std::abs(speed)).second;
+  return lc::execution_recovery_time(profile,
+    autoware::motion_utils::calcSignedArcLength(reference, reference.front().point.pose.position, pose.position),
+    autoware::motion_utils::calcLateralOffset(reference, pose.position), tf2::getYaw(pose.orientation),
+    speed, lane_change_parameters_->th_finish_judge_lateral_diff, max_acc, params.lateral_jerk);
+}
+
 std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVelocityPrediction(
   const LaneChangePath & candidate) const
 {
@@ -327,6 +400,11 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
     return reject("feedback_frame_missing");
   }
   if (feedback->header.frame_id != candidate.path.header.frame_id) return reject("feedback_frame_mismatch");
+  for (const auto & point : feedback->points) {
+    if (!std::isfinite(point.pose.position.x) || !std::isfinite(point.pose.position.y) ||
+        !std::isfinite(tf2::getYaw(point.pose.orientation)) ||
+        !std::isfinite(point.longitudinal_velocity_mps)) return reject("feedback_nonfinite");
+  }
   const auto nearest = std::min_element(feedback->points.begin(), feedback->points.end(),
     [&](const auto & a, const auto & b) {
       return autoware_utils::calc_distance2d(a.pose, getEgoPose()) <
@@ -339,28 +417,14 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
   if (reference.size() < 2) return reject("reference_unavailable");
   const double end = autoware::motion_utils::calcSignedArcLength(reference,
     getEgoPosition(), candidate.info.lane_changing_end.position);
-  std::vector<double> positions, velocities;
-  for (const auto & point : feedback->points) {
-    const double s = autoware::motion_utils::calcSignedArcLength(
-      reference, getEgoPosition(), point.pose.position);
-    const auto segment = autoware::motion_utils::findNearestSegmentIndex(
-      candidate.path.points, point.pose.position);
-    const auto & a = candidate.path.points[segment].point.pose.position;
-    const auto & b = candidate.path.points[segment + 1].point.pose.position;
-    const double dx = b.x-a.x, dy = b.y-a.y;
-    const double ratio = std::clamp(((point.pose.position.x-a.x)*dx +
-      (point.pose.position.y-a.y)*dy)/std::max(1e-9, dx*dx+dy*dy), 0.0, 1.0);
-    if (s >= 0 && s <= end + 1.0 && std::hypot(point.pose.position.x-a.x-ratio*dx,
-                            point.pose.position.y-a.y-ratio*dy) > 0.5) {
-      return reject("feedback_maneuver_geometry_mismatch");
-    }
-    if (!std::isfinite(s) || !std::isfinite(point.longitudinal_velocity_mps)) return reject("feedback_nonfinite");
-    if (!positions.empty() && s <= positions.back()+1e-3) continue;
-    positions.push_back(s);
-    velocities.push_back(std::max(0.0, static_cast<double>(point.longitudinal_velocity_mps)));
+  const double first_s = autoware::motion_utils::calcSignedArcLength(
+    reference, getEgoPosition(), feedback->points.front().pose.position);
+  const double last_s = autoware::motion_utils::calcSignedArcLength(
+    reference, getEgoPosition(), feedback->points.back().pose.position);
+  if (!std::isfinite(first_s) || !std::isfinite(last_s) || first_s > 1.0 || last_s <= first_s) {
+    return reject("feedback_off_route");
   }
-  if (positions.size() < 2 || positions.front() > 1.0) return reject("feedback_off_route");
-  if (positions.back() < end) return reject("feedback_shorter_than_maneuver");
+  if (last_s < end) return reject("feedback_shorter_than_maneuver");
   auto capped = candidate;
   // Recheck the final geometry and speed themselves. Projecting only its speed
   // onto the old candidate silently ignores optimizer-induced lateral changes.
@@ -373,9 +437,63 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
   }
   capped.type = lane_change::PathType::SpatialSpeedProfile;
   try {
-    const auto predictions = lc::convert_to_predicted_paths(common_data_ptr_, capped, 1, false);
+    const double observation_horizon = std::max(
+      lane_change_parameters_->safety.collision_check.prediction_time_resolution,
+      candidate.info.duration.sum());
+    const auto predictions = lc::convert_to_predicted_paths(
+      common_data_ptr_, capped, 1, true, observation_horizon);
     if (predictions.empty() || predictions.front().empty()) return reject("feedback_prediction_empty");
-    overtake_feedback_reason_ = "final_speed_profile_checked";
+    // Validate the full body on the currently admitted current/target corridor.
+    // A phase-delay allowance never grants permission to leave the road.
+    using Polygon = autoware_utils::Polygon2d;
+    using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
+    MultiPolygon corridor;
+    for (const auto * lane : {&common_data_ptr_->lanes_polygon_ptr->current,
+                             &common_data_ptr_->lanes_polygon_ptr->target}) {
+      if (lane->size() < 3) continue;
+      Polygon polygon;
+      for (const auto & p : *lane) polygon.outer().emplace_back(p.x(), p.y());
+      boost::geometry::correct(polygon);
+      if (!boost::geometry::is_valid(polygon)) return reject("feedback_corridor_invalid");
+      MultiPolygon merged;
+      if (corridor.empty()) corridor.push_back(polygon);
+      else { boost::geometry::union_(corridor, polygon, merged); corridor = std::move(merged); }
+    }
+    if (corridor.empty()) return reject("feedback_corridor_missing");
+    const auto measured_body = lc::get_ego_footprint(getEgoPose(), planner_data_->parameters.vehicle_info);
+    if (!boost::geometry::covered_by(measured_body, corridor)) {
+      hard_collision_detected_ = true;
+      return reject("ego_outside_corridor");
+    }
+    for (const auto & predicted : predictions.front()) {
+      const auto body = lc::get_ego_footprint(predicted.pose, planner_data_->parameters.vehicle_info);
+      if (!boost::geometry::covered_by(body, corridor)) {
+        hard_collision_detected_ = true;  // Bypass soft unsafe hysteresis for a physical road violation.
+        return reject("feedback_outside_corridor");
+      }
+    }
+    updateExecutionManeuver(candidate);
+    const auto profile = executionProfile(candidate);
+    if (profile.size() < 2) return reject("feedback_phase_profile_invalid");
+    execution_required_recovery_time_ = 0.0;
+    // The same time samples used by collision checking define executed progress.
+    // Dense output resampling must not multiply monitoring cost or invent timing.
+    for (const auto & point : predictions.front()) {
+      const double s = autoware::motion_utils::calcSignedArcLength(
+        reference, getEgoPosition(), point.pose.position);
+      if (s < 0.0 || s > end + 1.0) continue;
+      execution_required_recovery_time_ = std::max(execution_required_recovery_time_,
+        executionRecoveryTime(point.pose, point.velocity, profile));
+    }
+    const bool recoverable = execution_required_recovery_time_ <=
+      lane_change_parameters_->execution_recovery_time;
+    if (feedback_recovery_.expired(now.toSec(), recoverable,
+                                  lane_change_parameters_->execution_recovery_time)) {
+      execution_replan_requested_ = true;
+      overtake_feedback_reason_ = "feedback_progress_replan_requested";
+      return predictions.front();
+    }
+    overtake_feedback_reason_ = recoverable ? "final_speed_profile_checked" : "feedback_recovery_pending";
     return predictions.front();
   } catch (const std::exception &) { return reject("feedback_speed_profile_stops"); }
 }

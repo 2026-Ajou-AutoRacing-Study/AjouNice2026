@@ -108,6 +108,8 @@ void LaneChangeInterface::updateData()
 
   if (isWaitingApproval()) {
     module_type_->updateLaneChangeStatus();
+  } else if (getCurrentStatus() == ModuleStatus::RUNNING) {
+    module_type_->refreshApprovedPlan();
   }
 
   module_type_->resetStopPose();
@@ -245,6 +247,10 @@ bool LaneChangeInterface::canTransitSuccessState()
     return false;
   }
 
+  if (module_type_->isAbortState()) {
+    return false;
+  }
+
   if (module_type_->hasFinishedLaneChange()) {
     module_type_->resetParameters();
     log_debug_throttled("Lane change process has completed.");
@@ -285,6 +291,13 @@ bool LaneChangeInterface::canTransitFailureState()
 
   const auto [state, reason] = check_transit_failure();
 
+  if (state == LaneChangeStates::Cancel ||
+      (state == LaneChangeStates::Abort && !module_type_->isAbortState())) {
+    const auto & pose = module_type_->getEgoPose().position;
+    RCLCPP_WARN(getLogger(), "LC decision module=%s state=%d reason=%.*s x=%.3f y=%.3f speed=%.3f",
+      name().c_str(), static_cast<int>(state), static_cast<int>(reason.size()), reason.data(),
+      pose.x, pose.y, module_type_->getEgoVelocity());
+  }
   interface_debug_.failing_reason = reason;
   interface_debug_.lc_state = state;
 
