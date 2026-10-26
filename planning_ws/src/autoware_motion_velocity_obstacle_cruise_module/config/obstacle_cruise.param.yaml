@@ -11,7 +11,7 @@
         safe_distance_margin : 5.0 # This is also used as a stop margin [m]
 
         pid_based_planner:
-          target_distance_scale: 0.6 # Scale the complete RSS target, then clamp to safe_distance_margin.
+          target_distance_scale: 0.4 # Scale the complete RSS target, then clamp to safe_distance_margin.
           use_velocity_limit_based_planner: true
           error_function_type: quadratic # choose from linear, quadratic
 
