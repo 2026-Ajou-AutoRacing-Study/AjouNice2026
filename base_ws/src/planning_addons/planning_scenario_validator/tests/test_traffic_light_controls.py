@@ -13,7 +13,7 @@ from planning_scenario_validator import batch, executions, gui, runner
 from planning_scenario_validator.authoring import quick_test_document
 from planning_scenario_validator.config import ConfigError, load_campaign, validate_campaign_document
 from planning_scenario_validator.recording_options import TRAFFIC_LIGHT_DEBUG_TOPIC
-from planning_scenario_validator.traffic_light import launch_options, TIMED_POLICY_DEFAULTS
+from planning_scenario_validator.traffic_light import launch_options, timed_policy_options, TIMED_POLICY_DEFAULTS
 
 
 YELLOW = 'traffic_light_yellow_passthrough'
@@ -196,12 +196,14 @@ class TrafficControlsTests(unittest.TestCase):
             runner._start_case_stack(cfg, processes, Mock())
         commands = {c.args[0]: c.args[1] for c in processes.start.call_args_list}
         self.assertIn('enable_yellow_passthrough:=false', commands['planning'])
+        self.assertIn('signal_compliance_required_green_observations:=1', commands['planning'])
         self.assertIn('publish_debug_image:=false', commands['traffic_light'])
         self.assertNotIn('traffic_light_debug_view', commands)
 
     def test_timed_policy_has_typed_explicit_options_and_old_snapshot_shape_is_preserved(self):
         old = launch_options({}, legacy_snapshot=True)
         self.assertEqual(old, dict(yellow_passthrough=True, debug_view=False, publish_debug_image=True))
+        self.assertEqual(timed_policy_options({})['signal_compliance_required_green_observations'], 1)
         self.document['stack'].update(signal_compliance_enable_timed_yellow=True,
             signal_compliance_required_green_observations=2,
             signal_compliance_min_yellow_sec=2., signal_compliance_yellow_time_margin_sec=.25)

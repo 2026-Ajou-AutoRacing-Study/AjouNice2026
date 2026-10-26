@@ -44,7 +44,7 @@ COMMENTS = {
     "stack.signal_compliance_enable_timed_yellow": "기본 false. 시간제한 후보는 이 값과 황색 통과 허용이 모두 true여야 작동합니다. 기존 GUI 황색 체크만으로 자동 활성화하지 않습니다.",
     "stack.signal_compliance_min_yellow_sec": "기본 2.0초. 공식 보장이 아닌 명시적 최소 황색 가정입니다. 최초 황색 관측부터 이 시간을 새로 세지 않습니다.",
     "stack.signal_compliance_yellow_time_margin_sec": "기본 0.2초. 지연/도달 시간 불확실성 여유이며 검증된 종단 지연 상한은 아닙니다. 최소 황색 시간보다 작아야 합니다.",
-    "stack.signal_compliance_required_green_observations": "기본 3. 서로 다른 신선한 허가 영상 확인 횟수(1~3)입니다. 원래 관측 stamp가 같은 유지 신호는 새 확인이 아닙니다.",
+    "stack.signal_compliance_required_green_observations": "기본 1. 서로 다른 신선한 허가 영상 확인 횟수(1~3)입니다. 원래 관측 stamp가 같은 유지 신호는 새 확인이 아닙니다.",
     "stack.traffic_light_debug_view": "기본 false. true는 YOLO/CNN 디버그 창을 열고, bag ON일 때 디버그 JPEG도 기록합니다. 화면 영상 녹화와 별도입니다.",
     "stack.traffic_light_runtime": "system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.",
     "stack.traffic_light_python": "가상환경 bin/python 경로. conda activate는 필요 없습니다.",

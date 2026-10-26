@@ -12,7 +12,7 @@ PROFILE_LABELS = {'v5_candidate': 'v5 지도+CNN 후보', 'legacy': '기존 YOLO
 LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
 TIMED_POLICY_DEFAULTS = {
-    'signal_compliance_required_green_observations': 3,
+    'signal_compliance_required_green_observations': 1,
     'signal_compliance_min_yellow_sec': 2.0,
     'signal_compliance_yellow_time_margin_sec': 0.2,
     'signal_compliance_enable_timed_yellow': False,

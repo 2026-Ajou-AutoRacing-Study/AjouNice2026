@@ -30,7 +30,7 @@
   <arg name="signal_compliance_enable_timed_yellow" default="false"/>
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
-  <arg name="signal_compliance_required_green_observations" default="3"/>
+  <arg name="signal_compliance_required_green_observations" default="1"/>
   <!-- Competition: before the first readable lamp, a fresh UNKNOWN does not
        insert a stop point. Explicit red/yellow and later UNKNOWN still stop. -->
   <arg name="defer_unseen_until_observed" default="true"/>

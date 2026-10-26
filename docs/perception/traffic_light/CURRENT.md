@@ -6,7 +6,7 @@
 ## 운영 기준
 
 - `traffic_light_node.launch`: front JPEG 1280×720, YOLO housing 1클래스,
-  confidence 0.25, 최대 처리 10Hz. 운영은 직접 관측 전달 + 판단의 서로 다른 허가 관측 3개 확인이다.
+  confidence 0.25, 최대 처리 10Hz. 운영은 직접 관측 전달 + 판단의 신선한 허가 관측 1개 확인이다.
 - 기본은 YOLO26n960 + 지도 연결 + CNN v5, `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다.
   고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
 - 운영은 CNN 4-bit 관측 보존이며, 색·화살표를 추가하는 보정은 명시적 legacy에만 남는다.
@@ -37,10 +37,10 @@
   `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
-- [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
+- [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 당시 시험값이다. 운영 기본 허가 확인은 2026-10-27에 1회로 변경했다.
 - 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml)는 명시적 `map_version:=94`로 지도·SHA·Route A/B를 함께 고른다. 최신 planning 기본v88은 유지하며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. [v93 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93) 차이2.34px를 새 LAN 인증으로 쓰지 않는다.
 - 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 소등·모순·TF/route/실제 화각 실패는 UNKNOWN이다.
-- Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 기존의 서로 다른 3개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하거나 3회 허가 관측을 채우는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
+- Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 현재 기본인 신선한 1개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
@@ -71,7 +71,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
 
-- [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)로 설치하며 timeout1초·황색OFF·허가3회·ID0 경계는 유지한다.
+- [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. 당시에는 timeout1초·황색OFF·허가3회·ID0 경계를 유지했으며, 허가 확인만 2026-10-27에 별도 1회로 변경했다. 인식 모델 성능은 그대로다. 자연 풀주행 2회의 A/B/C/D 관측열 오프라인 대조에서 안정 허가 구간의 첫 관측→세 번째 관측 간격은 0.209~0.260초였다. 총190개 허가 프레임 중 전후0.25초의 동일 native 상태로 확인 가능한184개는 모두 방향 허가였고, 6개는 그 조건으로 미확인이다. B에는 한 프레임만 허가로 나온 구간 3개가 있었고 주변 native 조회는 녹색이었다. 1회 설정에서는 이런 구간에 궤적이 잠깐 열렸다 닫힐 수 있다. **1회 설정으로 새 폐루프 주행을 검증한 결과는 아니며**, 오출발률이나 실대회 패널티 변화를 인증하지 않는다. 기존 실행 snapshot에서 허가3회를 명시했다면 그대로 유지된다.
 
 ## 평가·학습 경계
 

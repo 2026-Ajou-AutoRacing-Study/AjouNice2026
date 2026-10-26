@@ -223,7 +223,7 @@ def _start_case_stack(cfg, processes, monitor):
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
         enable_traffic_light_planner=stack.get("traffic_light", False),
         enable_yellow_passthrough=traffic_options['yellow_passthrough'],
-        signal_compliance_required_green_observations=traffic_options.get('signal_compliance_required_green_observations', 3),
+        signal_compliance_required_green_observations=traffic_options.get('signal_compliance_required_green_observations', 1),
         signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
         signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),
         signal_compliance_enable_timed_yellow=traffic_options.get('signal_compliance_enable_timed_yellow', False),
