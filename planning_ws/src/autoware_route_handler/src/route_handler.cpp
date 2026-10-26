@@ -774,14 +774,19 @@ lanelet::ConstLanelets RouteHandler::getLaneletSequenceUpTo(
 
     if (checkForLoop(previous_lanelets, true)) break;
 
+    bool advanced = false;
     for (const auto & prev_lanelet : previous_lanelets) {
       if (!isNewLanelet(prev_lanelet) || exists(goal_lanelets_, prev_lanelet)) continue;
       lanelet_sequence_backward.push_back(prev_lanelet);
       length +=
         static_cast<double>(boost::geometry::length(prev_lanelet.centerline().basicLineString()));
       current_lanelet = prev_lanelet;
+      advanced = true;
       break;
     }
+    // All predecessors may already have been visited, or be goal lanelets.
+    // Without progress both current_lanelet and length stay unchanged forever.
+    if (!advanced) break;
   }
 
   std::reverse(lanelet_sequence_backward.begin(), lanelet_sequence_backward.end());

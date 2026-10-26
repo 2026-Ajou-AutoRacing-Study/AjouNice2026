@@ -109,7 +109,9 @@ class GatewayROS(unittest.TestCase):
         self.pubs['odometry_topic'].publish(odom)
         self.pubs['operation_mode_topic'].publish(mode)
         self.pubs['route_state_topic'].publish(state)
-        self.pubs['map_topic'].publish(LaneletMapBin(data=b'mock binary; not a map-loader test'))
+        self.pubs['map_topic'].publish(LaneletMapBin(
+            version_map=str(self.routes['map']['version']),
+            data=b'mock binary; not a map-loader test'))
         availability = RerouteAvailability(availability=True)
         availability.stamp.sec, availability.stamp.nanosec = now.secs, now.nsecs
         self.pubs['reroute_availability_topic'].publish(availability)
@@ -185,6 +187,15 @@ class GatewayROS(unittest.TestCase):
         self.route.header.stamp = rospy.Time.now()
         response.status.success = True
         return response
+
+    def test_mixed_map_version_is_rejected_before_route_rpc(self):
+        self.timer.shutdown()
+        self.gateway.map.version_map = '87'
+        allowed, reason = self.gateway.guard('route_a')
+        self.assertFalse(allowed)
+        self.assertIn('map versions differ', reason)
+        self.assertFalse(self.client('route_a').accepted)
+        self.assertEqual(self.calls, 0)
 
     def test_a_service_and_fresh_output(self):
         self.assertTrue(self.client('route_a').accepted)
