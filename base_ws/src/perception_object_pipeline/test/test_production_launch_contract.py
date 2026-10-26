@@ -8,7 +8,7 @@ import yaml
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_highway_eight_second_production_wiring_and_rollback():
+def test_highway_ten_second_production_wiring_and_rollback():
     wrapper = ET.parse(PACKAGE_ROOT / 'launch/tracking_prediction.launch').getroot()
     defaults = {a.attrib['name']: a.attrib.get('default') for a in wrapper.findall('arg')}
     assert defaults['prediction_mixed_horizon_enabled'] == 'true'
@@ -32,7 +32,7 @@ def test_highway_eight_second_production_wiring_and_rollback():
     assert leaf.find("arg[@name='prediction_horizon']").attrib['default'] == ''
     policy = yaml.safe_load((PACKAGE_ROOT / 'config/map_based_prediction.yaml').read_text())
     assert policy['prediction_horizon'] == 3.0
-    assert policy['highway_prediction_horizon'] == 8.0
+    assert policy['highway_prediction_horizon'] == 10.0
     assert policy['highway_prediction_mode'] == 'native'
     assert "arg('prediction_horizon') != ''" in node.find("param[@name='prediction_horizon']").attrib['if']
 
@@ -146,7 +146,7 @@ def test_production_topics_and_v87_map_are_explicit():
     assert arguments["measurement_tracked_objects"] == "/perception/object_recognition/tracking/measurement_objects"
     assert arguments["tracked_objects"] == "/perception/object_recognition/tracking/objects"
     assert arguments["predicted_objects"] == "/perception/object_recognition/objects"
-    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v88.osm")
+    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v94.osm")
     assert top_level["projector_file"]["default"].endswith("/map_projector_info_v1.yaml")
     assert arguments["map_file"] == "$(arg map_file)"
     assert arguments["projector_file"] == "$(arg projector_file)"

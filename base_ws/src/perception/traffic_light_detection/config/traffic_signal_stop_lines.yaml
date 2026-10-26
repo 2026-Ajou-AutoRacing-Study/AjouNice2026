@@ -1,42 +1,10 @@
-# The Lanelet ref_line is a conservative stopping target, not necessarily the
-# painted signal crossing line. Never edit the v87 map to conflate them.
-# Metadata is provenance only: consumers qualify each expected_stop_line_xy
-# against the loaded map and WARN + keep its legacy geometry on mismatch.
+# v94 owns the signal stop-line coordinates in the Lanelet map.
+# No per-signal extra stop margins or alternative crossing lines.
+# Keep the loader-compatible empty list for this recovery branch; the main
+# planning branch has removed this legacy interface entirely.
 signal_stop_line_contract_metadata:
   schema_version: 1
   coordinate_frame: map
-  evidence_scope: original_MGeo_type530_proxy_not_official_penalty_certification
-  map_file: kcity_map/lanelet_map/lanelet2_map_v88.osm
-  map_sha256: dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37
-  projector_sha256: ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c
-  source_file: kcity_map/mgeo_map_scenario_runner_2025/lane_boundary_set.json
-  source_sha256: f1866622ce53e6e0accc5859ee168d648b667024c0fb5174293f55884ae91abb
-  source_global_info_sha256: 6d06b8f17f4f816fed6bdb1ee386c9ef6bc95c282004d51f29238dfaa7ed208a
-  map_from_MGeo_translation_xyz: [131.55913022020832, 545.9113381858915, 0.0]
-  source_paint_ids:
-    A: B2256W000556
-    B: B2256W000447
-    C: B2256W000235
-    D: B2256W000252
-
-signal_stop_line_contracts:
-  - regulatory_id: 201351  # A
-    expected_stop_line_xy: [35.972092958458234, 290.2142798276618, 38.545592842041515, 288.7606800138019]
-    crossing_line_xy: [36.17822785425233, 290.9735101959668, 39.00550990493503, 289.3480484075844]
-    additional_stop_margin_m: 0.0
-    max_anchor_error_m: 0.5
-  - regulatory_id: 201365  # B
-    expected_stop_line_xy: [69.91264359129127, 383.89292477443814, 72.884528143215, 383.69195281527936]
-    crossing_line_xy: [70.05236758245156, 390.5600869250484, 73.43097883008886, 390.47539399331435]
-    additional_stop_margin_m: 0.75
-    max_anchor_error_m: 0.5
-  - regulatory_id: 201290  # C
-    expected_stop_line_xy: [69.67119320278289, 510.6337793194689, 73.75549268117175, 510.6662796875462]
-    crossing_line_xy: [69.46689628215973, 511.380349310115, 73.34325776831247, 511.4220066568814]
-    additional_stop_margin_m: 0.0
-    max_anchor_error_m: 0.5
-  - regulatory_id: 201326  # D (old D-2)
-    expected_stop_line_xy: [111.1024467011448, 646.4037135881372, 111.12857452320168, 643.1741726440378]
-    crossing_line_xy: [118.86996970581822, 646.4928034278564, 118.86187606549356, 643.206661678385, 118.84344652679283, 635.7239869977348]
-    additional_stop_margin_m: 0.75
-    max_anchor_error_m: 0.5
+  map_file: kcity_map/lanelet_map/lanelet2_map_v94.osm
+  map_sha256: 3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf
+signal_stop_line_contracts: []

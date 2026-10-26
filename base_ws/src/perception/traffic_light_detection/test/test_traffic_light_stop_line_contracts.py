@@ -139,22 +139,17 @@ class StopLineContractsTest(unittest.TestCase):
                    {GROUPS[0]:[(10.,-1.),(10.,1.)]})
         self.assertEqual(matcher._contract_crossing_positions[GROUPS[0]], (16.,1.))
 
-    def test_checked_in_profile_matches_frozen_v87_expected_anchors_and_sources(self):
+    def test_v94_uses_map_stop_lines_without_per_signal_overrides(self):
         import hashlib
         import yaml
         root = Path(__file__).resolve().parents[5]
         document = yaml.safe_load((root/'base_ws/src/perception/traffic_light_detection/config/traffic_signal_stop_lines.yaml').read_text())
-        contracts = MODULE._stop_line_contracts(document['signal_stop_line_contracts'])
-        self.assertEqual(set(contracts), set(GROUPS))
+        self.assertEqual(document['signal_stop_line_contracts'], [])
+        self.assertEqual(MODULE._stop_line_contracts(document['signal_stop_line_contracts']), {})
         metadata = document['signal_stop_line_contract_metadata']
+        self.assertTrue(metadata['map_file'].endswith('lanelet2_map_v94.osm'))
         self.assertEqual(hashlib.sha256((root/metadata['map_file']).read_bytes()).hexdigest(), metadata['map_sha256'])
         self.assertEqual(set(MODULE._parse_stop_line_latlon(root/metadata['map_file'])) & set(GROUPS), set(GROUPS))
-        self.assertEqual([contracts[gid]['additional_stop_margin_m'] for gid in GROUPS], [0., .75, 0., .75])
-        self.assertEqual(len(contracts[GROUPS[3]]['crossing_line_xy']), 6)
-        # Large MGeo assets are intentionally absent on fresh team checkouts.
-        # Check their provenance when present, without making them a test/runtime dependency.
-        if (root/metadata['source_file']).exists():
-            self.assertEqual(hashlib.sha256((root/metadata['source_file']).read_bytes()).hexdigest(), metadata['source_sha256'])
 
 
 if __name__ == '__main__': unittest.main()

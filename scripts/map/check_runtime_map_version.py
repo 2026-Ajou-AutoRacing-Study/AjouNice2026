@@ -7,8 +7,8 @@ import hashlib
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 88
-SHA = 'dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37'
+VERSION = 94
+SHA = '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()
@@ -32,6 +32,11 @@ for directory in roots:
                 ('tracking_prediction_evaluation' in path.parts and path.suffix != '.launch')):
             continue
         if '/install' not in str(path) and str(path.relative_to(ROOT)) not in source_files:
+            continue
+        # Installed copies of user campaign YAMLs are historical experiment
+        # inputs, not current defaults. Preserve their original map contracts.
+        if ('planning_scenario_validator' in path.parts and 'config' in path.parts
+                and 'workspace' in path.parts):
             continue
         # Released versioned configs remain available for rollback, but are not
         # runtime consumers unless a non-versioned launch/config points to them.

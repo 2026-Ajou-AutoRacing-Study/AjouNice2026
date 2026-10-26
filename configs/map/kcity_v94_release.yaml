@@ -1,0 +1,65 @@
+schema_version: 1
+map_version: 94
+map_file: kcity_map/lanelet_map/lanelet2_map_v94.osm
+map_sha256: 3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf
+map_storage: git
+lanelet_count: 1295
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+route_definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v94_competition_route.yaml
+requester_config_file: base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v94.param.yaml
+mission_planner_config_file: base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v94.yaml
+rule_monitor_config_file: base_ws/src/competition/competition_rule_monitor/config/kcity_v94_rules.yaml
+default_planning_launch: ajounice_planning_integration/competition_planning.launch
+explicit_planning_launch: ajounice_planning_integration/competition_planning_v94.launch
+vmb_errors: null
+live_closed_loop_validation: first_route_b_verified_and_driving_started_full_campaign_pending
+team_drive_upload: user_managed_not_uploaded
+speed_limit_policy: unchanged_v88_osm_attributes
+vmb_validation: not_run
+native_geometry_validation: identical_lane_geometry_and_relation_members_to_v88
+native_route_cases: null
+native_route_section_transitions: null
+launch_resolution_cases: 1
+source_and_installed_map_reference_audit: passed_105_runtime_references
+preferred_corridor:
+- 200360
+- 201479
+- 201451
+adjacent_corridor:
+- 200185
+- 201448
+- 201452
+speed_limit_kph:
+  '200360': 150
+  '200185': 150
+  '201479': 80
+  '201448': 80
+  '201451': 70
+  '201452': 70
+external_interface_alignment_lanelets:
+- 200147
+- 201449
+geometry_preserved_speed_only_lanelets:
+- 201451
+- 201452
+evidence_directory: planner_logs/analysis/v94_adoption_20261026
+regression_tests:
+  passed: 307
+  skipped: 3
+source_map_version: 88
+changed_stop_line_node_ids:
+- 92992
+- 92993
+- 92998
+- 92999
+- 93020
+- 93021
+- 93034
+- 93035
+stop_line_policy: v94_map_ref_lines_no_per_signal_extra_margin
+native_lanelet_routing_graph_count: 1295
+route_consecutive_pair_checks: 121
+routing_graph_identical_to_v88: true
+build_install: 11_related_base_packages_built_and_installed
+traffic_light_live_map_version: 94
+planning_live_validation: first_v94_automation_case_route_verified

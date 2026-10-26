@@ -165,16 +165,16 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     # Empty preserves object_pipeline's current general/highway horizon policy;
     # the integration launch must not silently force the historical 3s override.
     assert top_level["prediction_horizon"]["default"] == ""
-    assert values["map_file"].endswith("/lanelet2_map_v88.osm")
+    assert values["map_file"].endswith("/lanelet2_map_v94.osm")
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
-def test_v88_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v88.osm"
+def test_v94_map_sha_is_identical_across_runtime_contracts():
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v94.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v88_competition_route.yaml"
+        / "kcity_v94_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
@@ -189,7 +189,7 @@ def test_v88_map_sha_is_identical_across_runtime_contracts():
 
 
 def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
-    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v88.yaml"
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v94.yaml"
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
         "201439": [201439, 201441, 201446],
@@ -209,7 +209,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
         item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
     }
     assert integration_args["mission_planner_param_path"]["default"].endswith(
-        "/config/mission_planner_kcity_v88.yaml"
+        "/config/mission_planner_kcity_v94.yaml"
     )
     tier4_include = next(
         item
