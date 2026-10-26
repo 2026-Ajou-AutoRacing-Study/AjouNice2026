@@ -162,6 +162,7 @@ private:
   bool use_velocity_limit_based_planner_{true};
 
   double time_to_evaluate_rss_;
+  double target_distance_scale_{1.0};
 
   std::function<double(double)> error_func_;
 };
