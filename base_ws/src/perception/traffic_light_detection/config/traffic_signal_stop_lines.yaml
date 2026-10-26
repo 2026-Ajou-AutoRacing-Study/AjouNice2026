@@ -6,8 +6,8 @@ signal_stop_line_contract_metadata:
   schema_version: 1
   coordinate_frame: map
   evidence_scope: original_MGeo_type530_proxy_not_official_penalty_certification
-  map_file: kcity_map/lanelet_map/lanelet2_map_v87.osm
-  map_sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
+  map_file: kcity_map/lanelet_map/lanelet2_map_v88.osm
+  map_sha256: dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37
   projector_sha256: ccb5a8199afd7e64b04b6ac8637419ec4c9cd5ab16bac68a229971a7f7c7859c
   source_file: kcity_map/mgeo_map_scenario_runner_2025/lane_boundary_set.json
   source_sha256: f1866622ce53e6e0accc5859ee168d648b667024c0fb5174293f55884ae91abb

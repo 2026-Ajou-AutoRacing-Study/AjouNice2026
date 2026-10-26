@@ -27,7 +27,7 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
 - 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
-- map 기본은 v87다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
+- map 기본은 v88다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
 ## Competition signal policy
 
@@ -144,7 +144,7 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 `detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
 누락만 완충한다. 원본 stamp를 유지하고, 실제 R/Y·CNN UNKNOWN·TF/지도/identity 실패는 즉시 반영한다.
 
-`config/traffic_signal_stop_lines.yaml`의 B/D `additional_stop_margin_m: 0.75`는 현재 v87
+`config/traffic_signal_stop_lines.yaml`의 B/D `additional_stop_margin_m: 0.75`는 현재 v88
 anchor와 정합할 때만 정차 목표를 더 일찍 잡는다. 지도 OSM·센서·학습 가중치는 바꾸지 않는다.
 `signal_stop_line_crossing_reference_enabled:=false`가 기본이다. true는 planner와 route helper를
 함께 원본 MGeo 도색선 proxy로 전환하는 **별도 후보**이며, 실제 D 시험에서 선 전 화각 이탈

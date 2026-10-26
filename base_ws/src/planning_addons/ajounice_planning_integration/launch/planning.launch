@@ -1,12 +1,14 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v88.osm"/>
+  <arg name="map_sha256" default="dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37"/>
   <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
             file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v87.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v88.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="is_simulation" default="false"/>
@@ -56,6 +58,8 @@
            file="$(find ajounice_planning_integration)/launch/fixed_autonomous_operation_mode.launch"/>
   <include file="$(find ajounice_planning_integration)/launch/map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="map_sha256" value="$(arg map_sha256)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
     <!-- LC runtime log level; detailed candidate traces are opt-in. -->

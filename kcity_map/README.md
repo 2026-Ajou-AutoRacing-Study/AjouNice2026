@@ -1,20 +1,20 @@
 # K-City 지도
 
-현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v87.osm`이다.
+현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v88.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
 | 구분 | 경로·기준 |
 | --- | --- |
-| Lanelet2 | `lanelet_map/lanelet2_map_v87.osm` |
+| Lanelet2 | `lanelet_map/lanelet2_map_v88.osm` |
 | Projector | `lanelet_map/map_projector_info_v1.yaml` |
 | Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
-| 속도 상한 | v87 OSM attributes를 사용한다. 별도 override 파일은 최신 planning에서 제거됨 |
-| 최신 제작 검증 근거 | `../configs/map/kcity_v87_release.yaml` |
+| 속도 상한 | v88 OSM attributes: 대상 양쪽 차선 150 → 80 → 70 km/h. 별도 override 없음 |
+| 최신 제작 검증 근거 | `../configs/map/kcity_v88_release.yaml` |
 | 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
 
 ## 자산 준비
 
-v87 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 포함한다.
+v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 포함한다.
 PCD·MGeo·GIS·다른 버전 OSM·버전별 route 같은 큰 자산은 팀 Drive로 공유한다.
 설정·현재 도구·이력은 Git으로 관리한다. 자산 경로는 이 저장소의 `kcity_map/`을 유지한다.
 
@@ -39,3 +39,14 @@ bash scripts/map/download_kcity_map_assets.sh
 - 버전 전환 전용 도구는 [legacy](legacy/README.md)에 원문 보관했다.
 
 이번 정리는 자산 다운로드·재생성·현장 지도 교체·속도 정책 변경을 수행한 것이 아니다.
+
+## v88 highway 변경
+
+- 선호 경로: `200360 → 201479 → 201451` (150 → 80 → 70 km/h).
+- 옆차선: `200185 → 201448 → 201452` (동일 속도).
+- 기존 201479의 꺾임점에서 분할하고 앞·뒤를 각각 직선으로 병합했다.
+- 201451·201452의 형상과 좌표는 v87과 동일하며 속도만 변경했다.
+- 바깥 200147·201449의 구간 경계도 정렬해 기존 200147 ↔ 200185 차선변경 연결을 유지했다.
+- 전체 형상·그래프 검사, 설치된 Mission Planner 36 경로/1,005 전이, 설치 launch 18개 해석을 통과했다.
+- 실행 중인 ROS 세션은 교체하지 않았다. v88 폐루프 주행과 VMB UI 검증은 미실행이다.
+- Drive 업로드는 사용자가 수행한다.
