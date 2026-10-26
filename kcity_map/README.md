@@ -3,11 +3,12 @@
 현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v87.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
-2026-10-26: 선정 후보는 **v93: v87 대비 A+0.75m·B+2.6m·C+0.35m·D+2.6m 상류 이동**이다.
-도로 경계·연결·ID는 그대로다. 고정 신호등의 안정 정차 상단 여유가 A94.6/B93.0/C94.9/D92.5px로,
-요청한 구간 간 중앙값 차이5px 이내(실측2.34px)로 맞췄다. [측정 조건·이전 후보와 차이](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)를 확인한다.
-**운영 기본은 아직v87**이며 v93은 명시적으로 선택하는 검증 후보다. 이전 후보·중단 증거도 보존한다.
-모든 제동 순간·다른 주행에서의 픽셀 일치를 보장하지 않으며 신호 선택 끊김은 별도 미해결 사항이다.
+2026-10-26: 새 통합 자산은 **v94 = 팀장님 v88-2 도로 수정 + 검증한 v93 정지선 좌표**다.
+[통합 manifest](../configs/map/kcity_v94_merged_asset.yaml)에 원본 SHA·병합 범위·Drive 검증 상태를 둔다.
+v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와버전표기만 바꿨다. v94는 lanelet1295개다.
+정지선 위치는 v87 대비 A+0.75/B+2.6/C+0.35/D+2.6m로 v93과 같으며 상대 이동을 중복 적용하지 않았다.
+안정 정차 차이2.34px는 [v93 계열의 실측](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)이지 통합 뒤 새 실주행 결과가 아니다.
+**운영 기본은 아직v87**이며 v94로 launch·route·runtime SHA를 자동 전환하지 않았다. 이전 자산도 보존한다.
 
 | 구분 | 경로·기준 |
 | --- | --- |
@@ -35,6 +36,8 @@ bash scripts/map/download_kcity_map_assets.sh
 두 스크립트는 immutable 정책과 크기·MD5 검사를 사용한다. 기존 자산을 삭제하거나
 같은 경로의 다른 내용을 덮어쓰지 않는다. 업로드는 별도 승인 후
 `scripts/map/upload_kcity_map_assets.sh --dry-run`으로 먼저 확인한다.
+이 PC의 후속 Drive 작업은 `KCITY_MAP_RCLONE_REMOTE=ajou_drive_private`를 명시한다.
+전용 인증이 만료되면 갱신을 요청하며 공용 client인 `ajou_drive`로 우회하지 않는다.
 
 ## 현재 도구와 역사 재현
 

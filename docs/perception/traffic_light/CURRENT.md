@@ -39,7 +39,7 @@
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
-- 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. 선정 후보는 **v93: v87 대비 A+0.75m·B+2.6m·C+0.35m·D+2.6m**다. 사용자 요청의 [고정 physical head·안정 정차 중앙값 차이5px 이내](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)로 재조정했고 A94.6/B93.0/C94.9/D92.5px, 차이2.34px다. 모든 순간의 보장값·신호 선택 연속성 해결과는 별개다. 운영 기본v87·PR55 draft 유지.
+- 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. 검증한 **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로 수정에 합친 [v94 자산](../../../configs/map/kcity_v94_merged_asset.yaml)을 만들었다. [v93 계열 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)은 A94.6/B93.0/C94.9/D92.5px·차이2.34px이며 통합 후 새 주행 인증은 아니다. 운영 기본v87·PR55 draft 유지.
 - 단발 detector 누락만 동일 head·유효 지도에서 원본 관측 age 0.2초까지 보존한다. CNN UNKNOWN·모순·지도/TF 실패·기한 만료는 UNKNOWN이다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.

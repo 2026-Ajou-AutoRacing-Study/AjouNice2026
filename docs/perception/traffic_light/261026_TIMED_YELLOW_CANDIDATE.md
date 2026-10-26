@@ -653,3 +653,46 @@ MD5는 `1b605c43f0b2225649106c3ee6a5b9e0`이다. 운영 기본v87·PR55 draft는
 Drive 업로드는 `ajou_drive`의403 rateLimitExceeded로 실패했고, 전용 `ajou_drive_private` 조회도
 invalid_grant(인증 만료/취소)여서 재시도 루프 없이 중단했다. **새 v93의 Drive 업로드는 미완료**이며
 이전v91 원격 자산을 덮어쓰지 않았다. Git의 builder와 manifest 이동량으로 동일 SHA를 재생성할 수 있다.
+
+<a id="merged-map-v94"></a>
+## 팀장님 v88-2 도로 수정과 정지선의 통합: v94 자산
+
+사용자가 팀장님이 별도로 올린 `lanelet2_map_v88-2.osm`과 우리 정지선 수정을 합쳐 새 버전으로
+업로드하도록 요청했다. 팀 Drive의 기존 파일 metadata MD5와 다운로드한 원본이 일치함을 확인했다.
+v88-2의 SHA256은 `dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37`이다.
+
+팀장님 수정은 v87 대비 node793개 추가/763개 삭제, way16개 추가/34개 삭제, road lanelet relation7개
+삭제·기존 relation8개 수정이다. 유지된 node/way의 내용 변경은 없고, 도로 경계·centerline 재구성과
+lanelet 연결·속도 제한 변경이다. `201451/201452`의 speed_limit은150→70,
+`201448/201479`는150→80이다. 삭제 relation은 traffic regulatory가 아닌 road lanelet이다.
+우리 대상8개 정지선 node·4개 way·4개 traffic relation은 v87과 같고 다른 도로 way와 공유되지 않았다.
+
+따라서 **v88-2를 바탕으로 v93의 검증 좌표를 그대로 이식**했다. `.75/2.6/.35/2.6m`를 incoming에
+다시 더하지 않았으며, 팀장님 노드에 새 metadata/다른 좌표가 있었다면 거부하는3-way 검사를 적용했다.
+실제 추가 수정은 node92992/92993/92998/92999/93020/93021/93034/93035의lat/lon·local_x/y와
+`MetaInfo map_version=94`뿐이다. 그 부분을 원복하면 v88-2와 바이트 단위로 완전히 일치한다.
+팀장님 수정과 원본v87/v93/v88-2는 모두 보존했다.
+
+통합파일은 `kcity_map/lanelet_map/lanelet2_map_v94.osm`이며,
+SHA256 `3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf`,
+MD5 `ce5047b8abc12f5f26a68a42b6e49a50`이다. node151258/way4177/relation1373,
+중복ID·깨진참조0이다. 운영의`libautoware_lanelet2_extension_lib.so`를 등록한 실제 Lanelet parser에서
+v88-2/v94 모두 lanelet1295/regulatory78개·오류0으로 읽혔다. 확장을 등록하지 않은 system Python은
+기존 roundabout/crosswalk 두 타입을 모르는 오류가 있으므로 이를 새 지도 결함으로 해석하지 않는다.
+VMB validation 및 통합 후 폐루프 주행은 이번에 수행하지 않았다.
+
+통합 도구 `scripts/map/merge_signal_stop_lines.py`와 작은 합성자료18개 회귀 테스트를 추가했다.
+병합 영수증은 `planner_logs/analysis/map_v94_merge_261026/merge_receipt.json`이다.
+Drive 업로드·후속 hash 확인 상태는 `configs/map/kcity_v94_merged_asset.yaml`을 현재 기준으로 본다.
+이번 요청은 자산 통합·업로드이며 launch/route/SHA 기본값·설치본·실행 프로세스를 v94로 바꾸지 않았다.
+
+동일 팀 Drive root-folder-id를 명시한 단일 파일 immutable 업로드 명령은 정상종료(code0)했다.
+다만 업로드 후 별도 metadata/hash 조회는 간격을 둔 재확인에서도403 rateLimitExceeded였다.
+따라서 업로드 명령 완료와 독립 원격 checksum 확인을 구분하며, 후자는 아직 미완료다.
+원격의 기존 파일·공유 권한을 바꾸거나 대량 자산 업로드/삭제를 수행하지 않았다.
+
+사용자는 이 공용 연결 우회를 지적했다. 설정 확인 결과 `ajou_drive_private`의client_id는
+사용자가 발급한 값과 일치하지만 인증 갱신이invalid_grant로 실패한 상태였고, `ajou_drive`는
+명시적client_id 없이 공용client를 사용했다. API 발급이 없던 문제가 아니라 전용 인증 갱신을
+먼저 요청했어야 한 문제다. 공용 호출을 중단했고 사용자에게 전용 remote reconnect를 요청했다.
+후속 확인에는 전용 연결만 사용하며 공용client로 조용히 fallback하지 않는다.
