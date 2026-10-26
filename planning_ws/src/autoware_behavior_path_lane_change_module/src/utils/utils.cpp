@@ -1412,6 +1412,15 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
   const size_t deceleration_sampling_num, const bool is_approved,
   const double stationary_horizon)
 {
+  if (is_approved && lane_change_path.type == PathType::FrenetPlanner) {
+    // Frenet samples are relative to candidate creation, not the current
+    // approval check. Reuse the remaining spatial-profile prediction so its
+    // origin and horizon follow current ego progress without moving geometry.
+    auto remaining = lane_change_path;
+    remaining.type = PathType::SpatialSpeedProfile;
+    return convert_to_predicted_paths(
+      common_data_ptr, remaining, deceleration_sampling_num, is_approved, stationary_horizon);
+  }
   if (lane_change_path.type == PathType::SpatialSpeedProfile) {
     const auto & points = lane_change_path.path.points;
     if (points.size() < 2) return {};
@@ -1527,8 +1536,10 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto & velocities = frenet_candidate.lane_changing.longitudinal_velocities;
   const auto & times = frenet_candidate.lane_changing.times;
 
-  for (const auto [t, pose, velocity] :
-       ranges::views::zip(times, poses, velocities) | ranges::views::drop(1)) {
+  // Preparation samples exclude prepare_time, so the first execution point
+  // supplies that boundary. With zero preparation it is also the required
+  // t=0 origin of the approved-path prediction.
+  for (const auto [t, pose, velocity] : ranges::views::zip(times, poses, velocities)) {
     predicted_path.emplace_back(prepare_time + t, pose, velocity);
   }
 

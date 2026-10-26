@@ -1,6 +1,9 @@
 // Copyright 2026 The Autoware Contributors
 // Licensed under the Apache License, Version 2.0.
 #include <autoware/behavior_path_lane_change_module/utils/safety_check.hpp>
+#include <autoware/behavior_path_lane_change_module/utils/utils.hpp>
+#include <autoware/behavior_path_lane_change_module/structs/data.hpp>
+#include <autoware/behavior_path_lane_change_module/structs/path.hpp>
 
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <gtest/gtest.h>
@@ -206,4 +209,56 @@ TEST(LaneChangeSafetyPhases, InvalidPredictionCannotProduceAPhaseBoundary)
   EXPECT_FALSE(lc::remaining_prepare_time(f.path, {}, pose(8.0)));
   EXPECT_FALSE(lc::remaining_prepare_time(f.path,
     {{0.0, pose(0.0), 2.0}, {0.0, pose(1.0), 2.0}}, pose(8.0)));
+}
+
+TEST(LaneChangeSafetyPhases, FrenetPredictionPreservesStartAndPreparationBoundary)
+{
+  namespace bp = autoware::behavior_path_planner;
+  auto common = std::make_shared<bp::lane_change::CommonData>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->pose.pose = pose(0.0);
+  odometry->twist.twist.linear.x = 2.0;
+  common->self_odometry_ptr = odometry;
+  auto bpp = std::make_shared<bp::BehaviorPathPlannerParameters>();
+  bpp->ego_nearest_dist_threshold = 5.0;
+  bpp->ego_nearest_yaw_threshold = 3.14;
+  common->bpp_param_ptr = bpp;
+  auto parameters = std::make_shared<bp::LaneChangeParameters>();
+  parameters->trajectory.min_prepare_duration = 0.0;
+  parameters->safety.collision_check.prediction_time_resolution = 0.5;
+  common->lc_param_ptr = parameters;
+
+  for (double preparation : {0.0, 0.25, 0.5, 1.0}) {
+    SCOPED_TRACE(preparation);
+    Fixture f;
+    bp::lane_change::TrajectoryGroup candidate;
+    candidate.prepare = f.path;
+    candidate.prepare_metric.duration = preparation;
+    candidate.prepare_metric.velocity = 2.0;
+    for (double t : {0.0, 0.5, 1.0}) {
+      candidate.lane_changing.times.push_back(t);
+      candidate.lane_changing.poses.push_back(pose(2.0 * (preparation + t)));
+      candidate.lane_changing.longitudinal_velocities.push_back(2.0);
+    }
+    const auto prediction = lc::convert_to_predicted_path(common, candidate, 1);
+    ASSERT_FALSE(prediction.empty());
+    EXPECT_DOUBLE_EQ(prediction.front().time, 0.0);
+    EXPECT_DOUBLE_EQ(prediction.front().pose.position.x, 0.0);
+    EXPECT_DOUBLE_EQ(prediction.back().time, preparation + 1.0);
+    size_t boundary_count = 0;
+    for (size_t i = 0; i < prediction.size(); ++i) {
+      if (i > 0) EXPECT_GT(prediction[i].time, prediction[i - 1].time);
+      if (prediction[i].time == preparation) ++boundary_count;
+    }
+    EXPECT_EQ(boundary_count, 1u);
+    const auto split = lc::remaining_prepare_time(f.path, prediction, pose(2.0 * preparation));
+    ASSERT_TRUE(split);
+    EXPECT_DOUBLE_EQ(*split, preparation);
+    const auto result = lc::check_safety_by_phase(
+      f.path, prediction, f.vehicle, {f.object(preparation)}, f.debug,
+      f.prepare, f.execution, *split, 3.1416, true);
+    EXPECT_FALSE(result.safe);
+    EXPECT_STREQ(result.stage, "execution");
+    EXPECT_DOUBLE_EQ(result.trace.time, preparation);
+  }
 }

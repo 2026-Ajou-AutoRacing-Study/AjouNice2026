@@ -163,7 +163,6 @@ protected:
   std::string rolling_plan_reason_{"not_running"};
   std::tuple<int, double, int, int, double, double> candidateRank(
     const LaneChangePath & candidate) const;
-  bool replacementIsContinuous(const LaneChangePath & candidate) const;
 
   void updateOvertake(bool is_approved);
   bool buildOvertakePreparation(const ExtendedPredictedObject & object);

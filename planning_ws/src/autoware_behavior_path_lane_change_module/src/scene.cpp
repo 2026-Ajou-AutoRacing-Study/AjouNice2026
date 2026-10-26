@@ -387,10 +387,9 @@ void NormalLaneChange::refreshApprovedPlan()
     rolling_plan_reason_ = "keep_approved_no_safe_replacement";
     return;
   }
-  if (!replacementIsContinuous(replacement.lane_change_path)) {
-    rolling_plan_reason_ = "keep_approved_replacement_discontinuous";
-    return;
-  }
+  // getSafePath already checks the candidate with planned and measured-motion
+  // hypotheses. Pose/heading/speed differences alone do not veto replacement;
+  // actual final-output collision and corridor checks continue after approval.
   const bool immediate = replacement.lane_change_path.info.duration.prepare <= 1e-6;
   // Even in the experimental always-update mode a safe start cannot slide
   // into the future at each replan. The unsafe/recovery branches may reschedule.
@@ -404,21 +403,6 @@ void NormalLaneChange::refreshApprovedPlan()
   feedback_recovery_ = {}; ego_recovery_ = {};
   unsafe_hysteresis_count_ = 0;
   rolling_plan_reason_ = immediate ? "replace_with_immediate_safe_lc" : "replace_with_updated_safe_lc";
-}
-
-bool NormalLaneChange::replacementIsContinuous(const LaneChangePath & candidate) const
-{
-  if (candidate.path.points.size()<3) return false;
-  const auto & points = candidate.path.points;
-  const auto idx = autoware::motion_utils::findNearestIndex(points,getEgoPosition());
-  if (idx+1>=points.size()) return false;
-  const auto & pose = points[idx].point.pose;
-  // This gate constrains a newly joined path, not deviation from stale approval.
-  if (autoware_utils::calc_distance2d(pose,getEgoPose())>1.0) return false;
-  const double yaw = autoware_utils::normalize_radian(
-    tf2::getYaw(pose.orientation)-tf2::getYaw(getEgoPose().orientation));
-  if (std::abs(yaw)>autoware_utils::deg2rad(10.0)) return false;
-  return std::abs(points[idx].point.longitudinal_velocity_mps-getEgoVelocity())<=2.0;
 }
 
 std::tuple<int,double,int,int,double,double> NormalLaneChange::candidateRank(
@@ -2368,34 +2352,44 @@ bool NormalLaneChange::is_colliding(
     }
   }
 
-  // Never interpret the unpredicted tail of a maneuver as a checked gap.
-  // Every object path used by this checker must cover this ego hypothesis.
-  // Shorter lateral candidates remain searchable; do not manufacture an NPC
-  // forecast by copying its last pose after the predictor's horizon.
+  // Coverage is an observation limit, not a collision. Check every provided
+  // object sample below; never extend its tail or stop/cancel only for length.
   const double required_horizon = is_approved ? ego_predicted_path.back().time :
     std::max(ego_predicted_path.back().time, lane_change_path.info.duration.sum());
-  bool covered = !obj.predicted_paths.empty();
+  bool covered = true;
   double available = std::numeric_limits<double>::infinity();
-  for (const auto & object_path : obj.predicted_paths) {
-    covered = covered && !object_path.path.empty();
-    if (object_path.path.empty()) { available = 0.0; continue; }
-    available = std::min(available, object_path.path.back().time);
-    covered = covered && object_path.path.front().time <= ego_predicted_path.front().time + 1e-3 &&
-      object_path.path.back().time + 1e-3 >= required_horizon;
-  }
-  if (!covered) {
+  const auto unavailable = [&](const char * reason) {
     auto & debug = debug_data[obj.uuid.uuid];
     debug.is_safe = false;
-    debug.unsafe_reason = "prediction_coverage_short";
+    debug.unsafe_reason = reason;
     debug.expected_object_pose = obj.initial_pose;
+    utils::path_safety_checker::RSSCollisionTrace trace;
+    captureSafetyDiagnostic("prediction_input", obj, lane_change_path, ego_predicted_path,
+      rss_param, trace, debug);
+    return true;
+  };
+  if (obj.predicted_paths.empty()) return unavailable("prediction_missing");
+  for (const auto & object_path : obj.predicted_paths) {
+    if (object_path.path.empty()) return unavailable("prediction_missing");
+    if (object_path.path.front().time > ego_predicted_path.front().time + 1e-3) {
+      return unavailable("prediction_start_missing");
+    }
+    available = std::min(available, object_path.path.back().time);
+    covered = covered && object_path.path.back().time + 1e-3 >= required_horizon;
+  }
+  if (!covered) {
+    CollisionCheckDebug coverage;
+    coverage.is_safe = true;
+    coverage.expected_object_pose = obj.initial_pose;
     utils::path_safety_checker::RSSCollisionTrace trace;
     trace.time = available;
     captureSafetyDiagnostic("coverage", obj, lane_change_path, ego_predicted_path,
-      rss_param, trace, debug);
-    return true;
+      rss_param, trace, coverage);
   }
 
-  if (lane_change_path.cooperative_overtake_target &&
+  // Cooperative relaxation needs full coverage. Otherwise use normal RSS on
+  // each available path, including longer alternatives beyond the shortest one.
+  if (covered && lane_change_path.cooperative_overtake_target &&
       obj.uuid == *lane_change_path.cooperative_overtake_target && usesCooperativePolicy(obj)) {
     utils::path_safety_checker::RSSCollisionTrace trace;
     const bool safe = utils::lane_change::check_cooperative_rear(
