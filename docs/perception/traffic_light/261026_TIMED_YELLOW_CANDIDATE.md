@@ -696,3 +696,8 @@ Drive 업로드·후속 hash 확인 상태는 `configs/map/kcity_v94_merged_asse
 명시적client_id 없이 공용client를 사용했다. API 발급이 없던 문제가 아니라 전용 인증 갱신을
 먼저 요청했어야 한 문제다. 공용 호출을 중단했고 사용자에게 전용 remote reconnect를 요청했다.
 후속 확인에는 전용 연결만 사용하며 공용client로 조용히 fallback하지 않는다.
+
+사용자가 전용 인증 reconnect를 완료한 뒤 `ajou_drive_private`로 원격 metadata를 다시 읽어 검증을
+마쳤다. v94 원격 크기31,908,471bytes·MD5`ce5047b8abc12f5f26a68a42b6e49a50`가 로컬과 일치했다.
+원격 파일ID는`1xYkuxl-hTyXbBhOx10PROBzLHj1HaBhv`다. 위의 후속 원격 확인 미완료 상태는
+이 확인으로 해소됐으며, 공유 권한이나 운영 기본값은 변경하지 않았다.

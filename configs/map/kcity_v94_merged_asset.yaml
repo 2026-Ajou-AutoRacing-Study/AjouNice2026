@@ -34,15 +34,18 @@ lanelet_parse_errors_with_runtime_extensions: 0
 vmb_validation: not_run
 merge_receipt: planner_logs/analysis/map_v94_merge_261026/merge_receipt.json
 rebuild_tool: scripts/map/merge_signal_stop_lines.py
-drive_remote: ajou_drive
+drive_remote: ajou_drive_private
+original_upload_remote: ajou_drive
 drive_root_folder_id: 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP
 drive_path: kcity_map/lanelet_map/lanelet2_map_v94.osm
 drive_upload_command_completed: true
-drive_post_upload_metadata_verified: false
-drive_post_upload_metadata_state: rateLimitExceeded_after_bounded_rechecks
+drive_post_upload_metadata_verified: true
+drive_post_upload_metadata_state: size_and_md5_match_via_dedicated_client
+drive_size_bytes: 31908471
+drive_file_id: 1xYkuxl-hTyXbBhOx10PROBzLHj1HaBhv
 required_remote_for_followup: ajou_drive_private
 public_client_fallback_allowed: false
-dedicated_remote_state: reconnect_requested_after_invalid_grant
+dedicated_remote_state: authenticated_and_read_verified
 runtime_defaults_changed: false
 live_closed_loop_validation_after_merge: not_run
 inherited_stopline_measurement: v93 lineage, not a new v94 drive certification
