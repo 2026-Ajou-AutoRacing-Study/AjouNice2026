@@ -74,6 +74,7 @@ public:
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
     bool enable_signal_compliance_guard{false};
+    bool defer_unseen_until_observed{false};
     bool defer_far_unseen_unknown{false};
     double far_unseen_min_stop_distance_m{40.0};
     double far_unseen_response_margin_sec{1.0};

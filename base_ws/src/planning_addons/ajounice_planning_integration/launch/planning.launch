@@ -31,9 +31,11 @@
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
   <arg name="signal_compliance_required_green_observations" default="3"/>
-  <!-- Before the first readable lamp, leave a distant empty observation open.
-       Enter the stop zone before the jerk-limited braking boundary. -->
-  <arg name="defer_far_unseen_unknown" default="true"/>
+  <!-- Competition: before the first readable lamp, a fresh UNKNOWN does not
+       insert a stop point. Explicit red/yellow and later UNKNOWN still stop. -->
+  <arg name="defer_unseen_until_observed" default="true"/>
+  <!-- Optional conservative rollback: stop near the line before first sighting. -->
+  <arg name="defer_far_unseen_unknown" default="false"/>
   <arg name="far_unseen_min_stop_distance_m" default="40.0"/>
   <arg name="far_unseen_response_margin_sec" default="1.0"/>
   <!-- configs/planning/vehicle_info.yaml: base_link is the rear axle center. -->
@@ -114,6 +116,8 @@
          value="$(arg signal_compliance_required_green_observations)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_far_unseen_unknown"
          value="$(arg defer_far_unseen_unknown)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_unseen_until_observed"
+         value="$(arg defer_unseen_until_observed)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_min_stop_distance_m"
          value="$(arg far_unseen_min_stop_distance_m)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_response_margin_sec"

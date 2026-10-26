@@ -301,13 +301,23 @@ bool TrafficLightModule::isStopSignal(
           Observation::Stop : Observation::AuthorizedGreen;
       }
     }
+    const bool has_color_evidence = observation == Observation::Unknown &&
+      std::any_of(looking_tl_state_.elements.begin(), looking_tl_state_.elements.end(),
+        [](const auto & element) { return element.color != TrafficSignalElement::UNKNOWN; });
     if (observation == Observation::Stop || observation == Observation::AuthorizedGreen ||
-        observation == Observation::Yellow) {
+        observation == Observation::Yellow || has_color_evidence) {
       seen_signal_on_approach_ = true;
     }
     const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout);
+    if (signal_compliance::deferUnseenUntilObserved(
+          planner_param_.defer_unseen_until_observed, seen_signal_on_approach_, observation)) {
+      RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
+        "[signal_compliance] reg=%ld unreadable before first lamp: defer stop point",
+        traffic_light_reg_elem_.id());
+      return false;
+    }
     if (observation == Observation::Unknown && traffic_signal_stamp_ &&
         !planner_data.current_acceleration) {
       return require_stop;

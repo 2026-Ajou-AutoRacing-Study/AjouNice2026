@@ -28,6 +28,15 @@ inline const char * observationName(Observation value)
   return "invalid";
 }
 
+// Competition-only initial-observation policy: a fresh unreadable signal is
+// not evidence of green, but it need not insert a stop point until the first
+// readable lamp on this approach. After any readable lamp, UNKNOWN stops.
+inline bool deferUnseenUntilObserved(bool enabled, bool seen_signal_on_approach,
+                                     Observation observation)
+{
+  return enabled && !seen_signal_on_approach && observation == Observation::Unknown;
+}
+
 // A fresh empty observation is not evidence of green. It may leave the path
 // open only before the first readable lamp on this approach and only while
 // there is room to brake after entering the observation zone.

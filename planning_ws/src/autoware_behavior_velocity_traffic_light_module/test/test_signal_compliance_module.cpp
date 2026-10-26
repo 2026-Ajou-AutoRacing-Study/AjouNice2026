@@ -164,6 +164,7 @@ protected:
   void setStopMargin(double metres) { module_->planner_param_.stop_margin=metres; }
   void setFailOpen(bool enabled) { module_->planner_param_.competition_fail_open=enabled; }
   void setFarUnseen(bool enabled) { module_->planner_param_.defer_far_unseen_unknown=enabled; }
+  void setUnseenUntilObserved(bool enabled) { module_->planner_param_.defer_unseen_until_observed=enabled; }
   double stoppingDistance()
   {
     return planning_utils::calcJudgeLineDistWithJerkLimit(data_->current_velocity->twist.linear.x,
@@ -302,6 +303,36 @@ TEST_F(TrafficLightComplianceModuleTest, FarUnseenDynamicBrakingBoundaryStaysClo
   Signal empty;
   tick(); pose(-55.,20.); put(empty);
   EXPECT_TRUE(modifiesToStop(-100.));
+}
+
+TEST_F(TrafficLightComplianceModuleTest, ABCDInitialUnseenRemainsOpenNearLineUntilReadableLamp)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,false); setUnseenUntilObserved(true);
+    Signal empty;
+    tick(); pose(-20.,5.); put(empty);
+    EXPECT_FALSE(modifiesToStop(-100.));
+    Signal explicit_unknown; explicit_unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
+    tick(); put(explicit_unknown); EXPECT_FALSE(modifiesToStop(-100.));
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setUnseenUntilObserved(true);
+    tick(); pose(-20.,5.); put(empty); EXPECT_FALSE(modifiesToStop(-100.));
+    tick(); put(green()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(green()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(green()); EXPECT_FALSE(modifiesToStop(-100.));
+    tick(); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setUnseenUntilObserved(false);
+    tick(); pose(-20.,5.); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setUnseenUntilObserved(true);
+    Signal ambiguous; ambiguous.elements={lamp(Element::RED,Element::UNKNOWN)};
+    tick(); pose(-20.,5.); put(ambiguous); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+  }
 }
 
 TEST_F(TrafficLightComplianceModuleTest, ShiftedCameraStopLineCannotClearBeforeOriginalMORAILine)

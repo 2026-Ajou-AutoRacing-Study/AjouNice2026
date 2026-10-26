@@ -52,7 +52,8 @@ protected:
 
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
                  double min_yellow=2., double stop_margin=0., bool fail_open=true,
-                 double judging_x=10., bool original_available=true, bool far_unseen=false)
+                 double judging_x=10., bool original_available=true, bool far_unseen=false,
+                 bool initial_unseen=false)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -68,6 +69,7 @@ protected:
     params.enable_pass_judge=true; params.yellow_light_is_go=true;
     params.competition_fail_open=fail_open; params.enable_signal_compliance_guard=true;
     params.defer_far_unseen_unknown=far_unseen;
+    params.defer_unseen_until_observed=initial_unseen;
     params.enable_yellow_passthrough=master;
     params.signal_compliance_enable_timed_yellow=timed;
     params.signal_compliance_required_green_observations=confirmations;
@@ -164,6 +166,18 @@ TEST_F(TrafficTimedYellowExperimentalTest, ABCDFarUnseenEmptyOpensPathButRedAndN
 
     configure(group,false,false,3,2.,0.,true,10.,true,true);
     tick();pose(-20.,5.);put(empty);EXPECT_TRUE(stops(-100.));
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, InitialUnseenStaysOpenNearLineUntilReadableLamp)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    Signal empty;
+    configure(group,false,false,3,2.,0.,true,10.,true,false,true);
+    tick();pose(-20.,5.);put(empty);EXPECT_FALSE(stops(-100.));
+    tick();put(red());EXPECT_TRUE(stops(-100.));
+    tick();put(empty);EXPECT_TRUE(stops(-100.));
   }
 }
 
