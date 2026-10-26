@@ -67,6 +67,13 @@ These values are parameterized as follows. Other common values such as ego's min
 | `cruise_planning.min_ego_accel_for_rss`    | double | ego's acceleration for minimum safe braking distance [m/ss]                   |
 | `cruise_planning.min_object_accel_for_rss` | double | front obstacle's acceleration for minimum safe braking distance [m/ss]        |
 | `cruise_planning.safe_distance_margin`     | double | safety margin for minimum safe braking distance [m]                           |
+| `cruise_planning.pid_based_planner.target_distance_scale` | double | Positive multiplier of the entire PID RSS target, including the margin. Source YAMLs use 0.4; omitted parameter defaults to 1.0. |
+
+For PID cruise, the target is
+`max(safe_distance_margin, target_distance_scale * d_braking)`.
+The margin is included in `d_braking` and also provides the minimum target gap
+after scaling (5 m in the source YAMLs).
+This parameter affects both PID output modes and does not alter the optimization planner.
 
 The detailed formulation is as follows.
 

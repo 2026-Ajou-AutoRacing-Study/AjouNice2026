@@ -2,7 +2,7 @@
 ## Baseline maximum: rotary/general and kinematic fallback paths.
 prediction_horizon: 3.0
 ## Highway maximum: a real map terminal can produce a shorter valid path.
-highway_prediction_horizon: 8.0
+highway_prediction_horizon: 10.0
 highway_prediction_mode: native
 ## One-way highway only: recover a noisy future heading from nearby road geometry.
 ## Current object pose/twist remain unchanged; ordinary roads are unaffected.

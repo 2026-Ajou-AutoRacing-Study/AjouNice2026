@@ -232,10 +232,6 @@ rclcpp::Logger getLogger(const std::string & type);
  */
 Polygon2d get_ego_footprint(const Pose & ego_pose, const VehicleInfo & ego_info);
 
-bool footprint_within_admitted_lane_union(
-  const Pose & ego_pose, const VehicleInfo & ego_info,
-  const autoware::behavior_path_planner::lane_change::LanesPolygon & lanes);
-
 Point getEgoFrontVertex(const Pose & ego_pose, const VehicleInfo & ego_info, bool left);
 
 /**

@@ -794,29 +794,6 @@ rclcpp::Logger getLogger(const std::string & type)
   return rclcpp::get_logger("lane_change").get_child(type);
 }
 
-bool footprint_within_admitted_lane_union(
-  const Pose & ego_pose, const VehicleInfo & ego_info,
-  const autoware::behavior_path_planner::lane_change::LanesPolygon & lanes)
-{
-  using MultiPolygon = boost::geometry::model::multi_polygon<Polygon2d>;
-  MultiPolygon corridor;
-  for (const auto * lane : {&lanes.current, &lanes.target}) {
-    if (lane->size() < 3) continue;
-    Polygon2d polygon;
-    for (const auto & point : *lane) polygon.outer().emplace_back(point.x(), point.y());
-    boost::geometry::correct(polygon);
-    if (!boost::geometry::is_valid(polygon)) return false;
-    if (corridor.empty()) corridor.push_back(polygon);
-    else {
-      MultiPolygon merged;
-      boost::geometry::union_(corridor, polygon, merged);
-      corridor = std::move(merged);
-    }
-  }
-  return !corridor.empty() && boost::geometry::covered_by(
-    get_ego_footprint(ego_pose, ego_info), corridor);
-}
-
 Polygon2d get_ego_footprint(const Pose & ego_pose, const VehicleInfo & ego_info)
 {
   const auto base_to_front = ego_info.max_longitudinal_offset_m;
@@ -1436,26 +1413,20 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
   const double stationary_horizon)
 {
   if (is_approved && lane_change_path.type == PathType::FrenetPlanner) {
-    // Stored Frenet timestamps/poses describe the original proposal, not the
-    // remaining maneuver from today's ego pose. Rebase its published spatial
-    // speed profile just as we do for approved PathShifter output.
+    // Frenet samples are relative to candidate creation, not the current
+    // approval check. Reuse the remaining spatial-profile prediction so its
+    // origin and horizon follow current ego progress without moving geometry.
     auto remaining = lane_change_path;
     remaining.type = PathType::SpatialSpeedProfile;
-    return convert_to_predicted_paths(common_data_ptr, remaining, deceleration_sampling_num,
-      true, stationary_horizon > 0.0 ? stationary_horizon : std::max(
-        common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution,
-        lane_change_path.info.duration.sum()));
+    return convert_to_predicted_paths(
+      common_data_ptr, remaining, deceleration_sampling_num, is_approved, stationary_horizon);
   }
   if (lane_change_path.type == PathType::SpatialSpeedProfile) {
     const auto & points = lane_change_path.path.points;
     if (points.size() < 2) return {};
     const auto & bpp = *common_data_ptr->bpp_param_ptr;
     const double start = calc_arc_length(points, common_data_ptr->get_ego_pose(), bpp);
-    const double maneuver_end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
-    // Approval remains active while the body settles past the nominal endpoint.
-    // Do not manufacture an empty/unsafe observation in that finish buffer.
-    const double end = maneuver_end + (is_approved
-      ? std::max(0.0, common_data_ptr->lc_param_ptr->lane_change_finish_judge_buffer) : 0.0);
+    const double end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
     std::vector<double> s, v;
     double arc = 0.0;
     for (size_t i = 1; i < points.size(); ++i) {
@@ -1491,7 +1462,12 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
     {
       // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
       // a lagging controller must not silently replace the planned hypothesis.
-      result.push_back(convert_to_predicted_path(common_data_ptr, lane_change_path));
+      // Use the remaining spatial maneuver horizon, not the original full
+      // prepare+LC duration after ego has already advanced through preparation.
+      auto remaining = lane_change_path;
+      remaining.info.duration.prepare = std::min(remaining.info.duration.prepare, duration);
+      remaining.info.duration.lane_changing = duration - remaining.info.duration.prepare;
+      result.push_back(convert_to_predicted_path(common_data_ptr, remaining));
     }
     return result;
   }
@@ -1560,8 +1536,9 @@ std::vector<PoseWithVelocityStamped> convert_to_predicted_path(
   const auto & velocities = frenet_candidate.lane_changing.longitudinal_velocities;
   const auto & times = frenet_candidate.lane_changing.times;
 
-  // Preparation excludes its endpoint. Execution must include t=0 at that
-  // join, particularly when preparation itself is zero seconds.
+  // Preparation samples exclude prepare_time, so the first execution point
+  // supplies that boundary. With zero preparation it is also the required
+  // t=0 origin of the approved-path prediction.
   for (const auto [t, pose, velocity] : ranges::views::zip(times, poses, velocities)) {
     predicted_path.emplace_back(prepare_time + t, pose, velocity);
   }

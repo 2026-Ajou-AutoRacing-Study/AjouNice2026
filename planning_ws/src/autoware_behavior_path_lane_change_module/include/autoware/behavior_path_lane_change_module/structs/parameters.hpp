@@ -137,7 +137,7 @@ struct TrajectoryParameters
   int lat_acc_sampling_num{10};
   LateralAccelerationMap lat_acc_map{};
   bool compact_sampling{false};
-  std::vector<double> preparation_duration_samples{};
+  std::vector<double> prepare_duration_samples{};
   std::vector<double> lateral_acceleration_samples{};
 };
 
@@ -211,6 +211,8 @@ struct Parameters
 
   // One time budget for allowed maneuver phase lag and persistent non-recovery.
   double execution_recovery_time{1.0};
+  // false: preserve a safe approval; true: accept any continuous safe replacement.
+  bool always_update_approved{false};
 
   // path miss detection parameters
   double path_miss_threshold_longitudinal{5.0};

@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 #include <ros/ros.h>
 
+#include <stdexcept>
+#include <utility>
+
 namespace autoware::motion_velocity_planner
 {
 // Exercise the actual selection, filtering and output code without live planner publishers.
@@ -43,6 +46,7 @@ protected:
   void SetUp() override
   {
     const std::string prefix = "obstacle_cruise/cruise_planning/pid_based_planner/";
+    node_.deleteParam(prefix + "target_distance_scale");
     node_.setParam(prefix + "min_accel_during_cruise", -6.0);
     node_.setParam(prefix + "use_velocity_limit_based_planner", true);
     node_.setParam(prefix + "min_cruise_target_vel", 0.0);
@@ -106,6 +110,42 @@ protected:
     return PIDBasedPlannerTestPeer::output(planner, data_, *selected).max_velocity;
   }
 };
+
+TEST_F(PIDTargetSwitch, ScaledDistanceKeepsMinimumMarginAndDetectsTooCloseLead)
+{
+  for (const double scale : {1.0, 0.6}) {
+    node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale", scale);
+    PIDBasedPlanner planner(node_, common_, rss_);
+    // Closing lead, equal speeds, post-scale sub-5 m, negative RSS, and zero speed.
+    for (const auto & speeds : std::vector<std::pair<double, double>>{
+           {80, 40}, {40, 40}, {80, 80}, {90, 90}, {100, 100}, {0, 0}}) {
+      const double ego_vel = speeds.first / 3.6;
+      const double lead_vel = speeds.second / 3.6;
+      data_->current_odometry.twist.twist.linear.x = ego_vel;
+      const double raw_target = 5 + 2 * ego_vel + ego_vel * ego_vel / 12 -
+                                lead_vel * lead_vel / 6;
+      const double expected = std::max(5.0, scale * raw_target);
+      for (const double gap : {50.0, 4.0}) {
+        planner.resetForLongitudinalHandoff();
+        const auto result = PIDBasedPlannerTestPeer::select(
+          planner, trajectory_, data_, {obstacle(1, gap, lead_vel)});
+        ASSERT_TRUE(result);
+        EXPECT_NEAR(result->target_dist_to_obstacle, expected, 1e-9);
+        EXPECT_GE(result->target_dist_to_obstacle, 5.0);
+        EXPECT_NEAR(result->error_cruise_dist, gap - expected, 1e-9);
+        if (gap < 5.0) EXPECT_LT(result->error_cruise_dist, 0.0);
+      }
+    }
+  }
+}
+
+TEST_F(PIDTargetSwitch, InvalidDistanceScaleIsRejected)
+{
+  for (const double scale : std::vector<double>{0.0, -0.6, NAN, INFINITY}) {
+    node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale", scale);
+    EXPECT_THROW((PIDBasedPlanner(node_, common_, rss_)), std::invalid_argument);
+  }
+}
 
 TEST_F(PIDTargetSwitch, LaneChangeHandoffDropsHistoryEvenForTheSameReacquiredUuid)
 {

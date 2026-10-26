@@ -8,6 +8,7 @@ obstacle_cruise:
     min_object_accel_for_rss: -1.0
     safe_distance_margin: 5.0
     pid_based_planner:
+      target_distance_scale: 0.4
       use_velocity_limit_based_planner: true
       error_function_type: quadratic
       velocity_limit_based_planner:

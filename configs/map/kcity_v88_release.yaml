@@ -1,0 +1,51 @@
+schema_version: 1
+map_version: 88
+map_file: kcity_map/lanelet_map/lanelet2_map_v88.osm
+map_sha256: dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37
+map_storage: git
+lanelet_count: 1295
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+route_definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v88_competition_route.yaml
+requester_config_file: base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v88.param.yaml
+mission_planner_config_file: base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v88.yaml
+rule_monitor_config_file: base_ws/src/competition/competition_rule_monitor/config/kcity_v88_rules.yaml
+default_planning_launch: ajounice_planning_integration/competition_planning.launch
+explicit_planning_launch: ajounice_planning_integration/competition_planning_v88.launch
+vmb_errors: null
+live_closed_loop_validation: not_run
+team_drive_upload: user_managed_not_uploaded
+speed_limit_policy: osm_attributes_with_v88_requested_highway_caps
+vmb_validation: not_run
+native_geometry_validation: passed
+native_route_cases: 36
+native_route_section_transitions: 1005
+launch_resolution_cases: 18
+source_and_installed_map_reference_audit: passed
+preferred_corridor:
+- 200360
+- 201479
+- 201451
+adjacent_corridor:
+- 200185
+- 201448
+- 201452
+speed_limit_kph:
+  '200360': 150
+  '200185': 150
+  '201479': 80
+  '201448': 80
+  '201451': 70
+  '201452': 70
+external_interface_alignment_lanelets:
+- 200147
+- 201449
+geometry_preserved_speed_only_lanelets:
+- 201451
+- 201452
+evidence_directory: planner_logs/analysis/lanelet_201479_review
+regression_tests:
+  focused_passed: 44
+  validator_route_localization_passed: 23
+  known_unrelated_baseline_failure: test_highway_eight_second_production_wiring_and_rollback
+    expects 8 s; tracked baseline is 10 s; prediction config unchanged
+  requester_private_ros_passed: 19

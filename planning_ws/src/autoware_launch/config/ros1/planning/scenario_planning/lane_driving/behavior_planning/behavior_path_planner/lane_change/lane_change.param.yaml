@@ -18,9 +18,8 @@ lane_change/terminal_path/enable: true
 lane_change/terminal_path/disable_near_goal: true
 lane_change/terminal_path/stop_at_boundary: false
 lane_change/trajectory/compact_sampling: true
-lane_change/trajectory/lateral_acceleration_samples: [1.0, 2.0, 3.0, 4.0, 5.0, 6.5]
-lane_change/trajectory/preparation_duration_samples: [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.5, 7.0]
-lane_change/trajectory/max_prepare_duration: 7.0
+lane_change/trajectory/lateral_acceleration_samples: [2.0, 3.0, 4.0, 5.0, 6.0, 6.5]
+lane_change/trajectory/max_prepare_duration: 3.0
 # Zero opts into signal-free, earliest-feasible-first preparation sampling.
 lane_change/trajectory/min_prepare_duration: 0.0
 lane_change/trajectory/lateral_jerk: 5.0

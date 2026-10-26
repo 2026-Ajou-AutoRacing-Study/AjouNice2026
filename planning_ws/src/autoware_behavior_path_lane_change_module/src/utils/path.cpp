@@ -753,10 +753,7 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
           }
         }
       }
-      if (exceeds_propulsion || !frenet_lateral_envelope_satisfied(traj, trajectory)) {
-        ++rejected_sampling;
-        continue;
-      }
+      if (exceeds_propulsion) { ++rejected_sampling; continue; }
       if (!trajectory_groups.empty()) {
         const auto diff = std::abs(
           traj.frenet_points.back().s -

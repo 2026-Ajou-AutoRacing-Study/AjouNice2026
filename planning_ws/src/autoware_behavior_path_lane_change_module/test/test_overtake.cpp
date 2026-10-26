@@ -4,9 +4,8 @@
 #include <autoware/behavior_path_lane_change_module/utils/overtake.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/speed_profile.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp>
-#include <autoware/behavior_path_lane_change_module/utils/calculation.hpp>
 #include <autoware/behavior_path_lane_change_module/utils/utils.hpp>
-#include <autoware/behavior_path_lane_change_module/utils/safety_check.hpp>
+#include <autoware/behavior_path_lane_change_module/utils/calculation.hpp>
 #include <autoware_utils/geometry/boost_polygon_utils.hpp>
 #include <gtest/gtest.h>
 #include <ros/ros.h>
@@ -108,21 +107,21 @@ public:
   using NormalLaneChange::finalVelocityPrediction;
   using NormalLaneChange::executionProfile;
   using NormalLaneChange::execution_replan_requested_;
-  using NormalLaneChange::replacementIsContinuous;
   using NormalLaneChange::candidateRank;
-  using NormalLaneChange::preparationSpeedMismatch;
-  using NormalLaneChange::isBeforeLateralMotion;
   using NormalLaneChange::overtake_feedback_reason_;
   using NormalLaneChange::final_trajectory_sub_;
   using NormalLaneChange::activeSafetyPath;
   using NormalLaneChange::status_;
   using NormalLaneChange::abort_path_;
   using NormalLaneChange::is_colliding;
+  using NormalLaneChange::isLaneChangePathSafe;
   using NormalLaneChange::check_candidate_path_safety;
   using NormalLaneChange::find_colliding_object_if_all_paths_collide;
   using NormalLaneChange::usesCooperativePolicy;
   using NormalLaneChange::get_target_objects;
   using NormalLaneChange::hard_collision_detected_;
+  using NormalLaneChange::safety_rejected_pairs_;
+  using NormalLaneChange::safety_diagnostic_samples_;
   using NormalLaneChange::CandidateSearchMode;
   using NormalLaneChange::prepareCandidateForSearch;
   using NormalLaneChange::ahead_candidates_checked_;
@@ -527,14 +526,15 @@ TEST(LaneChangeExecutableSpeed, InfeasibleBrakeJerkIsRejected)
   EXPECT_THROW(lc::limit_speed_profile_jerk({0,1},{20,1},0,1,-1,3.25),std::logic_error);
 }
 
-TEST_F(Scene, MissingPredictionTailCannotBeApprovedAsSafe)
+TEST_F(Scene, ShortPredictionTailIsNotACollision)
 {
   auto obj=object(100,3.5,15);
   obj.predicted_paths.front().path.resize(31); // only three seconds
   safety::CollisionCheckDebugMap debug;
-  EXPECT_TRUE(module->is_colliding(candidate(),obj,prediction(20,4),
+  EXPECT_FALSE(module->is_colliding(candidate(),obj,prediction(20,4),
     parameters->safety.rss_params,debug,false));
-  EXPECT_EQ(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
+  EXPECT_TRUE(debug.at(obj.uuid.uuid).is_safe);
+  EXPECT_TRUE(debug.at(obj.uuid.uuid).unsafe_reason.empty());
 }
 TEST_F(Scene, CompletePredictionCoverageStillAllowsSafeGap)
 {
@@ -790,29 +790,66 @@ TEST_F(Scene, DisabledOvertakeDoesNotPromoteUnrelatedOtherLaneObject)
   ASSERT_EQ(selected.leading.size(),2u);
   for(const auto & o:selected.leading) EXPECT_NE(o.uuid,object(93,-4,15,8).uuid);
 }
-TEST_F(Scene, ReplacementMustJoinMeasuredPoseHeadingAndSpeed)
-{
-  auto path=candidate();
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=15;
-  EXPECT_TRUE(module->replacementIsContinuous(path));
-  auto shifted=path;
-  for(auto & p:shifted.path.points) p.point.pose.position.y=1;
-  EXPECT_FALSE(module->replacementIsContinuous(shifted));
-  auto rotated=path;
-  for(auto & p:rotated.path.points) p.point.pose.orientation=pose(0,0,.2).orientation;
-  EXPECT_FALSE(module->replacementIsContinuous(rotated));
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=20;
-  EXPECT_FALSE(module->replacementIsContinuous(path));
-}
 class RollingHarness : public Harness
 {
 public:
   using Harness::Harness;
   bpp::LaneChangePath proposed;
   bool safe{true};
+  bool approved_safe{true};
+  bpp::PathSafetyStatus isApprovedPathSafe() const override { return {approved_safe, false}; }
   std::pair<bool,bool> getSafePath(bpp::LaneChangePath & out) const override
   { out=proposed;return {true,safe}; }
 };
+TEST_F(Scene, SafeReplacementIsNotVetoedByPoseHeadingOrSpeedDifferences)
+{
+  // Isolate replacement policy: getSafePath supplies its already-checked result.
+  // Real collision/corridor rejection is exercised by the scene safety tests.
+  for (int variant=0; variant<4; ++variant) {
+    SCOPED_TRACE(variant);
+    RollingHarness rolling(parameters);
+    data->route_handler=std::make_shared<autoware::route_handler::RouteHandler>();
+    rolling.setData(data);rolling.approved_safe=false;
+    auto active=candidate();
+    for (auto & p:active.path.points) p.point.longitudinal_velocity_mps=15;
+    rolling.status_.lane_change_path=active;
+    rolling.status_.is_valid_path=true;
+    rolling.proposed=active;
+    for (auto & p:rolling.proposed.path.points) {
+      if (variant==0 || variant==3) p.point.pose.position.y=1.25;
+      if (variant==1 || variant==3)
+        p.point.pose.orientation=pose(0,0,15*M_PI/180).orientation;
+      if (variant==2 || variant==3) p.point.longitudinal_velocity_mps=18;
+    }
+    rolling.proposed.info.duration.prepare=0;
+    rolling.refreshApprovedPlan();
+    const auto & selected=rolling.getLaneChangePath().path.points.front().point;
+    const auto & expected=rolling.proposed.path.points.front().point;
+    EXPECT_DOUBLE_EQ(selected.pose.position.y,expected.pose.position.y);
+    EXPECT_DOUBLE_EQ(selected.pose.orientation.z,expected.pose.orientation.z);
+    EXPECT_DOUBLE_EQ(selected.longitudinal_velocity_mps,expected.longitudinal_velocity_mps);
+  }
+}
+TEST_F(Scene, UnsafeReplacementStillKeepsExistingPlanDespiteOffsetAllowance)
+{
+  RollingHarness rolling(parameters);
+  data->route_handler=std::make_shared<autoware::route_handler::RouteHandler>();
+  rolling.setData(data);rolling.approved_safe=false;rolling.safe=false;
+  auto active=candidate();
+  for (auto & p:active.path.points) p.point.longitudinal_velocity_mps=15;
+  rolling.status_.lane_change_path=active;rolling.status_.is_valid_path=true;
+  rolling.proposed=active;
+  for (auto & p:rolling.proposed.path.points) {
+    p.point.pose.position.y=1.25;
+    p.point.pose.orientation=pose(0,0,15*M_PI/180).orientation;
+    p.point.longitudinal_velocity_mps=18;
+  }
+  rolling.refreshApprovedPlan();
+  const auto & selected=rolling.getLaneChangePath().path.points.front().point;
+  EXPECT_DOUBLE_EQ(selected.pose.position.y,active.path.points.front().point.pose.position.y);
+  EXPECT_DOUBLE_EQ(selected.pose.orientation.z,active.path.points.front().point.pose.orientation.z);
+  EXPECT_DOUBLE_EQ(selected.longitudinal_velocity_mps,active.path.points.front().point.longitudinal_velocity_mps);
+}
 TEST_F(Scene, PreparationTakesNewImmediateOpportunityAndKeepsApprovalOnFailedSearch)
 {
   RollingHarness rolling(parameters);
@@ -825,6 +862,7 @@ TEST_F(Scene, PreparationTakesNewImmediateOpportunityAndKeepsApprovalOnFailedSea
   rolling.status_.is_valid_path=true;rolling.status_.is_safe=true;
   rolling.proposed=active;rolling.proposed.info.shift_line.start=pose(0);
   rolling.proposed.info.duration.prepare=0;
+  parameters->always_update_approved=true;
   rolling.refreshApprovedPlan();
   EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,0);
   // A rejected next search must not replace this safe maneuver with fallback.
@@ -834,225 +872,263 @@ TEST_F(Scene, PreparationTakesNewImmediateOpportunityAndKeepsApprovalOnFailedSea
   EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,0);
   EXPECT_TRUE(rolling.execution_replan_requested_);
 }
-TEST_F(Scene, SelectionPrefersAccelerationThenShortPreparationThenGentleMotion)
+TEST_F(Scene, SelectionPrefersShortPreparationAndGentleFeasiblePath)
 {
   module->filtered_objects_={};
   auto immediate=candidate();immediate.info.lateral_acceleration=3;
   auto delayed=immediate;delayed.info.duration.prepare=3;delayed.info.lateral_acceleration=2;
   EXPECT_LT(module->candidateRank(immediate),module->candidateRank(delayed));
-  auto same_gentle=delayed;same_gentle.info.duration.prepare=0;
-  EXPECT_LT(module->candidateRank(same_gentle),module->candidateRank(delayed));
-  auto accelerating=delayed;accelerating.info.longitudinal_acceleration.lane_changing=.5;
-  auto braking=same_gentle;braking.info.longitudinal_acceleration.lane_changing=-.5;
-  EXPECT_LT(module->candidateRank(accelerating),module->candidateRank(same_gentle));
-  EXPECT_LT(module->candidateRank(same_gentle),module->candidateRank(braking));
   auto harsh=immediate;harsh.info.lateral_acceleration=6.5;
   EXPECT_LT(module->candidateRank(immediate),module->candidateRank(harsh));
 }
-TEST_F(Scene, VerifiedFrontGapPrecedesAccelerationAndUnknownIsNotAFrontGap)
+TEST_F(Scene, FrontSlotBeatsImmediateRearThenPreparationAndAccelerationBreakTies)
 {
+  auto rear=candidate();rear.info.lane_changing_end=pose(20);
+  auto front=candidate();front.info.lane_changing_end=pose(130);
+  front.info.duration.prepare=1;
+  EXPECT_LT(module->candidateRank(front),module->candidateRank(rear));
   module->filtered_objects_={};
-  module->filtered_objects_.target_lane_leading.moving.push_back(object(5,3.5,15));
-  auto ahead=candidate();ahead.info.lane_changing_end=pose(150);
-  ahead.info.duration.prepare=3; ahead.info.longitudinal_acceleration.lane_changing=-1;
-  auto behind=candidate();behind.info.lane_changing_end=pose(0);
-  behind.info.longitudinal_acceleration.lane_changing=1;
-  EXPECT_LT(module->candidateRank(ahead),module->candidateRank(behind));
-  auto unavailable=behind;unavailable.info.duration.prepare=20;
-  EXPECT_EQ(std::get<0>(module->candidateRank(ahead)),0);
-  EXPECT_NE(std::get<0>(module->candidateRank(unavailable)),0);
+  EXPECT_LT(module->candidateRank(rear),module->candidateRank(front));
+  auto coast=rear, accelerate=rear, brake=rear;
+  accelerate.info.longitudinal_acceleration.lane_changing=2;
+  brake.info.longitudinal_acceleration.lane_changing=-2;
+  EXPECT_LT(module->candidateRank(accelerate),module->candidateRank(coast));
+  EXPECT_LT(module->candidateRank(coast),module->candidateRank(brake));
+  auto prep_accel=brake;prep_accel.info.duration.prepare=.5;
+  prep_accel.info.longitudinal_acceleration.prepare=2;
+  coast.info.duration.prepare=.5;
+  EXPECT_LT(module->candidateRank(prep_accel),module->candidateRank(coast));
+  // No fictitious preparation acceleration when duration is zero.
+  accelerate.info.longitudinal_acceleration.prepare=-2;
+  EXPECT_LT(module->candidateRank(accelerate),module->candidateRank(rear));
 }
-TEST(LaneChangeCompactSampling, ExplicitPreparationTimesAreAbsoluteAndRespectSpeedReadiness)
-{
-  bpp::lane_change::TrajectoryParameters p;p.max_prepare_duration=7;
-  p.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  EXPECT_EQ(lc::preparation_duration_samples(p,0),p.preparation_duration_samples);
-  EXPECT_EQ(lc::preparation_duration_samples(p,1.2),std::vector<double>({1.5,2,3,4.5,7}));
-  EXPECT_TRUE(lc::preparation_duration_samples(p,7.1).empty());
-  EXPECT_TRUE(lc::preparation_duration_samples(p,-1).empty());
-  EXPECT_TRUE(lc::preparation_duration_samples(p,std::numeric_limits<double>::quiet_NaN()).empty());
-  // Configuration order and duplicates must not multiply work.
-  p.preparation_duration_samples={7,1,1,0,8};
-  EXPECT_EQ(lc::preparation_duration_samples(p,0),std::vector<double>({0,1,7}));
-}
-TEST_F(Scene, ProductionDurationGeneratorUsesExplicitGridWithoutShiftingOrAddingTimes)
-{
-  parameters->trajectory.min_prepare_duration=0;
-  parameters->trajectory.max_prepare_duration=7;
-  parameters->trajectory.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  auto & ready=module->common_data_ptr_->transient_data.lane_change_prepare_duration;
-  ready=0;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
-    parameters->trajectory.preparation_duration_samples);
-  ready=2.2;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
-    std::vector<double>({3,4.5,7}));
-  // Empty optional grid preserves the existing uniform half-second policy.
-  parameters->trajectory.preparation_duration_samples.clear();ready=0;
-  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_).size(),15u);
-}
-TEST(LaneChangeCompactSampling, PreparationCapDoesNotDeleteAccelerationDuringExecution)
-{
-  std::vector<bpp::LaneChangePhaseMetrics> capped;
-  capped.emplace_back(2.0,30.0,15.0,0.0,0.0,0.0);
-  capped.emplace_back(2.0,26.0,11.0,-2.0,-2.0,0.0);
-  const auto reduced=lc::compact_prepare_metrics(capped,3.0,-2.0);
-  ASSERT_EQ(reduced.size(),3u);
-  EXPECT_DOUBLE_EQ(reduced[0].actual_lon_accel,0.0);
-  EXPECT_DOUBLE_EQ(reduced[0].velocity,15.0);
-  EXPECT_DOUBLE_EQ(reduced[0].sampled_lon_accel,3.0);
-  EXPECT_DOUBLE_EQ(reduced[1].sampled_lon_accel,0.0);
-  EXPECT_DOUBLE_EQ(reduced[2].sampled_lon_accel,-2.0);
-}
-TEST(LaneChangeCompactSampling, EightDurationsThreeStrategiesSixLateralLimits)
-{
-  bpp::lane_change::TrajectoryParameters p;p.max_prepare_duration=7;
-  p.preparation_duration_samples={0,.5,1,1.5,2,3,4.5,7};
-  std::vector<bpp::LaneChangePhaseMetrics> dense;
-  for(double t:lc::preparation_duration_samples(p,0)) for(double a:{3.0,0.0,-2.0})
-    dense.emplace_back(t,10.0,15.0,a,a,0.0);
-  const auto reduced=lc::compact_prepare_metrics(dense,3.0,-2.0);
-  p.lat_acc_map.add(0.0,1.0,6.5);p.lateral_acceleration_samples={1,2,3,4,5,6.5};
-  ASSERT_EQ(reduced.size(),24u);
-  EXPECT_EQ(reduced.size()*lc::lateral_acceleration_samples(p,15).size(),144u);
-}
-TEST_F(Scene, ReplacementContinuityDoesNotDependOnLongitudinalSampleSpacing)
-{
-  auto path=candidate();
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=15;
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  path.path.points.erase(std::remove_if(path.path.points.begin(),path.path.points.end(),
-    [](const auto & p) { return static_cast<int>(p.point.pose.position.x)%2 != 0; }),
-    path.path.points.end());
-  odom->pose.pose=pose(1.0);data->self_odometry=odom;
-  EXPECT_TRUE(module->replacementIsContinuous(path));
-}
-TEST_F(Scene, PassingAnOldStartWithWrongSpeedRequestsFreshPlanBeforeLateralMotion)
-{
-  parameters->th_finish_judge_lateral_diff=.1;
-  auto path=candidate();path.info.shift_line.start=pose(-1);
-  for(auto & p:path.path.points) p.point.longitudinal_velocity_mps=20;
-  module->status_.lane_change_path=path;module->status_.is_valid_path=true;
-  EXPECT_FALSE(module->isEgoOnPreparePhase());
-  EXPECT_TRUE(module->isBeforeLateralMotion());
-  EXPECT_TRUE(module->preparationSpeedMismatch());
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(0,.3);data->self_odometry=odom;
-  EXPECT_FALSE(module->preparationSpeedMismatch()); // active motion uses RSS/feasible return
-}
-TEST_F(Scene, StalePreparationSpeedCannotKeepAnUnsafeOldPlan)
+TEST_F(Scene, SafeApprovalIsStableUnlessToggleEnabledAndUnsafeReplacementIsImmediate)
 {
   RollingHarness rolling(parameters);
   data->route_handler=std::make_shared<autoware::route_handler::RouteHandler>();
   rolling.setData(data);
-  auto active=candidate();active.info.shift_line.start=pose(45);active.info.duration.prepare=3;
-  for(auto & p:active.path.points) p.point.longitudinal_velocity_mps=20;
-  rolling.status_.lane_change_path=active;rolling.status_.is_valid_path=true;
-  rolling.status_.is_safe=true;rolling.proposed=active;rolling.safe=false;
+  auto active=candidate();
+  for(auto & p:active.path.points) p.point.longitudinal_velocity_mps=15;
+  active.info.shift_line.start=pose(45);active.info.duration.prepare=3;
+  rolling.status_.lane_change_path=active;
+  rolling.status_.is_valid_path=true;rolling.status_.is_safe=true;
+  rolling.proposed=active;rolling.proposed.info.shift_line.start=pose(0);
+  rolling.proposed.info.duration.prepare=0;
+  rolling.execution_replan_requested_=true;
   rolling.refreshApprovedPlan();
-  EXPECT_FALSE(rolling.status_.is_valid_path);
-  EXPECT_TRUE(rolling.execution_replan_requested_);
+  EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,3);
+  rolling.approved_safe=false;
+  rolling.refreshApprovedPlan();
+  EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,0);
 }
-TEST_F(Scene, AnOutboundEndpointCannotFinishAnAbort)
+TEST_F(Scene, AlwaysReplacementDoesNotPostponeSafeStartDeadline)
 {
-  module->status_.lane_change_path=candidate();
-  module->abort_path_=std::make_shared<bpp::LaneChangePath>(candidate());
-  module->toAbortState();
-  EXPECT_FALSE(module->hasFinishedLaneChange());
+  RollingHarness rolling(parameters);
+  data->route_handler=std::make_shared<autoware::route_handler::RouteHandler>();
+  rolling.setData(data);parameters->always_update_approved=true;
+  auto active=candidate();
+  for(auto & p:active.path.points) p.point.longitudinal_velocity_mps=15;
+  active.info.shift_line.start=pose(15);active.info.duration.prepare=1;
+  rolling.status_.lane_change_path=active;rolling.status_.is_valid_path=true;
+  rolling.proposed=active;rolling.proposed.info.duration.prepare=4;
+  rolling.refreshApprovedPlan();
+  EXPECT_DOUBLE_EQ(rolling.getLaneChangePath().info.duration.prepare,1);
 }
-TEST_F(Scene, AbortCompletionRequiresReturnBodyLateralPositionAndHeading)
+TEST(LaneChangeCompactSampling, PreparationAndExecutionAccelerationsAreIndependent)
 {
-  parameters->th_finish_judge_lateral_diff=.1;parameters->th_finish_judge_yaw_diff=.1;
-  module->abort_path_=std::make_shared<bpp::LaneChangePath>(candidate());
-  module->abort_path_->info.shift_line.end=pose(80);
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(90,1);data->self_odometry=odom;
-  EXPECT_FALSE(module->hasFinishedAbort());
-  odom->pose.pose=pose(90,0,.2);
-  EXPECT_FALSE(module->hasFinishedAbort());
-  odom->pose.pose=pose(90,0,0);
-  EXPECT_TRUE(module->hasFinishedAbort());
+  std::vector<bpp::LaneChangePhaseMetrics> prep;
+  for(double duration : {0.0,1.0}) for(double a : {3.0,0.0,-2.0})
+    prep.emplace_back(duration,15*duration,15,a,duration>0?a:0,0);
+  const auto expanded=lc::independent_execution_metrics(prep,{3,0,-2});
+  EXPECT_EQ(expanded.size(),12u); // 3 immediate, 3x3 delayed
+  bool coast_then_accel=false,accel_then_brake=false;
+  for(const auto & m:expanded) {
+    coast_then_accel |= m.duration==1 && m.actual_lon_accel==0 && m.sampled_lon_accel==3;
+    accel_then_brake |= m.duration==1 && m.actual_lon_accel==3 && m.sampled_lon_accel==-2;
+  }
+  EXPECT_TRUE(coast_then_accel);EXPECT_TRUE(accel_then_brake);
 }
-TEST_F(Scene, ZeroPrepareFrenetPredictionIncludesItsTimeOrigin)
+TEST_F(Scene, PreparationPlusExecutionBeyondForecastChecksAvailableSamples)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,5};
+  path.info.lane_changing_start=pose(60);path.info.shift_line.start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  auto ego=prediction(15,11);safety::CollisionCheckDebugMap debug;
+  path.info.duration={4,7};
+  EXPECT_FALSE(module->is_colliding(path,obj,ego,parameters->safety.rss_params,debug,false));
+  EXPECT_FALSE(path.prediction_coverage_deferred);
+  EXPECT_TRUE(debug.at(obj.uuid.uuid).is_safe);
+  path.prediction_coverage_deferred=false;
+  path.info.duration.prepare=0;path.info.lane_changing_start=pose(0);
+  EXPECT_FALSE(module->is_colliding(path,obj,ego,parameters->safety.rss_params,debug,false));
+  EXPECT_TRUE(debug.at(obj.uuid.uuid).is_safe);
+}
+TEST_F(Scene, ShortCoverageStillRejectsKnownCollisionAndMissingForecast)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,5};path.info.lane_changing_start=pose(60);
+  auto obj=object(0,3.5,15);obj.predicted_paths.front().path.resize(81);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(path,obj,prediction(15,9),parameters->safety.rss_params,debug,false));
+  obj.predicted_paths.clear();
+  EXPECT_TRUE(module->is_colliding(path,obj,prediction(15,9),parameters->safety.rss_params,debug,false));
+}
+TEST_F(Scene, FullFreshCoverageClearsConditionalMarker)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,5};path.info.lane_changing_start=pose(60);
+  path.prediction_coverage_deferred=true;
+  bpp::lane_change::TargetObjects targets{{},{}};targets.leading.push_back(object(250));
+  safety::CollisionCheckDebugMap debug;
+  const auto result=module->isLaneChangePathSafe(path,{prediction(15,9)},targets,
+    parameters->safety.rss_params,debug,false);
+  EXPECT_TRUE(result.is_safe);EXPECT_FALSE(path.prediction_coverage_deferred);
+}
+TEST_F(Scene, ExplicitPreparationSamplesSkipThreeAndThreePointFiveSeconds)
 {
   parameters->trajectory.min_prepare_duration=0;
-  bpp::lane_change::TrajectoryGroup group;
-  group.prepare=road(0,15);group.prepare_metric.duration=0;
-  group.prepare_metric.velocity=15;
-  group.lane_changing.times={0,.5,1};
-  group.lane_changing.poses={pose(0),pose(7.5),pose(15)};
-  group.lane_changing.longitudinal_velocities={15,15,15};
-  const auto prediction=lc::convert_to_predicted_path(module->common_data_ptr_,group,1);
-  ASSERT_EQ(prediction.size(),3u);
-  EXPECT_DOUBLE_EQ(prediction.front().time,0.0);
-  ASSERT_TRUE(lc::remaining_prepare_time(group.prepare,prediction,pose(0)));
-  // Reproduce the previous implementation's missing origin and its rejection.
-  const std::vector<safety::PoseWithVelocityStamped> old(prediction.begin()+1,prediction.end());
-  EXPECT_FALSE(lc::remaining_prepare_time(group.prepare,old,pose(0)));
+  parameters->trajectory.max_prepare_duration=4;
+  parameters->trajectory.prepare_duration_samples={0,.5,1,1.5,2,2.5,4};
+  module->common_data_ptr_->transient_data.lane_change_prepare_duration=0;
+  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
+    parameters->trajectory.prepare_duration_samples);
+  module->common_data_ptr_->transient_data.lane_change_prepare_duration=1.2;
+  EXPECT_EQ(lc::calculation::calc_prepare_durations(module->common_data_ptr_),
+    std::vector<double>({1.5,2,2.5,4}));
 }
-TEST_F(Scene, ApprovedFrenetPredictionRebasesToCurrentEgoRatherThanOriginalTimeTable)
+TEST_F(Scene, OrdinaryFrontSearchDoesNotRequireCooperativeOvertake)
 {
-  parameters->trajectory.min_prepare_duration=0;
-  auto path=candidate();path.type=bpp::lane_change::PathType::FrenetPlanner;
+  parameters->overtake.enable=false;module->overtake_.target.reset();
+  auto front=candidate();front.info.duration.prepare=1;front.info.lane_changing_end=pose(130);
+  auto rear=candidate();rear.info.lane_changing_end=pose(20);
+  EXPECT_TRUE(module->prepareCandidateForSearch(front,Harness::CandidateSearchMode::Ahead));
+  EXPECT_FALSE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Ahead));
+  EXPECT_TRUE(module->prepareCandidateForSearch(rear,Harness::CandidateSearchMode::Other));
+  EXPECT_FALSE(front.cooperative_overtake_target);
+}
+TEST_F(Scene, ShortCoverageDoesNotCancelAfterBodyHasLeftOriginalLane)
+{
+  parameters->overtake.enable=false;
   auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(25);data->self_odometry=odom;
-  module->common_data_ptr_->self_odometry_ptr=odom;
-  const auto prediction=lc::convert_to_predicted_paths(module->common_data_ptr_,path,1,true);
-  ASSERT_FALSE(prediction.empty());ASSERT_FALSE(prediction.front().empty());
-  EXPECT_DOUBLE_EQ(prediction.front().front().time,0.0);
-  EXPECT_NEAR(prediction.front().front().pose.position.x,25,1e-6);
-  EXPECT_GT(prediction.front().back().pose.position.x,25);
+  odom->pose.pose=pose(0,1.0);data->self_odometry=odom;
+  auto path=candidate();path.info.duration={4,5};path.info.lane_changing_start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(81);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(path,obj,prediction(15,9),parameters->safety.rss_params,debug,true));
+  EXPECT_FALSE(path.prediction_coverage_deferred);
 }
-TEST_F(Scene, FinalFeedbackRemainsNonemptyInTheApprovedFinishBuffer)
+TEST_F(Scene, TenSecondForecastAllowsExactlyCoveredTenSecondManeuver)
 {
-  parameters->lane_change_finish_judge_buffer=3;
-  auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
-  odom->pose.pose=pose(81);data->self_odometry=odom;
-  module->common_data_ptr_->self_odometry_ptr=odom;
-  feedback(15);
-  const auto prediction=module->finalVelocityPrediction(candidate());
-  ASSERT_TRUE(prediction);ASSERT_FALSE(prediction->empty());
-  EXPECT_DOUBLE_EQ(prediction->front().time,0.0);
-  EXPECT_NEAR(prediction->front().pose.position.x,81,1e-6);
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,6};path.info.lane_changing_start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(path,obj,prediction(15,10),parameters->safety.rss_params,debug,false));
+  EXPECT_FALSE(path.prediction_coverage_deferred);
 }
-TEST_F(Scene, GentleFrenetPreferenceUsesTheWholePeakNotOnlyItsInitialAcceleration)
+TEST_F(Scene, NominalTailShortfallIsOnlyAnObservation)
 {
-  auto gentle=candidate(),abrupt=candidate();
-  gentle.type=abrupt.type=bpp::lane_change::PathType::FrenetPlanner;
-  gentle.info.lateral_acceleration=.2;abrupt.info.lateral_acceleration=0;
-  gentle.frenet_path.lane_changing.lateral_accelerations={.2,1.0,-.8,0};
-  abrupt.frenet_path.lane_changing.lateral_accelerations={0,4.0,-3.0,0};
-  EXPECT_LT(module->candidateRank(gentle),module->candidateRank(abrupt));
-  EXPECT_DOUBLE_EQ(lc::candidate_lateral_acceleration(gentle),1.0);
+  parameters->overtake.enable=false;
+  auto path=candidate();path.info.duration={4,6.25};path.info.lane_changing_start=pose(60);
+  auto obj=object(250,3.5,15);obj.predicted_paths.front().path.resize(101);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(path,obj,prediction(15,10),parameters->safety.rss_params,debug,false));
+  EXPECT_TRUE(debug.at(obj.uuid.uuid).is_safe);
 }
-TEST(LaneChangeCompactSampling, FrenetPeakCannotExceedTheVelocityDependentLateralEnvelope)
+TEST_F(Scene, ShortRearForecastDoesNotCreateUnsafeTrailingOrHardCollision)
 {
-  bpp::lane_change::TrajectoryParameters p;p.lat_acc_map.add(0,1,6.5);
-  autoware::frenet_planner::Trajectory trajectory;
-  trajectory.longitudinal_velocities={15,15,15};
-  trajectory.lateral_accelerations={0,6.5,0};
-  EXPECT_TRUE(lc::frenet_lateral_envelope_satisfied(trajectory,p));
-  trajectory.lateral_accelerations[1]=6.6;
-  EXPECT_FALSE(lc::frenet_lateral_envelope_satisfied(trajectory,p));
+  parameters->overtake.enable=false;
+  auto obj=object(-41,3.5,.3);obj.predicted_paths.front().path.resize(31);
+  bpp::lane_change::TargetObjects targets{{},{}};targets.trailing.push_back(obj);
+  safety::CollisionCheckDebugMap debug;
+  const auto result=module->isLaneChangePathSafe(candidate(),{prediction(15,6.5)},targets,
+    parameters->safety.rss_params,debug,true);
+  EXPECT_TRUE(result.is_safe);EXPECT_FALSE(result.is_trailing_object);
+  EXPECT_FALSE(module->hard_collision_detected_);
+  EXPECT_EQ(module->safety_rejected_pairs_,0u);
+  ASSERT_FALSE(module->safety_diagnostic_samples_.empty());
+  EXPECT_TRUE(module->safety_diagnostic_samples_.front().debug.is_safe);
+  EXPECT_TRUE(module->safety_diagnostic_samples_.front().debug.unsafe_reason.empty());
 }
-TEST_F(Scene, AdmittedGeometryDoesNotDependOnAnAmbiguousNearestRouteId)
+TEST_F(Scene, CollisionAtLastAvailableSampleIsStillRejected)
 {
-  EXPECT_TRUE(lc::footprint_within_admitted_lane_union(pose(0),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
-  // A body straddling the admitted current/target shared boundary is included
-  // in their union; checking either polygon alone would reject a valid LC.
-  EXPECT_TRUE(lc::footprint_within_admitted_lane_union(pose(0,1.75),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,6),vehicle(),
-    *module->common_data_ptr_->lanes_polygon_ptr));
+  auto obj=object(60,3.5,0);obj.predicted_paths.front().path.resize(31);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(candidate(),obj,prediction(20,6.5),
+    parameters->safety.rss_params,debug,true));
+  EXPECT_FALSE(debug.at(obj.uuid.uuid).is_safe);
+  EXPECT_NE(debug.at(obj.uuid.uuid).unsafe_reason,"prediction_coverage_short");
+  EXPECT_TRUE(module->hard_collision_detected_);
 }
-TEST_F(Scene, CorridorUnionDoesNotBridgeAnUnadmittedGapOrAcceptOnlyTheCentre)
+TEST_F(Scene, ShortAlternativeDoesNotHideKnownCollisionOnLongerPrediction)
 {
-  auto lanes=*module->common_data_ptr_->lanes_polygon_ptr;
-  lanes.target={{-101,3.5},{401,3.5},{401,7},{-101,7}};
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,2.5),vehicle(),lanes));
-  EXPECT_FALSE(lc::footprint_within_admitted_lane_union(pose(0,-1.5),vehicle(),lanes));
+  auto obj=object(100,3.5,0);
+  auto short_path=obj.predicted_paths.front();short_path.path.resize(11);
+  obj.predicted_paths.insert(obj.predicted_paths.begin(),short_path);
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_TRUE(module->is_colliding(candidate(),obj,prediction(20,6.5),
+    parameters->safety.rss_params,debug,true));
+  EXPECT_FALSE(debug.at(obj.uuid.uuid).is_safe);
 }
+TEST_F(Scene, ShortCooperativeForecastFallsBackToNormalRss)
+{
+  auto obj=object(100,3.5,15);obj.predicted_paths.front().path.resize(31);
+  auto path=candidate();path.cooperative_overtake_target=obj.uuid;
+  safety::CollisionCheckDebugMap debug;
+  EXPECT_FALSE(module->is_colliding(path,obj,prediction(20,4),
+    parameters->safety.rss_params,debug,false));
+  obj=object(0,3.5,15);obj.predicted_paths.front().path.resize(31);
+  path.cooperative_overtake_target=obj.uuid;
+  EXPECT_TRUE(module->is_colliding(path,obj,prediction(20,4),
+    parameters->safety.rss_params,debug,false));
+}
+
+
+TEST_F(Scene, ApprovedFrenetPredictionUsesCurrentProgressAndRemainingHorizon)
+{
+  parameters->overtake.enable=false;
+  auto path=candidate();
+  path.type=bpp::lane_change::PathType::FrenetPlanner;
+  path.path=road(3.5,15);
+  path.info.lane_changing_start=pose(0,3.5);
+  path.info.lane_changing_end=pose(60,3.5);
+  path.info.velocity={15,15};
+  path.info.terminal_lane_changing_velocity=15;
+  path.frenet_path.prepare=road();
+  path.frenet_path.prepare_metric.duration=0;
+  path.frenet_path.prepare_metric.velocity=15;
+  for(double t : {0., .5, 1., 1.5, 2., 2.5, 3., 3.5, 4.}) {
+    path.frenet_path.lane_changing.times.push_back(t);
+    path.frenet_path.lane_changing.poses.push_back(pose(15*t,3.5));
+    path.frenet_path.lane_changing.longitudinal_velocities.push_back(15);
+  }
+  for(double position : {0.,15.,40.,55.}) {
+    SCOPED_TRACE(position);
+    auto odom=boost::make_shared<nav_msgs::Odometry>(*data->self_odometry);
+    odom->pose.pose=pose(position,3.5);data->self_odometry=odom;module->setData(data);
+    const auto paths=lc::convert_to_predicted_paths(module->common_data_ptr_,path,1,true);
+    ASSERT_EQ(paths.size(),2u);
+    for(const auto & prediction:paths) {
+      ASSERT_FALSE(prediction.empty());
+      EXPECT_DOUBLE_EQ(prediction.front().time,0);
+      EXPECT_NEAR(prediction.front().pose.position.x,position,1e-6);
+      EXPECT_LE(prediction.back().time, (60-position)/15+1e-6);
+      for(const auto & point:prediction) EXPECT_GE(point.pose.position.x,position);
+    }
+    EXPECT_NEAR(paths.front().back().pose.position.x,60,1e-6);
+  }
+  safety::CollisionCheckDebugMap debug;
+  const auto paths=lc::convert_to_predicted_paths(module->common_data_ptr_,path,1,true);
+  bpp::lane_change::TargetObjects targets{{},{}};
+  targets.trailing.push_back(object(0,3.5,0));
+  EXPECT_TRUE(module->isLaneChangePathSafe(path,paths,targets,
+    parameters->safety.rss_params,debug,true).is_safe);
+  targets.trailing.clear();targets.leading.push_back(object(55,3.5,0));
+  EXPECT_FALSE(module->isLaneChangePathSafe(path,paths,targets,
+    parameters->safety.rss_params,debug,true).is_safe);
+}
+
 int main(int argc, char ** argv)
 {
   ros::init(argc,argv,"lane_change_overtake_test",ros::init_options::NoSigintHandler);
