@@ -97,8 +97,10 @@ class CandidateNodeTest(unittest.TestCase):
         node.center_tolerance_ratio, node.y_weight = .2, .6
         node.signal_smoother = Mock()
         node.planner_compliance_observations = False
+        node.map_packet_max_age_sec = .5
+        node.detection_miss_hold_sec = .2
         node.signal_phase_policy = Mock()
-        node.signal_phase_policy.apply.side_effect = lambda raw, group: (raw, "unchanged")
+        node.signal_phase_policy.apply.side_effect = lambda raw, group, **kwargs: (raw, "unchanged")
         node.signal_phase_policy.process_normalized.side_effect = lambda raw, why, group, now, conf, smoother, **kwargs: (raw, conf, "unchanged")
         node.signal_phase_policy.output_observation_metadata.side_effect = lambda group: {
             "output_is_observed": True,

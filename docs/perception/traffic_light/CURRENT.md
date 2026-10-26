@@ -10,9 +10,9 @@
   confidence 0.25, 최대 처리 10Hz. 운영은 직접 관측 전달 + 판단의 서로 다른 허가 관측 3개 확인이다.
 - 기본은 YOLO26n960 + 지도 연결 + CNN v5, `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다.
   고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
-- 관측은 CNN 4-bit 분류, route별 보정은 기존 `traffic_signal_profiles.yaml`이다.
+- 운영은 CNN 4-bit 관측 보존이며, 색·화살표를 추가하는 보정은 명시적 legacy에만 남는다.
   `debug_observed_label`은 보정 전, `debug_raw_label`은 이름과 달리 보정 후다.
-- A/B/C/D-2의 fallback은 적색이다. D-1은 우회전 passthrough이고
+- 운영 A/B/C/D의 판독 불가·모순 조합은 UNKNOWN이며 가짜 적색/녹색을 만들지 않는다. D-1은 passthrough이고
   판단 모듈에서 제외된다. 별도 planning competition fail-open과 혼동하지 않는다.
 - native 신호 조회·제어 및 `/Ego_topic`은 **개발 평가용**이다.
   운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
@@ -39,6 +39,8 @@
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
+- [정차선·통과선 분리 후속](261026_TIMED_YELLOW_CANDIDATE.md#stopline-followup): B/D 추가 정차여유 0.75m. 물리 통과선 후보는 D 화각 이탈 정지로 기본 OFF이며 황색 override도 보류한다.
+- 단발 detector 누락만 동일 head·유효 지도에서 원본 관측 age 0.2초까지 보존한다. CNN UNKNOWN·모순·지도/TF 실패·기한 만료는 UNKNOWN이다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
@@ -57,9 +59,8 @@
 
 특히 D-2에서 G와 Y 단독은 좌회전 신호가 아니다.
 R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미를 복원하지 않는다.
-위 표는 영상 관측을 평가하는 기준이며 CNN 입력에 구간 GT나 phase 정답을 넣는 기능이 아니다.
-기존 D-2 프로필의 R+Y 관측을 유지하되 판단 준수 가드는 황색만 보고 새로 출발하지 않는다.
-황색 통과를 명시적으로 ON한 경우만 최근 허가→황색 제동 불가 예외를 쓰며, 공식 무패널티는 보증하지 않는다.
+위 표는 관측된 자연 프로그램이며 CNN 입력 GT가 아니다. D의 Y도 R로 바꾸지 않고 비허가로 판단한다.
+허가 없는 Y/R+Y 새 출발은 금지다. 물리 통과선·시야 계약 전까지 황색 override는 보류하며 무패널티를 보증하지 않는다.
 사용자가 재확인한 미션 명칭은 A·B·C(두 physical head)·D(옛 D-2)다.
 동적 교차로 뒤에 보이는 옛 D-1은 검출 라벨로 존재해도 미션 신호 허용 대상으로 쓰지 않는다.
 
@@ -69,7 +70,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
-   0.5초 freshness는 원래 관측 stamp 기준이며, 앞바퀴가 선을 넘은 뒤에는 해당 신호만으로 급정지시키지 않는다.
+   0.5초 freshness는 원본 stamp 기준이다. 기본 GO_OUT은 아직 지도 정차선 기준이며 공식 도색선 통과 인증이 아니다.
 
 ## 평가·학습 경계
 
@@ -93,7 +94,6 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
   보장하지 않으며, 팀 대화의 대회 주기 단축 예상도 운영 상수로 쓰지 않는다.
 
 ## 자료 위치
-
 - 팀원 원문·영상·SHA: `artifacts/reference/traffic_light_team_notes_261025/`(원본 ZIP 보존).
 - 신규 원본 JPEG·native/환경 증거·실패·QC·후보 결과:
   `artifacts/evaluation/traffic_light_robustness_261025/`.

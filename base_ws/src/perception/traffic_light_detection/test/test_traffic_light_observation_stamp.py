@@ -142,10 +142,12 @@ class PlannerObservationHandoffTest(unittest.TestCase):
     def setUp(self):
         self.policy = SignalPhasePolicy.from_yaml(str(PACKAGE/'config/traffic_signal_profiles.yaml'))
 
-    def step(self, raw, clock, source, smoother, group=201326, use_smoothing=False):
-        normalized, reason = self.policy.apply(raw, group)
+    def step(self, raw, clock, source, smoother, group=201326, use_smoothing=False,
+             head='C1256W000052', eligible=False):
+        normalized, reason = self.policy.apply(raw, group, observed_only=not use_smoothing)
         result = self.policy.process_normalized(normalized, reason, group, clock, .9, smoother,
-            source_stamp_ns=source, use_smoothing=use_smoothing)
+            source_stamp_ns=source, use_smoothing=use_smoothing,
+            observation_head_id=head, detection_miss_hold_eligible=eligible)
         return result, self.policy.output_observation_metadata(group)
 
     def test_opt_in_valid_red_cancels_existing_green_on_first_current_observation(self):
@@ -167,9 +169,9 @@ class PlannerObservationHandoffTest(unittest.TestCase):
         result, metadata = self.step([Y], 10.1, 9100000000, smoother, 201351)
         self.assertEqual(result[0], [Y])
         self.assertEqual(metadata['output_origin'], 'current_observation')
-        # D's existing correction remains: Y-alone means route STOP, not Y GO.
+        # D's observed yellow remains yellow; route permission belongs to C++.
         result, metadata = self.step([Y], 10.2, 9200000000, smoother, 201326)
-        self.assertEqual(result[0], [R])
+        self.assertEqual(result[0], [Y])
         self.assertEqual(metadata['adopted_observation_source_stamp_ns'], 9200000000)
 
     def test_opt_in_fresh_G_is_observation_not_a_self_contained_permission_grant(self):
@@ -181,15 +183,15 @@ class PlannerObservationHandoffTest(unittest.TestCase):
         _, repeated = self.step([G], 10.1, 9000000000, smoother, 201351)
         self.assertEqual(repeated['adopted_observation_source_stamp_ns'], 9000000000)
 
-    def test_opt_in_D_missing_keeps_original_hold_then_synthetic_expiry(self):
+    def test_opt_in_D_detection_gap_keeps_source_only_for_200ms_then_unknown(self):
         smoother = SignalSmoother(7, 4)
-        self.step([R, L], 10., 9000000000, smoother)
-        result, metadata = self.step([], 11., 10000000000, smoother)
+        self.step([R, L], 10., 10000000000, smoother)
+        result, metadata = self.step([], 10.1, 10100000000, smoother, eligible=True)
         self.assertEqual(set(result[0]), {R, L})
-        self.assertEqual(metadata['adopted_observation_source_stamp_ns'], 9000000000)
+        self.assertEqual(metadata['adopted_observation_source_stamp_ns'], 10000000000)
         self.assertTrue(metadata['output_is_held'])
-        result, metadata = self.step([], 11.51, 10510000000, smoother)
-        self.assertEqual(result[:2], ([R], 0.))
+        result, metadata = self.step([], 10.201, 10201000000, smoother, eligible=True)
+        self.assertEqual(result[:2], ([], 0.))
         self.assertIsNone(metadata['adopted_observation_source_stamp_ns'])
         self.assertFalse(metadata['output_is_observed'])
 
@@ -201,21 +203,21 @@ class PlannerObservationHandoffTest(unittest.TestCase):
         self.assertEqual(result[0], [R])
         self.assertEqual(metadata['adopted_observation_source_stamp_ns'], 9300000000)
 
-    def test_opt_in_simple_unknown_is_synthetic_red_not_old_green_vote(self):
+    def test_opt_in_simple_unknown_is_unknown_not_synthetic_red_or_old_green(self):
         smoother = SignalSmoother(7, 4)
         self.step([G], 10., 9000000000, smoother, 201351)
         result, metadata = self.step([], 10.1, 9100000000, smoother, 201351)
-        self.assertEqual(result[0], [R])
+        self.assertEqual(result[0], [])
         self.assertFalse(metadata['output_is_observed'])
         self.assertIsNone(metadata['adopted_observation_source_stamp_ns'])
 
-    def test_opt_in_does_not_remove_existing_four_second_D_observation_cap(self):
+    def test_opt_in_fresh_D_yellow_is_not_ended_by_legacy_four_second_cap(self):
         smoother = SignalSmoother(7, 4)
         for index in range(8):
-            self.assertEqual(set(self.step([R, Y], index*.5, 1000000000+index*500000000, smoother)[0][0]), {R, Y})
-        result, metadata = self.step([R, Y], 4.01, 5010000000, smoother)
-        self.assertEqual(result[0], [R])
-        self.assertFalse(metadata['output_is_observed'])
+            self.assertEqual(set(self.step([R, Y], 10+index*.5, 10000000000+index*500000000, smoother)[0][0]), {R, Y})
+        result, metadata = self.step([R, Y], 14.01, 14010000000, smoother)
+        self.assertEqual(set(result[0]), {R, Y})
+        self.assertTrue(metadata['output_is_observed'])
 
     def test_default_smoothing_still_delays_switch_until_four_of_seven(self):
         smoother = SignalSmoother(7, 4)
@@ -311,14 +313,15 @@ class NodeObservationStampTest(unittest.TestCase):
         self.assertTrue(decision['planner_compliance_observations'])
         self.assertFalse(decision['observation_timing']['output_is_held'])
 
-    def test_node_opt_in_missing_D_keeps_wire_source_for_downstream_TTL(self):
+    def test_node_opt_in_D_unknown_is_not_legacy_unqualified_hold(self):
         node = self.node(window=7)
         node.planner_compliance_observations = True
         self.step(node, [R, L], 10., fixture.Stamp(9.))
         output, decision = self.step(node, [], 10.5, fixture.Stamp(9.5))
-        self.assertEqual(output.stamp.to_nsec(), 9000000000)
+        self.assertEqual(output.stamp.to_nsec(), 9500000000)
         self.assertTrue(decision['planner_compliance_observations'])
-        self.assertTrue(decision['observation_timing']['output_is_held'])
+        self.assertFalse(decision['observation_timing']['output_is_held'])
+        self.assertFalse(decision['observation_timing']['output_is_observed'])
 
 
 if __name__ == '__main__':

@@ -136,3 +136,20 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 `--output`은 `artifacts/evaluation/` 아래 새 JSON만 허용한다. 이 도구는 ROS/RPC/학습을
 실행하지 않는다. 실제 native 상태 일치율·arrow·UNKNOWN·잘못된 대상·현재 정책 proxy를
 분리하지만 sparse 사진으로 smoother 지연이나 공식 황색 통행 규칙을 평가하지 않는다.
+
+## 2026-10-26 관측 보존과 정차 시야 보완
+
+운영 direct 경로는 `observed_phases`의 실제 램프만 전달한다. C의 화살표를 보고 직진G를
+추가하거나 D의Y를R로 바꾸지 않는다. 모순·무점등·저확신은 UNKNOWN이며 legacy 보정과 구분한다.
+`detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
+누락만 완충한다. 원본 stamp를 유지하고, 실제 R/Y·CNN UNKNOWN·TF/지도/identity 실패는 즉시 반영한다.
+
+`config/traffic_signal_stop_lines.yaml`의 B/D `additional_stop_margin_m: 0.75`는 현재 v87
+anchor와 정합할 때만 정차 목표를 더 일찍 잡는다. 지도 OSM·센서·학습 가중치는 바꾸지 않는다.
+`signal_stop_line_crossing_reference_enabled:=false`가 기본이다. true는 planner와 route helper를
+함께 원본 MGeo 도색선 proxy로 전환하는 **별도 후보**이며, 실제 D 시험에서 선 전 화각 이탈
+재정지가 생겨 기본으로 올리지 않았다. 현재 virtual GO_OUT의 조기 판정 한계는 남아 있다.
+유효 profile에서 이 후보가 OFF이면 virtual ETA로 황색 통과하지 않도록 override도 보류한다.
+부재/불일치 profile은 경고 후 기존 지도 동작을 유지하며 새 live 시작 거부 조건을 만들지 않는다.
+단, 체크인 launch/config 파일 자체의 누락·문법 오류는 기존처럼 설치 수정이 필요하다.
+[실험과 미완료 경계](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#stopline-followup)를 본다.
