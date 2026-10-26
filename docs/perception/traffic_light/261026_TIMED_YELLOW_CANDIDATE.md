@@ -246,3 +246,30 @@ native G16/R+좌화살표33의 전후0.25/0.5초 bracket이 일치했다.
 사용자 승인 후 Drive `kcity_map/lanelet_map`과 최신 planning ref도 확인했지만
 현재와 같은 v87(size/MD5 일치)이 최신이었으므로 지도 재다운로드·수정·업로드는 하지 않았다.
 정차여유는 작은 공유 설정으로 적용하며, 대규모 지도 자산 갱신으로 사각 문제를 덮지 않는다.
+
+<a id="standard-stop-margin"></a>
+## 팀 관리 설정으로 통일: PR54 전용 계약 철회
+
+사용자와 팀장님 결정에 따라 정차 위치는 기존 Lanelet 지도와 Autoware의 `traffic_light.stop_margin`으로
+통일했다. 위 절의 전용 YAML·MGeo 통과선 분리·anchor 자격 검사·구간별 추가 margin은 이후 제거했다.
+해당 소스와 시험은 Git `ef2a7384` 및 위 frozen 실행에 보존되며 현재 운영 코드가 아니다.
+이전 시험 결과를 바꾸거나 현재 설정의 실주행 인증으로 재사용하지 않는다.
+
+운영 설정은 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`이다.
+기존 값0.0을0.75m로 바꾸었고 normal profile과 독립 traffic-light 모듈 기본도 동기화했다.
+A/B/C/D 모두 같은0.75m이며, 정차 목표는 지도선에서 앞범퍼 여유0.75m를 뺀 위치다.
+PR54 정상 v87 조건과 비교하면 B/D의 정차 여유는 같고 A/C는0.75m 더 일찍 정차한다.
+지도 ref_line의 기하 좌표·신호등 관측·센서·모델 가중치는 바꾸지 않는다.
+
+인지의 관측 보존·detector-only 원본age0.2초 완충·허가3회 확인·황색 기본OFF는 유지했다.
+전용 계약에 의존하던 추가 황색 차단도 해당 코드와 함께 제거되므로, 명시적 황색ON 시험은
+기존 후보 로직이 된다. 지도선과 공식 판정선 차이·화각 이탈을 해결하기 전 운영ON을 권하지 않는다.
+원본 도색선으로 GO_OUT을 바꾸어 교착된 실험도 현재 기능으로 남기지 않는다.
+
+전용 계약 시험을 제외한 기존 Native84개와 신규 공통 margin 시험2개(각 A/B/C/D 루프),
+인지 Python269개, 설치기30개가 통과했다. 실제 launch 해석에서도 `stop_margin=0.75`,
+허가3회·황색OFF 및 전용 계약 parameter 부재를 확인했다. 새 MORAI 주행 인증은 아니며,
+이 변경에서는 기존 실행을 시작하거나 팀장님 PC의 설치 상태를 추정하지 않았다.
+설치기는 CMake install에 남을 수 있는 PR54 전용 YAML도 과거 원본 SHA가 맞을 때만 지운다.
+사용자가 별도로 수정한 설치 파일은 보존하고 새 코드는 그 파일을 읽지 않는다.
+Native 근거는 `artifacts/evaluation/traffic_light_robustness_261025/standard_stop_margin_tests_261026_v1/`다.

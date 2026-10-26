@@ -144,12 +144,11 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 `detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
 누락만 완충한다. 원본 stamp를 유지하고, 실제 R/Y·CNN UNKNOWN·TF/지도/identity 실패는 즉시 반영한다.
 
-`config/traffic_signal_stop_lines.yaml`의 B/D `additional_stop_margin_m: 0.75`는 현재 v87
-anchor와 정합할 때만 정차 목표를 더 일찍 잡는다. 지도 OSM·센서·학습 가중치는 바꾸지 않는다.
-`signal_stop_line_crossing_reference_enabled:=false`가 기본이다. true는 planner와 route helper를
-함께 원본 MGeo 도색선 proxy로 전환하는 **별도 후보**이며, 실제 D 시험에서 선 전 화각 이탈
-재정지가 생겨 기본으로 올리지 않았다. 현재 virtual GO_OUT의 조기 판정 한계는 남아 있다.
-유효 profile에서 이 후보가 OFF이면 virtual ETA로 황색 통과하지 않도록 override도 보류한다.
-부재/불일치 profile은 경고 후 기존 지도 동작을 유지하며 새 live 시작 거부 조건을 만들지 않는다.
-단, 체크인 launch/config 파일 자체의 누락·문법 오류는 기존처럼 설치 수정이 필요하다.
-[실험과 미완료 경계](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#stopline-followup)를 본다.
+팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
+`planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`의
+`traffic_light.stop_margin: 0.75`이며 A/B/C/D에 공통 적용한다. normal 모드와 독립 모듈 기본도
+동일 값이다. 앞범퍼가 지도 ref_line보다0.75m 앞에서 정차하도록 계산하며 지도 OSM은 바꾸지 않는다.
+PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
+지도 선의 위치는 지도 담당자가 관리한다. 기존 지도선 기준 GO_OUT과 실제 도색선의 차이,
+이동 중 신호등 화각 이탈 문제는 여전히 남으며 황색 통과 기본 OFF·허가3회는 유지한다.
+[변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

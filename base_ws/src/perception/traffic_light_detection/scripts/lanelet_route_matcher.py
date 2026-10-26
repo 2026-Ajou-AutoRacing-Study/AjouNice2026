@@ -149,80 +149,6 @@ def _parse_reference_latlon(map_file, member_role):
     return result
 
 
-def _parse_stop_line_latlon(map_file):
-    """Keep actual ref_line endpoints for anchor checks, not just their mean."""
-    tree = ET.parse(map_file).getroot()
-    nodes = {n.get('id'): (float(n.get('lat')), float(n.get('lon'))) for n in tree.findall('node')}
-    ways = {w.get('id'): [nodes[n.get('ref')] for n in w.findall('nd')]
-            for w in tree.findall('way')}
-    result = {}
-    for relation in tree.findall('relation'):
-        tags = {t.get('k'): t.get('v') for t in relation.findall('tag')}
-        if tags.get('subtype') != 'traffic_light':
-            continue
-        lines = [ways[m.get('ref')] for m in relation.findall('member')
-                 if m.get('role') == 'ref_line' and m.get('type') == 'way' and m.get('ref') in ways]
-        if len(lines) == 1:
-            result[int(relation.get('id'))] = lines[0]
-    return result
-
-
-def _stop_line_contracts(value):
-    """Optional deployment aid: malformed profiles warn and keep old geometry."""
-    result = {}
-    if value is None:
-        return result
-    if not isinstance(value, list):
-        rospy.logwarn('[lanelet_route_matcher] signal_stop_line_contracts is not a list; keeping map defaults')
-        return result
-    duplicates = set()
-    for entry in value:
-        try:
-            if not isinstance(entry, dict):
-                raise ValueError('entry must be an object')
-            gid = entry.get('regulatory_id')
-            if type(gid) is not int or gid <= 0:
-                raise ValueError('regulatory_id must be a positive integer')
-            expected, crossing = entry.get('expected_stop_line_xy'), entry.get('crossing_line_xy')
-            if not isinstance(expected, list) or len(expected) != 4:
-                raise ValueError('expected_stop_line_xy must have four values')
-            if not isinstance(crossing, list) or len(crossing) not in (4, 6):
-                raise ValueError('crossing_line_xy must have four or six values')
-            numbers = expected + crossing + [entry.get('additional_stop_margin_m'), entry.get('max_anchor_error_m')]
-            if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in numbers):
-                raise ValueError('contract contains nonfinite/nonnumeric values')
-            if not 0 <= entry['additional_stop_margin_m'] <= 5. or not 0 < entry['max_anchor_error_m'] <= 2.:
-                raise ValueError('invalid stop margin/anchor tolerance')
-            points = list(zip(crossing[::2], crossing[1::2]))
-            if math.dist(expected[:2], expected[2:]) < .1 or any(math.dist(a, b) < .1 for a, b in zip(points, points[1:])):
-                raise ValueError('degenerate stop/crossing segment')
-            upstream = ((expected[0]+expected[2])/2., (expected[1]+expected[3])/2.)
-            for a, b in zip(points, points[1:]):
-                distance = abs((b[0]-a[0])*(upstream[1]-a[1]) -
-                               (b[1]-a[1])*(upstream[0]-a[0])) / math.dist(a, b)
-                if distance < .05:
-                    raise ValueError('crossing line must be separated from the anchored virtual stop')
-            if gid in result or gid in duplicates:
-                duplicates.add(gid)
-                result.pop(gid, None)
-                raise ValueError('duplicate regulatory_id; ignoring all entries for that ID')
-            result[gid] = dict(entry)
-        except (KeyError, TypeError, ValueError, OverflowError) as error:
-            rospy.logwarn('[lanelet_route_matcher] optional crossing contract ignored: %s', error)
-    return result
-
-
-def _line_midpoint(points):
-    """Arc-length midpoint, independent of intermediate vertex sampling."""
-    lengths = [math.dist(a, b) for a, b in zip(points, points[1:])]
-    remaining = sum(lengths) / 2.
-    for a, b, size in zip(points, points[1:], lengths):
-        if remaining <= size:
-            return tuple(a[i] + (b[i]-a[i])*remaining/size for i in (0, 1))
-        remaining -= size
-    return tuple(points[-1])
-
-
 def _parse_roundabout_regulatory_ids(map_file):
     """Return roundabout regulatory-element IDs declared by the source OSM.
 
@@ -315,8 +241,7 @@ class LaneletRouteGroupIdMatcher:
                  crossing_reference="bulb", route_progress_guard=False,
                  route_progress_hysteresis_m=1.0,
                  route_progress_max_lateral_m=8.0,
-                 route_progress_pose_jump_m=8.0,
-                 signal_stop_line_contracts=None):
+                 route_progress_pose_jump_m=8.0):
         if crossing_reference not in ("bulb", "stopline"):
             raise ValueError('crossing_reference는 "bulb" 또는 "stopline"이어야 합니다')
         self.available = False
@@ -343,8 +268,6 @@ class LaneletRouteGroupIdMatcher:
         self._route_geometry = []
         self._route_events = []
         self._stopline_positions = {}
-        self._signal_stop_line_contracts = _stop_line_contracts(signal_stop_line_contracts)
-        self._contract_crossing_positions = {}
         self._ego_yaw = None
         self._reset_route_progress('startup')
 
@@ -374,7 +297,6 @@ class LaneletRouteGroupIdMatcher:
             self.map = _load_lanelet_map_for_traffic_matching(map_file, self.projector)
             self._build_lanelet_group_id_map()
             self._build_crossing_info(map_file)
-            self._apply_stop_line_contracts(map_file)
             self.available = True
             n_missing = len(self.lanelet_group_id) - len(
                 set(self.crossing_info.keys()) & set(self.lanelet_group_id.values())
@@ -449,86 +371,6 @@ class LaneletRouteGroupIdMatcher:
         self._progress_xy = None
         self._progress_debug = {'reason': reason, 'progress_m': None}
 
-    def _apply_stop_line_contracts(self, map_file):
-        """Use separately anchored crossing lines without mutating the Lanelet map.
-
-        The extra stopping margin is owned by the planner, not route selection.
-        Missing/mismatched metadata must never make an otherwise usable map fail.
-        """
-        self._contract_crossing_positions = {}
-        if not self._signal_stop_line_contracts:
-            return
-        try:
-            actual = _parse_stop_line_latlon(map_file)
-        except (OSError, ValueError, ET.ParseError, KeyError) as error:
-            rospy.logwarn('[lanelet_route_matcher] crossing anchor parse failed; keeping map defaults: %s', error)
-            return
-        for gid, contract in self._signal_stop_line_contracts.items():
-            try:
-                line = actual.get(gid)
-                if line is None or len(line) != 2:
-                    raise ValueError('missing/non-two-point ref_line anchor')
-                projected = [self.projector.forward(core.GPSPoint(lat, lon, 0.)) for lat, lon in line]
-                points = [(float(p.x), float(p.y)) for p in projected]
-                expected = list(zip(contract['expected_stop_line_xy'][::2], contract['expected_stop_line_xy'][1::2]))
-                error = min(max(math.dist(a, b) for a, b in zip(points, expected)),
-                            max(math.dist(a, b) for a, b in zip(points, reversed(expected))))
-                if error > contract['max_anchor_error_m']:
-                    raise ValueError('map anchor mismatch {:.3f}m > {:.3f}m'.format(error, contract['max_anchor_error_m']))
-                crossing = list(zip(contract['crossing_line_xy'][::2], contract['crossing_line_xy'][1::2]))
-                midpoint = _line_midpoint(crossing)
-                self._contract_crossing_positions[gid] = midpoint
-                # Preserve legacy half-plane matching, but with the same
-                # qualified physical crossing reference instead of the bulb.
-                if gid in self.crossing_info:
-                    _, _, dx, dy = self.crossing_info[gid]
-                    self.crossing_info[gid] = (midpoint[0], midpoint[1], dx, dy)
-                rospy.loginfo('[lanelet_route_matcher] qualified crossing contract reg=%d anchor_error_m=%.6f', gid, error)
-            except (ValueError, TypeError, KeyError, RuntimeError) as error:
-                rospy.logwarn('[lanelet_route_matcher] crossing contract reg=%d ignored; keeping map defaults: %s', gid, error)
-
-    def _crossing_event_progress(self, gid, index, anchor, base_progress, tangent):
-        """Project the qualified crossing onto the nearby ordered continuation.
-
-        Some approach Lanelets end at the upstream virtual stop. Projecting the
-        physical line onto that Lanelet alone clamps to its endpoint and would
-        still release the mission too soon. Search only this local occurrence,
-        including its successor, never a remote later lap of the same road.
-        """
-        reference = self._contract_crossing_positions.get(gid)
-        if reference is None:
-            return base_progress
-        reach = math.dist(anchor, reference) + 10.
-        candidates = []
-        for segment_index, start, preferred_length, alternatives in self._route_geometry:
-            if segment_index < index-1:
-                continue
-            for _, points, length in alternatives:
-                projection = _polyline_projection(points, *reference)
-                distance, along, _, dx, dy = projection
-                progress = start + preferred_length*along/length
-                if abs(progress-base_progress) > reach or distance > 20.:
-                    continue
-                endpoint = points[-1] if along >= length-1e-6 else points[0] if along <= 1e-6 else None
-                if endpoint is not None:
-                    residual = (reference[0]-endpoint[0])*dx+(reference[1]-endpoint[1])*dy
-                    if (along >= length-1e-6 and residual > 1e-6) or (along <= 1e-6 and residual < -1e-6):
-                        continue
-                # Do not snap a longitudinal crossing onto a nearby crossing
-                # road or the perpendicular exit leg after a junction turn.
-                if dx*tangent[0] + dy*tangent[1] < .5:
-                    continue
-                candidates.append((distance*distance + .0001*(progress-base_progress)**2, progress))
-        if not candidates:
-            # A route ending before a qualified physical crossing must not
-            # release its signal at the upstream endpoint. This scalar event
-            # extension cannot be reached on that truncated route; it does not
-            # extrapolate any path or command a vehicle beyond the route end.
-            offset = (reference[0]-anchor[0])*tangent[0]+(reference[1]-anchor[1])*tangent[1]
-            rospy.logwarn('[lanelet_route_matcher] crossing reg=%d beyond local route; retaining physical crossing progress', gid)
-            return base_progress + max(0., offset)
-        return min(candidates)[1]
-
     def _build_route_progress_geometry(self):
         """Cache actual ordered route geometry; repeated lane IDs stay distinct."""
         self._route_geometry, self._route_events = [], []
@@ -552,10 +394,6 @@ class LaneletRouteGroupIdMatcher:
                 continue
             preferred_length = alternatives[0][2]
             self._route_geometry.append((index, start, preferred_length, alternatives))
-            start += preferred_length
-        # Geometry must exist through the continuation before projecting a
-        # physical crossing beyond an approach Lanelet's virtual endpoint.
-        for index, start, preferred_length, alternatives in self._route_geometry:
             occurrences = {}
             for lane_id, points, length in alternatives:
                 gid = self.lanelet_group_id.get(lane_id)
@@ -573,10 +411,7 @@ class LaneletRouteGroupIdMatcher:
                     self._route_geometry, self._route_events = [], []
                     self._progress_debug['reason'] = 'route_signal_stopline_not_on_lane'
                     return
-                base_progress = start+preferred_length*projection[1]/length
-                event_progress = self._crossing_event_progress(
-                    gid, index, reference, base_progress, projection[3:5])
-                occurrences.setdefault(gid, []).append(event_progress)
+                occurrences.setdefault(gid, []).append(start+preferred_length*projection[1]/length)
             for gid, distances in occurrences.items():
                 event_s = sum(distances)/len(distances)
                 # Merge the same stopline attached to adjacent route lanes,
@@ -588,6 +423,7 @@ class LaneletRouteGroupIdMatcher:
                     previous['segment_index'] = index
                 else:
                     self._route_events.append(dict(group_id=gid, segment_index=index, progress_m=event_s))
+            start += preferred_length
         self._route_events.sort(key=lambda event: event['progress_m'])
 
     def start_subscribers(self, route_topic, odom_topic, route_state_topic="/planning/route_state"):
