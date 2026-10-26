@@ -1453,7 +1453,12 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
     {
       // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
       // a lagging controller must not silently replace the planned hypothesis.
-      result.push_back(convert_to_predicted_path(common_data_ptr, lane_change_path));
+      // Use the remaining spatial maneuver horizon, not the original full
+      // prepare+LC duration after ego has already advanced through preparation.
+      auto remaining = lane_change_path;
+      remaining.info.duration.prepare = std::min(remaining.info.duration.prepare, duration);
+      remaining.info.duration.lane_changing = duration - remaining.info.duration.prepare;
+      result.push_back(convert_to_predicted_path(common_data_ptr, remaining));
     }
     return result;
   }

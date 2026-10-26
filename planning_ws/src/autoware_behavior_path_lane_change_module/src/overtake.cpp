@@ -285,7 +285,8 @@ bool NormalLaneChange::prepareCandidateForSearch(
     required_slot_prediction_time_ = std::max(required_slot_prediction_time_, duration);
     return false;
   }
-  const bool ahead = slot == lc::MergeSlot::Ahead;
+  const bool ahead = target ? slot == lc::MergeSlot::Ahead :
+    std::get<0>(candidateRank(candidate)) == 0;
   if ((mode == CandidateSearchMode::Ahead && !ahead) ||
       (mode == CandidateSearchMode::Other && ahead)) return false;
 
@@ -471,6 +472,10 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
         hard_collision_detected_ = true;  // Bypass soft unsafe hysteresis for a physical road violation.
         return reject("feedback_outside_corridor");
       }
+    }
+    if (candidate.prediction_coverage_deferred) {
+      overtake_feedback_reason_ = "prediction_coverage_pending";
+      return predictions.front();
     }
     updateExecutionManeuver(candidate);
     const auto profile = executionProfile(candidate);

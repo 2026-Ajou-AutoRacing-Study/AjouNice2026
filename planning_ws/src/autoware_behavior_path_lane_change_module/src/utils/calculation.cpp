@@ -563,6 +563,12 @@ std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr
     const double latest = lc_param_ptr->trajectory.max_prepare_duration;
     std::vector<double> durations;
     if (!std::isfinite(earliest) || earliest < 0.0 || earliest > latest) return durations;
+    if (!lc_param_ptr->trajectory.prepare_duration_samples.empty()) {
+      for (const double t : lc_param_ptr->trajectory.prepare_duration_samples) {
+        if (t + eps >= earliest && t <= latest + eps) durations.push_back(t);
+      }
+      return durations;
+    }
     // Try an immediate safe maneuver first, then delayed alternatives if the
     // target lane has not started yet or current traffic prevents starting now.
     for (double duration = earliest; duration < latest - eps; duration += 0.5) {

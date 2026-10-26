@@ -161,7 +161,9 @@ protected:
   mutable size_t search_prepare_metrics_{0}, search_generated_{0}, search_checked_{0}, search_safe_{0};
   mutable bool search_budget_exhausted_{false};
   std::string rolling_plan_reason_{"not_running"};
-  std::tuple<double, int, double, double> candidateRank(const LaneChangePath & candidate) const;
+  std::tuple<int, double, int, int, double, double> candidateRank(
+    const LaneChangePath & candidate) const;
+  void applyPredictionCoverageStop(PathWithLaneId & path);
   bool replacementIsContinuous(const LaneChangePath & candidate) const;
 
   void updateOvertake(bool is_approved);

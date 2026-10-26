@@ -48,6 +48,19 @@ TEST(LaneChangeNativeParameterEvents, RecoveryTimeLoadsAndRejectsInvalidUpdates)
   ParameterEventManager invalid;EXPECT_THROW(invalid.initialize(&node),std::invalid_argument);
   node.setParam("lane_change/execution/recovery_time",1.0);
 }
+TEST(LaneChangeNativeParameterEvents, ApprovedReplacementToggleLoadsAndUpdates) {
+  ros::NodeHandle node("/lane_change_native_events");
+  node.setParam("lane_change/execution/always_update_approved",false);
+  ParameterEventManager manager;ASSERT_TRUE(manager.initialize(&node));
+  EXPECT_FALSE(manager.parameters().always_update_approved);
+  EXPECT_EQ(manager.parameters().trajectory.prepare_duration_samples,
+    std::vector<double>({0,.5,1,1.5,2,2.5,4}));
+  manager.updateModuleParams({rclcpp::Parameter("lane_change.execution.always_update_approved",true)});
+  EXPECT_TRUE(manager.parameters().always_update_approved);
+  manager.updateModuleParams({rclcpp::Parameter("lane_change.execution.always_update_approved",false)});
+  EXPECT_FALSE(manager.parameters().always_update_approved);
+}
+
 }
 int main(int argc,char ** argv) {
   ros::init(argc,argv,"lane_change_native_events");

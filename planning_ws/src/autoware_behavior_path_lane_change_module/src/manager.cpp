@@ -84,6 +84,15 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
     throw std::invalid_argument("lane_change/overtake/npc_reaction_time must be nonnegative");
   }
 
+  node->param("lane_change/execution/always_update_approved", p.always_update_approved, false);
+  node->getParam("lane_change/trajectory/prepare_duration_samples", p.trajectory.prepare_duration_samples);
+  if (!std::is_sorted(p.trajectory.prepare_duration_samples.begin(),
+                      p.trajectory.prepare_duration_samples.end()) ||
+      std::any_of(p.trajectory.prepare_duration_samples.begin(),
+                  p.trajectory.prepare_duration_samples.end(), [](double t) {
+                    return !std::isfinite(t) || t < 0.0; })) {
+    throw std::invalid_argument("LC prepare duration samples must be finite, nonnegative and sorted");
+  }
   node->param("lane_change/execution/recovery_time", p.execution_recovery_time, 1.0);
   if (!std::isfinite(p.execution_recovery_time) || p.execution_recovery_time <= 0.0) {
     throw std::invalid_argument("lane_change/execution/recovery_time must be finite and positive");
@@ -721,6 +730,8 @@ void LaneChangeModuleManager::updateModuleParams(const std::vector<rclcpp::Param
     }
   }
 
+  update_param<bool>(parameters, "lane_change.execution.always_update_approved",
+                     p->always_update_approved);
   double recovery_time = p->execution_recovery_time;
   update_param<double>(parameters, "lane_change.execution.recovery_time", recovery_time);
   if (std::isfinite(recovery_time) && recovery_time > 0.0) {

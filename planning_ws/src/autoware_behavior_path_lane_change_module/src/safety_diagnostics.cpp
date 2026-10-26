@@ -84,6 +84,8 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"valid", status_.is_valid_path}, {"safe", approved ? safe : status_.is_safe},
     {"unsafe_trailing", trailing},
     {"execution_recovery_time_s", params.execution_recovery_time},
+    {"always_update_approved", params.always_update_approved},
+    {"prediction_coverage_pending", activeSafetyPath().prediction_coverage_deferred},
     {"required_recovery_time_s", std::isfinite(execution_required_recovery_time_)
       ? Json(execution_required_recovery_time_) : Json(nullptr)},
     {"ego_pose", pose_json(getEgoPose())}, {"ego_speed", getEgoVelocity()},
