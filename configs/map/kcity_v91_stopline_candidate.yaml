@@ -15,6 +15,10 @@ changed_node_ids: [92992, 92993, 92998, 92999, 93020, 93021, 93034, 93035]
 stop_margin_m: 0.0
 closed_loop_trials: 2
 closed_loop_pass: 2
+additional_latency_retest_trials: 4
+additional_latency_retest_pass: 4
+latency_retest_evidence: artifacts/evaluation/traffic_light_robustness_261025/v91_abcd_latency_retest_261026_v1
+latency_retest_limit: one trial per mission with DEBUG off; D permissive arrival without signal waiting
 collisions: 0
 trial_scope: B standalone plus A-B-C-D corridor ending at the existing D exit waypoint
 whole_course_pass_claim: false

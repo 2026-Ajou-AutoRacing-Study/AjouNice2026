@@ -447,3 +447,49 @@ D는 직진G/Y에는 정차하고 R+좌화살표에 출발했다. C의 두 head�
 **운영 기본v87과 PR55 draft는 유지**한다. 기본 전환에는 route/map SHA 및 launch 선택 동기화가 필요하다.
 최종 Python327개·문서 검사·설치기`--check`가 통과했다. 회귀는 주행 종료 후 수행했다.
 v91은 팀 Drive에 별도 업로드했고 원격/로컬 MD5 `09832c1fdcde2cf770937d3c4d34bbc5` 일치를 확인했다.
+
+<a id="v91-latency-retest"></a>
+## A/B/C/D 독립 재시험: 지연과 구간 고유 현상 구분
+
+사용자는 CPU 부하라고 단정하기 전에 B/D에서만 반복되는지 확인하도록 요청했다.
+선정한v91/모델/정책/goal/안전 기준을 그대로 두고 A→B→C→D 각1회 실제 validator로 다시 실행했다.
+운영 기본인 C++ 상세DEBUG OFF, 모니터1Hz(no GPU polling), 원본 JPEG 전체 bag 제외 조건이다.
+카메라 입력·YOLO/CNN·observer 교차 원본 사진·native GET은 유지했다. 각 trial의 설정/수신/안전 결과와
+같은 PC의 CPU·MORAI process CPU·메모리·UDP counter를 같은 시각으로 기록했다.
+무거운 테스트/빌드/업로드를 주행과 겹치지 않았다. 이 기록은 과거DEBUG ON과의 통제된A/B는 아니다.
+
+| 구간 | 결과/시간 | 전체CPU 평균 | trajectory header→bag p95 | ctrl_cmd 최대 bag 수신 간격 |
+|---|---|---:|---:|---:|
+| A | PASS / 61.99초 | 72.3% | 46.9ms | 28.0ms |
+| B | PASS / 67.04초 | 71.0% | 41.3ms | 27.7ms |
+| C | PASS / 95.71초 | 71.8% | 42.9ms | 26.6ms |
+| D | PASS / 12.30초 | 69.3% | 40.7ms | 22.3ms |
+
+모두 충돌0·최종정지/P VERIFIED·선정 지도선의 앞차축 허가 통과 native0.25초 bracket 확인이었다.
+bag 수신 기준 Ego 약45.2~46.9Hz, 측위/제어용Smooth 약50Hz, 최종trajectory 약10Hz, ctrl_cmd 약50Hz였다.
+Ego·두 측위·trajectory·ctrl_cmd의0.5초 초과 수신 공백은0개였다. host UDP InErrors/RcvbufErrors/
+SndbufErrors 증분도 각 주행 창에서0이었다. 이 counter는 전체 namespace이며 센서 packet 손실 보장이 아니다.
+동작 중 motion_velocity_planner 공개 처리시간 Total의 p95는 A2.77/B3.42/C2.73/D3.31ms였다.
+초기 map/RouteHandler 준비 표본의 약2.5초를 주행 중 처리시간으로 섞지 않았다.
+신호등 callback→출력 p95는 A32.2/B30.7/C31.9/D29.5ms였다. 다른 planner/controller의 순수 계산시간은
+별도 공개 계측이 없어 이 수치로 대신하지 않는다. `/control/command/control_cmd`는 메시지0이며,
+이번 실제 제어 발행은 `/ctrl_cmd`로 확인했다.
+
+**이번에는 B/D만의 멈춤·재출발 실패·큰 지연은 미재현**이었다. 그러나 구간당1회이며 D는 처음부터
+좌회전 허가에 통과해 대기 없는 짧은 시험이었다. 이전D 정차 성공은 앞 절의 별도 연속 시험 근거다.
+DEBUG/녹화 조건·시각·신호 phase·시스템 부하도 과거와 같지 않으므로 CPU 원인 확정이나
+지도/정책 문제의 완전 배제를 주장하지 않는다. 전체 코스 남쪽 복귀는 이번에 다시 달리지 않았다.
+
+header age는 송신 stamp 의미/전달/queue를 포함하며 순수 계산시간이 아니다. Ego stamp는 UDP receiver
+측이므로 MORAI 물리 갱신 지연은 직접 재지 못한다. `/ctrl_cmd`에는 header가 없어 발행 cadence만
+계산했으며 실제 UDP 송신→시뮬레이터 조향/가감속 적용 latency는 미측정이다.
+기록된 controller 설정은 receipt trajectory timeout0.5초, source trajectory timeout10초,
+state source/receipt timeout0.5초였다. 분석 JSON의 header age>500ms 집계를 곧바로 controller timeout으로
+해석하지 않는다. 설정을 바꾸거나 안전 guard를 완화하지 않았다.
+
+근거: `artifacts/evaluation/traffic_light_robustness_261025/v91_abcd_latency_retest_261026_v1/`의
+`host.jsonl`, `events.jsonl`, `receipt.json`, 구간별 observer/원본 case bag 및 `comparison_v2.json`이다.
+같은 폴더의v1 비교 JSON도 보존하며 v2는 공개 processing 진단의 실제 숫자를 추가했다.
+실행 도구는 `scripts/evaluation/retest_signal_latency.py`, 읽기 전용 분석기는
+`scripts/evaluation/analyze_signal_latency_retest.py`다. 시간 비교는 controller 시작~종료 창만 사용한다.
+추가 도구·기존 host sampler 대상17개 단위 테스트 통과. 지도/정책/운영 기본값/팀 배포 상태는 바꾸지 않았다.
