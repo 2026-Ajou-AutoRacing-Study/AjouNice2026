@@ -22,21 +22,23 @@ class CandidateProfileTest(unittest.TestCase):
         result=gui.build_document(self.example,gui.form_values(self.example))
         self.assertEqual(result,self.example)
         self.assertNotIn('traffic_light_profile',result['stack'])
-        self.assertIsNone(candidate_assets({},self.root))
-        self.assertEqual(profile_check_arguments({},self.root),[])
+        self.assertEqual(profile_name({}),'v5_candidate')
+        self.assertIsNone(candidate_assets({'traffic_light_profile':'legacy'},self.root))
+        self.assertEqual(profile_check_arguments({'traffic_light_profile':'legacy'},self.root),[])
 
     def test_gui_explicit_choice_is_preserved_with_custom_model_path(self):
         values=gui.form_values(self.example)
         values.update(traffic_light_profile=PROFILE_LABELS['v5_candidate'],
                       traffic_light_models_root='/my/model cache')
         result=gui.build_document(self.example,values)
-        self.assertEqual(result['stack']['traffic_light_profile'],'v5_candidate')
+        self.assertEqual(profile_name(result['stack']),'v5_candidate')
         self.assertEqual(result['stack']['traffic_light_models_root'],'/my/model cache')
         self.assertEqual(gui.build_document(result,gui.form_values(result)),result)
-        self.assertEqual(profile_name({}),'legacy')
+        self.assertEqual(profile_name({}),'v5_candidate')
 
     def test_actual_operator_save_not_just_form_builder_persists_candidate(self):
         example=copy.deepcopy(self.example)
+        example['stack']['traffic_light_profile']='legacy'
         example['stack'].update(traffic_light_runtime='system',traffic_light_python='/usr/bin/python3')
         values=gui.form_values(example)
         self.assertEqual(gui.operator_document(example,example,values,example['scenarios'].get('include')),example)
@@ -51,6 +53,33 @@ class CandidateProfileTest(unittest.TestCase):
         changed['stack']['traffic_light_python']='/someone/else/python'
         with self.assertRaisesRegex(ValueError,'양쪽'):
             gui.operator_document(example,changed,values,example['scenarios'].get('include'))
+
+    def test_default_v5_uses_managed_python_even_for_old_system_authoring_yaml(self):
+        expected=str(Path.home()/'.local/share/ajounice/traffic_light_gpu/bin/python')
+        for stack in ({}, {'traffic_light_runtime':'system'},
+                      {'traffic_light_runtime':'system','traffic_light_python':'/usr/bin/python3'}):
+            self.assertEqual(runtime_settings(stack,self.root),(expected,'0'))
+
+    def test_bevfusion_default_is_e12_and_explicit_rollbacks_remain_available(self):
+        from planning_scenario_validator.models import DEFAULT_MODEL,selected_model
+        self.assertEqual(DEFAULT_MODEL,'base5_e12')
+        self.assertEqual(selected_model({}),'base5_e12')
+        for model in ('base5_e24','base5_e9','e25'):
+            self.assertEqual(selected_model({'bevfusion_model':model}),model)
+        aliases=(gui.ROOT/'docs/common_alias.txt').read_text()
+        self.assertIn('run_bevfusion.sh" --model e12',aliases)
+
+    def test_old_snapshot_preserves_implicit_legacy_without_rewriting_it(self):
+        import yaml
+        from planning_scenario_validator.config import load_campaign
+        doc=copy.deepcopy(self.example)
+        doc['stack'].update(traffic_light=False,traffic_light_runtime='system')
+        path=self.root/'config_snapshot.yaml';path.write_text(yaml.safe_dump(doc))
+        before=path.read_bytes()
+        cfg=load_campaign(path,check_install=False)
+        self.assertEqual(profile_name(cfg['stack']),'legacy')
+        self.assertNotIn('traffic_light_profile',cfg['document']['stack'])
+        self.assertEqual(path.read_bytes(),before)
 
     @unittest.skipUnless(os.environ.get('DISPLAY'),'requires Xvfb')
     def test_candidate_choice_is_editable_and_locked_during_a_run(self):

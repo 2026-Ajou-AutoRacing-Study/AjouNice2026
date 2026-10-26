@@ -17,15 +17,15 @@ ROOT = Path(__file__).resolve().parents[4]
 class RouteEditorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml').read_text())
+        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v88_competition_route.yaml').read_text())
         cls.road = EDITOR.RouteMap(ROOT, definition)
 
     def setUp(self):
         self.model = EDITOR.RouteDrafts(self.road)
 
     def test_original_routes_follow_all_preferred_lanelets(self):
-        self.assertEqual(len(self.model.nodes), 18)
-        self.assertEqual(len(self.model.routes['route_b']), 17)
+        self.assertEqual(len(self.model.nodes), 19)
+        self.assertEqual(len(self.model.routes['route_b']), 18)
         for key in ('route_a', 'route_b'):
             self.assertEqual(self.model.lines(key), self.road.route_lines(
                 self.road.definition[key]['expected_path_lanelet_ids']))

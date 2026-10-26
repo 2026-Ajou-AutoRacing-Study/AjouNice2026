@@ -108,6 +108,8 @@ void LaneChangeInterface::updateData()
 
   if (isWaitingApproval()) {
     module_type_->updateLaneChangeStatus();
+  } else if (getCurrentStatus() == ModuleStatus::RUNNING) {
+    module_type_->refreshApprovedPlan();
   }
 
   module_type_->resetStopPose();

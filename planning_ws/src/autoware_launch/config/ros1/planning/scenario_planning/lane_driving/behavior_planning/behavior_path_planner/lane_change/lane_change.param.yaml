@@ -1,6 +1,6 @@
 lane_change/time_limit: 50.0
-# Cooperative simulator NPCs only; other object RSS checks remain unchanged.
-lane_change/overtake/enable: true
+# Keep cooperative overtaking disabled; use the ordinary lane-change policy.
+lane_change/overtake/enable: false
 lane_change/overtake/assume_cooperative_npc: true
 lane_change/overtake/minimum_gap: 10.0
 lane_change/overtake/activation_distance: 15.0
@@ -17,6 +17,8 @@ lane_change/min_length_for_turn_signal_activation: 10.0
 lane_change/terminal_path/enable: true
 lane_change/terminal_path/disable_near_goal: true
 lane_change/terminal_path/stop_at_boundary: false
+lane_change/trajectory/compact_sampling: true
+lane_change/trajectory/lateral_acceleration_samples: [2.0, 3.0, 4.0, 5.0, 6.0, 6.5]
 lane_change/trajectory/max_prepare_duration: 3.0
 # Zero opts into signal-free, earliest-feasible-first preparation sampling.
 lane_change/trajectory/min_prepare_duration: 0.0
@@ -26,7 +28,7 @@ lane_change/trajectory/max_longitudinal_acc: 3.7
 lane_change/trajectory/th_prepare_length_diff: 1.0
 lane_change/trajectory/th_lane_changing_length_diff: 1.0
 lane_change/trajectory/min_lane_changing_velocity: 2.78
-# Intervals; both effective limits and zero are included (up to 22 values).
+# Dense feasible acceleration grid; compact policy selects three gap strategies.
 lane_change/trajectory/lon_acc_sampling_num: 20
 lane_change/trajectory/lat_acc_sampling_num: 11
 lane_change/trajectory/lane_changing_decel_factor: 0.5

@@ -27,6 +27,8 @@
 #include <autoware/behavior_velocity_rtc_interface/scene_module_interface_with_rtc.hpp>
 #include <autoware_lanelet2_extension/utility/query.hpp>
 #include <autoware/behavior_velocity_traffic_light_module/ros1_support.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_judging_line.hpp>
 
 #include <lanelet2_core/LaneletMap.h>
 #include <lanelet2_routing/RoutingGraph.h>
@@ -70,8 +72,23 @@ public:
     double yellow_light_stop_velocity;
     double stop_time_hysteresis;
     bool enable_pass_judge;
+    // Master switch for pre-line yellow overrides, including legacy branches.
+    // Already-crossed GO_OUT clearing is intentionally independent of this.
+    bool enable_yellow_passthrough{false};
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
+    bool enable_signal_compliance_guard{false};
+    bool defer_unseen_until_observed{false};
+    bool defer_far_unseen_unknown{false};
+    double far_unseen_min_stop_distance_m{40.0};
+    double far_unseen_response_margin_sec{1.0};
+    double signal_compliance_front_axle_offset_m{-1.0};
+    int signal_compliance_required_green_observations{3};
+    bool signal_compliance_enable_timed_yellow{false};
+    double signal_compliance_min_yellow_sec{2.0};
+    double signal_compliance_yellow_time_margin_sec{0.2};
+    bool use_official_judging_lines{false};
+    std::vector<signal_compliance::SignalJudgingLine> signal_judging_lines;
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter
@@ -128,7 +145,9 @@ private:
 
   void updateTrafficSignal();
 
-  bool isStopSignal();
+  bool isStopSignal(double distance_to_stop_point = 0.0);
+  bool seen_signal_on_approach_{false};
+  std::optional<double> official_front_line_distance_;
 
   // Store how the current yellow sequence started
   YellowState yellow_transition_state_;
@@ -161,6 +180,7 @@ private:
 
   // Parameter
   PlannerParam planner_param_;
+  signal_compliance::Guard signal_compliance_guard_;
 
   // Debug
   DebugData debug_data_;
@@ -177,6 +197,7 @@ private:
   TrafficSignal prev_looking_tl_state_;  // Store previous state
 
   friend class TrafficLightModuleTest;
+  friend class TrafficLightComplianceModuleTest;
 };
 }  // namespace autoware::behavior_velocity_planner
 

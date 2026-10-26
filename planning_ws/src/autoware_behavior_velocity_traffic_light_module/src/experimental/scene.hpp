@@ -18,6 +18,8 @@
 #define EIGEN_MPL2_ONLY
 
 #include <autoware/behavior_velocity_rtc_interface/experimental/scene_module_interface_with_rtc.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_judging_line.hpp>
 
 #include <lanelet2_core/primitives/BasicRegulatoryElements.h>
 
@@ -67,8 +69,22 @@ public:
     double yellow_light_stop_velocity;
     double stop_time_hysteresis;
     bool enable_pass_judge;
+    // Master pre-line yellow override; does not disable already-crossed clearing.
+    bool enable_yellow_passthrough{false};
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
+    bool enable_signal_compliance_guard{false};
+    bool defer_unseen_until_observed{false};
+    bool defer_far_unseen_unknown{false};
+    double far_unseen_min_stop_distance_m{40.0};
+    double far_unseen_response_margin_sec{1.0};
+    double signal_compliance_front_axle_offset_m{-1.0};
+    int signal_compliance_required_green_observations{3};
+    bool signal_compliance_enable_timed_yellow{false};
+    double signal_compliance_min_yellow_sec{2.0};
+    double signal_compliance_yellow_time_margin_sec{0.2};
+    bool use_official_judging_lines{false};
+    std::vector<signal_compliance::SignalJudgingLine> signal_judging_lines;
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter
@@ -130,7 +146,8 @@ private:
 
   void updateTrafficSignal(const PlannerData & planner_data);
 
-  bool isStopSignal(const PlannerData & planner_data);
+  bool isStopSignal(const PlannerData & planner_data, double distance_to_stop_point);
+  bool seen_signal_on_approach_{false};
 
   // Store how the current yellow sequence started
   YellowState yellow_transition_state_;
@@ -160,6 +177,8 @@ private:
 
   // Parameter
   PlannerParam planner_param_;
+  signal_compliance::Guard signal_compliance_guard_;
+  std::optional<double> official_front_line_distance_;
 
   // Debug
   DebugData debug_data_;

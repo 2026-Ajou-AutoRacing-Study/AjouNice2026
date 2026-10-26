@@ -1,0 +1,43 @@
+schema_version: 1
+map_version: 93
+status: selected_pixel_aligned_candidate_not_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v93.osm
+map_sha256: 363f107d6a1460af6a71c1dc0c129f73f7a1da049686f5df159bf557cd3133e3
+map_md5: 1b605c43f0b2225649106c3ee6a5b9e0
+source_map_file: kcity_map/lanelet_map/lanelet2_map_v87.osm
+source_map_sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
+supersedes_candidate: configs/map/kcity_v91_stopline_candidate.yaml
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+upstream_shifts_m: {A: 0.75, B: 2.60, C: 0.35, D: 2.60}
+changed_node_ids: [92992, 92993, 92998, 92999, 93020, 93021, 93034, 93035]
+stop_margin_m: 0.0
+alignment_criterion:
+  image_size: [1280, 720]
+  comparison: maximum minus minimum of all eligible stable-stop medians
+  maximum_between_mission_spread_px: 5.0
+  minimum_stop_sec: 3.0
+  discard_initial_sec: 2.0
+  discard_final_sec: 0.5
+  minimum_observed_frames: 5
+  physical_heads: {A: C1256W000077, B: C1256W000091, C: C1256W000016, D: C1256W000052}
+  missing_or_short_stop_is_not_pass: true
+stable_median_top_px: {A: 94.6188, B: 93.0298, C: 94.8534, D: 92.5163}
+measured_spread_px: 2.3372
+all_four_pixel_alignment_verified: true
+measurement_sources: {A: v92_focused, B: v92_focused, C: v93_focused, D: v93_corridor}
+unchanged_A_B_stop_geometry_verified: true
+evidence: planner_logs/analysis/signal_stopline_alignment_261026_v2/measurements.json
+approach_observed_min_top_px: {A: 88.1788, B: 86.6451, C: 87.9419, D: 89.2955}
+closed_loop_trials_including_prior_candidate_and_permissive_passes: 7
+closed_loop_pass: 7
+collisions: 0
+final_park_verified: true
+whole_course_pass_claim: false
+measurement_limit: observed stable fixed-head medians, not every braking frame or universal future stop
+drive_upload_verified: false
+drive_upload_blocker: shared client rateLimitExceeded; dedicated remote invalid_grant
+rebuild_tool: scripts/map/shift_signal_stop_lines.py
+validation_scope: local Sunny13, localization + OD_GT + v5 + real ROS1 planner/PP-PI
+signal_selection_continuity_fixed: false
+runtime_default_promoted: false
+team_lan_4090_bevfusion_full_stack_verified: false

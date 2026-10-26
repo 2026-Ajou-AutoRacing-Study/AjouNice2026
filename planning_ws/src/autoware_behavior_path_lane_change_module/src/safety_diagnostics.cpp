@@ -6,6 +6,7 @@
 #include <std_msgs/String.h>
 #include <tf2/utils.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <limits>
@@ -44,12 +45,19 @@ void NormalLaneChange::captureSafetyDiagnostic(
   const RSSparams & execution_params, const check::RSSCollisionTrace & trace,
   const CollisionCheckDebug & debug, const double prepare_end_time) const
 {
-  ++safety_rejected_pairs_;
-  // First rejected sample for each object/stage, at most four per planning cycle.
+  if (!debug.is_safe) ++safety_rejected_pairs_;
+  // First observation for each object/stage, at most four per planning cycle.
+  // Collision failures take precedence over informational coverage observations.
   // Search counts are complete; the snapshots are intentionally bounded.
-  if (safety_diagnostic_samples_.size() >= 4) return;
   for (const auto & sample : safety_diagnostic_samples_) {
     if (sample.stage == stage && sample.object.uuid == object.uuid) return;
+  }
+  if (safety_diagnostic_samples_.size() >= 4) {
+    if (debug.is_safe) return;
+    const auto observation = std::find_if(safety_diagnostic_samples_.begin(),
+      safety_diagnostic_samples_.end(), [](const auto & sample) { return sample.debug.is_safe; });
+    if (observation == safety_diagnostic_samples_.end()) return;
+    safety_diagnostic_samples_.erase(observation);
   }
   safety_diagnostic_samples_.push_back(
     {stage, object, candidate, prediction, execution_params, trace, debug, prepare_end_time});
@@ -83,14 +91,25 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"side", direction_ == Direction::LEFT ? "left" : "right"},
     {"valid", status_.is_valid_path}, {"safe", approved ? safe : status_.is_safe},
     {"unsafe_trailing", trailing},
+    {"execution_recovery_time_s", params.execution_recovery_time},
+    {"always_update_approved", params.always_update_approved},
+    {"prediction_coverage_pending", activeSafetyPath().prediction_coverage_deferred},
+    {"required_recovery_time_s", std::isfinite(execution_required_recovery_time_)
+      ? Json(execution_required_recovery_time_) : Json(nullptr)},
     {"ego_pose", pose_json(getEgoPose())}, {"ego_speed", getEgoVelocity()},
     {"current_lanes", ids(get_current_lanes())}, {"target_lanes", ids(get_target_lanes())},
     {"search_ms", search_ms}, {"search_limit_ms", params.time_limit},
     {"rejected_pairs", safety_rejected_pairs_}, {"snapshot_limit", 4},
-    {"sample_policy", "first_failure_per_object_and_stage"},
+    {"sample_policy", "first_observation_per_object_and_stage_failures_first"},
     {"prepare_params", params_json(params.safety.rss_params_for_prepare)},
     {"execution_params", params_json(params.safety.rss_params)},
     {"counterfactual_affects_decision", false}, {"samples", Json::array()}};
+  document["candidate_search"] = {{"prepare_metrics",search_prepare_metrics_},
+    {"generated",search_generated_}, {"safety_checked",search_checked_},
+    {"safe",search_safe_}, {"budget_exhausted",search_budget_exhausted_},
+    {"compact_sampling",params.trajectory.compact_sampling},
+    {"rolling_plan",rolling_plan_reason_}, {"replan_requested",execution_replan_requested_},
+    {"recovery_timeout_is_failure",false}};
   document["overtake"] = {{"enabled", params.overtake.enable},
     {"assume_cooperative_npc", params.overtake.assume_cooperative_npc},
     {"phase", overtakePhaseName()}, {"reason", overtake_.reason},
@@ -144,6 +163,9 @@ void NormalLaneChange::publishSafetyDiagnostics(
       {"object_initial_velocity", {sample.object.initial_twist.linear.x,
         sample.object.initial_twist.linear.y}},
       {"checked_stage", sample.stage}, {"unsafe_reason", debug.unsafe_reason},
+      {"coverage_warning", sample.stage == "coverage" ? "prediction_coverage_short" : ""},
+      {"required_prediction_time", sample.ego_prediction.empty() ? 0.0 :
+        std::max(sample.ego_prediction.back().time, approved ? 0.0 : candidate.info.duration.sum())},
       {"distance_policy", sample.stage == "cooperative_rear" ? "cooperative_rear" : "rss"},
       {"collision_time", trace.time}, {"predicted_path_index", trace.predicted_path_index},
       {"predicted_path_confidence", trace.path_confidence},

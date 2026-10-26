@@ -1,3 +1,4 @@
+#include <tuple>
 // Copyright 2023 TIER IV, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +19,7 @@
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include <autoware/behavior_path_planner_common/utils/path_safety_checker/safety_core.hpp>
 #include <autoware_planning_msgs/Trajectory.h>
+#include "autoware/behavior_path_lane_change_module/utils/execution_progress.hpp"
 
 #include <memory>
 #include <mutex>
@@ -126,6 +128,7 @@ public:
   TurnSignalInfo get_current_turn_signal_info() const final;
 
   bool hasMissedLaneChangePath() const override;
+  void refreshApprovedPlan() override;
 
 protected:
   enum class OvertakePhase { Idle, Accelerating, Ready, Changing, Unavailable };
@@ -145,6 +148,22 @@ protected:
   mutable std::string overtake_feedback_reason_{"unavailable"};
   mutable bool hard_collision_detected_{false};
   void receiveFinalTrajectory(const autoware_planning_msgs::TrajectoryConstPtr & message);
+  std::vector<utils::lane_change::ExecutionProgressPoint> executionProfile(
+    const LaneChangePath & candidate) const;
+  double executionRecoveryTime(
+    const Pose & pose, double speed,
+    const std::vector<utils::lane_change::ExecutionProgressPoint> & profile) const;
+  void updateExecutionManeuver(const LaneChangePath & candidate) const;
+  mutable utils::lane_change::ExecutionRecoveryMonitor feedback_recovery_, ego_recovery_;
+  mutable std::optional<Pose> recovery_maneuver_start_, recovery_maneuver_end_;
+  mutable double execution_required_recovery_time_{0.0};
+  mutable bool execution_replan_requested_{false};
+  mutable size_t search_prepare_metrics_{0}, search_generated_{0}, search_checked_{0}, search_safe_{0};
+  mutable bool search_budget_exhausted_{false};
+  std::string rolling_plan_reason_{"not_running"};
+  std::tuple<int, double, int, int, double, double> candidateRank(
+    const LaneChangePath & candidate) const;
+
   void updateOvertake(bool is_approved);
   bool buildOvertakePreparation(const ExtendedPredictedObject & object);
   const ExtendedPredictedObject * findOvertakeTarget() const;

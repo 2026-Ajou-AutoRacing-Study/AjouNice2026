@@ -36,6 +36,14 @@ def validate(config, routes):
         sequence = r['expected_path_lanelet_ids']
         if not sequence or len(set(sequence)) != len(sequence):
             raise ValueError('empty or looping route: ' + key)
+        overrides = r.get('preferred_lanelet_overrides', {})
+        if (not isinstance(overrides, dict) or any(
+                type(source) is not int or type(target) is not int or
+                source == target or target in overrides
+                for source, target in overrides.items())):
+            raise ValueError('invalid preferred lanelet overrides: ' + key)
+        if any(lane in overrides for lane in sequence):
+            raise ValueError('expected route contradicts preferred lanelets: ' + key)
         if key != 'fallback_route':
             waypoint_sequence = r.get('waypoint_path_lanelet_ids')
             if (not waypoint_sequence or len(waypoint_sequence) != len(sequence) or
@@ -106,7 +114,10 @@ def route_matches(routes, key, identity, sequence, goal, tolerance,
         # starts from the current vehicle pose.  B has its own fixed UUID and
         # goal, so do not reject that route only because its lanelet sequence
         # differs from the frozen Route A sequence/model.
-        return identity_and_goal_match and bool(sequence)
+        preferences_match = (field != 'expected_path_lanelet_ids' or
+                             not any(lane in definition.get('preferred_lanelet_overrides', {})
+                                     for lane in sequence))
+        return identity_and_goal_match and bool(sequence) and preferences_match
     return identity_and_goal_match and sequence in accepted_sequences(routes, key, field)
 
 
@@ -125,11 +136,11 @@ def preferred_sequence(routes, key, waypoint_sequence):
             offset = len(initial) - len(candidate)
             return final[offset:]
     if key == 'route_b' and waypoint_sequence:
-        # Preserve RouteSelector's valid B branch when it cannot be mapped to
-        # the frozen preferred-lane model.  Reapplying the observed preferred
-        # primitives is a safe no-op and lets the normal UUID/goal and fresh
-        # trajectory checks complete.
-        return list(waypoint_sequence)
+        # Keep valid upstream selector branches while still enforcing the
+        # configured local corridor. Runtime checks each target is actually
+        # present in its segment before sending SetPreferredPrimitive.
+        overrides = routes[key].get('preferred_lanelet_overrides', {})
+        return [overrides.get(lane, lane) for lane in waypoint_sequence]
     return None
 
 

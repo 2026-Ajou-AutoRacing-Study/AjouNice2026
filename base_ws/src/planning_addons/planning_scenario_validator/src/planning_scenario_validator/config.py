@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
-from .traffic_light import runtime_settings
+from .traffic_light import runtime_settings, launch_options as traffic_launch_options
 from .repetitions import repetition_settings
 from .models import selected_model
 from .route_profile import normalize as normalize_route
@@ -187,6 +187,7 @@ def validate_campaign_document(document, *, allow_legacy=False):
     validate_scenario_include(document["scenarios"])
     try:
         repetition_settings(document["scenarios"])
+        traffic_launch_options(document['stack'])
     except ValueError as error:
         raise ConfigError(str(error)) from error
     common = document["default_case"]
@@ -291,7 +292,7 @@ def _load_case(source, default):
                 goal, waypoints, positive(raw.get("timeout_sec"), "timeout_sec"), mode)
 
 
-def load_campaign(path, *, check_install=True):
+def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     path = resolve_path(path)
     if path.name.endswith(".case.yaml"):
         raise ConfigError(".case.yaml은 폐기된 보조 설정입니다. base/example.yaml 또는 본인의 캠페인 YAML을 선택하세요")
@@ -356,7 +357,11 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("Ego Network의 PUBSUB_TYPE=783 슬롯이 중복됐습니다. install.sh를 다시 실행하세요")
     from .network_contract import inspect_network_contract
     network_contract = inspect_network_contract(document, ego_network, sensor_config)
-    stack = document.get("stack", {})
+    stack = dict(document.get("stack", {}))
+    if (path.name == 'config_snapshot.yaml' or legacy_traffic_defaults) and 'traffic_light_profile' not in stack:
+        # Old frozen runs used implicit legacy. Preserve their effective model
+        # in memory only; never rewrite snapshots or turn a resume into v5.
+        stack['traffic_light_profile'] = 'legacy'
     if stack.get("pose_source") not in ("localization", "maptf_morai"):
         raise ConfigError("stack.pose_source는 localization 또는 maptf_morai입니다")
     if stack.get("detector") not in ("od_gt", "bevfusion"):
@@ -370,6 +375,8 @@ def load_campaign(path, *, check_install=True):
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
     try:
+        traffic_options = traffic_launch_options(stack,
+            legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
         runtime_settings(stack, ROOT, check_exists=stack.get("traffic_light", False))
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -378,6 +385,8 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("BEVFusion에는 카메라 4대와 LiDAR가 있는 sensor JSON이 필요합니다")
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
+    if type(document.get("morai", {}).get("clear_before_load", False)) is not bool:
+        raise ConfigError("morai.clear_before_load는 true/false입니다")
     recording = document.get("recording", {})
     if recording.get('analysis_mode', False) and recording.get('bag_enabled', True) and (
             not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
@@ -386,8 +395,9 @@ def load_campaign(path, *, check_install=True):
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
     from .recording_options import effective_topics, topic_patterns, ensure_video_display
     try:
-        ensure_video_display(recording)
-        recording['topics'] = effective_topics(recording, resolve_path)
+        debug_view = stack.get('traffic_light', False) and traffic_options['debug_view']
+        ensure_video_display(recording, required=debug_view)
+        recording['topics'] = effective_topics(recording, resolve_path, traffic_light_debug=debug_view)
         recording['topic_regex'] = topic_patterns(recording)
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -413,6 +423,7 @@ def load_campaign(path, *, check_install=True):
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording, "route": route,
+            "traffic_light_options": traffic_options,
             "network_contract": network_contract,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,

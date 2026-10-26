@@ -10,6 +10,7 @@ import threading
 import time
 
 import rospy
+import yaml
 from autoware_perception_msgs.msg import (
     PredictedObject,
     PredictedObjects,
@@ -17,7 +18,8 @@ from autoware_perception_msgs.msg import (
     TrackedObjects,
 )
 from geometry_msgs.msg import Pose
-from std_msgs.msg import String
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool, String
 
 from perception_object_pipeline.kinematic_prediction import (
     VEHICLE_LABELS,
@@ -38,6 +40,7 @@ from perception_object_pipeline.message_copy import (
 )
 from perception_object_pipeline.time_conversion import builtin_duration_from_seconds
 from perception_object_pipeline.node_processing_timing import NodeProcessingTiming
+from perception_object_pipeline.vehicle_only_corridor import VehicleOnlyCorridor
 
 
 def _copy_common_fields(tracked) -> PredictedObject:
@@ -401,6 +404,35 @@ class MapBasedPredictionNode:
         self.network = LaneletNetwork.load(map_file, projector_file, config)
         load_duration = time.perf_counter() - load_started
 
+        self.vehicle_only_corridor = None
+        self._vehicle_only_ego = None
+        self._vehicle_only_active = False
+        if bool(rospy.get_param('~vehicle_only_corridor_enabled', False)):
+            route_file = rospy.get_param('~vehicle_only_corridor_route_file', '')
+            try:
+                with open(route_file, encoding='utf-8') as stream:
+                    route_doc = yaml.safe_load(stream)
+                self.vehicle_only_corridor = VehicleOnlyCorridor(
+                    self.network, route_doc,
+                    start_lanelet_id=int(rospy.get_param('~vehicle_only_start_lanelet_id', 200258)),
+                    start_s_m=float(rospy.get_param('~vehicle_only_start_s_m', 30.0)),
+                    end_lanelet_id=int(rospy.get_param('~vehicle_only_end_lanelet_id', 200088)),
+                    max_lateral_distance_m=float(rospy.get_param('~vehicle_only_max_lateral_m', 12.0)),
+                )
+                rospy.logwarn('[map_based_prediction] vehicle-only corridor ENABLED '
+                              'start=(%.2f, %.2f) end=(%.2f, %.2f) map=%s',
+                              *self.vehicle_only_corridor.start_xy,
+                              *self.vehicle_only_corridor.end_xy,
+                              self.network.map_sha256[:12])
+            except (OSError, TypeError, KeyError, ValueError) as error:
+                rospy.logerr('[map_based_prediction] vehicle-only corridor FAIL-OPEN: %s', error)
+        self.vehicle_only_state_pub = None
+        if self.vehicle_only_corridor is not None:
+            self.vehicle_only_state_pub = rospy.Publisher(
+                '~diagnostics/vehicle_only_active', Bool, queue_size=1)
+            self.vehicle_only_ego_sub = rospy.Subscriber(
+                '~input/ego_odometry', Odometry, self._on_vehicle_only_ego, queue_size=1)
+
         self.mixed_extension = None
         if bool(rospy.get_param("~mixed_horizon_enabled", False)):
             try:
@@ -484,6 +516,38 @@ class MapBasedPredictionNode:
         self._processing_diagnostics_active = enabled
         return publisher if enabled else None
 
+    def _on_vehicle_only_ego(self, message):
+        if message.header.frame_id != 'map':
+            return
+        pose = message.pose.pose
+        self._vehicle_only_ego = (
+            pose.position.x, pose.position.y, quaternion_to_yaw(pose.orientation),
+            time.monotonic())
+
+    def _vehicle_only_policy(self, output):
+        corridor = getattr(self, 'vehicle_only_corridor', None)
+        if corridor is None:
+            return
+        ego = getattr(self, '_vehicle_only_ego', None)
+        active = False
+        if corridor is not None and ego is not None and time.monotonic() - ego[3] <= 0.5:
+            active, _, _ = corridor.evaluate(*ego[:3])
+        if active:
+            before = len(output.objects)
+            output.objects = [item for item in output.objects
+                              if dominant_label(item) in VEHICLE_LABELS]
+            removed = before - len(output.objects)
+            if removed:
+                rospy.logwarn_throttle(5.0,
+                    '[map_based_prediction] vehicle-only corridor removed %d nonvehicle predicted objects',
+                    removed)
+        if active != self._vehicle_only_active:
+            rospy.logwarn('[map_based_prediction] vehicle-only corridor %s',
+                          'ON' if active else 'OFF')
+            self._vehicle_only_active = active
+        if self.vehicle_only_state_pub is not None:
+            self.vehicle_only_state_pub.publish(Bool(data=active))
+
     def callback(self, message):
         if message.header.frame_id != "map":
             rospy.logwarn_throttle(
@@ -501,6 +565,7 @@ class MapBasedPredictionNode:
         output, mapped, fallback, paths = make_map_based_predicted_objects(
             message, self.horizons, self.network, mixed_extension)
         make_end = time.perf_counter() if diagnostics else None
+        self._vehicle_only_policy(output)
         self.publisher.publish(output)
         publish_end = time.perf_counter() if diagnostics else None
         rospy.loginfo_throttle(

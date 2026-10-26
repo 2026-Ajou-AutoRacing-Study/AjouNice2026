@@ -83,6 +83,8 @@ public:
 
   virtual void updateLaneChangeStatus() = 0;
 
+  virtual void refreshApprovedPlan() {}
+
   virtual std::pair<bool, bool> getSafePath(LaneChangePath & safe_path) const = 0;
 
   virtual BehaviorModuleOutput generateOutput() = 0;

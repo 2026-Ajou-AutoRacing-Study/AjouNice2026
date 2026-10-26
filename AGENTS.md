@@ -19,3 +19,6 @@
   collector inventories, resume ledgers, model files, or submodules for doc cleanup.
 - Distinguish source, installed build, candidate tests, and production settings.
   Moving documentation must not silently change launch defaults or live processes.
+- On luv's workstation, use the private-OAuth Drive remote `ajou_drive_private`.
+  If authentication expires, request reconnect; do not silently fall back to a
+  public/shared OAuth client. Other PCs may use different explicit remote names.

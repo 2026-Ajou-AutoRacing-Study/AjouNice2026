@@ -18,6 +18,7 @@ import time as _time_module
 import json
 import hashlib
 import threading
+import math
 from collections import deque
 
 _user_site = os.path.expanduser(f"~/.local/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages")
@@ -49,6 +50,11 @@ from signal_smoother import SignalSmoother
 from signal_phase_policy import SignalPhasePolicy
 from traffic_light_map_selector import (MISSION_GROUP_IDS, associate_boxes, select_packet,
                                         SELECTOR_CONTRACT_VERSION, selector_config)
+from traffic_light_near_rescue import (near_rescue_config, near_rescue_decision,
+                                       accept_near_rescue_selection)
+from traffic_light_debug_view import render_node_overlay
+from traffic_light_observation_handoff import detection_miss_context, low_confidence_context
+from traffic_light_visual_continuation import VisualContinuation
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -172,11 +178,14 @@ class TrafficLightNode:
         self.detector_imgsz = int(rospy.get_param("~detector_imgsz", 640))
         if not 320 <= self.detector_imgsz <= 1920 or self.detector_imgsz % 32:
             raise ValueError("detector_imgsz must be a multiple of 32 within 320..1920")
+        self.near_rescue_config = near_rescue_config({
+            "enabled": rospy.get_param("~near_rescue_enabled", False),
+        })
         self.center_tolerance_ratio = rospy.get_param("~center_tolerance_ratio", 0.20)
         self.y_weight = rospy.get_param("~y_weight", 0.6)
         self.fallback_group_id = rospy.get_param("~fallback_group_id", 0)
         self.publish_rate_limit_hz = rospy.get_param("~max_rate_hz", 10.0)
-        self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
+        self.publish_debug_image = rospy.get_param("~publish_debug_image", False)
         self.debug_jpeg_quality = rospy.get_param("~debug_jpeg_quality", 60)
         self.selection_mode = rospy.get_param("~selection_mode", "legacy_center")
         if self.selection_mode not in ("legacy_center", "map_association"):
@@ -219,6 +228,21 @@ class TrafficLightNode:
 
         self.status = _StatusLog(float(rospy.get_param("~log_interval_sec", 1.0)))
 
+        self.planner_compliance_observations = rospy.get_param("~planner_compliance_observations", False)
+        if type(self.planner_compliance_observations) is not bool:
+            raise ValueError("planner_compliance_observations must be an explicit bool")
+        self.detection_miss_hold_sec = float(rospy.get_param("~detection_miss_hold_sec", .2))
+        if not 0 <= self.detection_miss_hold_sec <= .2:
+            rospy.logwarn("[Traffic] invalid detection hold; disabling optional dropout hold")
+            self.detection_miss_hold_sec = 0.
+        self.low_confidence_hold_sec = float(rospy.get_param("~low_confidence_hold_sec", .3))
+        if not 0 <= self.low_confidence_hold_sec <= .3:
+            rospy.logwarn("[Traffic] invalid low confidence hold; disabling optional hold")
+            self.low_confidence_hold_sec = 0.
+        self.visual_continuation_sec=float(rospy.get_param('~visual_continuation_sec',0.))
+        if not math.isfinite(self.visual_continuation_sec) or not 0<=self.visual_continuation_sec<=.3:
+            raise ValueError('visual_continuation_sec must be finite in [0,0.3]')
+        self._visual_continuation=VisualContinuation()
         smoothing_window_size = int(rospy.get_param("~smoothing_window_size", 5))
         smoothing_majority_count = rospy.get_param("~smoothing_majority_count", None)
         if smoothing_majority_count is not None:
@@ -256,6 +280,15 @@ class TrafficLightNode:
             "detector_weights_path": os.path.abspath(os.path.expanduser(weights_path)),
             "detector_requested_device": str(self.inference_device), "detector_imgsz": self.detector_imgsz,
             "cnn_crop_margin_px": self.cnn_crop_margin_px,
+            "planner_compliance_observations": self.planner_compliance_observations,
+            "low_confidence_hold_sec": self.low_confidence_hold_sec,
+            "low_confidence_hold_source_age_cap_sec": .5,
+            "low_confidence_hold_min_speed_mps": 1.,
+            "visual_continuation_sec": self.visual_continuation_sec,
+            "near_rescue": dict(enabled=self.near_rescue_config.enabled,
+                                imgsz=self.near_rescue_config.imgsz,
+                                max_depth_m=self.near_rescue_config.max_depth_m,
+                                min_projected_width_px=self.near_rescue_config.min_projected_width_px),
             "cnn_startup_ready": self._cnn_startup.ready if self._cnn_startup else None,
             "cnn_metadata": self._cnn_startup.metadata if self._cnn_startup else None,
         }
@@ -426,18 +459,10 @@ class TrafficLightNode:
             imgsz=self.detector_imgsz,
             verbose=False,
         )
-        r = results[0]
-
-        boxes = []
-        for box in r.boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            det_conf = float(box.conf[0])
-            cx = ((x1 + x2) / 2) / w
-            cy = ((y1 + y2) / 2) / h
-            bw = (x2 - x1) / w
-            bh = (y2 - y1) / h
-            boxes.append((cx, cy, bw, bh, (x1, y1, x2, y2, det_conf)))
+        boxes = self._read_detector_boxes(results, w, h)
         t_detected = time.monotonic()
+        rescue_timing_sec = 0.
+        rescue_debug = {"attempted": False, "reason": "not_map_association"}
 
         group_array = TrafficLightGroupArray()
         source_stamp = msg.header.stamp if msg.header.stamp.to_sec() > 0 else now
@@ -452,7 +477,10 @@ class TrafficLightNode:
             self.signal_phase_policy.reset_transition()
             self._last_policy_group_id = group.traffic_light_group_id
             self._selected_head_id = None
+            if hasattr(self,'_visual_continuation'):self._visual_continuation.reset()
 
+        previous_head_id = self._selected_head_id
+        packet = None
         selection = {"status": "legacy", "reason": "legacy_center"}
         if self.selection_mode == "legacy_center":
             best = pick_ego_lane_box(boxes, self.center_tolerance_ratio, self.y_weight)
@@ -462,6 +490,7 @@ class TrafficLightNode:
                 best = None
                 selection = {"status": "missing", "reason": "map_packet_missing_or_stale" if packet is None
                              else packet.get("reason", "map_projection_missing")}
+                rescue_debug["reason"] = selection["reason"]
             else:
                 try:
                     if packet.get("selector_contract_version") != SELECTOR_CONTRACT_VERSION:
@@ -471,6 +500,40 @@ class TrafficLightNode:
                     config = selector_config(packet.get("selector_config"))
                     best, selection = associate_boxes(boxes, packet.get("rois", []),
                         group.traffic_light_group_id, self._selected_head_id, config=config)
+                    selection["projection_reason"] = packet.get("reason")
+                    decision = near_rescue_decision(selection, packet.get("rois", []),
+                        group.traffic_light_group_id, config=getattr(self, "near_rescue_config", None))
+                    if packet["source_stamp_ns"] != msg.header.stamp.to_nsec():
+                        decision.update(retry=False, reason="retry_requires_exact_image_stamp")
+                    rescue_debug = dict(decision, attempted=False)
+                    if decision["retry"] and self.detector_imgsz != decision["imgsz"]:
+                        # The SAME original image and exact/fresh map packet are
+                        # reused. No confidence, classifier or signal-policy relaxation.
+                        rescue_started = time.monotonic()
+                        rescue_debug.update(attempted=True, primary_reason=selection["reason"])
+                        try:
+                            retry_results = self.model.predict(source=img, conf=self.conf_threshold,
+                                device=self.inference_device, imgsz=decision["imgsz"], verbose=False)
+                            retry_boxes = self._read_detector_boxes(retry_results, w, h)
+                            retry_best, retry_selection = associate_boxes(boxes + retry_boxes,
+                                packet.get("rois", []), group.traffic_light_group_id,
+                                self._selected_head_id, config=config)
+                            context_reason = self._near_retry_context_reason(packet, group.traffic_light_group_id)
+                            accepted = (context_reason is None and
+                                        accept_near_rescue_selection(retry_selection, decision))
+                            rescue_debug.update(secondary_detection_count=len(retry_boxes),
+                                accepted=accepted, context_rejection=context_reason,
+                                result=dict(retry_selection))
+                            if accepted:
+                                best, selection = retry_best, retry_selection
+                            # Primary boxes remain present for identity checks/debug.
+                            boxes = boxes + retry_boxes
+                        except Exception as error:
+                            rescue_debug.update(accepted=False, error_type=type(error).__name__)
+                            self.status.note(_StatusLog.WARN, "근접 재검출 실패; missing 유지")
+                        rescue_timing_sec = time.monotonic() - rescue_started
+                    elif decision["retry"]:
+                        rescue_debug["reason"] = "primary_already_retry_scale"
                     selection["selector_contract_version"] = SELECTOR_CONTRACT_VERSION
                     selection["selector_config"] = config.to_dict()
                     selection["projection_reason"] = packet.get("reason")
@@ -480,8 +543,48 @@ class TrafficLightNode:
                     best, selection = None, {"status": "missing", "reason": "invalid_map_rois:" + str(error)}
                 selection["projection_source_stamp_ns"] = packet["source_stamp_ns"]
             self._selected_head_id = selection.get("head_id")
+        visual_debug=dict(status='disabled',reason='visual_continuation_disabled')
+        if self.selection_mode=='map_association' and getattr(self,'visual_continuation_sec',0.)>0:
+            if not hasattr(self,'_visual_continuation'):self._visual_continuation=VisualContinuation()
+            if best is not None:
+                self._visual_continuation.remember(best,selection,group.traffic_light_group_id,
+                    msg.header.stamp.to_nsec(),rospy.Time.now().to_nsec())
+            else:
+                best,visual_debug=self._visual_continuation.select(boxes,packet,selection,
+                    group.traffic_light_group_id,msg.header.stamp.to_nsec(),rospy.Time.now().to_nsec(),
+                    self.visual_continuation_sec)
+                if (best is None and visual_debug.get('retry_imgsz')==640
+                        and self.near_rescue_config.enabled and self.detector_imgsz!=640):
+                    try:
+                        retry=self.model.predict(source=img,conf=self.conf_threshold,device=self.inference_device,
+                                                 imgsz=640,verbose=False)
+                        boxes=boxes+self._read_detector_boxes(retry,w,h)
+                        best,visual_debug=self._visual_continuation.select(boxes,packet,selection,
+                            group.traffic_light_group_id,msg.header.stamp.to_nsec(),rospy.Time.now().to_nsec(),
+                            self.visual_continuation_sec)
+                        visual_debug['retry640_attempted']=True
+                    except Exception as error:
+                        best=None;self._visual_continuation.reset()
+                        visual_debug.update(status='missing',reason='visual_retry_error:'+type(error).__name__)
+                if best is not None:
+                    if self._near_retry_context_reason(packet,group.traffic_light_group_id) is not None:
+                        best=None;self._visual_continuation.reset()
+                        visual_debug.update(status='missing',reason='visual_context_changed_before_crop')
+                    else:
+                        selection=dict(visual_debug)
+                        self._selected_head_id=selection['head_id']
+        hold_context = detection_miss_context(packet, selection, previous_head_id,
+            group.traffic_light_group_id, msg.header.stamp.to_nsec(), rospy.Time.now().to_nsec(),
+            self.map_packet_max_age_sec)
+        if hold_context["eligible"] and self._near_retry_context_reason(packet, group.traffic_light_group_id) is not None:
+            hold_context.update(eligible=False, reason="route_or_packet_changed_before_handoff")
+        if hold_context["eligible"]:
+            # Identity continuity only. This is not a fresh detection or lamp.
+            self._selected_head_id = previous_head_id
         selection.update(mode=self.selection_mode, group_id=group.traffic_light_group_id,
-                         source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes))
+                         source_stamp_ns=msg.header.stamp.to_nsec(), detection_count=len(boxes),
+                         near_rescue=rescue_debug, detection_miss_hold=hold_context)
+        selection['visual_continuation']=visual_debug
         self.selection_debug_pub.publish(String(data=json.dumps(selection, allow_nan=False)))
         t_selected = time.monotonic()
         label_text = "off"
@@ -521,12 +624,20 @@ class TrafficLightNode:
 
                 self._maybe_save_conflict_crop(crop, raw_color_results)
 
+        low_confidence_hold = low_confidence_context(packet, selection, classifier_debug, previous_head_id,
+            group.traffic_light_group_id, msg.header.stamp.to_nsec(), rospy.Time.now().to_nsec(),
+            self.map_packet_max_age_sec)
+        if (low_confidence_hold["eligible"] and
+                self._near_retry_context_reason(packet, group.traffic_light_group_id) is not None):
+            low_confidence_hold.update(eligible=False, reason="route_or_packet_changed_before_handoff")
+        classifier_debug["low_confidence_hold"] = low_confidence_hold
         self.classifier_debug_pub.publish(String(data=json.dumps(classifier_debug, allow_nan=False)))
         t_classified = time.monotonic()
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         detected_color_results = list(raw_color_results)
         fixed, policy_reason = self.signal_phase_policy.apply(
-            raw_color_results, group.traffic_light_group_id
+            raw_color_results, group.traffic_light_group_id,
+            observed_only=self.planner_compliance_observations,
         )
         if fixed != raw_color_results:
             self._n_conflict_fixed += 1
@@ -540,8 +651,38 @@ class TrafficLightNode:
 
         color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
             raw_color_results, policy_reason, group.traffic_light_group_id,
-            now.to_sec(), raw_det_conf, self.signal_smoother,
+            (rospy.Time.now().to_sec() if self.planner_compliance_observations else now.to_sec()),
+            raw_det_conf, self.signal_smoother,
+            source_stamp_ns=msg.header.stamp.to_nsec(),
+            use_smoothing=not self.planner_compliance_observations,
+            observation_head_id=selection.get("head_id") or hold_context.get("head_id"),
+            detection_miss_hold_eligible=hold_context["eligible"],
+            detection_miss_hold_sec=getattr(self, "detection_miss_hold_sec", .2),
+            low_confidence_hold_eligible=low_confidence_hold["eligible"],
+            low_confidence_hold_sec=getattr(self, "low_confidence_hold_sec", .3),
+            low_confidence_confident_red=low_confidence_hold.get("confident_red", False),
         )
+        observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
+        adopted_ns = observation_timing.get("adopted_observation_source_stamp_ns")
+        if observation_timing.get("output_is_observed"):
+            # A held/smoothed winner is not a new observation of this JPEG.
+            # Preserve integer ns; from_sec(float) would lose epoch precision.
+            output_stamp = (msg.header.stamp if adopted_ns == msg.header.stamp.to_nsec() else
+                            rospy.Time(adopted_ns // 1000000000, adopted_ns % 1000000000)
+                            if adopted_ns is not None else rospy.Time(0))
+        else:
+            # Synthetic fallback RED is a fresh policy decision, not lamp GT.
+            output_stamp = source_stamp
+        group_array.stamp = builtin_time_from_ros(output_stamp)
+        output_now_ns = rospy.Time.now().to_nsec()
+        last_trusted_ns = observation_timing.get("last_trusted_observation_source_stamp_ns")
+        observation_timing.update(
+            output_source_stamp_ns=output_stamp.to_nsec(),
+            output_observation_age_sec=((output_now_ns-adopted_ns)/1e9 if adopted_ns is not None else None),
+            last_trusted_observation_age_sec=((output_now_ns-last_trusted_ns)/1e9
+                                             if last_trusted_ns is not None else None),
+            output_stamp_basis=("adopted_lamp_observation" if observation_timing.get("output_is_observed")
+                                else "current_image_policy_fallback"))
         if policy_reason.endswith(":fail_open"):
             self.status.note(_StatusLog.WARN, "검출 없음 -> fallback")
         elif transition_reason.startswith("observation_guard"):
@@ -580,18 +721,6 @@ class TrafficLightNode:
 
         group_array.traffic_light_groups.append(group)
 
-        if debug_img is not None and box_coords is not None:
-            x1c, y1c, x2c, y2c = box_coords
-            box_color = DEBUG_DRAW_COLOR[draw_color_name]
-            cv2.rectangle(debug_img, (x1c, y1c), (x2c, y2c), box_color, 2)
-            cv2.putText(
-                debug_img,
-                f"{label_text} ({det_conf:.2f}) gid={group.traffic_light_group_id}",
-                (x1c, max(0, y1c - 8)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                DEBUG_DRAW_COLOR[decision_color_name], 2, cv2.LINE_AA,
-            )
-
         self.pub.publish(group_array)
         t_published = time.monotonic()
         self._publish_runtime_debug(msg.header.stamp, frame_timing={
@@ -599,6 +728,7 @@ class TrafficLightNode:
             "decode_sec": t_decoded-t_monotonic,
             "detector_and_box_readback_sec": t_detected-t_decoded,
             "selection_including_map_wait_sec": t_selected-t_detected,
+            "near_rescue_detector_and_association_sec": rescue_timing_sec,
             "crop_and_classifier_sec": t_classified-t_selected,
             "policy_and_publish_sec": t_published-t_classified,
             "callback_to_output_sec": t_published-t_monotonic,
@@ -607,22 +737,56 @@ class TrafficLightNode:
             "group_id": group.traffic_light_group_id,
             "head_id": selection.get("head_id"),
             "selection_status": selection.get("status"),
+            "near_rescue": rescue_debug,
+            "detection_miss_hold": hold_context,
+            "low_confidence_hold": low_confidence_hold,
+            "visual_continuation": visual_debug,
             "classifier_known": classifier_debug.get("known"),
             "observed_tuples": detected_color_results,
             "normalized_tuples": raw_color_results,
             "final_tuples": color_results,
             "final_confidence": det_conf,
+            "planner_compliance_observations": self.planner_compliance_observations,
+            "observation_timing": observation_timing,
             "policy_reason": policy_reason,
             "transition_reason": transition_reason})
 
         if self.debug_pub is not None and debug_img is not None:
-            ok, enc = cv2.imencode(".jpg", debug_img, [cv2.IMWRITE_JPEG_QUALITY, self.debug_jpeg_quality])
-            if ok:
-                debug_msg = CompressedImage()
-                debug_msg.header.stamp = now
-                debug_msg.format = "jpeg"
-                debug_msg.data = enc.tobytes()
-                self.debug_pub.publish(debug_msg)
+            try:
+                # Diagnostic rendering/encoding is opt-in and AFTER canonical
+                # publishing. It cannot edit the raw detector/classifier input.
+                overlay = render_node_overlay(debug_img, boxes,
+                    classifier_debug.get("detector_bbox_xyxy"), box_coords, {
+                        "group_id": group.traffic_light_group_id,
+                        "head_id": selection.get("head_id"),
+                        "classifier_mode": self.classifier_mode,
+                        "classifier_known": classifier_debug.get("known"),
+                        "observed_lamps": _short_label(detected_color_results),
+                        "normalized_lamps": _short_label(raw_color_results),
+                        "final_lamps": _short_label(color_results),
+                        "confidence": det_conf,
+                        "selection_status": selection.get("status"),
+                        "selection_reason": selection.get("reason"),
+                        "source_stamp_ns": msg.header.stamp.to_nsec(),
+                        "image_age_sec": (rospy.Time.now().to_nsec()-msg.header.stamp.to_nsec())/1e9,
+                        "observation_timing": observation_timing,
+                        "near_retry": ("accepted" if rescue_debug.get("accepted") else
+                                       "attempted" if rescue_debug.get("attempted") else "OFF"),
+                        "policy_reason": policy_reason,
+                        "transition_reason": transition_reason,
+                        "planner_parameters": self._debug_planner_parameters(),
+                    })
+                ok, enc = cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, self.debug_jpeg_quality])
+                if ok:
+                    debug_msg = CompressedImage()
+                    # This image still depicts the ORIGINAL JPEG, not the time
+                    # at which its overlay finished encoding.
+                    debug_msg.header = msg.header
+                    debug_msg.format = "jpeg"
+                    debug_msg.data = enc.tobytes()
+                    self.debug_pub.publish(debug_msg)
+            except Exception as error:
+                rospy.logwarn_throttle(5., "[Traffic] debug overlay failed (standard output already published): %s", type(error).__name__)
 
         proc_time = time.time() - t_start
         self._proc_time_sum += proc_time
@@ -633,6 +797,46 @@ class TrafficLightNode:
             self.signal_phase_policy.section_label(group.traffic_light_group_id),
             _short_label(color_results),
         )
+
+    @staticmethod
+    def _read_detector_boxes(results, width, height):
+        boxes = []
+        for box in results[0].boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            confidence = float(box.conf[0])
+            boxes.append((((x1+x2)/2)/width, ((y1+y2)/2)/height,
+                          (x2-x1)/width, (y2-y1)/height,
+                          (x1, y1, x2, y2, confidence)))
+        return boxes
+
+    def _debug_planner_parameters(self):
+        """Read-only cached settings, NOT an inferred live planner GO decision."""
+        clock = time.monotonic()
+        cached = getattr(self, "_debug_planner_config_cache", None)
+        last = getattr(self, "_debug_planner_config_clock", None)
+        if cached is None or last is None or clock-last >= 2. or clock < last:
+            prefix = "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/"
+            get_param = getattr(rospy, "get_param", lambda _key, default: default)
+            cached = {key: get_param(prefix+key, None) for key in (
+                "enable_signal_compliance_guard", "enable_yellow_passthrough", "yellow_light_is_go",
+                "enable_arrow_aware_yellow_passing", "tl_state_timeout",
+                "signal_compliance_enable_timed_yellow", "signal_compliance_min_yellow_sec",
+                "signal_compliance_yellow_time_margin_sec", "signal_compliance_required_green_observations")}
+            self._debug_planner_config_cache = cached
+            self._debug_planner_config_clock = clock
+        return dict(cached)
+
+    def _near_retry_context_reason(self, packet, group_id):
+        """Discard a delayed retry if route/freshness changed during inference."""
+        if self._resolve_group_id() != group_id:
+            return "route_changed_during_retry"
+        try:
+            age = (rospy.Time.now().to_nsec() - int(packet["generated_stamp_ns"])) / 1e9
+            if not 0 <= age <= getattr(self, "map_packet_max_age_sec", .5):
+                return "map_packet_expired_during_retry"
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return "invalid_retry_packet_generation_stamp"
+        return None
 
 
 def main():

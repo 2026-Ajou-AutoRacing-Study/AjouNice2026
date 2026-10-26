@@ -4,6 +4,8 @@
     default so the first gate can inspect /planning/trajectory safely.
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="88"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="vehicle_config"
@@ -50,8 +52,19 @@
        controls the planner plugin consuming traffic-light observations. -->
   <arg name="enable_traffic_light_planner" default="true"/>
   <arg name="traffic_light_inference_python"
-       default="/usr/bin/python3"/>
+       default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python"/>
   <arg name="traffic_light_device" default="0"/>
+  <arg name="enable_signal_compliance_guard" default="true"/>
+  <arg name="enable_yellow_passthrough" default="false"/>
+  <arg name="signal_compliance_enable_timed_yellow" default="false"/>
+  <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
+  <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
+  <arg name="signal_compliance_required_green_observations" default="1"/>
+  <arg name="traffic_light_debug_image" default="false"/>
+  <arg name="traffic_light_state_timeout_sec" default="1.0"/>
+  <arg name="traffic_light_detection_miss_hold_sec" default="0.2"/>
+  <arg name="planner_compliance_observations" default="true"/>
+  <arg name="route_progress_guard" default="true"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
@@ -88,6 +101,7 @@
 
   <group if="$(arg start_object_pipeline)">
     <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+      <arg name="map_version" value="$(arg map_version)"/>
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>
       <arg name="start_detector" value="$(arg start_detector)"/>
@@ -126,7 +140,7 @@
       <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
       <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
+           value="$(arg map_file)"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>
@@ -136,18 +150,34 @@
     <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="inference_python" value="$(arg traffic_light_inference_python)"/>
+      <arg name="map_version" value="$(arg map_version)"/>
+      <arg name="lanelet2_map_file" value="$(arg map_file)"/>
       <arg name="device" value="$(arg traffic_light_device)"/>
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)"/>
+      <arg name="publish_debug_image" value="$(arg traffic_light_debug_image)"/>
+      <arg name="route_progress_guard" value="$(arg route_progress_guard)"/>
+      <arg name="detection_miss_hold_sec" value="$(arg traffic_light_detection_miss_hold_sec)"/>
     </include>
   </group>
 
   <include file="$(find ajounice_planning_integration)/launch/planning.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_version" value="$(arg map_version)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="start_requester" value="$(arg start_requester)"/>
     <arg name="behavior_path_forward_length" value="$(arg behavior_path_forward_length)"/>
     <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
     <arg name="enable_traffic_light_planner"
          value="$(arg enable_traffic_light_planner)"/>
+    <arg name="enable_signal_compliance_guard" value="$(arg enable_signal_compliance_guard)"/>
+    <arg name="enable_yellow_passthrough" value="$(arg enable_yellow_passthrough)"/>
+    <arg name="signal_compliance_enable_timed_yellow" value="$(arg signal_compliance_enable_timed_yellow)"/>
+    <arg name="signal_compliance_min_yellow_sec" value="$(arg signal_compliance_min_yellow_sec)"/>
+    <arg name="signal_compliance_yellow_time_margin_sec" value="$(arg signal_compliance_yellow_time_margin_sec)"/>
+    <arg name="signal_compliance_required_green_observations" value="$(arg signal_compliance_required_green_observations)"/>
+    <arg name="traffic_light_state_timeout_sec" value="$(arg traffic_light_state_timeout_sec)"/>
     <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>

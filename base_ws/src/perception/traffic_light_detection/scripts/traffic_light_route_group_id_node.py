@@ -61,6 +61,11 @@ class TrafficLightRouteGroupIdNode:
             projector_type=projector_type,
             projector_file=projector_file,
             excluded_group_ids=EXCLUDED_MAP_ERROR_IDS,
+            route_progress_guard=rospy.get_param('~route_progress_guard', False),
+            route_progress_hysteresis_m=rospy.get_param('~route_progress_hysteresis_m', 1.0),
+            route_progress_max_lateral_m=rospy.get_param('~route_progress_max_lateral_m', 8.0),
+            route_progress_pose_jump_m=rospy.get_param('~route_progress_pose_jump_m', 8.0),
+            signal_judging_lines=rospy.get_param('~signal_judging_lines', None),
         )
         if not self._matcher.available:
             raise RuntimeError("Lanelet route matcher is unavailable in the ROS runtime")

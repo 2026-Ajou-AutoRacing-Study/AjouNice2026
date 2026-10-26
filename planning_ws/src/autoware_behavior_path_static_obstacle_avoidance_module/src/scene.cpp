@@ -483,6 +483,11 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
   // filter only for the latest detected objects.
   fillAvoidanceTargetObjects(data, debug);
 
+  if (parameters_->path_generation_method == "optimization_base") {
+    utils::static_obstacle_avoidance::releaseMovingClipObjects(
+      data, stored_objects_, clip_objects_, parameters_);
+  }
+
   auto current_target_objects_snapshot = data.target_objects;
 
   // compensate lost object which was avoidance target. if the time hasn't passed more than

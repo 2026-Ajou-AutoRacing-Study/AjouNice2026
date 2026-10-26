@@ -84,6 +84,29 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
     throw std::invalid_argument("lane_change/overtake/npc_reaction_time must be nonnegative");
   }
 
+  node->param("lane_change/execution/always_update_approved", p.always_update_approved, false);
+  node->getParam("lane_change/trajectory/prepare_duration_samples", p.trajectory.prepare_duration_samples);
+  if (!std::is_sorted(p.trajectory.prepare_duration_samples.begin(),
+                      p.trajectory.prepare_duration_samples.end()) ||
+      std::any_of(p.trajectory.prepare_duration_samples.begin(),
+                  p.trajectory.prepare_duration_samples.end(), [](double t) {
+                    return !std::isfinite(t) || t < 0.0; })) {
+    throw std::invalid_argument("LC prepare duration samples must be finite, nonnegative and sorted");
+  }
+  node->param("lane_change/execution/recovery_time", p.execution_recovery_time, 1.0);
+  if (!std::isfinite(p.execution_recovery_time) || p.execution_recovery_time <= 0.0) {
+    throw std::invalid_argument("lane_change/execution/recovery_time must be finite and positive");
+  }
+
+  node->param("lane_change/trajectory/compact_sampling", p.trajectory.compact_sampling, false);
+  node->getParam("lane_change/trajectory/lateral_acceleration_samples",
+                 p.trajectory.lateral_acceleration_samples);
+  for (const double value : p.trajectory.lateral_acceleration_samples) {
+    if (!std::isfinite(value) || value <= 0.0 || value > 6.5) {
+      throw std::invalid_argument("LC lateral acceleration samples must be in (0, 6.5]");
+    }
+  }
+
   // trajectory generation
   {
     p.trajectory.max_prepare_duration =
@@ -705,6 +728,16 @@ void LaneChangeModuleManager::updateModuleParams(const std::vector<rclcpp::Param
         "Parameter 'lateral_thresholds' is not updated because the given parameter array is "
         "empty.");
     }
+  }
+
+  update_param<bool>(parameters, "lane_change.execution.always_update_approved",
+                     p->always_update_approved);
+  double recovery_time = p->execution_recovery_time;
+  update_param<double>(parameters, "lane_change.execution.recovery_time", recovery_time);
+  if (std::isfinite(recovery_time) && recovery_time > 0.0) {
+    p->execution_recovery_time = recovery_time;
+  } else {
+    RCLCPP_WARN(node_->get_logger(), "Rejected nonpositive/nonfinite LC execution recovery_time");
   }
 
   for (const auto & module : activeModules()) {

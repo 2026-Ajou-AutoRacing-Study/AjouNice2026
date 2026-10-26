@@ -178,35 +178,64 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
     cruise_planner_->resetForLongitudinalHandoff();
     prev_cruise_object_obstacles_.clear();
   }
-  if (lc_owns) {
-    VelocityPlanningResult result;
-    // Clear ONLY this sender, including a previously latched limit. Never skip
-    // the clear when suppressing normal following output on the first LC cycle.
-    if (!lc_owns_longitudinal_ || need_to_clear_velocity_limit_) {
-      result.velocity_limit_clear_command =
-        create_velocity_limit_clear_command(ros::Time::now(), module_name_);
-    }
-    need_to_clear_velocity_limit_ = false;
-    lc_owns_longitudinal_ = true;
-    std_msgs::String state;
-    state.data = "{\"longitudinal_owner\":\"lane_change\",\"normal_cruise_suppressed\":true,"
-      "\"sender_cleared\":\"obstacle_cruise\"}";
-    debug_selection_pub_.publish(state);
-    publish_debug_info();
-    return result;
-  }
-  lc_owns_longitudinal_ = false;
-
-  // filter obstacles of predicted objects
+  // LC owns its maneuver speed, but an already aligned leader must retain
+  // front-following protection. Adjacent/rear merge traffic remains LC-owned.
   const lateral_collision::LongitudinalMotion ego_motion{
     planner_data->current_acceleration.accel.accel.linear.x,
     common_param_.min_accel, common_param_.max_accel,
     common_param_.min_jerk, common_param_.max_jerk};
-  const auto cruise_obstacles = filter_cruise_obstacle_for_predicted_object(
-    planner_data->current_odometry, ego_motion, planner_data->ego_nearest_dist_threshold,
-    planner_data->ego_nearest_yaw_threshold, raw_trajectory_points, planner_data->objects,
-    ros::Time(planner_data->predicted_objects_header.stamp), planner_data->is_driving_forward,
-    planner_data->vehicle_info_, planner_data->trajectory_polygon_collision_check);
+  auto cruise_obstacles = lc_owns && planner_data->objects.empty()
+    ? std::vector<CruiseObstacle>{}
+    : filter_cruise_obstacle_for_predicted_object(
+        planner_data->current_odometry, ego_motion, planner_data->ego_nearest_dist_threshold,
+        planner_data->ego_nearest_yaw_threshold, raw_trajectory_points, planner_data->objects,
+        ros::Time(planner_data->predicted_objects_header.stamp), planner_data->is_driving_forward,
+        planner_data->vehicle_info_, planner_data->trajectory_polygon_collision_check);
+  if (lc_owns) {
+    const auto & ego = planner_data->current_odometry;
+    const double yaw = tf2::getYaw(ego.pose.pose.orientation);
+    const auto now = ros::Time::now();
+    cruise_obstacles.erase(std::remove_if(
+      cruise_obstacles.begin(), cruise_obstacles.end(), [&](const auto & obstacle) {
+        const auto object = std::find_if(
+          planner_data->objects.begin(), planner_data->objects.end(), [&](const auto & input) {
+            return input->predicted_object.object_id.uuid == obstacle.uuid.uuid;
+          });
+        if (object == planner_data->objects.end()) return true;
+        const auto pose = (*object)->get_predicted_current_pose(
+          now, ros::Time(planner_data->predicted_objects_header.stamp));
+        const double dx = pose.position.x - ego.pose.pose.position.x;
+        const double dy = pose.position.y - ego.pose.pose.position.y;
+        const auto motion = lateral_collision::relative_motion(
+          ego, (*object)->predicted_object, pose, planner_data->vehicle_info_, yaw);
+        const bool aligned_leader = dx * std::cos(yaw) + dy * std::sin(yaw) >= 0.0 &&
+          std::isfinite(motion.clearance_m) && motion.clearance_m <= 1e-3;
+        if (!aligned_leader) {
+          filter_trace_[autoware_utils::to_hex_string(obstacle.uuid)].reason =
+            "lc_nonfront_following_suppressed";
+        }
+        return !aligned_leader;
+      }), cruise_obstacles.end());
+    if (cruise_obstacles.empty()) {
+      VelocityPlanningResult result;
+      // Clear only this sender, including a previous front-protection limit.
+      if (!lc_owns_longitudinal_ || need_to_clear_velocity_limit_) {
+        result.velocity_limit_clear_command =
+          create_velocity_limit_clear_command(ros::Time::now(), module_name_);
+      }
+      need_to_clear_velocity_limit_ = false;
+      lc_owns_longitudinal_ = true;
+      cruise_planner_->resetForLongitudinalHandoff();
+      prev_cruise_object_obstacles_.clear();
+      std_msgs::String state;
+      state.data = "{\"longitudinal_owner\":\"lane_change\",\"normal_cruise_suppressed\":true,"
+        "\"front_protection_active\":false,\"sender_cleared\":\"obstacle_cruise\"}";
+      debug_selection_pub_.publish(state);
+      publish_debug_info();
+      return result;
+    }
+  }
+  lc_owns_longitudinal_ = lc_owns;
 
   // plan cruise
   VelocityPlanningResult result;
@@ -223,8 +252,11 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
       if (std::isfinite(value)) stream << value;
       else stream << "null";
     };
-    stream << "{\"schema_version\":1,\"longitudinal_owner\":\"cruise\","
-      "\"ownership_rejection\":\"" << ownership_rejection << "\",\"stamp\":";
+    stream << "{\"schema_version\":1,\"longitudinal_owner\":\""
+      << (lc_owns ? "lane_change" : "cruise")
+      << "\",\"front_protection_active\":" << (lc_owns ? "true" : "false")
+      << ",\"normal_cruise_suppressed\":" << (lc_owns ? "true" : "false")
+      << ",\"ownership_rejection\":\"" << ownership_rejection << "\",\"stamp\":";
     number(ros::Time::now().toSec());
     stream << ",\"objects_stamp\":";
     number(ros::Time(planner_data->predicted_objects_header.stamp).toSec());

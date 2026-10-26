@@ -410,3 +410,11 @@ if(CATKIN_ENABLE_TESTING)
 endif()
 
 install(DIRECTORY launch/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
+
+# Keep provider headers ahead of the merged install include tree (also added by
+# transitive dependencies). Mixing installed LC layouts with a candidate DSO is invalid.
+# The LC provider may be the merged install include root. Keep this package's
+# own headers first, otherwise a previous installed BPP class layout wins.
+target_include_directories(autoware_behavior_path_planner BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${LANE_CHANGE_INCLUDE_DIR})
+target_include_directories(autoware_behavior_path_planner_full_source BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${LANE_CHANGE_INCLUDE_DIR})
+target_include_directories(behavior_path_planner_full_node BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${LANE_CHANGE_INCLUDE_DIR})

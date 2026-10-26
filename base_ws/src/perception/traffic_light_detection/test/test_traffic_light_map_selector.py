@@ -178,7 +178,7 @@ class MapSelectorTest(unittest.TestCase):
     def test_single_configuration_contract_and_horizontal_housing_aspect_guard(self):
         config = selector_config()
         self.assertEqual(config.max_padding_px, 90.)
-        self.assertEqual(config.max_vertical_padding_px, 180.)
+        self.assertEqual(config.max_vertical_padding_px, 200.)
         self.assertEqual(config.min_aspect_ratio_factor, .4)
         for bad in ({"unknown": 1}, {"max_padding_px": -1}, {"min_aspect_ratio_factor": 3., "max_aspect_ratio_factor": 2.}):
             with self.assertRaises(ValueError): selector_config(bad)

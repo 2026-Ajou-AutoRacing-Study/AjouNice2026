@@ -1,29 +1,27 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-25 v5 설치기·GUI·CUDA smoke 완료. D 근접 주행 실패로 **운영 모델·정책 변경 없음.**
-환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다.
-과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
+상태: 2026-10-27. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 황색 통과·디버그 화면 기본 OFF**다.
+환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다. 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
 ## 운영 기준
 
 - `traffic_light_node.launch`: front JPEG 1280×720, YOLO housing 1클래스,
-  confidence 0.25, 최대 처리 10Hz, smoother 7/4.
-- 현재 `best.pt` SHA256:
-  `2bb73720568a975c94d79a54cc097a0a4b70ec7c8de23552b4d0e71112160818`.
-- 관측은 HSV/형태 분류, route별 보정은 `traffic_signal_profiles.yaml`이다.
+  confidence 0.25, 최대 처리 10Hz. 운영은 직접 관측 전달 + 판단의 신선한 허가 관측 1개 확인이다.
+- 기본은 YOLO26n960 + 지도 연결 + CNN v5, `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다.
+  고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
+- 운영은 CNN 4-bit 관측 보존이며, 색·화살표를 추가하는 보정은 명시적 legacy에만 남는다.
   `debug_observed_label`은 보정 전, `debug_raw_label`은 이름과 달리 보정 후다.
-- A/B/C/D-2의 fallback은 적색이다. D-1은 우회전 passthrough이고
+- 운영 A/B/C/D의 미완충 판독 불가·모순 조합은 UNKNOWN이다. 같은 head의 이동 중 저확신만 짧게 이전 관측으로 완충한다. D-1은 passthrough이고
   판단 모듈에서 제외된다. 별도 planning competition fail-open과 혼동하지 않는다.
-- native 신호 조회·제어 및 `/Ego_topic`은 **개발 평가용**이다.
-  운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
+- native 신호 조회·제어 및 `/Ego_topic`은 **개발 평가용**이다. 운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
   개발 수집·평가 도구를 대회 알고리즘의 의존성으로 연결하지 않았다.
 
-## 새 통합 후보 — 명시적으로 선택할 때만 실행
+## 현재 v5 기본과 명시적 복귀
 
 - `selection_mode:=map_association`: route regulatory ID에 속한 실제 housing만
-  지도 투영과 YOLO 박스로 연결한다. 기본은 계속 `legacy_center`다.
+  지도 투영과 YOLO 박스로 연결하며 현재 기본이다. 옛 D-1은 미션에서 제외한다.
 - `classifier_mode:=cnn`: RGB letterbox224×128의 ResNet18 4비트 분류기를 사용한다.
-  기본은 계속 `hsv`다. 잘못된/미설치 CNN을 조용히 HSV로 바꾸지 않는다.
+  현재 기본이다. 잘못된/미설치 CNN을 조용히 HSV로 바꾸지 않는다.
 - 최종 후보는 YOLO26n 960 + 지도 선택 + ResNet18 CNN v5다. YOLO 자료는
   6환경 816장/1,374박스, CNN은 기존792개를 보존하고 작은 D 신호60개를 보강했다.
 - 고정 자연 현시의 같은939장에서는 기존 HSV856개 → 새 조합939개가 일치했고,
@@ -34,13 +32,17 @@
 - 후보의 학습·score 문제·실ROS 입력·연속 평가·제약은
   [통합 검증 기록](261025_YOLO_CNN_MAP_RUNTIME_EVALUATION.md)을 본다.
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
-- yellow/R+Y/unknown을 인지와 BVP가 다르게 처리하는 현재 계약은
-  [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)를 본다.
-  [새 출발·신호 상실 제안](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md)은 아직 운영 적용 전이다.
-- 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md)를 따른다.
-  승인한 모델 압축본 한 파일은 로그인 없이 받는다. 데이터/부모 백업은 비공개, 주행 검증은 별도다.
-- 실제 주행에서 D 근접 YOLO score·지도 gate 실패를 재현해 승격을 보류했다.
-  [설치·경로·폐루프 근거와 후속](261025_INSTALLER_ROUTE_AND_DRIVING_TRIAL.md)을 먼저 본다.
+- 이전 yellow/R+Y/unknown 계약은 [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)의 당시 기록이다.
+  선 전 정차의 Y/R+Y 새 출발과 완충되지 않은 최신 UNKNOWN은 정지 판단이다. 사용자·판단팀 요청으로 기존
+  `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
+  [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
+- 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
+- [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 당시 시험값이다. 운영 기본 허가 확인은 2026-10-27에 1회로 변경했다.
+- 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml)는 명시적 `map_version:=94`로 지도·SHA·Route A/B를 함께 고른다. 최신 planning 기본v88은 유지하며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. [v93 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93) 차이2.34px를 새 LAN 인증으로 쓰지 않는다.
+- 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 소등·모순·TF/route/실제 화각 실패는 UNKNOWN이다.
+- Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 현재 기본인 신선한 1개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
+- D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
+  [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
 ## 구간 계약과 자연 현시
 
@@ -57,19 +59,19 @@
 
 특히 D-2에서 G와 Y 단독은 좌회전 신호가 아니다.
 R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미를 복원하지 않는다.
-위 표는 영상 관측을 평가하는 기준이며 CNN 입력에 구간 GT나 phase 정답을 넣는 기능이 아니다.
-현행 D-2의 R+Y 통과 설정은 코드 사실이지, 황색을 처음 보고 새로 출발해도 된다는
-규정·팀 정책의 확정이 아니다. 공식 정지선 통과와 이미 진행 중인 경우를 구분한 문의가 남아 있다.
+위 표는 관측된 자연 프로그램이며 CNN 입력 GT가 아니다. D의 Y도 R로 바꾸지 않고 비허가로 판단한다.
+허가 없는 Y/R+Y 새 출발은 금지다. 물리 통과선·시야 계약 전까지 황색 override는 보류하며 무패널티를 보증하지 않는다.
 사용자가 재확인한 미션 명칭은 A·B·C(두 physical head)·D(옛 D-2)다.
 동적 교차로 뒤에 보이는 옛 D-1은 검출 라벨로 존재해도 미션 신호 허용 대상으로 쓰지 않는다.
 
 ## 확인된 문제와 후보
 
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
-2. 지도 crop은 근사치다. native 상태가 맞아도 픽셀 정답·crop 포함이 자동 보증되는 것은 아니다.
+2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
-4. 실제 route bag 재생에서 통과한 D의 재선택이 나왔다. 당시 지도와 현행 v87의 누락 lane ID도 있어
-   전체 미션 선택 인증은 보류한다. `audit_traffic_light_route_replay.py`로 원래 지도·새 주행을 대조한다.
+4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
+
+- [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. 당시에는 timeout1초·황색OFF·허가3회·ID0 경계를 유지했으며, 허가 확인만 2026-10-27에 별도 1회로 변경했다. 인식 모델 성능은 그대로다. 자연 풀주행 2회의 A/B/C/D 관측열 오프라인 대조에서 안정 허가 구간의 첫 관측→세 번째 관측 간격은 0.209~0.260초였다. 총190개 허가 프레임 중 전후0.25초의 동일 native 상태로 확인 가능한184개는 모두 방향 허가였고, 6개는 그 조건으로 미확인이다. B에는 한 프레임만 허가로 나온 구간 3개가 있었고 주변 native 조회는 녹색이었다. 1회 설정에서는 이런 구간에 궤적이 잠깐 열렸다 닫힐 수 있다. **1회 설정으로 새 폐루프 주행을 검증한 결과는 아니며**, 오출발률이나 실대회 패널티 변화를 인증하지 않는다. 기존 실행 snapshot에서 허가3회를 명시했다면 그대로 유지된다.
 
 ## 평가·학습 경계
 
@@ -87,14 +89,12 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
   가려짐·판독 불가를 소등 또는 음성 라벨로 강제하지 않는다.
 - 개발용 투영은 raw Ego heading에서 −1.347°를 한 번 적용한 MGeo 좌표 기준이다.
   이미 보정된 운영 localization/TF에 이 보정을 다시 적용하면 안 된다.
-- 운영 승격은 별도다. 원시 관측, 정책 보정 후 출력, 전환 지연, 위험 오통과,
-  장기 정차, 실제 ROS 입력·출력을 각각 검증해야 한다.
+- 이 승격은 로컬 개발 검증 범위다. 공식 LAN·팀 4090·BEVFusion 동시 부하에서의
+  전환 지연·실제 센서 단절·공식 신호 준수는 후속 확인이며 주행 100% 인증이 아니다.
 - 신호를 처음 본 시점은 점등 시작 시점이 아니다. 고정 2.5초 카운트로 황색 잔여 시간을
   보장하지 않으며, 팀 대화의 대회 주기 단축 예상도 운영 상수로 쓰지 않는다.
 
 ## 자료 위치
-
 - 팀원 원문·영상·SHA: `artifacts/reference/traffic_light_team_notes_261025/`(원본 ZIP 보존).
-- 신규 원본 JPEG·native/환경 증거·실패·QC·후보 결과:
-  `artifacts/evaluation/traffic_light_robustness_261025/`.
+- 신규 원본 JPEG·native/환경 증거·실패·QC·후보 결과: `artifacts/evaluation/traffic_light_robustness_261025/`.
 - 도구: `scripts/evaluation/*traffic_light*.py`. capture는 개발용 정지/P 시험이다.

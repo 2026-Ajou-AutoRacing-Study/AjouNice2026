@@ -119,7 +119,8 @@ def download_public_archive(file_id, destination, expected_bytes):
 
 def load_release(path=DESCRIPTOR):
     doc = json.loads(Path(path).read_text())
-    if (doc.get('schema') != SCHEMA or doc.get('status') != 'opt_in_candidate_not_production'
+    if (doc.get('schema') != SCHEMA or doc.get('status') not in (
+            'opt_in_candidate_not_production', 'runtime_default_with_known_limitations')
             or not re.fullmatch(r'v[0-9]+_[0-9a-f]{8}', doc.get('version', ''))
             or set(doc.get('models', {})) != {'yolo', 'cnn'}):
         raise ValueError('Explicit candidate release descriptor required')

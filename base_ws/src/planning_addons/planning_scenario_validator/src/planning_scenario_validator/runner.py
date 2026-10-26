@@ -21,7 +21,8 @@ from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resol
                      prediction_highway_horizon, prediction_highway_mode)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
-from .traffic_light import runtime_mode, runtime_settings, profile_name, candidate_assets, profile_check_arguments
+from .traffic_light import (runtime_mode, runtime_settings, profile_name, candidate_assets,
+                           profile_check_arguments, launch_options as traffic_launch_options)
 from .models import resolve_contract, verify_contract, selected_model, runtime_image_selection, CANONICAL
 from .recording_audit import audit_bag
 from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
@@ -178,6 +179,7 @@ def _start_persistent(cfg, processes, monitor):
 
 def _start_case_stack(cfg, processes, monitor):
     stack, network = cfg["stack"], cfg["network"]
+    traffic_options = cfg.get('traffic_light_options', traffic_launch_options(stack))
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
     after = time.monotonic()
     if stack["pose_source"] == "localization":
@@ -206,19 +208,30 @@ def _start_case_stack(cfg, processes, monitor):
         selected = candidate_assets(stack, ROOT, check_exists=True)
         extra = {} if selected is None else dict(models_root=selected['root'], repo_root=ROOT,
                                                 sensor_config=cfg['network']['sensor_json'])
-        filename = 'traffic_light_node.launch' if selected is None else 'traffic_light_v5_candidate.launch'
+        filename = 'traffic_light_legacy.launch' if selected is None else 'traffic_light_v5_candidate.launch'
         processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
-            isolate_python=runtime_mode(stack) == "virtualenv", **extra))
+            isolate_python=runtime_mode(stack) == "virtualenv",
+            publish_debug_image=traffic_options['publish_debug_image'], **extra))
+        if traffic_options['debug_view']:
+            processes.start('traffic_light_debug_view', _launch('traffic_light_detection',
+                'traffic_light_debug_view.launch',
+                image_topic='/traffic_light_node/debug_image/compressed',
+                display=cfg['recording']['video']['display']))
     processes.start("planning", _launch("ajounice_planning_integration", "planning.launch",
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
         enable_traffic_light_planner=stack.get("traffic_light", False),
+        enable_yellow_passthrough=traffic_options['yellow_passthrough'],
+        signal_compliance_required_green_observations=traffic_options.get('signal_compliance_required_green_observations', 1),
+        signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
+        signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),
+        signal_compliance_enable_timed_yellow=traffic_options.get('signal_compliance_enable_timed_yellow', False),
         publish_fixed_autonomous_mode=True, use_ground_pointcloud=False,
         use_occupancy_grid=False))
 
 
-CASE_STACK = ["controller", "planning", "traffic_light", "tracking", "detector", "pose"]
+CASE_STACK = ["controller", "planning", "traffic_light_debug_view", "traffic_light", "tracking", "detector", "pose"]
 
 
 def _load_scene(cfg, installed, monitor, ego_xy):
@@ -230,6 +243,20 @@ def _load_scene(cfg, installed, monitor, ego_xy):
     udp = cfg["document"].get("morai", {})
     host, port = udp.get("scenario_load_host", "127.0.0.1"), int(udp.get("scenario_load_port", 9095))
     timeout = float(cfg["document"].get("scenario_ready_timeout_sec", 35))
+    if udp.get("clear_before_load", False):
+        # MORAI delete_all clears selected actor classes instead of loading
+        # their new contents. Wait for that distinct scene state before reload;
+        # sending both packets in one physics step cannot establish a clean scene.
+        clear_request = dict(request, delete_all=True, load_ego_vehicle_data=False)
+        clear_payload = build_scenario_load_payload(installed.stem, clear_request)
+        clear_after = time.monotonic()
+        monitor.event("SCENE_CLEAR_REQUESTED", installed=installed.name)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+            if connection.sendto(clear_payload, (host, port)) != len(clear_payload):
+                raise RuntimeFailure("ScenarioLoad 객체 제거 패킷 일부만 송신됨")
+        monitor.wait_empty_scene(after=clear_after, timeout=timeout)
+        monitor.event("SCENE_CLEAR_CONFIRMED")
+        time.sleep(1.0)  # Let the unpaused physics scene process actor removal.
     for attempt in range(1, 4):
         baseline_xy = None if monitor.ego is None else (
             float(monitor.ego.position.x), float(monitor.ego.position.y))
@@ -548,6 +575,7 @@ def _run_case(cfg, processes, monitor, case, state):
                     "pose_source": cfg["stack"]["pose_source"],
                     "detector": cfg["stack"]["detector"],
                     "model": cfg.get('model_contract'),
+                    "traffic_light_options": cfg.get('traffic_light_options', traffic_launch_options(cfg['stack'])),
                     "git_sha": subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(ROOT), text=True).strip(),
                     "sensor_json": str(cfg["network"]["sensor_json"]),
                     "ego_network_json": str(cfg["network"]["ego_network_json"]),

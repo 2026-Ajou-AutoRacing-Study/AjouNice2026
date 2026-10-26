@@ -52,10 +52,10 @@ class HighwayHorizonConfigurationTest(unittest.TestCase):
         self.assertEqual(result, tuple(.1 * index for index in range(1, 61)))
 
     def test_wire_capacity_includes_current_pose(self):
-        result = build_highway_horizons(self.BASE, .1, 9.9)
+        result = build_highway_horizons(self.BASE, .1, 10.0)
         self.assertEqual(len(result) + 1, _POLICY.MAX_PREDICTED_PATH_POSES)
         with self.assertRaises(ValueError):
-            build_highway_horizons(self.BASE, .1, 10.)
+            build_highway_horizons(self.BASE, .1, 10.1)
 
     def test_invalid_horizon_is_rejected_before_unbounded_allocation(self):
         for value in (None, 'invalid', True, False, [], math.nan, math.inf,
