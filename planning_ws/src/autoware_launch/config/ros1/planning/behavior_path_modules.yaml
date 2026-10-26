@@ -752,11 +752,13 @@ lane_change:
     enable: true
     disable_near_goal: true
     stop_at_boundary: false
+  execution:
+    always_update_approved: false
   trajectory:
     compact_sampling: true
     lateral_acceleration_samples: [1.0, 2.0, 3.0, 4.0, 5.0, 6.5]
-    preparation_duration_samples: [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.5, 7.0]
-    max_prepare_duration: 7.0
+    prepare_duration_samples: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 4.0]
+    max_prepare_duration: 4.0
     min_prepare_duration: 0.0
     lateral_jerk: 5.0
     min_longitudinal_acc: -8.0

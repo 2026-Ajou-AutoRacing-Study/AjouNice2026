@@ -84,14 +84,21 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
     throw std::invalid_argument("lane_change/overtake/npc_reaction_time must be nonnegative");
   }
 
+  node->param("lane_change/execution/always_update_approved", p.always_update_approved, false);
+  node->getParam("lane_change/trajectory/prepare_duration_samples", p.trajectory.prepare_duration_samples);
+  if (!std::is_sorted(p.trajectory.prepare_duration_samples.begin(),
+                      p.trajectory.prepare_duration_samples.end()) ||
+      std::any_of(p.trajectory.prepare_duration_samples.begin(),
+                  p.trajectory.prepare_duration_samples.end(), [](double t) {
+                    return !std::isfinite(t) || t < 0.0; })) {
+    throw std::invalid_argument("LC prepare duration samples must be finite, nonnegative and sorted");
+  }
   node->param("lane_change/execution/recovery_time", p.execution_recovery_time, 1.0);
   if (!std::isfinite(p.execution_recovery_time) || p.execution_recovery_time <= 0.0) {
     throw std::invalid_argument("lane_change/execution/recovery_time must be finite and positive");
   }
 
   node->param("lane_change/trajectory/compact_sampling", p.trajectory.compact_sampling, false);
-  node->getParam("lane_change/trajectory/preparation_duration_samples",
-                 p.trajectory.preparation_duration_samples);
   node->getParam("lane_change/trajectory/lateral_acceleration_samples",
                  p.trajectory.lateral_acceleration_samples);
   for (const double value : p.trajectory.lateral_acceleration_samples) {
@@ -106,11 +113,6 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
       get_or_declare_parameter<double>(*node, parameter("trajectory.max_prepare_duration"));
     p.trajectory.min_prepare_duration =
       get_or_declare_parameter<double>(*node, parameter("trajectory.min_prepare_duration"));
-    for (const double value : p.trajectory.preparation_duration_samples) {
-      if (!std::isfinite(value) || value < 0.0 || value > p.trajectory.max_prepare_duration) {
-        throw std::invalid_argument("LC preparation samples must be finite and within [0, max_prepare_duration]");
-      }
-    }
     p.trajectory.lateral_jerk =
       get_or_declare_parameter<double>(*node, parameter("trajectory.lateral_jerk"));
     p.trajectory.min_longitudinal_acc =
@@ -728,6 +730,8 @@ void LaneChangeModuleManager::updateModuleParams(const std::vector<rclcpp::Param
     }
   }
 
+  update_param<bool>(parameters, "lane_change.execution.always_update_approved",
+                     p->always_update_approved);
   double recovery_time = p->execution_recovery_time;
   update_param<double>(parameters, "lane_change.execution.recovery_time", recovery_time);
   if (std::isfinite(recovery_time) && recovery_time > 0.0) {

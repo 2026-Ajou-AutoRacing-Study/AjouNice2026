@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 
-# Keep the current pose plus future samples within the upstream Autoware
-# PredictedPath capacity even though this ROS1 port exposes an unbounded array.
-# This also bounds allocation before a ROS parameter can become a horizon list.
-MAX_PREDICTED_PATH_POSES = 100
+# ROS1 PredictedPath has an unbounded array. Permit the requested 10-second
+# forecast at 0.1s plus the current pose, while keeping allocation bounded.
+# 101 poses exceed the upstream ROS2 100-pose capacity; this is ROS1-only.
+MAX_PREDICTED_PATH_POSES = 101
 
 
 def build_highway_horizons(base_horizons, time_step, highway_prediction_horizon):
@@ -51,11 +51,11 @@ def build_highway_horizons(base_horizons, time_step, highway_prediction_horizon)
     maximum_horizon = step * (MAX_PREDICTED_PATH_POSES - 1)
     if (not math.isfinite(horizon) or horizon <= base[-1]
             or horizon > maximum_horizon + 1.e-6):
-        raise ValueError("mixed highway horizon must exceed baseline and fit within 100 poses")
+        raise ValueError("mixed highway horizon must exceed baseline and fit within 101 ROS1 poses")
     count = int(round(horizon / step))
     if (count <= len(base) or count + 1 > MAX_PREDICTED_PATH_POSES
             or abs(count * step - horizon) > 1.e-6):
-        raise ValueError("mixed highway horizon must be an integer 0.1s step within 100 poses")
+        raise ValueError("mixed highway horizon must be an integer 0.1s step within 101 ROS1 poses")
     return tuple(step * index for index in range(1, count + 1))
 
 

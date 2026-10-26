@@ -27,7 +27,9 @@
 #include "autoware_internal_planning_msgs/VelocityLimit.h"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -74,6 +76,13 @@ PIDBasedPlanner::PIDBasedPlanner(
   const CruisePlanningParam & cruise_planning_param)
 : CruisePlannerInterface(node, common_param, cruise_planning_param)
 {
+  node.param(
+    "obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale",
+    target_distance_scale_, 1.0);
+  if (!std::isfinite(target_distance_scale_) || target_distance_scale_ <= 0.0) {
+    throw std::invalid_argument("obstacle_cruise target_distance_scale must be finite and positive");
+  }
+
   min_accel_during_cruise_ = get_or_declare_parameter<double>(node,
     "obstacle_cruise.cruise_planning.pid_based_planner.min_accel_during_cruise");
 
@@ -242,9 +251,12 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
         time_to_evaluate_rss_;
 
     // calculate distance between ego and obstacle based on RSS
-    const double target_dist_to_obstacle = calc_rss_distance(
-      planner_data->current_odometry.twist.twist.linear.x, obstacle.velocity,
-      cruise_planning_param_.safe_distance_margin);
+    // Scale the complete RSS target, then preserve the configured minimum gap.
+    const double target_dist_to_obstacle = std::max(
+      cruise_planning_param_.safe_distance_margin,
+      target_distance_scale_ * calc_rss_distance(
+        planner_data->current_odometry.twist.twist.linear.x, obstacle.velocity,
+        cruise_planning_param_.safe_distance_margin));
 
     // calculate error distance and normalized one
     const double error_cruise_dist = dist_to_obstacle - target_dist_to_obstacle;

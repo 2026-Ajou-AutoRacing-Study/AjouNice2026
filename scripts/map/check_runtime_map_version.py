@@ -4,27 +4,42 @@ import argparse
 from pathlib import Path
 import re
 import hashlib
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 87
-SHA = '70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575'
+VERSION = 88
+SHA = 'dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installed', action='store_true')
 args = parser.parse_args()
 # Operational stack only; frozen dataset/model qualification scripts have their own map contracts.
-roots = ['base_ws/src', 'planning_ws/src', 'configs', 'scripts']
+roots = ['base_ws/src', 'planning_ws/src', 'configs', 'scripts/runtime']
 
 if args.installed:
     roots += ['base_ws/install_aw149', 'base_ws/install_planning_addons', 'planning_ws/install_isolated']
+# Frozen qualification programs keep the map used to produce their evidence.
+# Workspace campaign snapshots are ignored by Git and must remain resumable.
+frozen_programs = {'generate_highway_lane_change_samples.py'}
+source_files = set(subprocess.check_output(
+    ['git', '-C', str(ROOT), 'ls-files', '-c', '-o', '--exclude-standard'],
+    text=True).splitlines())
 issues = []
 count = 0
 for directory in roots:
     for path in (ROOT/directory).rglob('*'):
-        if not path.is_file() or 'docs' in path.parts:
+        if (not path.is_file() or 'docs' in path.parts or 'legacy' in path.parts or
+                path.name in frozen_programs or
+                ('tracking_prediction_evaluation' in path.parts and path.suffix != '.launch')):
+            continue
+        if '/install' not in str(path) and str(path.relative_to(ROOT)) not in source_files:
+            continue
+        # Signal stop-line candidate manifests record historical source maps;
+        # they are provenance, not operational launch/parameter consumers.
+        if path.parent == ROOT/'configs/map' and path.name.endswith('_stopline_candidate.yaml'):
             continue
         # Released versioned configs remain available for rollback, but are not
         # runtime consumers unless a non-versioned launch/config points to them.
-        historical_config = re.search(r'(?:kcity|competition_planning|competition_route_requester)_v(\d+)', path.name)
+        historical_config = re.search(r'(?:kcity|competition_planning|competition_rule_monitor|competition_route_requester)_v(\d+)', path.name)
         if historical_config and int(historical_config[1]) != VERSION:
             continue
         if path.suffix not in {'.py', '.yaml', '.yml', '.launch', '.sh', '.rviz', '.cpp', '.hpp', ''}:

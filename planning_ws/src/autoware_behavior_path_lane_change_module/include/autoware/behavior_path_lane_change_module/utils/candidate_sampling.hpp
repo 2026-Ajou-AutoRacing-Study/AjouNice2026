@@ -2,64 +2,12 @@
 // Licensed under the Apache License, Version 2.0.
 #pragma once
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
-#include "autoware/behavior_path_lane_change_module/structs/path.hpp"
 #include <cmath>
-#include <limits>
 #include <algorithm>
 #include <vector>
+#include <tuple>
 namespace autoware::behavior_path_planner::utils::lane_change
 {
-// Explicit preparation times are absolute alternatives from the current state.
-// Do not shift the grid with readiness time or add an unrequested ninth sample.
-inline std::vector<double> preparation_duration_samples(
-  const autoware::behavior_path_planner::lane_change::TrajectoryParameters & params,
-  const double earliest)
-{
-  std::vector<double> result;
-  if (!std::isfinite(earliest) || earliest < 0.0 || earliest > params.max_prepare_duration) {
-    return result;
-  }
-  for (const double value : params.preparation_duration_samples) {
-    if (!std::isfinite(value) || value < earliest - 1e-6 ||
-        value > params.max_prepare_duration + 1e-6) continue;
-    if (std::none_of(result.begin(), result.end(), [&](double x) {
-        return std::abs(x - value) < 1e-6; })) result.push_back(value);
-  }
-  std::sort(result.begin(), result.end());
-  return result;
-}
-
-// A Frenet path's initial lateral acceleration can be almost zero even for
-// an abrupt maneuver. Rank the whole maneuver's peak, not its first sample.
-inline double candidate_lateral_acceleration(const LaneChangePath & candidate)
-{
-  if (candidate.type != autoware::behavior_path_planner::lane_change::PathType::FrenetPlanner ||
-      candidate.frenet_path.lane_changing.lateral_accelerations.empty()) {
-    return std::abs(candidate.info.lateral_acceleration);
-  }
-  double peak = 0.0;
-  for (double acceleration : candidate.frenet_path.lane_changing.lateral_accelerations) {
-    if (!std::isfinite(acceleration)) return std::numeric_limits<double>::infinity();
-    peak = std::max(peak, std::abs(acceleration));
-  }
-  return peak;
-}
-
-inline bool frenet_lateral_envelope_satisfied(
-  const autoware::frenet_planner::Trajectory & trajectory,
-  const autoware::behavior_path_planner::lane_change::TrajectoryParameters & parameters)
-{
-  if (trajectory.lateral_accelerations.size() != trajectory.longitudinal_velocities.size() ||
-      trajectory.lateral_accelerations.empty() || parameters.lat_acc_map.base_vel.empty()) return false;
-  for (size_t i = 0; i < trajectory.lateral_accelerations.size(); ++i) {
-    const double a = trajectory.lateral_accelerations[i];
-    const double v = trajectory.longitudinal_velocities[i];
-    if (!std::isfinite(a) || !std::isfinite(v) ||
-        std::abs(a) > parameters.lat_acc_map.find(std::abs(v)).second + 1e-3) return false;
-  }
-  return true;
-}
-
 // Preserve earliest preparation and strongest acceleration preference, while
 // sampling constant-speed and mild braking before exhausting positive samples.
 inline std::vector<LaneChangePhaseMetrics> diversify_prepare_metrics(
@@ -108,10 +56,8 @@ inline std::vector<double> lateral_acceleration_samples(
   return result;
 }
 
-// Keep physically feasible preparation kinematics and one intent per strategy.
-// A road cap can force coasting during preparation without forbidding acceleration
-// on the execution road. sampled_lon_accel carries that intent; acceleration and
-// velocity remain the feasible preparation values. No independent Cartesian grid.
+// Use existing physically feasible metrics, rather than inventing a second
+// velocity profile for the same strategy. No Cartesian prep/execution accel product.
 inline std::vector<LaneChangePhaseMetrics> compact_prepare_metrics(
   const std::vector<LaneChangePhaseMetrics> & input,
   const double front_acceleration, const double rear_acceleration)
@@ -125,19 +71,44 @@ inline std::vector<LaneChangePhaseMetrics> compact_prepare_metrics(
       const auto best=std::min_element(first,last,[&](const auto & a,const auto & b) {
         return std::abs(a.sampled_lon_accel-desired)<std::abs(b.sampled_lon_accel-desired);
       });
-      auto selected = *best;
-      // Never let a zero sampling hint erase the accelerating alternative. At
-      // a preparation speed cap the execution phase checks its own road caps.
-      if (desired > 1e-6 && selected.sampled_lon_accel <= 1e-6) {
-        selected.sampled_lon_accel = desired;
-      }
       if (std::none_of(result.begin(),result.end(),[&](const auto & metric) {
-        return std::abs(metric.duration-selected.duration)<1e-6 &&
-          std::abs(metric.sampled_lon_accel-selected.sampled_lon_accel)<1e-6;
-      })) result.push_back(selected);
+        return std::abs(metric.duration-best->duration)<1e-6 &&
+          std::abs(metric.sampled_lon_accel-best->sampled_lon_accel)<1e-6;
+      })) result.push_back(*best);
     }
     begin=end;
   }
+  return result;
+}
+
+inline int acceleration_priority(double acceleration)
+{
+  constexpr double epsilon = 1e-3;
+  return acceleration > epsilon ? 0 : (acceleration < -epsilon ? 2 : 1);
+}
+
+inline std::vector<LaneChangePhaseMetrics> independent_execution_metrics(
+  const std::vector<LaneChangePhaseMetrics> & preparation,
+  const std::vector<double> & execution_accelerations)
+{
+  std::vector<LaneChangePhaseMetrics> result;
+  for (const auto & prep : preparation) {
+    for (const double acceleration : execution_accelerations) {
+      auto metric = prep;
+      metric.sampled_lon_accel = acceleration;
+      if (std::none_of(result.begin(), result.end(), [&](const auto & other) {
+            return std::abs(other.duration - metric.duration) < 1e-6 &&
+              std::abs(other.actual_lon_accel - metric.actual_lon_accel) < 1e-6 &&
+              std::abs(other.sampled_lon_accel - acceleration) < 1e-6;
+          })) result.push_back(metric);
+    }
+  }
+  std::stable_sort(result.begin(), result.end(), [](const auto & a, const auto & b) {
+    return std::make_tuple(a.duration, acceleration_priority(a.actual_lon_accel),
+                          acceleration_priority(a.sampled_lon_accel)) <
+           std::make_tuple(b.duration, acceleration_priority(b.actual_lon_accel),
+                          acceleration_priority(b.sampled_lon_accel));
+  });
   return result;
 }
 
