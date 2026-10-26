@@ -2,7 +2,14 @@ import sys
 
 import pytest
 
-from analyze_signal_map_stop_trial import main, quantiles
+from analyze_signal_map_stop_trial import main, quantiles, detector_clearance
+
+
+def test_detector_clearance_keeps_clipping_and_rejects_bad_boxes():
+    assert detector_clearance([100, 80, 300, 120]) == dict(left=100, top=80, right=980, bottom=600)
+    assert detector_clearance([100, -2, 300, 120])['top'] == -2
+    for box in (None, [1, 2], [1, 2, 0, 3], [0, float('nan'), 2, 3]):
+        assert detector_clearance(box) is None
 
 
 def test_empty_and_ordered_gap_summary():

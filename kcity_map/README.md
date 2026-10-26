@@ -3,10 +3,10 @@
 현재 인지 launch의 기본 지도는 `lanelet_map/lanelet2_map_v87.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
-2026-10-26: A/C 정지선만 각0.75m 상류 이동한 **v88 개발 후보**가 있다.
-B/D·도로 경계·연결·ID는 그대로다. 개별4회+연속 풀코스1회 실주행 PASS 후 Drive에 별도 공유했다.
-**운영 기본은 아직v87**이며 v88은 명시적으로 선택하는 검증 후보다.
-[후보 상태·정차/통과 경계](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-candidate)를 먼저 확인한다.
+2026-10-26: 선정 후보는 **v89: v87 대비 A/C+0.75m·B/D+2m 상류 이동**이다.
+도로 경계·연결·ID는 그대로다. 이전v88의 B/D 화면 여유가 부족해 보완했고 B 개별+연속 풀코스를 검증했다.
+**운영 기본은 아직v87**이며 v89는 명시적으로 선택하는 검증 후보다. v88과 그때의 증거도 보존한다.
+[후보 상태·정차/통과 경계](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-visibility-v89)를 먼저 확인한다.
 
 | 구분 | 경로·기준 |
 | --- | --- |

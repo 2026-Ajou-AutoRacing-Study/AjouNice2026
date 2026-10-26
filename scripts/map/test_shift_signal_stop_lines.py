@@ -57,3 +57,13 @@ def test_released_v87_original_is_unchanged_and_delta_is_four_nodes():
     assert report['changed_node_ids'] == [92992, 92993, 93034, 93035]
     assert report['candidate_sha256'] == '3cfb4dde4dbbbb44fc86f4e45c747576565793db48b04a631a61ab34af265d44'
     assert output != raw
+
+
+def test_b_d_visibility_candidate_has_only_eight_stop_nodes_changed():
+    root = Path(__file__).resolve().parents[2]
+    raw = (root/'kcity_map/lanelet_map/lanelet2_map_v87.osm').read_bytes()
+    geometry = json.loads((root/'base_ws/src/perception/traffic_light_detection/config/traffic_light_map_geometry.json').read_text())
+    output, report = shifted_map(raw, dict(A=.75, B=2., C=.75, D=2.), geometry)
+    assert report['changed_node_ids'] == [92992,92993,92998,92999,93020,93021,93034,93035]
+    assert report['candidate_sha256'] == '49405b0c172e390fc54028d8d03ef848b3fca612ce3a99f94e24dbdcb3cb40d2'
+    assert len(ET.fromstring(raw)) == len(ET.fromstring(output))

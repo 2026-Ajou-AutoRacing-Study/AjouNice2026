@@ -20,6 +20,17 @@ def quantiles(values):
     return dict(min=values[0], p50=values[len(values)//2], max=values[-1])
 
 
+def detector_clearance(box, width=1280, height=720):
+    """Detector box margins are diagnostics, never an independent visibility GT."""
+    if (not isinstance(box, (list, tuple)) or len(box) != 4 or
+            any(type(v) not in (int, float) or not math.isfinite(v) for v in box)):
+        return None
+    x1, y1, x2, y2 = box
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return dict(left=x1, top=y1, right=width-x2, bottom=height-y2)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--bag', type=Path, required=True)
@@ -51,9 +62,9 @@ def main():
     if nx*math.cos(heading)+ny*math.sin(heading) < 0:
         nx, ny = -nx, -ny
     center = [(first[i]+last[i])/2 for i in range(2)]
-    rows, frames, images = [], [], []
+    rows, frames, images, classifiers = [], [], [], []
     topics = ['/localization/kinematic_state', '/traffic_light_node/debug_runtime',
-              '/sensor/camera/front/compressed']
+              '/sensor/camera/front/compressed', '/traffic_light_node/debug_classifier']
     with rosbag.Bag(str(a.bag)) as bag:
         for topic, m, t in bag.read_messages(topics=topics):
             if topic == topics[0]:
@@ -70,8 +81,12 @@ def main():
                 body = json.loads(m.data)
                 if (body.get('frame_decision') or {}).get('group_id') == a.group_id:
                     frames.append(body)
-            else:
+            elif topic == topics[2]:
                 images.append(m.header.stamp.to_nsec())
+            else:
+                body = json.loads(m.data)
+                if body.get('group_id') == a.group_id:
+                    classifiers.append(body)
     # Closed, contiguous near-line stationary periods; not startup P at 15..20m.
     windows, current = [], []
     for row in rows:
@@ -113,9 +128,25 @@ def main():
                     estimated_source_monotonic=prev['estimated_source_monotonic']+fraction*dt)
                 paint_crossings.append(dict(event, native_bracket_evaluation=evaluate_crossing(event,native,paint)))
     reports, wanted = [], set()
+    location_stamps = [r['stamp'] for r in rows]
+    approach_boxes = []
+    for frame in classifiers:
+        stamp = frame.get('source_stamp_ns', 0)
+        i = bisect_left(location_stamps, stamp)
+        choices = rows[max(0, i-1):min(len(rows), i+1)]
+        pose = min(choices, key=lambda r: abs(r['stamp']-stamp)) if choices else None
+        clear = detector_clearance(frame.get('detector_bbox_xyxy'))
+        if (pose is not None and abs(pose['stamp']-stamp) <= 100_000_000 and
+                -.5 < pose['gap'] < 20. and abs(pose['lateral']) <= length/2+1.5 and clear):
+            approach_boxes.append(dict(stamp=stamp, clearance_px=clear, gap_m=pose['gap'], speed_mps=pose['speed']))
+    worst = min(approach_boxes, key=lambda f:f['clearance_px']['top']) if approach_boxes else None
+    # Keep the exact source JPEG of the smallest observed top margin as well.
+    if worst and worst['stamp'] in images:
+        wanted.add(worst['stamp'])
     for window in windows:
         start, end = window[0]['stamp'], window[-1]['stamp']
         seen = [f for f in frames if start <= f.get('source_stamp_ns', 0) <= end]
+        boxes = [f for f in approach_boxes if start <= f['stamp'] <= end]
         native_seen = [r for r in native if r.get('valid') and start <= r['request_ros_ns'] <= r['response_ros_ns'] <= end]
         mid = (start+end)//2
         i = bisect_left(images, mid)
@@ -128,6 +159,7 @@ def main():
             selection_status=dict(Counter(f['frame_decision'].get('selection_status') for f in seen)),
             classifier_known=sum(f['frame_decision'].get('classifier_known') is True for f in seen),
             recorded_runtime_frames=len(seen),
+            stopped_detector_top_margin_px=quantiles([f['clearance_px']['top'] for f in boxes]),
             observed_lamps=dict(Counter(str(f['frame_decision'].get('observed_tuples')) for f in seen)),
             native_sample_colors=dict(Counter(str(r['color']) for r in native_seen)),
             jpeg_source_stamp_ns=jpeg,
@@ -138,8 +170,11 @@ def main():
             if m.header.stamp.to_nsec() in wanted:
                 stamp = m.header.stamp.to_nsec()
                 raw = bytes(m.data)
-                target = a.output/f'stopped_{stamp}.jpg'
+                prefix = 'stopped' if any(r['jpeg_source_stamp_ns'] == stamp for r in reports) else 'approach'
+                target = a.output/f'{prefix}_{stamp}.jpg'
                 target.write_bytes(raw)
+                if worst and worst['stamp'] == stamp:
+                    worst.update(jpeg=str(target.resolve()), jpeg_sha256=hashlib.sha256(raw).hexdigest())
                 for r in reports:
                     if r['jpeg_source_stamp_ns'] == stamp:
                         r.update(jpeg=str(target.resolve()), jpeg_sha256=hashlib.sha256(raw).hexdigest())
@@ -149,6 +184,9 @@ def main():
         geometry_sha256=hashlib.sha256(a.geometry.read_bytes()).hexdigest(),
         front_bumper_offset_m=3.845, distance_source='recorded localization/kinematic_state, not independent ground truth',
         stationary_windows=reports, no_stop_is_not_a_stop_test_pass=not bool(reports),
+        approach_detector_top_margin_px=quantiles([f['clearance_px']['top'] for f in approach_boxes]),
+        worst_observed_approach_bbox=worst,
+        visibility_limit='1280x720 detector bbox diagnostics; missing detection is not proof of physical FOV exit; inspect original JPEGs',
         original_paint_proxy_crossings=paint_crossings,
         paint_geometry_sha256=hashlib.sha256(a.paint_geometry.read_bytes()).hexdigest() if a.paint_geometry else None,
         limit='Native samples and pixel inspection are separate from official penalty certification')
