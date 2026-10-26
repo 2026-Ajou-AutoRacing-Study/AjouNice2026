@@ -545,7 +545,11 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   }();
   replan_checker_ptr_->updateData(planner_data, is_replan_required, now());
   if (!is_replan_required) {
-    return getPrevOptimizedTrajectory(p.traj_points);
+    // Reuse spatial optimization only. BPP/BVP may update an LC deceleration,
+    // stop, or released limit without changing the reference geometry.
+    auto reused = getPrevOptimizedTrajectory(p.traj_points);
+    applyInputVelocity(reused, p.traj_points, p.ego_pose);
+    return reused;
   }
 
   if (enable_skip_optimization_ && p.obstacles.empty()) {
