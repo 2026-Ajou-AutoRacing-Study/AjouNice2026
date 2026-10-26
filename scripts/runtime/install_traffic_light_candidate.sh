@@ -10,9 +10,17 @@ DEVICE=0
 CHECK=false
 MODELS_ONLY=false
 SKIP_BUILD=false
+BASE_PACKAGES=(traffic_light_detection planning_scenario_validator ajounice_planning_integration competition_route_requester perception_object_pipeline)
+base_source_path() {
+  case "$1" in
+    traffic_light_detection) echo "$ROOT/base_ws/src/perception/$1" ;;
+    perception_object_pipeline) echo "$ROOT/base_ws/src/$1" ;;
+    *) echo "$ROOT/base_ws/src/planning_addons/$1" ;;
+  esac
+}
 usage() {
   echo '사용: bash scripts/runtime/install_traffic_light_candidate.sh [--archive TAR] [--remote RCLONE_NAME] [--models-dir DIR] [--env-prefix DIR] [--existing-python PYTHON] [--device 0|cpu] [--models-only] [--skip-build] [--check]'
-  echo '기존 ROS/풀스택 workspace가 필요합니다. 기본값은 모델·환경 검사 + 신호등 C++ 1개 패키지 재빌드 + traffic/Validator/planning integration 증분 설치입니다.'
+  echo '기존 ROS/풀스택 workspace가 필요합니다. 기본값은 모델·환경 검사 + 신호등 C++ 1개 패키지 재빌드 + traffic/Validator/planning integration/requester/prediction 증분 설치입니다. 다른 planning C++ 갱신은 별도 빌드합니다.'
   echo '승인된 모델 압축본은 Drive 로그인/rclone 없이 받습니다. 오프라인은 Downloads/final_weights_bundle.tar.gz 또는 --archive를 사용하세요. 공유 권한·시스템 Python·기존 모델 기본값은 바꾸지 않습니다.'
   echo '--models-only: 모델 파일만 준비, 환경 설치/추론/빌드 없음. --existing-python: 지정 interpreter를 변경하지 않고 검사.'
   echo '--skip-build: 모델/환경만 검사하며 새 runtime 배포 완료로 판정하지 않음. --check: 다운로드/설치/빌드 없이 기존 모델·환경·설치 runtime 일치 검사.'
@@ -52,6 +60,8 @@ cpp=planning/'src'/package
 traffic=base/'src/perception/traffic_light_detection'
 integration=base/'src/planning_addons/ajounice_planning_integration'
 validator_source=base/'src/planning_addons/planning_scenario_validator/src/planning_scenario_validator'
+requester=base/'src/planning_addons/competition_route_requester'
+pipeline=base/'src/perception_object_pipeline'
 receipt=base/'install_aw149/share/traffic_light_detection/oneclick_runtime_receipt.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -182,9 +192,18 @@ sources=[p for p in files(cpp) if p.suffix in ('.cpp','.hpp','.h','.xml','.txt',
 if not (validator_source/'__init__.py').is_file():
     raise RuntimeError('Missing Validator Python source package')
 validator_sources=[p for p in files(validator_source) if p.suffix=='.py' and '__pycache__' not in p.parts]
-sources += validator_sources
+extra_modules=[(requester/'src/competition_route_requester','competition_route_requester'),
+               (pipeline/'src/perception_object_pipeline','perception_object_pipeline')]
+module_sources=validator_sources+[p for folder,_ in extra_modules for p in files(folder) if p.suffix=='.py']
+sources += module_sources
 sources += files(traffic/'scripts')+files(traffic/'launch')+files(traffic/'config')
 sources += files(integration/'launch')+files(integration/'config')
+for folder in (requester,pipeline):
+    sources += files(folder/'launch')+files(folder/'config')+[folder/'CMakeLists.txt']
+entrypoints=[(p,name) for folder,name in ((requester,'competition_route_requester'),
+                                        (pipeline,'perception_object_pipeline'))
+             for p in files(folder/'scripts') if '__pycache__' not in p.parts and p.suffix != '.pyc']
+sources += [p for p,_ in entrypoints]
 sources += [traffic/'CMakeLists.txt',integration/'CMakeLists.txt',
             root/'scripts/runtime/install_traffic_light_candidate.sh',
             root/'planning_ws/tools/build.sh',root/'scripts/workspace/source_aw149.sh']
@@ -237,10 +256,19 @@ for source in files(traffic/'scripts'):
         pairs.append((source,base/'install_aw149/lib/traffic_light_detection'/source.name))
 for source in validator_sources:
     pairs.append((source,base/'install_aw149/lib/python3/dist-packages/planning_scenario_validator'/source.relative_to(validator_source)))
+for source,name in entrypoints:
+    pairs.append((source,base/'install_aw149/lib'/name/source.name))
+for folder,name in extra_modules:
+    for source in files(folder):
+        if source.suffix=='.py' and '__pycache__' not in source.parts:
+            pairs.append((source,base/'install_aw149/lib/python3/dist-packages'/name/source.relative_to(folder)))
+for folder,name in ((requester,'competition_route_requester'),(pipeline,'perception_object_pipeline')):
+    for kind in ('launch','config'):
+        pairs += [(p,base/'install_aw149/share'/name/p.relative_to(folder)) for p in files(folder/kind)]
 for source,target in pairs:
     if not target.is_file():raise RuntimeError('Missing installed runtime asset: '+str(target))
     left,right=source.read_bytes(),target.read_bytes()
-    if source.suffix=='.py' and source not in validator_sources:
+    if source not in module_sources and (source.suffix=='.py' or source in {p for p,_ in entrypoints}):
         # catkin_install_python may rewrite ONLY the interpreter shebang.
         # Python package modules are copied verbatim, including their first line.
         left,right=left.split(b'\n',1)[1],right.split(b'\n',1)[1]
@@ -249,7 +277,9 @@ for source,target in pairs:
 expected={package:prefix/'share'/package,
           'traffic_light_detection':base/'install_aw149/share/traffic_light_detection',
           'planning_scenario_validator':base/'install_aw149/share/planning_scenario_validator',
-          'ajounice_planning_integration':base/'install_aw149/share/ajounice_planning_integration'}
+          'ajounice_planning_integration':base/'install_aw149/share/ajounice_planning_integration',
+          'competition_route_requester':base/'install_aw149/share/competition_route_requester',
+          'perception_object_pipeline':base/'install_aw149/share/perception_object_pipeline'}
 for name,path in expected.items():
     found=Path(subprocess.check_output(['rospack','find',name],text=True).strip()).resolve()
     if found!=path.resolve():raise RuntimeError('Wrong runtime overlay for '+name+': '+str(found))
@@ -323,10 +353,13 @@ if ! $SKIP_BUILD; then
   fi
   # Validate every existing cache before touching either workspace, including
   # the mixed cached/missing case that takes the scoped catkin fallback.
-  for package in traffic_light_detection planning_scenario_validator ajounice_planning_integration; do
-    if [[ "$package" == traffic_light_detection ]]; then SOURCE="$ROOT/base_ws/src/perception/$package"; else SOURCE="$ROOT/base_ws/src/planning_addons/$package"; fi
+  ALL_BASE_CACHED=true
+  for package in "${BASE_PACKAGES[@]}"; do
+    SOURCE="$(base_source_path "$package")"
     if [[ -f "$ROOT/base_ws/build_aw149/$package/CMakeCache.txt" ]]; then
       check_build_cache "$ROOT/base_ws/build_aw149/$package/CMakeCache.txt" "$SOURCE" "$ROOT/base_ws/install_aw149"
+    else
+      ALL_BASE_CACHED=false
     fi
   done
   if [[ -f "$PLANNING_BUILD/CMakeCache.txt" ]]; then
@@ -335,14 +368,14 @@ if ! $SKIP_BUILD; then
     cmake --build "$PLANNING_BUILD" --target clean -- -j2
   fi
   bash "$ROOT/planning_ws/tools/build.sh" --pkg "$PLANNING_PACKAGE" --force-cmake --make-args -j2 -l2
-  if [[ -f "$ROOT/base_ws/build_aw149/traffic_light_detection/CMakeCache.txt" && -f "$ROOT/base_ws/build_aw149/planning_scenario_validator/CMakeCache.txt" && -f "$ROOT/base_ws/build_aw149/ajounice_planning_integration/CMakeCache.txt" ]]; then
-    for package in traffic_light_detection planning_scenario_validator ajounice_planning_integration; do
+  if $ALL_BASE_CACHED; then
+    for package in "${BASE_PACKAGES[@]}"; do
       cmake --build "$ROOT/base_ws/build_aw149/$package" --target install -- -j2
     done
   else
     catkin_make_isolated --install --source "$ROOT/base_ws/src" --build "$ROOT/base_ws/build_aw149" \
       --devel "$ROOT/base_ws/devel_aw149" --install-space "$ROOT/base_ws/install_aw149" \
-      --pkg traffic_light_detection planning_scenario_validator ajounice_planning_integration -DCMAKE_BUILD_TYPE=Release \
+      --pkg "${BASE_PACKAGES[@]}" -DCMAKE_BUILD_TYPE=Release \
       -DPYTHON_EXECUTABLE=/usr/bin/python3 --make-args -j2 -l2
   fi
   runtime_audit record "$RUNTIME_INPUTS"

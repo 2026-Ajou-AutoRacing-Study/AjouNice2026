@@ -28,10 +28,21 @@ FIXTURE_MODES = ('stopped-yellow', 'moving-yellow-stoppable', 'moving-yellow-clo
 
 
 def launch_arguments(package, filename, arguments, guarded, route_progress, proxy,
-                     temporal_direct=False, signal_timeout_sec=1.0, yellow_passthrough=False):
+                     temporal_direct=False, signal_timeout_sec=1.0, yellow_passthrough=False,
+                     visual_continuation_sec=None, perception_odometry_topic=None):
     result = dict(arguments)
+    if perception_odometry_topic is not None and (
+            not isinstance(perception_odometry_topic, str) or
+            not perception_odometry_topic.startswith('/evaluation/traffic_light_policy/') or
+            any(ch.isspace() for ch in perception_odometry_topic)):
+        raise ValueError('Perception-only stress odometry must use the explicit evaluation namespace')
+    if visual_continuation_sec is not None and (
+            isinstance(visual_continuation_sec, bool) or
+            not isinstance(visual_continuation_sec, (int, float)) or
+            not 0 <= visual_continuation_sec <= .3):
+        raise ValueError('visual continuation must be finite 0..0.3 seconds')
     if guarded is None:
-        if proxy:
+        if proxy or visual_continuation_sec is not None or perception_odometry_topic is not None:
             raise ValueError('Unmodified production defaults cannot use a signal proxy')
         return result
     if package == 'ajounice_planning_integration' and filename == 'planning.launch':
@@ -43,6 +54,10 @@ def launch_arguments(package, filename, arguments, guarded, route_progress, prox
             'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
         result['route_progress_guard'] = route_progress
         result['planner_compliance_observations'] = temporal_direct
+        if visual_continuation_sec is not None:
+            result['visual_continuation_sec'] = visual_continuation_sec
+        if perception_odometry_topic is not None:
+            result['odometry_topic'] = perception_odometry_topic
         if proxy:
             result['output_topic'] = SOURCE_TOPIC
     return result
@@ -71,6 +86,8 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
     if package == 'traffic_light_detection' and filename in (
             'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
         result['lanelet2_map_file'] = str(map_file)
+    if package == 'perception_object_pipeline' and filename == 'object_pipeline.launch':
+        result['map_file'] = str(map_file)
     return result
 
 
@@ -157,6 +174,10 @@ def main():
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
     parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow'), default='natural')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
+    parser.add_argument('--visual-continuation-sec', type=float,
+                        help='Explicit bounded visual-identity candidate (0..0.3s), not production mode')
+    parser.add_argument('--perception-odometry-topic',
+                        help='Explicit evaluation-only covariance stress relay; never changes planner/TF input')
     parser.add_argument('--signal-timeout-sec', type=float, default=1.0)
     parser.add_argument('--yellow-passthrough', choices=('true', 'false'), default='false',
                         help='Explicit pre-line yellow dilemma override; default OFF, production keeps launch defaults')
@@ -186,6 +207,14 @@ def main():
         parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
     if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
         parser.error('Unmodified production defaults require natural signals without a proxy')
+    if args.visual_continuation_sec is not None and (
+            args.mode == 'production' or not 0 <= args.visual_continuation_sec <= .3):
+        parser.error('Visual continuation candidate requires explicit baseline/guarded mode and 0..0.3s')
+    if args.perception_odometry_topic is not None and (
+            args.mode == 'production' or
+            not args.perception_odometry_topic.startswith('/evaluation/traffic_light_policy/') or
+            any(ch.isspace() for ch in args.perception_odometry_topic)):
+        parser.error('Stress odometry requires explicit baseline/guarded mode and an evaluation namespace')
     if not .2 <= args.signal_timeout_sec <= 2.0:
         parser.error('Observation freshness timeout must be within 0.2..2 seconds')
     sys.path.insert(0, str(ROOT/'base_ws/src/planning_addons/planning_scenario_validator/src'))
@@ -220,6 +249,8 @@ def main():
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
         planner_compliance_observations=None if production else args.temporal_direct=='true',
+        visual_continuation_sec=args.visual_continuation_sec,
+        perception_odometry_topic=args.perception_odometry_topic,
         enable_yellow_passthrough=None if production else args.yellow_passthrough=='true',
         signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
         yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
@@ -294,7 +325,9 @@ def main():
             raise RuntimeError('Map candidate changed after qualification')
         selected = launch_arguments(package, filename, kwargs, guarded, progress, proxy,
             temporal_direct=args.temporal_direct=='true', signal_timeout_sec=args.signal_timeout_sec,
-            yellow_passthrough=args.yellow_passthrough=='true')
+            yellow_passthrough=args.yellow_passthrough=='true',
+            visual_continuation_sec=args.visual_continuation_sec,
+            perception_odometry_topic=args.perception_odometry_topic)
         selected = map_launch_arguments(package, filename, selected, args.map_file, candidate_map_sha)
         if proxy and package == 'traffic_light_detection' and not proxy_started:
             import rospy

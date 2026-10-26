@@ -47,5 +47,11 @@ required_remote_for_followup: ajou_drive_private
 public_client_fallback_allowed: false
 dedicated_remote_state: authenticated_and_read_verified
 runtime_defaults_changed: false
-live_closed_loop_validation_after_merge: not_run
+live_closed_loop_validation_after_merge: focused_A_pass_not_full_stack_certification
+focused_live_validation:
+  execution_id: traffic_light_compliance_A_map_candidate_261026_233610
+  conditions: local Sunny13, OD_GT, actual planning/controller, timed yellow OFF
+  goal_and_final_park: verified
+  final_green_departure_to_original_stopline_moving_rebrakes: 0
+  limitation: earlier red-wait latency/fail-open rebrake observed; B/C/D and LAN full-stack not certified
 inherited_stopline_measurement: v93 lineage, not a new v94 drive certification

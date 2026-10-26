@@ -165,7 +165,9 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     # Empty preserves object_pipeline's current general/highway horizon policy;
     # the integration launch must not silently force the historical 3s override.
     assert top_level["prediction_horizon"]["default"] == ""
-    assert values["map_file"].endswith("/lanelet2_map_v88.osm")
+    assert top_level["map_version"]["default"] == "88"
+    assert top_level["map_file"]["default"].endswith("/lanelet2_map_v$(arg map_version).osm")
+    assert values["map_file"] == "$(arg map_file)"
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 

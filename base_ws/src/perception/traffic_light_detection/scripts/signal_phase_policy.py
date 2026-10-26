@@ -192,7 +192,9 @@ class SignalPhasePolicy:
 
     def _process_direct_observation(self, normalized, reason, group_id, stamp, confidence,
                                     source_stamp_ns, observation_head_id,
-                                    detection_miss_hold_eligible, detection_miss_hold_sec):
+                                    detection_miss_hold_eligible, detection_miss_hold_sec,
+                                    low_confidence_hold_eligible, low_confidence_hold_sec,
+                                    low_confidence_confident_red):
         """Production-only brief detection gap, not a lamp majority vote.
 
         The caller establishes fresh map/TF/identity and detection-only failure.
@@ -201,6 +203,11 @@ class SignalPhasePolicy:
         """
         if type(detection_miss_hold_eligible) is not bool:
             raise ValueError("detection_miss_hold_eligible must be an explicit bool")
+        if type(low_confidence_hold_eligible) is not bool or type(low_confidence_confident_red) is not bool:
+            raise ValueError("low confidence eligibility/red evidence must be explicit bools")
+        if (isinstance(low_confidence_hold_sec, bool) or not isinstance(low_confidence_hold_sec, (int,float))
+                or not math.isfinite(low_confidence_hold_sec) or not 0 <= low_confidence_hold_sec <= .3):
+            raise ValueError("low_confidence_hold_sec must be finite in [0, 0.3]")
         if (isinstance(detection_miss_hold_sec, bool) or not isinstance(detection_miss_hold_sec, (int, float))
                 or not math.isfinite(detection_miss_hold_sec) or not 0 <= detection_miss_hold_sec <= .2):
             raise ValueError("detection_miss_hold_sec must be finite in [0, 0.2]")
@@ -210,14 +217,20 @@ class SignalPhasePolicy:
             self._direct_active_group = group_id
         state = self._direct_observation_state.setdefault(group_id, {})
         time_valid = isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and math.isfinite(stamp)
-        if (not time_valid or stamp < state.get("clock", stamp) or
-                (source_stamp_ns is not None and source_stamp_ns < state.get("last_image_source", source_stamp_ns))):
+        if not time_valid or stamp < state.get("clock", stamp):
             state.clear()
             self._last_trusted_source_stamp_ns.pop(group_id, None)
         if time_valid:
             state["clock"] = stamp
-        if source_stamp_ns is not None:
-            state["last_image_source"] = source_stamp_ns
+        source_valid = time_valid and source_stamp_ns is not None and source_stamp_ns <= stamp*1e9
+        if (not source_valid or
+                source_stamp_ns < state.get("last_image_source", source_stamp_ns)):
+            # An out-of-order JPEG is not a ROS-clock epoch reset. Never let a
+            # future/invalid source poison the accepted-source high-water mark.
+            state.pop("observation", None)
+            self._record_output_observation(group_id, stamp, source_stamp_ns, origin="direct_unknown")
+            return [], 0.0, "direct_observation:unknown"
+        state["last_image_source"] = source_stamp_ns
         valid = (time_valid and source_stamp_ns is not None and
                  source_stamp_ns <= stamp * 1e9 and bool(normalized) and
                  not reason.endswith((":fail_open", ":observation_missing", ":observation_rejected")) and
@@ -226,13 +239,18 @@ class SignalPhasePolicy:
         head_valid = isinstance(observation_head_id, str) and bool(observation_head_id)
         if valid:
             lamps = list(normalized)
+            # Reprocessing the same JPEG must not renew the processing-clock
+            # lease, including after an UNKNOWN already invalidated the cache.
+            observed_clock = (state['trusted_clock'] if state.get('trusted_source') == source_stamp_ns
+                              else stamp)
+            state.update(trusted_source=source_stamp_ns,trusted_clock=observed_clock)
             self._last_trusted_source_stamp_ns[group_id] = source_stamp_ns
             # A missing identity cannot establish a cache for later reuse.
             state.pop("observation", None)
             if head_valid:
-                state["observation"] = (lamps, confidence, stamp, source_stamp_ns, observation_head_id)
+                state["observation"] = (lamps, confidence, observed_clock, source_stamp_ns, observation_head_id)
             self._record_output_observation(group_id, stamp, source_stamp_ns,
-                                            source_stamp_ns, stamp, True, "current_observation")
+                                            source_stamp_ns, observed_clock, True, "current_observation")
             return lamps, confidence, "direct_observation:current"
         cached = state.get("observation")
         cache_age_sec = ((stamp * 1e9 - cached[3]) / 1e9 if time_valid and cached else float("inf"))
@@ -244,6 +262,21 @@ class SignalPhasePolicy:
             self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
                                             observed_clock, True, "detection_miss_hold")
             return list(lamps), conf, "direct_observation:detection_miss_hold"
+        processing_age_sec = ((round(stamp*1e9)-round(cached[2]*1e9))/1e9
+                              if time_valid and cached else float("inf"))
+        if (low_confidence_hold_sec > 0 and low_confidence_hold_eligible and head_valid
+                and source_stamp_ns is not None and cached and cached[4] == observation_head_id
+                and source_stamp_ns <= stamp*1e9 and not normalized
+                and not reason.endswith(":observation_rejected")
+                and any(lamp[0] == "green" for lamp in cached[0])
+                and not any(lamp[0] == "yellow" for lamp in cached[0])
+                and (not low_confidence_confident_red or any(lamp[0] == "red" for lamp in cached[0]))
+                and 0 <= processing_age_sec <= low_confidence_hold_sec
+                and 0 <= cache_age_sec <= .5):
+            lamps, conf, observed_clock, observed_source, _ = cached
+            self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
+                                            observed_clock, True, "low_confidence_hold")
+            return list(lamps), conf, "direct_observation:low_confidence_hold"
         # Unknown/low-confidence/explicitly dark lamps, TF or identity loss,
         # invalid time, changed head and expired gaps must invalidate the cache.
         state.pop("observation", None)
@@ -277,7 +310,8 @@ class SignalPhasePolicy:
     def process_normalized(self, normalized, reason, group_id, stamp, confidence, smoother,
                            *, source_stamp_ns=None, use_smoothing=True,
                            observation_head_id=None, detection_miss_hold_eligible=False,
-                           detection_miss_hold_sec=.2):
+                           detection_miss_hold_sec=.2, low_confidence_hold_eligible=False,
+                           low_confidence_hold_sec=.3, low_confidence_confident_red=False):
         """Keep missing observations out of the phase vote and history (D-2).
 
         ``stamp`` remains the advancing guard clock, normally rospy.now(). The
@@ -296,7 +330,8 @@ class SignalPhasePolicy:
                            else None)
         if not use_smoothing:
             return self._process_direct_observation(normalized, reason, group_id, stamp, confidence,
-                source_stamp_ns, observation_head_id, detection_miss_hold_eligible, detection_miss_hold_sec)
+                source_stamp_ns, observation_head_id, detection_miss_hold_eligible, detection_miss_hold_sec,
+                low_confidence_hold_eligible, low_confidence_hold_sec, low_confidence_confident_red)
         valid = not reason.endswith(":fail_open")
         profile = self.profiles[self.profile_name(group_id)]
         limits = profile.get("observation_guard")

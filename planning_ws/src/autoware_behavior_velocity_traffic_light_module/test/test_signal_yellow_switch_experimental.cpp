@@ -71,6 +71,8 @@ protected:
     params.competition_fail_open = fail_open; params.enable_signal_compliance_guard = true;
     params.enable_yellow_passthrough = yellow_enabled;
     params.signal_compliance_front_axle_offset_m = 3.;
+    params.use_official_judging_lines = true;
+    params.signal_judging_lines = {{group,{{10.,-3.},{10.,3.}},{1.,0.}}};
     module_ = std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
       group==201326,true,params,node_,"traffic_yellow_experimental_test",clock_,nullptr,factors_);
     module_->setRTCEnabled(false);

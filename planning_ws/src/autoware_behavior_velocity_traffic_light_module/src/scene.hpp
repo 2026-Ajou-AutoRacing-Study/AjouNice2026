@@ -28,6 +28,7 @@
 #include <autoware_lanelet2_extension/utility/query.hpp>
 #include <autoware/behavior_velocity_traffic_light_module/ros1_support.hpp>
 #include <autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp>
+#include <autoware/behavior_velocity_traffic_light_module/signal_judging_line.hpp>
 
 #include <lanelet2_core/LaneletMap.h>
 #include <lanelet2_routing/RoutingGraph.h>
@@ -82,6 +83,8 @@ public:
     bool signal_compliance_enable_timed_yellow{false};
     double signal_compliance_min_yellow_sec{2.0};
     double signal_compliance_yellow_time_margin_sec{0.2};
+    bool use_official_judging_lines{false};
+    std::vector<signal_compliance::SignalJudgingLine> signal_judging_lines;
     // Enable arrow-aware passing logic for yellow signals in turn lanes.
     bool enable_arrow_aware_yellow_passing;
     // Restart Suppression Parameter
@@ -139,6 +142,7 @@ private:
   void updateTrafficSignal();
 
   bool isStopSignal();
+  std::optional<double> official_front_line_distance_;
 
   // Store how the current yellow sequence started
   YellowState yellow_transition_state_;

@@ -18,11 +18,38 @@ from std_msgs.msg import String, UInt64
 from traffic_light_map_selector import (RigidTransform, load_camera, load_geometry, project_heads,
                                         covariance_sigmas, pose_tf_consistency, selector_config,
                                         DEFAULT_SELECTOR_CONFIG, SELECTOR_CONTRACT_VERSION)
+from traffic_light_visual_continuation import nominal_evidence, UNCERTAINTY_REASONS
 
 
 def transform_parts(message):
     t, q = message.transform.translation, message.transform.rotation
     return (t.x, t.y, t.z), (q.x, q.y, q.z, q.w)
+
+
+def motion_evidence(poses, aligned_pose, now, map_frame, base_frame):
+    """Evidence only: no velocity inference from displacement or Ego/native data.
+
+    Use both the image-aligned pose and the latest received localization sample.
+    Missing/invalid motion does not invalidate otherwise useful map projection.
+    """
+    result = {"schema_version": 1, "valid": False}
+    try:
+        latest, receipt = poses[-1]
+        for pose in (aligned_pose, latest):
+            if (pose.header.frame_id.strip('/') != map_frame.strip('/') or
+                    pose.child_frame_id.strip('/') != base_frame.strip('/')):
+                return result
+        speeds = [math.sqrt(sum(float(getattr(pose.twist.twist.linear, axis))**2
+                                for axis in 'xyz')) for pose in (aligned_pose, latest)]
+        if not all(math.isfinite(v) for v in speeds):
+            return result
+        result.update(valid=True, aligned_pose_stamp_ns=aligned_pose.header.stamp.to_nsec(),
+                      latest_pose_stamp_ns=latest.header.stamp.to_nsec(),
+                      latest_pose_receipt_stamp_ns=receipt.to_nsec(),
+                      aligned_speed_mps=speeds[0], latest_speed_mps=speeds[1])
+    except (AttributeError, IndexError, TypeError, ValueError, OverflowError):
+        pass
+    return result
 
 
 class TrafficLightMapRoiNode:
@@ -34,6 +61,9 @@ class TrafficLightMapRoiNode:
         self.route_stale = float(rospy.get_param("~route_group_id_stale_sec", 2.))
         self.pose_delta = float(rospy.get_param("~max_pose_image_delta_sec", .15))
         self.pose_age = float(rospy.get_param("~max_pose_receipt_age_sec", .5))
+        self.visual_continuation_sec=float(rospy.get_param('~visual_continuation_sec',0.))
+        if not math.isfinite(self.visual_continuation_sec) or not 0<=self.visual_continuation_sec<=.3:
+            raise ValueError('visual_continuation_sec must be finite in [0,0.3]')
         self.selector_config = selector_config({key: rospy.get_param("~"+key, value)
                                                for key, value in DEFAULT_SELECTOR_CONFIG.to_dict().items()})
         self.max_position_sigma = self.selector_config.max_position_sigma_m
@@ -92,8 +122,18 @@ class TrafficLightMapRoiNode:
             if (pose.header.frame_id.strip("/") != self.map_frame.strip("/")
                     or pose.child_frame_id.strip("/") != self.base_frame.strip("/")):
                 raise ValueError("localization_frame_mismatch")
-            position_sigma, vertical_sigma, yaw_sigma = covariance_sigmas(pose.pose.covariance,
-                self.max_position_sigma, self.max_yaw_sigma, self.max_vertical_sigma)
+            global_uncertainty=None
+            try:
+                position_sigma, vertical_sigma, yaw_sigma = covariance_sigmas(pose.pose.covariance,
+                    self.max_position_sigma, self.max_yaw_sigma, self.max_vertical_sigma)
+            except ValueError as error:
+                if not getattr(self,'visual_continuation_sec',0.) or str(error) not in UNCERTAINTY_REASONS:
+                    raise
+                global_uncertainty=str(error)
+                # Validate PSD/finite values but do NOT truncate or fabricate
+                # covariance. Normal eligibility remains rejected below.
+                position_sigma,vertical_sigma,yaw_sigma=covariance_sigmas(
+                    pose.pose.covariance,float('inf'),float('inf'),float('inf'))
             body_tf = self.buffer.lookup_transform(self.map_frame, self.base_frame,
                                                    stamp, rospy.Duration(.03))
             tf_position, tf_quaternion = transform_parts(body_tf)
@@ -119,11 +159,12 @@ class TrafficLightMapRoiNode:
             actual = self.buffer.lookup_transform(self.camera.frame, self.geometry["geometry_frame"],
                                                   stamp, rospy.Duration(.04))
             transform = RigidTransform.from_quaternion(*transform_parts(actual))
-            rois, rejected = project_heads(self.geometry, self.camera, transform, group_id,
+            rois,rejected=([],[]) if global_uncertainty else project_heads(self.geometry, self.camera, transform, group_id,
                 position_sigma, yaw_sigma, vertical_sigma_m=vertical_sigma, **self.projection_options)
             packet.update(status="ready", reason="projected" if any(r["eligible"] for r in rois)
                           else "no_visible_route_head", rois=rois, rejected_heads=rejected,
                           pose_stamp_ns=pose.header.stamp.to_nsec(), pose_image_delta_sec=delta,
+                          motion_evidence=motion_evidence(poses, pose, now, self.map_frame, self.base_frame),
                           position_sigma_m=position_sigma, yaw_sigma_radians=yaw_sigma,
                           position_sigma_xy_m=position_sigma, position_sigma_z_m=vertical_sigma,
                           position_sigma_m_legacy_alias_means_XY_only=True,
@@ -133,6 +174,12 @@ class TrafficLightMapRoiNode:
                           localization_tf_angle_error_degrees=consistency[1],
                           camera_tf_translation_error_m=translation_error,
                           camera_tf_angle_error_degrees=angle_error)
+            if global_uncertainty:
+                packet.update(status='missing',reason=global_uncertainty)
+            if (getattr(self,'visual_continuation_sec',0.) and
+                    (global_uncertainty or any(row['reason'] in UNCERTAINTY_REASONS for row in rejected))):
+                packet['nominal_continuation']=nominal_evidence(self.geometry,self.camera,transform,group_id,
+                    position_sigma,vertical_sigma,yaw_sigma,self.projection_options,global_uncertainty,rejected)
         except (ValueError, KeyError, TypeError, OverflowError, tf2_ros.TransformException) as error:
             packet["reason"] = str(error)
             rospy.logwarn_throttle(5., "[Traffic map ROI] missing: %s", error)

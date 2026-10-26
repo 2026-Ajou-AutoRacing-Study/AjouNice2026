@@ -18,6 +18,9 @@ def test_map_candidate_is_shared_without_overriding_policy_or_models():
     traffic = map_launch_arguments('traffic_light_detection', 'traffic_light_v5_candidate.launch',
                                    original, '/candidate', 'sha')
     assert traffic == dict(device='0', lanelet2_map_file='/candidate')
+    prediction = map_launch_arguments('perception_object_pipeline', 'object_pipeline.launch',
+                                      original, '/candidate', 'sha')
+    assert prediction == dict(device='0', map_file='/candidate')
     assert original == dict(device='0')
 
 
@@ -67,6 +70,25 @@ def test_fault_proxy_never_manufactures_color_or_freshness():
     assert result.traffic_light_groups[0].elements[0] == lamp
 
 
+def test_visual_identity_candidate_is_explicit_bounded_and_perception_only():
+    original={'device':'0'}
+    value=launch_arguments('traffic_light_detection','traffic_light_v5_candidate.launch',
+        original,True,True,False,temporal_direct=True,visual_continuation_sec=.3)
+    assert value['visual_continuation_sec']==.3
+    assert value['planner_compliance_observations'] is True
+    assert original=={'device':'0'}
+    planning=launch_arguments('ajounice_planning_integration','planning.launch',{},
+        True,True,False,visual_continuation_sec=.3)
+    assert 'visual_continuation_sec' not in planning
+    for bad in (-.1,.31,float('nan'),float('inf'),True,'0.3'):
+        with pytest.raises(ValueError):
+            launch_arguments('traffic_light_detection','traffic_light_node.launch',{},
+                True,True,False,visual_continuation_sec=bad)
+    with pytest.raises(ValueError,match='production defaults'):
+        launch_arguments('traffic_light_detection','traffic_light_node.launch',{},
+            None,None,False,visual_continuation_sec=.3)
+
+
 def test_injection_lease_never_silently_reverts_to_normal():
     state = dict(mode='none', received=False, terminal=False, receipt_monotonic=0.)
     assert active_fault_mode(state, 10.) == 'none'
@@ -75,6 +97,25 @@ def test_injection_lease_never_silently_reverts_to_normal():
     with pytest.raises(RuntimeError): active_fault_mode(state, 10.501)
     state.update(mode='none', terminal=True)
     assert active_fault_mode(state, 20.) == 'none'
+
+
+def test_covariance_stress_input_never_changes_planning_or_localization_inputs():
+    topic='/evaluation/traffic_light_policy/covariance_odometry'
+    traffic=launch_arguments('traffic_light_detection','traffic_light_node.launch',{},
+        True,True,False,perception_odometry_topic=topic)
+    assert traffic['odometry_topic']==topic
+    for package,filename in (('bringup','localization.launch'),
+                             ('ajounice_planning_integration','planning.launch')):
+        result=launch_arguments(package,filename,{},True,True,False,
+                                perception_odometry_topic=topic)
+        assert 'odometry_topic' not in result
+    for bad in ('/localization/kinematic_state',True,'/evaluation/traffic_light_policy/a b'):
+        with pytest.raises(ValueError):
+            launch_arguments('traffic_light_detection','traffic_light_node.launch',{},
+                True,True,False,perception_odometry_topic=bad)
+    with pytest.raises(ValueError):
+        launch_arguments('traffic_light_detection','traffic_light_node.launch',{},
+            None,None,False,perception_odometry_topic=topic)
 
 
 def test_shared_topic_or_non_safety_case_is_rejected_before_native_helpers():

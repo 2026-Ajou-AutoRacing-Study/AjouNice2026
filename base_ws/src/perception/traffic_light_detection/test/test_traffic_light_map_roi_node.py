@@ -5,6 +5,7 @@ import importlib.util
 import json
 import sys
 import threading
+import math
 import types
 import unittest
 from collections import deque
@@ -181,6 +182,64 @@ class MapRoiNodeTest(unittest.TestCase):
         self.assertLess(packet["position_sigma_xy_m"], .03)
         self.assertEqual(packet["position_sigma_z_m"], 1.)
         self.assertEqual(packet["pose_covariance_diagonal_xyz_yaw"][2], 1.)
+
+    def test_motion_evidence_includes_aligned_and_latest_pose_not_ego_input(self):
+        node=self.node()
+        aligned=node._poses[0][0];aligned.twist.twist.linear.x=3.
+        latest=copy.deepcopy(aligned);latest.header.stamp=Stamp(10.)
+        latest.twist.twist.linear.x=0.
+        node._poses.append((latest,Stamp(10.)))
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        evidence=packet['motion_evidence']
+        self.assertTrue(evidence['valid'])
+        self.assertEqual(evidence['aligned_speed_mps'],3.)
+        self.assertEqual(evidence['latest_speed_mps'],0.)
+        self.assertEqual(evidence['aligned_pose_stamp_ns'],9_990_000_000)
+        self.assertEqual(evidence['latest_pose_stamp_ns'],10_000_000_000)
+
+    def test_invalid_latest_motion_disables_evidence_without_losing_map_projection(self):
+        node=self.node()
+        latest=copy.deepcopy(node._poses[0][0]);latest.header.stamp=Stamp(10.)
+        latest.twist.twist.linear.x=float('nan')
+        node._poses.append((latest,Stamp(10.)))
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        self.assertFalse(packet['motion_evidence']['valid'])
+
+    def test_uncertainty_candidate_preserves_real_sigma_and_normal_missing(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node._poses[0][0].pose.covariance[14]=1.
+        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'missing')
+        self.assertEqual(packet['reason'],'localization_uncertainty_exceeds_bound')
+        self.assertEqual(packet['rois'],[])
+        evidence=packet['nominal_continuation']
+        self.assertAlmostEqual(evidence['actual_yaw_sigma_degrees'],4.)
+        self.assertEqual(evidence['actual_z_sigma_m'],1.)
+        self.assertFalse(evidence['normal_eligibility'])
+        self.assertTrue(evidence['rois'])
+        self.assertTrue(all(row['eligible'] is False for row in evidence['rois']))
+
+    def test_uncertainty_with_tf_failure_has_no_nominal_continuation_evidence(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        node.buffer.lookup_transform.side_effect=TransformError('image-time TF unavailable')
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'missing')
+        self.assertNotIn('nominal_continuation',packet)
+
+    def test_per_head_padding_rejection_gets_nominal_evidence_but_normal_caps_unchanged(self):
+        node=self.node();node.visual_continuation_sec=.3
+        node.geometry['heads'][0]['point'][0]=10.
+        node._poses[0][0].pose.covariance[35]=math.radians(2.9)**2
+        packet=self.call(node)
+        self.assertEqual(packet['status'],'ready')
+        self.assertEqual(packet['reason'],'no_visible_route_head')
+        self.assertTrue(any(r['reason']=='projection_uncertainty_exceeds_bound' for r in packet['rejected_heads']))
+        self.assertEqual(packet['selector_config']['max_padding_px'],90.)
+        self.assertFalse(packet['nominal_continuation']['rois'][0]['eligible'])
 
 
 if __name__ == "__main__":

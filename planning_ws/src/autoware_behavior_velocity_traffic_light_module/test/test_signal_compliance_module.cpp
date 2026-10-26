@@ -56,7 +56,8 @@ protected:
     node_.deleteParam("/traffic_light_compliance_test");
   }
 
-  void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true)
+  void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true,
+                 double judging_x=10., bool original_available=true)
   {
     group_=group;
     lanelet::Points3d points{
@@ -74,6 +75,8 @@ protected:
     params.enable_yellow_passthrough=yellow_passthrough;
     params.competition_fail_open=true; params.enable_signal_compliance_guard=guarded;
     params.signal_compliance_front_axle_offset_m=3.;
+    params.use_official_judging_lines=true;
+    if(original_available) params.signal_judging_lines={{group,{{judging_x,-3.},{judging_x,3.}},{1.,0.}}};
     module_ = std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
       group==201326,true,params,node_,"traffic_light_compliance_test",clock_,nullptr,factors_);
     module_->setPlannerData(data_);
@@ -241,6 +244,82 @@ TEST_F(TrafficLightComplianceModuleTest, CompetitionDefaultMissingAndStaleGoWith
     tick(); put(unknown); EXPECT_TRUE(modifiesToStop()); // Fresh unreadable != no publisher.
     confirmGreenOnRealPath(0.,0.); // Bypass did not retain an old green confirmation.
   }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, FreshEmptyUnknownStreamStopsUntilThreeNewGreenSources)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    for(const bool explicit_unknown:{false,true}) {
+      configure(group,true,false); pose(0.,0.);
+      confirmGreenOnRealPath(0.,0.);
+      Signal unknown;
+      if(explicit_unknown) unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
+      // The actual detector publishes an empty element list for UNKNOWN.
+      // Fresh updates remain STOP; elapsed wall time is not a fail-open timer.
+      for(int index=0;index<20;++index) {
+        tick(); put(unknown); EXPECT_TRUE(modifiesToStop());
+      }
+      tick(); put(green()); EXPECT_TRUE(modifiesToStop());
+      // Planner callbacks reusing one observation do not count as new frames.
+      tick(.02); EXPECT_TRUE(modifiesToStop());
+      tick(); put(green()); EXPECT_TRUE(modifiesToStop());
+      tick(); put(green()); EXPECT_FALSE(modifiesToStop());
+    }
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, ShiftedCameraStopLineCannotClearBeforeOriginalMORAILine)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,20.);
+    tick(); pose(8.,2.); put(red());
+    EXPECT_TRUE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+    // The shifted Lanelet line at10m is passed by the axle, but the judging
+    // line at20m is not. Crossing only the actual judging line clears STOP.
+    tick(); pose(17.1,2.); put(red());
+    EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, YellowOffDoesNotPromoteOfficialCrossingStateIntoExistingDefault)
+{
+  configure(201351,true,false,20.);
+  tick(); pose(8.,2.); put(red());
+  EXPECT_FALSE(modifiesToStop());
+  EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+}
+
+TEST_F(TrafficLightComplianceModuleTest, SourcePreservingQualifiedGapDoesNotInsertTransientStops)
+{
+  for(const bool qualified:{false,true}) {
+    configure(201351,true,false);
+    confirmGreenOnRealPath(0.,2.);
+    int stop_callbacks=0;
+    for(int frame=1;frame<=2;++frame) {
+      tick();
+      if(qualified) put(green(),frame*.1);
+      else { Signal unknown; put(unknown); }
+      stop_callbacks+=modifiesToStop();
+    }
+    for(int frame=0;frame<3;++frame) {
+      tick(); put(green()); stop_callbacks+=modifiesToStop();
+    }
+    // Same permission inputs, except bounded qualified gaps keep the source.
+    // Baseline has two UNKNOWN STOPs plus two re-confirmation STOPs.
+    EXPECT_EQ(stop_callbacks,qualified ? 0 : 4);
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, MissingOriginalLineCannotUseShiftedLineForYellowPermission)
+{
+  configure(201351,true,true,20.,false);
+  confirmGreenOnRealPath(6.,2.);
+  tick(); pose(6.,2.); put(yellow());
+  EXPECT_TRUE(modifiesToStop());
+  EXPECT_FALSE(pass(.155));
 }
 
 TEST_F(TrafficLightComplianceModuleTest, AlreadyCrossedFrontAxleLineNeverAddsRedOrMissingStop)

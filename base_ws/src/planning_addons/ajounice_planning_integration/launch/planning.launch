@@ -1,8 +1,10 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="88"/>
   <!-- Explicit development map candidates; omitted arguments keep the released map. -->
-  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v88.osm"/>
-  <arg name="map_sha256" default="dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
+  <arg name="map_sha256" default="$(eval {'87': '70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575', '88': 'dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37', '94': '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'}[str(arg('map_version'))])"/>
+  <arg name="route_requester_config_file" default="$(arg repo_root)/base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v$(arg map_version).param.yaml"/>
   <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
             file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
@@ -33,6 +35,8 @@
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
   <arg name="traffic_light_state_timeout_sec" default="1.0"/>
+  <arg name="traffic_light_judging_lines_config"
+       default="$(find traffic_light_detection)/config/traffic_signal_judging_lines.yaml"/>
   <!-- Keep normal LC logging; explicit development trials may select a scoped trace config. -->
   <arg name="planning_rosconsole_config"
        default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
@@ -105,10 +109,14 @@
          value="$(arg signal_compliance_required_green_observations)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_front_axle_offset_m"
          value="$(arg signal_compliance_front_axle_offset_m)"/>
+  <!-- Independent original MGeo judging line, NOT the camera-friendly Lanelet stop target. -->
+  <rosparam file="$(arg traffic_light_judging_lines_config)" command="load"
+            ns="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/tl_state_timeout"
          value="$(arg traffic_light_state_timeout_sec)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="config_file" value="$(arg route_requester_config_file)"/>
   </include>
   <!-- No follower, empty objects/grid/cloud, TF, or localization publisher. -->
 </launch>

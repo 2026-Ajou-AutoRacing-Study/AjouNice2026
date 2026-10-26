@@ -1104,7 +1104,9 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
   bool retry_budget_exhausted = false;
   const size_t mask_count = size_t{1} << data.obstacles.size();
   size_t preferred_mask = obstacle_search_cursor_ % mask_count;
-  if (prefer_previous_seed) {
+  // An aligned old seed may be blocked by this cycle's new obstacle. Without
+  // a revalidated incumbent, keep cursor progress instead of retrying one side.
+  if (prefer_previous_seed && have_validated_incumbent) {
     preferred_mask = 0;
     // Order side assignments by the previous spatial solution. This is only a
     // search hint: every new candidate uses the measured state and current scene.

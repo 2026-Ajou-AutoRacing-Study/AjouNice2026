@@ -37,8 +37,10 @@ Profile은 supported lamps·유효 Autoware element 조합·detector correction�
 
 Route helper의 invalid match는 group ID `0`을 발행하며 지도 모드에서 다른 신호등으로 대체하지 않는다.
 별도 2초 message timeout은 helper process 상실에만 적용한다. 옛 route ID를 계속 유지하지 않는다.
-Planning 준수 가드 ON(현재 기본)은 missing/stale/unknown을 새 GO로 풀지 않는다.
-기존 `competition_fail_open`은 가드 OFF 대조군에서만 적용한다. 실제 도로용 안전 인증은 아니다.
+Planning은 기존 `competition_fail_open=true` 호환 정책을 준수 가드보다 먼저 적용한다.
+해당 신호 ID 미수신·원본 stamp가 1초를 초과한 경우 GO이며, 최신 UNKNOWN·적색은 가드의 STOP 판단이다.
+helper 실패로 group ID가 0이면 올바른 미션 ID의 신호를 공급하지 못하므로 이 미수신 경로와 구별해 분석한다.
+신호등 미실행과 노드/지도 helper 장애를 구별하는 안전 인증은 아니다.
 원시 correction 이유는 `/traffic_light_node/debug_policy_reason`에서 확인한다.
 
 환경 설치 명령과 정리 전 상세는 [보존 원문](docs/legacy/context_261024/README.md)에 있다.
@@ -140,15 +142,24 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 ## 2026-10-26 관측 보존과 정차 시야 보완
 
 운영 direct 경로는 `observed_phases`의 실제 램프만 전달한다. C의 화살표를 보고 직진G를
-추가하거나 D의Y를R로 바꾸지 않는다. 모순·무점등·저확신은 UNKNOWN이며 legacy 보정과 구분한다.
+추가하거나 D의Y를R로 바꾸지 않는다. 모순·무점등·완충되지 않은 저확신은 UNKNOWN이며 legacy 보정과 구분한다.
 `detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
-누락만 완충한다. 원본 stamp를 유지하고, 실제 R/Y·CNN UNKNOWN·TF/지도/identity 실패는 즉시 반영한다.
+누락만 완충한다. `low_confidence_hold_sec:=0.3`은 같은 head의 CNN soft 저확신만 이동 중 완충하며
+최대 원본 age 0.5초를 추가로 요구한다. `0`이면 새 완충만 OFF다. 양쪽 모두 원본 stamp를 보존하고
+실제 R/Y·확신 소등·모순·TF/지도/identity 실패는 즉시 반영한다.
+
+`visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
+현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 색 hold가 아니며
+anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
+`visual_continuation_sec:=0`으로 이 보완만 끈다. [연속 bag·실제 주행 근거](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)와 planning 통합 상태는 CURRENT를 따른다.
 
 팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`의
-`traffic_light.stop_margin: 0.75`이며 A/B/C/D에 공통 적용한다. normal 모드와 독립 모듈 기본도
-동일 값이다. 앞범퍼가 지도 ref_line보다0.75m 앞에서 정차하도록 계산하며 지도 OSM은 바꾸지 않는다.
+`traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.
+정차 위치는 Lanelet ref_line의 실제 좌표로 관리하며 이 노드가 지도 OSM을 바꾸지 않는다.
 PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
-지도 선의 위치는 지도 담당자가 관리한다. 기존 지도선 기준 GO_OUT과 실제 도색선의 차이,
-이동 중 신호등 화각 이탈 문제는 여전히 남으며 황색 통과 기본 OFF·허가3회는 유지한다.
+그 후 황색 ETA에 한해 원본 MGeo 판정선 profile을 독립적으로 추가했다. 옛 추가 margin을 되살린 것은 아니다.
+기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
+이동 중 화각 이탈 문제는 여전히 남고 황색 기본 OFF·허가3회는 유지한다.
+[최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.
 [변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

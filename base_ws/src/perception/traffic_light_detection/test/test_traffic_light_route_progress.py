@@ -24,6 +24,7 @@ class Stamp:
 
 def load_matcher():
     path = Path(__file__).resolve().parents[1]/'scripts/lanelet_route_matcher.py'
+    sys.path.insert(0,str(path.parent))
     spec = importlib.util.spec_from_file_location('route_progress_matcher_fake', path)
     result = importlib.util.module_from_spec(spec)
     fake_ros = types.SimpleNamespace(Time=Stamp, logwarn=Mock(), loginfo=Mock())
@@ -50,8 +51,9 @@ def odometry(x, y=0., yaw=0., speed=0.):
 class RouteProgressTest(unittest.TestCase):
     def setUp(self): Stamp.clock = 10.
 
-    def matcher(self, guard=True, points=None, mapping=None, stoplines=None, ids=None):
-        matcher = MODULE.LaneletRouteGroupIdMatcher(None, None, None, route_progress_guard=guard)
+    def matcher(self, guard=True, points=None, mapping=None, stoplines=None, ids=None, judging=None):
+        matcher = MODULE.LaneletRouteGroupIdMatcher(None, None, None,
+            route_progress_guard=guard,signal_judging_lines=judging)
         matcher.available = True
         points = points or {i: [(10.*(i-1), 0.), (10.*i, 0.)] for i in range(1, 6)}
         matcher.map = N(laneletLayer={key: N(centerline=[N(x=x, y=y) for x, y in rows])
@@ -156,6 +158,20 @@ class RouteProgressTest(unittest.TestCase):
         self.assertIsNone(self.move(matcher, 2., 20.))
         self.assertEqual(matcher._progress_debug['reason'], 'localization_not_on_active_route')
 
+    def test_brief_off_route_rejection_does_not_permanently_skip_current_mission(self):
+        matcher=self.matcher()
+        self.assertEqual(self.move(matcher,22.,7.5),GROUPS[2])
+        # A rejected lateral excursion must not advance route progress.
+        self.assertIsNone(self.move(matcher,26.,8.5))
+        self.assertAlmostEqual(matcher._progress_s,22.)
+        self.assertEqual(self.move(matcher,23.),GROUPS[2])
+
+    def test_reverse_heading_rejection_recovers_without_blacklisting_signal(self):
+        matcher=self.matcher()
+        self.assertEqual(self.move(matcher,22.),GROUPS[2])
+        self.assertIsNone(self.move(matcher,23.,yaw=math.pi))
+        self.assertEqual(self.move(matcher,23.),GROUPS[2])
+
     def test_duplicate_lanelet_on_loop_remains_a_distinct_stopline_occurrence(self):
         points = {1: [(0., 0.), (10., 0.)], 2: [(10., 0.), (20., 0.)],
                   3: [(20., 0.), (20., 10.)], 4: [(20., 10.), (0., 10.)],
@@ -189,6 +205,45 @@ class RouteProgressTest(unittest.TestCase):
             for value in (0., -1., math.nan, math.inf, '1', True):
                 with self.subTest(name=name, value=value), self.assertRaises(ValueError):
                     MODULE.LaneletRouteGroupIdMatcher(None, None, None, **{name: value})
+
+    def test_original_line_on_successor_lane_keeps_mission_past_virtual_target(self):
+        original=[dict(regulatory_id=GROUPS[0],line_xy=[17.,-2.,17.,2.],approach_xy=[1.,0.])]
+        matcher=self.matcher(judging=original)
+        event=matcher._route_events[0]
+        self.assertEqual(event['virtual_progress_m'],10.)
+        self.assertEqual(event['progress_m'],17.)
+        self.assertEqual([self.move(matcher,x) for x in (9.,11.,15.,17.9)], [GROUPS[0]]*4)
+        self.assertEqual(self.move(matcher,18.1),GROUPS[1])
+        self.assertEqual(self.move(matcher,17.5),GROUPS[1])
+
+    def test_moving_virtual_target_does_not_change_original_release_reference(self):
+        original=[dict(regulatory_id=GROUPS[0],line_xy=[17.,-2.,17.,2.],approach_xy=[1.,0.])]
+        for virtual in (5.,7.,10.):
+            with self.subTest(virtual=virtual):
+                stops={gid:(10.*(i+1),0.) for i,gid in enumerate(GROUPS)}
+                stops[GROUPS[0]]=(virtual,0.)
+                matcher=self.matcher(judging=original,stoplines=stops)
+                self.assertEqual(matcher._route_events[0]['progress_m'],17.)
+                self.assertEqual(self.move(matcher,12.),GROUPS[0])
+
+    def test_original_line_outside_short_route_is_not_prematurely_retired(self):
+        original=[dict(regulatory_id=GROUPS[0],line_xy=[17.,-2.,17.,2.],approach_xy=[1.,0.])]
+        matcher=self.matcher(points={1:[(0.,0.),(10.,0.)],2:[(10.,0.),(14.,0.)]},
+            mapping={1:GROUPS[0]},stoplines={GROUPS[0]:(10.,0.)},judging=original)
+        self.assertEqual(self.move(matcher,9.),GROUPS[0])
+        self.assertEqual(self.move(matcher,13.9),GROUPS[0])
+        self.assertEqual(matcher._progress_debug['judging_line_reason'],'original_judging_line_not_on_route')
+        # A replacement route, not a permanent signal blacklist, owns reset.
+        matcher._route_callback(route([2],uuid=2))
+        self.assertIsNone(matcher.get_group_id())
+
+    def test_invalid_optional_judging_profile_keeps_legacy_release_without_startup_refusal(self):
+        for profile in ({},[dict(regulatory_id=GROUPS[0],line_xy=[math.nan,0.],approach_xy=[1.,0.])]):
+            with self.subTest(profile=profile):
+                matcher=self.matcher(judging=profile)
+                self.assertTrue(matcher._judging_line_errors)
+                self.assertEqual(matcher._route_events[0]['progress_m'],10.)
+                self.assertEqual(self.move(matcher,11.1),GROUPS[1])
 
 
 if __name__ == '__main__': unittest.main()

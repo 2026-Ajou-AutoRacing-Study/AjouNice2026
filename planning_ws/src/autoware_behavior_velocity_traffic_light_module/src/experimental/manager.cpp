@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "manager.hpp"
+#include <autoware/behavior_velocity_traffic_light_module/signal_judging_line_ros.hpp>
 #include <cmath>
 #include <stdexcept>
 #include "../utils.hpp"
@@ -49,6 +50,8 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   node.param<bool>(ns + "/competition_fail_open", planner_param_.competition_fail_open, false);
   node.param<bool>(ns + "/enable_signal_compliance_guard", planner_param_.enable_signal_compliance_guard, false);
   node.param<double>(ns + "/signal_compliance_front_axle_offset_m", planner_param_.signal_compliance_front_axle_offset_m, -1.0);
+  planner_param_.use_official_judging_lines = node.hasParam(ns + "/signal_judging_lines");
+  planner_param_.signal_judging_lines = signal_compliance::loadSignalJudgingLines(node, ns + "/signal_judging_lines");
   node.param<int>(ns + "/signal_compliance_required_green_observations", planner_param_.signal_compliance_required_green_observations, 3);
   node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);
   node.param<double>(ns + "/signal_compliance_min_yellow_sec", planner_param_.signal_compliance_min_yellow_sec, 2.0);

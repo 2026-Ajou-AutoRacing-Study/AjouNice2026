@@ -8,7 +8,7 @@
 v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와버전표기만 바꿨다. v94는 lanelet1295개다.
 정지선 위치는 v87 대비 A+0.75/B+2.6/C+0.35/D+2.6m로 v93과 같으며 상대 이동을 중복 적용하지 않았다.
 안정 정차 차이2.34px는 [v93 계열의 실측](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)이지 통합 뒤 새 실주행 결과가 아니다.
-**운영 기본은 아직v87**이며 v94로 launch·route·runtime SHA를 자동 전환하지 않았다. 이전 자산도 보존한다.
+**운영 기본은 v88**을 유지한다. `map_version:=94`는 지도·SHA·Route A/B를 함께 선택하는 명시적 profile이며 [팀 업데이트](../docs/runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. v94로 자동 전환하거나 이전 자산을 삭제하지 않는다.
 
 | 구분 | 경로·기준 |
 | --- | --- |
