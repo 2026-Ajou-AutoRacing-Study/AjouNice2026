@@ -67,3 +67,19 @@ def test_b_d_visibility_candidate_has_only_eight_stop_nodes_changed():
     assert report['changed_node_ids'] == [92992,92993,92998,92999,93020,93021,93034,93035]
     assert report['candidate_sha256'] == '49405b0c172e390fc54028d8d03ef848b3fca612ce3a99f94e24dbdcb3cb40d2'
     assert len(ET.fromstring(raw)) == len(ET.fromstring(output))
+
+
+@pytest.mark.parametrize('b_shift,expected_sha', [
+    (2.5, 'd10aa2b03245ae687ef62d88e977a2c425e9c03f1c52d4e5a05c54f1a453fb8a'),
+    (3.0, '5c395331fc2c771ccbcdb2c753f10a76dad416fbae265f81f22045975339bb3e')])
+def test_refined_visibility_candidate_does_not_move_roads_or_old_map(b_shift, expected_sha):
+    root = Path(__file__).resolve().parents[2]
+    source = root/'kcity_map/lanelet_map/lanelet2_map_v87.osm'
+    raw = source.read_bytes()
+    geometry = json.loads((root/'base_ws/src/perception/traffic_light_detection/config/traffic_light_map_geometry.json').read_text())
+    output, report = shifted_map(raw, dict(A=.75, B=b_shift, C=.75, D=2.75), geometry)
+    assert source.read_bytes() == raw
+    assert report['changed_node_ids'] == [92992,92993,92998,92999,93020,93021,93034,93035]
+    assert report['candidate_sha256'] == expected_sha
+    assert [x['upstream_shift_m'] for x in report['changes']] == [.75,b_shift,.75,2.75]
+    assert len(ET.fromstring(raw)) == len(ET.fromstring(output))

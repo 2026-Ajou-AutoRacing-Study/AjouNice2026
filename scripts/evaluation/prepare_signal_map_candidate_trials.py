@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate fresh trial inputs from frozen campaigns, without starting ROS."""
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,22 @@ from pathlib import Path
 import yaml
 
 from prepare_traffic_light_compliance_trials import stopline_groups
+
+
+def signal_corridor_campaign(full, focused_d):
+    """End at the existing D exit waypoint; preserve the preceding real route."""
+    result = copy.deepcopy(full)
+    goal = copy.deepcopy(focused_d['default_case']['goal'])
+    points = full['default_case']['waypoints']
+    matches = [i for i, point in enumerate(points)
+               if all(abs(float(point[k])-float(goal[k])) < 1e-6
+                      for k in ('x', 'y', 'z', 'yaw_deg'))]
+    if len(matches) != 1 or matches[0] < 1:
+        raise ValueError('Require one existing D exit waypoint after the approach route')
+    result['campaign_name'] = 'traffic_light_signal_corridor_map_candidate'
+    result['default_case'].update(goal=goal, waypoints=copy.deepcopy(points[:matches[0]]),
+                                  timeout_sec=360)
+    return result
 
 
 def main():
@@ -32,6 +49,7 @@ def main():
         if name == 'C_focused':
             cfg['default_case']['goal'].update(x=71.4, y=565., z=28.4, yaw_deg=90.)
         campaigns[name] = cfg
+    campaigns['signal_corridor'] = signal_corridor_campaign(campaigns['full_regression'], campaigns['D_focused'])
     args.output.mkdir(parents=True)
     (args.output/'groups.json').write_text(json.dumps(dict(schema_version=1, frame='map', groups=groups), indent=2)+'\n')
     for name, cfg in campaigns.items():

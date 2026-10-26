@@ -1,0 +1,28 @@
+schema_version: 1
+map_version: 91
+status: selected_visibility_candidate_not_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v91.osm
+map_sha256: 5c395331fc2c771ccbcdb2c753f10a76dad416fbae265f81f22045975339bb3e
+map_md5: 09832c1fdcde2cf770937d3c4d34bbc5
+source_map_file: kcity_map/lanelet_map/lanelet2_map_v87.osm
+source_map_sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
+supersedes_candidate: configs/map/kcity_v89_stopline_candidate.yaml
+intermediate_map: kcity_map/lanelet_map/lanelet2_map_v90.osm
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+drive_path: kcity_map/lanelet_map/lanelet2_map_v91.osm
+upstream_shifts_m: {A: 0.75, B: 3.0, C: 0.75, D: 2.75}
+changed_node_ids: [92992, 92993, 92998, 92999, 93020, 93021, 93034, 93035]
+stop_margin_m: 0.0
+closed_loop_trials: 2
+closed_loop_pass: 2
+collisions: 0
+trial_scope: B standalone plus A-B-C-D corridor ending at the existing D exit waypoint
+whole_course_pass_claim: false
+approach_observed_min_top_margin_px: {A: 85.4744, B: 98.0839, C: 82.5526, D: 92.8777}
+stopped_observed_median_top_margin_px: {A: 93.4433, B: 103.2929, C: 98.0190, D: 97.2466}
+measurement_sources: {A: corridor, B: standalone, C: corridor, D: corridor}
+visibility_limit: detected boxes in sampled frames, not independent pixel GT or a universal minimum
+prior_candidate_abort_evidence_preserved: true
+validation_scope: local MORAI Sunny13, localization + OD_GT + v5 + real ROS1 planner/PP-PI
+runtime_default_promoted: false
+team_lan_4090_bevfusion_full_stack_verified: false

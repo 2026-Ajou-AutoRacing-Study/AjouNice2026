@@ -39,7 +39,7 @@
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
-- 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. 공통0.75m 초안 대신 **v89 선정 후보: v87 대비 A/C+0.75m·B/D+2m**다. B 개별+연속 풀코스 PASS, 실제 정차·원본 화면·감속 중 여유를 확인했다. 기본v87·PR55 draft/팀 기본 전환 미실시는 유지한다. [선정 근거](261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-visibility-v89)를 본다.
+- 정차 위치는 Lanelet 지도/`traffic_light.stop_margin: 0.0`으로 관리한다. **v91 선정 후보: v87 대비 A/C+0.75m·B+3m·D+2.75m**다. B 개별·A→D 연속 시험 PASS; 최소 상단 여유는 해당 표본에서 A85/B98/C83/D93px다. 기본v87·PR55 draft는 유지한다. [측정 범위·중단 이력](261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-visibility-v91)을 본다.
 - 단발 detector 누락만 동일 head·유효 지도에서 원본 관측 age 0.2초까지 보존한다. CNN UNKNOWN·모순·지도/TF 실패·기한 만료는 UNKNOWN이다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.

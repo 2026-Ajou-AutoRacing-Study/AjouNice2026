@@ -393,3 +393,57 @@ A/C 역시 추가 이동하지 않았다. 유일한 최적값을 탐색한 시�
 선정 manifest는 `configs/map/kcity_v89_stopline_candidate.yaml`이다. **배포 기본은 아직v87**이며
 기본 전환과 route/map SHA 계약의 일괄 전환·PR 병합은 이번 선정과 구별한다. 이전v88 및 원본 증거는 변경하지 않는다.
 팀 Drive `kcity_map/lanelet_map/lanelet2_map_v89.osm`에 별도 업로드했다. v87/v88은 덮어쓰지 않았다.
+
+<a id="map-stopline-visibility-v91"></a>
+## 최종 미세 조정: A/C 유지·B+3m·D+2.75m 후보
+
+사용자는 네 구간 모두를 다시 판단하되80px 초중반에 억지로 일치시킬 필요는 없다고 했다.
+v90(v87 대비 A/C+0.75m, B+2.5m, D+2.75m)을 먼저 시험했다. B 단독은 최소86.2px였지만
+같은 위치의A→D 연속 제동 표본은72.3px까지 내려갔다. 단독 수치만 인용하지 않고 B만0.5m 더 당긴
+**v91: A/C+0.75m·B+3.0m·D+2.75m**를 선정했다. D는 v90에서 최소90.1px로 여유가 있어 유지했다.
+A/C도 이미 충분하여 유지했다. 원본v87 대비8개 끝점 좌표 외 바이트는 그대로이며 원본/이전 후보는 수정하지 않았다.
+MGeo 원래 도색선 대비 상류 거리는 A약1.50/B약9.73/C약1.50/D약10.50m다.
+
+| v91 검증 표본 | 감속·정차 관측 최소 top | 정차 중 median | 실제 정차 |
+|---|---:|---:|---:|
+| A, 연속 시험 | 85.5px | 93.4px | 26.86초 |
+| B, 별도 개별 시험 | 98.1px | 103.3px | 41.40초 |
+| C, 연속 시험 | 82.6px | 98.0px | 7.92초 |
+| D, 연속 시험 | 92.9px | 97.2px | 10.34초 |
+
+이는 각 표본의 detector bbox가 있는 기록 프레임 기준이며 보편적인 최소값/픽셀GT가 아니다.
+최종 연속 시험에서B는 녹색 통과였으므로 B 정차 값은 개별 실행에서 가져왔다. 그 조건 차이를 숨기지 않는다.
+B98px/D93px가80보다 크다고 다시 앞으로 옮기지는 않았다. 정차 원본을 직접 보고 가시성이 확보됨을 확인했다.
+누락은 여전히 남는다: B 정차174/200, A212/224, C63/63, D87/87 기록 프레임이 matched였다.
+이 비율은 새 독립 분류정확도나 전체 이미지 recall이 아니며 원본age0.2초 hold/허가3회/황색OFF는 유지한다.
+
+v91 B 개별61.14초, A→B→C→D 연속121.98초 모두 PASS·충돌0·최종 정지/P VERIFIED였다.
+실 localization+OD_GT+YOLO/CNN+실제 ROS1 planner/PP·PI, 자연 현시/native GET만 사용했다.
+새 지도선 및 별도 MGeo 도색선 앞차축 통과는 네 미션 모두 native 양쪽0.25초 bracket에서 허가였다.
+D는 직진G/Y에는 정차하고 R+좌화살표에 출발했다. C의 두 head는 같은 상태로 확인했다.
+기본 정차 margin은0.0이며 정책·모델·카메라·센서 설정은 바꾸지 않았다.
+
+### 중단을 제외하지 않고 구분한 범위
+
+- v90 첫B 실행은 Ego 수신 age1.168초 초과 후 종료 정지도 검증하지 못해 ERROR였다.
+  `map_v90_B_natural_261026_v1`을 보존한다. 이후 정지 장면·네트워크 재로드로 fresh Ego/영상과 P를
+  확인한 기록은 `map_v90_recovery_261026_v1`이다. 이 실패를 통과로 바꾸거나 safety 임계값을 완화하지 않았다.
+- v90 B 재시험70.31초와 A→D 연속128.36초는 PASS했다.
+- v90 전체 코스는 네 신호를 통과한 뒤 남쪽 복귀 구간에서 `Ego is out of route`와
+  `planning trajectory is too far from ego`를 반복하며 정지했다. 에이전트가 정상 중단하고 최종 P를 확인했다.
+  `map_v90_full_natural_261026_v1`의 MANUAL_ABORT와 원본 bag를 보존한다. 전체 코스 PASS가 아니다.
+- 당시 로컬 load20대·swap 포화와 수신 지연이 관찰됐지만 제어기 latency 단독 원인은 확정하지 않았다.
+  사용자도 MORAI 동시 부하를 의심했다. 지도 변경이 원인이라고도, 무관하다고도 인증하지 않는다.
+- 신호 검증은 기존 full 경로의 D 출구 waypoint(133.972899406,668.836010783)를 그대로 종료 goal로
+  쓰고 그 전 waypoint를 보존한 별도 corridor로 분리했다. 원래 full config는 수정하지 않았다.
+  새 준비 함수는 원래 waypoint에서 해당 goal을 유일하게 찾지 못하면 거부하며 실제 planner/controller를 유지한다.
+  따라서 v91 결과는 **4구간 연속 검증**이지 전체 코스/실대회 LAN/4090/BEVFusion 동시 부하 인증이 아니다.
+
+최종 근거는 `map_v91_B_natural_261026_v1`, `map_v91_corridor_natural_261026_v1`,
+`map_v91_B_clearance_analysis_261026_v1` 및 `map_v91_corridor_{A,B,C,D}_clearance_analysis_261026_v1`이다.
+모두 기존 traffic_light_robustness artifacts root 아래이며 각 실행의 안전 receipt·원본 bag/JPEG를 보존했다.
+선정 manifest는 `configs/map/kcity_v91_stopline_candidate.yaml`이다.
+지도선 상류 이동은 여전히 기존 GO_OUT 시점도 앞당긴다. 정차 시야 보강이 공식 도색선 판정 분리를 해결한 것은 아니다.
+**운영 기본v87과 PR55 draft는 유지**한다. 기본 전환에는 route/map SHA 및 launch 선택 동기화가 필요하다.
+최종 Python327개·문서 검사·설치기`--check`가 통과했다. 회귀는 주행 종료 후 수행했다.
+v91은 팀 Drive에 별도 업로드했고 원격/로컬 MD5 `09832c1fdcde2cf770937d3c4d34bbc5` 일치를 확인했다.
