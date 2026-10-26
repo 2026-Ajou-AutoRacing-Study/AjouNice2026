@@ -7,6 +7,7 @@
 도로 경계·연결·ID는 그대로다. B 개별 및A→B→C→D 연속 구간의 실제 정차·시야·재출발을 확인했다.
 **운영 기본은 아직v87**이며 v91은 명시적으로 선택하는 검증 후보다. 이전 후보·중단 증거도 보존한다.
 [후보 상태·정차/통과 경계](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#map-stopline-visibility-v91)를 먼저 확인한다.
+정차 housing 상단 median90~105px·관측 최소80px의 [공통 기준](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#common-stopline-standard)으로 A/B/C/D 모두 수용해 추가 이동하지 않는다. 신호 선택 끊김은 별도 미해결 사항이다.
 
 | 구분 | 경로·기준 |
 | --- | --- |

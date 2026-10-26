@@ -26,6 +26,18 @@ approach_observed_min_top_margin_px: {A: 85.4744, B: 98.0839, C: 82.5526, D: 92.
 stopped_observed_median_top_margin_px: {A: 93.4433, B: 103.2929, C: 98.0190, D: 97.2466}
 measurement_sources: {A: corridor, B: standalone, C: corridor, D: corridor}
 visibility_limit: detected boxes in sampled frames, not independent pixel GT or a universal minimum
+common_visibility_criterion:
+  scope: retrospective engineering acceptance, not a separately held-out test
+  image_size: [1280, 720]
+  vehicle_reference: front bumper, base_link offset 3.845m
+  stop_duration_min_sec: 3.0
+  stopped_median_top_band_px: [90.0, 105.0]
+  observed_stop_and_approach_min_top_px: 80.0
+  maximum_abs_bumper_to_map_line_gap_m: 0.5
+  common_margin_m: 0.0
+  all_four_geometry_pass: true
+  signal_selection_continuity_fixed: false
+  evidence: planner_logs/analysis/signal_stopline_common_standard_261026_v2/measurements.json
 prior_candidate_abort_evidence_preserved: true
 validation_scope: local MORAI Sunny13, localization + OD_GT + v5 + real ROS1 planner/PP-PI
 runtime_default_promoted: false

@@ -28,12 +28,12 @@ def analyze_run(root, name):
     paths={m:root/f'map_{name}_{m}_clearance_analysis_261026_v1/measurements.json' for m in 'ABCD'}
     reports={m:json.loads(p.read_text()) for m,p in paths.items()}
     bag_path=Path(reports['A']['bag'])
-    poses=[]; classifiers=[]; brakes=[]; imu=[]; decisions=[]; native=[]; targets=[]; selections=[]
+    poses=[]; classifiers=[]; brakes=[]; imu=[]; decisions=[]; native=[]; targets=[]; selections=[]; projections=[]
     with rosbag.Bag(str(bag_path)) as bag:
         for topic,msg,stamp in bag.read_messages(topics=['/localization/kinematic_state',
                 '/traffic_light_node/debug_classifier','/ctrl_cmd','/sensor/imu',
                 '/traffic_light_node/debug_runtime','/traffic_light_node/debug_selection',
-                '/Ego_topic','/planning/trajectory']):
+                '/Ego_topic','/planning/trajectory','/perception/traffic_light_recognition/map_rois']):
             t=stamp.to_nsec()
             if topic=='/localization/kinematic_state':
                 p=msg.pose.pose.position;v=msg.twist.twist.linear
@@ -62,6 +62,16 @@ def analyze_run(root, name):
             elif topic=='/planning/trajectory' and poses and msg.points:
                 point=min(msg.points,key=lambda p:math.dist([p.pose.position.x,p.pose.position.y],poses[-1]['xy']))
                 targets.append(dict(t=t,speed=point.longitudinal_velocity_mps))
+            elif topic=='/perception/traffic_light_recognition/map_rois':
+                body=json.loads(msg.data)
+                ids={201351:['C1256W000077'],201365:['C1256W000091'],
+                     201290:['C1256W000016','C1256W000018'],201326:['C1256W000052']}
+                group=body.get('group_id')
+                projections.append(dict(t=body.get('source_stamp_ns',0),group=group,
+                    reason=body.get('reason'),
+                    rejected_route_heads=[h for h in body.get('rejected_heads',[])
+                                          if h.get('head_id') in ids.get(group,[])],
+                    covariance_diagonal_xyz_yaw=body.get('pose_covariance_diagonal_xyz_yaw')))
     poses.sort(key=lambda r:r['t']);imu.sort(key=lambda r:r['t'])
     pt=[p['t'] for p in poses];it=[p['t'] for p in imu]
     lamp_samples=[]
@@ -137,6 +147,16 @@ def analyze_run(root, name):
             selected_native=[v for v in lamp_samples if v.get('valid') and v['native_id'] in
                 ({'A':['C1256W000077'],'B':['C1256W000091'],'C':['C1256W000016','C1256W000018'],'D':['C1256W000052']}[m])
                 and start-2e9<=v['request_ros_ns']<=v['response_ros_ns']<=end+2e9]
+            # Inspect the actual projection rejection, not the ambiguous umbrella
+            # no_visible_route_head (which is NOT proof of image clipping).
+            projection_rows=[v for v in projections if v['group']==r['group_id']
+                             and start-2e9<=v['t']<=end+2e9]
+            projection_counts={};projection_examples={}
+            for v in projection_rows:
+                reasons=','.join(h['reason'] for h in v['rejected_route_heads'])
+                key=v['reason']+(':'+reasons if reasons else '')
+                projection_counts[key]=projection_counts.get(key,0)+1
+                projection_examples.setdefault(key,v)
             separations.append(dict(gap_sec=(end-start)/1e9,
                 observed_path_length_m=distance,max_observed_speed_mps=max((p['speed'] for p in rows),default=None),
                 max_data_gap_sec=max(((b['t']-a['t'])/1e9 for a,b in zip(rows,rows[1:])),default=None),
@@ -145,6 +165,8 @@ def analyze_run(root, name):
                 nearby_target_changes=target_changes,
                 exact_native_sample_colors=sorted(set(v['color'] for v in selected_native)),
                 exact_native_sample_count=len(selected_native),
+                map_projection_reason_counts=projection_counts,
+                map_projection_first_examples=projection_examples,
                 nearby_target_speed_range=[min(v['speed'] for v in targets if start-2e9<=v['t']<=end+2e9),
                     max(v['speed'] for v in targets if start-2e9<=v['t']<=end+2e9)]
                     if any(start-2e9<=v['t']<=end+2e9 for v in targets) else None,
