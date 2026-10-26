@@ -49,6 +49,10 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   node.param<bool>(ns + "/yellow_light_is_go", planner_param_.yellow_light_is_go, false);
   node.param<bool>(ns + "/competition_fail_open", planner_param_.competition_fail_open, false);
   node.param<bool>(ns + "/enable_signal_compliance_guard", planner_param_.enable_signal_compliance_guard, false);
+  node.param<bool>(ns + "/defer_unseen_until_observed", planner_param_.defer_unseen_until_observed, false);
+  node.param<bool>(ns + "/defer_far_unseen_unknown", planner_param_.defer_far_unseen_unknown, false);
+  node.param<double>(ns + "/far_unseen_min_stop_distance_m", planner_param_.far_unseen_min_stop_distance_m, 40.0);
+  node.param<double>(ns + "/far_unseen_response_margin_sec", planner_param_.far_unseen_response_margin_sec, 1.0);
   node.param<double>(ns + "/signal_compliance_front_axle_offset_m", planner_param_.signal_compliance_front_axle_offset_m, -1.0);
   planner_param_.use_official_judging_lines = node.hasParam(ns + "/signal_judging_lines");
   planner_param_.signal_judging_lines = signal_compliance::loadSignalJudgingLines(node, ns + "/signal_judging_lines");
@@ -70,6 +74,17 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
       (!std::isfinite(planner_param_.signal_compliance_front_axle_offset_m) ||
        planner_param_.signal_compliance_front_axle_offset_m < 0.0)) {
     throw std::invalid_argument("signal compliance candidate requires an explicitly qualified front axle offset");
+  }
+  if (planner_param_.defer_far_unseen_unknown &&
+      (!planner_param_.enable_signal_compliance_guard ||
+       !std::isfinite(planner_param_.far_unseen_min_stop_distance_m) ||
+       planner_param_.far_unseen_min_stop_distance_m <= 0.0 ||
+       !std::isfinite(planner_param_.far_unseen_response_margin_sec) ||
+       planner_param_.far_unseen_response_margin_sec < 0.0)) {
+    throw std::invalid_argument("invalid far-unseen traffic signal parameters");
+  }
+  if (planner_param_.defer_unseen_until_observed && !planner_param_.enable_signal_compliance_guard) {
+    throw std::invalid_argument("initial-unseen traffic signal policy requires compliance guard");
   }
   planner_param_.yellow_lamp_period =
     require_parameter<double>(node, ns + ".yellow_lamp_period");

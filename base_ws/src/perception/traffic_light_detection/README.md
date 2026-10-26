@@ -153,6 +153,11 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
 `visual_continuation_sec:=0`으로 이 보완만 끈다. [연속 bag·실제 주행 근거](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)와 planning 통합 상태는 CURRENT를 따른다.
 
+Planning 기본 `defer_far_unseen_unknown:=true`는 첫 유효 램프 관측 전의 원거리 빈 UNKNOWN만
+정지점 적용을 미룬다. 기본 경계는 40m와 현재 속도의 jerk 제한 제동 거리 + 1초 이동 거리 + 5m
+중 큰 쪽이다. 적색·황색, 관측 후 누락, 경계 안 UNKNOWN은 기존 정지 판단을 유지한다.
+이것은 perception의 `OFF` 라벨 자체를 GO 신호로 바꾸지 않는다.
+
 팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`의
 `traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.
