@@ -226,6 +226,17 @@ bool TrafficLightModule::isStopSignal()
   prev_looking_tl_state_ = looking_tl_state_;
   updateTrafficSignal();
 
+  // Preserve the team's existing competition fail-open contract even when
+  // the newer observation guard is enabled. No publisher / expired transport
+  // must not block planning-only tests. Fresh RED/UNKNOWN still reach the guard.
+  if (planner_param_.competition_fail_open &&
+      (!traffic_signal_stamp_ || isTrafficSignalTimedOut())) {
+    signal_compliance_guard_.reset();
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] missing/stale signal: competition fail-open GO");
+    return false;
+  }
+
   if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) {
     // Do not let legacy yellow_light_is_go/arrow overrides bypass the master.
     // The guarded branch below still records Yellow and clears green history.

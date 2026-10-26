@@ -212,6 +212,17 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
 
   updateTrafficSignal(planner_data);
 
+  // Keep the existing no-traffic-stack competition behavior. This policy also
+  // applies to a lost publisher; use the existing fail-open=false for fail-closed.
+  // Fresh RED/UNKNOWN and all current yellow rules remain guarded below.
+  if (planner_param_.competition_fail_open &&
+      (!traffic_signal_stamp_ || isTrafficSignalTimedOut())) {
+    signal_compliance_guard_.reset();
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] missing/stale signal: competition fail-open GO");
+    return false;
+  }
+
   if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow() &&
       !planner_param_.enable_signal_compliance_guard) {
     return true;

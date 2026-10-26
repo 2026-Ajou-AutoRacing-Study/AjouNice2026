@@ -446,10 +446,11 @@ TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnUnknownSignal)
   EXPECT_FALSE(callIsStopSignal());
 }
 
-TEST_F(TrafficLightModuleTest, ComplianceCandidateOverridesLegacyYellowAndFailOpen)
+TEST_F(TrafficLightModuleTest, StrictComplianceCandidateOverridesLegacyYellow)
 {
   using Element = autoware_perception_msgs::TrafficLightElement;
   enableComplianceGuard();
+  setCompetitionFailOpen(false);
   EXPECT_TRUE(callIsStopSignal());
   for (const bool include_red : {false, true}) {
     autoware_perception_msgs::TrafficLightGroup yellow;
@@ -484,6 +485,7 @@ TEST_F(TrafficLightModuleTest, ComplianceCandidateMissingAfterGreenDoesNotKeepOl
 {
   using Element = autoware_perception_msgs::TrafficLightElement;
   enableComplianceGuard();
+  setCompetitionFailOpen(false);
   autoware_perception_msgs::TrafficLightGroup green;
   green.elements.push_back(createElement(Element::GREEN, Element::CIRCLE, Element::SOLID_ON));
   confirmComplianceGreen(green);

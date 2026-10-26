@@ -35,7 +35,8 @@
   [통합 검증 기록](261025_YOLO_CNN_MAP_RUNTIME_EVALUATION.md)을 본다.
   모델 파일을 바꾼 것과 운영 기본값을 바꾼 것은 구별한다.
 - 이전 yellow/R+Y/unknown 계약은 [정책 통합 대조](261025_SIGNAL_POLICY_INTEGRATION_AUDIT.md)의 당시 기록이다.
-  현재는 선 전 정차의 Y/R+Y 새 출발을 막고, missing·stale·UNKNOWN을 GO로 풀지 않는다.
+  선 전 정차의 Y/R+Y 새 출발과 신선한 UNKNOWN은 정지 판단이다. 사용자·판단팀 요청으로 기존
+  `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.

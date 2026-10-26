@@ -159,6 +159,7 @@ protected:
   auto state() { return module_->getTrafficLightModuleState(); }
   void setPeriod(double seconds) { module_->planner_param_.yellow_lamp_period=seconds; }
   void setStopMargin(double metres) { module_->planner_param_.stop_margin=metres; }
+  void setFailOpen(bool enabled) { module_->planner_param_.competition_fail_open=enabled; }
   double stoppingDistance()
   {
     return planning_utils::calcJudgeLineDistWithJerkLimit(data_->current_velocity->twist.linear.x,
@@ -216,7 +217,7 @@ TEST_F(TrafficLightComplianceModuleTest, StoppedYellowAndFirstMidYellowCannotCre
 TEST_F(TrafficLightComplianceModuleTest, BeforeLineRedMissingAndStaleCannotReuseGreenAuthorization)
 {
   for(const auto group:{201351,201365,201290,201326}) {
-    configure(group); confirmGreenOnRealPath(6.,.2);
+    configure(group); setFailOpen(false); confirmGreenOnRealPath(6.,.2);
     tick(); put(red()); EXPECT_TRUE(modifiesToStop());
     confirmGreenOnRealPath(6.,.2);
     data_->traffic_light_id_map_raw_.clear(); tick(); EXPECT_TRUE(modifiesToStop());
@@ -225,6 +226,20 @@ TEST_F(TrafficLightComplianceModuleTest, BeforeLineRedMissingAndStaleCannotReuse
     confirmGreenOnRealPath(6.,.2);
     Signal unknown; unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
     tick(); put(unknown); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, CompetitionDefaultMissingAndStaleGoWithoutNewLaunchFlags)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,false); pose(0.,0.);
+    EXPECT_FALSE(modifiesToStop());  // The traffic stack was never started.
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(1.1); EXPECT_FALSE(modifiesToStop());  // Existing timeout fail-open.
+    data_->traffic_light_id_map_raw_.clear(); tick(); EXPECT_FALSE(modifiesToStop());
+    Signal unknown; unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
+    tick(); put(unknown); EXPECT_TRUE(modifiesToStop()); // Fresh unreadable != no publisher.
+    confirmGreenOnRealPath(0.,0.); // Bypass did not retain an old green confirmation.
   }
 }
 

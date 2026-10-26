@@ -51,7 +51,7 @@ protected:
   }
 
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
-                 double min_yellow=2., double stop_margin=0.)
+                 double min_yellow=2., double stop_margin=0., bool fail_open=true)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -65,7 +65,7 @@ protected:
     params.tl_state_timeout=.5; params.yellow_lamp_period=2.75;
     params.yellow_light_stop_velocity=1.; params.stop_time_hysteresis=.1;
     params.enable_pass_judge=true; params.yellow_light_is_go=true;
-    params.competition_fail_open=true; params.enable_signal_compliance_guard=true;
+    params.competition_fail_open=fail_open; params.enable_signal_compliance_guard=true;
     params.enable_yellow_passthrough=master;
     params.signal_compliance_enable_timed_yellow=timed;
     params.signal_compliance_required_green_observations=confirmations;
@@ -197,7 +197,8 @@ TEST_F(TrafficTimedYellowExperimentalTest, DStraightGreenIsNotLeftAuthorization)
 TEST_F(TrafficTimedYellowExperimentalTest, RedMissingAndStaleInvalidateAnEarlierTimedPass)
 {
   for(int fault=0;fault<3;++fault) {
-    configure(201351);confirmedGreen();tick();pose();put(yellow());ASSERT_FALSE(stops());
+    configure(201351,true,true,3,2.,0.,false);
+    confirmedGreen();tick();pose();put(yellow());ASSERT_FALSE(stops());
     if(fault==0){tick();pose();put(red());}
     if(fault==1){data_->traffic_light_id_map_raw_.clear();tick();pose();}
     if(fault==2){tick(.6);pose();}

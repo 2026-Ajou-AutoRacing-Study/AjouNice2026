@@ -55,7 +55,7 @@ protected:
     node_.deleteParam("/traffic_yellow_experimental_test");
   }
 
-  void configure(int64_t group, bool yellow_enabled)
+  void configure(int64_t group, bool yellow_enabled, bool fail_open=true)
   {
     module_.reset(); group_ = group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -68,7 +68,7 @@ protected:
     params.tl_state_timeout = .5; params.yellow_lamp_period = 2.75;
     params.yellow_light_stop_velocity = 1.; params.stop_time_hysteresis = .1;
     params.enable_pass_judge = true; params.yellow_light_is_go = true;
-    params.competition_fail_open = true; params.enable_signal_compliance_guard = true;
+    params.competition_fail_open = fail_open; params.enable_signal_compliance_guard = true;
     params.enable_yellow_passthrough = yellow_enabled;
     params.signal_compliance_front_axle_offset_m = 3.;
     module_ = std::make_shared<TrafficLightModule>(group+1000,*light_,lane,line,
@@ -117,10 +117,10 @@ protected:
 
   Signal red() { Signal result; result.elements={lamp(Element::RED)}; return result; }
 
-  void put(Signal signal)
+  void put(Signal signal, double age=0.)
   {
     signal.traffic_light_group_id=group_;
-    TrafficSignalStamped stamped; stamped.stamp=ros::Time::now(); stamped.signal=signal;
+    TrafficSignalStamped stamped; stamped.stamp=ros::Time::now()-ros::Duration(age); stamped.signal=signal;
     data_->traffic_light_id_map_raw_[group_]=stamped;
   }
 
@@ -188,11 +188,27 @@ TEST_F(TrafficYellowSwitchExperimentalTest, ABCDRedAndSignalLossStillStopWithOpt
 {
   for (const auto group : {201351,201365,201290,201326}) {
     SCOPED_TRACE(group);
-    configure(group,true); confirmGreen();
+    configure(group,true,false); confirmGreen();
     tick(); pose(6.,1.5); put(red()); EXPECT_TRUE(modifiesToStop());
-    configure(group,true); confirmGreen();
+    configure(group,true,false); confirmGreen();
     data_->traffic_light_id_map_raw_.clear(); tick(); pose(6.,1.5);
     EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficYellowSwitchExperimentalTest, CompetitionDefaultNoTrafficAndTimeoutGoButFreshRedStops)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,false); tick(); pose(0.,0.);
+    EXPECT_FALSE(modifiesToStop());
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(); put(red(),.6); EXPECT_FALSE(modifiesToStop());
+    data_->traffic_light_id_map_raw_.clear(); tick(); EXPECT_FALSE(modifiesToStop());
+    Signal unknown; unknown.elements={lamp(Element::UNKNOWN,Element::UNKNOWN)};
+    tick(); put(unknown); EXPECT_TRUE(modifiesToStop());
+    configure(group,false,false); tick(); pose(0.,0.);
+    EXPECT_TRUE(modifiesToStop()); // Existing fail-open=false remains available.
   }
 }
 

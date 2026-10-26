@@ -341,10 +341,12 @@ tracking
 
 ```bash
 ajou
-planning enable_traffic_light_planner:=false
+planning
 ```
 
-`traffic` alias는 실행하지 않는다.
+`traffic` alias는 실행하지 않는다. 기존 competition fail-open 기본값에서 신호 미수신·timeout은 GO다.
+새 alias/인자는 필요 없다. 신선한 적색·UNKNOWN에는 기존 정지 판단을 유지하며, 노드 다운도 timeout GO가
+될 수 있다는 정책 경계는 구분한다. 기존 `enable_traffic_light_planner:=false` 강제 우회 인자도 그대로 지원한다.
 
 ### Terminal 8: Planning RViz
 
