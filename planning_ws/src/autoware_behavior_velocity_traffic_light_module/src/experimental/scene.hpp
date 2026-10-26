@@ -74,6 +74,9 @@ public:
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
     bool enable_signal_compliance_guard{false};
+    bool defer_far_unseen_unknown{false};
+    double far_unseen_min_stop_distance_m{40.0};
+    double far_unseen_response_margin_sec{1.0};
     double signal_compliance_front_axle_offset_m{-1.0};
     int signal_compliance_required_green_observations{3};
     bool signal_compliance_enable_timed_yellow{false};
@@ -142,7 +145,8 @@ private:
 
   void updateTrafficSignal(const PlannerData & planner_data);
 
-  bool isStopSignal(const PlannerData & planner_data);
+  bool isStopSignal(const PlannerData & planner_data, double distance_to_stop_point);
+  bool seen_signal_on_approach_{false};
 
   // Store how the current yellow sequence started
   YellowState yellow_transition_state_;

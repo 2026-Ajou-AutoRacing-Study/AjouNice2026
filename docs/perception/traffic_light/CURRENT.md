@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-26. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 황색 통과·디버그 화면 기본 OFF**다.
+상태: 2026-10-27. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 황색 통과·디버그 화면 기본 OFF**다.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다. 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
 ## 운영 기준
@@ -40,6 +40,7 @@
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 명시적 시험값이며 운영 기본 3회는 유지한다.
 - 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml)는 명시적 `map_version:=94`로 지도·SHA·Route A/B를 함께 고른다. 최신 planning 기본v88은 유지하며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. [v93 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93) 차이2.34px를 새 LAN 인증으로 쓰지 않는다.
 - 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 소등·모순·TF/route/실제 화각 실패는 UNKNOWN이다.
+- Planning의 `defer_far_unseen_unknown:=true`는 해당 신호를 이번 접근에서 아직 한 번도 읽지 못했고 출력이 빈 UNKNOWN일 때, 정지점까지 `max(40m, jerk 제한 제동 거리 + 현재 속도 × 1초 + 5m)`보다 멀면 그 정지점만 미룬다. 경계 안에서는 UNKNOWN 정지점을 다시 넣고, 실제 적색·황색은 거리와 무관하게 반영한다. 첫 유효 신호를 읽은 뒤의 누락도 완충 한도를 벗어나면 정지한다. 이는 신호를 녹색으로 재분류하거나 3회 허가 관측을 채우는 기능이 아니다. `defer_far_unseen_unknown:=false`가 즉시 복귀 설정이며 경계 수치는 launch 인자로 조정한다. 모듈 시험은 통과했고 실제 A/B/C/D 폐루프·LAN 판정은 아직 확인해야 한다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.
 
@@ -68,8 +69,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
-4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다.
-   timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
+4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
 
 - [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)로 설치하며 timeout1초·황색OFF·허가3회·ID0 경계는 유지한다.
 

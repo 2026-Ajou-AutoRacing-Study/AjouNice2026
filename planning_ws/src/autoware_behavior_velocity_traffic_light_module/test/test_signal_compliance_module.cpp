@@ -127,24 +127,24 @@ protected:
     stamped.stamp=ros::Time::now()-ros::Duration(age); stamped.signal=state;
     data_->traffic_light_id_map_raw_[group_]=stamped;
   }
-  Path path()
+  Path path(double start=-30.)
   {
     Path result;
     result.header.frame_id="map"; result.header.stamp=ros::Time::now();
-    for(double x=-30.;x<=40.;x+=.25) {
+    for(double x=start;x<=40.;x+=.25) {
       autoware_internal_planning_msgs::PathPointWithLaneId point;
       point.point.pose.position.x=x; point.point.pose.orientation.w=1.;
       point.point.longitudinal_velocity_mps=8.; point.lane_ids={group_+1000};
       result.points.push_back(point);
     }
     geometry_msgs::Point a,b,c,d;
-    a.x=c.x=-30.; b.x=d.x=40.; a.y=b.y=3.; c.y=d.y=-3.;
+    a.x=c.x=start; b.x=d.x=40.; a.y=b.y=3.; c.y=d.y=-3.;
     result.left_bound={a,b}; result.right_bound={c,d};
     return result;
   }
-  bool modifiesToStop()
+  bool modifiesToStop(double path_start=-30.)
   {
-    auto result=path();
+    auto result=path(path_start);
     EXPECT_TRUE(module_->modifyPathVelocity(&result));
     return std::any_of(result.points.begin(),result.points.end(),[](const auto & point) {
       return point.point.longitudinal_velocity_mps<.001;
@@ -163,6 +163,7 @@ protected:
   void setPeriod(double seconds) { module_->planner_param_.yellow_lamp_period=seconds; }
   void setStopMargin(double metres) { module_->planner_param_.stop_margin=metres; }
   void setFailOpen(bool enabled) { module_->planner_param_.competition_fail_open=enabled; }
+  void setFarUnseen(bool enabled) { module_->planner_param_.defer_far_unseen_unknown=enabled; }
   double stoppingDistance()
   {
     return planning_utils::calcJudgeLineDistWithJerkLimit(data_->current_velocity->twist.linear.x,
@@ -266,6 +267,41 @@ TEST_F(TrafficLightComplianceModuleTest, FreshEmptyUnknownStreamStopsUntilThreeN
       tick(); put(green()); EXPECT_FALSE(modifiesToStop());
     }
   }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, FarUnseenEmptyDefersOnlyBeforeFirstReadableLamp)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    Signal empty;
+    configure(group,true,false); setFarUnseen(true);
+    tick(); pose(-65.,5.); put(empty);
+    EXPECT_FALSE(modifiesToStop(-100.));
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setFarUnseen(true);
+    tick(); pose(-65.,5.); put(green()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(green()); EXPECT_TRUE(modifiesToStop(-100.));
+    tick(); put(green()); EXPECT_FALSE(modifiesToStop(-100.));
+    tick(); put(empty); EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setFarUnseen(true);
+    tick(); pose(-20.,5.); put(empty);
+    EXPECT_TRUE(modifiesToStop(-100.));
+
+    configure(group,true,false); setFarUnseen(false);
+    tick(); pose(-65.,5.); put(empty);
+    EXPECT_TRUE(modifiesToStop(-100.));
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, FarUnseenDynamicBrakingBoundaryStaysClosed)
+{
+  configure(201351,true,false); setFarUnseen(true);
+  Signal empty;
+  tick(); pose(-55.,20.); put(empty);
+  EXPECT_TRUE(modifiesToStop(-100.));
 }
 
 TEST_F(TrafficLightComplianceModuleTest, ShiftedCameraStopLineCannotClearBeforeOriginalMORAILine)

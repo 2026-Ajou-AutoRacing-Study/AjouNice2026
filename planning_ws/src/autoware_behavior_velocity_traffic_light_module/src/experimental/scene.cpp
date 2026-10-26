@@ -16,6 +16,7 @@
 
 #include "../utils.hpp"
 
+#include <autoware/behavior_velocity_planner_common/utilization/util.hpp>
 #include <autoware/traffic_light_utils/traffic_light_utils.hpp>
 #include <autoware/trajectory/utils/find_nearest.hpp>
 #include <autoware_utils_geometry/geometry.hpp>
@@ -23,6 +24,7 @@
 #include <tf2/utils.h>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -88,6 +90,7 @@ bool TrafficLightModule::modifyPathVelocity(
     official_crossing_distance = signal_compliance::finiteJudgingLineDistance(*official_line, official_front);
     if (planner_param_.enable_yellow_passthrough && official_crossing_distance && *official_crossing_distance < 0.0) {
       state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
       stop_signal_received_time_ptr_.reset();
       is_prev_state_stop_ = false;
       setSafe(true);
@@ -154,6 +157,7 @@ bool TrafficLightModule::modifyPathVelocity(
         signed_arc_length_to_stop_point < signed_deadline_length) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
       stop_signal_received_time_ptr_.reset();
       if (planner_param_.enable_signal_compliance_guard) {
         setSafe(true);
@@ -168,7 +172,7 @@ bool TrafficLightModule::modifyPathVelocity(
     first_stop_point_s_ = stop_point_s;
 
     // Check if stop is coming.
-    const bool is_stop_signal = isStopSignal(planner_data);
+    const bool is_stop_signal = isStopSignal(planner_data, signed_arc_length_to_stop_point);
 
     // Update stop signal received time
     if (!is_stop_signal) {
@@ -236,6 +240,7 @@ bool TrafficLightModule::modifyPathVelocity(
       RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
       state_ = State::APPROACH;
       signal_compliance_guard_.reset();
+      seen_signal_on_approach_ = false;
       if (planner_param_.enable_signal_compliance_guard) {
         stop_signal_received_time_ptr_.reset();
         return modifyPathVelocity(path,left_bound,right_bound,planner_data);
@@ -248,7 +253,8 @@ bool TrafficLightModule::modifyPathVelocity(
   return false;
 }
 
-bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
+bool TrafficLightModule::isStopSignal(
+  const PlannerData & planner_data, const double distance_to_stop_point)
 {
   // Store previous state before updating
   prev_looking_tl_state_ = looking_tl_state_;
@@ -295,9 +301,34 @@ bool TrafficLightModule::isStopSignal(const PlannerData & planner_data)
           Observation::Stop : Observation::AuthorizedGreen;
       }
     }
+    if (observation == Observation::Stop || observation == Observation::AuthorizedGreen ||
+        observation == Observation::Yellow) {
+      seen_signal_on_approach_ = true;
+    }
     const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout);
+    if (observation == Observation::Unknown && traffic_signal_stamp_ &&
+        !planner_data.current_acceleration) {
+      return require_stop;
+    }
+    if (observation == Observation::Unknown && traffic_signal_stamp_) {
+      const double speed = planner_data.current_velocity->twist.linear.x;
+      const double stopping_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
+        speed, planner_data.current_acceleration->accel.accel.linear.x,
+        planner_data.max_stop_acceleration_threshold,
+        planner_data.max_stop_jerk_threshold, planner_data.delay_response_time);
+      if (signal_compliance::deferFarUnseenUnknown(
+            planner_param_.defer_far_unseen_unknown, seen_signal_on_approach_,
+            looking_tl_state_.elements.empty(), distance_to_stop_point,
+            stopping_distance, speed, planner_param_.far_unseen_min_stop_distance_m,
+            planner_param_.far_unseen_response_margin_sec)) {
+        RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
+          "[signal_compliance] reg=%ld empty/unseen far ahead: defer stop point at %.1fm",
+          traffic_light_reg_elem_.id(), distance_to_stop_point);
+        return false;
+      }
+    }
     RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
       "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d",
       traffic_light_reg_elem_.id(), signal_compliance::observationName(observation),

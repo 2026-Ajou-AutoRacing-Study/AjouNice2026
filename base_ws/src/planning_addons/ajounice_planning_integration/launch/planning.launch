@@ -31,6 +31,11 @@
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
   <arg name="signal_compliance_required_green_observations" default="3"/>
+  <!-- Before the first readable lamp, leave a distant empty observation open.
+       Enter the stop zone before the jerk-limited braking boundary. -->
+  <arg name="defer_far_unseen_unknown" default="true"/>
+  <arg name="far_unseen_min_stop_distance_m" default="40.0"/>
+  <arg name="far_unseen_response_margin_sec" default="1.0"/>
   <!-- configs/planning/vehicle_info.yaml: base_link is the rear axle center. -->
   <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
   <!-- Data freshness, not an estimate of remaining yellow time. -->
@@ -107,6 +112,12 @@
          value="$(arg signal_compliance_yellow_time_margin_sec)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_required_green_observations"
          value="$(arg signal_compliance_required_green_observations)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_far_unseen_unknown"
+         value="$(arg defer_far_unseen_unknown)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_min_stop_distance_m"
+         value="$(arg far_unseen_min_stop_distance_m)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_response_margin_sec"
+         value="$(arg far_unseen_response_margin_sec)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_front_axle_offset_m"
          value="$(arg signal_compliance_front_axle_offset_m)"/>
   <!-- Independent original MGeo judging line, NOT the camera-friendly Lanelet stop target. -->

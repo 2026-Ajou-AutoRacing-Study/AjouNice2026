@@ -27,6 +27,7 @@
 #include <boost/geometry/algorithms/intersection.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -83,6 +84,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     official_crossing_distance = signal_compliance::finiteJudgingLineDistance(*official_line, official_front);
     if (planner_param_.enable_yellow_passthrough && official_crossing_distance && *official_crossing_distance < 0.0) {
       state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
       stop_signal_received_time_ptr_.reset();
       is_prev_state_stop_ = false;
       setSafe(true);
@@ -159,6 +161,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
         signed_arc_length_to_stop_point < signed_deadline_length) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
       stop_signal_received_time_ptr_.reset();
       if (planner_param_.enable_signal_compliance_guard) {
         setSafe(true);
@@ -173,7 +176,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     first_ref_stop_path_point_index_ = stop_line.value().first;
 
     // Check if stop is coming.
-    const bool is_stop_signal = isStopSignal();
+    const bool is_stop_signal = isStopSignal(signed_arc_length_to_stop_point);
 
     // Update stop signal received time
     if (is_stop_signal) {
@@ -261,6 +264,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
         RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
         state_ = State::APPROACH;
         signal_compliance_guard_.reset();
+        seen_signal_on_approach_ = false;
         if (planner_param_.enable_signal_compliance_guard) {
           // The previous crossing no longer authorizes a new approach after
           // relocation. Re-evaluate once in this callback, not one GO cycle later.
@@ -277,7 +281,7 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   return false;
 }
 
-bool TrafficLightModule::isStopSignal()
+bool TrafficLightModule::isStopSignal(const double distance_to_stop_point)
 {
   // Store previous state before updating
   prev_looking_tl_state_ = looking_tl_state_;
@@ -326,9 +330,34 @@ bool TrafficLightModule::isStopSignal()
           Observation::Stop : Observation::AuthorizedGreen;
       }
     }
+    if (observation == Observation::Stop || observation == Observation::AuthorizedGreen ||
+        observation == Observation::Yellow) {
+      seen_signal_on_approach_ = true;
+    }
     const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout);
+    if (observation == Observation::Unknown && traffic_signal_stamp_ &&
+        !planner_data_->current_acceleration) {
+      return require_stop;
+    }
+    if (observation == Observation::Unknown && traffic_signal_stamp_) {
+      const double speed = planner_data_->current_velocity->twist.linear.x;
+      const double stopping_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
+        speed, planner_data_->current_acceleration->accel.accel.linear.x,
+        planner_data_->max_stop_acceleration_threshold,
+        planner_data_->max_stop_jerk_threshold, planner_data_->delay_response_time);
+      if (signal_compliance::deferFarUnseenUnknown(
+            planner_param_.defer_far_unseen_unknown, seen_signal_on_approach_,
+            looking_tl_state_.elements.empty(), distance_to_stop_point,
+            stopping_distance, speed, planner_param_.far_unseen_min_stop_distance_m,
+            planner_param_.far_unseen_response_margin_sec)) {
+        RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
+          "[signal_compliance] reg=%ld empty/unseen far ahead: defer stop point at %.1fm",
+          traffic_light_reg_elem_.id(), distance_to_stop_point);
+        return false;
+      }
+    }
     RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
       "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d",
       traffic_light_reg_elem_.id(), signal_compliance::observationName(observation),

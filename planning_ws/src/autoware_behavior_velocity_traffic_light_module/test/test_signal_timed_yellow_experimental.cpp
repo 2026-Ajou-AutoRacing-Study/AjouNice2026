@@ -52,7 +52,7 @@ protected:
 
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
                  double min_yellow=2., double stop_margin=0., bool fail_open=true,
-                 double judging_x=10., bool original_available=true)
+                 double judging_x=10., bool original_available=true, bool far_unseen=false)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -67,6 +67,7 @@ protected:
     params.yellow_light_stop_velocity=1.; params.stop_time_hysteresis=.1;
     params.enable_pass_judge=true; params.yellow_light_is_go=true;
     params.competition_fail_open=fail_open; params.enable_signal_compliance_guard=true;
+    params.defer_far_unseen_unknown=far_unseen;
     params.enable_yellow_passthrough=master;
     params.signal_compliance_enable_timed_yellow=timed;
     params.signal_compliance_required_green_observations=confirmations;
@@ -121,17 +122,17 @@ protected:
     TrafficSignalStamped m;m.stamp=ros::Time::now();m.signal=s;data_->traffic_light_id_map_raw_[group_]=m;
   }
 
-  bool stops()
+  bool stops(double start=-30.)
   {
     std::vector<autoware_internal_planning_msgs::PathPointWithLaneId> points;
-    for(double x=-30.;x<=40.;x+=.25) {
+    for(double x=start;x<=40.;x+=.25) {
       autoware_internal_planning_msgs::PathPointWithLaneId p;
       p.point.pose.position.x=x;p.point.pose.orientation.w=1.;
       p.point.longitudinal_velocity_mps=8.;p.lane_ids={group_+1000};points.push_back(p);
     }
     auto built=Trajectory::Builder{}.build(points);EXPECT_TRUE(built);if(!built)return true;
     auto trajectory=*built;geometry_msgs::Point a,b,c,d;
-    a.x=c.x=-30.;b.x=d.x=40.;a.y=b.y=3.;c.y=d.y=-3.;
+    a.x=c.x=start;b.x=d.x=40.;a.y=b.y=3.;c.y=d.y=-3.;
     EXPECT_TRUE(module_->modifyPathVelocity(trajectory,{a,b},{c,d},*data_));
     auto p=trajectory.restore();
     return std::any_of(p.begin(),p.end(),[](const auto & q){return q.point.longitudinal_velocity_mps<.001;});
@@ -144,6 +145,27 @@ protected:
     }
   }
 };
+
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDFarUnseenEmptyOpensPathButRedAndNearEmptyStop)
+{
+  for(const auto group:{201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    Signal empty;
+    configure(group,false,false,3,2.,0.,true,10.,true,true);
+    tick();pose(-65.,5.);put(empty);EXPECT_FALSE(stops(-100.));
+    tick();put(red());EXPECT_TRUE(stops(-100.));
+    tick();put(empty);EXPECT_TRUE(stops(-100.));
+
+    configure(group,false,false,3,2.,0.,true,10.,true,true);
+    tick();pose(-65.,5.);put(green());EXPECT_TRUE(stops(-100.));
+    tick();put(green());EXPECT_TRUE(stops(-100.));
+    tick();put(green());EXPECT_FALSE(stops(-100.));
+    tick();put(empty);EXPECT_TRUE(stops(-100.));
+
+    configure(group,false,false,3,2.,0.,true,10.,true,true);
+    tick();pose(-20.,5.);put(empty);EXPECT_TRUE(stops(-100.));
+  }
+}
 
 TEST_F(TrafficTimedYellowExperimentalTest, YellowETAMustReachOriginalLineNotEarlierCameraStopTarget)
 {

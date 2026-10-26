@@ -3,6 +3,7 @@
 #ifndef AUTOWARE_BEHAVIOR_VELOCITY_TRAFFIC_LIGHT_MODULE__SIGNAL_COMPLIANCE_GUARD_HPP_
 #define AUTOWARE_BEHAVIOR_VELOCITY_TRAFFIC_LIGHT_MODULE__SIGNAL_COMPLIANCE_GUARD_HPP_
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -25,6 +26,24 @@ inline const char * observationName(Observation value)
     case Observation::Yellow: return "yellow";
   }
   return "invalid";
+}
+
+// A fresh empty observation is not evidence of green. It may leave the path
+// open only before the first readable lamp on this approach and only while
+// there is room to brake after entering the observation zone.
+inline bool deferFarUnseenUnknown(
+  bool enabled, bool seen_signal_on_approach, bool empty_observation,
+  double distance_to_stop_point, double stopping_distance, double speed,
+  double minimum_distance, double response_margin_sec)
+{
+  if (!enabled || seen_signal_on_approach || !empty_observation ||
+      !std::isfinite(distance_to_stop_point) || !std::isfinite(stopping_distance) ||
+      !std::isfinite(speed) || stopping_distance < 0.0 || speed < 0.0) {
+    return false;
+  }
+  const double decision_distance = std::max(
+    minimum_distance, stopping_distance + speed * response_margin_sec + 5.0);
+  return distance_to_stop_point > decision_distance;
 }
 
 class Guard
