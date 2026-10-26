@@ -25,6 +25,8 @@
 #include <tf2/utils.h>
 
 #include <limits>
+#include <cmath>
+#include <stdexcept>
 #include <memory>
 #include <set>
 #include <string>
@@ -46,8 +48,30 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
     require_parameter<double>(node, ns + ".stop_time_hysteresis");
   planner_param_.enable_pass_judge =
     require_parameter<bool>(node, ns + ".enable_pass_judge");
+  node.param<bool>(ns + "/enable_yellow_passthrough", planner_param_.enable_yellow_passthrough, false);
   node.param<bool>(ns + "/yellow_light_is_go", planner_param_.yellow_light_is_go, false);
   node.param<bool>(ns + "/competition_fail_open", planner_param_.competition_fail_open, false);
+  node.param<bool>(ns + "/enable_signal_compliance_guard", planner_param_.enable_signal_compliance_guard, false);
+  node.param<double>(ns + "/signal_compliance_front_axle_offset_m", planner_param_.signal_compliance_front_axle_offset_m, -1.0);
+  node.param<int>(ns + "/signal_compliance_required_green_observations", planner_param_.signal_compliance_required_green_observations, 3);
+  node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);
+  node.param<double>(ns + "/signal_compliance_min_yellow_sec", planner_param_.signal_compliance_min_yellow_sec, 2.0);
+  node.param<double>(ns + "/signal_compliance_yellow_time_margin_sec", planner_param_.signal_compliance_yellow_time_margin_sec, 0.2);
+  if (planner_param_.signal_compliance_required_green_observations < 1 ||
+      planner_param_.signal_compliance_required_green_observations > 3 ||
+      !std::isfinite(planner_param_.signal_compliance_min_yellow_sec) ||
+      planner_param_.signal_compliance_min_yellow_sec <= 0.0 ||
+      !std::isfinite(planner_param_.signal_compliance_yellow_time_margin_sec) ||
+      planner_param_.signal_compliance_yellow_time_margin_sec < 0.0 ||
+      planner_param_.signal_compliance_yellow_time_margin_sec >= planner_param_.signal_compliance_min_yellow_sec ||
+      (planner_param_.signal_compliance_enable_timed_yellow && !planner_param_.enable_signal_compliance_guard)) {
+    throw std::invalid_argument("invalid timed-yellow assumption/confirmation parameters or missing compliance guard");
+  }
+  if (planner_param_.enable_signal_compliance_guard &&
+      (!std::isfinite(planner_param_.signal_compliance_front_axle_offset_m) ||
+       planner_param_.signal_compliance_front_axle_offset_m < 0.0)) {
+    throw std::invalid_argument("signal compliance candidate requires an explicitly qualified front axle offset");
+  }
   planner_param_.yellow_lamp_period =
     require_parameter<double>(node, ns + ".yellow_lamp_period");
   planner_param_.yellow_light_stop_velocity =

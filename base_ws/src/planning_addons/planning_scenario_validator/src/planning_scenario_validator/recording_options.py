@@ -16,12 +16,13 @@ PROFILE_ROOT = 'base_ws/src/planning_addons/planning_scenario_validator/config/i
 SENSORS = ['/sensor/lidar1'] + [
     '/sensor/camera/{}/compressed'.format(camera)
     for camera in ('front', 'front_left', 'front_right', 'back')]
+TRAFFIC_LIGHT_DEBUG_TOPIC = '/traffic_light_node/debug_image/compressed'
 RECORDING_PATHS = [('recording', key) for key in
                    ('bag_enabled', 'analysis_mode', 'topic_profile', 'include_sensors', 'selected_topics', 'profile_preset')]
 
 
-def ensure_video_display(recording, environ=None):
-    """Resolve a missing X11 address only for enabled screen recording.
+def ensure_video_display(recording, environ=None, *, required=False):
+    """Resolve a missing X11 address for screen recording or an opt-in viewer.
 
     Preserve explicit user addresses and minimal video-OFF documents. New GUI
     saves/execution snapshots persist the resolved address for later resume.
@@ -29,12 +30,15 @@ def ensure_video_display(recording, environ=None):
     video = recording.get('video', {})
     if not isinstance(video, dict):
         raise ValueError('recording.video는 YAML mapping이어야 합니다')
-    if not video.get('enabled', False):
+    if not video.get('enabled', False) and not required:
         return
+    recording['video'] = video
     display = video.get('display')
     if display is None or (isinstance(display, str) and not display.strip()):
         environment = os.environ if environ is None else environ
         video['display'] = str(environment.get('DISPLAY') or '').strip() or ':0'
+    if not isinstance(video.get('display'), str) or not video['display'].strip():
+        raise ValueError('recording.video.display는 비어 있지 않은 X11 주소여야 합니다')
 
 
 def mode_label(recording):
@@ -110,7 +114,7 @@ def sharing_warnings(recording, upload):
     return []
 
 
-def effective_topics(recording, resolve_path):
+def effective_topics(recording, resolve_path, *, traffic_light_debug=False):
     if type(recording.get('bag_enabled', True)) is not bool:
         raise ValueError('recording.bag_enabled는 true/false여야 합니다')
     if not recording.get('bag_enabled', True):
@@ -127,11 +131,13 @@ def effective_topics(recording, resolve_path):
         topics += SENSORS
     if diagnostics_enabled(recording):
         topics += DOWNSTREAM_TIMING + [namespace + '/frame_timing' for namespace in set(MODEL_NAMESPACES.values())]
+    if traffic_light_debug:
+        topics.append(TRAFFIC_LIGHT_DEBUG_TOPIC)
     return list(dict.fromkeys(topics))
 
 
 def topic_catalog(root, current=()):
-    topics = set(current) | set(SENSORS)
+    topics = set(current) | set(SENSORS) | {TRAFFIC_LIGHT_DEBUG_TOPIC}
     for name in ('lightweight', 'basic', 'perception_analysis', 'latency_analysis', 'localization_analysis', 'full'):
         path = Path(root) / PROFILE_ROOT / (name + '.json')
         if path.is_file():

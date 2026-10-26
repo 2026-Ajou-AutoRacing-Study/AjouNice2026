@@ -25,7 +25,7 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - GPU에 맞는 PyTorch wheel을 먼저 설치한 후 `requirements-runtime.txt`를 설치한다. CUDA/PyTorch는 rosdep 외부 계약이다.
 - 이 호스트의 확인 이력은 Python3.11.15·PyTorch2.7.1+cu128·Torchvision0.22.1+cu128·NumPy1.26.4·OpenCV4.8.1이다. 다른 GPU에 동일 wheel을 강제하지 않는다.
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
-- 설치기는 고정 v5 두 모델의 CUDA load를 확인한다. MORAI front1280×720·10Hz cadence·confidence·temporal semantics는 유지한다.
+- 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
 - map 기본은 v87다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
@@ -37,8 +37,8 @@ Profile은 supported lamps·유효 Autoware element 조합·detector correction�
 
 Route helper의 invalid match는 group ID `0`을 발행하며 지도 모드에서 다른 신호등으로 대체하지 않는다.
 별도 2초 message timeout은 helper process 상실에만 적용한다. 옛 route ID를 계속 유지하지 않는다.
-Planning `competition_fail_open`도 missing/stale/entirely unknown 신호에서 영구 정지를 피하도록 허용한다.
-두 fail-open 정책은 **simulation competition 전용**이며 실제 차량 안전 정책이 아니다.
+Planning 준수 가드 ON(현재 기본)은 missing/stale/unknown을 새 GO로 풀지 않는다.
+기존 `competition_fail_open`은 가드 OFF 대조군에서만 적용한다. 실제 도로용 안전 인증은 아니다.
 원시 correction 이유는 `/traffic_light_node/debug_policy_reason`에서 확인한다.
 
 환경 설치 명령과 정리 전 상세는 [보존 원문](docs/legacy/context_261024/README.md)에 있다.
@@ -118,8 +118,8 @@ helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms�
 `debug_classifier`는 CNN UNKNOWN과 확신 있는 소등을 구분하며 원본 detector box와
 실제 crop 좌표를 기록한다. CNN만 기본 12px crop margin을 적용한다
 (`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
-빈 관측이며 HSV로 몰래 전환하지 않는다. 이 빈 관측에도 **기존** route policy와
-smoother가 적용되므로 원시 missing/UNKNOWN을 최종 정책 출력과 분리 평가해야 한다.
+빈 관측이며 HSV로 몰래 전환하지 않는다. 현재 launch는 `planner_compliance_observations:=true`로
+상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 3개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
 `detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
 `debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
 장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이
