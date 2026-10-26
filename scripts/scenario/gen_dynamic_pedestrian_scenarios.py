@@ -286,39 +286,61 @@ def load_templates():
 
 
 def write_configs(timeout):
+    """캠페인 YAML 생성.
+
+    stack / localization_safety 는 음영구간 base에서 그대로 들어온다.
+    필드를 새로 만들어내지 않는다 (스키마 추측 금지).
+    detector 는 od_gt 고정 — 이 환경의 GTX 1060(sm_61)에서 BEVFusion이
+    안 돌고, 이 과제는 플래닝의 정지 판단을 보는 것이라 인지는 변수에서 뺀다.
+    """
     try:
         import yaml
     except ImportError:
         print('[skip] PyYAML 없음 — 캠페인 YAML은 수동으로 만드세요')
         return
-    # localization_safety 스키마는 음영구간 base에서 그대로 들어온다 (필드 추측 금지)
-    safety = {'enabled': True, 'stop_on_collision': False}
-    sp = os.path.join(MIS, 'gps_shadow/base/localization_gt_pose.yaml')
-    if os.path.exists(sp):
-        sd = yaml.safe_load(open(sp)) or {}
-        got = ((sd.get('validation') or {}).get('localization_safety') or {})
-        if got:
-            safety = dict(got)
-            safety['enabled'] = True
-            safety['stop_on_collision'] = False
-    for base, out in (('example.yaml', 'dp_set.yaml'),
-                      ('example_lan.yaml', 'dp_set_lan.yaml')):
+    SH = os.path.join(MIS, 'gps_shadow/base')
+    legacy = os.path.join(WS, 'dp_set.yaml')      # 구버전 이름 정리
+    if os.path.exists(legacy):
+        os.remove(legacy)
+        print('  remove  dp_set.yaml (구버전)')
+    variants = (
+        ('dp_set_gt.yaml', 'example.yaml', 'localization_gt_pose.yaml',
+         'dynped_gt_pose'),
+        ('dp_set_base.yaml', 'example.yaml', 'localization_baseline.yaml',
+         'dynped_baseline'),
+        ('dp_set_lan.yaml', 'example_lan.yaml', 'localization_gt_pose.yaml',
+         'dynped_gt_pose_lan'),
+    )
+    for out, base, donor, cname in variants:
         p = os.path.join(MISSION, 'base', base)
+        dp = os.path.join(SH, donor)
         if not os.path.exists(p):
+            print('  [skip] %s — base %s 없음' % (out, base))
+            continue
+        if not os.path.exists(dp):
+            print('  [skip] %s — 공여 설정 %s 없음' % (out, donor))
             continue
         d = yaml.safe_load(open(p))
+        sd = yaml.safe_load(open(dp)) or {}
+        # 캠페인 이름이 설정과 어긋나면 결과 디렉터리를 찾을 때 헷갈린다
+        d['campaign_name'] = cname
+        d['stack'] = dict(sd.get('stack') or d.get('stack') or {})
+        d['stack']['detector'] = 'od_gt'
+        safety = dict(((sd.get('validation') or {}).get('localization_safety')) or {})
+        safety.update(enabled=True, stop_on_collision=False)
+        d.setdefault('validation', {})['localization_safety'] = safety
         d['scenarios'].pop('include', None)
         d['scenarios']['directory'] = os.path.relpath(OUT, ROOT)
         d['scenarios']['glob'] = 'dq*.json'
         d['scenarios']['repeat'] = 1
         d['default_case']['timeout_sec'] = timeout
         # goal은 base 값을 그대로 쓴다 (70.991, 585.981). 임의 단축 금지.
-        d.setdefault('validation', {})['localization_safety'] = safety
         v = d.setdefault('recording', {}).setdefault('video', {})
         v.update(enabled=True, display=':1', fps=10, window_layout='split')
         yaml.safe_dump(d, open(os.path.join(WS, out), 'w'),
                        allow_unicode=True, sort_keys=False)
-        print('  config  %s' % out)
+        print('  config  %-16s pose=%-13s detector=%s'
+              % (out, d['stack'].get('pose_source'), d['stack'].get('detector')))
 
 
 def main():
@@ -374,6 +396,8 @@ def main():
                      d['pedestrianList'][0]['activeDistance'], a1[1], round(walk1, 1),
                      *(second if second else ('', '', '', '', ''))])
 
+    # do_baseline_01 은 쓰지 않는다. 그 파일의 보행자는 실제 주행 경로에서
+    # 600 m 벗어난 (-56.74, -11.61) 에 있어 장애물 역할을 하지 못한다.
     for i, src in enumerate(['do_baseline_00']):
         p = os.path.join(SRC, src + '.json')
         if os.path.exists(p):
@@ -393,8 +417,8 @@ def main():
     n2 = sum(1 for r in rows if r[1] == 2)
     ads = [r[7] for r in rows if r[1]]
     print()
-    print('시드 %d · 시나리오 %d개 (2명 %d개) + baseline 2 = %d개'
-          % (args.seed, len(plan), n2, len(rows)))
+    print('시드 %d · 시나리오 %d개 (2명 %d개) + baseline %d = %d개'
+          % (args.seed, len(plan), n2, len(rows) - len(plan), len(rows)))
     print('칸 %d개 x %.2f m · 구간 y %.0f~%.0f · 패턴 %d · 속도 %s · 종길이 %s'
           % (NCELL, CELL, Y0, Y1, len(PATTERNS), list(SPEEDS), list(LONS)))
     print('ego 차로 x %.2f · 도로폭 15.35 m · 지면 z %.2f · 자산 %d종'
