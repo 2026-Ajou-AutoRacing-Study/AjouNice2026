@@ -660,26 +660,43 @@ def _run_case(cfg, processes, monitor, case, state):
         state["current"]["phase"] = "ROUTE_REQUEST"
         _write_state(cfg, state)
         monitor.event("ROUTE_REQUEST")
-        route_args = {}
-        if cfg.get('route'):
-            geometry = cfg.get('_route_geometry')
-            if geometry is None:
-                geometry = cfg['_route_geometry'] = ProfileGeometry(cfg['route'], resolve_path)
-            odom = monitor.odom
-            if odom is None or odom.header.frame_id != 'map':
-                raise RuntimeFailure('Route B 요청에 map 좌표의 현재 위치가 필요합니다.')
-            p,q = odom.pose.pose.position,odom.pose.pose.orientation
-            yaw = math.degrees(math.atan2(
-                2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z)))
-            route_args['route_plan'] = geometry.plan(dict(x=p.x,y=p.y,z=p.z,yaw_deg=yaw),case.goal)
-            atomic_json(folder / 'route_profile.json',route_args['route_plan'])
-        try:
-            route_id = request_route(case, monitor,
-                timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)),
-                process=processes.running['planning'], **route_args)
-        finally:
+        def _build_route_args():
+            args = {}
+            if cfg.get('route'):
+                geometry = cfg.get('_route_geometry')
+                if geometry is None:
+                    geometry = cfg['_route_geometry'] = ProfileGeometry(cfg['route'], resolve_path)
+                odom = monitor.odom
+                if odom is None or odom.header.frame_id != 'map':
+                    raise RuntimeFailure('Route B 요청에 map 좌표의 현재 위치가 필요합니다.')
+                p, q = odom.pose.pose.position, odom.pose.pose.orientation
+                yaw = math.degrees(math.atan2(
+                    2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
+                args['route_plan'] = geometry.plan(
+                    dict(x=p.x, y=p.y, z=p.z, yaw_deg=yaw), case.goal)
+            return args
+
+        # route 요청이 간헐적으로 거부된다("DefaultPlanner returned an empty route").
+        # 같은 시나리오가 통과/실패를 반복하므로 내용 문제가 아니라, localization
+        # pose가 lanelet에 올라오기 전에 요청이 나가는 레이스로 본다. 재요청으로 흡수.
+        route_id = None
+        route_tries = int(cfg["document"].get("route_request_attempts", 3))
+        for route_attempt in range(1, route_tries + 1):
+            route_args = _build_route_args()
             if 'route_plan' in route_args:
-                atomic_json(folder / 'route_profile.json',route_args['route_plan'])
+                atomic_json(folder / 'route_profile.json', route_args['route_plan'])
+            try:
+                route_id = request_route(case, monitor,
+                    timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)),
+                    process=processes.running['planning'], **route_args)
+                break
+            except RuntimeFailure as exc:
+                if route_attempt >= route_tries:
+                    raise
+                monitor.event("ROUTE_RETRY", attempt=route_attempt, error=str(exc)[:200])
+                print("route 요청 거부: {}/{}회, 4초 후 재시도".format(
+                    route_attempt, route_tries), flush=True)
+                time.sleep(4.0)
         if safety['enabled']:
             monitor.wait_stationary(after=loaded_after, timeout=safety['startup_timeout_sec'],
                 hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
