@@ -597,6 +597,75 @@ class CandidateNodeTest(unittest.TestCase):
         self.assertEqual(crop.shape, (38, 74, 3))
         self.assertEqual(self.debug(node, "classifier_debug_pub")["crop_xyxy"], [468, 168, 542, 206])
 
+    def test_nominal_visual_identity_reads_current_red_or_yellow_and_expires(self):
+        # The fallback may identify the housing, but must never reuse GREEN
+        # from the trusted frame or keep its anchor alive indefinitely.
+        def observation(color):
+            return types.SimpleNamespace(known=True, tuples=((color, "circle", None),),
+                confidence=.99, to_dict=lambda: {"known": True, "reason": "observed_lamps"})
+
+        for current_color in ("red", "yellow"):
+            with self.subTest(current_color=current_color):
+                node = self.node(classifier="cnn")
+                node.detector_imgsz = node.runtime_metadata["detector_imgsz"] = 960
+                node.visual_continuation_sec = .3
+                node.near_rescue_config = NearRescueConfig(enabled=False)
+                node.planner_compliance_observations = True
+                ready = dict(self.packet(), group_id=201290,
+                    generated_stamp_ns=9_990_000_000, reason="projected")
+
+                def uncertain(source_ns):
+                    return dict(status="missing", reason="localization_uncertainty_exceeds_bound",
+                        group_id=201290, source_stamp_ns=source_ns,
+                        generated_stamp_ns=source_ns,
+                        selector_contract_version=SELECTOR_CONTRACT_VERSION,
+                        selector_config=ready["selector_config"], rois=[],
+                        nominal_continuation=dict(schema_version=1, status="ready",
+                            normal_eligibility=False,
+                            validated_image_time_tf_pose_extrinsic=True,
+                            actual_xy_sigma_m=.03, actual_z_sigma_m=1.,
+                            actual_yaw_sigma_degrees=3.2,
+                            rois=[dict(head_id="C1256W000016", group_id=201290,
+                                eligible=False, depth_m=10.,
+                                normal_rejection_reason="localization_uncertainty_exceeds_bound",
+                                bbox_xyxy=[500., 180., 550., 194.],
+                                gate_xyxy=[400., 100., 650., 250.])]))
+
+                node._map_packet_for_image.side_effect = [ready,
+                    uncertain(10_090_000_000), uncertain(10_340_000_000)]
+                node.model.predict.side_effect = [
+                    self.detector_results([480., 180., 530., 194.]),
+                    self.detector_results([500., 180., 550., 194.]),
+                    self.detector_results([500., 180., 550., 194.])]
+                classifier = types.SimpleNamespace(classify_bgr=Mock(side_effect=[
+                    observation("green"), observation(current_color)]))
+                node._cnn_startup = types.SimpleNamespace(ready=True, classifier=classifier)
+
+                for source_ns, now_ns, expected in (
+                    (9_990_000_000, 10_000_000_000, [["green", "circle", None]]),
+                    (10_090_000_000, 10_100_000_000, [[current_color, "circle", None]]),
+                    (10_340_000_000, 10_350_000_000, []),
+                ):
+                    image = self.image()
+                    source_sec, source_nsec = divmod(source_ns, 1_000_000_000)
+                    now_sec, now_nsec = divmod(now_ns, 1_000_000_000)
+                    image.header.stamp = Stamp(source_sec, source_nsec)
+                    with patch.object(self.module.rospy.Time, "now",
+                                      return_value=Stamp(now_sec, now_nsec)):
+                        node.image_callback(image)
+                    decision = self.debug(node, "runtime_debug_pub")["frame_decision"]
+                    self.assertEqual(decision["final_tuples"], expected)
+                    if source_ns == 10_090_000_000:
+                        self.assertEqual(decision["head_id"], "C1256W000016")
+                        self.assertEqual(decision["visual_continuation"]["identity_basis"],
+                                         "current_nominal_projection")
+                    elif source_ns == 10_340_000_000:
+                        self.assertEqual(decision["visual_continuation"]["reason"],
+                                         "visual_continuation_expired")
+                        self.assertEqual(self.debug(node, "classifier_debug_pub")["reason"],
+                                         "no_selected_crop")
+                self.assertEqual(classifier.classify_bgr.call_count, 2)
+
     def test_exact_image_packet_callback_race_has_bounded_condition_wait(self):
         node = self.node()
         node._roi_condition = threading.Condition()

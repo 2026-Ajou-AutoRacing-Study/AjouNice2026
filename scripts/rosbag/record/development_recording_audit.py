@@ -23,6 +23,13 @@ GROUPS = {
     'postprocessing_stage_timing': {'all': [
         '/tracked_object_motion_policy/diagnostics/processing_time_ms',
         '/map_based_prediction/diagnostics/processing_time_ms']},
+    'traffic_signal_causality': {'all': [
+        '/perception/traffic_light_recognition/route_group_id',
+        '/perception/traffic_light_recognition/map_rois',
+        '/perception/traffic_light_recognition/traffic_signals',
+        '/traffic_light_node/debug_selection',
+        '/traffic_light_node/debug_classifier',
+        '/traffic_light_node/debug_runtime']},
     'lane_change_reason': {'any': [
         '/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/'
         'debug/lane_change_' + side + '/safety_checks' for side in ('left', 'right')]},

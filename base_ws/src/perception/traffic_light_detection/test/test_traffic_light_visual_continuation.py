@@ -5,7 +5,7 @@ import sys
 import pytest
 
 PACKAGE=Path(__file__).resolve().parents[1];sys.path.insert(0,str(PACKAGE/'scripts'))
-from traffic_light_visual_continuation import VisualContinuation
+from traffic_light_visual_continuation import VisualContinuation, _current_nominal_identity
 from traffic_light_map_selector import SELECTOR_CONTRACT_VERSION
 
 
@@ -113,6 +113,65 @@ def test_small_boundary_jitter_matches_identity_without_modifying_the_actual_cro
     assert decision['identity_iou']>=.5
     assert decision['identity_boundary_tolerance_px']<=2.
     assert decision['identity_boundary_tolerance_px']<=.1*(previous[3]-previous[1])
+
+
+def test_current_nominal_projection_recovers_fast_approach_to_same_small_head():
+    # At B, a 20x7px housing can move several pixels in one camera frame.
+    # Prior-box IoU is then low although the current image-time map projection
+    # and the current YOLO detection still point at the same isolated head.
+    prior=(518.,253.,538.,261.)
+    current=(517.,258.,539.,266.)
+    value=VisualContinuation();value.remember(box(prior),
+        dict(status='matched',reason='map_head_association',head_id='D052'),
+        201326,10_000_000_000,10_010_000_000)
+    p=packet();p['nominal_continuation']['rois'][0].update(
+        bbox_xyxy=[521.,262.,540.,269.],gate_xyxy=[400.,200.,650.,330.])
+    selected,decision=select(value,p=p,boxes=[box(current)])
+    assert selected==box(current)
+    assert decision['identity_iou']<.5
+    assert decision['identity_basis']=='current_nominal_projection'
+    assert not any('lamp' in key for key in decision)
+
+
+def test_current_projection_tolerance_shrinks_for_a_small_housing():
+    projected=(521.,262.,540.,269.)
+    assert _current_nominal_identity((520.,263.,539.,270.),projected)
+    # Six-pixel vertical center error is inside the old fixed 8px allowance,
+    # but is too large for a seven-pixel-high projected housing.
+    assert not _current_nominal_identity((520.,268.,539.,275.),projected)
+
+
+def test_current_projection_is_not_a_broad_uncertainty_gate_or_tf_fallback():
+    prior=(518.,253.,538.,261.)
+    value=VisualContinuation();value.remember(box(prior),
+        dict(status='matched',reason='map_head_association',head_id='D052'),
+        201326,10_000_000_000,10_010_000_000)
+    p=packet();p['nominal_continuation']['rois'][0].update(
+        bbox_xyxy=[521.,262.,540.,269.],gate_xyxy=[400.,200.,650.,330.])
+    # Both boxes lie in the huge uncertainty gate, but neither agrees with
+    # the tight current projection, so neither may inherit the old identity.
+    assert select(value,p=p,boxes=[box((500.,258.,522.,266.))])[0] is None
+    assert select(value,p=p,boxes=[box((517.,240.,539.,248.))],
+                  source=10_200_000_000,now=10_210_000_000)[0] is None
+    # An exact current projection is insufficient without image-time TF proof.
+    p=packet();p['nominal_continuation']['rois'][0].update(
+        bbox_xyxy=[521.,262.,540.,269.],gate_xyxy=[400.,200.,650.,330.])
+    p['nominal_continuation']['validated_image_time_tf_pose_extrinsic']=False
+    assert select(tracker(),p=p,boxes=[box((517.,258.,539.,266.))])[0] is None
+
+
+def test_current_projection_rejects_competing_mapped_head():
+    prior=(518.,253.,538.,261.)
+    value=VisualContinuation();value.remember(box(prior),
+        dict(status='matched',reason='map_head_association',head_id='D052'),
+        201326,10_000_000_000,10_010_000_000)
+    p=packet();target=p['nominal_continuation']['rois'][0]
+    target.update(bbox_xyxy=[521.,262.,540.,269.],gate_xyxy=[400.,200.,650.,330.])
+    competitor=copy.deepcopy(target);competitor['head_id']='other-head'
+    p['nominal_continuation']['rois'].append(competitor)
+    selected,decision=select(value,p=p,boxes=[box((517.,258.,539.,266.))])
+    assert selected is None
+    assert decision['reason']=='visual_continuation_other_head_competitor'
 
 
 def test_boundary_tolerance_cannot_jump_to_nearby_distinct_or_competing_housing():

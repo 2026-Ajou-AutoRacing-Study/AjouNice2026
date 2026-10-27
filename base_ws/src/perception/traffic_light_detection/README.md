@@ -149,13 +149,15 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 실제 R/Y·확신 소등·모순·TF/지도/identity 실패는 즉시 반영한다.
 
 `visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
-현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 색 hold가 아니며
+현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 박스 IoU가 낮아도
+현재 영상 시각의 nominal 지도 투영과 현재 검출 박스의 중심·크기가 좁게 일치하면 같은 head를 이어 볼 수 있다.
+이전 색 hold가 아니며
 anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
-`visual_continuation_sec:=0`으로 이 보완만 끈다. [연속 bag·실제 주행 근거](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)와 planning 통합 상태는 CURRENT를 따른다.
+`visual_continuation_sec:=0`으로 이 보완만 끈다. [기존 연속 시험](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)과 [새 B bag 재생](../../../../docs/perception/traffic_light/261027_B_ROI_PROJECTION_CONTINUATION.md)의 검증 범위를 구분하고, planning 통합 상태는 CURRENT를 따른다.
 
-Planning 기본 `defer_far_unseen_unknown:=true`는 첫 유효 램프 관측 전의 원거리 빈 UNKNOWN만
-정지점 적용을 미룬다. 기본 경계는 40m와 현재 속도의 jerk 제한 제동 거리 + 1초 이동 거리 + 5m
-중 큰 쪽이다. 적색·황색, 관측 후 누락, 경계 안 UNKNOWN은 기존 정지 판단을 유지한다.
+Planning 기본 `defer_unseen_until_observed:=true`는 이번 미션에서 아직 유효 램프를 한 번도 읽지 못한
+UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 및 관측 후 누락은 정지 판단을 유지한다.
+이 설정에는 첫 판독이 끝내 없을 때 적색 통과 위험이 있으므로 [CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)의 운영 계약을 확인한다.
 이것은 perception의 `OFF` 라벨 자체를 GO 신호로 바꾸지 않는다.
 
 팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
