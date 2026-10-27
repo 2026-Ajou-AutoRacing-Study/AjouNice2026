@@ -1,6 +1,21 @@
 # K-City 지도
 
-현재 planning·인지·측위 지도·시각화의 소스 기본 지도는 **v98**이다.
+현재 planning·인지·측위 지도·시각화의 기본 지도는 **v99**이다.
+v99는 사용자가 팀 Drive로 배포한 지도이며, v98 대비 Lanelet `201096`의
+제한속도만 59 → 30 km/h로 변경했다. 모든 노드·Way·연결·나머지 속성은 동일하다.
+[현재 manifest](../configs/map/kcity_v99_speed_limit.yaml)에 실제 파일 SHA를 고정한다.
+팀원은 Drive에서 받은 v99를 `kcity_map/lanelet_map/lanelet2_map_v99.osm`에 배치한다.
+지도 파일·작업용 그림·검증 산출물은 Git에 포함하지 않는다.
+
+```bash
+python3 scripts/map/prepare_kcity_v99.py --check
+python3 scripts/map/check_runtime_map_version.py --installed
+```
+
+클린빌드도 v99를 검사한 뒤 진행한다. 파일이 없거나 SHA가 다르면 중단하며 구버전으로 대체하지 않는다.
+설치 반영 후 실행 중인 노드는 재시작해야 새 지도를 로드한다. 아래 설명은 이전 자산 이력이다.
+
+이전 v98은 중심선 연결을 수정한 지도다.
 v98은 v97의 Lanelet `201439` 중심선 Way `105522` 끝점 참조를
 `229565`에서 다음 Lanelet `200360`의 `233927`로 연결한 지도다.
 9.0502 cm 간격을 없애며 기존 굴절은 보존한다. 경계·속도·나머지 형상·경로 정책은 변경하지 않는다.
@@ -25,7 +40,7 @@ v97은 사용자가 제공한 지도이며 `200968`의 제한속도는 59 → 40
 VMB 재저장에 따른 좌표 정밀도·속성·멤버 차이도 있어 v96과 바이트/형상이 동일하다고 간주하지 않는다.
 Route A/B와 Mission 정책은 v96을 계승하며 지도 로드·경로 연결은 별도 검증한다.
 `python3 scripts/map/prepare_kcity_v97.py --check`로 자산을 확인한다.
-당시 설치된 기본값은 v97이었다. 현재 기본값은 문서 상단의 v98을 따른다.
+당시 설치된 기본값은 v97이었다. 현재 기본값은 문서 상단의 v99를 따른다.
 
 2026-10-27: 로컬 v95를 기반으로 음영 직선도로 양쪽 레인렛 `200374`, `200471`의
 `speed_limit`을 59 → **40 km/h**로 변경한 `lanelet_map/lanelet2_map_v96.osm`을 생성했다.
@@ -60,11 +75,11 @@ v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와�
 
 | 구분 | 경로·기준 |
 | --- | --- |
-| Lanelet2 | `lanelet_map/lanelet2_map_v98.osm` |
+| Lanelet2 | `lanelet_map/lanelet2_map_v99.osm` |
 | Projector | `lanelet_map/map_projector_info_v1.yaml` |
 | Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
 | 속도 상한 | v88 OSM attributes: 대상 양쪽 차선 150 → 80 → 70 km/h. 별도 override 없음 |
-| 최신 자산 검증 근거 | `../configs/map/kcity_v98_centerline_connection.yaml` |
+| 최신 자산 검증 근거 | `../configs/map/kcity_v99_speed_limit.yaml` |
 | 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
 
 ## 자산 준비

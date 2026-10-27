@@ -35,9 +35,9 @@ from tf.transformations import quaternion_from_euler
 
 repo = Path(os.environ["AJOUNICE_ROOT"]).resolve()
 result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
-map_version = os.environ.get("AW149_OUTPUT_PROBE_MAP_VERSION", "98")
-if map_version not in ("98",):
-    raise ValueError("AW149_OUTPUT_PROBE_MAP_VERSION must be 98")
+map_version = os.environ.get("AW149_OUTPUT_PROBE_MAP_VERSION", "99")
+if map_version not in ("99",):
+    raise ValueError("AW149_OUTPUT_PROBE_MAP_VERSION must be 99")
 route_path = repo / ("base_ws/src/planning_addons/competition_route_requester/config/kcity_v" +
                      map_version + "_competition_route.yaml")
 route_config = yaml.safe_load(route_path.read_text())

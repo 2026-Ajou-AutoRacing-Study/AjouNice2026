@@ -39,6 +39,8 @@ def workspace(tmp_path):
     for path, stage in [('planning_ws/tools/build.sh', 'planning'),
                         ('scripts/runtime/install_traffic_light_candidate.sh', 'installer')]:
         write(path, f'exec /usr/bin/python3 "$MOCK_LOGGER" {stage} "$@"\n')
+    write('scripts/map/prepare_kcity_v99.py', LOGGER.replace('sys.argv[1:]',
+          "['prepare'] + sys.argv[1:]").replace("sys.argv[1] else 0", "'prepare' else 0"))
     write('scripts/map/prepare_kcity_v98.py', LOGGER.replace('sys.argv[1:]',
           "['prepare'] + sys.argv[1:]").replace("sys.argv[1] else 0", "'prepare' else 0"))
     write('scripts/map/prepare_kcity_v97.py', LOGGER.replace('sys.argv[1:]',
@@ -74,19 +76,19 @@ def workspace(tmp_path):
     return tmp_path, run
 
 
-def test_default_builds_all_scoped_packages_then_installer_after_verifying_v98_map(workspace):
+def test_default_builds_all_scoped_packages_then_installer_after_verifying_v99_map(workspace):
     root, run = workspace
     result, calls = run('--device', 'cpu', '--models-dir', str(root / 'models with spaces'))
     assert result.returncode == 0, result.stderr
     assert [call[0] for call in calls] == ['prepare', 'planning'] + ['cmake'] * 7 + ['installer']
-    assert calls[0] == ['prepare']
+    assert calls[0] == ['prepare', '--check']
     assert calls[1][1:] == ['--pkg', *PLANNING, '--make-args', '-j2', '-l2']
     assert calls[-1][1:] == ['--device', 'cpu', '--models-dir', str(root / 'models with spaces')]
     for call, relative in zip(calls[2:-1], ASSETS):
         assert call[1:] == ['--build', str(root / 'base_ws/build_aw149' / relative.rsplit('/', 1)[-1]),
                             '--target', 'install', '--', '-j2']
     for name in ('planning', 'traffic', 'tracking'):
-        assert f'{name} map_version:=98' in result.stdout
+        assert f'{name} map_version:=99' in result.stdout
 
 
 @pytest.mark.parametrize('remote,expected', [(None, []), ('teammate_private', ['--remote', 'teammate_private'])])

@@ -10,7 +10,7 @@
   <arg name="prediction_highway_horizon" default=""/>
   <arg name="prediction_highway_mode" default=""/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="map_version" default="98"/>
+  <arg name="map_version" default="99"/>
   <arg name="vehicle_only_corridor_enabled" default="false"/>
   <arg name="vehicle_only_corridor_route_file"
        default="$(arg repo_root)/base_ws/src/planning_addons/competition_route_requester/config/kcity_v$(arg map_version)_competition_route.yaml"/>

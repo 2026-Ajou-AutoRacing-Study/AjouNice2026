@@ -1,7 +1,7 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v98.osm"/>
-  <arg name="map_sha256" default="25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v99.osm"/>
+  <arg name="map_sha256" default="e9d28ebad8b5c1ed7b876c18702923e44b75a53d7f3db4e856eafe6ef756db30"/>
   <node pkg="ajounice_planning_integration" type="map_projector_publisher" name="map_projector_publisher" required="true" output="screen">
     <param name="repo_root" value="$(arg repo_root)"/>
     <param name="map_file" value="$(arg map_file)"/>

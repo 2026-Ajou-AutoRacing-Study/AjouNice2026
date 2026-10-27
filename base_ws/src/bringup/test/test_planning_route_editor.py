@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[4]
 class RouteEditorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v98_competition_route.yaml').read_text())
+        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v99_competition_route.yaml').read_text())
         cls.road = EDITOR.RouteMap(ROOT, definition)
 
     def setUp(self):
@@ -33,7 +33,7 @@ class RouteEditorTest(unittest.TestCase):
     def test_local_utm_matches_audited_start_pose(self):
         point = self.road.lines[200889][0]
         start = self.road.definition['start']['map_pose']
-        # v98 VMB export rounds local coordinates to 0.1 mm.
+        # v99 VMB export rounds local coordinates to 0.1 mm.
         for actual, expected in zip(point, (start['x'], start['y'], start['z'])):
             self.assertAlmostEqual(actual, expected, delta=0.0005)
 
