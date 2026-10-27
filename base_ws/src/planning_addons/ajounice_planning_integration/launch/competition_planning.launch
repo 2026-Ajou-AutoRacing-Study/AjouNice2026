@@ -2,13 +2,13 @@
   <!-- Production remains true. Set false only for local localization/control
        load tests that intentionally ignore every traffic signal. -->
   <arg name="enable_traffic_light_planner" default="true"/>
-  <arg name="map_version" default="95"/>
+  <arg name="map_version" default="96"/>
   <!--
     No-argument AjouNice competition planning entrypoint.
 
     Localization/map TF, sensing, detection, tracking/prediction, traffic-light
     detection, RViz, and control are launched separately.  This launch owns
-    the v95 binary map, operation mode, route requester, and the complete
+    the v96 binary map, operation mode, route requester, and the complete
     Mission -> BPP -> BVP -> path optimization -> MVP -> velocity smoother ->
     Planning Validator graph.
   -->

@@ -24,7 +24,7 @@ def test_v95_route_changes_map_identity_only():
     assert new == expected
     params = load(PACKAGE / 'config/competition_route_requester_v95.param.yaml')
     assert params['route_definition_file'] == 'kcity_v95_competition_route.yaml'
-    assert params == load(PACKAGE / 'config/competition_route_requester.param.yaml')
+    # Historical v95 profile stays valid independently of the current default.
     old_params = load(PACKAGE / 'config/competition_route_requester_v94.param.yaml')
     old_params['route_definition_file'] = params['route_definition_file']
     assert params == old_params

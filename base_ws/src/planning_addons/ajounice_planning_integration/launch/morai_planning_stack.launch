@@ -4,7 +4,7 @@
     default so the first gate can inspect /planning/trajectory safely.
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="map_version" default="95"/>
+  <arg name="map_version" default="96"/>
   <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>

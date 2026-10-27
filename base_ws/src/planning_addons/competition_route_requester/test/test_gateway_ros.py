@@ -33,8 +33,8 @@ REPO = PACKAGE.parents[3]
 class GatewayROS(unittest.TestCase):
     def setUp(self):
         self.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v95_competition_route.yaml').read_text())
-        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v95_competition_route.yaml'),
+        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v96_competition_route.yaml').read_text())
+        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v96_competition_route.yaml'),
                         service_timeout=.2, route_verification_timeout=.4, trajectory_verification_timeout=.5)
         if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport',
                                     'test_manual_a_restart_from_b',
