@@ -36,6 +36,10 @@
   <!-- Default promotion is not a full-route qualification claim. -->
   <arg name="selection_mode" default="map_association" />
   <arg name="classifier_mode" default="cnn" />
+  <!-- Camera-to-housing forward depth, NOT distance to a stop line.
+       User-selected ABC40/D30; legacy/unguarded modes keep their old behavior. -->
+  <arg name="observation_start_depth_m" default="$(eval 40.0 if arg('selection_mode') == 'map_association' and str(arg('planner_compliance_observations')).lower() == 'true' else 0.0)" />
+  <arg name="observation_start_depth_d_m" default="$(eval 30.0 if float(arg('observation_start_depth_m')) > 0 else 0.0)" />
   <arg name="cnn_checkpoint_path" default="$(arg models_root)/cnn_v5/best.pt" />
   <arg name="cnn_device" default="$(eval 'cpu' if str(arg('device')) == 'cpu' else 'cuda:' + str(arg('device')))" />
   <arg name="cnn_min_bit_confidence" default="0.6" />
@@ -162,6 +166,8 @@
     <param name="detector_imgsz" value="$(arg detector_imgsz)" />
     <param name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <param name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <param name="observation_start_depth_m" value="$(arg observation_start_depth_m)" type="double" />
+    <param name="observation_start_depth_d_m" value="$(arg observation_start_depth_d_m)" type="double" />
     <param name="preserve_unreadable_color_evidence" value="$(arg preserve_unreadable_color_evidence)" type="bool" />
     <param name="stamped_vote_window_size" value="$(arg stamped_vote_window_size)" type="int" />
     <param name="stamped_vote_max_age_sec" value="$(arg stamped_vote_max_age_sec)" type="double" />

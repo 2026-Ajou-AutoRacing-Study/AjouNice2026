@@ -291,25 +291,57 @@ TEST_F(TrafficTimedYellowExperimentalTest, ABCDPriorStopCannotBecomeYellowDepart
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, ABCDUnknownGracePreservesOnlyPriorGrantedTransition)
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDCommittedGoDoesNotRevokeAtShortUnknownGap)
 {
   for (const auto group : {201351,201365,201290,201326}) {
     for (const bool expired : {false,true}) {
       configure(group,true,true,1,2.,0.,false,20.,true,false,false,.3);
       tick(); pose(3.,5.); put(green()); EXPECT_FALSE(stops());
-      Signal empty; tick(expired ? .31 : .05); put(empty); EXPECT_EQ(stops(),expired);
-      tick(.05); put(yellow()); EXPECT_EQ(stops(),expired);
+      Signal empty; tick(expired ? .31 : .05); put(empty); EXPECT_FALSE(stops());
+      tick(.05); put(yellow()); EXPECT_FALSE(stops());
     }
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, ABCDRedPastCameraTargetStillStopsBeforeOfficialCrossing)
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDCommittedGoRetainsRedUntilActualStop)
 {
   for (const auto group : {201351,201365,201290,201326}) {
     configure(group,true,true,1,2.,0.,false,20.);
     tick(); pose(6.5,2.); put(green()); EXPECT_FALSE(stops());
     tick(); put(yellow()); EXPECT_FALSE(stops());
-    tick(); put(red()); EXPECT_TRUE(stops());
+    tick(); put(red()); EXPECT_FALSE(stops());
+    tick(); pose(6.5,0.); put(red()); EXPECT_TRUE(stops());
+    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, CroppedVirtualLineRetainsGeometryButNeverMasksCurrentColors)
+{
+  for (const auto group:{201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,true,1,2.,0.,false,20.,true,false,false,.3);
+    tick(); pose(6.,0.); put(red()); EXPECT_TRUE(stops());
+    tick(.4); pose(12.,5.); put(Signal{}); EXPECT_TRUE(stops(11.));
+    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+    tick(); put(red()); EXPECT_TRUE(stops(11.));
+    tick(); put(yellow()); EXPECT_TRUE(stops(11.));
+    Signal ambiguous; ambiguous.elements={lamp(Element::RED,Element::UNKNOWN)};
+    tick(); put(ambiguous); EXPECT_TRUE(stops(11.));
+    tick(); put(Signal{}); EXPECT_TRUE(stops(11.));
+    tick(); pose(6.,0.); put(Signal{}); EXPECT_TRUE(stops());
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, CroppedPathCannotInventUnseenBoundaryOrStaleVirtualExit)
+{
+  for (const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,1,2.,0.,false,20.,true,false,false,.3);
+    tick(); pose(12.,5.); put(Signal{}); EXPECT_TRUE(stops(11.));
+    tick(); pose(6.,0.); put(red()); EXPECT_TRUE(stops());
+    tick(); pose(7.,0.); put(Signal{}); EXPECT_TRUE(stops(11.));
+    tick(); pose(12.,5.); put(Signal{}); EXPECT_TRUE(stops(11.));
+    tick(.6); pose(12.,5.); EXPECT_TRUE(stops(11.));
+    tick(); pose(17.1,5.); put(red()); EXPECT_TRUE(stops(11.));
     EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
   }
 }
@@ -338,7 +370,7 @@ TEST_F(TrafficTimedYellowExperimentalTest, DStraightGreenIsNotLeftAuthorization)
   tick();pose(6.,5.);put(yellow());EXPECT_TRUE(stops());
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, RedMissingAndStaleInvalidateAnEarlierTimedPass)
+TEST_F(TrafficTimedYellowExperimentalTest, MovingCommittedGoIsNotReopenedByLaterColorOrInputGaps)
 {
   for(int fault=0;fault<3;++fault) {
     configure(201351,true,true,3,2.,0.,false);
@@ -346,7 +378,7 @@ TEST_F(TrafficTimedYellowExperimentalTest, RedMissingAndStaleInvalidateAnEarlier
     if(fault==0){tick();pose();put(red());}
     if(fault==1){data_->traffic_light_id_map_raw_.clear();tick();pose();}
     if(fault==2){tick(.6);pose();}
-    EXPECT_TRUE(stops());
+    EXPECT_FALSE(stops());
   }
 }
 
@@ -387,8 +419,23 @@ TEST_F(TrafficTimedYellowExperimentalTest, StandardMarginAppliesToAllMissionsWit
     EXPECT_TRUE(stops());
     EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
     tick();pose(7.01,0.);put(red());
-    EXPECT_FALSE(stops());
-    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
+    EXPECT_TRUE(stops());
+    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDMovingGreenCrossesDynamicBoundaryAndStoppedRedRearms)
+{
+  data_->delay_response_time=0.;
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,false,1,2.,0.,true,20.);
+    tick();pose(0.,5.);put(green());EXPECT_FALSE(stops());
+    tick();pose(5.,5.);put(green());EXPECT_FALSE(stops());
+    tick();put(yellow());EXPECT_FALSE(stops());
+    tick();put(red());EXPECT_FALSE(stops());
+    tick();pose(5.,0.);put(red());EXPECT_TRUE(stops());
+    tick();pose(12.,0.);put(Signal{});EXPECT_TRUE(stops(11.));
+    tick();put(green());EXPECT_FALSE(stops(11.));
   }
 }
 }  // namespace autoware::behavior_velocity_planner::experimental

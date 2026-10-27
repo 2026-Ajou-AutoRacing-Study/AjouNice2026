@@ -160,9 +160,12 @@ protected:
       EXPECT_EQ(modifiesToStop(),index<2);
     }
   }
-  bool signalStop() { return module_->isStopSignal(); }
+  bool signalStop() { return module_->isStopSignal(
+    10.-3.845-data_->current_odometry->pose.position.x); }
   bool pass(double bumper_target_distance) { return module_->isPassthrough(bumper_target_distance); }
   auto state() { return module_->getTrafficLightModuleState(); }
+  auto decisionState() { return module_->decision_line_latch_.state(); }
+  bool pendingDecisionStop() { return module_->decision_line_latch_.pendingStop(); }
   void setPeriod(double seconds) { module_->planner_param_.yellow_lamp_period=seconds; }
   void setStopMargin(double metres) { module_->planner_param_.stop_margin=metres; }
   void setYellowDeceleration(double value) { module_->planner_param_.signal_compliance_yellow_deceleration_mps2=value; }
@@ -195,7 +198,7 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDThreeFreshSourcesUseActualDirection
   }
 }
 
-TEST_F(TrafficLightComplianceModuleTest, ABCDSimpleLaneletStoppingBoundaryIgnoresOldLampPeriod)
+TEST_F(TrafficLightComplianceModuleTest, ABCDJerkDecisionBoundaryIgnoresOldLampPeriod)
 {
   for(const auto group:{201351,201365,201290,201326}) {
     for(const double period:{2.,3.}) {
@@ -204,13 +207,13 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDSimpleLaneletStoppingBoundaryIgnore
         SCOPED_TRACE(period);
         SCOPED_TRACE(stoppable);
         configure(group); pose(0.,5.);
-        const double judge=5.*data_->delay_response_time+25./16.;
+        const double judge=*signal_compliance::jerkStoppingDistance(5.,8.,16.,data_->delay_response_time);
         const double target_distance=judge+(stoppable?.1:-.1);
         const double x=10.-3.845-target_distance;
         confirmGreenOnRealPath(x,5.); setPeriod(period);
         tick(); pose(x,5.); put(yellow());
-        EXPECT_TRUE(signalStop());
-        EXPECT_EQ(pass(target_distance),!stoppable);
+        EXPECT_EQ(signalStop(),stoppable);
+        EXPECT_FALSE(pass(target_distance)); // No second yellow-only override.
         EXPECT_EQ(modifiesToStop(),stoppable);
       }
     }
@@ -417,11 +420,12 @@ TEST_F(TrafficLightComplianceModuleTest, ShiftedCameraStopLineCannotClearBeforeO
     tick(); pose(8.,2.); put(red());
     EXPECT_TRUE(modifiesToStop());
     EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
-    // The shifted Lanelet line at10m is passed by the axle, but the judging
-    // line at20m is not. Crossing only the actual judging line clears STOP.
+    // Neither the shifted nor original crossing silently revokes a selected
+    // STOP. Only fresh route-direction authorization can release it.
     tick(); pose(17.1,2.); put(red());
-    EXPECT_FALSE(modifiesToStop());
-    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+    EXPECT_TRUE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+    confirmGreenOnRealPath(17.1,0.);
   }
 }
 
@@ -461,7 +465,7 @@ TEST_F(TrafficLightComplianceModuleTest, MissingOriginalLineDoesNotDisableLanele
   confirmGreenOnRealPath(6.,2.);
   tick(); pose(6.,2.); put(yellow());
   EXPECT_FALSE(modifiesToStop());
-  EXPECT_TRUE(pass(.155));
+  EXPECT_FALSE(pass(.155));
 }
 
 TEST_F(TrafficLightComplianceModuleTest, ABCDCameraTargetUsesBumperDistanceOnceAndIgnoresOldTimedMode)
@@ -482,16 +486,16 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDCameraTargetUsesBumperDistanceOnceA
   }
 }
 
-TEST_F(TrafficLightComplianceModuleTest, ABCDUnknownGraceCanBridgeGreenToYellowButCannotInventGrant)
+TEST_F(TrafficLightComplianceModuleTest, ABCDUnknownGraceCannotInventDecisionBoundaryGrant)
 {
   data_->delay_response_time=.5;
   for (const auto group : {201351,201365,201290,201326}) {
     for (const bool expired : {false,true}) {
       configure(group,true,true,20.,true,.3,1);
-      tick(); pose(3.,5.); put(green()); EXPECT_FALSE(modifiesToStop());
+      tick(); pose(0.,5.); put(green()); EXPECT_FALSE(modifiesToStop());
       Signal empty; tick(expired ? .31 : .05); put(empty);
       EXPECT_EQ(modifiesToStop(),expired);
-      tick(.05); put(yellow()); EXPECT_EQ(modifiesToStop(),expired);
+      tick(.05); put(yellow()); EXPECT_TRUE(modifiesToStop());
     }
   }
 }
@@ -505,7 +509,8 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDPriorYellowStopDoesNotBecomeNewGoCl
     tick(); pose(6.,5.); put(yellow()); EXPECT_TRUE(modifiesToStop());
     configure(group,true,true,20.); confirmGreenOnRealPath(6.5,2.);
     tick(); put(yellow()); EXPECT_FALSE(modifiesToStop());
-    tick(); put(red());
+    tick(); put(red()); EXPECT_FALSE(modifiesToStop()); // Committed GO retains later red.
+    tick(); pose(6.5,0.); put(red()); // An actual stop ends that moving commitment.
     auto output=path(); ASSERT_TRUE(module_->modifyPathVelocity(&output));
     const auto stopped=std::find_if(output.points.begin(),output.points.end(),[](const auto & p) {
       return p.point.longitudinal_velocity_mps<.001;
@@ -525,9 +530,10 @@ TEST_F(TrafficLightComplianceModuleTest, SimpleYellowDecelerationIsIndependentOf
   tick(); put(yellow()); EXPECT_FALSE(modifiesToStop());
   EXPECT_DOUBLE_EQ(data_->max_stop_acceleration_threshold,-6.);
   EXPECT_DOUBLE_EQ(data_->max_stop_jerk_threshold,-10.);
-  // Target3.655m exceeds a16's3.28125m stop distance (a8 would still pass).
-  configure(201351,true,true,20.); confirmGreenOnRealPath(2.5,5.);
-  setYellowDeceleration(16.); tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
+  // Changing global deceleration does not change the dedicated b/J decision.
+  configure(201351,true,true,20.); setYellowDeceleration(16.);
+  confirmGreenOnRealPath(0.,5.);
+  tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
 }
 
 TEST_F(TrafficLightComplianceModuleTest, AlreadyCrossedFrontAxleLineNeverAddsRedOrMissingStop)
@@ -568,15 +574,15 @@ TEST_F(TrafficLightComplianceModuleTest, DefaultYellowMasterOffDoesNotBlockAutho
   }
 }
 
-TEST_F(TrafficLightComplianceModuleTest, StoppedPastFrontAxleLineClearsEvenAfterFreshModuleWithYellowOff)
+TEST_F(TrafficLightComplianceModuleTest, YellowOffPendingStopSurvivesFrontAxleOvershoot)
 {
   for(const auto group:{201351,201365,201290,201326}) {
     configure(group,true,false); tick(); pose(6.3,0.); put(red());
     // Bumper is past the line, but front axle is still 0.7m BEFORE it.
     EXPECT_TRUE(modifiesToStop());
     pose(7.1,0.); put(red());
-    EXPECT_FALSE(modifiesToStop());
-    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+    EXPECT_TRUE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
     configure(group,true,false); pose(7.1,0.);
     data_->traffic_light_id_map_raw_.clear();
     EXPECT_FALSE(modifiesToStop());
@@ -593,16 +599,16 @@ TEST_F(TrafficLightComplianceModuleTest, LargeBackwardRelocationRearmsActualRedS
   EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
 }
 
-TEST_F(TrafficLightComplianceModuleTest, ObservedVirtualExitDoesNotAddUnknownStopEvenWhenAlreadyStopped)
+TEST_F(TrafficLightComplianceModuleTest, PendingStopSurvivesUnknownAfterVirtualExitEvenWhenAlreadyStopped)
 {
   for (const auto group:{201351,201365,201290,201326}) {
     configure(group,true,true,20.,true,.3,1);
     tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
-    tick(.4); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    tick(.4); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
     EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
     tick(); put(red()); EXPECT_TRUE(modifiesToStop());
     tick(); put(yellow()); EXPECT_TRUE(modifiesToStop()); // no yellow new departure
-    tick(); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    tick(); put(Signal{}); EXPECT_TRUE(modifiesToStop());
   }
 }
 
@@ -612,7 +618,7 @@ TEST_F(TrafficLightComplianceModuleTest, TerminalUnknownNeverMasksReadableEviden
   tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
   tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
   tick(); pose(7.,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop()); // equality
-  tick(); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
   Signal ambiguous; ambiguous.elements={lamp(Element::RED,Element::UNKNOWN)};
   tick(); put(ambiguous); EXPECT_TRUE(modifiesToStop());
   tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
@@ -620,12 +626,49 @@ TEST_F(TrafficLightComplianceModuleTest, TerminalUnknownNeverMasksReadableEviden
   tick(); put(Signal{},1.1); EXPECT_TRUE(modifiesToStop());
 }
 
+TEST_F(TrafficLightComplianceModuleTest, CroppedVirtualLineRetainsGeometryButNeverMasksCurrentColors)
+{
+  for (const auto group:{201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,true,20.,true,.3,1);
+    tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+    // Real virtual line x=10 is now behind the path start. Front x=15 has
+    // passed it, but the official line x=20 remains ahead. The current-ego
+    // synthetic stop target must not replace the real virtual-line distance.
+    tick(.4); pose(12.,5.); put(Signal{}); EXPECT_TRUE(modifiesToStop(11.));
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop(11.));
+    tick(); put(yellow()); EXPECT_TRUE(modifiesToStop(11.));
+    Signal ambiguous; ambiguous.elements={lamp(Element::RED,Element::UNKNOWN)};
+    tick(); put(ambiguous); EXPECT_TRUE(modifiesToStop(11.));
+    tick(); put(Signal{}); EXPECT_TRUE(modifiesToStop(11.));
+    // Independent geometry is not a latched grant after relocating backwards.
+    tick(); pose(6.,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, CroppedPathCannotInventUnseenBoundaryOrStaleVirtualExit)
+{
+  for (const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,20.,true,.3,1);
+    tick(); pose(12.,5.); put(Signal{}); EXPECT_TRUE(modifiesToStop(11.));
+    tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(); pose(7.,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop(11.)); // front exactly x=10
+    tick(); pose(12.,5.); put(Signal{}); EXPECT_TRUE(modifiesToStop(11.));
+    setFailOpen(false);
+    tick(); put(Signal{},1.1); EXPECT_TRUE(modifiesToStop(11.));
+    tick(); pose(17.1,5.); put(red()); EXPECT_TRUE(modifiesToStop(11.));
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+  }
+}
+
 TEST_F(TrafficLightComplianceModuleTest, OfficialCrossingAndBackwardRelocationResetObservedApproach)
 {
   configure(201351,true,true,20.,true,.3,1);
   tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
-  tick(); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
-  tick(); pose(17.1,5.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+  tick(); pose(17.1,5.); put(green()); EXPECT_FALSE(modifiesToStop());
+  tick(); pose(17.2,5.); put(green()); EXPECT_FALSE(modifiesToStop());
   EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
   tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
 }
@@ -661,13 +704,12 @@ TEST_F(TrafficLightComplianceModuleTest, ProtectedLeftNeverStartsFromStraightCir
   confirmGreenOnRealPath(6.,0.);
 }
 
-TEST_F(TrafficLightComplianceModuleTest, ABCDSimpleBrakingReplacesTriangularModelOnActualPath)
+TEST_F(TrafficLightComplianceModuleTest, ABCDDedicatedJerkBoundaryDoesNotChangeCommonLegacyDistance)
 {
   data_->max_stop_acceleration_threshold=-6.;
   data_->max_stop_jerk_threshold=-10.;
   data_->delay_response_time=.5;
-  // Yellow's new simple distance is .890625m. The unchanged common jerk
-  // function still returns .671821954m; it no longer decides guarded yellow.
+  const double judge=*signal_compliance::jerkStoppingDistance(1.5,8.,16.,.5);
   for(const auto group:{201351,201365,201290,201326}) {
     for(const double period:{2.,3.}) {
       for(const double target_distance:{.8,1.}) {
@@ -678,9 +720,9 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDSimpleBrakingReplacesTriangularMode
         confirmGreenOnRealPath(x,1.5); setPeriod(period);
         EXPECT_NEAR(stoppingDistance(),.671821954004133,1e-10);
         tick(); pose(x,1.5); put(yellow());
-        EXPECT_TRUE(signalStop());
-        EXPECT_EQ(pass(target_distance),target_distance<.890625);
-        EXPECT_EQ(modifiesToStop(),target_distance>.890625);
+        EXPECT_EQ(signalStop(),target_distance>judge);
+        EXPECT_FALSE(pass(target_distance));
+        EXPECT_EQ(modifiesToStop(),target_distance>judge);
       }
     }
   }
@@ -698,7 +740,8 @@ TEST_F(TrafficLightComplianceModuleTest, ActualLowSpeedBoundaryHasNoDiscontinuou
       configure(201326); const double x=10.-3.845-target_distance;
       confirmGreenOnRealPath(x,speed);
       tick(); pose(x,speed); put(yellow());
-      EXPECT_EQ(modifiesToStop(),target_distance>1.1025);
+      const double judge=*signal_compliance::jerkStoppingDistance(speed,8.,16.,.5);
+      EXPECT_EQ(modifiesToStop(),target_distance>judge);
     }
   }
 }
@@ -731,9 +774,43 @@ TEST_F(TrafficLightComplianceModuleTest, StandardMarginAppliesToAllMissionsWitho
     EXPECT_TRUE(modifiesToStop());
     EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
     tick();pose(7.01,0.);put(red());
-    EXPECT_FALSE(modifiesToStop());
-    EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+    EXPECT_TRUE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
   }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, ABCDJumpAcrossDecisionBoundaryCommitsOnlyDirectionalGreen)
+{
+  data_->delay_response_time=0.;
+  for(const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,20.,true,.3,1);
+    tick();pose(0.,5.);put(green());EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(decisionState(),signal_compliance::DecisionLineState::Approach);
+    // Skip over equality between callbacks; first inside sample commits once.
+    tick();pose(5.,5.);put(green());EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(decisionState(),signal_compliance::DecisionLineState::Go);
+    tick();put(yellow());EXPECT_FALSE(modifiesToStop());
+    tick();put(red());EXPECT_FALSE(modifiesToStop());
+    tick();pose(5.,0.);put(red());EXPECT_TRUE(modifiesToStop());
+    EXPECT_TRUE(pendingDecisionStop());
+    tick();put(green());EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(decisionState(),signal_compliance::DecisionLineState::Approach);
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, CroppedSyntheticZeroCannotCommitAndPendingStopRemainsForward)
+{
+  configure(201351,true,true,20.,true,0.,1);
+  tick();pose(6.,0.);put(red());EXPECT_TRUE(modifiesToStop());
+  tick();pose(12.,0.);put(red());
+  auto output=path(11.);
+  ASSERT_TRUE(module_->modifyPathVelocity(&output));
+  const auto stop=std::find_if(output.points.begin(),output.points.end(),[](const auto & point) {
+    return point.point.longitudinal_velocity_mps<.001;
+  });
+  ASSERT_NE(stop,output.points.end());
+  EXPECT_GE(stop->point.pose.position.x,12.-1e-5);
+  EXPECT_TRUE(pendingDecisionStop());
 }
 }  // namespace autoware::behavior_velocity_planner
 

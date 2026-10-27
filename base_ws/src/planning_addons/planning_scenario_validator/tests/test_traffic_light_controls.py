@@ -288,13 +288,15 @@ class TrafficControlsTests(unittest.TestCase):
 
     def test_yellow_braking_deceleration_defaults_is_positive_finite_and_not_gui_migrated(self):
         self.assertEqual(yellow_braking_options({}), YELLOW_BRAKING_DEFAULTS)
-        for invalid in (0, -8, True, '8', None, float('inf'), float('nan')):
-            with self.subTest(invalid=invalid):
-                document = copy.deepcopy(self.document)
-                document['stack']['signal_compliance_yellow_deceleration_mps2'] = invalid
-                with self.assertRaisesRegex(ConfigError, 'yellow_deceleration_mps2'):
-                    validate_campaign_document(document)
+        for key in YELLOW_BRAKING_DEFAULTS:
+            for invalid in (0, -8, True, '8', None, float('inf'), float('nan')):
+                with self.subTest(key=key, invalid=invalid):
+                    document = copy.deepcopy(self.document)
+                    document['stack'][key] = invalid
+                    with self.assertRaisesRegex(ConfigError, key):
+                        validate_campaign_document(document)
         self.document['stack']['signal_compliance_yellow_deceleration_mps2'] = 7.5
+        self.document['stack']['signal_compliance_yellow_jerk_mps3'] = 14.
         values = gui.form_values(self.document)
         self.assertEqual(gui.build_document(self.document, values), self.document)
         self.assertEqual(gui.operator_document(self.document, self.document, values, None), self.document)
@@ -304,6 +306,7 @@ class TrafficControlsTests(unittest.TestCase):
             runner._start_case_stack(cfg, processes, Mock())
         command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
         self.assertIn('signal_compliance_yellow_deceleration_mps2:=7.5', command)
+        self.assertIn('signal_compliance_yellow_jerk_mps3:=14.0', command)
         self.assertIn('enable_yellow_passthrough:=false', command)
 
     def test_old_timed_values_are_accepted_but_cannot_enable_the_replaced_branch(self):
@@ -317,6 +320,7 @@ class TrafficControlsTests(unittest.TestCase):
         command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
         self.assertIn('signal_compliance_enable_timed_yellow:=false', command)
         self.assertIn('signal_compliance_yellow_deceleration_mps2:=8.0', command)
+        self.assertIn('signal_compliance_yellow_jerk_mps3:=16.0', command)
         self.assertEqual(self.document['stack']['signal_compliance_min_yellow_sec'], -1.)
 
     def test_new_snapshot_freezes_yellow_deceleration_and_records_replaced_policy_provenance(self):
@@ -324,13 +328,23 @@ class TrafficControlsTests(unittest.TestCase):
         cfg = executions.prepare_execution(path, check_install=False)
         self.assertEqual(path.read_bytes(), before)
         self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_deceleration_mps2'], 8.)
+        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_jerk_mps3'], 16.)
         self.assertEqual(cfg['execution']['traffic_light_yellow_policy'], dict(
-            implementation=YELLOW_POLICY_IMPLEMENTATION, deceleration_mps2=8., timed_candidate_active=False))
+            implementation=YELLOW_POLICY_IMPLEMENTATION, deceleration_mps2=8., jerk_mps3=16.,
+            timed_candidate_active=False))
         resumed = executions.load_execution(cfg['output'], check_install=False)
         self.assertEqual(resumed['execution']['traffic_light_yellow_policy'],
                          cfg['execution']['traffic_light_yellow_policy'])
         changed = yaml.safe_load(cfg['path'].read_text())
         changed['stack']['signal_compliance_yellow_deceleration_mps2'] = 7.5
+        cfg['path'].write_text(yaml.safe_dump(changed))
+        with self.assertRaisesRegex(ValueError, '변경'):
+            executions.load_execution(cfg['output'], check_install=False)
+
+    def test_new_snapshot_jerk_parameter_is_hash_protected(self):
+        cfg = executions.prepare_execution(self.save(), check_install=False)
+        changed = yaml.safe_load(cfg['path'].read_text())
+        changed['stack']['signal_compliance_yellow_jerk_mps3'] = 12.
         cfg['path'].write_text(yaml.safe_dump(changed))
         with self.assertRaisesRegex(ValueError, '변경'):
             executions.load_execution(cfg['output'], check_install=False)

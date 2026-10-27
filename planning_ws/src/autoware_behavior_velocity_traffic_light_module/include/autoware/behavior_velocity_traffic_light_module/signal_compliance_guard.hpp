@@ -289,6 +289,158 @@ private:
   std::optional<double> input_now_highwater_;
 };
 
+// Candidate decision-line distance. The explicit model starts at a0=0, coasts
+// for delay_sec, ramps acceleration with -jerk_mps3 until either stopping or
+// reaching -deceleration_mps2, then holds that deceleration until zero speed.
+// This is not measured braking capability, a symmetric comfort S-curve, or a
+// substitute for camera/processing/actuator latency.
+inline std::optional<double> jerkStoppingDistance(
+  double velocity_mps, double deceleration_mps2, double jerk_mps3, double delay_sec)
+{
+  // Signed odometry can jitter slightly below zero while parked. Treat the
+  // inclusive [-0.1,0) m/s standstill band as zero, never as reverse braking.
+  // A true reverse speed below this band remains unsupported/invalid.
+  if (!std::isfinite(velocity_mps) || velocity_mps < -0.1 ||
+      !std::isfinite(deceleration_mps2) || deceleration_mps2 <= 0.0 ||
+      !std::isfinite(jerk_mps3) || jerk_mps3 <= 0.0 ||
+      !std::isfinite(delay_sec) || delay_sec < 0.0) {
+    return std::nullopt;
+  }
+  const long double v = std::max(0.0, velocity_mps);
+  const long double b = deceleration_mps2;
+  const long double j = jerk_mps3;
+  const long double t = std::min(b / j, std::sqrt(2.0L * v / j));
+  const long double residual_v = std::max(0.0L, v - j * t * t / 2.0L);
+  const long double distance = v * delay_sec + v * t - j * t * t * t / 6.0L +
+    residual_v * residual_v / (2.0L * b);
+  if (!std::isfinite(distance) || distance < 0.0L ||
+      distance > std::numeric_limits<double>::max()) {
+    return std::nullopt;
+  }
+  return static_cast<double>(distance);
+}
+
+enum class DecisionLineState { Approach, Stop, Go };
+
+inline const char * decisionLineStateName(DecisionLineState state)
+{
+  switch (state) {
+    case DecisionLineState::Approach: return "approach";
+    case DecisionLineState::Stop: return "stop";
+    case DecisionLineState::Go: return "committed_go";
+  }
+  return "invalid";
+}
+
+struct DecisionLineDecision
+{
+  bool require_stop{true};
+  DecisionLineState state{DecisionLineState::Approach};
+  const char * reason{"reset"};
+  double stopping_distance_m{std::numeric_limits<double>::quiet_NaN()};
+  double stopping_target_distance_m{std::numeric_limits<double>::quiet_NaN()};
+  bool committed_go{false};
+};
+
+// Opt-in competition policy. Observation::AuthorizedGreen is already specific
+// to the route direction (including D's R+left-arrow), not the raw green lamp.
+// A fresh moving grant at/inside the dynamic decision boundary commits GO;
+// later R/Y do not reverse that decision until an actual stop/reset. This
+// deliberate one-shot behavior does NOT guarantee an original-MGeo-line legal
+// crossing if red starts before the vehicle reaches that separate grading line.
+// The owning scene must reset on mission/route reset and retire the completed
+// mission at the original line. A crossed virtual camera-friendly stop target
+// alone must never erase a pending STOP.
+class DecisionLineLatch
+{
+public:
+  DecisionLineDecision update(
+    Observation observation, bool fresh, bool guard_requires_stop,
+    double velocity_mps, bool vehicle_stopped, double target_distance_m,
+    double stopping_distance_m, double source_sec, double now_sec)
+  {
+    const auto finish = [&](bool require_stop, const char * reason) {
+      last_decision_ = {require_stop, state_, reason, stopping_distance_m,
+                        target_distance_m, state_ == DecisionLineState::Go};
+      return last_decision_;
+    };
+    if (!std::isfinite(now_sec) || now_sec <= 0.0) {
+      reset();
+      state_ = DecisionLineState::Stop;
+      return finish(true, "invalid_clock");
+    }
+    const bool valid_source = std::isfinite(source_sec) && source_sec > 0.0;
+    const bool rewound = (last_now_sec_ && now_sec < *last_now_sec_) ||
+      (fresh && valid_source && last_source_sec_ && source_sec < *last_source_sec_);
+    if (rewound) {
+      reset();
+      state_ = DecisionLineState::Stop;
+      last_now_sec_ = now_sec;
+      if (fresh && valid_source && source_sec <= now_sec) last_source_sec_ = source_sec;
+      return finish(true, "clock_rewind");
+    }
+    last_now_sec_ = now_sec;
+    const bool usable_source = fresh && valid_source && source_sec <= now_sec;
+    if (usable_source) last_source_sec_ = source_sec;
+    if (!std::isfinite(velocity_mps) || velocity_mps < -moving_threshold_mps) {
+      state_ = DecisionLineState::Stop;
+      return finish(true, "invalid_velocity");
+    }
+    // Match jerkStoppingDistance's inclusive parked-odometry noise band. This
+    // must not create a sticky color STOP before any signal has been observed.
+    velocity_mps = std::max(0.0, velocity_mps);
+    const bool moving = !vehicle_stopped && velocity_mps > moving_threshold_mps;
+    if (state_ == DecisionLineState::Go && moving) {
+      // Missing geometry/UNKNOWN do not fabricate a new grant, but neither do
+      // they revoke an already committed one-shot decision.
+      return finish(false, "retain_committed_go");
+    }
+    const bool stopped_after_commit = state_ == DecisionLineState::Go;
+    if (stopped_after_commit) state_ = DecisionLineState::Approach;
+    const bool authorized = usable_source &&
+      observation == Observation::AuthorizedGreen && !guard_requires_stop;
+    if (state_ == DecisionLineState::Stop && !authorized) {
+      return finish(true, "retain_stop_until_fresh_authorization");
+    }
+    if (state_ == DecisionLineState::Stop && authorized) {
+      state_ = DecisionLineState::Approach;
+    }
+    if (guard_requires_stop || (stopped_after_commit && !authorized)) {
+      state_ = DecisionLineState::Stop;
+      return finish(true, "stop_selected");
+    }
+    const bool valid_geometry = std::isfinite(target_distance_m) &&
+      std::isfinite(stopping_distance_m) && stopping_distance_m >= 0.0;
+    if (authorized && moving && valid_geometry && target_distance_m <= stopping_distance_m) {
+      state_ = DecisionLineState::Go;
+      return finish(false, "decision_boundary_authorized_go");
+    }
+    // Before commitment, keep the existing guard's decision, including its
+    // bounded UNKNOWN grace/initial-unseen policy. These are not new grants.
+    return finish(false, authorized ? "authorized_before_boundary_or_stationary" :
+                                    "approach_without_new_authorization");
+  }
+
+  void reset()
+  {
+    state_ = DecisionLineState::Approach;
+    last_now_sec_.reset();
+    last_source_sec_.reset();
+    last_decision_ = {};
+  }
+
+  DecisionLineState state() const { return state_; }
+  bool pendingStop() const { return state_ == DecisionLineState::Stop; }
+  const DecisionLineDecision & lastDecision() const { return last_decision_; }
+
+private:
+  static constexpr double moving_threshold_mps = 0.1;
+  DecisionLineState state_{DecisionLineState::Approach};
+  std::optional<double> last_now_sec_;
+  std::optional<double> last_source_sec_;
+  DecisionLineDecision last_decision_;
+};
+
 struct LaneletYellowDecision
 {
   bool allow{false};

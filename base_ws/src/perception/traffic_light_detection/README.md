@@ -184,6 +184,12 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
 `visual_continuation_sec:=0`으로 이 보완만 끈다. [기존 연속 시험](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)과 [새 B bag 재생](../../../../docs/perception/traffic_light/261027_B_ROI_PROJECTION_CONTINUATION.md)의 검증 범위를 구분하고, planning 통합 상태는 CURRENT를 따른다.
 
+2026-10-28 사용자 선택으로 지도+직접 관측 launch는 **A/B/C40m, D30m부터 색을 판단에 전달**한다.
+`observation_start_depth_m:=40` / `observation_start_depth_d_m:=30`이며 카메라→신호 housing 전방 깊이다.
+한 번 시작하면 거리 증가·잠깐 누락으로 다시 닫지 않는다. 추가 완충은 없고, 첫 황색 STOP 정책도 유지한다.
+전체 복귀는 `observation_start_depth_m:=0`(D도 비활성). legacy/비직접 관측은 기본 비활성이다.
+같은 미션 내 teleport만으로 게이트가 초기화되지는 않으며, 40/30 조합의 새 폐루프 검증은 아직 별도다.
+
 Planning 기본 `defer_unseen_until_observed:=true`는 이번 미션에서 아직 유효 램프를 한 번도 읽지 못한
 UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 및 관측 후 누락은 정지 판단을 유지한다.
 이 설정에는 첫 판독이 끝내 없을 때 적색 통과 위험이 있으므로 [CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)의 운영 계약을 확인한다.
@@ -199,19 +205,22 @@ PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리
 기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
 이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 OFF·허가1회가 현재값이며 과거 실험의 허가3회와 구별한다.
 
-## 황색 ON: Lanelet 정차 목표 기준 제동거리
+## 황색 ON: Lanelet 정차 목표 기준 판단선 1회 확정
 
 기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 OFF다.
-준수 가드 ON에서 황색 예외를 켜면 `v*delay_response_time + v²/(2*a)`를 계산한다.
-`a=signal_compliance_yellow_deceleration_mps2` 기본8.0이며 판단용 값이다.
-현재 공통 응답지연0.5초를 그대로 쓰고, 실제 제어/planning 감속도6·jerk10을 변경하지 않는다.
+준수 가드 ON에서 켜면 b8·J16의 jerk 제동거리로 판단선을 계산한다.
+`signal_compliance_yellow_deceleration_mps2:=8.0`, `signal_compliance_yellow_jerk_mps3:=16.0`이 판단용 값이다.
+2026-10-28 사용자 요청으로 공통 응답지연은0.0초다(`system_delay`는0.5초 유지).
+기존 experimental planning 감속도6·jerk10과 황색 판단용8은 변경하지 않았다. 이전 영상은 응답지연0.5초 조건이다.
 거리는 이미 앞범퍼·stop_margin이 반영된 기존 Lanelet 정차 목표까지의 경로 거리다.
-앞차축3m를 다시 빼지 않는다. 엄격히 `예상 정지거리 > 목표까지 거리`일 때만 진행한다.
-같으면 정지하며, 최초 황색·이미 정차·기존 STOP·방향 허가 없는 이전 신호는 예외 대상이 아니다.
+앞차축3m를 다시 빼지 않는다. 신선한 방향 허가·주행 중 `목표거리<=제동거리`가 되면 GO를1회 확정한다.
+확정 전 Y/R은 STOP이며, STOP 이력은 가상선 전/후 정차·UNKNOWN으로 풀리지 않고 새 방향 허가에 해제한다.
+확정 GO는 후속 Y/R에도 유지하되 실제 정차하면 재판단한다. D의 원형G만으로는 허가하지 않는다.
+정차 중 미세 signed 속도 잡음 −0.1~0m/s는0으로 보고, 실제 역주행은 거부한다.
 
 예전 timed flag/minimum/margin 인자는 옛 YAML 호환용으로 받지만 시간제한 분기를 활성화하지 않는다.
 황색 지속시간을 가정하지 않으므로, 적색 전 실제 채점선 통과 보장은 아니다.
-공식선 앞에서 새 RED/판독 불가가 오면 기존 정지/UNKNOWN 정책을 유지한다.
+이 정책은 적색 미위반을 보장하지 않는다. 기존 미수신/1초timeout GO 예외는 유지한다.
 `enable_signal_compliance_guard:=false`는 여전히 명시적 legacy 정책 복귀다.
 세부 조건·설정·검증 한계는 [교체 기록](../../../../docs/perception/traffic_light/261027_LANELET_YELLOW_BRAKING.md)을 본다.
 [최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.

@@ -6,6 +6,15 @@ from run_traffic_light_compliance_trial import validate_video_request
 import pytest
 
 
+def test_yellow_receipt_uses_the_helpers_actual_first_observation_default():
+    from run_traffic_light_compliance_trial import receipt_yellow_durations
+    assert receipt_yellow_durations('first-observation-yellow', None) == [3.]
+    assert receipt_yellow_durations('stopped-yellow', None) == [1., 3., 5.]
+    assert receipt_yellow_durations('first-observation-yellow', (2.,)) == [2.]
+    assert receipt_yellow_durations('moving-native-yellow', (1.,)) == [1.]
+    assert receipt_yellow_durations('natural', None) is None
+
+
 def test_front_only_capture_does_not_require_or_capture_a_desktop_window():
     validate_video_request(True, True, 'unknown_grace', None)
     validate_video_request(True, False, 'current', '0x123')

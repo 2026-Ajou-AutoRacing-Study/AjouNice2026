@@ -11,8 +11,11 @@ DEFAULT_PROFILE = 'v5_candidate'
 PROFILE_LABELS = {'v5_candidate': 'v5 지도+CNN 후보', 'legacy': '기존 YOLO+HSV'}
 LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
-YELLOW_POLICY_IMPLEMENTATION = 'lanelet_braking_v1'
-YELLOW_BRAKING_DEFAULTS = {'signal_compliance_yellow_deceleration_mps2': 8.0}
+YELLOW_POLICY_IMPLEMENTATION = 'lanelet_decision_line_jerk_v2'
+YELLOW_BRAKING_DEFAULTS = {
+    'signal_compliance_yellow_deceleration_mps2': 8.0,
+    'signal_compliance_yellow_jerk_mps3': 16.0,
+}
 TIMED_POLICY_DEFAULTS = {
     'signal_compliance_required_green_observations': 1,
     'signal_compliance_min_yellow_sec': 2.0,
@@ -41,12 +44,14 @@ def timed_policy_options(stack):
 
 
 def yellow_braking_options(stack):
-    """Yellow-only v*response_delay + v^2/(2*a); not the controller's limit."""
-    key = 'signal_compliance_yellow_deceleration_mps2'
-    value = stack.get(key, YELLOW_BRAKING_DEFAULTS[key])
-    if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
-        raise ValueError('stack.{}는 유한한 양수여야 합니다'.format(key))
-    return {key: float(value)}
+    """Positive decision-line braking/jerk magnitudes, not controller limits."""
+    result = {}
+    for key, default in YELLOW_BRAKING_DEFAULTS.items():
+        value = stack.get(key, default)
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+            raise ValueError('stack.{}는 유한한 양수여야 합니다'.format(key))
+        result[key] = float(value)
+    return result
 
 
 def launch_options(stack, *, legacy_snapshot=False):
@@ -65,7 +70,7 @@ def launch_options(stack, *, legacy_snapshot=False):
     policy = timed_policy_options(stack)
     braking = yellow_braking_options(stack)
     # Preserve the effective old snapshot shape/hash when no new field exists.
-    # New execution preparation freezes all four fields explicitly.
+    # New execution preparation freezes all policy fields explicitly.
     if any(key in stack for key in TIMED_POLICY_DEFAULTS):
         result.update(policy)
     if any(key in stack for key in YELLOW_BRAKING_DEFAULTS):

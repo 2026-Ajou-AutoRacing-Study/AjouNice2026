@@ -23,13 +23,14 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
-WIDTH, IMAGE_HEIGHT, HEIGHT = 1280, 1014, 1216
+WIDTH, IMAGE_HEIGHT, HEIGHT = 1280, 720, 960
 TOPICS = {
     'image': '/traffic_light_node/debug_image/compressed',
     'runtime': '/traffic_light_node/debug_runtime',
     'ego': '/Ego_topic', 'command': '/ctrl_cmd',
     'odometry': '/localization/kinematic_state',
     'trajectory': '/planning/trajectory',
+    'planner_decision': '/perception/traffic_light_recognition/planner_decision_debug',
 }
 MAX_JPEG_BYTES = 16 * 1024 * 1024
 MAX_TRAJECTORY_POINTS = 10000
@@ -188,6 +189,11 @@ def frame_evidence(index, fps, start, now_mono, now_ros_ns, snapshot, image_reco
             evidence['telemetry'][key]['value'] = (record['payload'] if key != 'trajectory'
                 else {name: value for name, value in record['payload'].items() if name != 'points'})
     runtime = snapshot.get('runtime')
+    group = ((runtime or {}).get('payload', {}).get('frame_decision') or {}).get('group_id')
+    planner = snapshot.get('planner_decision:%s' % group)
+    evidence['telemetry']['planner_decision'] = timing(planner, now_mono, now_ros_ns)
+    if planner is not None:
+        evidence['telemetry']['planner_decision']['value'] = planner['payload']
     runtime_stamp = runtime['source_stamp_ns'] if runtime else None
     evidence['runtime_exact_image_stamp_match'] = bool(runtime_stamp and image_record
         and runtime_stamp == image_record['source_stamp_ns'])
@@ -201,31 +207,48 @@ def number(value, digits=2):
 
 def telemetry_lines(label, evidence):
     telemetry = evidence['telemetry']
-    ego, command = telemetry['ego'], telemetry['command']
-    runtime = telemetry['runtime'].get('value') or {}
-    decision = runtime.get('frame_decision') or {}
-    observed = decision.get('observed_tuples')
-    final = decision.get('final_tuples')
-    hold = decision.get('observation_timing') or {}
-    vote = decision.get('stamped_vote') or {}
-    planned = evidence['planned_speed']
+    runtime = telemetry.get('runtime', {}).get('value') or {}
+    observation = runtime.get('frame_decision') or {}
+    group = observation.get('group_id')
+    mission = {201351: 'A', 201365: 'B', 201290: 'C', 201326: 'D'}.get(group, str(group or '대기'))
+    raw = observation.get('observed_tuples') or []
+    colors = {'red': '적색', 'yellow': '황색', 'green': '녹색'}
+    shapes = {'circle': '원형', 'left_arrow': '좌회전', 'left': '좌회전'}
+    lamps = ' + '.join(colors.get(str(v[0]).lower(), str(v[0])) + '/' +
+        shapes.get(str(v[1]).lower(), str(v[1])) for v in raw if len(v) >= 2) or '판독 불가'
+    planner = telemetry.get('planner_decision') or {}
+    value = planner.get('value') or {}
+    age = planner.get('receipt_age_sec')
+    valid = value.get('group_id') == group and isinstance(age, (int, float)) and 0 <= age <= .75
+    verdict = ('STOP 정지' if value.get('require_stop') else 'GO 진행') if valid else '판단 정보 없음'
+    state = ('GO 확정' if value.get('committed') else '접근·재판단') if valid else '미수신/오래된 기록'
+    speed = (telemetry.get('ego', {}).get('value') or {}).get('speed_kph')
+    gate = observation.get('observation_distance_gate') or {}
+    hold = observation.get('observation_timing') or {}
+    distances = value if valid else {}
     return [
-        '%s | frame=%d PTS=%.3fs repeated=%s | %s' % (label, evidence['frame_index'], evidence['pts_sec'], evidence['image_repeated'], evidence['image_status']),
-        'CAMERA source_ns=%s | source age=%ss receipt age=%ss | runtime exact-image match=%s' % (evidence['image']['source_stamp_ns'], number(evidence['image']['source_age_sec'], 3), number(evidence['image']['receipt_age_sec'], 3), evidence['runtime_exact_image_stamp_match']),
-        'ACTUAL speed=%s km/h (age %ss) | accel cmd=%s brake cmd=%s (age %ss)' % (number((ego.get('value') or {}).get('speed_kph')), number(ego['receipt_age_sec'], 3), number((command.get('value') or {}).get('accel'), 3), number((command.get('value') or {}).get('brake'), 3), number(command['receipt_age_sec'], 3)),
-        'PLANNED nearest=%s +5m=%s +10m=%s m/s | %s | path age=%ss' % (number(planned.get('nearest_mps')), number(planned.get('ahead_5m_mps')), number(planned.get('ahead_10m_mps')), planned['reason'], number(telemetry['trajectory']['receipt_age_sec'], 3)),
-        'LATEST RUNTIME gid=%s head=%s | RAW=%s | FINAL=%s | age=%ss' % (decision.get('group_id', '?'), decision.get('head_id', '?'), observed, final, number(telemetry['runtime']['receipt_age_sec'], 3)),
-        'HOLD origin=%s held=%s lamp_age=%ss adopted_ns=%s | latest != exact unless above' % (hold.get('output_origin', '?'), hold.get('output_is_held', '?'), number(hold.get('output_observation_age_sec'), 3), hold.get('adopted_observation_source_stamp_ns', '?')),
-        'VOTE enabled=%s winner=%s/%s window=%s duplicate=%s | winner_ns=%s' % (vote.get('enabled', False), vote.get('winner_vote_count', '?'), vote.get('majority_count', '?'), vote.get('window_size', runtime.get('stamped_vote_window_size', '?')), vote.get('duplicate_source', '?'), vote.get('winner_source_stamp_ns', '?')),
-        'READ-ONLY EVIDENCE | lamps / planned speed / command are NOT a planner GO verdict | UTC %s' % evidence['utc'],
+        '미션 %s  |  실제 속도 %s km/h  |  관측: %s' % (mission, number(speed, 1), lamps),
+        '신호 판단: %s  |  %s' % (verdict, state),
+        '정차 목표 %s m | 채점선 %s m | 계산 제동거리 %s m | 신호등까지(전방 깊이) %s m' %
+        (tuple(number(distances.get(key)) for key in ('target_m', 'official_m', 'brake_m')) +
+         (number(gate.get('current_matched_camera_depth_m')),)),
+        '판독: %s  |  판단 기록 나이 %s초  |  영상 %.1f초' %
+        ('원거리 미사용' if gate.get('suppressed') else
+         '이전 관측 완충' if hold.get('output_is_held') else '현재 관측',
+         number(age, 2), evidence['pts_sec']),
+        ('판단 주기 아님: GO/STOP 표시는 약 0.5초 간격의 과거 요약 로그 기준'
+         if label == '과거 판단 0.5초 표본' else ''),
     ]
 
 
 def render_frame(image, label, evidence):
     import cv2
     import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
     canvas = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
     if image is not None:
+        # debug_image includes a legacy verbose footer after the 720px camera.
+        image = image[:720]
         scale = min(WIDTH/image.shape[1], IMAGE_HEIGHT/image.shape[0])
         target = (max(1, round(image.shape[1]*scale)), max(1, round(image.shape[0]*scale)))
         frame = cv2.resize(image, target) if target != (image.shape[1], image.shape[0]) else image
@@ -234,12 +257,15 @@ def render_frame(image, label, evidence):
             frame = cv2.cvtColor((gray*.4).astype(np.uint8), cv2.COLOR_GRAY2BGR)
         x, y = (WIDTH-target[0])//2, (IMAGE_HEIGHT-target[1])//2
         canvas[y:y+target[1], x:x+target[0]] = frame
-    canvas[IMAGE_HEIGHT:] = (24, 26, 30)
+    if not hasattr(render_frame, '_font'):
+        render_frame._font = ImageFont.truetype(
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', 25)
+    panel = Image.new('RGB', (WIDTH, HEIGHT-IMAGE_HEIGHT), (24, 26, 30))
+    draw = ImageDraw.Draw(panel)
     for index, line in enumerate(telemetry_lines(label, evidence)):
-        color = (100, 210, 255) if index == 0 else (230, 230, 230)
-        # Long diagnostics stay complete in frames.jsonl; the video is a view.
-        cv2.putText(canvas, line[:173], (8, IMAGE_HEIGHT+20+index*24),
-                    cv2.FONT_HERSHEY_SIMPLEX, .43, color, 1, cv2.LINE_AA)
+        draw.text((16, 7+index*46), line, font=render_frame._font,
+                  fill=(255, 210, 100) if index == 1 else (235, 235, 235))
+    canvas[IMAGE_HEIGHT:] = np.asarray(panel)[:, :, ::-1]
     return canvas
 
 
@@ -306,13 +332,15 @@ def subscribe(rospy, latest):
     from nav_msgs.msg import Odometry
     from autoware_planning_msgs.msg import Trajectory
     from std_msgs.msg import String
+    from autoware_internal_debug_msgs.msg import StringStamped
 
     def callback(key, convert):
         def receive(message):
             mono, ros_ns = time.monotonic(), rospy.Time.now().to_nsec()
             try:
                 payload, source = convert(message)
-                latest.put(key, payload, source, ros_ns, mono)
+                destination = ('planner_decision:%s' % payload['group_id']) if key == 'planner_decision' else key
+                latest.put(destination, payload, source, ros_ns, mono)
             except (ValueError, TypeError, AttributeError, OverflowError):
                 latest.error(key)
         return receive
@@ -339,6 +367,7 @@ def subscribe(rospy, latest):
                     for point in points])), message_stamp(message)
 
     specifications = [
+        ('planner_decision', StringStamped, lambda m: (json.loads(m.data), stamp_ns(m.stamp))),
         ('image', CompressedImage, image), ('runtime', String, runtime),
         ('ego', EgoVehicleStatus, lambda m: (clean(dict(speed_kph=math.hypot(m.velocity.x, m.velocity.y)*3.6)), message_stamp(m))),
         ('command', CtrlCmd, lambda m: (clean(dict(accel=m.accel, brake=m.brake, steering=m.steering)), message_stamp(m))),
@@ -382,11 +411,11 @@ def main(argv=None):
         development_only=True, read_only_ROS_subscriptions=True, topics=TOPICS,
         ffmpeg_argv=command, canvas_size=[WIDTH, HEIGHT], fps=args.fps,
         max_seconds=args.max_seconds, source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        image_contract='annotated original camera JPEG; node debug encoding occurs after canonical publish',
+        image_contract='original 720px camera with boxes; Korean video-only footer; verbose provenance in frames.jsonl',
         clock_contract='wall-monotonic CFR; repeats keep original camera stamp; PTS=index/fps',
         telemetry_contract='latest received values with separate ages, not exact-image association; actual speed uses Ego; planned speeds use same-frame localization only',
         runtime_contract='runtime_exact_image_stamp_match only for identical positive source stamps; latest runtime may depict a different camera frame',
-        runtime_not_planner_GO=True, queue_size_per_topic=1, jpeg_mailbox_max_bytes=MAX_JPEG_BYTES,
+        runtime_not_planner_GO=True, planner_GO_source=TOPICS['planner_decision'], queue_size_per_topic=1, jpeg_mailbox_max_bytes=MAX_JPEG_BYTES,
         trajectory_max_points=MAX_TRAJECTORY_POINTS, started_utc=utc_now(),
         started_monotonic=time.monotonic(), started_ros_ns=rospy.Time.now().to_nsec(), status='starting')
     metadata_path = output/'metadata.json'

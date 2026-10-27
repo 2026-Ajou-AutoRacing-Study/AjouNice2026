@@ -53,7 +53,7 @@ from traffic_light_map_selector import (MISSION_GROUP_IDS, associate_boxes, sele
 from traffic_light_near_rescue import (near_rescue_config, near_rescue_decision,
                                        accept_near_rescue_selection)
 from traffic_light_debug_view import render_node_overlay
-from traffic_light_observation_handoff import detection_miss_context, low_confidence_context, no_lamps_context
+from traffic_light_observation_handoff import detection_miss_context, low_confidence_context, no_lamps_context, ObservationDistanceGate
 from traffic_light_visual_continuation import VisualContinuation
 from traffic_light_stamped_vote import StampedPhaseVote
 from traffic_light_unreadable_evidence import unreadable_color_evidence
@@ -233,6 +233,13 @@ class TrafficLightNode:
         self.planner_compliance_observations = rospy.get_param("~planner_compliance_observations", False)
         if type(self.planner_compliance_observations) is not bool:
             raise ValueError("planner_compliance_observations must be an explicit bool")
+        self.observation_start_depth_m = float(rospy.get_param('~observation_start_depth_m', 0.))
+        self.observation_start_depth_d_m = float(rospy.get_param(
+            '~observation_start_depth_d_m', self.observation_start_depth_m))
+        self._observation_distance_gate = ObservationDistanceGate(
+            self.observation_start_depth_m, self.observation_start_depth_d_m)
+        if self.observation_start_depth_m and (not self.planner_compliance_observations or self.selection_mode != 'map_association'):
+            raise ValueError('distance gate requires observed-only map_association')
         self.preserve_unreadable_color_evidence = rospy.get_param('~preserve_unreadable_color_evidence', False)
         if type(self.preserve_unreadable_color_evidence) is not bool:
             raise ValueError('preserve_unreadable_color_evidence must be an explicit bool')
@@ -673,6 +680,17 @@ class TrafficLightNode:
         t_classified = time.monotonic()
         self.observed_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
         detected_color_results = list(raw_color_results)
+        distance_gate = (self._observation_distance_gate.update(
+            group.traffic_light_group_id, msg.header.stamp.to_nsec(), selection)
+            if getattr(self, '_observation_distance_gate', None) is not None
+            else dict(enabled=False, suppressed=False, reason='disabled'))
+        if distance_gate['suppressed']:
+            # Do not seed near-field holds/green history with ignored far lamps.
+            self.signal_phase_policy.reset_transition()
+            self.signal_smoother.reset()
+            if getattr(self, '_stamped_vote', None) is not None:
+                self._stamped_vote.reset()
+            raw_color_results, raw_det_conf = [], 0.
         fixed, policy_reason = self.signal_phase_policy.apply(
             raw_color_results, group.traffic_light_group_id,
             observed_only=self.planner_compliance_observations,
@@ -749,6 +767,7 @@ class TrafficLightNode:
 
         wire_unreadable_color_evidence = []
         if (getattr(self, 'preserve_unreadable_color_evidence', False)
+                and not distance_gate['suppressed']
                 and self.planner_compliance_observations and not raw_color_results and not color_results
                 and best is not None and selection.get('status') == 'matched'
                 and selection.get('reason') in ('map_head_association', 'visual_continuation_match')
@@ -817,6 +836,7 @@ class TrafficLightNode:
             "no_lamps_hold": dark_hold,
             "visual_continuation": visual_debug,
             "classifier_known": classifier_debug.get("known"),
+            "observation_distance_gate": distance_gate,
             "observed_tuples": detected_color_results,
             "normalized_tuples": raw_color_results,
             "final_tuples": color_results,

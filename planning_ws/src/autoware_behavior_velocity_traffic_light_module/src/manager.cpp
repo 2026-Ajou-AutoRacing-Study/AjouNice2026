@@ -63,6 +63,7 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   node.param<int>(ns + "/signal_compliance_required_green_observations", planner_param_.signal_compliance_required_green_observations, 3);
   node.param<double>(ns + "/signal_compliance_unknown_grace_sec", planner_param_.signal_compliance_unknown_grace_sec, 0.0);
   node.param<double>(ns + "/signal_compliance_yellow_deceleration_mps2", planner_param_.signal_compliance_yellow_deceleration_mps2, 8.0);
+  node.param<double>(ns + "/signal_compliance_yellow_jerk_mps3", planner_param_.signal_compliance_yellow_jerk_mps3, 16.0);
   // Read obsolete timed-yellow values for launch/snapshot compatibility only.
   // They cannot select or veto the new Lanelet stopping-distance policy.
   node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);
@@ -75,8 +76,10 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
       planner_param_.signal_compliance_unknown_grace_sec > 0.3 ||
       (planner_param_.signal_compliance_unknown_grace_sec > 0.0 && !planner_param_.enable_signal_compliance_guard) ||
       !std::isfinite(planner_param_.signal_compliance_yellow_deceleration_mps2) ||
-      planner_param_.signal_compliance_yellow_deceleration_mps2 <= 0.0) {
-    throw std::invalid_argument("invalid signal confirmation/grace or yellow deceleration parameters");
+      planner_param_.signal_compliance_yellow_deceleration_mps2 <= 0.0 ||
+      !std::isfinite(planner_param_.signal_compliance_yellow_jerk_mps3) ||
+      planner_param_.signal_compliance_yellow_jerk_mps3 <= 0.0) {
+    throw std::invalid_argument("invalid signal confirmation/grace or yellow braking parameters");
   }
   if (planner_param_.enable_signal_compliance_guard &&
       (!std::isfinite(planner_param_.signal_compliance_front_axle_offset_m) ||

@@ -234,6 +234,7 @@ def _start_case_stack(cfg, processes, monitor):
         signal_compliance_unknown_grace_sec=temporal['signal_compliance_unknown_grace_sec'],
         enable_yellow_passthrough=traffic_options['yellow_passthrough'],
         signal_compliance_yellow_deceleration_mps2=traffic_options.get('signal_compliance_yellow_deceleration_mps2', 8.0),
+        signal_compliance_yellow_jerk_mps3=traffic_options.get('signal_compliance_yellow_jerk_mps3', 16.0),
         signal_compliance_required_green_observations=temporal['signal_compliance_required_green_observations'],
         signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
         signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),

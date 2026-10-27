@@ -170,12 +170,13 @@ def prepare_execution(source, *, check_install=True):
             'created_at': now(), 'source_yaml': str(cfg['path']), 'snapshot': path.name,
             'files': files, 'original_hashes': originals,
             # Runtime policy provenance, not a selectable mode. Old manifests are
-            # unchanged and do not certify replay of the replaced timed/jerk policy.
+            # unchanged and do not certify replay of a replaced runtime policy.
             'traffic_light_yellow_policy': {
                 'implementation': (YELLOW_POLICY_IMPLEMENTATION
                                    if cfg['traffic_light_temporal_options']['enable_signal_compliance_guard']
                                    else 'legacy_autoware'),
                 'deceleration_mps2': document['stack']['signal_compliance_yellow_deceleration_mps2'],
+                'jerk_mps3': document['stack']['signal_compliance_yellow_jerk_mps3'],
                 'timed_candidate_active': False},
             'note': '편집용 YAML과 독립된 실행 사본. 재개는 이 폴더의 입력만 사용합니다.'})
         return load_execution(directory, check_install=check_install)

@@ -2,6 +2,81 @@
 
 종류: IMPLEMENTATION / 2026-10-27. 현재 기본값은 [CURRENT](CURRENT.md)를 따른다.
 
+후속 변경(2026-10-28): 사용자 요청으로 두 planning profile의 공통 `delay_response_time`을
+0.5→0.0초로 변경했다. `system_delay=0.5`·감속도·jerk는 유지했다. 아래 구현 당시 수치와
+이전 주행 결과는0.5초 조건의 근거이며, 새0초 조건의 실주행 검증은 아직 하지 않았다.
+
+## 후속: 판단선 1회 확정 v2 (2026-10-28)
+
+사용자/팀 합의로 아래의 기존 황색 전환 전용 식 대신 **jerk 판단선 상태기계**를 구현했다.
+기존 `enable_yellow_passthrough` ON + 준수 guard ON일 때 v2를 사용하며 master 기본 OFF는 유지한다.
+OFF는 기존 색 판단을 유지하되, STOP 이력 때문에 정차한 차량의 가상선 초과 자동 GO는 막는다.
+ON에서는 더 이상 예전 황색 전환 자격 helper나 `enable_pass_judge`로 2차 판단하지 않는다.
+이 문서의 아래 v1 테스트/영상은 v2 검증으로 읽지 않는다.
+
+```text
+b = signal_compliance_yellow_deceleration_mps2 = 8
+J = signal_compliance_yellow_jerk_mps3 = 16
+tau = delay_response_time = 0 (현재 로컬 설정)
+T = min(b/J, sqrt(2*v/J))
+D = v*tau + v*T - J*T^3/6 + (v-J*T^2/2)^2/(2*b)
+```
+
+- 현재 가속도0인 근사다. jerk는 센서/제어 응답지연의 대체물이 아니다.
+- `d`는 이미 앞범퍼·stop_margin이 반영된 Lanelet 정차 목표까지 거리다. 앞차축3m를 또 빼지 않는다.
+- `d<=D` 안에서 신선한 방향 허가·주행 중이면 GO를1회 확정한다. 부동소수점 등호 프레임을 기다리지 않는다.
+- GO 확정 전 Y/R은 STOP. STOP은 목표보다 앞/뒤 정차·경로 crop·순수 UNKNOWN으로 풀리지 않고
+  새로운 신선한 방향 허가로 해제한다. D 원형G는 허가가 아니며 기존 R+좌화살표 허가는 그대로다.
+- 확정 GO는 후속 Y/R에도 유지한다는 사용자의 시험 정책이다. 적색 채점선 통과 위험을 없애는 보장은 아니다.
+  실제 정차·시간 역전·미션 재설정 시 재판단한다. 다른 객체/안전 모듈의 STOP을 무시하지 않는다.
+- STOP 목표가 경로 뒤로 사라지면 현재 ego에 STOP을 삽입한다. 가짜 crop 거리0으로 GO 확정하지 않는다.
+- 기존 경쟁용 미수신/1초 timeout fail-open GO는 보존한 예외다. 이 예외 동안 내부 STOP 이력은 보존한다.
+- C016/C018은201290 하나이며 원본 MGeo 기준 통과 후 미션 종료한다. 두 번째 head를 새 미션으로 만들지 않는다.
+  원본 MGeo선까지 크게 넘어 route provider가 미션을 퇴역시킨 경우는 단순 Lanelet 오버슈트 보장의 범위 밖이다.
+- 영상 하단에 미션·속도·관측 신호·실제 GO/STOP·확정 여부·Lanelet 목표/MGeo 채점선/계산 제동거리를 한글로 표시한다.
+  10/28 요청 정정: 추가했던 `[signal_decision]` 콘솔 INFO는 제거했다. 기존 planner 로그는 유지한다.
+  영상 전용 `planner_decision_debug` 토픽은 구독자가 있을 때만 직렬화하며 판단 로직의 입력이 아니다.
+  과거 run02 재편집은 당시 남은 0.5초 표본 로그를 사용하며, 정확한 카메라 프레임별 판단 기록으로 해석하지 않는다.
+- A/B/C40m·D30m 인지 게이트, 기존0.2/0.3초 완충, 허가1회, 지도와 인지 가중치는 변경하지 않는다.
+- 설정 전달은 planning/full-stack launch와 validator `stack.signal_compliance_yellow_jerk_mps3`이며
+  새 실행 계약 이름은 `lanelet_decision_line_jerk_v2`다. 과거 실행 snapshot은 수정하지 않았다.
+
+### v2 간단 검증 결과
+
+- 관련 native 테스트117개(Guard36 / normal 실제 모듈40 / experimental 실제 모듈24 / 새 순수식·상태17) 통과.
+  앞/뒤 정차 유지·첫Y STOP·fresh허가 재출발·경계 건너뛴 GO확정·새R에도 확정GO유지·
+  실제정차 재무장·crop 가짜0·명시적 masterOFF·미수신GO 등을 검사했다.
+- 실제 source/installed launch 해석4개, jerk 전달/validator 집중27개 통과(생략1).
+  광역validator498개 통과·기존 waypoint/TF manifest불일치2개 실패는 새 변경과 구분한다.
+- 첫 실제 주행은 정차 중 미세 음수 속도 때문에 불필요한 STOP이 기록되는 버그를 찾아
+  **MANUAL_ABORT 후 정지·P 확인**했다. 실패/중단 기록을 PASS로 바꾸지 않았다.
+  −0.1~0m/s를0으로 정규화해 수정했고, 두 번째 주행에서 invalid_velocity0·처음UNKNOWN GO를 확인했다.
+- `artifacts/evaluation/traffic_decision_line_261028/run_02/`는 **Cloudy13 자연 신호(noSET)**,
+  localization+od_gt+실제 ROS1 planning/PP·PI, A/B/C/D 전체 통과·목표 PASS·실제 정지/P VERIFIED다.
+  응답지연0 / b8·J16 / ABC40·D30 / G1·UNKNOWN0.3 / 공유지도v97의 실제 snapshot·설치plugin을 대조했다.
+
+| 미션 | 실제 정차/확정 관찰 |
+|---|---|
+| A | Lanelet 목표0.52~0.56m 전 STOP 유지, 신선한 허가에 재출발 |
+| B | 허가 접근 중 v14.99m/s·목표16.08m·D17.70m에서 GO확정, 이후UNKNOWN에도 진행 |
+| C | 목표0.07~0.16m 전 STOP 유지 후 허가 재출발, 원본선 통과 뒤 D로1회전환·C재선택0 |
+| D | 목표0.06~0.12m 초과 정차해도 STOP 유지, 신선한 R+좌화살표에 재출발 |
+
+D 정차 중 raw영상은 **원형G(좌회전비허가)→Y→R+좌화살표**다.
+로그의 `Observation::Stop`을 원시 적색으로 잘못 설명하지 않는다.
+실제 적색/황색 오버슈트 유지의 일반성은 native모듈 테스트로 확인했고,
+이 자연 주행은 D의 비허가G/Y 정차 유지·새 좌회전 허가 출발을 직접 확인한 것이다.
+
+- 원본 MGeo선 통과 전후0.25초 exact native 조회에서 A16/B16/C양쪽48/D33 허가를 확인했다.
+  공식 패널티 인증은 아니며, GO확정 뒤 실제 새Y/R로 바뀌는 도전 상황은 이번 자연 주행에 없었다.
+- 제동을8/16 한계로 요청하는 별도 actuator 채널은 추가하지 않았다. 이 주행은 근접경계에서의
+  최대 급제동 거리 실측/최악 지연 검증이 아니므로 이후 실제 정지거리로 파라미터를 튜닝해야 한다.
+- 마지막 수정은 아직 보지 않은 미래 미션의 missing INFO만 숨기는 로그 정리다. 정책은 그대로이며
+  다시 빌드/설치/계약 검사했다. 마지막 로그 정리 후 추가 실주행은 하지 않았다.
+- 전체 자료: 같은 상위 `driving_audit_02.json`, `supervisor_02/summary.json`,
+  실제 캠페인 `planner_logs/validation/decision_line_v2_261028_261028_042825`.
+  영상은 `run_02/front_video/front_evidence.mp4`이며 D통과+5초에 끝난다.
+
 ## 목적과 범위
 
 사용자는 원본 MORAI 채점선 전에는 멈출 수 있어도, 당겨둔 Lanelet 정차 목표를 지나
@@ -139,11 +214,13 @@ v97 SHA·계획02·황색ON/8m/s²·실제 planner/controller로 풀경로를 �
 | B | 6.77 | 28.65 | 1.00→0.295 | 없음 |
 | D | 1.77 | 24.50 | 1.00→0.132 | 없음 |
 
-수정 후 B에서 새 분기 로그2회를 확인했다. D는 불필요한 정지점·급제동이 사라졌지만 분기
-로그0회라 직접 발동 효과를 단정하지 않는다. 폐루프 도착 시점·속도도 달라 완전히 동일한
+종료 후 flush까지 포함해 수정 후 B에서 새 분기 로그2행, D에서3행을 확인했다.
+초기 관제 중 D0행 집계는 미완료 로그를 읽은 값이었다. throttle 로그행 수는 작동 프레임 수가 아니다.
+폐루프 도착 시점·속도도 달라 완전히 동일한
 입력 재생 대조는 아니다. 두 실행의 원본선 통과 ±0.25초 native 조회는 모두
 A=G/B=G/C=G+좌화살표/D=R+좌화살표였다. 황색 GO 분기는 발동하지 않았으므로
-이 영상을 황색 통과 성공 인증으로 쓰지 않는다. A의 첫 황색 정지 처리는 유지됐다.
+이 영상을 황색 통과 성공 인증으로 쓰지 않는다. A의 단발 황색 판독은 주변 native 적색과
+불일치해 실제 황색 검증에서 제외한다.
 B 궤적 header→수신 p95는178→194ms로 오히려 증가했는데 급제동이 없어져,
 단순한 CPU 개선만으로 생긴 차이는 아니었다.
 

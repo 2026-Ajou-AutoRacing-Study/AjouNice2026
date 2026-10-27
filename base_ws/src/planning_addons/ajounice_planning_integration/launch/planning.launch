@@ -27,6 +27,7 @@
   <arg name="enable_yellow_passthrough" default="false"/>
   <!-- Yellow-only stopping approximation; does NOT change global/controller deceleration. -->
   <arg name="signal_compliance_yellow_deceleration_mps2" default="8.0"/>
+  <arg name="signal_compliance_yellow_jerk_mps3" default="16.0"/>
   <!-- Deprecated timed-candidate arguments remain accepted for existing launch commands.
        They no longer enable a separate timing branch or assume a yellow duration. -->
   <arg name="signal_compliance_enable_timed_yellow" default="false"/>
@@ -113,6 +114,8 @@
          value="$(arg enable_yellow_passthrough)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_deceleration_mps2"
          value="$(arg signal_compliance_yellow_deceleration_mps2)" type="double"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_jerk_mps3"
+         value="$(arg signal_compliance_yellow_jerk_mps3)" type="double"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_enable_timed_yellow"
          value="false"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_min_yellow_sec"

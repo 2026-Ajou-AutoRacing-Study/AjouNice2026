@@ -6,6 +6,49 @@ the small source-age budget; invalid geometry/identity is not a detector miss.
 import math
 
 
+class ObservationDistanceGate:
+    """Suppress lamps until a current matched head is within its mission limit.
+
+    Uses camera-forward map depth, not distance to a stop line. Once opened,
+    ordinary identity/freshness/colour rules remain responsible for observations.
+    Reset on mission change or clock rewind; same-mission teleport is not covered
+    by this latch. An explicit zero base threshold disables all mission gates.
+    """
+    def __init__(self, threshold_m=0., d_threshold_m=None):
+        for value in (threshold_m, threshold_m if d_threshold_m is None else d_threshold_m):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 120:
+                raise ValueError('observation start depth must be finite in 0..120m')
+        self.threshold_m = float(threshold_m)
+        self.d_threshold_m = self.threshold_m if d_threshold_m is None else float(d_threshold_m)
+        self.group = None
+        self.last_stamp = None
+        self.opened = False
+
+    def update(self, group, source_ns, selection):
+        if self.threshold_m == 0:
+            return dict(suppressed=False, enabled=False, reason='disabled')
+        threshold = self.d_threshold_m if group == 201326 else self.threshold_m
+        if group != self.group or (type(source_ns) is int and self.last_stamp is not None and source_ns < self.last_stamp):
+            self.group, self.last_stamp, self.opened = group, None, False
+        valid_stamp = type(source_ns) is int and source_ns > 0
+        if valid_stamp:
+            self.last_stamp = source_ns
+        roi = selection.get('roi') or {}
+        depth = roi.get('depth_m')
+        valid_depth = (valid_stamp and type(group) is int and group in (201351, 201365, 201290, 201326)
+            and selection.get('status') == 'matched' and selection.get('group_id') == group
+            and selection.get('source_stamp_ns') == source_ns and roi.get('group_id') == group
+            and isinstance(depth, (int, float)) and not isinstance(depth, bool)
+            and math.isfinite(depth) and depth > 0)
+        entered = not self.opened and valid_depth and depth <= threshold
+        if entered:
+            self.opened = True
+        return dict(enabled=True, suppressed=not (self.opened and valid_stamp),
+            activated=self.opened, just_opened=entered, threshold_m=threshold,
+            current_matched_camera_depth_m=float(depth) if valid_depth else None,
+            reason='active_latched' if self.opened else 'awaiting_near_current_match')
+
+
 def no_lamps_context(packet, selection, classifier, previous_head_id, group_id,
                      source_stamp_ns, now_ns, max_packet_age_sec=.5, *, include_soft=False):
     """Qualify a dark crop, or opt-in soft abstention, of the same housing.

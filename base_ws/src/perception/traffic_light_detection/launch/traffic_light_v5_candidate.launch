@@ -20,6 +20,8 @@
   <arg name="publish_debug_image" default="false" />
   <arg name="near_rescue_enabled" default="true" />
   <arg name="planner_compliance_observations" default="true" />
+  <arg name="observation_start_depth_m" default="$(eval 40.0 if str(arg('planner_compliance_observations')).lower() == 'true' else 0.0)" />
+  <arg name="observation_start_depth_d_m" default="$(eval 30.0 if float(arg('observation_start_depth_m')) > 0 else 0.0)" />
   <arg name="preserve_unreadable_color_evidence" default="$(arg planner_compliance_observations)" />
   <arg name="stamped_vote_window_size" default="0" />
   <arg name="stamped_vote_max_age_sec" default="0.5" />
@@ -35,6 +37,8 @@
   <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
     <arg name="inference_python" value="$(arg inference_python)" />
     <arg name="device" value="$(arg device)" />
+    <arg name="observation_start_depth_m" value="$(arg observation_start_depth_m)" />
+    <arg name="observation_start_depth_d_m" value="$(arg observation_start_depth_d_m)" />
     <arg name="isolate_python" value="$(arg isolate_python)" />
     <arg name="weights_path" value="$(arg models_root)/yolo_final/selected.pt" />
     <arg name="cnn_checkpoint_path" value="$(arg models_root)/cnn_v5/best.pt" />

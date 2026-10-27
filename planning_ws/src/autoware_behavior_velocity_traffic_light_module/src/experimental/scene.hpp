@@ -83,6 +83,7 @@ public:
     double signal_compliance_unknown_grace_sec{0.0};
     // Positive magnitude for yellow decision only; not a controller command.
     double signal_compliance_yellow_deceleration_mps2{8.0};
+    double signal_compliance_yellow_jerk_mps3{16.0};
     // Deprecated compatibility fields: production no longer selects timed yellow.
     bool signal_compliance_enable_timed_yellow{false};
     double signal_compliance_min_yellow_sec{2.0};
@@ -150,7 +151,10 @@ private:
 
   void updateTrafficSignal(const PlannerData & planner_data);
 
-  bool isStopSignal(const PlannerData & planner_data, double distance_to_stop_point);
+  bool isStopSignal(
+    const PlannerData & planner_data, double distance_to_stop_point,
+    std::optional<double> virtual_front_distance = std::nullopt,
+    bool genuine_path_stop_point = true);
   bool seen_signal_on_approach_{false};
 
   // Store how the current yellow sequence started
@@ -182,6 +186,9 @@ private:
   // Parameter
   PlannerParam planner_param_;
   signal_compliance::Guard signal_compliance_guard_;
+  signal_compliance::DecisionLineLatch decision_line_latch_;
+  bool stop_requested_on_approach_{false};
+  std::optional<double> decision_line_official_distance_;
 
   // Debug
   DebugData debug_data_;

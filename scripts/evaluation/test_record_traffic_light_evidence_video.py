@@ -18,6 +18,38 @@ def record(payload=None, source=10_000_000_000, receipt=10., sequence=1):
 
 
 class EvidenceVideoTest(unittest.TestCase):
+    def test_footer_signal_depth_is_distinct_from_stopline_distance(self):
+        runtime = record({'frame_decision': {'group_id': 201351,
+            'observation_distance_gate': {'current_matched_camera_depth_m': 37.125}}})
+        evidence = video.frame_evidence(0, 10, 10, 10.1, 10_100_000_000,
+            {'runtime': runtime}, record(), False)
+        lines = video.telemetry_lines('current', evidence)
+        self.assertIn('신호등까지(전방 깊이) 37.12 m', lines[2])
+        self.assertIn('정차 목표 ? m', lines[2])
+        self.assertEqual(lines[-1], '')
+        self.assertIn('판단 주기 아님', video.telemetry_lines('과거 판단 0.5초 표본', evidence)[-1])
+        runtime['payload']['frame_decision']['observation_distance_gate'] = {}
+        missing = video.frame_evidence(0, 10, 10, 10.1, 10_100_000_000,
+            {'runtime': runtime}, record(), False)
+        self.assertIn('전방 깊이) ? m', video.telemetry_lines('current', missing)[2])
+
+    def test_footer_uses_actual_same_mission_decision_not_lamp_color(self):
+        runtime = record({'frame_decision': {'group_id': 201326,
+            'observed_tuples': [['green', 'circle', 1]]}})
+        planner = record({'group_id': 201326, 'require_stop': True, 'committed': False})
+        evidence = video.frame_evidence(0, 10, 10, 10.1, 10_100_000_000,
+            {'runtime': runtime, 'planner_decision:201326': planner}, record(), False)
+        lines = video.telemetry_lines('current', evidence)
+        self.assertIn('미션 D', lines[0])
+        self.assertIn('녹색', lines[0])
+        self.assertIn('STOP 정지', lines[1])
+        stale = video.frame_evidence(1, 10, 10, 11, 11_000_000_000,
+            {'runtime': runtime, 'planner_decision:201326': planner}, record(), True)
+        self.assertIn('판단 정보 없음', video.telemetry_lines('current', stale)[1])
+        missing = video.frame_evidence(0, 10, 10, 10.1, 10_100_000_000,
+            {'runtime': runtime, 'planner_decision:201351': planner}, record(), False)
+        self.assertIn('판단 정보 없음', video.telemetry_lines('current', missing)[1])
+
     def test_time_stamps_and_nonfinite_values_preserve_unknowns(self):
         self.assertEqual(video.stamp_ns(SimpleNamespace(secs=10, nsecs=123)), 10_000_000_123)
         self.assertEqual(video.stamp_ns(SimpleNamespace(sec=10, nanosec=123)), 10_000_000_123)
@@ -80,7 +112,7 @@ class EvidenceVideoTest(unittest.TestCase):
         self.assertTrue(evidence['runtime_exact_image_stamp_match'])
         self.assertTrue(evidence['image_repeated'])
         self.assertEqual(evidence['image']['source_stamp_ns'], 10_000_000_000)
-        self.assertIn('stamped_vote_unknown', str(video.telemetry_lines('vote3', evidence)))
+        self.assertEqual(evidence['telemetry']['runtime']['value']['frame_decision']['observation_timing']['output_origin'], 'stamped_vote_unknown')
         runtime['source_stamp_ns'] += 1
         newer = video.frame_evidence(4, 10, 10, 10.4, 10_400_000_000,
             {'runtime': runtime}, record(), True)
@@ -92,8 +124,8 @@ class EvidenceVideoTest(unittest.TestCase):
         image = np.full((1013, 1280, 3), 75, dtype=np.uint8)
         evidence = video.frame_evidence(0, 10, 10, 10.1, 10_100_000_000, {}, record(), False)
         frame = video.render_frame(image, 'current', evidence)
-        self.assertEqual(frame.shape, (1216, 1280, 3))
-        self.assertTrue(np.array_equal(frame[:1013], image))
+        self.assertEqual(frame.shape, (960, 1280, 3))
+        self.assertTrue(np.array_equal(frame[:720], image[:720]))
         stale = video.frame_evidence(1, 10, 10, 11, 11_000_000_000, {}, record(), True)
         self.assertLess(video.render_frame(image, 'current', stale)[0, 0, 0], 75)
 

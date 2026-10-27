@@ -40,6 +40,26 @@ def test_stopped_yellow_is_nonnatural_1_3_5_second_stress_not_phase_estimation()
         assert stages[-1]['action'] == 'controlled_go_until_owner_teardown'
 
 
+@pytest.mark.parametrize('group', [201351, 201365, 201290, 201326])
+def test_first_observation_yellow_never_arms_green_or_red_before_initial_yellow(group):
+    yellow = 5 if group == 201326 else 4
+    assert trial.initial_arming_phase(group, 'first-observation-yellow') == (
+        yellow, 'arming_first_observation_yellow')
+    stages = trial.experiment_stages(group, 'first-observation-yellow')
+    assert [(row['color'], row['seconds']) for row in stages] == [
+        (yellow, 3.), (1, 2.), (trial.controlled_go_state(group), None)]
+    assert stages[-1]['action'] == 'controlled_go_until_crossing_then_owner_teardown'
+    assert all(row['fault'] == 'none' for row in stages)
+    for experiment in ('stopped-yellow', 'missing-signal'):
+        assert trial.initial_arming_phase(group, experiment) == (1, 'arming_red')
+
+
+def test_first_yellow_post_stop_duration_is_bounded_separately_from_long_approach_hold():
+    assert trial.experiment_stages(201351, 'first-observation-yellow', (2.,))[0]['seconds'] == 2.
+    for durations in ((1., 2.), (4.,), (), (math.nan,), (True,)):
+        with pytest.raises(ValueError): trial.experiment_stages(201351, 'first-observation-yellow', durations)
+
+
 def test_missing_signal_faults_do_not_change_native_red_GT():
     stages = trial.experiment_stages(201326, 'missing-signal')
     assert [stage['fault'] for stage in stages] == ['drop', 'wrong_id', 'none', 'none']
@@ -109,6 +129,47 @@ def test_initial_zero_quaternion_or_nonfinite_odom_never_arms_trial():
     latest = inputs()
     latest['odom']['position_xyz'][0] = float('nan')
     assert not trial.start_gate(latest, GROUP, 10., 10000000000)['ready']
+
+
+def test_moving_trigger_distance_supports_early_stoppable_trials_but_stays_bounded():
+    for value in (1., 8., 30., 45., 60.):
+        assert trial.moving_trigger_distance(value) == value
+    for value in (0.9, 60.1, -1., math.inf, math.nan, True):
+        with pytest.raises(ValueError): trial.moving_trigger_distance(value)
+
+
+def test_terminal_override_releases_only_after_actual_finite_front_crossing_and_tail():
+    release = trial.TerminalCrossingRelease(GROUP)
+    assert release.update(inputs(x=6.)['odom'], 10.) is None
+    assert not release.ready(100.)  # time alone is never a crossing
+    crossed = release.update(inputs(x=7.2, now=10.1, ros_ns=10100000000)['odom'], 10.1)
+    assert crossed['point_xy_m'] == [10., 0.]
+    assert crossed['before_source_stamp_ns'] == 10000000000
+    assert crossed['after_source_stamp_ns'] == 10100000000
+    assert not release.ready(11.09)
+    assert release.ready(11.1)
+    assert release.update(inputs(x=8., now=10.2, ros_ns=10200000000)['odom'], 10.2) is None
+
+
+@pytest.mark.parametrize('changed', [dict(y=4.), dict(x=20.), dict(ros_ns=10000000000),
+                                      dict(ros_ns=12000000000)])
+def test_terminal_release_rejects_off_segment_teleport_duplicate_or_gapped_pose(changed):
+    release = trial.TerminalCrossingRelease(GROUP)
+    release.update(inputs(x=6., y=changed.get('y', 0.))['odom'], 10.)
+    update = dict(x=7.2, now=10.1, ros_ns=10100000000)
+    update.update(changed)
+    assert release.update(inputs(**update)['odom'], 10.1) is None
+    assert not release.ready(20.)
+
+
+def test_terminal_release_respects_configured_direction_and_never_infers_passed_start():
+    release = trial.TerminalCrossingRelease(dict(GROUP, crossing_direction='negative_to_positive'))
+    release.update(inputs(x=6.)['odom'], 10.)
+    assert release.update(inputs(x=7.2, now=10.1, ros_ns=10100000000)['odom'], 10.1) is None
+    behind = trial.TerminalCrossingRelease(GROUP)
+    behind.update(inputs(x=8.)['odom'], 10.)
+    behind.update(inputs(x=9., now=10.1, ros_ns=10100000000)['odom'], 10.1)
+    assert not behind.ready(20.)
 
 
 def test_preparation_waits_for_raw_fresh_inputs_allows_P_without_starting_phase():
@@ -224,6 +285,53 @@ def test_C_both_heads_are_SET_before_any_GET_and_observations_are_not_fabricated
     with pytest.raises(ValueError): trial.coordinated_native_cycle([heads[0],heads[0]], 48, send, read)
 
 
+@pytest.mark.parametrize('group', [201351, 201365, 201290, 201326])
+def test_persistent_cycle_paces_each_physical_head_before_independent_GET(group):
+    heads = list(trial.GROUP_IDS[group])
+    color = trial.controlled_go_state(group)
+    events = []
+    states = trial.apply_native_cycle(
+        heads, color,
+        lambda head, state: events.append(('SET', head, state)),
+        lambda head: events.append(('GET', head)) or color,
+        'persistent', frame_wait=lambda seconds: events.append(('WAIT', seconds)))
+    assert [row[0] for row in events] == ['SET', 'WAIT'] * len(heads) + ['GET'] * len(heads)
+    assert states == {head: color for head in heads}
+    assert all(row[1] == trial.MULTI_HEAD_FRAME_WAIT_SEC for row in events if row[0] == 'WAIT')
+
+
+def test_udp_is_explicit_legacy_single_head_cadence_and_transport_is_validated_before_wire():
+    events = []
+    args = (list(trial.GROUP_IDS[201326]), 33,
+            lambda *values: events.append(('SET', *values)),
+            lambda head: events.append(('GET', head)) or 33)
+    trial.apply_native_cycle(*args, 'udp', frame_wait=lambda seconds: events.append(('WAIT', seconds)))
+    assert [row[0] for row in events] == ['SET', 'GET']
+    events.clear()
+    for bad in (None, '', 'modern', True):
+        with pytest.raises(ValueError): trial.apply_native_cycle(*args, bad)
+        with pytest.raises(ValueError): trial.make_native_sender(bad)
+    assert not events
+
+
+def test_persistent_sender_factory_uses_existing_positive_only_RPC_without_connecting(monkeypatch):
+    import control_traffic_light_short_cycles as cycles
+    marker = object()
+    monkeypatch.setattr(cycles, 'PersistentNativeSender', lambda: marker)
+    assert trial.make_native_sender('persistent') is marker
+
+
+def test_evaluation_cli_defaults_to_persistent_and_retains_explicit_udp_reproduction():
+    tree = ast.parse(Path(trial.__file__).read_text())
+    argument = next(node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute) and node.func.attr == 'add_argument'
+                    and node.args and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == '--native-transport')
+    keywords = {keyword.arg: ast.literal_eval(keyword.value) for keyword in argument.keywords}
+    assert keywords['default'] == 'persistent'
+    assert keywords['choices'] == ('persistent', 'udp')
+
+
 def test_terminal_positive_hold_does_not_mask_mismatch_timeout_or_clock_reversal():
     hold = trial.TerminalPositiveHold(33, 10.)
     with pytest.raises(trial.TrialError): hold.update(12., False)
@@ -271,7 +379,7 @@ def test_source_has_no_vehicle_publisher_service_or_stack_start_call():
     # Waiting comes before constructing either native transport. First override is R1.
     calls_in_order = [node.func.id for statement in native_try.body for node in ast.walk(statement)
                       if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
-    assert calls_in_order.index('wait_for_preparation_inputs') < calls_in_order.index('OfficialSender')
+    assert calls_in_order.index('wait_for_preparation_inputs') < calls_in_order.index('make_native_sender')
     assert calls_in_order.index('wait_for_preparation_inputs') < calls_in_order.index('ModernNativeReader')
     assert calls_in_order.index('wait_for_preparation_inputs') < calls_in_order.index('apply_and_read')
     assert 'reset' not in calls_in_order
@@ -279,13 +387,13 @@ def test_source_has_no_vehicle_publisher_service_or_stack_start_call():
                        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
                        and child.func.id == 'apply_and_read')
     # The explicitly selected real moving trial first holds its route's GO,
-    # while the original stationary experiments still first override R1.
+    # while stationary arming explicitly selects R1 or the first-yellow stress.
     assert isinstance(first_apply.args[0], ast.Call)
     assert isinstance(first_apply.args[0].func, ast.Name)
     assert first_apply.args[0].func.id == 'controlled_go_state'
-    red_arming = next(node for node in ast.walk(native_try) if isinstance(node, ast.While)
+    stationary_arming = next(node for node in ast.walk(native_try) if isinstance(node, ast.While)
                      and any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
                              and c.func.id == 'apply_and_read' and c.args
-                             and isinstance(c.args[0], ast.Constant) and c.args[0].value == 1
+                             and isinstance(c.args[0], ast.Name) and c.args[0].id == 'arming_color'
                              for c in ast.walk(node)))
-    assert red_arming is not None
+    assert stationary_arming is not None

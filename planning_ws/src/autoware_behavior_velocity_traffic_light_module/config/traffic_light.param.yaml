@@ -9,6 +9,7 @@
       enable_pass_judge: true
       enable_yellow_passthrough: false
       signal_compliance_yellow_deceleration_mps2: 8.0 # Yellow decision only; does not command braking.
+      signal_compliance_yellow_jerk_mps3: 16.0 # Decision-line estimate only; does not command braking.
       enable_arrow_aware_yellow_passing: false
       enable_rtc: false # If set to true, the scene modules require approval from the rtc (request to cooperate) function. If set to false, the modules can be executed without requiring rtc approval
 

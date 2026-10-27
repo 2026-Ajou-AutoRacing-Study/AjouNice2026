@@ -103,6 +103,13 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
     return result
 
 
+def receipt_yellow_durations(experiment, requested):
+    if experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
+        return None
+    default = (3.,) if experiment == 'first-observation-yellow' else (1., 3., 5.)
+    return list(default if requested is None else requested)
+
+
 def validate_short_cycle_request(experiment, plan, mode, temporal_direct):
     """Renderer stress is explicit and never substitutes native GT for vision."""
     enabled = experiment == 'short-native-cycles'
@@ -342,12 +349,14 @@ def main():
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
                         help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
-    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow', 'short-native-cycles'), default='natural')
+    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'first-observation-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow', 'short-native-cycles'), default='natural')
     parser.add_argument('--short-cycle-plan', type=Path,
                         help='Explicit native-rendered phase plan; development stress, never natural signals')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
     parser.add_argument('--visual-continuation-sec', type=float,
                         help='Explicit bounded visual-identity candidate (0..0.3s), not production mode')
+    parser.add_argument('--observation-start-depth-m', type=float,
+                        help='Trial only: use lamps after first current map-matched housing at this camera depth')
     parser.add_argument('--perception-odometry-topic',
                         help='Explicit evaluation-only covariance stress relay; never changes planner/TF input')
     parser.add_argument('--signal-timeout-sec', type=float, default=1.0)
@@ -392,14 +401,14 @@ def main():
                 raise ValueError('D video cut requires --record-video')
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
-    if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'missing-signal'):
+    if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'missing-signal'):
         parser.error('Separate preparation geometry applies only to stationary native-control trials')
-    if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'moving-native-yellow'):
+    if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
         parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
     moving_native = args.experiment == 'moving-native-yellow'
     if moving_native and (args.yellow_durations_sec not in ((1.,), (2.,), (3.,)) or
-                          not 1. <= args.trigger_front_distance_m <= 30.):
-        parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..30m')
+                          not 1. <= args.trigger_front_distance_m <= 60.):
+        parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..60m')
     if args.planner_fixture and args.experiment != 'natural':
         parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
     if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
@@ -471,7 +480,9 @@ def main():
     progress = None if production else args.route_progress == 'true'
     fixture = args.planner_fixture is not None
     native_signal_control = args.experiment != 'natural' and not fixture
-    proxy = args.experiment not in ('natural', 'moving-native-yellow', 'short-native-cycles') or fixture
+    if args.observation_start_depth_m is not None and (args.mode == 'production' or not math.isfinite(args.observation_start_depth_m) or not 0 <= args.observation_start_depth_m <= 120 or args.temporal_direct != 'true'):
+        parser.error('distance gate requires explicit guarded/baseline direct trial, finite depth 0..120')
+    proxy = args.experiment not in ('natural', 'moving-native-yellow', 'first-observation-yellow', 'short-native-cycles') or fixture
     plugin = ROOT/'planning_ws/install_isolated/lib/libautoware_behavior_velocity_traffic_light_module.so'
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
@@ -480,8 +491,7 @@ def main():
         perception_odometry_topic=args.perception_odometry_topic,
         enable_yellow_passthrough=None if production else args.yellow_passthrough=='true',
         signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
-        yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
-                              if args.experiment in ('stopped-yellow', 'moving-native-yellow') else None),
+        yellow_durations_sec=receipt_yellow_durations(args.experiment, args.yellow_durations_sec),
         group_id=args.group_id, source_config=str(args.config.resolve()),
         planner_fixture=args.planner_fixture, planner_fixture_is_synthetic=fixture,
         fixture_probe_seconds=args.fixture_probe_seconds if fixture else None,
@@ -492,7 +502,9 @@ def main():
         short_cycle_plan=(str(args.short_cycle_plan.resolve()) if short_cycles else None),
         short_cycle_plan_sha256=(digest(args.short_cycle_plan) if short_cycles else None),
         real_native_moving_yellow=moving_native,
+        real_native_first_observation_yellow=args.experiment == 'first-observation-yellow',
         synthetic_canonical_signal_proxy=proxy,
+        observation_start_depth_m=args.observation_start_depth_m,
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
@@ -626,6 +638,8 @@ def main():
             visual_continuation_sec=args.visual_continuation_sec,
             perception_odometry_topic=args.perception_odometry_topic)
         selected = map_launch_arguments(package, filename, selected, args.map_file, candidate_map_sha)
+        if args.observation_start_depth_m is not None and package == 'traffic_light_detection' and filename in ('traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
+            selected['observation_start_depth_m'] = args.observation_start_depth_m
         selected = temporal_video_launch_arguments(package,filename,selected,
             args.required_green_observations,args.stamped_vote_window_size,args.record_video,
             stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
@@ -827,7 +841,8 @@ def main():
                                 else 'control_traffic_light_policy_trial.py')
                 phase_command = [str(args.native_python), str(ROOT/'scripts/evaluation'/phase_script),
                     '--output',str(args.output/'phase_controller'),'--geometry',str(args.preparation_geometry or args.geometry),
-                    '--group-id',str(args.group_id),'--experiment',args.experiment,'--max-seconds','180']
+                    '--group-id',str(args.group_id),'--experiment',args.experiment,
+                    '--max-seconds', str(min(600, duration))]
                 if args.yellow_durations_sec is not None:
                     phase_command.extend(('--yellow-durations-sec',
                         ','.join(format(value, 'g') for value in args.yellow_durations_sec)))

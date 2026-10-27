@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-27. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 허가 뒤 순수 UNKNOWN 유예0.3초, 황색 통과·투표·디버그 화면 OFF**다.
+상태: 2026-10-28. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 허가 뒤 순수 UNKNOWN 유예0.3초, 황색 통과·투표·디버그 화면 OFF**다.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다. 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
 ## 운영 기준
@@ -24,7 +24,7 @@
   현재 기본이다. 잘못된/미설치 CNN을 조용히 HSV로 바꾸지 않는다.
 - 최종 후보는 YOLO26n 960 + 지도 선택 + ResNet18 CNN v5다. YOLO 자료는
   6환경 816장/1,374박스, CNN은 기존792개를 보존하고 작은 D 신호60개를 보강했다.
-- 고정 자연 현시의 같은939장에서는 기존 HSV856개 → 새 조합939개가 일치했고,
+- 고정 자연 현시의 같은939장에서는 기존 HSV856개 → 새 조합939개가 일치했고(후속 이동 A의 작은·어두운 head에는 별도 [황색 과신](261028_YELLOW_REPEAT_ENVIRONMENT_VALIDATION.md)이 있어 일반화100%가 아니다),
   좌화살표는41/116 →116/116이었다. native 상태 조건부 일치이며 주행100% 인증이 아니다.
 - v4의 작은 D 좌화살표 누락은 임계값을 낮추지 않고 자료를 보강해 v5로 개선했다.
   새 pose·6환경60개는60/60 일치, 실제 ROS 저확신 UNKNOWN0·지도 연결346/349였다.
@@ -37,8 +37,8 @@
   `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
-- 황색 master는 기본 OFF다. ON 시 [Lanelet 제동거리 정책](261027_LANELET_YELLOW_BRAKING.md)으로 기존 jerk/잔여시간 판단을 대체한다: `v*응답지연+v²/(2*8)`이 기존 Lanelet 정차 목표 거리보다 클 때만 기존 허가→황색 주행을 이어간다. 첫 황색·정차·기존 STOP 뒤 출발은 금지다. [옛 시간제한 후보](261026_TIMED_YELLOW_CANDIDATE.md)의2초 가정은 더 이상 활성 판단식이 아니다. 초기 시험의 점등 간섭·근접 UNKNOWN 재정지를 같은 문서에 구분했다. 로컬은 사용자 요청으로 실제 색 관측 뒤 가상선을 지난 신선한 순수 UNKNOWN에 새 STOP을 넣지 않도록 보완했고 v97 재주행 B/D의 불필요한 정지점이 사라졌다. 상단 이탈 직접 판정이나 LAN 인증은 아니며 PR/팀 배포는 아직이다.
-- 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml) 뒤 최신 planning은 **v96** 지도·SHA·Route A/B를 기본으로 선택한다([지도 현재 계약](../../../kcity_map/README.md)). 아래 v88/v93 날짜별 실주행 증거를 v96·LAN 인증으로 쓰지 않는다.
+- 황색 master는 기본 OFF다. ON+guard ON은 [판단선1회 확정v2](261027_LANELET_YELLOW_BRAKING.md): b8·J16·응답지연0의jerk 제동거리, 방향허가 상태로 `d<=D`에 진입하면 GO확정, 후속Y/R에도 유지하되 실제정차시 재판단한다(적색미위반 보장아님). STOP이력은 가상선 전/후 정차·UNKNOWN으로 풀리지 않고 신선한 방향허가로 해제한다. OFF도STOP오버슈트 보호는 유지하며, 미수신/1초timeout GO는 기존예외다. C는201290 하나·원본선 통과후 종료, 추가 콘솔 INFO는 원복했고 영상 하단만 한글 요약한다(영상용 읽기전용 판단 토픽). Cloudy13 실제run02 완주·P 확인, D목표12cm초과STOP→좌회전허가 재출발 확인. 예전v1/시간가정과 [기존 반복검증](261028_YELLOW_REPEAT_ENVIRONMENT_VALIDATION.md)은v2검증과 구분한다. PR/머지는 보류다.
+- 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml) 이후 로컬 소스 기본은 **v96**, 이번 실주행 override는v97이다. 원격 planning의v98 지도·나머지 코드는 아직 미통합이다([지도 현재 계약](../../../kcity_map/README.md)). 2026-10-28 사용자 요청으로 로컬 두 planning profile의 공통 `delay_response_time`만0.0초로 맞췄고 `system_delay=0.5`·감속도·jerk·황색OFF는 유지했다. 이전 영상의 응답지연0.5초를 새0초 실주행 검증으로 읽지 않는다.
 - 단발 detector 누락은 원본 age 0.2초, 정상 지도 연결의 CNN 공백은 위 공유0.2초가 우선이며, 그 밖의 기존 이동 중 soft 저확신 경로만 0.3초/원본 age0.5초 한도를 유지한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 로컬 소스·설치본에는 이전 박스 IoU가 낮아도 현재 영상 시각의 크기 비례 지도 투영과 현재 검출 박스가 일치하면 같은 head로 재판독하는 보완을 추가·검사했다. 로컬 B 근접·풀경로 폐루프는 PASS했으나 **새 투영 분기는 두 주행에서 발동하지 않아 팀 PC 설치본·LAN 효과 검증은 별도**다. 위 no_lamps 완충을 벗어난 무점등과 실제 화각 이탈은 UNKNOWN으로 남기며, 다음 lanelet ID만으로 다른 YOLO 박스를 강제 연결하는 규칙은 추가하지 않는다. [B bag 원인·후보·실주행 검증](261027_B_ROI_PROJECTION_CONTINUATION.md)을 본다.
 - Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 현재 기본인 신선한 1개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
@@ -65,7 +65,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 동적 교차로 뒤에 보이는 옛 D-1은 검출 라벨로 존재해도 미션 신호 허용 대상으로 쓰지 않는다.
 
 ## 확인된 문제와 후보
-
+- 2026-10-28 사용자 선택: 지도+직접 관측의 판단 시작 기본은 **A/B/C40m·D30m**(`observation_start_depth_m`/`observation_start_depth_d_m`), 카메라→신호 깊이다. 시작 후 유지·추가 완충 없음, 전체 복귀는 앞 인자0. legacy는 비활성. [기존 로그 감사](261028_EXISTING_LOG_WITHIN40_AUDIT.md)와 [모두40m였던 단일 주행](261028_DISTANCE40_DELAY0_TRIAL.md)을 구분하며 **40/30 새 실주행은 아직 미검증**, 같은 미션 teleport 초기화도 미지원이다.
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. [3/2 영상](261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md)·[7/4 비교](261027_SEVEN_FOUR_DRIVING_COMPARISON.md)·[옛 전체 경로 감사](261027_LEGACY_ROBUSTNESS_AUDIT.md) 후 [순수 UNKNOWN 유예](261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md)를 **운영0.3초로 승격**했다. 실제 허가 원본/처리 age가 모두 기한 내일 때만 이어주며 새 R/Y·색이 있는 모순은 즉시 기존 판단에 전달한다. marker ON·허가1회·투표0·황색OFF를 묶는다. traffic OFF/legacy/옛 snapshot은 유예0을 보존한다. [배포·복귀](261027_UNKNOWN_GRACE_RELEASE.md)를 따른다. 과거 profile·D1.5초 hold·UNKNOWN/Y 무조건 GO는 복원하지 않았다.
