@@ -593,6 +593,43 @@ TEST_F(TrafficLightComplianceModuleTest, LargeBackwardRelocationRearmsActualRedS
   EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
 }
 
+TEST_F(TrafficLightComplianceModuleTest, ObservedVirtualExitDoesNotAddUnknownStopEvenWhenAlreadyStopped)
+{
+  for (const auto group:{201351,201365,201290,201326}) {
+    configure(group,true,true,20.,true,.3,1);
+    tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(.4); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    EXPECT_EQ(state(),TrafficLightModule::State::APPROACH);
+    tick(); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(); put(yellow()); EXPECT_TRUE(modifiesToStop()); // no yellow new departure
+    tick(); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, TerminalUnknownNeverMasksReadableEvidenceOrAllowsUnseenOrBoundary)
+{
+  configure(201351,true,true,20.,true,.3,1);
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+  tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+  tick(); pose(7.,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop()); // equality
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  Signal ambiguous; ambiguous.elements={lamp(Element::RED,Element::UNKNOWN)};
+  tick(); put(ambiguous); EXPECT_TRUE(modifiesToStop());
+  tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
+  setFailOpen(false);
+  tick(); put(Signal{},1.1); EXPECT_TRUE(modifiesToStop());
+}
+
+TEST_F(TrafficLightComplianceModuleTest, OfficialCrossingAndBackwardRelocationResetObservedApproach)
+{
+  configure(201351,true,true,20.,true,.3,1);
+  tick(); pose(6.,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  tick(); pose(17.1,5.); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+  EXPECT_EQ(state(),TrafficLightModule::State::GO_OUT);
+  tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+}
+
 TEST_F(TrafficLightComplianceModuleTest, RegressedActualSourceAndClockNeedThreeNewGrants)
 {
   configure(201326); confirmGreenOnRealPath();

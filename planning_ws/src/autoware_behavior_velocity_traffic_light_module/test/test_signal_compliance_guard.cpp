@@ -560,3 +560,40 @@ TEST(SignalLaneletYellow, InvalidAndNonfiniteInputsFailClosed)
   EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,-.1,8.,1.).allow);
   EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,1e308,1.,.5,8.,1.).allow);
 }
+
+TEST(SignalLaneletExit, ObservedFreshPureUnknownPastVirtualLineCanContinue)
+{
+  for (const auto previous:{true,false}) {
+    EXPECT_EQ(compliance::deferTerminalUnknownAfterVirtualLine(
+      true,previous,Observation::Unknown,false,-.1,true),previous);
+  }
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    false,true,Observation::Unknown,false,-.1,true));
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,0.,true));
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,1.,true));
+}
+
+TEST(SignalLaneletExit, ReadableRedYellowAndKnownColorAmbiguityAreNeverMasked)
+{
+  for (const auto observation:{Observation::Stop,Observation::Yellow,
+      Observation::AuthorizedGreen,Observation::Missing,Observation::Stale}) {
+    EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+      true,true,observation,false,-2.,true));
+  }
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,true,-2.,true));
+}
+
+TEST(SignalLaneletExit, UnfreshMissingAndNonfiniteGeometryFailClosed)
+{
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,-2.,false));
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,std::nullopt,true));
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,std::numeric_limits<double>::quiet_NaN(),true));
+  EXPECT_FALSE(compliance::deferTerminalUnknownAfterVirtualLine(
+    true,true,Observation::Unknown,false,-std::numeric_limits<double>::infinity(),true));
+}

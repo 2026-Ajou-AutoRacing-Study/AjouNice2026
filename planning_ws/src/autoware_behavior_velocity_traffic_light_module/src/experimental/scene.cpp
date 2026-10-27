@@ -299,6 +299,21 @@ bool TrafficLightModule::isStopSignal(
     const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout, has_color_evidence);
+    const auto terminal_front_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+      distance_to_stop_point, planner_param_.stop_margin,
+      planner_data.vehicle_info_.max_longitudinal_offset_m,
+      planner_param_.signal_compliance_front_axle_offset_m);
+    const double terminal_age = traffic_signal_stamp_ ?
+      (clock_->now()-*traffic_signal_stamp_).toSec() : -1.;
+    if (signal_compliance::deferTerminalUnknownAfterVirtualLine(
+        planner_param_.enable_yellow_passthrough && planner_param_.use_official_judging_lines,
+        seen_signal_on_approach_, observation, has_color_evidence, terminal_front_distance,
+        terminal_age >= 0.0 && terminal_age <= planner_param_.tl_state_timeout)) {
+      RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+        "[signal_lanelet_exit] reg=%ld pure_unknown_past_virtual_line keep_path_open=1",
+        traffic_light_reg_elem_.id());
+      return false;
+    }
     if (signal_compliance::deferUnseenUntilObserved(
           planner_param_.defer_unseen_until_observed, seen_signal_on_approach_, observation)) {
       RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,

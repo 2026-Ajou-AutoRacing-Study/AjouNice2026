@@ -55,6 +55,18 @@ inline bool deferFarUnseenUnknown(
   return distance_to_stop_point > decision_distance;
 }
 
+// Competition policy: after a previously observed signal's virtual Lanelet line,
+// pure unreadability must not introduce another stop, even if already stopped.
+// This is a geometry/history proxy, not explicit image-FOV evidence. Readable
+// RED/YELLOW and known-color ambiguity still use the ordinary guarded decision.
+inline bool deferTerminalUnknownAfterVirtualLine(
+  bool enabled, bool previously_observed, Observation observation,
+  bool has_color_evidence, std::optional<double> front_distance, bool fresh)
+{
+  return enabled && previously_observed && fresh && observation == Observation::Unknown &&
+    !has_color_evidence && front_distance && std::isfinite(*front_distance) && *front_distance < 0.0;
+}
+
 class Guard
 {
 public:
