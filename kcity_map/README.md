@@ -1,7 +1,31 @@
 # K-City 지도
 
-현재 planning·인지·지도 시각화 launch의 소스 기본 지도는 `lanelet_map/lanelet2_map_v96.osm`이다.
+현재 planning·인지·측위 지도·시각화의 소스 기본 지도는 **v98**이다.
+v98은 v97의 Lanelet `201439` 중심선 Way `105522` 끝점 참조를
+`229565`에서 다음 Lanelet `200360`의 `233927`로 연결한 지도다.
+9.0502 cm 간격을 없애며 기존 굴절은 보존한다. 경계·속도·나머지 형상·경로 정책은 변경하지 않는다.
+[현재 manifest](../configs/map/kcity_v98_centerline_connection.yaml)에 입력·출력 SHA를 고정한다.
+지도 원본·작업용 그림·검증 산출물은 Git에 포함하지 않는다.
+기존 v97 자산이 있으면 아래 준비 도구가 검증 후 v98을 재현한다. 다른 내용의 기존 파일은 덮어쓰지 않는다.
+
+```bash
+python3 scripts/map/prepare_kcity_v98.py
+python3 scripts/map/prepare_kcity_v98.py --check
+python3 scripts/map/check_runtime_map_version.py --installed
+```
+
+소스 변경과 설치·실행 중인 노드의 적용은 별개다. 설치 반영 후 관련 노드를 재시작해야 적용된다.
+v97 이하 명시적 프로필은 과거 버전 복귀용으로 보존한다. 아래 설명은 이전 자산 이력이다.
+
+v97 전환 당시 planning·인지·지도 시각화 launch의 소스 기본 지도는 `lanelet_map/lanelet2_map_v97.osm`이었다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
+
+v97은 사용자가 제공한 지도이며 `200968`의 제한속도는 59 → 40 km/h다.
+[v97 manifest](../configs/map/kcity_v97_speed_limit.yaml)에 실제 파일 SHA를 고정한다.
+VMB 재저장에 따른 좌표 정밀도·속성·멤버 차이도 있어 v96과 바이트/형상이 동일하다고 간주하지 않는다.
+Route A/B와 Mission 정책은 v96을 계승하며 지도 로드·경로 연결은 별도 검증한다.
+`python3 scripts/map/prepare_kcity_v97.py --check`로 자산을 확인한다.
+당시 설치된 기본값은 v97이었다. 현재 기본값은 문서 상단의 v98을 따른다.
 
 2026-10-27: 로컬 v95를 기반으로 음영 직선도로 양쪽 레인렛 `200374`, `200471`의
 `speed_limit`을 59 → **40 km/h**로 변경한 `lanelet_map/lanelet2_map_v96.osm`을 생성했다.
@@ -36,16 +60,16 @@ v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와�
 
 | 구분 | 경로·기준 |
 | --- | --- |
-| Lanelet2 | `lanelet_map/lanelet2_map_v96.osm` |
+| Lanelet2 | `lanelet_map/lanelet2_map_v98.osm` |
 | Projector | `lanelet_map/map_projector_info_v1.yaml` |
 | Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
 | 속도 상한 | v88 OSM attributes: 대상 양쪽 차선 150 → 80 → 70 km/h. 별도 override 없음 |
-| 최신 제작 검증 근거 | `../configs/map/kcity_v96_shadow_speed.yaml` |
+| 최신 자산 검증 근거 | `../configs/map/kcity_v98_centerline_connection.yaml` |
 | 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
 
 ## 자산 준비
 
-기존 v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 남긴다. 기본 v94 OSM은 팀 Drive 자산이므로 새 PC는 `python3 scripts/map/prepare_kcity_v94.py`로 먼저 준비한다.
+기존 v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 남긴다. 현재 v97 OSM은 별도 제공 자산이므로 새 PC는 위 `prepare_kcity_v97.py --source ...` 명령으로 먼저 준비한다.
 PCD·MGeo·GIS·다른 버전 OSM·버전별 route 같은 큰 자산은 팀 Drive로 공유한다.
 설정·현재 도구·이력은 Git으로 관리한다. 자산 경로는 이 저장소의 `kcity_map/`을 유지한다.
 

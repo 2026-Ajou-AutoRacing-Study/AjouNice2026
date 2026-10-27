@@ -102,6 +102,7 @@ void PlanningValidatorNode::setupParameters()
 
   p.soft_stop_deceleration = declare_parameter<double>("soft_stop_deceleration");
   p.soft_stop_jerk_lim = declare_parameter<double>("soft_stop_jerk_lim");
+  enable_static_scene_guard_ = declare_parameter<bool>("enable_static_scene_guard", true);
   static_scene_deceleration_ = declare_parameter<double>("static_scene_deceleration");
   if (!std::isfinite(static_scene_deceleration_) || static_scene_deceleration_ <= 0.0) {
     throw std::invalid_argument("static_scene_deceleration must be finite and positive");
@@ -290,6 +291,7 @@ void PlanningValidatorNode::onStaticScene(
 
 bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
 {
+  if (!enable_static_scene_guard_) return false;
   scene_check_odometry_ = sub_kinematics_.take_data();
   if (!static_scene_ || static_scene_->obstacles.empty() || trajectory.points.empty()) return false;
   const auto odometry = scene_check_odometry_;
@@ -379,6 +381,7 @@ void PlanningValidatorNode::publishSceneCheckedTrajectory(Trajectory trajectory)
     status.values.push_back(std::move(entry));
   };
   add("publication_index", published_trajectory_sequence_++);
+  add("guard_enabled", enable_static_scene_guard_);
   add("trajectory_crc32", checksum.checksum());
   add("scene_stamp_ns", checked_scene ? checked_scene->header.stamp.toNSec() : 0);
   add("validated_wall_ns", std::chrono::duration_cast<std::chrono::nanoseconds>(

@@ -21,6 +21,7 @@ install(
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_policy.py)
   catkin_add_nosetests(test/test_v94_profile.py)
+  catkin_add_nosetests(test/test_v98_profile.py)
 endif()
 
 install(

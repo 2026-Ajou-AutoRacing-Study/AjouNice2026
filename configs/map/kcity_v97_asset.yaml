@@ -1,0 +1,28 @@
+schema_version: 1
+map_version: 97
+status: runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v97.osm
+map_sha256: da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9
+size_bytes: 31517761
+source:
+  type: user_supplied_asset
+  filename: lanelet2_map_v97.osm
+  drive_verified: false
+counts:
+  node: 151258
+  way: 4177
+  relation: 1373
+validation:
+  xml_reference_integrity: pass
+  route_lanelet_ids_checked: 60
+  route_lanelet_ids_missing: []
+  installed_launch_synthetic_output: pass
+  source_and_installed_default_audit: pass
+runtime_defaults_changed: true
+live_validation: not_run
+drive_uploaded: false
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+map_storage: separately_distributed_asset
+git_map_publication: excluded
+provision_command: python3 scripts/map/prepare_kcity_v97.py --source /path/to/lanelet2_map_v97.osm
+verification_command: python3 scripts/map/prepare_kcity_v97.py --check

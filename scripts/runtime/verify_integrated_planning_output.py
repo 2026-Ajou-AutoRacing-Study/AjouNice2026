@@ -23,6 +23,8 @@ from autoware_perception_msgs.msg import PredictedObjects, TrafficLightGroupArra
 from autoware_planning_msgs.msg import LaneletRoute, Path as PlanningPath, RouteState, Trajectory
 from autoware_planning_validator.msg import PlanningValidatorStatus
 from competition_route_requester.srv import RequestRoute
+from competition_route_requester.geometry import Geometry
+from competition_route_requester.policy import accepted_sequences
 from geometry_msgs.msg import AccelWithCovarianceStamped, Point, Pose, TransformStamped
 from nav_msgs.msg import Odometry, OccupancyGrid
 from sensor_msgs import point_cloud2
@@ -33,9 +35,9 @@ from tf.transformations import quaternion_from_euler
 
 repo = Path(os.environ["AJOUNICE_ROOT"]).resolve()
 result_path = Path(os.environ["AW149_OUTPUT_PROBE_RESULT"]).resolve()
-map_version = os.environ.get("AW149_OUTPUT_PROBE_MAP_VERSION", "96")
-if map_version not in ("96",):
-    raise ValueError("AW149_OUTPUT_PROBE_MAP_VERSION must be 96")
+map_version = os.environ.get("AW149_OUTPUT_PROBE_MAP_VERSION", "98")
+if map_version not in ("98",):
+    raise ValueError("AW149_OUTPUT_PROBE_MAP_VERSION must be 98")
 route_path = repo / ("base_ws/src/planning_addons/competition_route_requester/config/kcity_v" +
                      map_version + "_competition_route.yaml")
 route_config = yaml.safe_load(route_path.read_text())
@@ -87,6 +89,35 @@ def make_pose(value):
     q = quaternion_from_euler(0.0, 0.0, math.radians(float(value["yaw_deg"])))
     pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = q
     return pose
+
+
+def configured_progress_probe_pose(fallback=False):
+    """Sample inside the configured trigger lane, beyond its exact s boundary."""
+    if fallback:
+        reference = route_config["poses"][route_config["fallback_route"]["hard_cutoff_pose_ref"]]
+        minimum_s = float(reference["lanelet_s_m"])
+    else:
+        trigger = route_config["reroute_trigger"]
+        reference = route_config["poses"][trigger["pose_ref"]]
+        minimum_s = float(trigger["minimum_lanelet_s_m"])
+    geometry = Geometry(repo, route_config)
+    line = geometry.lanes[reference["lanelet_id"]][0]
+    target_s = minimum_s + 1.0
+    traversed = 0.0
+    for start, end in zip(line, line[1:]):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        length = math.hypot(dx, dy)
+        if length > 0.0 and traversed + length >= target_s:
+            ratio = (target_s - traversed) / length
+            value = dict(reference, x=start[0] + ratio * dx,
+                         y=start[1] + ratio * dy,
+                         yaw_deg=math.degrees(math.atan2(dy, dx)))
+            located = geometry.locate(value["x"], value["y"], math.radians(value["yaw_deg"]))
+            if located is None or located[0] != reference["lanelet_id"] or located[1] < target_s - 1e-6:
+                raise RuntimeError("configured reroute probe pose did not resolve inside trigger")
+            return make_pose(value)
+        traversed += length
+    raise RuntimeError("configured trigger lane has no room for an interior probe pose")
 
 
 def message_stamp(value):
@@ -667,7 +698,7 @@ try:
             result["requester_status"] = refreshed_status
 
         if force_b_rejection:
-            odom.pose.pose = make_pose(route_config["poses"]["wp_200178"])
+            odom.pose.pose = configured_progress_probe_pose()
             odom.twist.twist.linear.x = b_rejection_speed_mps
             generation_before = requester_status.get("generation", 0)
             started_rejection = time.monotonic()
@@ -691,7 +722,7 @@ try:
         if transition_to_b:
             route_a_counts = counts.copy()
             route_a_message = latest["route"]
-            odom.pose.pose = make_pose(route_config["poses"]["wp_200178"])
+            odom.pose.pose = configured_progress_probe_pose()
             odom.twist.twist.linear.x = transition_speed_mps
             started_b = time.monotonic()
             deadline = started_b + 120.0
@@ -718,8 +749,7 @@ try:
         if transition_to_fallback:
             route_a_counts = counts.copy()
             route_a_message = latest["route"]
-            cutoff_ref = route_config["fallback_route"]["hard_cutoff_pose_ref"]
-            odom.pose.pose = make_pose(route_config["poses"][cutoff_ref])
+            odom.pose.pose = configured_progress_probe_pose(fallback=True)
             odom.twist.twist.linear.x = transition_speed_mps
             started_fallback = time.monotonic()
             deadline = started_fallback + 120.0
@@ -749,8 +779,12 @@ try:
 
     expected_lanelets = selected["expected_path_lanelet_ids"]
     observed_lanelets = [segment.preferred_primitive.id for segment in latest["route"].segments]
-    if observed_lanelets != expected_lanelets:
-        raise RuntimeError("integrated route mismatch")
+    result["observed_preferred_lanelet_ids"] = observed_lanelets
+    selected_key = next(key for key in ("route_a", "route_b", "fallback_route")
+                        if route_config[key] is selected)
+    # A reroute starts at current ego progress, so it returns the exact suffix.
+    if observed_lanelets not in accepted_sequences(route_config, selected_key):
+        raise RuntimeError("integrated route differs from every configured exact suffix")
     trajectory = latest["final"]
     if trajectory.header.frame_id != "map" or len(trajectory.points) < 3:
         raise RuntimeError("invalid integrated trajectory shape")
