@@ -29,11 +29,13 @@ FAR, NEAR, LANEB = 5.2, -1.8, 3.45
 HALF_LANE = 1.73
 GROUND = [28.34, 28.45, 28.42]          # 구간별 지면 고도
 SPAWN = (53.07, -466.53)
-V_EGO = 14.0                            # 터널 접근 실측 12~16 m/s
+V_EGO = 11.11                           # 40 kph. 팀 기준 속도 (변지훈 261027)
 MIN_GAP = 15.0                          # 보행자 2명일 때 종방향 보행구간 최소 간격
 # 보행자가 Ego 차로에 닿는 순간에 맞춰 역산만 하면 TTC가 0에 가까워져
 # 회피 불가 케이스가 된다. 최소 경고시간을 하한으로 둔다.
-MIN_TTC = 3.0                           # 초. activeDistance >= V_EGO * MIN_TTC
+# 40 kph에서 종감속 8 m/s^2 이면 제동시간 1.4초. 인지·판단 여유를 더해
+# 최소 2.5초를 기준으로 삼는다 (변지훈 261027).
+MIN_TTC = 2.5                           # 초. activeDistance >= V_EGO * MIN_TTC
 MAX_APPROACH = 45.0                     # 노견 접근 구간 최대 길이 (m)
 
 # ── 보행자 속도: MORAI speed 필드는 m/s가 아니라 약 ×0.16
@@ -229,7 +231,7 @@ def main():
     ap.add_argument('--seed', type=int, default=20261027)
     ap.add_argument('--two-ratio', type=float, default=0.35)
     ap.add_argument('--timeout', type=float, default=180.0)
-    ap.add_argument('--min-ttc', type=float, default=3.0,
+    ap.add_argument('--min-ttc', type=float, default=2.5,
                     help='최소 경고시간(초). activeDistance 하한 = V_EGO * 이 값')
     args = ap.parse_args()
 
