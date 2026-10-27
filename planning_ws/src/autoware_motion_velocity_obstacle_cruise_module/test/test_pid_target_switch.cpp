@@ -51,6 +51,7 @@ protected:
     node_.setParam(prefix + "use_velocity_limit_based_planner", true);
     node_.setParam(prefix + "min_cruise_target_vel", 0.0);
     node_.setParam(prefix + "time_to_evaluate_rss", 0.0);
+    node_.deleteParam(prefix + "rss_prediction");
     node_.setParam(prefix + "error_function_type", "quadratic");
     node_.setParam(prefix + "lpf_normalized_error_cruise_dist_gain", 0.2);
     const std::string velocity = prefix + "velocity_limit_based_planner/";
@@ -145,6 +146,196 @@ TEST_F(PIDTargetSwitch, InvalidDistanceScaleIsRejected)
     node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale", scale);
     EXPECT_THROW((PIDBasedPlanner(node_, common_, rss_)), std::invalid_argument);
   }
+}
+
+TEST_F(PIDTargetSwitch, AdaptivePredictionSlowsHighClosingLeadBeforeBaselineRss)
+{
+  const std::string prefix = "obstacle_cruise/cruise_planning/pid_based_planner/";
+  node_.setParam(prefix + "target_distance_scale", 0.4);
+  PIDBasedPlanner baseline(node_, common_, rss_);
+  node_.setParam(prefix + "rss_prediction/enabled", true);
+  PIDBasedPlanner adaptive(node_, common_, rss_);
+  data_->current_odometry.twist.twist.linear.x = 130.0 / 3.6;
+  const auto lead = obstacle(1, 75, 50.0 / 3.6);
+  const auto old = PIDBasedPlannerTestPeer::select(baseline, trajectory_, data_, {lead});
+  const auto anticipated = PIDBasedPlannerTestPeer::select(adaptive, trajectory_, data_, {lead});
+  ASSERT_TRUE(old);
+  ASSERT_TRUE(anticipated);
+  EXPECT_GT(old->error_cruise_dist, 0);
+  EXPECT_LT(anticipated->error_cruise_dist, 0);
+  EXPECT_NEAR(anticipated->dist_to_obstacle, 75, 1e-9);  // Real gap stays real.
+  EXPECT_NEAR(anticipated->target_dist_to_obstacle, old->target_dist_to_obstacle, 1e-9);
+  EXPECT_NEAR(anticipated->prediction.time, 1, 1e-9);
+  EXPECT_NEAR(anticipated->prediction.correction, 80.0 / 3.6, 1e-9);
+  EXPECT_LT(PIDBasedPlannerTestPeer::output(adaptive, data_, *anticipated).max_velocity,
+    data_->current_odometry.twist.twist.linear.x);
+  EXPECT_GT(PIDBasedPlannerTestPeer::output(baseline, data_, *old).max_velocity,
+    data_->current_odometry.twist.twist.linear.x);
+}
+
+TEST_F(PIDTargetSwitch, CloseLeadFallsBackToBaselineWithoutLosingBrakingSign)
+{
+  const std::string prefix = "obstacle_cruise/cruise_planning/pid_based_planner/";
+  node_.setParam(prefix + "target_distance_scale", 0.4);
+  PIDBasedPlanner baseline(node_, common_, rss_);
+  node_.setParam(prefix + "rss_prediction/enabled", true);
+  PIDBasedPlanner adaptive(node_, common_, rss_);
+  // Includes a small relative speed: a 0.5 s fixed prediction could still
+  // become negative at a sufficiently narrow gap.
+  for (const auto & speeds : std::vector<std::pair<double, double>>{{130, 50}, {50, 40}}) {
+    data_->current_odometry.twist.twist.linear.x = speeds.first / 3.6;
+    for (double gap : {0.0, -0.2, 0.05, 1.0, 2.0}) {
+      baseline.resetForLongitudinalHandoff();
+      adaptive.resetForLongitudinalHandoff();
+      const auto lead = obstacle(1, gap, speeds.second / 3.6);
+      const auto a = PIDBasedPlannerTestPeer::select(adaptive, trajectory_, data_, {lead});
+      const auto b = PIDBasedPlannerTestPeer::select(baseline, trajectory_, data_, {lead});
+      ASSERT_TRUE(a);
+      ASSERT_TRUE(b);
+      EXPECT_DOUBLE_EQ(a->prediction.correction, 0);
+      EXPECT_NEAR(a->error_cruise_dist, b->error_cruise_dist, 1e-9);
+      EXPECT_LT(a->error_cruise_dist, 0);
+      const auto output = PIDBasedPlannerTestPeer::output(adaptive, data_, *a);
+      EXPECT_TRUE(std::isfinite(output.max_velocity));
+      EXPECT_GE(output.max_velocity, 0);
+      EXPECT_LT(output.max_velocity, speeds.first / 3.6);
+    }
+  }
+}
+
+TEST_F(PIDTargetSwitch, PredictionUsesMostRestrictiveCandidateAndResetsOnTargetSwitch)
+{
+  node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/rss_prediction/enabled", true);
+  PIDBasedPlanner planner(node_, common_, rss_);
+  PIDBasedPlanner fresh(node_, common_, rss_);
+  data_->current_odometry.twist.twist.linear.x = 130.0 / 3.6;
+  for (int i = 0; i < 5; ++i) cycle(planner, obstacle(1, 200, 130.0 / 3.6));
+  const auto close = obstacle(1, 60, 130.0 / 3.6);
+  const auto closing = obstacle(2, 75, 50.0 / 3.6);
+  const auto selected = PIDBasedPlannerTestPeer::select(
+    planner, trajectory_, data_, {close, closing});
+  ASSERT_TRUE(selected);
+  EXPECT_EQ(selected->obstacle.uuid.uuid[15], 2);
+  EXPECT_NEAR(selected->dist_to_obstacle, 75, 1e-9);
+  const auto clean = PIDBasedPlannerTestPeer::select(
+    fresh, trajectory_, data_, {closing, close});
+  ASSERT_TRUE(clean);
+  EXPECT_EQ(clean->obstacle.uuid.uuid[15], 2);
+  EXPECT_NEAR(PIDBasedPlannerTestPeer::output(planner, data_, *selected).max_velocity,
+    PIDBasedPlannerTestPeer::output(fresh, data_, *clean).max_velocity, 1e-9);
+}
+
+TEST_F(PIDTargetSwitch, LowClosingAndOpeningTargetsRetainBaselineOutput)
+{
+  const std::string prefix = "obstacle_cruise/cruise_planning/pid_based_planner/";
+  node_.setParam(prefix + "target_distance_scale", 0.4);
+  PIDBasedPlanner baseline(node_, common_, rss_);
+  node_.setParam(prefix + "rss_prediction/enabled", true);
+  PIDBasedPlanner adaptive(node_, common_, rss_);
+  data_->current_odometry.twist.twist.linear.x = 80.0 / 3.6;
+  for (double closing : {-20.0, 0.0, 10.0, 29.9, 30.0}) {
+    baseline.resetForLongitudinalHandoff();
+    adaptive.resetForLongitudinalHandoff();
+    const auto lead = obstacle(1, 40, (80.0 - closing) / 3.6);
+    for (int i = 0; i < 3; ++i) {
+      EXPECT_NEAR(cycle(adaptive, lead), cycle(baseline, lead), 1e-9);
+    }
+  }
+}
+
+TEST_F(PIDTargetSwitch, RuntimeThreeMetreFloorStillBrakesBelowTarget)
+{
+  rss_.safe_distance_margin = 3.0;
+  node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale", 0.4);
+  node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/rss_prediction/enabled", true);
+  PIDBasedPlanner planner(node_, common_, rss_);
+  data_->current_odometry.twist.twist.linear.x = 80.0 / 3.6;
+  const auto selected = PIDBasedPlannerTestPeer::select(
+    planner, trajectory_, data_, {obstacle(1, 2, 80.0 / 3.6)});
+  ASSERT_TRUE(selected);
+  EXPECT_DOUBLE_EQ(selected->target_dist_to_obstacle, 3.0);
+  EXPECT_NEAR(selected->error_cruise_dist, -1.0, 1e-9);
+  EXPECT_DOUBLE_EQ(selected->prediction.correction, 0);
+  EXPECT_LT(PIDBasedPlannerTestPeer::output(planner, data_, *selected).max_velocity, 80.0 / 3.6);
+}
+
+TEST_F(PIDTargetSwitch, PredictionUpdateIsValidatedBeforeReplacingPolicy)
+{
+  node_.setParam("obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale", 0.4);
+  PIDBasedPlanner planner(node_, common_, rss_);
+  data_->current_odometry.twist.twist.linear.x = 130.0 / 3.6;
+  const auto lead = obstacle(1, 75, 50.0 / 3.6);
+  const std::string prefix = "obstacle_cruise.cruise_planning.pid_based_planner.rss_prediction.";
+  ParameterMap update;
+  update[prefix + "enabled"] = XmlRpc::XmlRpcValue(true);
+  planner.updateParameters(update);
+  auto result = PIDBasedPlannerTestPeer::select(planner, trajectory_, data_, {lead});
+  ASSERT_TRUE(result);
+  EXPECT_NEAR(result->prediction.time, 1, 1e-9);
+  update[prefix + "full_relative_speed_kph"] = XmlRpc::XmlRpcValue(20.0);
+  EXPECT_THROW(planner.updateParameters(update), std::invalid_argument);
+  result = PIDBasedPlannerTestPeer::select(planner, trajectory_, data_, {lead});
+  ASSERT_TRUE(result);
+  EXPECT_NEAR(result->prediction.time, 1, 1e-9);  // Previous valid policy survived.
+}
+
+TEST(RSSPrediction, RelativeSpeedRampAndOpeningLead)
+{
+  RSSPredictionParameters p;
+  p.enabled = true;
+  for (const auto & example : std::vector<std::pair<double, double>>{
+      {-20, 0}, {0, 0}, {10, 0}, {30, 0}, {40, 0.2}, {50, 0.4},
+      {60, 0.6}, {70, 0.8}, {80, 1}, {100, 1}}) {
+    const auto result = evaluate_rss_prediction(200, example.first / 3.6, 5, p);
+    EXPECT_NEAR(result.time, example.second, 1e-9);
+    EXPECT_NEAR(result.correction,
+      std::max(0.0, example.first) / 3.6 * example.second, 1e-9);
+  }
+}
+
+TEST(RSSPrediction, NearZeroProjectionFadesContinuouslyWithoutDivisionByProjection)
+{
+  RSSPredictionParameters p;
+  p.enabled = true;
+  constexpr double closing = 80.0 / 3.6;
+  double previous = 0;
+  for (double distance = -1; distance < 60; distance += 0.01) {
+    const auto prediction = evaluate_rss_prediction(distance, closing, 0, p);
+    EXPECT_GE(prediction.correction, 0);
+    EXPECT_LE(prediction.correction, closing);
+    EXPECT_LT(std::abs(prediction.correction - previous), 0.016);
+    if (distance <= closing) EXPECT_DOUBLE_EQ(prediction.correction, 0);
+    const double error = distance - 65 - prediction.correction;
+    const double normalized = normalize_cruise_distance_error(error, distance);
+    EXPECT_TRUE(std::isfinite(normalized));
+    EXPECT_LT(normalized, 0);  // Below RSS remains braking, including signed gaps <= 0.
+    previous = prediction.correction;
+  }
+  for (double boundary : {closing, 2 * closing}) {
+    const auto lhs = evaluate_rss_prediction(boundary - 1e-5, closing, 0, p);
+    const auto rhs = evaluate_rss_prediction(boundary + 1e-5, closing, 0, p);
+    EXPECT_NEAR(lhs.correction, rhs.correction, 1e-4);
+  }
+}
+
+TEST(RSSPrediction, FixedTimeAlsoRetainsPhysicalDistanceAndRejectsOpeningBoost)
+{
+  RSSPredictionParameters p;  // Adaptive feature disabled, fixed-time fallback.
+  EXPECT_DOUBLE_EQ(evaluate_rss_prediction(100, -5, 0.5, p).correction, 0);
+  EXPECT_DOUBLE_EQ(evaluate_rss_prediction(2, 10, 0.5, p).correction, 0);
+  EXPECT_DOUBLE_EQ(evaluate_rss_prediction(100, 10, 0.5, p).correction, 5);
+}
+
+TEST_F(PIDTargetSwitch, InvalidPredictionParametersAreRejected)
+{
+  const std::string prefix = "obstacle_cruise/cruise_planning/pid_based_planner/";
+  for (double value : std::vector<double>{-1.0, NAN, INFINITY}) {
+    node_.setParam(prefix + "rss_prediction/max_time", value);
+    EXPECT_THROW((PIDBasedPlanner(node_, common_, rss_)), std::invalid_argument);
+  }
+  node_.setParam(prefix + "rss_prediction/max_time", 1.0);
+  node_.setParam(prefix + "rss_prediction/full_relative_speed_kph", 30.0);
+  EXPECT_THROW((PIDBasedPlanner(node_, common_, rss_)), std::invalid_argument);
 }
 
 TEST_F(PIDTargetSwitch, LaneChangeHandoffDropsHistoryEvenForTheSameReacquiredUuid)

@@ -50,6 +50,11 @@ public:
     CRUISE_TARGET_ACCELERATION,
     CRUISE_TARGET_JERK_RATIO,
 
+    // Append only: keep the existing debug indices stable.
+    RSS_PREDICTION_TIME,  // index: 15 [s], before distance fade
+    RSS_PROJECTED_DISTANCE,  // actual distance - closing_velocity*time [m]
+    RSS_APPLIED_CORRECTION,  // distance-error correction after fade [m]
+
     SIZE
   };
 
