@@ -15,6 +15,7 @@
 #include "autoware/path_optimizer/obstacle_collision.hpp"
 
 #include "autoware/path_optimizer/node.hpp"
+#include "autoware/path_optimizer/horizon_transition.hpp"
 
 #include "autoware/interpolation/spline_interpolation_points_2d.hpp"
 #include "autoware/motion_utils/marker/marker_helper.hpp"
@@ -308,6 +309,7 @@ void PathOptimizer::resetPreviousData()
   last_validated_output_.reset();
   using_final_geometry_ = false;
   obstacle_search_cursor_ = 0;
+  retained_optimization_forward_length_ = 0.0;
 }
 
 void PathOptimizer::onPath(const PathConstPtr path_ptr)
@@ -564,12 +566,28 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   auto mpt_traj = p.obstacles.empty()
     ? mpt_optimizer_ptr_->optimizeTrajectory(planner_data)
     : optimizeObstacleCandidates(planner_data);
+  const double base_length =
+    mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength();
+  if (!p.obstacles.empty()) retained_optimization_forward_length_ = 0.0;
+  if (p.obstacles.empty() && mpt_traj &&
+      retained_optimization_forward_length_ > base_length && last_validated_output_) {
+    auto prefix = *mpt_traj;
+    applyInputVelocity(prefix, p.traj_points, p.ego_pose);
+    const auto candidate = extendTrajectory(p.traj_points, prefix);
+    if (isHorizonReturnContinuous(
+          *last_validated_output_, candidate, p.ego_pose, std::max(10.0, base_length))) {
+      retained_optimization_forward_length_ = 0.0;
+    } else {
+      // A shorter feasible QP can move the PP target abruptly. Keep solving the
+      // longer window until its published near field agrees with the short one.
+      mpt_traj.reset();
+      mpt_optimizer_ptr_->restoreHistory(history_before_optimization);
+    }
+  }
   // A terminal match can be infeasible in the short nominal window. Solve a
   // longer window instead of bridging back to the input outside the QP.
   if (!mpt_traj && p.obstacles.empty()) {
-    const double base_length =
-      mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength();
-    for (double forward = base_length + 10.0;
+    for (double forward = std::max(base_length + 10.0, retained_optimization_forward_length_);
          forward <= obstacle_max_forward_length_ + 1e-6; forward += 10.0) {
       const double elapsed_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - optimization_started).count();
@@ -578,7 +596,10 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
       longer.optimization_forward_length = forward;
       mpt_optimizer_ptr_->restoreHistory(history_before_optimization);
       mpt_traj = mpt_optimizer_ptr_->optimizeTrajectory(longer);
-      if (mpt_traj) break;
+      if (mpt_traj) {
+        retained_optimization_forward_length_ = forward;
+        break;
+      }
     }
   }
 
