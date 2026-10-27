@@ -181,8 +181,33 @@ autoware_internal_planning_msgs::PathWithLaneId resampleCenterLinePathWithSuppor
     std::sort(queries.begin(), queries.end());
     queries.erase(std::unique(queries.begin(), queries.end()), queries.end());
   }
-  return autoware::motion_utils::resamplePath(
-    source, queries, parameters.enable_akima_spline_first);
+  if (parameters.enable_akima_spline_first) {
+    // The motion-utils flag selects linear XY interpolation when true.
+    return autoware::motion_utils::resamplePath(source, queries, true);
+  }
+
+  // Native support prevents crop-dependent tangents, but Akima can still bow a
+  // long straight towards the tangent of the following bend. Subdivide every
+  // native segment linearly BEFORE fitting the spline so a corner's influence
+  // stays local regardless of map knot spacing or the requested output grid.
+  // Include every native knot exactly: uniform resampling alone can cut corners
+  // and discard lane-ID seams, stop points, or custom waypoint geometry.
+  constexpr double max_support_interval = 0.5;
+  std::vector<double> support_queries{0.0};
+  for (size_t i = 1; i < arc.size(); ++i) {
+    const double length = arc[i] - arc[i - 1];
+    const size_t subdivisions = static_cast<size_t>(std::ceil(length / max_support_interval));
+    for (size_t j = 1; j < subdivisions; ++j) {
+      support_queries.push_back(arc[i - 1] + length * j / subdivisions);
+    }
+    support_queries.push_back(arc[i]);
+  }
+  const auto supported = autoware::motion_utils::resamplePath(source, support_queries, true);
+  // Summing the subdivided segments can differ by roundoff from the original
+  // arc. Do not let an exact route-end query trigger resamplePath's out-of-range
+  // fallback, which would publish the entire uncropped support path.
+  queries.back() = std::min(queries.back(), autoware::motion_utils::calcArcLength(supported.points));
+  return autoware::motion_utils::resamplePath(supported, queries, false);
 }
 
 autoware_internal_planning_msgs::PathWithLaneId getCenterLinePath(

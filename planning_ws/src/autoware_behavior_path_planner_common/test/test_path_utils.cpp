@@ -162,6 +162,100 @@ TEST(BehaviorPathPlanningPathUtilTest, SparseCenterlineCropDoesNotChangeSplineSu
   }
 }
 
+TEST(BehaviorPathPlanningPathUtilTest, SparseStraightDoesNotAnticipateFollowingBend)
+{
+  // v98 removed the lateral seam: a 75 m straight now connects directly to a
+  // dense shallow bend. Native support alone leaves a >1 m Akima overshoot.
+  for (const double length : {20.0, 75.0, 250.0}) {
+    for (const double rotation : {0.0, -1.57, 2.4}) {
+      PathWithLaneId source;
+      const std::vector<std::pair<double, double>> xy{
+        {-45., -.014}, {0., 0.}, {length, 0.},
+        {length + .5, -.05}, {length + 1., -.10}, {length + 1.5, -.15},
+        {length + 10., -1.}};
+      for (size_t i = 0; i < xy.size(); ++i) {
+        PathPointWithLaneId point;
+        point.point.pose.position.x = 200. + std::cos(rotation) * xy[i].first -
+          std::sin(rotation) * xy[i].second;
+        point.point.pose.position.y = 400. + std::sin(rotation) * xy[i].first +
+          std::cos(rotation) * xy[i].second;
+        point.point.pose.orientation.z = std::sin(rotation / 2.);
+        point.point.pose.orientation.w = std::cos(rotation / 2.);
+        point.point.longitudinal_velocity_mps = 8.;
+        point.lane_ids = {i < 2 ? 100 : 200};
+        if (i == 2) point.lane_ids = {100, 200};
+        source.points.push_back(point);
+      }
+      const auto legacy = autoware::motion_utils::resamplePath(source, .1, false);
+      double legacy_bow = 0.;
+      for (const auto & p : legacy.points) {
+        const double dx = p.point.pose.position.x - 200.;
+        const double dy = p.point.pose.position.y - 400.;
+        const double forward = std::cos(rotation) * dx + std::sin(rotation) * dy;
+        if (forward > 0. && forward < length)
+          legacy_bow = std::max(legacy_bow, -std::sin(rotation) * dx + std::cos(rotation) * dy);
+      }
+      EXPECT_GT(legacy_bow, .01 * length);
+      for (const double crop_start : {0., .2, 5., 5.2}) {
+        geometry_msgs::Pose ego;
+        ego.position.x = 200. + std::cos(rotation) * crop_start;
+        ego.position.y = 400. + std::sin(rotation) * crop_start;
+        ego.orientation.z = std::sin(rotation / 2.);
+        ego.orientation.w = std::cos(rotation / 2.);
+        auto params = centerlineParameters();
+        params.input_path_interval = .1;
+        const auto result = autoware::behavior_path_planner::utils::resampleCenterLinePathWithSupport(
+          source, ego, 1., length + 12., params);
+        ASSERT_GT(result.points.size(), 2U);
+        for (const auto & p : result.points) {
+          const double dx = p.point.pose.position.x - 200.;
+          const double dy = p.point.pose.position.y - 400.;
+          const double forward = std::cos(rotation) * dx + std::sin(rotation) * dy;
+          const double lateral = -std::sin(rotation) * dx + std::cos(rotation) * dy;
+          if (forward > 0. && forward < length) EXPECT_LT(std::abs(lateral), .01);
+        }
+        EXPECT_NEAR(
+          result.points.back().point.pose.position.x, source.points.back().point.pose.position.x, 1e-6);
+        EXPECT_NEAR(
+          result.points.back().point.pose.position.y, source.points.back().point.pose.position.y, 1e-6);
+      }
+    }
+  }
+}
+
+TEST(BehaviorPathPlanningPathUtilTest, SupportSubdivisionPreservesFineDetourAndStop)
+{
+  auto source = makePath(5, 1.0);
+  const std::vector<std::pair<double, double>> xy{
+    {0., 0.}, {1.3, 0.}, {1.3, .2}, {1.55, .4}, {2., .4}};
+  for (size_t i = 0; i < source.points.size(); ++i) {
+    source.points[i].point.pose.position.x = xy[i].first;
+    source.points[i].point.pose.position.y = xy[i].second;
+    source.points[i].lane_ids = i < 2 ? std::vector<int64_t>{100} : std::vector<int64_t>{200};
+    if (i == 2) source.points[i].lane_ids = {100, 200};
+    if (i >= 2) source.points[i].point.longitudinal_velocity_mps = 0.;
+  }
+  geometry_msgs::Pose ego;
+  ego.orientation.w = 1.;
+  for (const bool linear : {false, true}) {
+    auto params = centerlineParameters();
+    params.enable_akima_spline_first = linear;
+    params.input_path_interval = .01;
+    const auto out = autoware::behavior_path_planner::utils::resampleCenterLinePathWithSupport(
+      source, ego, 1., 10., params);
+    ASSERT_GT(out.points.size(), 2U);
+    const auto stop = std::find_if(out.points.begin(), out.points.end(), [](const auto & p) {
+      return std::hypot(p.point.pose.position.x - 1.3, p.point.pose.position.y - .2) < 1e-6;
+    });
+    ASSERT_NE(stop, out.points.end());
+    EXPECT_EQ(stop->lane_ids, (std::vector<int64_t>{100, 200}));
+    for (auto p = stop; p != out.points.end(); ++p)
+      EXPECT_DOUBLE_EQ(p->point.longitudinal_velocity_mps, 0.);
+    EXPECT_NEAR(out.points.back().point.pose.position.x, 2., 1e-6);
+    EXPECT_NEAR(out.points.back().point.pose.position.y, .4, 1e-6);
+  }
+}
+
 TEST(BehaviorPathPlanningPathUtilTest, SupportedWindowPreservesStopLaneIdsAndTerminal)
 {
   using autoware::behavior_path_planner::utils::resampleCenterLinePathWithSupport;
