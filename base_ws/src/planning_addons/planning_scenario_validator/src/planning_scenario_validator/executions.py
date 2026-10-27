@@ -12,7 +12,8 @@ from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
 from .traffic_light import (profile_name, runtime_mode, runtime_settings, candidate_assets,
-                            timed_policy_options)
+                            timed_policy_options, yellow_braking_options,
+                            YELLOW_POLICY_IMPLEMENTATION)
 from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
                                     effective_gt_pose_args, resolve_localization_contract)
 
@@ -39,13 +40,17 @@ def prepare_execution(source, *, check_install=True):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
     # Store resolved opt-in controls even when their displayed defaults are OFF.
-    # An older frozen snapshot without these keys retains its old behavior in
-    # load_campaign; this new explicit snapshot never depends on future defaults.
+    # An older frozen snapshot retains its former boolean defaults without
+    # mutation; this does not reproduce an algorithm replaced in source.
+    # New snapshots freeze the selected values and record policy provenance.
     options = cfg['traffic_light_options']
     document.setdefault('stack', {}).update(
         traffic_light_yellow_passthrough=options['yellow_passthrough'],
         traffic_light_debug_view=options['debug_view'])
     document['stack'].update(timed_policy_options(cfg['stack']))
+    document['stack'].update(yellow_braking_options(cfg['stack']))
+    document['stack'].update(cfg['traffic_light_temporal_options'])
+    document['stack']['traffic_light_profile'] = profile_name(cfg['stack'])
     if cfg['stack'].get('traffic_light', False):
         # Freeze the resolved selection, including the promoted default.
         python, _ = runtime_settings(cfg['stack'], resolve_path('.'))
@@ -164,6 +169,15 @@ def prepare_execution(source, *, check_install=True):
             'total': len(cfg['cases']),
             'created_at': now(), 'source_yaml': str(cfg['path']), 'snapshot': path.name,
             'files': files, 'original_hashes': originals,
+            # Runtime policy provenance, not a selectable mode. Old manifests are
+            # unchanged and do not certify replay of a replaced runtime policy.
+            'traffic_light_yellow_policy': {
+                'implementation': (YELLOW_POLICY_IMPLEMENTATION
+                                   if cfg['traffic_light_temporal_options']['enable_signal_compliance_guard']
+                                   else 'legacy_autoware'),
+                'deceleration_mps2': document['stack']['signal_compliance_yellow_deceleration_mps2'],
+                'jerk_mps3': document['stack']['signal_compliance_yellow_jerk_mps3'],
+                'timed_candidate_active': False},
             'note': '편집용 YAML과 독립된 실행 사본. 재개는 이 폴더의 입력만 사용합니다.'})
         return load_execution(directory, check_install=check_install)
     except BaseException:

@@ -90,6 +90,44 @@ class RealPolicyNodeHandoffTest(unittest.TestCase):
                 self.assertFalse(decision['observation_timing']['output_is_observed'])
                 self.assertEqual(output.stamp.to_nsec(),10_200_000_000)
 
+    def test_distance_trial_blocks_far_lamps_without_seeding_near_holds(self):
+        from traffic_light_observation_handoff import ObservationDistanceGate
+        node=self.node()
+        node._observation_distance_gate=ObservationDistanceGate(40)
+        node.preserve_unreadable_color_evidence=True
+        roi=fixture.CandidateNodeTest.packet(self, group=201351)['rois'][0]
+        roi.update(group_id=201351,head_id='test_head',eligible=True)
+        def context(depth):return {'rois':[dict(roi,depth_m=depth)]}
+        for t,raw in ((10.,[G]),(10.1,[Y]),(10.2,[R,G])):
+            output,decision=self.step(node,t+.01,t,raw=raw,packet_extra=context(60))
+            self.assertTrue(decision['observation_distance_gate']['suppressed'])
+            self.assertEqual(output.traffic_light_groups[0].elements,[])
+            self.assertEqual(decision['wire_unreadable_color_evidence'],[])
+        _,decision=self.step(node,10.31,10.3,unknown=True,packet_extra=context(40))
+        self.assertTrue(decision['observation_distance_gate']['just_opened'])
+        self.assertEqual(decision['final_tuples'],[])
+        self.assertFalse(decision['observation_timing']['output_is_held'])
+        _,decision=self.step(node,10.41,10.4,raw=[R],packet_extra=context(39))
+        self.assertEqual(decision['final_tuples'],[list(R)])
+        _,decision=self.step(node,10.51,10.5,raw=[Y],packet_extra=context(41))
+        self.assertFalse(decision['observation_distance_gate']['suppressed'])
+        self.assertEqual(decision['final_tuples'],[list(Y)])
+
+    def test_d_uses_30m_without_extra_observation_delay(self):
+        from traffic_light_observation_handoff import ObservationDistanceGate
+        node=self.node(201326)
+        node._observation_distance_gate=ObservationDistanceGate(40,30)
+        roi=fixture.CandidateNodeTest.packet(self,group=201326)['rois'][0]
+        roi.update(group_id=201326,head_id='test_head',eligible=True)
+        for source,depth in ((10.,35.),(10.1,30.01)):
+            _,decision=self.step(node,source+.01,source,raw=[L],
+                packet_extra={'rois':[dict(roi,depth_m=depth)]})
+            self.assertEqual(decision['final_tuples'],[])
+        _,decision=self.step(node,10.21,10.2,raw=[L],
+            packet_extra={'rois':[dict(roi,depth_m=30.)]})
+        self.assertEqual(decision['final_tuples'],[list(L)])
+        self.assertEqual(decision['observation_distance_gate']['threshold_m'],30.)
+
     def test_explicit_red_or_yellow_replaces_green_without_majority_delay(self):
         for raw in ([R],[Y]):
             with self.subTest(raw=raw):

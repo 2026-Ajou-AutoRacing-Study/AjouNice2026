@@ -159,8 +159,8 @@ protected:
 
 TEST_F(TrafficYellowSwitchExperimentalTest, ABCDMovingGreenToCloseYellowStopsOffAndPassesOn)
 {
-  // Front axle is 1m BEFORE the line; corrected triangular stop distance is
-  // 1.2977m at 1.5m/s. This exercises the actual experimental trajectory path.
+  // Lanelet bumper stopping target is .155m away, simple stopping distance
+  // .890625m at1.5m/s. Front axle remains1m before the original crossing line.
   for (const auto group : {201351,201365,201290,201326}) {
     for (const bool yellow_enabled : {false,true}) {
       SCOPED_TRACE(group);

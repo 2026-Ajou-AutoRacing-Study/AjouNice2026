@@ -176,7 +176,9 @@ def development_replay(directory):
     results = {}
     for cap in CAPS:
         count = Counter()
-        cfg = selector_config({'max_vertical_padding_px': cap})
+        # This historical X90 comparison must not inherit newer runtime bounds.
+        cfg = selector_config({'max_vertical_padding_px': cap, 'max_padding_px': 90.,
+                               'max_yaw_sigma_degrees': 3.})
         for row in predictions:
             rec = annotations[row['image_sha256']]
             group = row['group_regulatory_id']

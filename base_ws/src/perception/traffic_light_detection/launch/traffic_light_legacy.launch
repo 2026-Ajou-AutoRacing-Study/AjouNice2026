@@ -8,6 +8,10 @@
   <arg name="image_topic" default="/sensor/camera/front/compressed" />
   <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />
   <arg name="publish_debug_image" default="false" />
+  <!-- Accept the validator's explicit resolved contract, but keep legacy fixed. -->
+  <arg name="planner_compliance_observations" default="false" />
+  <arg name="preserve_unreadable_color_evidence" default="false" />
+  <arg name="stamped_vote_window_size" default="0" />
   <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
     <arg name="inference_python" value="$(arg inference_python)" />
     <arg name="device" value="$(arg device)" />
@@ -22,6 +26,8 @@
     <arg name="near_rescue_enabled" value="false" />
     <!-- Explicit model/observation rollback; do not inherit v5 handoff defaults. -->
     <arg name="planner_compliance_observations" value="false" />
+    <arg name="preserve_unreadable_color_evidence" value="false" />
+    <arg name="stamped_vote_window_size" value="0" />
     <arg name="route_progress_guard" value="false" />
     <arg name="selection_mode" value="legacy_center" />
     <arg name="classifier_mode" value="hsv" />

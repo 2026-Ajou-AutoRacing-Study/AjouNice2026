@@ -27,7 +27,7 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
 - 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
-- map 소스 기본은 v94다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
+- 최신 planning 통합 소스의 map 기본은 v96이다. 과거 v88 실험과 구분하고 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
 ## Competition signal policy
 
@@ -89,7 +89,10 @@ camera frame을 대신 제공하지 않는다. 이름만 맞추는 새 정적 TF
 정면 각도·깊이·최소 투영 크기·공분산 기반 bounded padding을 검사한다. 투영은
 가림·실제 점등·완벽한 identity의 GT가 아니므로 실제 YOLO/측위 입력 검증이 남는다.
 
-지도 모드의 검색 상한은 수평 90px·수직 200px로 분리한다. XY 최대 고유축 표준편차와
+지도 모드의 검색 상한은 수평 120px·수직 200px, yaw 불확실성 상한은4°다. 이전90px·3°와의
+[선택/비회귀 비교](../../../../docs/perception/traffic_light/261027_SELECTION_TOLERANCE_COMPARISON.md)를 본다.
+`traffic_light_node.launch`와 v5 호환 launch에서 `map_max_padding_px:=90 map_max_yaw_sigma_degrees:=3`으로 복귀한다.
+XY 최대 고유축 표준편차와
 GNSS Z 표준편차를 별도로 투영하며 Z가 수평 검색을 넓히지 않는다. 현재 Z 분산 1은
 EKF placeholder가 아니라 `vertical_stddev_m=1.0`의 명시적 GNSS 설정이므로 유지한다.
 기존 개발 val 66장의 저장 검출 박스 재생에서 수직 90px는 42개 정상 검출을 잃었고,
@@ -121,7 +124,24 @@ helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms�
 실제 crop 좌표를 기록한다. CNN만 기본 12px crop margin을 적용한다
 (`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
 빈 관측이며 HSV로 몰래 전환하지 않는다. 현재 launch는 `planner_compliance_observations:=true`로
-상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 3개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
+상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 1개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
+실주행 비교용 `stamped_vote_window_size:=3/7`은 관측 보존·지도 선택에서만 쓰는 **시험 후보**이며 기본은 `0`이다.
+같은 regulatory group의 원본 3개 중 2개 또는 7개 중 4개가 같아야 한다. 3/2의 지연·C head 전환 보완은 [영상 비교](../../../../docs/perception/traffic_light/261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md), 7/4의 남은 공백·R/Y 지연은 [추가 비교](../../../../docs/perception/traffic_light/261027_SEVEN_FOUR_DRIVING_COMPARISON.md)를 본다.
+7/4 재현 시험은 `stamped_vote_window_size:=7 stamped_vote_max_age_sec:=0.9 stamped_vote_startup_passthrough:=true`를 **함께** 명시했다. 첫 여섯 고유 입력은 즉시 전달하고 이후 4표를 요구한다. 기본 age0.5초만으로는 10Hz의 7장을 채우기 어렵다. 0.9초는 전체 표의 원본 age 상한이지 추가 고정 hold나 황색 잔여시간 보장이 아니다. 과거 HSV/profile 보정·RED fallback의 전면 복원도 아니다.
+
+2026-10-27 [UNKNOWN 유예 비교](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md) 후
+사용자 승인으로 `signal_compliance_unknown_grace_sec:=0.3`을 운영 launch 기본으로 승격했다.
+직접 관측의 `preserve_unreadable_color_evidence:=true`를 함께 적용해 모순/부분 양성 색을
+빈 판독으로 숨기지 않는다. 양성 색 표식은 UNKNOWN shape/status이며 새 방향 허가가 아니다.
+전체 스택과 새 validator 실행은 이 두 값을 묶으며, traffic OFF·guard OFF·legacy는 유예0으로 정규화한다.
+예전 frozen snapshot에 새 설정이 없으면 유예0으로 재개하며 원본 snapshot을 수정하지 않는다.
+시험 wrapper의 guarded/legacy 기준선은 유예0을 명시한다. 새 기본값을 시험하려면 production 모드,
+명시적 비교는 `--mode guarded --temporal-direct true --unknown-grace-sec 0.3`을 사용한다.
+phase 투표는 운영0이다. 단독 legacy 인지와 별도 planning을 함께 실행할 경우 planning에도
+`signal_compliance_unknown_grace_sec:=0.0`을 명시한다. 다른 인지 노드에 planner 값만 혼합하지 않는다.
+R/Y를 이 유예로 덮지 않고 기존 판단에 바로 전달하나, 색 증거 자체가 없으면 마지막 G 원본 시각 뒤 최대0.3초 허가가 남을 수 있다.
+설치·재시작·되돌리기와 검증 한계는 [배포 정리](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_RELEASE.md)를 따른다.
+
 `detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
 `debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
 장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이
@@ -142,20 +162,37 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 ## 2026-10-26 관측 보존과 정차 시야 보완
 
 운영 direct 경로는 `observed_phases`의 실제 램프만 전달한다. C의 화살표를 보고 직진G를
-추가하거나 D의Y를R로 바꾸지 않는다. 모순·무점등·완충되지 않은 저확신은 UNKNOWN이며 legacy 보정과 구분한다.
+추가하거나 D의Y를R로 바꾸지 않는다. 모순·완충되지 않은 무점등/저확신은 UNKNOWN이며 legacy 보정과 구분한다.
 `detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
 누락만 완충한다. `low_confidence_hold_sec:=0.3`은 같은 head의 CNN soft 저확신만 이동 중 완충하며
 최대 원본 age 0.5초를 추가로 요구한다. `0`이면 새 완충만 OFF다. 양쪽 모두 원본 stamp를 보존하고
-실제 R/Y·확신 소등·모순·TF/지도/identity 실패는 즉시 반영한다.
+실제 R/Y·모순·TF/지도/identity 실패는 즉시 반영한다.
+
+`no_lamps_hold_sec:=0.2`는 현재 지도와 YOLO가 **동일 housing**을 선택했는데 CNN만
+`no_lamps` 또는 soft 저확신이 된 짧은 공백을 같은 기한으로 완충한다. 정차 중 R과 황색도 포함하며 새 정상 색은 첫 프레임에 반영한다.
+이전 관측의 처리 시각부터 최대0.2초·원본 age0.3초를 넘기지 않고 stamp도 그대로 보존한다.
+지속 소등은 UNKNOWN으로 돌아가며, 실제 소등 직후에는 이전 허가가 최대0.2초 남을 수 있다.
+저확신에 확실히 켜진 새 R/Y 등이 있으면 그 램프가 없던 과거 색으로 덮지 않는다.
+같은 정상 지도 연결의 공백은 이 공유0.2초가 우선이며, 종류가 바뀌어도 기한을 연장하지 않는다.
+황색 원본 stamp·planner의 황색 시작/잔여시간은 갱신하지 않는다.
+`no_lamps_hold_sec:=0`으로 이 보완만 끈다. [실제 관측열 비교·한계](../../../../docs/perception/traffic_light/261027_NO_LAMPS_BOUNDED_HOLD.md)를 본다.
 
 `visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
-현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 색 hold가 아니며
+현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 박스 IoU가 낮아도
+현재 영상 시각의 nominal 지도 투영과 현재 검출 박스의 중심·크기가 좁게 일치하면 같은 head를 이어 볼 수 있다.
+이전 색 hold가 아니며
 anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
-`visual_continuation_sec:=0`으로 이 보완만 끈다. [연속 bag·실제 주행 근거](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)와 planning 통합 상태는 CURRENT를 따른다.
+`visual_continuation_sec:=0`으로 이 보완만 끈다. [기존 연속 시험](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)과 [새 B bag 재생](../../../../docs/perception/traffic_light/261027_B_ROI_PROJECTION_CONTINUATION.md)의 검증 범위를 구분하고, planning 통합 상태는 CURRENT를 따른다.
 
-Planning 기본 `defer_far_unseen_unknown:=true`는 첫 유효 램프 관측 전의 원거리 빈 UNKNOWN만
-정지점 적용을 미룬다. 기본 경계는 40m와 현재 속도의 jerk 제한 제동 거리 + 1초 이동 거리 + 5m
-중 큰 쪽이다. 적색·황색, 관측 후 누락, 경계 안 UNKNOWN은 기존 정지 판단을 유지한다.
+2026-10-28 사용자 선택으로 지도+직접 관측 launch는 **A/B/C40m, D30m부터 색을 판단에 전달**한다.
+`observation_start_depth_m:=40` / `observation_start_depth_d_m:=30`이며 카메라→신호 housing 전방 깊이다.
+한 번 시작하면 거리 증가·잠깐 누락으로 다시 닫지 않는다. 추가 완충은 없고, 첫 황색 STOP 정책도 유지한다.
+전체 복귀는 `observation_start_depth_m:=0`(D도 비활성). legacy/비직접 관측은 기본 비활성이다.
+같은 미션 내 teleport만으로 게이트가 초기화되지는 않으며, 40/30 조합의 새 폐루프 검증은 아직 별도다.
+
+Planning 기본 `defer_unseen_until_observed:=true`는 이번 미션에서 아직 유효 램프를 한 번도 읽지 못한
+UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 및 관측 후 누락은 정지 판단을 유지한다.
+이 설정에는 첫 판독이 끝내 없을 때 적색 통과 위험이 있으므로 [CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)의 운영 계약을 확인한다.
 이것은 perception의 `OFF` 라벨 자체를 GO 신호로 바꾸지 않는다.
 
 팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
@@ -163,8 +200,30 @@ Planning 기본 `defer_far_unseen_unknown:=true`는 첫 유효 램프 관측 전
 `traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.
 정차 위치는 Lanelet ref_line의 실제 좌표로 관리하며 이 노드가 지도 OSM을 바꾸지 않는다.
 PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
-그 후 황색 ETA에 한해 원본 MGeo 판정선 profile을 독립적으로 추가했다. 옛 추가 margin을 되살린 것은 아니다.
+그 후 원본 MGeo 판정선 profile을 독립적으로 추가했다. 2026-10-27부터 황색 GO 판단은
+아래 Lanelet 제동거리 근사로 대체하고 MGeo선은 황색 ON의 실제 통과 완료 확인에만 유지한다.
 기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
-이동 중 화각 이탈 문제는 여전히 남고 황색 기본 OFF·허가3회는 유지한다.
+이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 OFF·허가1회가 현재값이며 과거 실험의 허가3회와 구별한다.
+
+## 황색 ON: Lanelet 정차 목표 기준 판단선 1회 확정
+
+기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 OFF다.
+준수 가드 ON에서 켜면 b6·J10의 jerk 제동거리로 판단선을 계산한다.
+`signal_compliance_yellow_deceleration_mps2:=6.0`, `signal_compliance_yellow_jerk_mps3:=10.0`이 판단용 값이다.
+2026-10-28 사용자 요청으로 공통 응답지연은0.0초다(`system_delay`는0.5초 유지).
+후속 36/56km/h 실제 제동 비교 후 판단용 기본8·16만6·10으로 맞췄다. 기존 planner/controller 제한은 바꾸지 않았다.
+이는 시험한 race profile용 근사이며 normal profile의2.8·5에 대한 제동 인증이 아니다.
+기존 실행에 명시된8·16은 자동 변경하지 않는다. [실측·한계](../../../../docs/perception/traffic_light/261028_DECISION_LINE_PR_VALIDATION.md#calibration-261028)를 본다.
+거리는 이미 앞범퍼·stop_margin이 반영된 기존 Lanelet 정차 목표까지의 경로 거리다.
+앞차축3m를 다시 빼지 않는다. 신선한 방향 허가·주행 중 `목표거리<=제동거리`가 되면 GO를1회 확정한다.
+확정 전 Y/R은 STOP이며, STOP 이력은 가상선 전/후 정차·UNKNOWN으로 풀리지 않고 새 방향 허가에 해제한다.
+확정 GO는 후속 Y/R에도 유지하되 실제 정차하면 재판단한다. D의 원형G만으로는 허가하지 않는다.
+정차 중 미세 signed 속도 잡음 −0.1~0m/s는0으로 보고, 실제 역주행은 거부한다.
+
+예전 timed flag/minimum/margin 인자는 옛 YAML 호환용으로 받지만 시간제한 분기를 활성화하지 않는다.
+황색 지속시간을 가정하지 않으므로, 적색 전 실제 채점선 통과 보장은 아니다.
+이 정책은 적색 미위반을 보장하지 않는다. 기존 미수신/1초timeout GO 예외는 유지한다.
+`enable_signal_compliance_guard:=false`는 여전히 명시적 legacy 정책 복귀다.
+세부 조건·설정·검증 한계는 [교체 기록](../../../../docs/perception/traffic_light/261027_LANELET_YELLOW_BRAKING.md)을 본다.
 [최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.
 [변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

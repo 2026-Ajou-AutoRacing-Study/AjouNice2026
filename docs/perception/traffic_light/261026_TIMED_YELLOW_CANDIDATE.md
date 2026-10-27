@@ -2,6 +2,7 @@
 
 상태: 2026-10-26, **EVIDENCE / 명시적 opt-in 후보**. 운영 기본값을 승격한 문서가 아니다.
 현재 권위는 [CURRENT](CURRENT.md), 기존 배포는 [handoff](V5_CANDIDATE_HANDOFF.md)다.
+후속 상태(2026-10-27): 활성 황색 판단은 [Lanelet 제동거리 근사](261027_LANELET_YELLOW_BRAKING.md)로 교체했다. 아래 시간제한 후보는 당시 증거이며, 새 코드에서 옛 timed flag를 켜도 이 ETA 분기를 다시 활성화하지 않는다.
 후보 사용법은 [Validator runbook](../../planning/SCENARIO_VALIDATOR_RUNBOOK.md#시간제한-황색-후보-설정-2026-10-26)을 따른다.
 
 ## 범위와 변경하지 않은 것

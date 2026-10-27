@@ -1,10 +1,163 @@
 from types import SimpleNamespace
+from run_traffic_light_compliance_trial import temporal_video_launch_arguments
+from run_traffic_light_compliance_trial import owned_child_exit_grace_sec
+from run_traffic_light_compliance_trial import validate_video_request
 
 import pytest
+
+
+def test_yellow_receipt_uses_the_helpers_actual_first_observation_default():
+    from run_traffic_light_compliance_trial import receipt_yellow_durations
+    assert receipt_yellow_durations('first-observation-yellow', None) == [3.]
+    assert receipt_yellow_durations('stopped-yellow', None) == [1., 3., 5.]
+    assert receipt_yellow_durations('first-observation-yellow', (2.,)) == [2.]
+    assert receipt_yellow_durations('moving-native-yellow', (1.,)) == [1.]
+    assert receipt_yellow_durations('natural', None) is None
+
+
+def test_front_only_capture_does_not_require_or_capture_a_desktop_window():
+    validate_video_request(True, True, 'unknown_grace', None)
+    validate_video_request(True, False, 'current', '0x123')
+    validate_video_request(False, False, None, None)
+    for args in ((False, True, 'current', None), (True, False, 'current', None),
+                 (True, True, None, None)):
+        with pytest.raises(ValueError):
+            validate_video_request(*args)
+
+
+def test_camera_recorder_gets_time_to_finalize_its_owned_encoder():
+    assert owned_child_exit_grace_sec('front_video') >= 28
+    assert owned_child_exit_grace_sec('observer') == 8
+    assert owned_child_exit_grace_sec('simulator_video') == 8
+
+
+def test_unknown_grace_is_explicit_bounded_and_keeps_known_color_evidence():
+    original = {'repo_root': '/repo'}
+    planning = temporal_video_launch_arguments('ajounice_planning_integration',
+        'planning.launch', original, unknown_grace_sec=.2)
+    assert planning == dict(original, signal_compliance_unknown_grace_sec=.2)
+    traffic = temporal_video_launch_arguments('traffic_light_detection',
+        'traffic_light_v5_candidate.launch', original, unknown_grace_sec=.2)
+    assert traffic == dict(original, preserve_unreadable_color_evidence=True,
+                           stamped_vote_window_size=0, planner_compliance_observations=True)
+    inherited = dict(planner_compliance_observations=False, stamped_vote_window_size=7)
+    assert temporal_video_launch_arguments('traffic_light_detection', 'traffic_light_node.launch',
+        inherited, unknown_grace_sec=.3) == dict(preserve_unreadable_color_evidence=True,
+            stamped_vote_window_size=0, planner_compliance_observations=True)
+    assert inherited == dict(planner_compliance_observations=False, stamped_vote_window_size=7)
+    assert temporal_video_launch_arguments('bringup', 'sensing.launch', original,
+        unknown_grace_sec=.2) == original
+    assert temporal_video_launch_arguments('traffic_light_detection', 'traffic_light_node.launch',
+        {}, unknown_grace_sec=0) == {'preserve_unreadable_color_evidence': False}
+    assert temporal_video_launch_arguments('ajounice_planning_integration', 'planning.launch',
+        original) == original
+    assert temporal_video_launch_arguments('ajounice_planning_integration', 'planning.launch',
+        {}, unknown_grace_sec=.3) == {'signal_compliance_unknown_grace_sec': .3}
+    assert original == {'repo_root': '/repo'}
+    for bad in (True, -.01, .300001, float('nan'), float('inf'), '0.2'):
+        with pytest.raises(ValueError):
+            temporal_video_launch_arguments('x', 'x', {}, unknown_grace_sec=bad)
+    with pytest.raises(ValueError):
+        temporal_video_launch_arguments('x', 'x', {}, unknown_grace_sec=.2, stamped_vote=7)
+
+
+def test_seven_four_vote_parameters_are_explicit_scoped_and_bounded():
+    original = {'device': '0', 'planner_compliance_observations': True}
+    options = dict(stamped_vote=7, stamped_vote_max_age_sec=.9,
+                   stamped_vote_startup_passthrough=True)
+    result = temporal_video_launch_arguments('traffic_light_detection',
+        'traffic_light_v5_candidate.launch', original, **options)
+    assert result == dict(original, stamped_vote_window_size=7,
+        stamped_vote_max_age_sec=.9, stamped_vote_startup_passthrough=True)
+    assert original == {'device': '0', 'planner_compliance_observations': True}
+    assert temporal_video_launch_arguments('bringup', 'sensing.launch', {}, **options) == {}
+    for bad in (True, 0, -.1, float('nan'), .900001):
+        with pytest.raises(ValueError):
+            temporal_video_launch_arguments('x', 'x', {}, stamped_vote=7,
+                                            stamped_vote_max_age_sec=bad)
+    for window in (None, 0):
+        with pytest.raises(ValueError):
+            temporal_video_launch_arguments('x', 'x', {}, stamped_vote=window,
+                                            stamped_vote_startup_passthrough=True)
+    with pytest.raises(ValueError):
+        temporal_video_launch_arguments('x', 'x', {}, stamped_vote=3,
+                                        stamped_vote_max_age_sec=.9)
+    with pytest.raises(ValueError):
+        temporal_video_launch_arguments('x', 'x', {}, stamped_vote=7,
+                                        stamped_vote_startup_passthrough='true')
+
+
+def test_temporal_video_candidates_are_scoped_and_no_legacy_switch():
+    original={'device':'0','planner_compliance_observations':True}
+    out=temporal_video_launch_arguments('traffic_light_detection','traffic_light_v5_candidate.launch',
+                                      original,2,3,True)
+    assert out == dict(original,stamped_vote_window_size=3,publish_debug_image=True)
+    assert original == {'device':'0','planner_compliance_observations':True}
+    out=temporal_video_launch_arguments('ajounice_planning_integration','planning.launch',{},2,3,True)
+    assert out == {'signal_compliance_required_green_observations':2}
+    assert temporal_video_launch_arguments('bringup','x',{},2,3,True)=={}
+    for bad in (True,0,4):
+        with pytest.raises(ValueError):temporal_video_launch_arguments('x','x',{},bad,None)
 from run_traffic_light_compliance_trial import (CANONICAL, SOURCE_TOPIC, active_fault_mode,
     fault_copy, fixture_relay_mode, validated_fixture_status, launch_arguments,
     require_trial_contract, run_owned_trial, signal_topic_conflicts, with_compliance_debug)
 from run_traffic_light_compliance_trial import map_launch_arguments
+from run_traffic_light_compliance_trial import CrossingVideoDeadline, validate_short_cycle_request
+
+
+def test_short_cycle_plan_is_explicit_guarded_direct_stress_only(tmp_path):
+    plan = tmp_path/'cycles.json'
+    plan.write_text('{"groups": []}')
+    assert validate_short_cycle_request('short-native-cycles', plan, 'guarded', 'true') is True
+    assert validate_short_cycle_request('natural', None, 'production', 'false') is False
+    for options in (('natural', plan, 'guarded', 'true'),
+                    ('short-native-cycles', None, 'guarded', 'true'),
+                    ('short-native-cycles', plan, 'production', 'true'),
+                    ('short-native-cycles', plan, 'guarded', 'false')):
+        with pytest.raises(ValueError):
+            validate_short_cycle_request(*options)
+    plan.write_text('[]')
+    with pytest.raises(ValueError):
+        validate_short_cycle_request('short-native-cycles', plan, 'guarded', 'true')
+
+
+def test_video_cut_requires_only_verified_forward_D_crossing_and_finite_tail(tmp_path):
+    import json
+    path = tmp_path/'observer.jsonl'
+    deadline = CrossingVideoDeadline(path, 201326, 5.)
+    assert deadline.poll(10.) is False
+    event = dict(event='front_point_segment_crossing_pending_native_bracket',
+                 group_id=201326, pose_time_verified=True, direction='negative_to_positive')
+    rows = [dict(event, group_id=201351), dict(event, pose_time_verified=False),
+            dict(event, direction='positive_to_negative'), []]
+    path.write_text('\n'.join(json.dumps(row) for row in rows)+'\n')
+    assert deadline.poll(11.) is False
+    with path.open('a') as stream:
+        stream.write(json.dumps(event)[:30])
+    assert deadline.poll(12.) is False
+    with path.open('a') as stream:
+        stream.write(json.dumps(event)[30:]+'\n')
+    assert deadline.poll(13.) is False
+    assert deadline.deadline == 18.
+    assert deadline.poll(17.999) is False
+    assert deadline.poll(18.) is True
+    assert deadline.poll(19.) is True
+    assert deadline.trigger == event
+    for group, tail in ((201351, 5.), (201326, 0), (201326, -1),
+                        (201326, float('nan')), (201326, 31), (201326, True)):
+        with pytest.raises(ValueError):
+            CrossingVideoDeadline(path, group, tail)
+
+
+def test_video_cut_respects_explicit_geometry_direction(tmp_path):
+    import json
+    path = tmp_path/'observer.jsonl'
+    event = dict(event='front_point_segment_crossing_pending_native_bracket',
+                 group_id=201326, pose_time_verified=True, direction='positive_to_negative')
+    path.write_text(json.dumps(event)+'\n')
+    deadline = CrossingVideoDeadline(path, 201326, 1., 'positive_to_negative')
+    assert deadline.poll(10.) is False
+    assert deadline.poll(11.) is True
 
 
 def test_map_candidate_is_shared_without_overriding_policy_or_models():
@@ -21,6 +174,8 @@ def test_map_candidate_is_shared_without_overriding_policy_or_models():
     prediction = map_launch_arguments('perception_object_pipeline', 'object_pipeline.launch',
                                       original, '/candidate', 'sha')
     assert prediction == dict(device='0', map_file='/candidate')
+    assert map_launch_arguments('bringup', 'aw149_planning_rviz.launch', original,
+                                '/candidate', 'sha') == dict(device='0', map_file='/candidate')
     assert original == dict(device='0')
 
 
@@ -50,10 +205,28 @@ def test_traffic_trial_keeps_model_settings_and_uses_proxy_only_explicitly():
     original = {'device': '0', 'models_root': '/models'}
     result = launch_arguments('traffic_light_detection', 'traffic_light_v5_candidate.launch', original, False, True, True)
     assert result == dict(original, route_progress_guard=True, output_topic=SOURCE_TOPIC,
-                          planner_compliance_observations=False)
+                          planner_compliance_observations=False,
+                          preserve_unreadable_color_evidence=False)
     natural = launch_arguments('traffic_light_detection', 'traffic_light_v5_candidate.launch', original, False, False, False)
-    assert natural == dict(original, route_progress_guard=False, planner_compliance_observations=False)
+    assert natural == dict(original, route_progress_guard=False, planner_compliance_observations=False,
+                           preserve_unreadable_color_evidence=False)
     assert 'output_topic' not in original
+
+
+def test_trial_baselines_do_not_inherit_new_production_grace():
+    for guarded in (False, True):
+        planning = launch_arguments('ajounice_planning_integration', 'planning.launch',
+                                    {}, guarded, True, False)
+        assert planning['signal_compliance_unknown_grace_sec'] == 0.
+        if not guarded:
+            for key in ('defer_unseen_until_observed', 'defer_far_unseen_unknown',
+                        'signal_compliance_enable_timed_yellow'):
+                assert planning[key] is False
+        traffic = launch_arguments('traffic_light_detection', 'traffic_light_node.launch',
+                                   {}, guarded, True, False, temporal_direct=True)
+        voted = temporal_video_launch_arguments('traffic_light_detection',
+            'traffic_light_node.launch', traffic, stamped_vote=7)
+        assert voted['preserve_unreadable_color_evidence'] is False
 
 
 def test_fault_proxy_never_manufactures_color_or_freshness():

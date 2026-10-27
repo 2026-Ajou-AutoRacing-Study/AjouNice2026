@@ -40,8 +40,16 @@ TOPICS=(
   /perception/object_recognition/tracking/measurement_objects
   /perception/object_recognition/tracking/objects
   /perception/object_recognition/objects
+  /sensor/camera/front/compressed
   /perception/traffic_light_recognition/route_group_id
+  /perception/traffic_light_recognition/map_rois
   /perception/traffic_light_recognition/traffic_signals
+  /traffic_light_node/debug_selection
+  /traffic_light_node/debug_classifier
+  /traffic_light_node/debug_runtime
+  /traffic_light_node/debug_policy_reason
+  /traffic_light_node/debug_observed_label
+  /traffic_light_node/debug_raw_label
 
   # Final and nearby planning outputs needed to align controller behavior.
   /planning/mission_planning/route

@@ -194,15 +194,22 @@ class SignalPhasePolicy:
                                     source_stamp_ns, observation_head_id,
                                     detection_miss_hold_eligible, detection_miss_hold_sec,
                                     low_confidence_hold_eligible, low_confidence_hold_sec,
-                                    low_confidence_confident_red):
+                                    low_confidence_confident_red,
+                                    no_lamps_hold_eligible, no_lamps_hold_sec,
+                                    cnn_gap_confident_lamps):
         """Production-only brief detection gap, not a lamp majority vote.
 
-        The caller establishes fresh map/TF/identity and detection-only failure.
+        The caller establishes fresh map/TF/identity and a qualified brief gap.
         A held result keeps the original image source stamp and cannot extend
         its own deadline or count as another green confirmation downstream.
         """
         if type(detection_miss_hold_eligible) is not bool:
             raise ValueError("detection_miss_hold_eligible must be an explicit bool")
+        if type(no_lamps_hold_eligible) is not bool:
+            raise ValueError('no_lamps_hold_eligible must be an explicit bool')
+        if (isinstance(no_lamps_hold_sec, bool) or not isinstance(no_lamps_hold_sec, (int,float))
+                or not math.isfinite(no_lamps_hold_sec) or not 0 <= no_lamps_hold_sec <= .3):
+            raise ValueError('no_lamps_hold_sec must be finite in [0, 0.3]')
         if type(low_confidence_hold_eligible) is not bool or type(low_confidence_confident_red) is not bool:
             raise ValueError("low confidence eligibility/red evidence must be explicit bools")
         if (isinstance(low_confidence_hold_sec, bool) or not isinstance(low_confidence_hold_sec, (int,float))
@@ -264,7 +271,20 @@ class SignalPhasePolicy:
             return list(lamps), conf, "direct_observation:detection_miss_hold"
         processing_age_sec = ((round(stamp*1e9)-round(cached[2]*1e9))/1e9
                               if time_valid and cached else float("inf"))
+        if (no_lamps_hold_sec > 0 and no_lamps_hold_eligible and head_valid and cached
+                and cached[4] == observation_head_id and not normalized
+                and not reason.endswith(':observation_rejected')
+                and all(tuple(lamp) in {(x[0], x[1]) for x in cached[0]}
+                        for lamp in cnn_gap_confident_lamps)
+                and 0 <= processing_age_sec <= no_lamps_hold_sec
+                and 0 <= cache_age_sec <= .3):
+            lamps, conf, observed_clock, observed_source, _ = cached
+            origin = 'no_lamps_hold' if not cnn_gap_confident_lamps else 'cnn_gap_hold'
+            self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
+                                            observed_clock, True, origin)
+            return list(lamps), conf, 'direct_observation:' + origin
         if (low_confidence_hold_sec > 0 and low_confidence_hold_eligible and head_valid
+                and not (no_lamps_hold_sec > 0 and no_lamps_hold_eligible)
                 and source_stamp_ns is not None and cached and cached[4] == observation_head_id
                 and source_stamp_ns <= stamp*1e9 and not normalized
                 and not reason.endswith(":observation_rejected")
@@ -277,8 +297,8 @@ class SignalPhasePolicy:
             self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
                                             observed_clock, True, "low_confidence_hold")
             return list(lamps), conf, "direct_observation:low_confidence_hold"
-        # Unknown/low-confidence/explicitly dark lamps, TF or identity loss,
-        # invalid time, changed head and expired gaps must invalidate the cache.
+        # Outside the explicitly qualified brief-gap budgets, unknown/dark
+        # lamps, TF/identity loss and expired gaps must invalidate the cache.
         state.pop("observation", None)
         self._record_output_observation(group_id, stamp, source_stamp_ns, origin="direct_unknown")
         return [], 0.0, "direct_observation:unknown"
@@ -311,7 +331,9 @@ class SignalPhasePolicy:
                            *, source_stamp_ns=None, use_smoothing=True,
                            observation_head_id=None, detection_miss_hold_eligible=False,
                            detection_miss_hold_sec=.2, low_confidence_hold_eligible=False,
-                           low_confidence_hold_sec=.3, low_confidence_confident_red=False):
+                           low_confidence_hold_sec=.3, low_confidence_confident_red=False,
+                           no_lamps_hold_eligible=False, no_lamps_hold_sec=0.,
+                           cnn_gap_confident_lamps=()):
         """Keep missing observations out of the phase vote and history (D-2).
 
         ``stamp`` remains the advancing guard clock, normally rospy.now(). The
@@ -331,7 +353,8 @@ class SignalPhasePolicy:
         if not use_smoothing:
             return self._process_direct_observation(normalized, reason, group_id, stamp, confidence,
                 source_stamp_ns, observation_head_id, detection_miss_hold_eligible, detection_miss_hold_sec,
-                low_confidence_hold_eligible, low_confidence_hold_sec, low_confidence_confident_red)
+                low_confidence_hold_eligible, low_confidence_hold_sec, low_confidence_confident_red,
+                no_lamps_hold_eligible, no_lamps_hold_sec, cnn_gap_confident_lamps)
         valid = not reason.endswith(":fail_open")
         profile = self.profiles[self.profile_name(group_id)]
         limits = profile.get("observation_guard")

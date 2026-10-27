@@ -8,7 +8,8 @@ from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
-from .traffic_light import runtime_settings, launch_options as traffic_launch_options
+from .traffic_light import (runtime_settings, profile_name, timed_policy_options,
+                            launch_options as traffic_launch_options)
 from .repetitions import repetition_settings
 from .models import selected_model
 from .route_profile import normalize as normalize_route
@@ -22,12 +23,52 @@ CONFIG_SCHEMA_VERSION = 2
 EXECUTION_CONTRACT = "campaign-common-settings-v2"
 UPLOAD_PROFILES = ("basic", "bag", "video", "full")
 DEFAULT_UPLOAD_REMOTE = "ajou_drive:planning_validator"
+PRODUCTION_UNKNOWN_GRACE_SEC = .3
 # Same shared AjouNice2026 Drive folder used by scripts/map/*_kcity_map_assets.sh.
 AJOU_DRIVE_ROOT_FOLDER_ID = "12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP"
 
 
 class ConfigError(ValueError):
     pass
+
+
+def traffic_temporal_options(stack, *, legacy_snapshot=False, validate_pair=True):
+    """Resolve the paired v5 handoff without migrating frozen old executions.
+
+    Grace is the only independent new temporal setting. Marker/direct/vote
+    fields are frozen provenance, not a second way to select an unpaired mode.
+    Older snapshots missing grace retain zero even when their profile is v5.
+    """
+    for key in ('traffic_light', 'enable_signal_compliance_guard',
+                'preserve_unreadable_color_evidence', 'planner_compliance_observations'):
+        if key in stack and type(stack[key]) is not bool:
+            raise ConfigError('stack.{}는 true/false여야 합니다'.format(key))
+    if 'stamped_vote_window_size' in stack and (
+            type(stack['stamped_vote_window_size']) is not int or stack['stamped_vote_window_size'] != 0):
+        raise ConfigError('stack.stamped_vote_window_size는 운영 profile에서 0이어야 합니다')
+    traffic = stack.get('traffic_light', False)
+    direct = traffic and profile_name(stack) == 'v5_candidate'
+    guarded = stack.get('enable_signal_compliance_guard', True)
+    eligible = direct and guarded
+    default = PRODUCTION_UNKNOWN_GRACE_SEC if eligible and not legacy_snapshot else 0.
+    grace = stack.get('signal_compliance_unknown_grace_sec', default)
+    if (type(grace) not in (int, float) or not math.isfinite(grace) or not 0 <= grace <= .3):
+        raise ConfigError('stack.signal_compliance_unknown_grace_sec는 유한한 0~0.3초여야 합니다')
+    # A legacy/off/guard-off caller never inherits a positive launch default.
+    grace = float(grace) if eligible else 0.
+    result = dict(enable_signal_compliance_guard=guarded,
+                  signal_compliance_unknown_grace_sec=grace,
+                  preserve_unreadable_color_evidence=grace > 0.,
+                  planner_compliance_observations=direct,
+                  stamped_vote_window_size=0,
+                  signal_compliance_required_green_observations=
+                      timed_policy_options(stack)['signal_compliance_required_green_observations'])
+    old_missing = legacy_snapshot and 'signal_compliance_unknown_grace_sec' not in stack
+    if validate_pair and not old_missing:
+        for key in ('preserve_unreadable_color_evidence', 'planner_compliance_observations'):
+            if key in stack and stack[key] != result[key]:
+                raise ConfigError('stack.{}는 선택된 profile/grace와 일치해야 합니다'.format(key))
+    return result
 
 
 def resolve_path(value, *, required=True):
@@ -188,6 +229,9 @@ def validate_campaign_document(document, *, allow_legacy=False):
     try:
         repetition_settings(document["scenarios"])
         traffic_launch_options(document['stack'])
+        # GUI opening validates types/bounds without guessing whether this is
+        # an immutable snapshot. Full loading checks the resolved pair below.
+        traffic_temporal_options(document['stack'], validate_pair=False)
     except ValueError as error:
         raise ConfigError(str(error)) from error
     common = document["default_case"]
@@ -377,6 +421,8 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     try:
         traffic_options = traffic_launch_options(stack,
             legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
+        traffic_temporal = traffic_temporal_options(stack,
+            legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
         runtime_settings(stack, ROOT, check_exists=stack.get("traffic_light", False))
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -424,6 +470,7 @@ def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     return {"path": path, "document": document, "name": name, "cases": cases,
             "network": network, "stack": stack, "recording": recording, "route": route,
             "traffic_light_options": traffic_options,
+            "traffic_light_temporal_options": traffic_temporal,
             "network_contract": network_contract,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,

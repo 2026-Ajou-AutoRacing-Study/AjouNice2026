@@ -21,7 +21,10 @@ class RecordingTests(unittest.TestCase):
         for topic in recorder.REQUIRED + recorder.DIAGNOSTICS + [
                 '/sensor/lidar1/packets', '/sensor/camera/back_left/compressed',
                 '/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory',
-                '/planning/planning_factors/roundabout', '/control/command/control_cmd']:
+                '/planning/planning_factors/roundabout', '/control/command/control_cmd',
+                '/perception/traffic_light_recognition/map_rois',
+                '/traffic_light_node/debug_selection', '/traffic_light_node/debug_classifier',
+                '/traffic_light_node/debug_runtime']:
             with self.subTest(topic=topic):
                 self.assertTrue(any(re.match(p, topic) for p in recorder.TOPICS))
 

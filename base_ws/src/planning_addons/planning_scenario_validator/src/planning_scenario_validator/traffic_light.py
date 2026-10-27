@@ -1,4 +1,4 @@
-"""User-selected v5 default and explicit legacy; planning policy is unchanged."""
+"""Traffic runtime controls and compatibility fields for the yellow policy."""
 import importlib.util
 import math
 import os
@@ -11,6 +11,11 @@ DEFAULT_PROFILE = 'v5_candidate'
 PROFILE_LABELS = {'v5_candidate': 'v5 지도+CNN 후보', 'legacy': '기존 YOLO+HSV'}
 LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
+YELLOW_POLICY_IMPLEMENTATION = 'lanelet_decision_line_jerk_v2'
+YELLOW_BRAKING_DEFAULTS = {
+    'signal_compliance_yellow_deceleration_mps2': 6.0,
+    'signal_compliance_yellow_jerk_mps3': 10.0,
+}
 TIMED_POLICY_DEFAULTS = {
     'signal_compliance_required_green_observations': 1,
     'signal_compliance_min_yellow_sec': 2.0,
@@ -20,7 +25,7 @@ TIMED_POLICY_DEFAULTS = {
 
 
 def timed_policy_options(stack):
-    """Explicit candidate settings; minimum yellow is an assumption, not GT."""
+    """Read old fields for compatibility/provenance, not to enable timed yellow."""
     result = {key: stack.get(key, default) for key, default in TIMED_POLICY_DEFAULTS.items()}
     required = result['signal_compliance_required_green_observations']
     if type(required) is not int or not 1 <= required <= 3:
@@ -33,12 +38,19 @@ def timed_policy_options(stack):
         if type(value) not in (int, float) or not math.isfinite(value):
             raise ValueError('stack.{}는 유한한 숫자여야 합니다'.format(key))
         result[key] = float(value)
-    minimum = result['signal_compliance_min_yellow_sec']
-    margin = result['signal_compliance_yellow_time_margin_sec']
-    if not 0 < minimum <= 10:
-        raise ValueError('stack.signal_compliance_min_yellow_sec는 0초 초과 10초 이하입니다')
-    if not 0 <= margin < minimum:
-        raise ValueError('stack.signal_compliance_yellow_time_margin_sec는 0 이상 최소 황색 시간 미만입니다')
+    # These values no longer participate in a decision. In particular, an old
+    # minimum/margin combination must not reject an otherwise runnable campaign.
+    return result
+
+
+def yellow_braking_options(stack):
+    """Positive decision-line braking/jerk magnitudes, not controller limits."""
+    result = {}
+    for key, default in YELLOW_BRAKING_DEFAULTS.items():
+        value = stack.get(key, default)
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+            raise ValueError('stack.{}는 유한한 양수여야 합니다'.format(key))
+        result[key] = float(value)
     return result
 
 
@@ -56,10 +68,13 @@ def launch_options(stack, *, legacy_snapshot=False):
                   debug_view=stack.get('traffic_light_debug_view', False),
                   publish_debug_image=stack.get('traffic_light_debug_view', legacy_snapshot))
     policy = timed_policy_options(stack)
+    braking = yellow_braking_options(stack)
     # Preserve the effective old snapshot shape/hash when no new field exists.
-    # New execution preparation freezes all four fields explicitly.
+    # New execution preparation freezes all policy fields explicitly.
     if any(key in stack for key in TIMED_POLICY_DEFAULTS):
         result.update(policy)
+    if any(key in stack for key in YELLOW_BRAKING_DEFAULTS):
+        result.update(braking)
     return result
 
 

@@ -55,6 +55,35 @@ def _identity_iou(a,b):
     return _iou(a,b),_iou(padded(a),padded(b)),margin
 
 
+def _current_nominal_identity(box, projected):
+    """Tight current-image check when the localization uncertainty gate flickers.
+
+    The projection is made from the current image-time TF, not from the old
+    anchor. It may confirm housing identity; it never supplies a lamp value.
+    Center tolerances scale with the projected housing, with an 8px ceiling;
+    the wide uncertainty ROI must never become identity evidence by itself.
+    """
+    try:
+        if len(projected)!=4 or not all(math.isfinite(float(v)) for v in projected):
+            return False
+        left,top,right,bottom=map(float,projected)
+        width,height=right-left,bottom-top
+        observed_width,observed_height=box[2]-box[0],box[3]-box[1]
+        if width<=0 or height<=0:
+            return False
+        width_ratio,height_ratio=observed_width/width,observed_height/height
+        if (not .65<=width_ratio<=1.6 or not .65<=height_ratio<=1.6 or
+                not .7<=width_ratio/height_ratio<=1.3):
+            return False
+        dx=(box[0]+box[2]-left-right)/2
+        dy=(box[1]+box[3]-top-bottom)/2
+        x_tolerance=max(3.,min(8.,.35*width))
+        y_tolerance=max(3.,min(8.,.8*height))
+        return abs(dx)<=x_tolerance and abs(dy)<=y_tolerance
+    except (TypeError,ValueError,OverflowError,ZeroDivisionError):
+        return False
+
+
 class VisualContinuation:
     def __init__(self):self.reset()
 
@@ -128,15 +157,20 @@ class VisualContinuation:
                 cx,cy=(b[0]+b[2])/2,(b[1]+b[3])/2
                 shift=math.hypot(cx-(previous[0]+previous[2])/2,cy-(previous[1]+previous[3])/2)
                 raw_iou,identity_iou,pixel_margin=_identity_iou(b,previous)
-                if (not .67<=width/pw<=1.5 or not .67<=height/ph<=1.5
-                        or identity_iou<.5 or shift>.35*math.hypot(pw,ph)):continue
+                previous_identity=(.67<=width/pw<=1.5 and .67<=height/ph<=1.5
+                    and identity_iou>=.5 and shift<=.35*math.hypot(pw,ph))
+                projected_identity=(packet.get('status')=='missing' and
+                    packet.get('reason')=='localization_uncertainty_exceeds_bound' and
+                    _current_nominal_identity(b,target.get('bbox_xyxy')))
+                if not previous_identity and not projected_identity:continue
                 gate=target['gate_xyxy']
                 if not gate[0]<=cx<=gate[2] or not gate[1]<=cy<=gate[3]:continue
                 competitors=[r for r in nominal if r['head_id']!=anchor['head_id'] and
                     r['gate_xyxy'][0]<=cx<=r['gate_xyxy'][2] and r['gate_xyxy'][1]<=cy<=r['gate_xyxy'][3]]
                 if competitors:
                     self.trusted=None;result['reason']='visual_continuation_other_head_competitor';return None,result
-                candidates.append((index,box,raw_iou,identity_iou,pixel_margin))
+                candidates.append((index,box,raw_iou,identity_iou,pixel_margin,
+                                   'previous_bbox' if previous_identity else 'current_nominal_projection'))
             result.update(eligible=True,head_id=anchor['head_id'],trusted_source_stamp_ns=anchor['source_ns'],
                           anchor_age_sec=(now-anchor['clock_ns'])/1e9)
             if not candidates:
@@ -149,10 +183,12 @@ class VisualContinuation:
             if any(_iou(_bbox(left[1]),_bbox(right[1]))<.8
                    for index,left in enumerate(candidates) for right in candidates[index+1:]):
                 self.trusted=None;result['reason']='visual_continuation_multiple_detections';return None,result
-            index,box,raw_iou,identity_iou,pixel_margin=max(candidates,key=lambda row:float(row[1][4][4]))
+            index,box,raw_iou,identity_iou,pixel_margin,identity_basis=max(
+                candidates,key=lambda row:float(row[1][4][4]))
             result.update(status='matched',reason='visual_continuation_match',box_index=index,
                           normal_eligibility=False,raw_identity_iou=raw_iou,
-                          identity_iou=identity_iou,identity_boundary_tolerance_px=pixel_margin)
+                          identity_iou=identity_iou,identity_boundary_tolerance_px=pixel_margin,
+                          identity_basis=identity_basis)
             return box,result
         except (KeyError,TypeError,ValueError,OverflowError,IndexError):
             self.trusted=None

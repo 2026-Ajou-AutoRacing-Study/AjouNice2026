@@ -39,6 +39,8 @@ catkin_install_python(PROGRAMS
   scripts/traffic_light_near_rescue.py
   scripts/traffic_light_observation_handoff.py
   scripts/traffic_light_visual_continuation.py
+  scripts/traffic_light_stamped_vote.py
+  scripts/traffic_light_unreadable_evidence.py
   scripts/traffic_light_map_roi_node.py
   scripts/traffic_light_cnn_classifier.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

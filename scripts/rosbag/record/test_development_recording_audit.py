@@ -22,6 +22,15 @@ class AuditTests(unittest.TestCase):
     def test_canonical_or_trial_timing_is_sufficient(self):
         self.assertTrue(audit.capabilities({audit.TIMINGS[1]: {'messages': 1}})['detector_stage_timing']['recorded'])
 
+    def test_traffic_signal_causality_requires_every_stage(self):
+        names = audit.GROUPS['traffic_signal_causality']['all']
+        topics = {name: {'messages': 1} for name in names}
+        self.assertTrue(audit.capabilities(topics)['traffic_signal_causality']['recorded'])
+        topics['/traffic_light_node/debug_selection']['messages'] = 0
+        result = audit.capabilities(topics)['traffic_signal_causality']
+        self.assertFalse(result['recorded'])
+        self.assertIn('/traffic_light_node/debug_selection', result['missing_all_required'])
+
     def test_no_fictitious_cruise_output_required(self):
         self.assertTrue(all(not n.endswith('/obstacle_cruise/trajectory')
                             for g in audit.GROUPS.values() for names in g.values() for n in names))

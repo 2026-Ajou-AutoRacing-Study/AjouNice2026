@@ -21,11 +21,11 @@ class MapSelectorConfig:
     min_height_px: float = 3.
     base_margin_px: float = 12.
     pitch_tolerance_degrees: float = 1.
-    max_padding_px: float = 90.
+    max_padding_px: float = 120.
     max_vertical_padding_px: float = 200.
     max_position_sigma_m: float = 1.5
     max_vertical_sigma_m: float = 1.5
-    max_yaw_sigma_degrees: float = 3.
+    max_yaw_sigma_degrees: float = 4.
     min_width_ratio: float = .45
     max_width_ratio: float = 2.5
     min_height_ratio: float = .35

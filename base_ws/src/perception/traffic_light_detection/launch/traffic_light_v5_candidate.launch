@@ -20,14 +20,25 @@
   <arg name="publish_debug_image" default="false" />
   <arg name="near_rescue_enabled" default="true" />
   <arg name="planner_compliance_observations" default="true" />
+  <arg name="observation_start_depth_m" default="$(eval 40.0 if str(arg('planner_compliance_observations')).lower() == 'true' else 0.0)" />
+  <arg name="observation_start_depth_d_m" default="$(eval 30.0 if float(arg('observation_start_depth_m')) > 0 else 0.0)" />
+  <arg name="preserve_unreadable_color_evidence" default="$(arg planner_compliance_observations)" />
+  <arg name="stamped_vote_window_size" default="0" />
+  <arg name="stamped_vote_max_age_sec" default="0.5" />
+  <arg name="stamped_vote_startup_passthrough" default="false" />
   <arg name="detection_miss_hold_sec" default="0.2" />
   <arg name="low_confidence_hold_sec" default="0.3" />
+  <arg name="no_lamps_hold_sec" default="0.2" />
   <arg name="visual_continuation_sec" default="0.3" />
   <arg name="route_progress_guard" default="true" />
+  <arg name="map_max_padding_px" default="120.0" />
+  <arg name="map_max_yaw_sigma_degrees" default="4.0" />
   <arg name="map_max_vertical_padding_px" default="200.0" />
   <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
     <arg name="inference_python" value="$(arg inference_python)" />
     <arg name="device" value="$(arg device)" />
+    <arg name="observation_start_depth_m" value="$(arg observation_start_depth_m)" />
+    <arg name="observation_start_depth_d_m" value="$(arg observation_start_depth_d_m)" />
     <arg name="isolate_python" value="$(arg isolate_python)" />
     <arg name="weights_path" value="$(arg models_root)/yolo_final/selected.pt" />
     <arg name="cnn_checkpoint_path" value="$(arg models_root)/cnn_v5/best.pt" />
@@ -54,10 +65,17 @@
     <arg name="publish_debug_image" value="$(arg publish_debug_image)" />
     <arg name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <arg name="preserve_unreadable_color_evidence" value="$(arg preserve_unreadable_color_evidence)" />
+    <arg name="stamped_vote_window_size" value="$(arg stamped_vote_window_size)" />
+    <arg name="stamped_vote_max_age_sec" value="$(arg stamped_vote_max_age_sec)" />
+    <arg name="stamped_vote_startup_passthrough" value="$(arg stamped_vote_startup_passthrough)" />
     <arg name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
     <arg name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
+    <arg name="no_lamps_hold_sec" value="$(arg no_lamps_hold_sec)" />
     <arg name="visual_continuation_sec" value="$(arg visual_continuation_sec)" />
     <arg name="route_progress_guard" value="$(arg route_progress_guard)" />
+    <arg name="map_max_padding_px" value="$(arg map_max_padding_px)" />
+    <arg name="map_max_yaw_sigma_degrees" value="$(arg map_max_yaw_sigma_degrees)" />
     <arg name="map_max_vertical_padding_px" value="$(arg map_max_vertical_padding_px)" />
   </include>
 </launch>

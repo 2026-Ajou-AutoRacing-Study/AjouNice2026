@@ -9,8 +9,10 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -48,12 +50,20 @@ def launch_arguments(package, filename, arguments, guarded, route_progress, prox
     if package == 'ajounice_planning_integration' and filename == 'planning.launch':
         result.update(enable_signal_compliance_guard=guarded,
                       enable_yellow_passthrough=yellow_passthrough,
+                      # Freeze historical trial baselines across launch promotion.
+                      # Explicit temporal_video_launch_arguments overrides this.
+                      signal_compliance_unknown_grace_sec=0.0,
                       signal_compliance_front_axle_offset_m=3.0,
                       traffic_light_state_timeout_sec=signal_timeout_sec)
+        if not guarded:
+            result.update(defer_unseen_until_observed=False,
+                          defer_far_unseen_unknown=False,
+                          signal_compliance_enable_timed_yellow=False)
     if package == 'traffic_light_detection' and filename in (
             'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
         result['route_progress_guard'] = route_progress
         result['planner_compliance_observations'] = temporal_direct
+        result['preserve_unreadable_color_evidence'] = False
         if visual_continuation_sec is not None:
             result['visual_continuation_sec'] = visual_continuation_sec
         if perception_odometry_topic is not None:
@@ -88,11 +98,178 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
         result['lanelet2_map_file'] = str(map_file)
     if package == 'perception_object_pipeline' and filename == 'object_pipeline.launch':
         result['map_file'] = str(map_file)
+    if package == 'bringup' and filename == 'aw149_planning_rviz.launch':
+        result['map_file'] = str(map_file)
     return result
+
+
+def receipt_yellow_durations(experiment, requested):
+    if experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
+        return None
+    default = (3.,) if experiment == 'first-observation-yellow' else (1., 3., 5.)
+    return list(default if requested is None else requested)
+
+
+def validate_short_cycle_request(experiment, plan, mode, temporal_direct):
+    """Renderer stress is explicit and never substitutes native GT for vision."""
+    enabled = experiment == 'short-native-cycles'
+    if enabled != (plan is not None):
+        raise ValueError('short-native-cycles requires --short-cycle-plan, and only that experiment accepts it')
+    if enabled and (mode != 'guarded' or temporal_direct != 'true'):
+        raise ValueError('Short native cycles require guarded direct-observation mode')
+    if enabled:
+        body = json.loads(Path(plan).read_text())
+        if not isinstance(body, dict):
+            raise ValueError('Short-cycle plan must be a JSON object')
+    return enabled
+
+
+class CrossingVideoDeadline:
+    """Read only newly written observer rows; never stop driving on a video cut."""
+    def __init__(self, path, group_id, tail_sec, direction='negative_to_positive'):
+        if (group_id != 201326 or isinstance(tail_sec, bool)
+                or not isinstance(tail_sec, (int, float)) or not math.isfinite(tail_sec)
+                or not 0 < tail_sec <= 30
+                or direction not in ('negative_to_positive', 'positive_to_negative')):
+            raise ValueError('Video cut requires D group201326, a directed crossing and a finite0..30s positive tail')
+        self.path, self.group_id, self.tail_sec = Path(path), group_id, tail_sec
+        self.direction = direction
+        self.offset, self.pending, self.deadline, self.trigger = 0, b'', None, None
+
+    def poll(self, now):
+        if self.deadline is None and self.path.is_file():
+            with self.path.open('rb') as stream:
+                stream.seek(self.offset)
+                data = stream.read(4 * 1024 * 1024)
+                self.offset = stream.tell()
+            rows = (self.pending + data).split(b'\n')
+            self.pending = rows.pop()
+            if len(self.pending) > 4 * 1024 * 1024:
+                raise ValueError('Observer JSONL row exceeds the bounded video-cut reader')
+            for row in rows:
+                try:
+                    body = json.loads(row)
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if (isinstance(body, dict)
+                        and body.get('event') == 'front_point_segment_crossing_pending_native_bracket'
+                        and body.get('group_id') == self.group_id
+                        and body.get('pose_time_verified') is True
+                        and body.get('direction') == self.direction):
+                    self.trigger = body
+                    # Receipt now is conservative if polling was delayed.
+                    self.deadline = now + self.tail_sec
+                    break
+        return self.deadline is not None and now >= self.deadline
+
+
+def temporal_video_launch_arguments(package, filename, arguments, required_green=None,
+                                    stamped_vote=None, publish_debug=False, *,
+                                    stamped_vote_max_age_sec=None,
+                                    stamped_vote_startup_passthrough=None,
+                                    unknown_grace_sec=None):
+    """Explicit trial-only changes; never select legacy corrections to get a vote."""
+    result = dict(arguments)
+    if required_green is not None and (type(required_green) is not int or not 1 <= required_green <= 3):
+        raise ValueError('required_green must be 1..3')
+    if unknown_grace_sec is not None and (
+            isinstance(unknown_grace_sec, bool) or not isinstance(unknown_grace_sec, (int, float))
+            or not math.isfinite(unknown_grace_sec) or not 0 <= unknown_grace_sec <= .3):
+        raise ValueError('unknown grace must be finite 0..0.3 seconds')
+    if unknown_grace_sec and stamped_vote not in (None, 0):
+        raise ValueError('UNKNOWN grace trial cannot also enable a phase-voting candidate')
+    if stamped_vote is not None and (type(stamped_vote) is not int or stamped_vote not in (0, 3, 7)):
+        raise ValueError('stamped_vote must be 0, 3 or 7')
+    if stamped_vote_max_age_sec is not None:
+        cap = .9 if stamped_vote == 7 else .5
+        if (stamped_vote not in (3, 7) or isinstance(stamped_vote_max_age_sec, bool)
+                or not isinstance(stamped_vote_max_age_sec, (int, float))
+                or not math.isfinite(stamped_vote_max_age_sec)
+                or not 0 < stamped_vote_max_age_sec <= cap):
+            raise ValueError('explicit vote age requires enabled window and its bounded age cap')
+    if stamped_vote_startup_passthrough is not None and (
+            stamped_vote not in (3, 7) or type(stamped_vote_startup_passthrough) is not bool):
+        raise ValueError('startup passthrough requires enabled window and an explicit bool')
+    if package == 'ajounice_planning_integration' and filename == 'planning.launch':
+        if required_green is not None:
+            result['signal_compliance_required_green_observations'] = required_green
+        if unknown_grace_sec is not None:
+            result['signal_compliance_unknown_grace_sec'] = unknown_grace_sec
+    if package == 'traffic_light_detection' and filename in (
+            'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
+        if stamped_vote is not None:
+            result['stamped_vote_window_size'] = stamped_vote
+        if stamped_vote_max_age_sec is not None:
+            result['stamped_vote_max_age_sec'] = stamped_vote_max_age_sec
+        if stamped_vote_startup_passthrough is not None:
+            result['stamped_vote_startup_passthrough'] = stamped_vote_startup_passthrough
+        if publish_debug:
+            result['publish_debug_image'] = True
+        if unknown_grace_sec is not None:
+            result['preserve_unreadable_color_evidence'] = unknown_grace_sec > 0
+            if unknown_grace_sec > 0:
+                # Do not inherit a phase-vote/legacy handoff from an old YAML.
+                # This explicit trial is the direct-observation alternative.
+                result['stamped_vote_window_size'] = 0
+                result['planner_compliance_observations'] = True
+    return result
+
+
+def simulator_capture_geometry(window_id, display):
+    """Record only the explicitly chosen Simulator window, not a private desktop."""
+    if not re.fullmatch(r'0x[0-9a-fA-F]+', window_id):
+        raise ValueError('Explicit hexadecimal Simulator window ID required')
+    env = dict(os.environ, DISPLAY=display)
+    identity = subprocess.check_output(['xprop','-id',window_id,'WM_CLASS'],env=env,text=True,timeout=5)
+    if 'Simulator.x86_64' not in identity:
+        raise ValueError('Selected window is not the MORAI Simulator')
+    info = subprocess.check_output(['xwininfo','-id',window_id],env=env,text=True,timeout=5)
+    values = []
+    for key in ('Absolute upper-left X','Absolute upper-left Y','Width','Height'):
+        found = re.search(re.escape(key)+r':\s*(-?\d+)', info)
+        if found is None:
+            raise ValueError('Missing X11 window geometry')
+        values.append(int(found[1]))
+    x,y,w,h = values
+    if min(x,y)<0 or w<320 or h<240 or 'IsViewable' not in info:
+        raise ValueError('Simulator window is not visibly captureable')
+    return dict(window_id=window_id,display=display,x=x,y=y,width=w//2*2,height=h//2*2)
+
+
+def activate_simulator_for_capture(window_id, display):
+    """Explicit video operation: prevent an editor covering the capture region."""
+    code = '''import gi,sys,time
+gi.require_version('Wnck','3.0');gi.require_version('Gdk','3.0');gi.require_version('GdkX11','3.0')
+from gi.repository import Wnck,Gdk,GdkX11,GLib
+s=Wnck.Screen.get_default();s.force_update();wid=int(sys.argv[1],16)
+w=next(w for w in s.get_windows() if w.get_xid()==wid)
+w.activate(GdkX11.x11_get_server_time(Gdk.get_default_root_window()))
+c=GLib.MainContext.default()
+for _ in range(10):
+ while c.pending():c.iteration(False)
+ time.sleep(.05)
+s.force_update()
+if s.get_active_window() is None or s.get_active_window().get_xid()!=wid:
+ raise RuntimeError('Simulator could not be raised for screen recording')
+'''
+    subprocess.run(['/usr/bin/python3','-c',code,window_id],check=True,
+                   env=dict(os.environ,DISPLAY=display),timeout=5,capture_output=True)
 
 
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def owned_child_exit_grace_sec(name):
+    # Recorder EOF finalization allows 20s plus a bounded encoder fallback.
+    return 30 if name == 'front_video' else 8
+
+
+def validate_video_request(enabled, front_only, label, window_id):
+    if front_only and not enabled:
+        raise ValueError('Front-only recording requires --record-video')
+    if enabled and (not label or not front_only and not window_id):
+        raise ValueError('Video requires a label and, unless front-only, an explicit Simulator window ID')
 
 
 def require_trial_contract(cfg):
@@ -172,10 +349,14 @@ def main():
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
                         help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
-    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow'), default='natural')
+    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'first-observation-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow', 'short-native-cycles'), default='natural')
+    parser.add_argument('--short-cycle-plan', type=Path,
+                        help='Explicit native-rendered phase plan; development stress, never natural signals')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
     parser.add_argument('--visual-continuation-sec', type=float,
                         help='Explicit bounded visual-identity candidate (0..0.3s), not production mode')
+    parser.add_argument('--observation-start-depth-m', type=float,
+                        help='Trial only: use lamps after first current map-matched housing at this camera depth')
     parser.add_argument('--perception-odometry-topic',
                         help='Explicit evaluation-only covariance stress relay; never changes planner/TF input')
     parser.add_argument('--signal-timeout-sec', type=float, default=1.0)
@@ -186,27 +367,86 @@ def main():
                         help='Explicit stopped-yellow stress durations, for example 2,3; not an operating-time assumption')
     parser.add_argument('--trigger-front-distance-m', type=float, default=8.,
                         help='Real moving-native-yellow trigger distance from front axle to finite stopline')
+    parser.add_argument('--trigger-distance-basis', choices=('finite_front', 'planner_target'), default='finite_front')
+    parser.add_argument('--moving-red-hold-sec', type=float, default=3.)
+    parser.add_argument('--evaluation-speed-cap-mps', type=float,
+                        help='Owned development-only internal speed ceiling, not a vehicle command')
     parser.add_argument('--planner-fixture', choices=FIXTURE_MODES,
                         help='Explicit synthetic planner-only input; no native SET or perception qualification')
     parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
     parser.add_argument('--compliance-debug', action='store_true',
                         help='Development-only traffic C++ DEBUG trace; never a production logger default')
+    parser.add_argument('--required-green-observations', type=int, choices=(1,2,3))
+    parser.add_argument('--unknown-grace-sec', type=float,
+                        help='Guarded direct-observation trial only: pure UNKNOWN after authorized G, at most 0.3s')
+    parser.add_argument('--stamped-vote-window-size', type=int, choices=(0,3,7))
+    parser.add_argument('--stamped-vote-max-age-sec', type=float)
+    parser.add_argument('--stamped-vote-startup-passthrough', choices=('true','false'))
+    parser.add_argument('--record-video', action='store_true')
+    parser.add_argument('--front-video-only', action='store_true',
+                        help='Record actual annotated camera/telemetry only; do not capture any desktop rectangle')
+    parser.add_argument('--video-label', choices=('current','confirm2','vote3','vote3_group','vote7','unknown_grace'))
+    parser.add_argument('--video-display', default=os.environ.get('DISPLAY',':0'))
+    parser.add_argument('--morai-window-id', help='Explicit Simulator X11 ID; only this rectangle is recorded')
+    parser.add_argument('--video-encoder', choices=('libx264','h264_nvenc'), default='libx264')
+    parser.add_argument('--stop-video-after-group', type=int, choices=(201326,),
+                        help='Stop owned videos after a verified forward D crossing; bag/controller keep running')
+    parser.add_argument('--video-tail-sec', type=float, default=5.)
     parser.add_argument('--native-python', type=Path,
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
-    if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'missing-signal'):
+    try:
+        short_cycles = validate_short_cycle_request(args.experiment, args.short_cycle_plan,
+                                                   args.mode, args.temporal_direct)
+        if args.stop_video_after_group is not None:
+            CrossingVideoDeadline('/unused', args.stop_video_after_group, args.video_tail_sec)
+            if not args.record_video:
+                raise ValueError('D video cut requires --record-video')
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
+    if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'missing-signal'):
         parser.error('Separate preparation geometry applies only to stationary native-control trials')
-    if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'moving-native-yellow'):
+    if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
         parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
     moving_native = args.experiment == 'moving-native-yellow'
+    if args.evaluation_speed_cap_mps is not None:
+        from publish_traffic_braking_trial_speed_cap import validate_cap
+        validate_cap(args.evaluation_speed_cap_mps)
+        if args.mode == 'production':
+            parser.error('Unmodified production trials cannot install an evaluation speed cap')
+    if not math.isfinite(args.moving_red_hold_sec) or not 1 <= args.moving_red_hold_sec <= 20:
+        parser.error('Moving red hold must be within 1..20 seconds')
     if moving_native and (args.yellow_durations_sec not in ((1.,), (2.,), (3.,)) or
-                          not 1. <= args.trigger_front_distance_m <= 30.):
-        parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..30m')
+                          not 1. <= args.trigger_front_distance_m <= 60.):
+        parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..60m')
     if args.planner_fixture and args.experiment != 'natural':
         parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
     if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
         parser.error('Unmodified production defaults require natural signals without a proxy')
+    if args.mode == 'production' and (args.required_green_observations is not None or
+                                      args.stamped_vote_window_size is not None or
+                                      args.stamped_vote_max_age_sec is not None or
+                                      args.stamped_vote_startup_passthrough is not None or
+                                      args.unknown_grace_sec is not None):
+        parser.error('Explicit temporal candidates require guarded mode, not production mode')
+    if args.unknown_grace_sec is not None and (args.mode != 'guarded' or args.temporal_direct != 'true'):
+        parser.error('UNKNOWN grace requires explicit guarded direct-observation mode')
+    if args.stamped_vote_window_size in (3,7) and (args.mode != 'guarded' or args.temporal_direct != 'true'):
+        parser.error('Stamped vote requires guarded mode with --temporal-direct true')
+    try:
+        temporal_video_launch_arguments('validation', 'only', {},
+            stamped_vote=args.stamped_vote_window_size,
+            stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+            stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                             else args.stamped_vote_startup_passthrough == 'true'),
+            unknown_grace_sec=args.unknown_grace_sec)
+    except ValueError as exc:
+        parser.error(str(exc))
+    try:
+        validate_video_request(args.record_video, args.front_video_only, args.video_label, args.morai_window_id)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.visual_continuation_sec is not None and (
             args.mode == 'production' or not 0 <= args.visual_continuation_sec <= .3):
         parser.error('Visual continuation candidate requires explicit baseline/guarded mode and 0..0.3s')
@@ -232,19 +472,28 @@ def main():
         parser.error('Use a fresh evidence directory; this wrapper NEVER resumes')
     if not args.native_python.is_file() or not args.geometry.is_file():
         parser.error('Existing native Python and explicit geometry are required')
-    load_geometry(args.geometry)
+    geometry_groups, _ = load_geometry(args.geometry)
+    d_crossing_direction = next(group.get('crossing_direction', 'both') for group in geometry_groups
+                               if group['group_id'] == 201326)
+    if d_crossing_direction == 'both':
+        # Historical audited D geometry's forward crossing orientation.
+        d_crossing_direction = 'negative_to_positive'
     candidate_map_sha = None
     if args.map_file is not None:
         args.map_file = args.map_file.resolve(strict=True)
         candidate_map_sha = digest(args.map_file)
     if args.preparation_geometry is not None:
         load_geometry(args.preparation_geometry)
+    screen_geometry = (simulator_capture_geometry(args.morai_window_id,args.video_display)
+                       if args.record_video and not args.front_video_only else None)
     production = args.mode == 'production'
     guarded = None if production else args.mode == 'guarded'
     progress = None if production else args.route_progress == 'true'
     fixture = args.planner_fixture is not None
     native_signal_control = args.experiment != 'natural' and not fixture
-    proxy = args.experiment not in ('natural', 'moving-native-yellow') or fixture
+    if args.observation_start_depth_m is not None and (args.mode == 'production' or not math.isfinite(args.observation_start_depth_m) or not 0 <= args.observation_start_depth_m <= 120 or args.temporal_direct != 'true'):
+        parser.error('distance gate requires explicit guarded/baseline direct trial, finite depth 0..120')
+    proxy = args.experiment not in ('natural', 'moving-native-yellow', 'first-observation-yellow', 'short-native-cycles') or fixture
     plugin = ROOT/'planning_ws/install_isolated/lib/libautoware_behavior_velocity_traffic_light_module.so'
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
@@ -253,17 +502,39 @@ def main():
         perception_odometry_topic=args.perception_odometry_topic,
         enable_yellow_passthrough=None if production else args.yellow_passthrough=='true',
         signal_observation_timeout_sec=None if production else args.signal_timeout_sec,
-        yellow_durations_sec=(list(args.yellow_durations_sec or (1., 3., 5.))
-                              if args.experiment in ('stopped-yellow', 'moving-native-yellow') else None),
+        yellow_durations_sec=receipt_yellow_durations(args.experiment, args.yellow_durations_sec),
         group_id=args.group_id, source_config=str(args.config.resolve()),
         planner_fixture=args.planner_fixture, planner_fixture_is_synthetic=fixture,
         fixture_probe_seconds=args.fixture_probe_seconds if fixture else None,
         native_signal_SET_enabled=native_signal_control,
+        native_signal_program_stress=short_cycles,
+        passive_runtime_timing_enabled=True,
+        natural_signal_program=not native_signal_control and not fixture,
+        short_cycle_plan=(str(args.short_cycle_plan.resolve()) if short_cycles else None),
+        short_cycle_plan_sha256=(digest(args.short_cycle_plan) if short_cycles else None),
         real_native_moving_yellow=moving_native,
+        real_native_first_observation_yellow=args.experiment == 'first-observation-yellow',
         synthetic_canonical_signal_proxy=proxy,
+        observation_start_depth_m=args.observation_start_depth_m,
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
+        trigger_distance_basis=getattr(args, 'trigger_distance_basis', 'finite_front'),
+        moving_red_hold_sec=getattr(args, 'moving_red_hold_sec', 3.),
+        evaluation_speed_cap_mps=getattr(args, 'evaluation_speed_cap_mps', None),
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
+        required_green_observations=args.required_green_observations,
+        signal_compliance_unknown_grace_sec=(args.unknown_grace_sec if production or
+            args.unknown_grace_sec is not None else 0.0),
+        stamped_vote_window_size=args.stamped_vote_window_size,
+        stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+        stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                         else args.stamped_vote_startup_passthrough == 'true'),
+        video=dict(enabled=args.record_video,label=args.video_label,encoder=args.video_encoder,
+                   front_only=args.front_video_only,
+                   simulator_rectangle=screen_geometry,
+                   source=('stamped current annotated front camera only' if args.front_video_only else
+                           'actual Simulator screen + stamped current annotated front camera'),
+                   synthetic_perception_faults=False),
         installed_traffic_plugin_sha256=digest(plugin) if plugin.is_file() else None,
         config_sha256=digest(args.config), geometry_sha256=digest(args.geometry),
         preparation_geometry=(str(args.preparation_geometry) if args.preparation_geometry else None),
@@ -275,6 +546,9 @@ def main():
         planner='real ROS1 planner/controller through unmodified validator runner')
     receipt['map_candidate'] = (dict(path=str(args.map_file), sha256=candidate_map_sha)
                                 if args.map_file is not None else None)
+    receipt['video_cut'] = dict(group_id=args.stop_video_after_group,
+        tail_sec=args.video_tail_sec, crossing_direction=d_crossing_direction,
+        driving_continues_to_safe_goal=True)
     if args.check:
         print(json.dumps(receipt, indent=2))
         return runner.main([str(args.config), '--check'])
@@ -295,6 +569,12 @@ def main():
     lock, done, fatal = threading.Lock(), threading.Event(), threading.Event()
     phase_teardown = threading.Event()
     children, handles, subscriptions = [], [], []
+    video_recorders, intentionally_stopped_video = [], set()
+    video_cut_started = threading.Event()
+    video_cut = (CrossingVideoDeadline(args.output/'observer/observations.jsonl',
+                                      args.stop_video_after_group, args.video_tail_sec,
+                                      d_crossing_direction)
+                 if args.stop_video_after_group is not None else None)
     state = dict(mode='none', group_id=args.group_id, receipt_monotonic=0., received=False, terminal=False)
     fixture_state = dict(received=False, started_monotonic=time.monotonic(),
                          receipt_monotonic=0., handoff_real=False, error=False)
@@ -317,6 +597,49 @@ def main():
     original_stop = runner._stop_and_verify
     original_monitor = runner.LiveMonitor
     original_campaign = runner._run_campaign
+    original_recording = runner.Recording
+
+    class TrialRecording(original_recording):
+        def __init__(self, *recording_args, **recording_kwargs):
+            super().__init__(*recording_args, **recording_kwargs)
+            self.video_lock = threading.Lock()
+
+        def start(self, basename):
+            super().start(basename)
+            video_recorders.append(self)
+
+        def stop_video_only(self):
+            from planning_scenario_validator.runtime import stop_group
+            with self.video_lock:
+                if self.video is not None and self.video.poll() is None:
+                    stop_group(self.video, timeout=15)
+                    event(dict(event='validator_screen_video_cut', path=str(self.video_path)))
+
+        def stop(self, final_basename):
+            with self.video_lock:
+                return super().stop(final_basename)
+
+    def cut_owned_videos():
+        try:
+            event(dict(event='D_video_cut_started', crossing=video_cut.trigger,
+                       controller_and_bag_continue=True))
+            stopped = []
+            for name, process in children:
+                if name in ('front_video', 'simulator_video') and process.poll() is None:
+                    intentionally_stopped_video.add(name)
+                    process.send_signal(signal.SIGTERM if name == 'front_video' else signal.SIGINT)
+                    stopped.append((name, process))
+            for recorder in video_recorders:
+                recorder.stop_video_only()
+            for name, process in stopped:
+                process.wait(timeout=owned_child_exit_grace_sec(name))
+                if name == 'front_video' and process.returncode != 0:
+                    raise RuntimeError('Front video failed to finalize: '+str(process.returncode))
+                event(dict(event='owned_video_cut', name=name, returncode=process.returncode))
+            event(dict(event='D_video_cut_complete', controller_and_bag_continue=True))
+        except Exception as error:
+            event(dict(event='D_video_cut_error', error=repr(error)))
+            fatal.set()
     proxy_started = False
     publisher = None
     def selected_launch(package, filename, **kwargs):
@@ -329,6 +652,14 @@ def main():
             visual_continuation_sec=args.visual_continuation_sec,
             perception_odometry_topic=args.perception_odometry_topic)
         selected = map_launch_arguments(package, filename, selected, args.map_file, candidate_map_sha)
+        if args.observation_start_depth_m is not None and package == 'traffic_light_detection' and filename in ('traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
+            selected['observation_start_depth_m'] = args.observation_start_depth_m
+        selected = temporal_video_launch_arguments(package,filename,selected,
+            args.required_green_observations,args.stamped_vote_window_size,args.record_video,
+            stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+            stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                             else args.stamped_vote_startup_passthrough == 'true'),
+            unknown_grace_sec=args.unknown_grace_sec)
         if proxy and package == 'traffic_light_detection' and not proxy_started:
             import rospy
             from autoware_perception_msgs.msg import TrafficLightGroupArray
@@ -463,7 +794,7 @@ def main():
             if process.poll() is None:
                 process.terminate()
                 try:
-                    process.wait(timeout=8)
+                    process.wait(timeout=owned_child_exit_grace_sec(name))
                 except subprocess.TimeoutExpired:
                     event(dict(event='owned_child_timeout', name=name))
                     process.kill(); process.wait(timeout=3)
@@ -481,6 +812,32 @@ def main():
         event(dict(event='global_validator_graph_lock_owned'))
         def prepare_helpers():
             duration = min(1800, max(case.timeout_sec for case in cfg['cases']) + 300)
+            if args.evaluation_speed_cap_mps is not None:
+                start('evaluation_speed_cap', ['/usr/bin/python3',
+                    str(ROOT/'scripts/evaluation/publish_traffic_braking_trial_speed_cap.py'),
+                    '--max-velocity-mps', str(args.evaluation_speed_cap_mps),
+                    '--max-seconds', str(duration), '--output', str(args.output/'speed_cap')])
+            start('runtime_timing', ['/usr/bin/python3',
+                str(ROOT/'scripts/evaluation/observe_traffic_light_runtime_timing.py'),
+                '--duration-sec', str(duration), '--output-dir', str(args.output/'runtime_timing')])
+            if args.record_video:
+                if not args.front_video_only:
+                    activate_simulator_for_capture(args.morai_window_id,args.video_display)
+                    current_geometry=simulator_capture_geometry(args.morai_window_id,args.video_display)
+                    if current_geometry != screen_geometry:
+                        raise RuntimeError('Simulator window moved after video preflight')
+                    g=screen_geometry
+                    codec=(['-c:v','h264_nvenc','-preset','fast','-b:v','2500k']
+                           if args.video_encoder=='h264_nvenc' else
+                           ['-c:v','libx264','-preset','ultrafast','-crf','28','-threads','2'])
+                    start('simulator_video',['ffmpeg','-nostdin','-loglevel','warning','-n',
+                        '-f','x11grab','-framerate','10','-video_size',f"{g['width']}x{g['height']}",
+                        '-draw_mouse','0','-i',f"{args.video_display}+{g['x']},{g['y']}",
+                        '-t',str(duration),*codec,'-pix_fmt','yuv420p',
+                        str(args.output/'simulator.mp4')])
+                start('front_video',['/usr/bin/python3',str(ROOT/'scripts/evaluation/record_traffic_light_evidence_video.py'),
+                    '--output',str(args.output/'front_video'),'--label',args.video_label,
+                    '--fps','10','--max-seconds',str(duration),'--encoder',args.video_encoder])
             start('observer', [str(args.native_python), str(ROOT/'scripts/evaluation/observe_traffic_light_compliance.py'),
                 '--output', str(args.output/'observer'), '--geometry', str(args.geometry), '--duration-sec',str(duration),
                 '--crossing-jpegs'])
@@ -491,28 +848,42 @@ def main():
                     '--output', str(args.output/'planner_fixture'), '--geometry', str(args.geometry),
                     '--group-id', str(args.group_id), '--mode', args.planner_fixture,
                     '--probe-seconds', str(args.fixture_probe_seconds), '--max-seconds', str(duration)])
+            elif short_cycles:
+                if digest(args.short_cycle_plan) != receipt['short_cycle_plan_sha256']:
+                    raise RuntimeError('Short-cycle plan changed after qualification')
+                start('phase_controller', [str(args.native_python),
+                    str(ROOT/'scripts/evaluation/control_traffic_light_short_cycles.py'),
+                    '--plan', str(args.short_cycle_plan), '--output',
+                    str(args.output/'phase_controller'), '--max-seconds', str(duration)])
             elif native_signal_control:
                 phase_script = ('control_traffic_light_green_loss_trial.py' if args.experiment=='green-loss'
                                 else 'control_traffic_light_policy_trial.py')
                 phase_command = [str(args.native_python), str(ROOT/'scripts/evaluation'/phase_script),
                     '--output',str(args.output/'phase_controller'),'--geometry',str(args.preparation_geometry or args.geometry),
-                    '--group-id',str(args.group_id),'--experiment',args.experiment,'--max-seconds','180']
+                    '--group-id',str(args.group_id),'--experiment',args.experiment,
+                    '--max-seconds', str(min(600, duration))]
                 if args.yellow_durations_sec is not None:
                     phase_command.extend(('--yellow-durations-sec',
                         ','.join(format(value, 'g') for value in args.yellow_durations_sec)))
                 if moving_native:
                     phase_command.extend(('--trigger-front-distance-m', str(args.trigger_front_distance_m)))
+                    phase_command.extend(('--trigger-distance-basis', getattr(args, 'trigger_distance_basis', 'finite_front'),
+                        '--moving-red-hold-sec', str(getattr(args, 'moving_red_hold_sec', 3.))))
                 start('phase_controller', phase_command)
             def watch():
                 while not done.wait(.2):
                     try:
+                        if video_cut is not None and not video_cut_started.is_set() and video_cut.poll(time.monotonic()):
+                            video_cut_started.set()
+                            threading.Thread(target=cut_owned_videos, daemon=True).start()
                         with lock:
                             if not phase_teardown.is_set():
                                 if fixture and proxy_started:
                                     fixture_relay_mode(fixture_state, time.monotonic())
                                 elif not fixture:
                                     active_fault_mode(state, time.monotonic())
-                    except RuntimeError:
+                    except (RuntimeError, ValueError, OSError) as error:
+                        event(dict(event='trial_watch_error', error=repr(error)))
                         fatal.set()
                     if fatal.is_set() and not phase_teardown.is_set():
                         event(dict(event='proxy_fatal_abort'))
@@ -520,6 +891,8 @@ def main():
                         return
                     for name, process in children:
                         code = process.poll()
+                        if name in intentionally_stopped_video:
+                            continue
                         if (code is not None and (code != 0 or name == 'observer' or fixture) and
                                 not (name == 'phase_controller' and phase_teardown.is_set())):
                             event(dict(event='child_error_abort', name=name, returncode=code))
@@ -534,6 +907,7 @@ def main():
         runner._stop_and_verify = selected_stop
         runner.LiveMonitor = TrialMonitor
         runner._run_campaign = selected_campaign
+        runner.Recording = TrialRecording
         code = runner.main([str(args.config), '--resume','false'])
         event(dict(event='validator_returned', returncode=code))
         return code
@@ -543,6 +917,7 @@ def main():
         runner._stop_and_verify = original_stop
         runner.LiveMonitor = original_monitor
         runner._run_campaign = original_campaign
+        runner.Recording = original_recording
         close_helpers()
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)

@@ -46,11 +46,23 @@ def clear_maximized_axes(window):
         window.set_fullscreen(False)
 
 
+def raise_split_windows(rviz, morai, server_timestamp):
+    """Reveal only the selected recording windows, leaving RViz focused.
+
+    Geometry changes alone do not lift the simulator above an editor/terminal.
+    Activation raises each window normally; do not make either always-on-top or
+    maximize it, which would hide the other half of the split recording.
+    """
+    for window in (morai, rviz):
+        window.activate(server_timestamp)
+
+
 def main(argv=None):
     import gi
     gi.require_version("Gdk", "3.0")
+    gi.require_version("GdkX11", "3.0")
     gi.require_version("Wnck", "3.0")
-    from gi.repository import Gdk, GLib, Wnck
+    from gi.repository import Gdk, GdkX11, GLib, Wnck
 
     args = sys.argv[1:] if argv is None else argv
     bar_setting = args[0] if args else "auto"
@@ -143,6 +155,14 @@ def main(argv=None):
         print("창 크기 조절을 거부한 창: {}. 수동 반반 배치하세요".format(", ".join(refused)),
               file=sys.stderr)
         return 1
+    # Wnck activation expects X server time, not Python's monotonic clock.
+    # Raise MORAI first, then the non-overlapping RViz pane so unrelated windows
+    # cannot silently cover the simulator in the full-screen recording.
+    timestamp = GdkX11.x11_get_server_time(Gdk.get_default_root_window())
+    raise_split_windows(rviz, morai, timestamp)
+    while context.pending():
+        context.iteration(False)
+    screen.force_update()
     print("split layout: RViz={} MORAI={} bar={}px".format(
         rviz.get_geometry(), morai.get_geometry(), bottom_bar_px))
     return 0

@@ -375,7 +375,8 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 75.25112915039062
+      # Shared planviz/validator driving view: show roughly twice the road span.
+      Distance: 150
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
