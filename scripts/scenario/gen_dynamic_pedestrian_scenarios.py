@@ -42,7 +42,10 @@ Y_MIN, Y_MAX = 478.0, 580.0   # 배치 허용 범위
 STOPLINE = 510.6
 # 정지선 기준 상대 거리. ego가 감속·정지·재출발하는 구간이라
 # 같은 보행자라도 거동이 완전히 달라진다.
-OFFS = (-30.0, -18.0, -8.0, -3.0, 4.0, 15.0, 28.0)
+# ego 스폰(y 464)에서 너무 가까우면 activeDistance 를 키울 수 없다
+# (스폰 거리를 넘으면 로드 즉시 켜져 대기 50초 동안 다 걸어가 버린다).
+# 그래서 첫 칸을 정지선 10 m 전으로 두고 뒤쪽으로 넓게 깐다.
+OFFS = (-10.0, -3.0, 4.0, 12.0, 22.0, 34.0, 48.0)
 
 # ── 횡방향 (lat = -(x - EGO_X), 진행방향 +y)
 #    노견 -6.5 | A -3.85 | EGO 0 | C +3.85 | D +7.65 | 노견 +10.3   폭 15.35 m
@@ -61,9 +64,11 @@ DIRS = {
 LENS = ('enter', 'cross', 'along')
 ALONG_LEN = 30.0              # 차로 안으로 들어와 종방향으로 걷는 거리
 
-# ── 돌발성: activeDistance 배수. 클수록 일찍 출발해 여유롭고,
-#    작을수록 늦게 튀어나와 제동거리를 시험한다.
-URG = {'early': 1.8, 'ontime': 1.0, 'late': 0.55}
+# ── 돌발성: Ego가 보행자를 처음 보는 시점의 TTC(초).
+#    배수가 아니라 TTC 자체를 축으로 둔다. 역산만 하면 TTC가 0에 가까워져
+#    급제동해도 제동거리가 안 나오는, 시험 가치가 없는 케이스가 되기 때문.
+URG = {'late': 3.0, 'ontime': 4.5, 'early': 7.0}
+MAX_APPROACH = 45.0           # 노견 접근 구간 최대 길이 (m)
 
 # ── 보행자 속도: MORAI speed 필드는 m/s가 아니라 약 x0.16
 SPEEDS = {5: 0.80, 10: 1.53, 13: 2.00, 19: 3.00}
@@ -192,22 +197,32 @@ def span(off, dirn, length):
 
 
 def active_distance(off, dirn, length, spd_key, urg):
-    """보행자가 ego 차로를 점유하는 순간에 ego가 도달하도록 역산한 뒤,
-    돌발성 배수를 적용한다."""
+    """(activeDistance, 노견 접근 길이).
+
+    보행자가 ego 차로를 점유하는 순간에 ego가 도달하도록 역산한 뒤, 그
+    시점의 TTC가 URG[urg] 초가 되도록 activeDistance 를 끌어올린다.
+    늘어난 거리만큼 ego가 더 달려오는 동안 보행자는 노견을 걷게 해서,
+    일찍부터 보이되 차로 진입 시점은 유지한다.
+    """
     v = SPEEDS[spd_key]
     pts = legs(off, dirn, length)
     (y0, lat0) = pts[0]
-    # ego 차로에 처음 닿기까지의 보행 거리
     reach = abs(lat0) * math.hypot(1.0, DIRS[dirn][1])
     t_walk = reach / v
     frac = abs(lat0) / max(abs(pts[1][1] - lat0), 1e-6)
     y_enter = y0 + (pts[1][0] - y0) * min(frac, 1.0)
     ys = y_before(y_enter, t_walk)
     sx, sy = xy(y0, lat0)
-    ad = math.hypot(sx - EGO_X, sy - ys) * URG[urg]
+    ad = math.hypot(sx - EGO_X, sy - ys)
+    v_ego = vat(y_enter)                      # 그 지점 실측 통과속도
+    target = v_ego * URG[urg]
+    approach = 0.0
+    if ad < target:
+        approach = min((target - ad) / v_ego * v, MAX_APPROACH)
+        ad = target
     # 스폰 거리보다 크면 로드 즉시 켜져 대기 50초 동안 다 걸어가 버린다
     room = math.hypot(sx - EGO_START[0], sy - EGO_START[1]) - 8.0
-    return round(min(max(ad, 6.0), max(room, 6.0)), 1)
+    return round(min(max(ad, 6.0), max(room, 6.0)), 1), round(approach, 1)
 
 
 def build_plan(count, rng):
@@ -247,10 +262,14 @@ def build_plan(count, rng):
 
 def place(ped, off, dirn, length, spd, urg, asset):
     pts = legs(off, dirn, length)
+    ad, approach = active_distance(off, dirn, length, spd, urg)
+    if approach >= 1.0:
+        y_start = max(pts[0][0] - approach, Y_MIN)
+        if pts[0][0] - y_start >= 1.0:
+            pts = [(y_start, pts[0][1])] + pts
     wl = walk_len(pts)
     ped['DataID'] = asset[0]
-    ped.update(speed=float(spd),
-               activeDistance=active_distance(off, dirn, length, spd, urg),
+    ped.update(speed=float(spd), activeDistance=ad,
                active=True, loop=False, isWaypointMode=True)
     # movingDistance 기본 5.0 이 보행거리를 제한할 가능성이 있어 넉넉히 덮어쓴다
     if 'movingDistance' in ped:
@@ -380,28 +399,31 @@ def main():
             idx, dirn, length, ('m%02d' % -off) if off < 0 else ('p%02d' % off),
             urg[0].upper(), spd, '_x2' if n == 2 else '')
         json.dump(d, open(os.path.join(OUT, nm + '.json'), 'w'), ensure_ascii=False)
+        ad1 = d['pedestrianList'][0]['activeDistance']
         rows.append([nm, n, '%+.0f' % off, round(STOPLINE + off, 1), dirn, length,
-                     urg, spd, round(SPEEDS[spd], 2),
-                     d['pedestrianList'][0]['activeDistance'], a1[1], round(wl1, 1),
+                     urg, round(ad1 / vat(STOPLINE + off), 2),
+                     spd, round(SPEEDS[spd], 2), ad1, a1[1], round(wl1, 1),
                      *(['%+.0f' % second[0], second[1], second[2], second[3],
                         second[4]] if second else ['', '', '', '', ''])])
 
     p = os.path.join(SRC, 'do_baseline_00.json')
     if os.path.exists(p):
         shutil.copy(p, os.path.join(OUT, 'dq_base0.json'))
-        rows.append(['dq_base0', 0] + [''] * 15)
+        rows.append(['dq_base0', 0] + [''] * 16)
 
     with open(os.path.join(OUT, '_manifest.csv'), 'w', newline='') as fh:
         w = csv.writer(fh)
         w.writerow(['name', 'ped', 'offset_m', 'y', 'dir', 'len', 'urgency',
-                    'speed_field', 'speed_mps', 'active_distance', 'asset', 'walk_m',
+                    'ttc_s', 'speed_field', 'speed_mps', 'active_distance',
+                    'asset', 'walk_m',
                     'offset2', 'dir2', 'len2', 'speed2', 'urgency2'])
         w.writerows(rows)
 
     write_configs(args.timeout)
 
     n2 = sum(1 for r in rows if r[1] == 2)
-    ads = [r[9] for r in rows if r[1]]
+    ads = [r[10] for r in rows if r[1]]
+    ttcs = [r[7] for r in rows if r[1]]
     print()
     print('시드 %d · 시나리오 %d개 (2명 %d개) + baseline %d = %d개'
           % (args.seed, len(plan), n2, len(rows) - len(plan), len(rows)))
@@ -413,7 +435,8 @@ def main():
              len(OFFS) * len(DIRS) * len(LENS) * len(SPEEDS) * len(URG)))
     print('ego 스폰 (%.2f, %.1f) 교정 · 지면 z %.2f · 자산 %d종'
           % (EGO_START[0], EGO_START[1], GROUND, len(ASSETS)))
-    print('activeDistance %.1f~%.1f m' % (min(ads), max(ads)))
+    print('activeDistance %.1f~%.1f m · 실현 TTC %.1f~%.1f s (목표 %s)'
+          % (min(ads), max(ads), min(ttcs), max(ttcs), list(URG.values())))
     print('manifest: %s' % os.path.join(OUT, '_manifest.csv'))
 
 

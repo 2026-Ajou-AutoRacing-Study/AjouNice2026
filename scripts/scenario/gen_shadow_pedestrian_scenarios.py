@@ -31,6 +31,10 @@ GROUND = [28.34, 28.45, 28.42]          # 구간별 지면 고도
 SPAWN = (53.07, -466.53)
 V_EGO = 14.0                            # 터널 접근 실측 12~16 m/s
 MIN_GAP = 15.0                          # 보행자 2명일 때 종방향 보행구간 최소 간격
+# 보행자가 Ego 차로에 닿는 순간에 맞춰 역산만 하면 TTC가 0에 가까워져
+# 회피 불가 케이스가 된다. 최소 경고시간을 하한으로 둔다.
+MIN_TTC = 3.0                           # 초. activeDistance >= V_EGO * MIN_TTC
+MAX_APPROACH = 45.0                     # 노견 접근 구간 최대 길이 (m)
 
 # ── 보행자 속도: MORAI speed 필드는 m/s가 아니라 약 ×0.16
 SPEEDS = {5: 0.80, 10: 1.53, 13: 2.00, 19: 3.00}
@@ -98,8 +102,17 @@ def endpoints(cell, pat, lon_key):
     return (lo, LANEB), (hi, LANEB)
 
 
-def active_distance(cell, pat, spd_key):
-    """보행자가 Ego 차로를 점유하는 한가운데에 Ego가 도달하도록 역산."""
+def active_distance(cell, pat, spd_key, lon_key='s'):
+    """(activeDistance, 노견 접근 길이) 를 돌려준다.
+
+    1) 보행자가 Ego 차로를 점유하는 순간에 Ego가 도달하도록 역산한다.
+    2) 그 값이 V_EGO * MIN_TTC 보다 작으면 하한까지 끌어올린다. 그대로 두면
+       TTC가 1초 안쪽이라 급제동해도 제동거리가 안 나오는, 시험 가치가 없는
+       케이스가 된다.
+    3) 하한만 올리면 느린 보행자는 Ego 도착 전에 다 건너가버리므로, 늘어난
+       시간만큼 노견을 따라 걷는 구간을 경로 앞에 붙인다. 일찍부터 보이되
+       차로 진입 시점은 유지된다.
+    """
     v = SPEEDS[spd_key]
     if pat == 'C_ABh':
         ad = 11.0
@@ -109,11 +122,17 @@ def active_distance(cell, pat, spd_key):
         ad = V_EGO * (FAR / v)
     else:
         ad = 40.0
+    approach = 0.0
+    floor = V_EGO * MIN_TTC
+    if ad < floor:
+        # 늘어난 거리만큼 Ego가 더 달려오는 동안 보행자는 노견을 걷는다
+        approach = min((floor - ad) / V_EGO * v, MAX_APPROACH)
+        ad = floor
     # 스폰에서 보행자까지보다 크면 로드 즉시 켜져 대기 중에 다 걸어가 버린다
-    s, _ = endpoints(cell, pat, 's')
+    s, _ = endpoints(cell, pat, lon_key)
     px, py = at(s[0], s[1])
     room = math.hypot(px - SPAWN[0], py - SPAWN[1]) - 10.0
-    return round(min(max(ad, 8.0), max(room, 8.0)), 1)
+    return round(min(max(ad, 8.0), max(room, 8.0)), 1), round(approach, 1)
 
 
 def build_plan(count, rng):
@@ -141,23 +160,38 @@ def build_plan(count, rng):
 def place(ped, cell, pat, spd, lon, asset):
     (a0, l0), (a1, l1) = endpoints(cell, pat, lon)
     gz = GROUND[min(cell // 5, 2)]
-    s, e = at(a0, l0), at(a1, l1)
+    ad, approach = active_distance(cell, pat, spd, lon)
+    # 노견 접근 구간: 횡단 시작점 뒤쪽에서 같은 횡오프셋으로 걸어온다
+    pts = [(a0, l0), (a1, l1)]
+    if approach >= 1.0 and pat in CROSS:
+        a_start = max(a0 - approach, 1.0)
+        if a0 - a_start >= 1.0:
+            pts.insert(0, (a_start, l0))
+    s, e = at(*pts[0]), at(*pts[-1])
+    walk = sum(math.hypot(at(*b)[0] - at(*a)[0], at(*b)[1] - at(*a)[1])
+               for a, b in zip(pts, pts[1:]))
     ped['DataID'] = asset[0]
-    ped.update(speed=float(spd), activeDistance=active_distance(cell, pat, spd),
+    ped.update(speed=float(spd), activeDistance=ad,
                active=True, loop=False, isWaypointMode=True)
+    # movingDistance 기본 5.0 이 보행거리를 제한할 가능성이 있어 넉넉히 덮어쓴다
+    if 'movingDistance' in ped:
+        ped['movingDistance'] = round(walk + 5.0, 1)
     ped['pos'] = world(s[0], s[1], gz)
     ped['initPos'] = unity(s[0], s[1], gz)
     ped['standardPos'] = unity(s[0], s[1], gz)
     path = {"pathName": "PedPath - %d" % ped['UNIQUEID'],
-            "waypointData": [{"pos": unity(s[0], s[1], gz), "rot": dict(ROT)},
-                             {"pos": unity(e[0], e[1], gz), "rot": dict(ROT)}]}
-    return path, s, e, math.hypot(e[0] - s[0], e[1] - s[1])
+            "waypointData": [{"pos": unity(*(at(*p) + (gz,))), "rot": dict(ROT)}
+                             for p in pts]}
+    return path, s, e, walk
 
 
-def span(cell, pat, lon):
-    """보행자가 점유하는 종방향 구간 [lo, hi]."""
+def span(cell, pat, lon, spd_key=13):
+    """보행자가 점유하는 종방향 구간 [lo, hi]. 노견 접근 구간도 포함한다."""
     (a0, _), (a1, _) = endpoints(cell, pat, lon)
-    return (min(a0, a1), max(a0, a1))
+    lo, hi = min(a0, a1), max(a0, a1)
+    if pat in CROSS:
+        lo = max(lo - active_distance(cell, pat, spd_key, lon)[1], 1.0)
+    return (lo, hi)
 
 
 def write_configs(timeout):
@@ -195,7 +229,11 @@ def main():
     ap.add_argument('--seed', type=int, default=20261027)
     ap.add_argument('--two-ratio', type=float, default=0.35)
     ap.add_argument('--timeout', type=float, default=180.0)
+    ap.add_argument('--min-ttc', type=float, default=3.0,
+                    help='최소 경고시간(초). activeDistance 하한 = V_EGO * 이 값')
     args = ap.parse_args()
+
+    globals()['MIN_TTC'] = args.min_ttc
 
     rng = random.Random(args.seed)
     os.makedirs(OUT, exist_ok=True)
