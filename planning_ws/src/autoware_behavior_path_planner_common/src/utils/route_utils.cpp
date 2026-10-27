@@ -6,10 +6,13 @@
 #include <autoware/lanelet2_utils/nn_search.hpp>
 #include <autoware/route_handler/route_handler.hpp>
 #include <autoware/motion_utils/resample/resample.hpp>
+#include <autoware/motion_utils/constants.hpp>
 #include <autoware/motion_utils/trajectory/path_with_lane_id.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <set>
+#include <stdexcept>
 
 #include <lanelet2_core/geometry/Lanelet.h>
 #include <lanelet2_core/primitives/LaneletSequence.h>
@@ -127,6 +130,61 @@ lanelet::ConstLanelets calcLaneAroundPose(
   return route_handler->getLaneletSequence(current_lane, pose, backward_length, forward_length);
 }
 
+autoware_internal_planning_msgs::PathWithLaneId resampleCenterLinePathWithSupport(
+  const autoware_internal_planning_msgs::PathWithLaneId & source,
+  const geometry_msgs::Pose & pose, const double backward_path_length,
+  const double forward_path_length, const BehaviorPathPlannerParameters & parameters)
+{
+  if (source.points.size() < 2) return source;
+  const double interval = parameters.input_path_interval;
+  if (!std::isfinite(interval) || interval <= 0.0 ||
+      !std::isfinite(backward_path_length) || backward_path_length < 0.0 ||
+      !std::isfinite(forward_path_length) || forward_path_length < 0.0) {
+    throw std::invalid_argument("Invalid centerline resampling interval or window");
+  }
+  const auto arc = autoware::motion_utils::calcSignedArcLengthPartialSum(
+    source.points, 0, source.points.size());
+  if (!std::all_of(arc.begin(), arc.end(), [](double s) { return std::isfinite(s); })) {
+    throw std::invalid_argument("Non-finite centerline geometry");
+  }
+  const auto segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+    source.points, pose, parameters.ego_nearest_dist_threshold,
+    parameters.ego_nearest_yaw_threshold);
+  const double ego_s = autoware::motion_utils::calcSignedArcLength(
+    source.points, 0, pose.position, segment);
+  const double start = std::clamp(ego_s - backward_path_length, 0.0, arc.back());
+  const double end = std::clamp(ego_s + forward_path_length, 0.0, arc.back());
+  if (end - start < autoware::motion_utils::overlap_threshold) return {};
+
+  // Keep ALL native knots when computing Akima's tangents (interval [i,i+1]
+  // needs points i-2..i+3). A fixed distance margin cannot supply these on a
+  // sparse map. Crop only the queries, never the interpolation input.
+  // Anchor the sampling lattice to the source, not the moving ego window.
+  std::vector<double> queries{start};
+  for (double s = (std::floor(start / interval) + 1.0) * interval; s < end; s += interval) {
+    if (s - queries.back() >= autoware::motion_utils::overlap_threshold) queries.push_back(s);
+  }
+  if (end - queries.back() < autoware::motion_utils::overlap_threshold) queries.back() = end;
+  else queries.push_back(end);
+  // The explicit-query resampler preserves lane-ID seams, but its interval
+  // overload normally inserts the exact first stop. Preserve that contract too.
+  std::vector<autoware_planning_msgs::PathPoint> points;
+  points.reserve(source.points.size());
+  for (const auto & p : source.points) points.push_back(p.point);
+  const auto stop = autoware::motion_utils::calcDistanceToForwardStopPoint(points, 0);
+  if (stop && *stop >= start && *stop <= end) {
+    const auto nearby = std::find_if(queries.begin(), queries.end(), [&](double s) {
+      return std::abs(s - *stop) < autoware::motion_utils::overlap_threshold;
+    });
+    if (nearby != queries.end()) *nearby = *stop;
+    else queries.push_back(*stop);
+    std::sort(queries.begin(), queries.end());
+    queries.erase(std::unique(queries.begin(), queries.end()), queries.end());
+  }
+  return autoware::motion_utils::resamplePath(
+    source, queries, parameters.enable_akima_spline_first);
+}
+
 autoware_internal_planning_msgs::PathWithLaneId getCenterLinePath(
   const autoware::route_handler::RouteHandler & route_handler,
   const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::Pose & pose,
@@ -134,20 +192,93 @@ autoware_internal_planning_msgs::PathWithLaneId getCenterLinePath(
   const BehaviorPathPlannerParameters & parameters)
 {
   if (lanelet_sequence.empty()) return {};
-  const auto arc = autoware::experimental::lanelet2_utils::get_arc_coordinates(lanelet_sequence, pose);
-  const auto backward = std::max(0.0, arc.length - backward_path_length);
-  auto forward = arc.length + forward_path_length;
-  if (route_handler.isDeadEndLanelet(lanelet_sequence.back())) {
-    forward = std::clamp(forward, 0.0, lanelet::geometry::length2d(lanelet::LaneletSequence(lanelet_sequence)));
+  const bool limit_at_goal = route_handler.isInGoalRouteSection(lanelet_sequence.back());
+  double forward_limit = forward_path_length;
+  const auto forward_window = [&](const auto & path, double ego_s) {
+    if (!limit_at_goal || path.points.size() < 2) return forward_limit;
+    const auto goal = route_handler.getGoalPose();
+    const auto segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+      path.points, goal, parameters.ego_nearest_dist_threshold,
+      parameters.ego_nearest_yaw_threshold);
+    const double goal_s = autoware::motion_utils::calcSignedArcLength(
+      path.points, 0, goal.position, segment);
+    // Use the same native-waypoint arc as the queries, including custom detours.
+    return std::min(forward_limit, std::max(0.0, goal_s - ego_s));
+  };
+  // Extract native waypoint support across the selected lanelet sequence.
+  // Exact crop endpoints used to replace native knots BEFORE resampling; when
+  // a knot left the window, a long straight could suddenly bow across lanes.
+  auto support_lanes = lanelet_sequence;
+  std::set<lanelet::Id> visited;
+  for (const auto & lane : support_lanes) visited.insert(lane.id());
+  auto source = route_handler.getCenterLinePath(
+    support_lanes, 0.0, std::numeric_limits<double>::max(), true);
+  if (source.points.size() < 2) {
+    source.header = route_handler.getRouteHeader();
+    return source;
   }
-  if (route_handler.isInGoalRouteSection(lanelet_sequence.back())) {
-    const auto goal_arc = autoware::experimental::lanelet2_utils::get_arc_coordinates(
-      lanelet_sequence, route_handler.getGoalPose());
-    forward = std::clamp(forward, 0.0, goal_arc.length);
+  const auto initial_segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+    source.points, pose, parameters.ego_nearest_dist_threshold,
+    parameters.ego_nearest_yaw_threshold);
+  const double initial_ego_s = autoware::motion_utils::calcSignedArcLength(
+    source.points, 0, pose.position, initial_segment);
+  const double backward_limit = std::min(backward_path_length, std::max(0.0, initial_ego_s));
+  forward_limit = std::min(forward_limit, std::max(
+    0.0, autoware::motion_utils::calcArcLength(source.points) - initial_ego_s));
+  // Added lanelets supply tangents only; they must not enlarge the caller's
+  // original output range or extend its path beyond a goal/dead end.
+  // A lanelet-sequence boundary also moves when the current lane changes.
+  // Extend along route topology until the query intervals have their native
+  // two-point support on both sides, or an actual route endpoint is reached.
+  while (source.points.size() >= 2) {
+    const auto native_arc = autoware::motion_utils::calcSignedArcLengthPartialSum(
+      source.points, 0, source.points.size());
+    const auto segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+      source.points, pose, parameters.ego_nearest_dist_threshold,
+      parameters.ego_nearest_yaw_threshold);
+    const double ego_s = autoware::motion_utils::calcSignedArcLength(
+      source.points, 0, pose.position, segment);
+    const double start = std::max(0.0, ego_s - backward_limit);
+    const double end = std::min(native_arc.back(), ego_s + forward_window(source, ego_s));
+    const auto begin_interval = static_cast<size_t>(std::max<std::ptrdiff_t>(
+      0, std::upper_bound(native_arc.begin(), native_arc.end(), start) - native_arc.begin() - 1));
+    const auto end_interval = static_cast<size_t>(std::max<std::ptrdiff_t>(
+      0, std::lower_bound(native_arc.begin(), native_arc.end(), end) - native_arc.begin() - 1));
+    bool extended = false;
+    if (begin_interval < 2) {
+      lanelet::ConstLanelets predecessors;
+      if (route_handler.getPreviousLaneletsWithinRoute(support_lanes.front(), &predecessors)) {
+        // Match RouteHandler's backward-sequence ordering; do not choose a
+        // nearby parallel lane or create a new lateral route connection.
+        for (const auto & lane : predecessors) {
+          if (visited.insert(lane.id()).second) {
+            support_lanes.insert(support_lanes.begin(), lane);
+            extended = true;
+            break;
+          }
+        }
+      }
+    }
+    if (end_interval + 3 >= source.points.size()) {
+      lanelet::ConstLanelet successor;
+      if (route_handler.getNextLaneletWithinRoute(support_lanes.back(), &successor) &&
+          visited.insert(successor.id()).second) {
+        support_lanes.push_back(successor);
+        extended = true;
+      }
+    }
+    if (!extended) break;
+    source = route_handler.getCenterLinePath(
+      support_lanes, 0.0, std::numeric_limits<double>::max(), true);
   }
-  auto path = autoware::motion_utils::resamplePath(
-    route_handler.getCenterLinePath(lanelet_sequence, backward, forward, true),
-    parameters.input_path_interval, parameters.enable_akima_spline_first);
+  if (source.points.size() < 2) return source;
+  const auto segment = autoware::motion_utils::findFirstNearestSegmentIndexWithSoftConstraints(
+    source.points, pose, parameters.ego_nearest_dist_threshold,
+    parameters.ego_nearest_yaw_threshold);
+  const double ego_s = autoware::motion_utils::calcSignedArcLength(
+    source.points, 0, pose.position, segment);
+  auto path = resampleCenterLinePathWithSupport(
+    source, pose, backward_limit, forward_window(source, ego_s), parameters);
   // RouteHandler's geometric centerline has no message header. Set it before
   // this path is copied into module candidates and checked against trajectories.
   path.header = route_handler.getRouteHeader();
