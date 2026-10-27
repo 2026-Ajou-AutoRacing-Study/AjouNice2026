@@ -16,12 +16,12 @@ PREFIX = '/planning/scenario_planning/lane_driving/behavior_planning/behavior_ve
 
 
 class YellowBrakingLaunchTest(unittest.TestCase):
-    def test_yellow_master_remains_off_and_deceleration_is_a_separate_parameter(self):
+    def test_yellow_master_defaults_on_and_deceleration_is_a_separate_parameter(self):
         for filename in ('planning.launch', 'morai_planning_stack.launch'):
             with self.subTest(filename=filename):
                 root = ET.parse(LAUNCH/filename).getroot()
                 arguments = {row.get('name'): row.get('default') for row in root.findall('arg')}
-                self.assertEqual(arguments['enable_yellow_passthrough'], 'false')
+                self.assertEqual(arguments['enable_yellow_passthrough'], 'true')
                 self.assertEqual(arguments[KEY], '6.0')
                 self.assertEqual(arguments[JERK_KEY], '10.0')
         root = ET.parse(LAUNCH/'planning.launch').getroot()

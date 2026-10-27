@@ -55,7 +55,7 @@
        default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python"/>
   <arg name="traffic_light_device" default="0"/>
   <arg name="enable_signal_compliance_guard" default="true"/>
-  <arg name="enable_yellow_passthrough" default="false"/>
+  <arg name="enable_yellow_passthrough" default="true"/>
   <arg name="signal_compliance_yellow_deceleration_mps2" default="6.0"/>
   <arg name="signal_compliance_yellow_jerk_mps3" default="10.0"/>
   <!-- Compatibility-only; planning uses the Lanelet-target decision-line policy. -->

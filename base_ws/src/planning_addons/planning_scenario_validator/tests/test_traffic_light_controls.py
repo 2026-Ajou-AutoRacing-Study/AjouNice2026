@@ -48,11 +48,11 @@ class TrafficControlsTests(unittest.TestCase):
     def load(self, name='source.yaml'):
         return load_campaign(self.save(name), check_install=False)
 
-    def test_new_controls_default_off_and_noop_gui_save_does_not_migrate_yaml(self):
-        expected = {'yellow_passthrough': False, 'debug_view': False, 'publish_debug_image': False}
+    def test_yellow_defaults_on_debug_off_and_noop_gui_save_does_not_migrate_yaml(self):
+        expected = {'yellow_passthrough': True, 'debug_view': False, 'publish_debug_image': False}
         self.assertEqual(launch_options({}), expected)
         values = gui.form_values(self.document)
-        self.assertFalse(values[YELLOW]); self.assertFalse(values[DEBUG])
+        self.assertTrue(values[YELLOW]); self.assertFalse(values[DEBUG])
         self.assertEqual(gui.build_document(self.document, values), self.document)
         self.assertEqual(gui.operator_document(self.document, self.document, values, None), self.document)
         cfg = self.load()
@@ -71,6 +71,7 @@ class TrafficControlsTests(unittest.TestCase):
                         launch_options(doc['stack'])
 
     def test_gui_edits_both_controls_and_preserves_explicit_display_and_fixed_fields(self):
+        self.document['stack'][YELLOW] = False
         self.document['recording']['video']['display'] = ':17.0'
         values = gui.form_values(self.document); values.update({YELLOW: True, DEBUG: True})
         for transform in ('operator', 'build'):
@@ -84,9 +85,9 @@ class TrafficControlsTests(unittest.TestCase):
                 self.assertEqual(result['network'], self.document['network'])
 
     def test_concurrent_same_option_conflict_is_not_overwritten(self):
-        # Explicit false differs from an absent field in the immutable authoring baseline.
-        latest = copy.deepcopy(self.document); latest['stack'][YELLOW] = False
-        values = gui.form_values(self.document); values[YELLOW] = True
+        # Explicit true differs from an absent field in the immutable authoring baseline.
+        latest = copy.deepcopy(self.document); latest['stack'][YELLOW] = True
+        values = gui.form_values(self.document); values[YELLOW] = False
         with self.assertRaisesRegex(ValueError, '양쪽'):
             gui.operator_document(self.document, latest, values, None)
 
@@ -110,15 +111,15 @@ class TrafficControlsTests(unittest.TestCase):
         self.document['stack']['traffic_light'] = False
         self.assertEqual(self.load()['recording']['topics'], ['/Ego_topic'])
 
-    def test_new_snapshot_freezes_off_defaults_and_hash_protects_opt_in(self):
+    def test_new_snapshot_freezes_on_default_and_hash_protects_explicit_rollback(self):
         path = self.save(); before = path.read_bytes()
         cfg = executions.prepare_execution(path, check_install=False)
         frozen = cfg['document']['stack']
-        self.assertIs(frozen[YELLOW], False); self.assertIs(frozen[DEBUG], False)
+        self.assertIs(frozen[YELLOW], True); self.assertIs(frozen[DEBUG], False)
         self.assertEqual(path.read_bytes(), before)
         self.assertEqual(executions.load_execution(cfg['output'], check_install=False)['traffic_light_options'],
                          cfg['traffic_light_options'])
-        changed = yaml.safe_load(cfg['path'].read_text()); changed['stack'][YELLOW] = True
+        changed = yaml.safe_load(cfg['path'].read_text()); changed['stack'][YELLOW] = False
         cfg['path'].write_text(yaml.safe_dump(changed))
         with self.assertRaisesRegex(ValueError, '변경'):
             executions.load_execution(cfg['output'], check_install=False)
@@ -157,6 +158,7 @@ class TrafficControlsTests(unittest.TestCase):
         self.assertTrue(self.document['stack'][YELLOW])
 
     def test_batch_preserves_each_campaign_options_and_frozen_resume_contract(self):
+        self.document['stack'][YELLOW] = False
         first = self.save('first.yaml')
         self.document['campaign_name'] = 'traffic_enabled'
         self.document['stack'].update({YELLOW: True, DEBUG: True})
@@ -191,18 +193,19 @@ class TrafficControlsTests(unittest.TestCase):
                         self.assertIn('image_topic:='+TRAFFIC_LIGHT_DEBUG_TOPIC, commands['traffic_light_debug_view'])
         self.assertLess(runner.CASE_STACK.index('traffic_light_debug_view'), runner.CASE_STACK.index('traffic_light'))
 
-    def test_new_runner_defaults_explicitly_forward_false_instead_of_parent_defaults(self):
+    def test_new_runner_defaults_explicitly_forward_yellow_on_and_debug_off(self):
         cfg = self.load(); processes = Mock()
         with patch.object(runner, 'runtime_settings', return_value=('/mock/python', '0')), \
              patch.object(runner, 'candidate_assets', return_value=None):
             runner._start_case_stack(cfg, processes, Mock())
         commands = {c.args[0]: c.args[1] for c in processes.start.call_args_list}
-        self.assertIn('enable_yellow_passthrough:=false', commands['planning'])
+        self.assertIn('enable_yellow_passthrough:=true', commands['planning'])
         self.assertIn('signal_compliance_required_green_observations:=1', commands['planning'])
         self.assertIn('publish_debug_image:=false', commands['traffic_light'])
         self.assertNotIn('traffic_light_debug_view', commands)
 
     def test_timed_policy_has_typed_explicit_options_and_old_snapshot_shape_is_preserved(self):
+        self.document['stack'][YELLOW] = False
         old = launch_options({}, legacy_snapshot=True)
         self.assertEqual(old, dict(yellow_passthrough=True, debug_view=False, publish_debug_image=True))
         self.assertEqual(timed_policy_options({})['signal_compliance_required_green_observations'], 1)
@@ -307,7 +310,7 @@ class TrafficControlsTests(unittest.TestCase):
         command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
         self.assertIn('signal_compliance_yellow_deceleration_mps2:=7.5', command)
         self.assertIn('signal_compliance_yellow_jerk_mps3:=14.0', command)
-        self.assertIn('enable_yellow_passthrough:=false', command)
+        self.assertIn('enable_yellow_passthrough:=true', command)
 
     def test_old_timed_values_are_accepted_but_cannot_enable_the_replaced_branch(self):
         self.document['stack'].update(signal_compliance_enable_timed_yellow=True,
@@ -371,7 +374,7 @@ class TrafficControlGuiTests(unittest.TestCase):
                 widgets = app['field_widgets']
                 row = widgets['traffic_light'].master
                 captured['order'] = [widget.cget('text') for widget in row.pack_slaves()]
-                self.assertFalse(app['fields'][YELLOW].get()); self.assertFalse(app['fields'][DEBUG].get())
+                self.assertTrue(app['fields'][YELLOW].get()); self.assertFalse(app['fields'][DEBUG].get())
                 app['fields'][YELLOW].set(True); app['fields'][DEBUG].set(True)
                 app['actions']['check']()
                 captured['saved'] = yaml.safe_load(path.read_text())
@@ -386,7 +389,8 @@ class TrafficControlGuiTests(unittest.TestCase):
         errors.assert_not_called(); popen.assert_called_once()
         self.assertEqual(captured['order'][:4],
                          ['신호등 인지', '황색 통과 허용', '신호등 디버그 화면', '화면 영상 녹화'])
-        self.assertTrue(captured['saved']['stack'][YELLOW]); self.assertTrue(captured['saved']['stack'][DEBUG])
+        self.assertTrue(launch_options(captured['saved']['stack'])['yellow_passthrough'])
+        self.assertTrue(captured['saved']['stack'][DEBUG])
 
     def test_start_with_minimal_video_mapping_keeps_video_off(self):
         self.document['recording']['video'] = {}

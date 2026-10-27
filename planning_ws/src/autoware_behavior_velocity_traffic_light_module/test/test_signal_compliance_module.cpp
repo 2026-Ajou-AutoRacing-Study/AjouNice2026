@@ -202,10 +202,10 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDThreeFreshSourcesUseActualDirection
   }
 }
 
-TEST_F(TrafficLightComplianceModuleTest, CalibratedDefaultsKeepYellowOptIn)
+TEST_F(TrafficLightComplianceModuleTest, CalibratedDefaultsEnableDecisionLine)
 {
   const TrafficLightModule::PlannerParam params{};
-  EXPECT_FALSE(params.enable_yellow_passthrough);
+  EXPECT_TRUE(params.enable_yellow_passthrough);
   EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_deceleration_mps2,6.);
   EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_jerk_mps3,10.);
 }
@@ -577,12 +577,14 @@ TEST_F(TrafficLightComplianceModuleTest, YellowMasterOffBlocksEveryPreLineOverri
   }
 }
 
-TEST_F(TrafficLightComplianceModuleTest, DefaultYellowMasterOffDoesNotBlockAuthorizedGreen)
+TEST_F(TrafficLightComplianceModuleTest, DefaultYellowOnAndExplicitOffDoNotBlockAuthorizedGreen)
 {
-  EXPECT_FALSE(TrafficLightModule::PlannerParam{}.enable_yellow_passthrough);
+  EXPECT_TRUE(TrafficLightModule::PlannerParam{}.enable_yellow_passthrough);
   for(const auto group:{201351,201365,201290,201326}) {
-    configure(group,true,false);
-    confirmGreenOnRealPath(6.,0.);
+    for (const bool master : {true,false}) {
+      configure(group,true,master);
+      confirmGreenOnRealPath(6.,0.);
+    }
   }
 }
 

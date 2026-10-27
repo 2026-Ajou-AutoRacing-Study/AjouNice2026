@@ -122,3 +122,28 @@ normal planning profile은 별도로2.8/5이며 이번 보정의 검증 범위�
   Native는 별도 ROS master에서 실행했고 시험 master도 종료했다. C++ plugin·validator·launch
   증분 설치 후 scoped source/install 계약 검사를 통과했다. 문서 검사의 기존 지도 README
   줄 수 초과1개는 그대로 남기며 이번 신호등 보정의 성공으로 숨기지 않는다.
+
+## 후속 배포 결정: 황색 ON·최신 planning 통합
+
+위 보정 직후에는 master OFF였으나, 후속 사용자 요청으로 기본 ON으로 전환했다.
+계산6/10·지연0·실제 제어 제한·인지 모델·완충은 유지한다. C++ normal/experimental,
+module YAML, planning/full-stack launch, validator 새 실행·GUI 기본을 동일하게 ON으로 맞췄다.
+명시적 false와 기존 frozen 실행은 보존하며, 첫 관측 황색·정차 중 황색의 예외 출발 금지도 유지한다.
+확정 뒤 적색을 무시하는 합의 정책과 제동거리 상한 미보장 등의 기존 한계는 사라지지 않는다.
+
+최신 planning600125b1(MPT horizon 축소 시 근접 경로 연속성 보완)을 전체 merge했다.
+별도 지도 변경은 없으며 최신 v98을 pinned v97에서 재현해 SHA·metadata를 검사했다.
+새 자산을 임의 v99로 올리거나 정지선·경계를 다시 이동시키지 않았다. 이 통합 후 추가 폐루프 주행은 하지 않았다.
+
+ON 전환 후 집중 Python187개·신호등 Native120개·MPT horizon5개·지도 도구34개를 통과했다.
+관련 패키지를 증분 설치했고 설치 트리103개 지도 참조와 v98 route/SHA 계약, 신호등 scoped
+source/install 검사도 통과했다. 이전 설치본에만 남았던 v85 speed editor launch 한 개는
+`install_aw149/share/bringup/legacy/launch/`로 옮겨 보존했고 활성 경로에서는 제외했다.
+광역 validator 검사는476개 통과·2개 실패다. 기존 `test_full_course`의 경유점 목록과
+`test_mission_starters`의 roundabout manifest SHA 불일치이며, 관련 mission 파일을
+이번 ON 전환에서 바꾸거나 검사를 완화하지 않았다. 집중 신호등 검사 통과와 구분한다.
+
+원격 직접 병합cda35545도 확인했다. 부모는600125b1과우리22a5f87c이며, tree SHA가
+로컬 통합aa8b7b51과동일했다. 잘못된 덮어쓰기나 별도 충돌 수정은 없어서 revert하지 않았다.
+그 병합을 로컬에도 가져왔고 파일 내용 변화0을 확인했다. 최종 PR은 이미 들어간 인지/ROI/6·10
+전체를 새 변경으로 중복 주장하지 않고, 남은 기본ON·GUI·검사·현재 문서 변경을 반영한다.

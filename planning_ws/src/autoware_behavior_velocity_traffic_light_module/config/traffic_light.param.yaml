@@ -7,7 +7,7 @@
       yellow_lamp_period: 2.75
       yellow_light_stop_velocity: 1.0 # Velocity threshold (m/s) below which the vehicle will always stop before the traffic light when the signal turns yellow, regardless of the pass_judge decision.
       enable_pass_judge: true
-      enable_yellow_passthrough: false
+      enable_yellow_passthrough: true
       signal_compliance_yellow_deceleration_mps2: 6.0 # Decision estimate matched to tested race profile, not an actuator command.
       signal_compliance_yellow_jerk_mps3: 10.0 # Not a stopping-distance guarantee; see traffic-light CURRENT.
       enable_arrow_aware_yellow_passing: false

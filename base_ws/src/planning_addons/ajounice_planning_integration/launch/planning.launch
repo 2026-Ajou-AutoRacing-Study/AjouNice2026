@@ -25,8 +25,8 @@
   <arg name="enable_traffic_light_planner" default="true"/>
   <!-- Production compliance policy; false is an explicit legacy-policy rollback. -->
   <arg name="enable_signal_compliance_guard" default="true"/>
-  <!-- Opt-in moving green->yellow Lanelet-target braking exception, not a departure grant. -->
-  <arg name="enable_yellow_passthrough" default="false"/>
+  <!-- Decision-line policy ON; explicit false restores ordinary color decisions. -->
+  <arg name="enable_yellow_passthrough" default="true"/>
   <!-- Yellow-only stopping approximation; does NOT change global/controller deceleration. -->
   <arg name="signal_compliance_yellow_deceleration_mps2" default="6.0"/>
   <arg name="signal_compliance_yellow_jerk_mps3" default="10.0"/>
