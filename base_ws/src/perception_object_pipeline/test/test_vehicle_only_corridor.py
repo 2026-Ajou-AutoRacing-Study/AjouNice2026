@@ -51,12 +51,12 @@ class VehicleOnlyCorridorTests(unittest.TestCase):
 
     def test_map_mismatch_is_rejected(self):
         network = LaneletNetwork.load(
-            str(ROOT / 'kcity_map/lanelet_map/lanelet2_map_v96.osm'),
+            str(ROOT / 'kcity_map/lanelet_map/lanelet2_map_v97.osm'),
             str(ROOT / 'kcity_map/lanelet_map/map_projector_info_v1.yaml'),
             MapPredictionConfig())
         route = yaml.safe_load((ROOT / (
             'base_ws/src/planning_addons/competition_route_requester/config/'
-            'kcity_v96_competition_route.yaml')).read_text())
+            'kcity_v97_competition_route.yaml')).read_text())
         route['map']['sha256'] = '0' * 64
         with self.assertRaisesRegex(ValueError, 'SHA'):
             VehicleOnlyCorridor(network, route)

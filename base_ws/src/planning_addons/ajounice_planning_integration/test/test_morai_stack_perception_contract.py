@@ -166,23 +166,23 @@ def test_integrated_downstream_contract_matches_standalone_production_launch():
     # Empty preserves object_pipeline's current general/highway horizon policy;
     # the integration launch must not silently force the historical 3s override.
     assert top_level["prediction_horizon"]["default"] == ""
-    assert top_level["map_version"]["default"] == "96"
+    assert top_level["map_version"]["default"] == "97"
     assert top_level["map_file"]["default"].endswith("/lanelet2_map_v$(arg map_version).osm")
     assert values["map_file"] == "$(arg map_file)"
     assert values["projector_file"].endswith("/map_projector_info_v1.yaml")
 
 
-def test_v96_map_sha_is_identical_across_runtime_contracts():
-    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v96.osm"
+def test_v97_map_sha_is_identical_across_runtime_contracts():
+    map_path = REPO_ROOT / "kcity_map/lanelet_map/lanelet2_map_v97.osm"
     route_path = (
         REPO_ROOT
         / "base_ws/src/planning_addons/competition_route_requester/config"
-        / "kcity_v96_competition_route.yaml"
+        / "kcity_v97_competition_route.yaml"
     )
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
     if not map_path.is_file():
-        pytest.skip('Provision the team-Drive v96 OSM before checking asset bytes')
+        pytest.skip('Provision the separately supplied v97 OSM before checking asset bytes')
     actual_sha = hashlib.sha256(map_path.read_bytes()).hexdigest()
     route_sha = yaml.safe_load(route_path.read_text())["map"]["sha256"]
     publisher_match = re.search(
@@ -194,7 +194,7 @@ def test_v96_map_sha_is_identical_across_runtime_contracts():
 
 
 def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
-    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v96.yaml"
+    config_path = PACKAGE_ROOT / "config/mission_planner_kcity_v97.yaml"
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
         "201439": [201439, 201441, 201446],
@@ -214,7 +214,7 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
         item.attrib["name"]: item.attrib for item in integration_launch.findall("arg")
     }
     assert integration_args["mission_planner_param_path"]["default"].endswith(
-        "/config/mission_planner_kcity_v96.yaml"
+        "/config/mission_planner_kcity_v97.yaml"
     )
     tier4_include = next(
         item

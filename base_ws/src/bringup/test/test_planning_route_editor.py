@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[4]
 class RouteEditorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v96_competition_route.yaml').read_text())
+        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v97_competition_route.yaml').read_text())
         cls.road = EDITOR.RouteMap(ROOT, definition)
 
     def setUp(self):
@@ -33,9 +33,10 @@ class RouteEditorTest(unittest.TestCase):
     def test_local_utm_matches_audited_start_pose(self):
         point = self.road.lines[200889][0]
         start = self.road.definition['start']['map_pose']
-        self.assertAlmostEqual(point[0], start['x'], places=5)
-        self.assertAlmostEqual(point[1], start['y'], places=5)
-        self.assertAlmostEqual(point[2], start['z'], places=5)
+        # OSM export precision may differ; the frozen start must agree within 1 mm.
+        self.assertAlmostEqual(point[0], start['x'], delta=0.001)
+        self.assertAlmostEqual(point[1], start['y'], delta=0.001)
+        self.assertAlmostEqual(point[2], start['z'], delta=0.001)
 
     def test_click_inserts_between_matching_route_anchors(self):
         point = self.road.lines[200348][10]

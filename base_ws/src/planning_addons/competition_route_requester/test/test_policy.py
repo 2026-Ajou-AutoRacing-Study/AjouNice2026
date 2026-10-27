@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v96_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v97_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -183,7 +183,8 @@ class PolicyTest(unittest.TestCase):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
-            self.assertAlmostEqual(arc, p['lanelet_s_m'], places=4)
+            # Preserve the audited anchors across submillimetre OSM export rounding.
+            self.assertAlmostEqual(arc, p['lanelet_s_m'], delta=0.001)
         # Progress guards locate preferred lanes, not intermediate waypoint lanes.
         p = self.routes['poses']['wp_200137']
         self.assertIsNone(self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg'])))

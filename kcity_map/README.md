@@ -1,7 +1,18 @@
 # K-City 지도
 
-현재 planning·인지·지도 시각화 launch의 소스 기본 지도는 `lanelet_map/lanelet2_map_v96.osm`이다.
+현재 planning·인지·지도 시각화 launch의 기본 지도는 `lanelet_map/lanelet2_map_v97.osm`이다.
 실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
+
+2026-10-27: 사용자 제공 **v97**을 planning·인지·시각화 기본 지도로 선택했다.
+[v97 manifest](../configs/map/kcity_v97_asset.yaml)에 SHA와 정적 검증 범위를 기록했다.
+Route A/B와 SHA를 함께 선택하며 v94·v95·v96 명시적 프로필은 보존한다.
+지도 파일은 Git에 포함하지 않으며 별도 제공 자산이다. 폐루프 주행 검증은 아직 없다.
+
+```bash
+python3 scripts/map/prepare_kcity_v97.py --source /path/to/lanelet2_map_v97.osm
+python3 scripts/map/prepare_kcity_v97.py --check
+python3 scripts/map/check_runtime_map_version.py --installed
+```
 
 2026-10-27: 로컬 v95를 기반으로 음영 직선도로 양쪽 레인렛 `200374`, `200471`의
 `speed_limit`을 59 → **40 km/h**로 변경한 `lanelet_map/lanelet2_map_v96.osm`을 생성했다.
@@ -36,16 +47,16 @@ v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와�
 
 | 구분 | 경로·기준 |
 | --- | --- |
-| Lanelet2 | `lanelet_map/lanelet2_map_v96.osm` |
+| Lanelet2 | `lanelet_map/lanelet2_map_v97.osm` |
 | Projector | `lanelet_map/map_projector_info_v1.yaml` |
 | Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
 | 속도 상한 | v88 OSM attributes: 대상 양쪽 차선 150 → 80 → 70 km/h. 별도 override 없음 |
-| 최신 제작 검증 근거 | `../configs/map/kcity_v96_shadow_speed.yaml` |
+| 현재 자산 검증 근거 | `../configs/map/kcity_v97_asset.yaml` |
 | 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
 
 ## 자산 준비
 
-기존 v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 남긴다. 기본 v94 OSM은 팀 Drive 자산이므로 새 PC는 `python3 scripts/map/prepare_kcity_v94.py`로 먼저 준비한다.
+기존 v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 남긴다. 현재 v97 OSM은 별도 제공 자산이므로 새 PC는 위 `prepare_kcity_v97.py --source ...` 명령으로 먼저 준비한다.
 PCD·MGeo·GIS·다른 버전 OSM·버전별 route 같은 큰 자산은 팀 Drive로 공유한다.
 설정·현재 도구·이력은 Git으로 관리한다. 자산 경로는 이 저장소의 `kcity_map/`을 유지한다.
 
