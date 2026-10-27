@@ -1,4 +1,4 @@
-"""Map-verified C-to-shadow vehicle-only corridor, the v96 production map."""
+"""Map-verified C-to-shadow vehicle-only corridor, the v97 production map."""
 
 import math
 from pathlib import Path
@@ -23,7 +23,7 @@ class VehicleOnlyCorridorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corridors = {}
-        for version in (94,):
+        for version in (97,):
             network = LaneletNetwork.load(
                 str(ROOT / f'kcity_map/lanelet_map/lanelet2_map_v{version}.osm'),
                 str(ROOT / 'kcity_map/lanelet_map/map_projector_info_v1.yaml'),
@@ -33,7 +33,7 @@ class VehicleOnlyCorridorTests(unittest.TestCase):
                 f'kcity_v{version}_competition_route.yaml')).read_text())
             cls.corridors[version] = VehicleOnlyCorridor(network, route)
 
-    def test_scope_for_v96_map(self):
+    def test_scope_for_v97_map(self):
         for version, gate in self.corridors.items():
             with self.subTest(version=version):
                 self.assertLess(math.dist(gate.start_xy, (71.0, 587.0)), 5.0)
@@ -74,7 +74,7 @@ class VehicleOnlyCorridorTests(unittest.TestCase):
             return item
 
         node = MapBasedPredictionNode.__new__(MapBasedPredictionNode)
-        node.vehicle_only_corridor = self.corridors[94]
+        node.vehicle_only_corridor = self.corridors[97]
         node.vehicle_only_state_pub = Publisher()
         node._vehicle_only_active = False
         node._vehicle_only_ego = (201.8, 171.0, -math.pi / 2, 9.9)

@@ -8,7 +8,7 @@
 
     Localization/map TF, sensing, detection, tracking/prediction, traffic-light
     detection, RViz, and control are launched separately.  This launch owns
-    the v96 binary map, operation mode, route requester, and the complete
+    the v97 binary map, operation mode, route requester, and the complete
     Mission -> BPP -> BVP -> path optimization -> MVP -> velocity smoother ->
     Planning Validator graph.
   -->

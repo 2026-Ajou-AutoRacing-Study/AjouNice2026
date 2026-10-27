@@ -31,7 +31,7 @@ def test_v97_route_changes_map_identity_only():
 
 
 def test_manifest_and_map_sha_match_without_publishing_map():
-    manifest = load(ROOT / 'configs/map/kcity_v97_asset.yaml')
+    manifest = load(ROOT / 'configs/map/kcity_v97_speed_limit.yaml')
     assert manifest['map_sha256'] == SHA
     route = load(PACKAGE / 'config/kcity_v97_competition_route.yaml')['map']
     assert route['version'] == manifest['map_version'] == 97
@@ -44,3 +44,22 @@ def test_manifest_and_map_sha_match_without_publishing_map():
     assert hashlib.sha256(path.read_bytes()).hexdigest() == SHA
     metadata = next(e for _, e in ET.iterparse(path, events=('start',)) if e.tag == 'MetaInfo')
     assert metadata.get('map_version') == '97'
+
+
+def test_v97_mission_and_rule_policy_preserves_v96():
+    integration = PACKAGE.parent / 'ajounice_planning_integration'
+    assert load(integration / 'config/mission_planner_kcity_v97.yaml') == load(
+        integration / 'config/mission_planner_kcity_v96.yaml')
+    rule_dir = ROOT / 'base_ws/src/competition/competition_rule_monitor/config'
+    old = load(rule_dir / 'kcity_v96_rules.yaml')
+    expected = dict(old, map_version=97, map_sha256=SHA)
+    assert load(rule_dir / 'kcity_v97_rules.yaml') == expected
+
+
+def test_v97_requested_lanelet_speed_limit():
+    path = ROOT / 'kcity_map/lanelet_map/lanelet2_map_v97.osm'
+    if not path.exists():
+        pytest.skip('v97 OSM is supplied separately')
+    relation = next(e for _, e in ET.iterparse(path, events=('end',))
+                    if e.tag == 'relation' and e.get('id') == '200968')
+    assert {e.get('k'): e.get('v') for e in relation.findall('tag')}['speed_limit'] == '40'

@@ -1,4 +1,4 @@
-# K-City v97: v88 route contract, local 200311 centerline repair. Preferred corridor: 200360 -> 201479 -> 201451.
+# K-City v97: v88 route contract, v96 corridor retained; lanelet 200968 speed limit updated. Preferred corridor: 200360 -> 201479 -> 201451.
 schema_version: 1
 frame_id: map
 map:

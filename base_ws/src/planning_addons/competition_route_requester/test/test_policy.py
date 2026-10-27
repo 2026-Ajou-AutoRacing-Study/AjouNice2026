@@ -127,7 +127,7 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
-    def test_v96_merged_preferred_corridor(self):
+    def test_v97_merged_preferred_corridor(self):
         for key in ('route_a', 'route_b', 'fallback_route'):
             preferred = self.routes[key]['expected_path_lanelet_ids']
             self.assertEqual(
@@ -183,8 +183,8 @@ class PolicyTest(unittest.TestCase):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
-            # Preserve the audited anchors across submillimetre OSM export rounding.
-            self.assertAlmostEqual(arc, p['lanelet_s_m'], delta=0.001)
+            # v97 VMB coordinate rounding accumulates below 0.5 mm along the line.
+            self.assertAlmostEqual(arc, p['lanelet_s_m'], delta=0.0005)
         # Progress guards locate preferred lanes, not intermediate waypoint lanes.
         p = self.routes['poses']['wp_200137']
         self.assertIsNone(self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg'])))

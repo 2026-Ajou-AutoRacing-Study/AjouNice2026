@@ -50,7 +50,7 @@ def read_yaml(path):
 def check_profile(root, installed=False):
     """Validate the v97 manifest, requester configuration and explicit entrypoint."""
     issues = []
-    manifest_path = root / 'configs/map/kcity_v97_asset.yaml'
+    manifest_path = root / 'configs/map/kcity_v97_speed_limit.yaml'
     try:
         manifest = read_yaml(manifest_path)
         expected = {
@@ -205,7 +205,7 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
             relative = str(path.relative_to(root))
             # The manifest's runtime contract was checked above; its base-map
             # and stop-line provenance deliberately names historical assets.
-            if relative == 'configs/map/kcity_v97_asset.yaml':
+            if relative == 'configs/map/kcity_v97_speed_limit.yaml':
                 continue
             if '/install' not in str(path) and relative not in source_files:
                 continue

@@ -16,7 +16,7 @@ ROUTE = ADDONS + '/competition_route_requester/config/kcity_v97_competition_rout
 PARAM = ADDONS + '/competition_route_requester/config/competition_route_requester_v97.param.yaml'
 ENTRY = ADDONS + '/ajounice_planning_integration/launch/competition_planning_v97.launch'
 PLANNING = ADDONS + '/ajounice_planning_integration/launch/planning.launch'
-MANIFEST = 'configs/map/kcity_v97_asset.yaml'
+MANIFEST = 'configs/map/kcity_v97_speed_limit.yaml'
 INSTALL = 'base_ws/install_aw149/share/'
 
 

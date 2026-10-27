@@ -33,10 +33,9 @@ class RouteEditorTest(unittest.TestCase):
     def test_local_utm_matches_audited_start_pose(self):
         point = self.road.lines[200889][0]
         start = self.road.definition['start']['map_pose']
-        # OSM export precision may differ; the frozen start must agree within 1 mm.
-        self.assertAlmostEqual(point[0], start['x'], delta=0.001)
-        self.assertAlmostEqual(point[1], start['y'], delta=0.001)
-        self.assertAlmostEqual(point[2], start['z'], delta=0.001)
+        # v97 VMB export rounds local coordinates to 0.1 mm.
+        for actual, expected in zip(point, (start['x'], start['y'], start['z'])):
+            self.assertAlmostEqual(actual, expected, delta=0.0005)
 
     def test_click_inserts_between_matching_route_anchors(self):
         point = self.road.lines[200348][10]

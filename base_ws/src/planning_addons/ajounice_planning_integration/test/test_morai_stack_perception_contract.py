@@ -182,7 +182,7 @@ def test_v97_map_sha_is_identical_across_runtime_contracts():
     publisher_path = PACKAGE_ROOT / "scripts/map_projector_publisher"
 
     if not map_path.is_file():
-        pytest.skip('Provision the separately supplied v97 OSM before checking asset bytes')
+        pytest.skip('Provision the team-Drive v97 OSM before checking asset bytes')
     actual_sha = hashlib.sha256(map_path.read_bytes()).hexdigest()
     route_sha = yaml.safe_load(route_path.read_text())["map"]["sha256"]
     publisher_match = re.search(

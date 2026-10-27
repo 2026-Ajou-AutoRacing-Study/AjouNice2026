@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-MANIFEST = 'configs/map/kcity_v97_asset.yaml'
+MANIFEST = 'configs/map/kcity_v97_speed_limit.yaml'
 
 
 def verify(path, expected):
