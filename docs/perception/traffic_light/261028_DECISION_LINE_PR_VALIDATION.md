@@ -62,3 +62,7 @@ CNN도 G를 읽었다. 따라서 이 표본을 CNN 적색→녹색 오판으로 
   별도 읽기전용 planner 토픽이며 예전0.5초 로그 재편집본이 아니다. 기존 planner 콘솔은 유지한다.
 - 원본·bag·영상·observer/phase_controller/실행 receipt는 같은 평가 및 validator 경로에 보존한다.
   모델·지도 파일·기존 수집 snapshot을 수정하지 않았다. PR은 기존 #60을 갱신하며 자동 병합하지 않는다.
+- 후속 BEV 합본은 `braking_probe/front_planviz/front_planviz.mp4`다. 실제 녹화된v97 Planviz
+  viewport(461,401,519,511)만 잘라 전방 오른쪽에 붙였다. 별도 화면 녹화 시작을 전방14.85초에
+  근사 정렬했으며 정밀 지연·프레임 동기 인증은 아니다. 전방 시각/픽셀/로그는 유지하고
+  BEV가 없는 처음/끝은 없음으로 표시한다. 재사용 도구는 `scripts/evaluation/compose_traffic_front_planviz_video.py`다.
