@@ -4,7 +4,7 @@ map:
   environment: "kcity"
   lanelet:
     directory: "kcity_map/lanelet_map"
-    filename_pattern: "lanelet2_map_v97.osm"
+    filename_pattern: "lanelet2_map_v98.osm"
     selection: "latest_numeric_version"
 
 paths:

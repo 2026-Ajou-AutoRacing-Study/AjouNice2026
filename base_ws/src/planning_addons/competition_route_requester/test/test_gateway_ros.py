@@ -33,8 +33,8 @@ REPO = PACKAGE.parents[3]
 class GatewayROS(unittest.TestCase):
     def setUp(self):
         self.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v97_competition_route.yaml').read_text())
-        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v97_competition_route.yaml'),
+        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v98_competition_route.yaml').read_text())
+        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v98_competition_route.yaml'),
                         service_timeout=.2, route_verification_timeout=.4, trajectory_verification_timeout=.5)
         if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport',
                                     'test_manual_a_restart_from_b',
@@ -361,7 +361,26 @@ class GatewayROS(unittest.TestCase):
         self.assertTrue(self.client('route_a').accepted)
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_a')
-        self.ego_pose = self.routes['poses'][ref]
+        # Positive transport tests must be inside the trigger window. The frozen
+        # boundary anchor can project a fraction of a millimetre before the exact
+        # threshold after OSM coordinate rounding; threshold tests live in policy.
+        reference = self.routes['poses'][ref]
+        target_s = (self.routes['reroute_trigger']['minimum_lanelet_s_m']
+                    if key == 'route_b' else reference['lanelet_s_m']) + 1.0
+        points = self.gateway.geometry.lanes[reference['lanelet_id']][0]
+        traversed = 0.0
+        for first, second in zip(points, points[1:]):
+            dx, dy = second[0] - first[0], second[1] - first[1]
+            length = math.hypot(dx, dy)
+            if length > 0.0 and traversed + length >= target_s:
+                ratio = (target_s - traversed) / length
+                self.ego_pose = dict(reference, x=first[0] + ratio * dx,
+                                     y=first[1] + ratio * dy,
+                                     yaw_deg=math.degrees(math.atan2(dy, dx)))
+                break
+            traversed += length
+        else:
+            self.fail('configured trigger lane is shorter than the interior probe')
         self.wait(lambda: self.gateway.guard(key)[0])
         self.assertTrue(self.client(key).accepted)
         self.wait(lambda: not self.gateway.busy)

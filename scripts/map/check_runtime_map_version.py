@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit v97 runtime defaults and the pinned requester/map contract."""
+"""Audit v98 runtime defaults and the pinned requester/map contract."""
 import argparse
 import ast
 import hashlib
@@ -12,15 +12,15 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 97
-SHA = 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9'
-PROFILE_VERSION = 97
-PROFILE_SHA = 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9'
+VERSION = 98
+SHA = '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0'
+PROFILE_VERSION = 98
+PROFILE_SHA = '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0'
 SOURCE_ROOTS = ('base_ws/src', 'planning_ws/src', 'configs', 'scripts/runtime')
 INSTALL_ROOTS = ('base_ws/install_aw149', 'base_ws/install_planning_addons',
                  'planning_ws/install_isolated')
 PROFILE_TEST = ('base_ws/src/planning_addons/competition_route_requester/'
-                'test/test_v97_profile.py')
+                'test/test_v98_profile.py')
 UPDATE_WRAPPER = 'scripts/runtime/update_competition_runtime.sh'
 # Exact retired install paths are deletion targets, never runtime consumers.
 RETIRED_REQUESTER_CLEANUP = (
@@ -28,7 +28,7 @@ RETIRED_REQUESTER_CLEANUP = (
     'competition_route_requester/config/kcity_v88_competition_route.yaml '
     'ajounice_planning_integration/launch/competition_planning_v88.launch; do')
 PROFILE_PREPARER_REFERENCES = {UPDATE_WRAPPER, 'scripts/runtime/test_update_competition_runtime.py'}
-PROFILE_PREPARER = re.compile(r'(?<![\w])prepare_kcity_v(?:94|95|96|97)\.py(?![\w.])')
+PROFILE_PREPARER = re.compile(r'(?<![\w])prepare_kcity_v(?:94|95|96|97|98)\.py(?![\w.])')
 VALIDATOR_MISSIONS = ('base_ws/src/planning_addons/planning_scenario_validator/'
                       'config/missions')
 VERSION_REF = re.compile(r'(?:lanelet2_map_v|kcity_v)(\d+)')
@@ -48,21 +48,21 @@ def read_yaml(path):
 
 
 def check_profile(root, installed=False):
-    """Validate the v97 manifest, requester configuration and explicit entrypoint."""
+    """Validate the v98 manifest, requester configuration and explicit entrypoint."""
     issues = []
-    manifest_path = root / 'configs/map/kcity_v97_speed_limit.yaml'
+    manifest_path = root / 'configs/map/kcity_v98_centerline_connection.yaml'
     try:
         manifest = read_yaml(manifest_path)
         expected = {
             'version': PROFILE_VERSION,
-            'file': 'kcity_map/lanelet_map/lanelet2_map_v97.osm',
+            'file': 'kcity_map/lanelet_map/lanelet2_map_v98.osm',
             'projector_file': 'kcity_map/lanelet_map/map_projector_info_v1.yaml',
             'sha256': PROFILE_SHA,
         }
         actual = dict(version=manifest.get('map_version'), file=manifest.get('map_file'),
                       projector_file=manifest.get('projector_file'), sha256=manifest.get('map_sha256'))
         if actual != expected:
-            raise ValueError('explicit v97 manifest version/path/projector/SHA contract mismatch')
+            raise ValueError('explicit v98 manifest version/path/projector/SHA contract mismatch')
     except (OSError, ValueError, yaml.YAMLError) as error:
         return [f'{manifest_path.relative_to(root)}: {error}']
 
@@ -75,37 +75,37 @@ def check_profile(root, installed=False):
                 bundles.append((directory, share))
     for label, folder in bundles:
         config = folder / 'competition_route_requester/config'
-        route_path = config / 'kcity_v97_competition_route.yaml'
-        param_path = config / 'competition_route_requester_v97.param.yaml'
-        launch_path = folder / 'ajounice_planning_integration/launch/competition_planning_v97.launch'
+        route_path = config / 'kcity_v98_competition_route.yaml'
+        param_path = config / 'competition_route_requester_v98.param.yaml'
+        launch_path = folder / 'ajounice_planning_integration/launch/competition_planning_v98.launch'
         try:
             route = read_yaml(route_path)
             if route.get('map') != expected:
-                raise ValueError('explicit v97 route map contract differs from manifest')
+                raise ValueError('explicit v98 route map contract differs from manifest')
             if read_yaml(param_path).get('route_definition_file') != route_path.name:
-                raise ValueError('explicit v97 requester selects a different route definition')
+                raise ValueError('explicit v98 requester selects a different route definition')
             launch = ET.parse(launch_path).getroot()
             include = next((node for node in launch.findall('include')
                 if node.get('file') == '$(find ajounice_planning_integration)/launch/planning.launch'), None)
             if (include is None or not any(arg.get('name') == 'map_version' and
                     arg.get('value') == str(PROFILE_VERSION) for arg in include.findall('arg'))):
-                raise ValueError('explicit v97 launcher does not select planning map_version=97')
+                raise ValueError('explicit v98 launcher does not select planning map_version=98')
         except (OSError, ValueError, yaml.YAMLError, ET.ParseError) as error:
-            issues.append(f'{label} v97 profile: {error}')
+            issues.append(f'{label} v98 profile: {error}')
     asset = root / expected['file']
-    # v97 is supplied separately from Git. Verify metadata when present;
+    # v98 is supplied separately from Git. Verify metadata when present;
     # check_runtime also requires the default asset and verifies its SHA.
     if asset.is_file():
         if digest(asset) != PROFILE_SHA:
-            issues.append('explicit v97 map SHA mismatch')
+            issues.append('explicit v98 map SHA mismatch')
         else:
             try:
                 metadata = next(element for _, element in ET.iterparse(asset, events=('start',))
                                 if element.tag == 'MetaInfo')
                 if metadata.get('map_version') != str(PROFILE_VERSION):
-                    issues.append('explicit v97 OSM MetaInfo version mismatch')
+                    issues.append('explicit v98 OSM MetaInfo version mismatch')
             except (OSError, ET.ParseError, StopIteration) as error:
-                issues.append(f'explicit v97 OSM metadata unavailable: {error}')
+                issues.append(f'explicit v98 OSM metadata unavailable: {error}')
     return issues
 
 
@@ -154,7 +154,7 @@ def check_launch_defaults(path, content, root):
                 if hashes.get(str(VERSION)) != SHA:
                     issues.append(f'{label}: default map SHA selector mismatch')
                 if hashes.get(str(PROFILE_VERSION)) != PROFILE_SHA:
-                    issues.append(f'{label}: explicit v97 map SHA selector mismatch')
+                    issues.append(f'{label}: explicit v98 map SHA selector mismatch')
             elif value != SHA:
                 issues.append(f'{label}: default map SHA mismatch')
     except (ET.ParseError, ValueError, SyntaxError) as error:
@@ -190,7 +190,7 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
              VALIDATOR_MISSIONS], text=True).splitlines()) if installed else set())
     # Keep the existing operational scope and historical exclusions intact.
     roots = SOURCE_ROOTS + (INSTALL_ROOTS if installed else ())
-    frozen_programs = {'generate_highway_lane_change_samples.py', 'test_v94_profile.py', 'test_v95_profile.py', 'test_v96_profile.py'}
+    frozen_programs = {'generate_highway_lane_change_samples.py', 'test_v94_profile.py', 'test_v95_profile.py', 'test_v96_profile.py', 'test_v97_profile.py'}
     issues = check_profile(root, installed)
     count = 0
     for directory in roots:
@@ -205,7 +205,7 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
             relative = str(path.relative_to(root))
             # The manifest's runtime contract was checked above; its base-map
             # and stop-line provenance deliberately names historical assets.
-            if relative == 'configs/map/kcity_v97_speed_limit.yaml':
+            if relative == 'configs/map/kcity_v98_centerline_connection.yaml':
                 continue
             if '/install' not in str(path) and relative not in source_files:
                 continue
@@ -213,7 +213,7 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
                 continue
             historical = HISTORICAL_CONFIG.search(path.name)
             if historical and int(historical[1]) != VERSION:
-                # Explicit v97 source/install bundles were checked above;
+                # Explicit v98 source/install bundles were checked above;
                 # older rollback configs keep the original historical handling.
                 continue
             if path.suffix not in {'.py', '.yaml', '.yml', '.launch', '.sh', '.rviz', '.cpp', '.hpp', ''}:
@@ -230,9 +230,9 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
                 definitions = re.findall(r'^MAP_VERSION=(.*)$', content, flags=re.MULTILINE)
                 if len(definitions) != 1 or definitions[0].strip().strip('\'"') != str(VERSION):
                     issues.append(f'{relative}: wrapper MAP_VERSION default must remain {VERSION}')
-            # The current profile test compares unchanged route policy with v96.
+            # The current profile test compares unchanged route policy with v97.
             # Continue scanning it: any other version is still an error.
-            allowed = {96, VERSION} if relative == PROFILE_TEST else {VERSION}
+            allowed = {97, VERSION} if relative == PROFILE_TEST else {VERSION}
             # Validator START provenance and recorded-profile fixtures intentionally pin v94.
             if relative in {
                                         'base_ws/src/planning_addons/planning_scenario_validator/tests/test_route_profile.py',

@@ -67,7 +67,7 @@
   <arg name="signal_profile_path"
        default="$(env AJOUNICE_ROOT)/base_ws/src/perception/traffic_light_detection/config/traffic_signal_profiles.yaml" />
   <arg name="fallback_group_id" default="0" />
-  <arg name="map_version" default="97" />
+  <arg name="map_version" default="98" />
   <arg name="lanelet2_map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm" />
   <arg name="lanelet2_projector_file"

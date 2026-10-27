@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v97_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v98_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -127,7 +127,7 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
-    def test_v97_merged_preferred_corridor(self):
+    def test_v98_merged_preferred_corridor(self):
         for key in ('route_a', 'route_b', 'fallback_route'):
             preferred = self.routes[key]['expected_path_lanelet_ids']
             self.assertEqual(
@@ -183,7 +183,7 @@ class PolicyTest(unittest.TestCase):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
-            # v97 VMB coordinate rounding accumulates below 0.5 mm along the line.
+            # v98 VMB coordinate rounding accumulates below 0.5 mm along the line.
             self.assertAlmostEqual(arc, p['lanelet_s_m'], delta=0.0005)
         # Progress guards locate preferred lanes, not intermediate waypoint lanes.
         p = self.routes['poses']['wp_200137']

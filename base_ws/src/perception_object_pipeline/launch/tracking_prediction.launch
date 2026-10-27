@@ -14,7 +14,7 @@
   <arg name="prediction_highway_mode" default=""/>
   <arg name="vehicle_only_corridor_enabled" default="true"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
-  <arg name="map_version" default="97"/>
+  <arg name="map_version" default="98"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="projector_file"
