@@ -147,3 +147,28 @@ source/install 검사도 통과했다. 이전 설치본에만 남았던 v85 spee
 로컬 통합aa8b7b51과동일했다. 잘못된 덮어쓰기나 별도 충돌 수정은 없어서 revert하지 않았다.
 그 병합을 로컬에도 가져왔고 파일 내용 변화0을 확인했다. 최종 PR은 이미 들어간 인지/ROI/6·10
 전체를 새 변경으로 중복 주장하지 않고, 남은 기본ON·GUI·검사·현재 문서 변경을 반영한다.
+
+## 팀 PC 정적 검사 불일치 후속 수정
+
+`e46797b7`의 기본 ON 전환 때 별도
+`traffic_light_detection/test/test_traffic_light_production_defaults.py` 두 곳은
+OFF 기대값으로 남았다. 위 집중187개 검사에는 이 파일이 포함되지 않았다.
+팀 PC 보고와 동일하게 로컬에서도 수정 전 **2실패·2통과**를 재현했다.
+호스트·GPU 차이가 아니라 누락된 회귀 테스트 갱신이며, 이 실패만으로 신호등 노드의
+기동 실패·황색 오출발·주행 안전성을 판단할 수 없다.
+
+두 기대값을 승인된 ON 계약에 맞추고, planning/통합 stack 각각의 기본 ON과 명시적
+`enable_yellow_passthrough:=false` 전달을 실제 read-only launch 해석으로 검사한다.
+노드·ROS master는 시작하지 않으며 실행 코드·모델·지도·정책 기본값은 수정하지 않았다.
+
+```bash
+AJOUNICE_TEST_LAUNCH_DUMP=1 python3 -m pytest -q \
+  base_ws/src/perception/traffic_light_detection/test \
+  base_ws/src/planning_addons/ajounice_planning_integration/test/test_signal_yellow_braking_launch.py \
+  scripts/runtime/test_traffic_light_unknown_grace_release.py
+AJOUNICE_TEST_LAUNCH_DUMP=1 AJOUNICE_TEST_LAUNCH_TREE=installed python3 -m pytest -q \
+  base_ws/src/perception/traffic_light_detection/test/test_traffic_light_production_defaults.py
+```
+
+결과는 소스 범위 **445통과**, 설치 트리 대조 **8통과**다. 사용자 검토 후 이 테스트·기록
+수정만 별도 PR로 planning에 반영한다. 실행 코드 변경이 없으므로 재빌드는 필요 없다.
