@@ -15,4 +15,5 @@
   <depend>autoware_utils_geometry</depend><depend>autoware_utils_rclcpp</depend>
   <depend>autoware_utils_system</depend>
   <test_depend>rostest</test_depend>
+  <test_depend>rospy</test_depend>
 </package>

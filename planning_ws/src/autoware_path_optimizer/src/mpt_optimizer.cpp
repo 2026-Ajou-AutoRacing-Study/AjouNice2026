@@ -1223,7 +1223,9 @@ MPTOptimizer::calcReferencePoints(
   const double forward_traj_length = std::max(
     mpt_param_.num_points * mpt_param_.delta_arc_length, p.optimization_forward_length);
   const double backward_traj_length = traj_param_.output_backward_traj_length;
-  const size_t point_count = p.obstacles.empty() ? static_cast<size_t>(mpt_param_.num_points) :
+  const bool extended_window = !p.obstacles.empty() ||
+    p.optimization_forward_length > mpt_param_.num_points * mpt_param_.delta_arc_length;
+  const size_t point_count = !extended_window ? static_cast<size_t>(mpt_param_.num_points) :
     static_cast<size_t>(std::ceil((forward_traj_length + backward_traj_length) /
       mpt_param_.delta_arc_length)) + 1;
 
@@ -1381,6 +1383,18 @@ MPTOptimizer::calcReferencePoints(
 
   if (point_count < ref_points.size()) {
     ref_points.resize(point_count);
+  }
+
+  if (ref_points.size() >= 6 &&
+      !geometry_utils::isSamePoint(ref_points.back(), smoothed_points.back())) {
+    // Dock to the input *inside* the constrained solve. Three coincident
+    // terminal poses retain its discrete tangent/curvature; zero yaw error
+    // also makes the final steering inputs follow the reference curvature.
+    // Road/obstacle inequalities and vehicle dynamics remain in force. An
+    // unreachable return must fail this QP, not be hidden by a long spline gap.
+    for (size_t i = ref_points.size() - 3; i < ref_points.size(); ++i) {
+      ref_points.at(i).fixed_kinematic_state = KinematicState{0.0, 0.0};
+    }
   }
 
   ref_points_spline = autoware::interpolation::SplineInterpolationPoints2d(ref_points);
