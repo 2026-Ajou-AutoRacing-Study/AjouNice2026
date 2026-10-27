@@ -16,6 +16,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import yaml
@@ -80,16 +81,38 @@ def launch_dump(name, overrides=()):
         result = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c', script,
                                  'read_only_launch_dump', *command],
                                 cwd=ROOT, env=env, capture_output=True, text=True, timeout=45)
+    diagnostic = ('tree='+tree+'; argv='+shlex.join(command)+
+                  '; returncode='+str(result.returncode)+
+                  '\nstdout:\n'+result.stdout[-6000:]+
+                  '\nstderr:\n'+result.stderr[-6000:])
     if result.returncode:
         raise AssertionError('Source/installed XML parameter resolution failed; no nodes started:\n'+
-                             result.stderr[-6000:]+result.stdout[-1000:])
-    payload = yaml.safe_load(result.stdout)
+                             diagnostic)
+    try:
+        payload = yaml.safe_load(result.stdout)
+    except yaml.YAMLError as exc:
+        raise AssertionError('roslaunch --dump-params returned invalid YAML:\n'+diagnostic) from exc
     if not isinstance(payload, dict):
-        raise AssertionError('roslaunch --dump-params did not return a parameter mapping')
+        raise AssertionError('roslaunch --dump-params did not return a parameter mapping:\n'+diagnostic)
     return payload
 
 
 class StaticUnknownGraceReleaseTest(unittest.TestCase):
+    def test_dump_failures_include_stdout_stderr_even_when_roslaunch_returns_zero(self):
+        for stdout in ('', '[unterminated'):
+            with self.subTest(stdout=stdout):
+                result = subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout=stdout,
+                    stderr='RLException: unresolved included launch argument')
+                with patch('subprocess.run', return_value=result):
+                    with self.assertRaises(AssertionError) as caught:
+                        launch_dump('stack')
+                message = str(caught.exception)
+                self.assertIn('returncode=0', message)
+                self.assertIn('morai_planning_stack.launch', message)
+                self.assertIn('stdout:\n'+stdout, message)
+                self.assertIn('stderr:\nRLException:', message)
+
     def test_cpp_defaults_remain_zero_and_invalid_combinations_still_fail_closed(self):
         for relative in ('src/scene.hpp', 'src/experimental/scene.hpp'):
             text = (CPP/relative).read_text()

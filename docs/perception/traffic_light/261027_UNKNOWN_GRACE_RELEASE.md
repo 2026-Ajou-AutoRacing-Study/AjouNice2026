@@ -56,3 +56,14 @@ traffic/validator/integration 증분 설치가 필요하며, 이미 켜진 스�
 이번 PR에는 최신 planning 변경을 통합하며 운영 지도 기본은 v96이다. v88 시험은 통합 전
 `6e663eea`까지의 코드·동결 설정·receipt에 대응한다. 최신 코드에서 `--map-file`만 v88로
 바꾸면 route/mission 기본은 v96으로 남을 수 있어 그 명령만으로 역사 시험을 재현하지 않는다.
+
+## 통합 후 확인
+
+- 신호등 인지·평가 Python 497개, Native C++ 132개 통과.
+- 실제 source/installed `roslaunch --dump-params` 각각13개 통과. launch 5개 SHA 일치.
+- 딸깍 설치기 scoped rebuild/install 및 `--check` 통과. 기존 모델 재다운로드 없음.
+- Validator 전체470개 중468개 통과. full-course waypoint16/17 및 mission 생성 자산의
+  TF SHA 불일치2개는 통합 전/원격 planning에도 있는 기존 실패로, 자산을 재생성하지 않았다.
+- 문서 검사에서 신호등 CURRENT100줄·링크는 유효하다. 통합한 원격의 지도 README85줄은
+  기존65줄 예산을 초과하며 이번 신호등 배포에서 그쪽 문서를 임의 재작성하지 않았다.
+- 이번 최종 설치 검사는 노드·주행을 시작하지 않았고 실행 중인 스택 설정도 바꾸지 않았다.
