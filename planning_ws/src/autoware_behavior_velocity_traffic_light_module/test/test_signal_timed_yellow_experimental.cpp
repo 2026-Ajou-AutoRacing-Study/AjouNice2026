@@ -53,7 +53,7 @@ protected:
   void configure(int64_t group, bool master=true, bool timed=true, int confirmations=3,
                  double min_yellow=2., double stop_margin=0., bool fail_open=true,
                  double judging_x=10., bool original_available=true, bool far_unseen=false,
-                 bool initial_unseen=false)
+                 bool initial_unseen=false, double unknown_grace_sec=0.)
   {
     module_.reset(); group_=group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -73,6 +73,7 @@ protected:
     params.enable_yellow_passthrough=master;
     params.signal_compliance_enable_timed_yellow=timed;
     params.signal_compliance_required_green_observations=confirmations;
+    params.signal_compliance_unknown_grace_sec=unknown_grace_sec;
     params.signal_compliance_min_yellow_sec=min_yellow;
     params.signal_compliance_yellow_time_margin_sec=.2;
     params.signal_compliance_front_axle_offset_m=3.;
@@ -167,6 +168,57 @@ TEST_F(TrafficTimedYellowExperimentalTest, ABCDFarUnseenEmptyOpensPathButRedAndN
     configure(group,false,false,3,2.,0.,true,10.,true,true);
     tick();pose(-20.,5.);put(empty);EXPECT_TRUE(stops(-100.));
   }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, UnknownGraceABCDConfirmedOnlyAndOriginalLeaseExpiry)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    for (const int count : {1,2}) {
+      configure(group,false,false,count,2.,0.,false,10.,true,false,false,.2);
+      pose(0.,2.);
+      for (int n=0; n<count; ++n) {
+        tick(.01); put(green()); EXPECT_EQ(stops(),n<count-1);
+      }
+      Signal empty;
+      tick(.05); put(empty); EXPECT_FALSE(stops());
+      tick(.05); put(empty); EXPECT_FALSE(stops());
+      tick(.101); put(empty); EXPECT_TRUE(stops());
+    }
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, UnknownGraceKnownColorMarkersAndNewRedYellowNeverPass)
+{
+  for (const auto color : {Element::RED,Element::AMBER,Element::GREEN}) {
+    configure(201351,false,false,1,2.,0.,false,10.,true,false,false,.2);
+    pose(0.,2.); tick(.01); put(green()); EXPECT_FALSE(stops());
+    Signal empty;
+    tick(.02); put(empty); EXPECT_FALSE(stops());
+    Signal evidence; auto marker=lamp(color,Element::UNKNOWN); marker.status=Element::UNKNOWN;
+    evidence.elements={marker};
+    tick(.02); put(evidence); EXPECT_TRUE(stops());
+    tick(.02); put(empty); EXPECT_TRUE(stops());
+  }
+  for (const bool is_yellow : {false,true}) {
+    configure(201351,false,false,1,2.,0.,false,10.,true,false,false,.2);
+    pose(0.,2.); tick(.01); put(green()); EXPECT_FALSE(stops());
+    tick(.02); put(is_yellow ? yellow() : red()); EXPECT_TRUE(stops());
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, UnknownGraceMissingAndUnconfirmedWrongDirectionDoNotRetainGo)
+{
+  Signal empty;
+  configure(201351,false,false,2,2.,0.,false,10.,true,false,false,.2);
+  pose(0.,2.); tick(.01); put(green()); EXPECT_TRUE(stops());
+  tick(.02); put(empty); EXPECT_TRUE(stops());
+  configure(201326,false,false,1,2.,0.,false,10.,true,false,false,.2);
+  pose(0.,2.); Signal circle; circle.elements={lamp(Element::GREEN)};
+  tick(.01); put(circle); EXPECT_TRUE(stops());
+  tick(.02); put(empty); EXPECT_TRUE(stops());
+  tick(.01); put(green()); EXPECT_FALSE(stops());
+  data_->traffic_light_id_map_raw_.clear(); tick(.02); EXPECT_TRUE(stops());
+  tick(.02); put(empty); EXPECT_TRUE(stops());
 }
 
 TEST_F(TrafficTimedYellowExperimentalTest, InitialUnseenStaysOpenNearLineUntilReadableLamp)

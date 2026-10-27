@@ -31,6 +31,9 @@
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
   <arg name="signal_compliance_required_green_observations" default="1"/>
+  <!-- Production: pure unreadable gaps after a real direction grant, bounded
+       by BOTH original green source age and receipt age. 0 disables this grace. -->
+  <arg name="signal_compliance_unknown_grace_sec" default="0.3"/>
   <!-- Competition: before the first readable lamp, a fresh UNKNOWN does not
        insert a stop point. Explicit red/yellow and later UNKNOWN still stop. -->
   <arg name="defer_unseen_until_observed" default="true"/>
@@ -107,17 +110,19 @@
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/enable_yellow_passthrough"
          value="$(arg enable_yellow_passthrough)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_enable_timed_yellow"
-         value="$(arg signal_compliance_enable_timed_yellow)"/>
+         value="$(eval arg('enable_signal_compliance_guard') and arg('signal_compliance_enable_timed_yellow'))"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_min_yellow_sec"
          value="$(arg signal_compliance_min_yellow_sec)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_time_margin_sec"
          value="$(arg signal_compliance_yellow_time_margin_sec)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_required_green_observations"
          value="$(arg signal_compliance_required_green_observations)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_unknown_grace_sec"
+         value="$(eval arg('signal_compliance_unknown_grace_sec') if arg('enable_signal_compliance_guard') and arg('enable_traffic_light_planner') else 0.0)" type="double"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_far_unseen_unknown"
-         value="$(arg defer_far_unseen_unknown)"/>
+         value="$(eval arg('enable_signal_compliance_guard') and arg('defer_far_unseen_unknown'))"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_unseen_until_observed"
-         value="$(arg defer_unseen_until_observed)"/>
+         value="$(eval arg('enable_signal_compliance_guard') and arg('defer_unseen_until_observed'))"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_min_stop_distance_m"
          value="$(arg far_unseen_min_stop_distance_m)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_response_margin_sec"

@@ -73,8 +73,27 @@ public:
     }
   }
 
-  bool observe(Observation observation, double source_sec, double now_sec, double timeout_sec)
+  void setUnknownGraceSec(double seconds)
   {
+    if (!std::isfinite(seconds) || seconds < 0.0 || seconds > 0.3) {
+      throw std::invalid_argument("unknown grace must be finite in [0,0.3] seconds");
+    }
+    if (unknown_grace_sec_ != seconds) {
+      reset();
+      unknown_grace_sec_ = seconds;
+    }
+  }
+
+  bool observe(Observation observation, double source_sec, double now_sec, double timeout_sec,
+               bool has_color_evidence = true)
+  {
+    // Default zero preserves the original policy, including its reset behavior.
+    // UNKNOWN grace must explicitly opt in AND identify genuinely unreadable
+    // wire observations. A known color with unknown shape/status never qualifies.
+    if (unknown_grace_sec_ > 0.0) {
+      return observeWithUnknownGrace(
+        observation, source_sec, now_sec, timeout_sec, has_color_evidence);
+    }
     const bool fresh = std::isfinite(source_sec) && source_sec > 0.0 &&
       std::isfinite(now_sec) && std::isfinite(timeout_sec) && timeout_sec > 0.0 &&
       now_sec >= source_sec && now_sec - source_sec <= timeout_sec;
@@ -126,6 +145,10 @@ public:
   std::size_t greenConfirmationCount() const { return green_confirmations_; }
   Observation lastObservation() const { return previous_; }
   std::optional<double> yellowStartLowerBoundSec() const { return yellow_start_lower_bound_sec_; }
+  bool unknownGraceActive() const { return unknown_grace_active_; }
+  double unknownGraceSec() const { return unknown_grace_sec_; }
+  std::optional<double> lastRealGreenSourceSec() const { return last_real_green_source_; }
+  std::optional<double> lastRealGreenProcessedSec() const { return last_real_green_processed_; }
 
   void reset()
   {
@@ -136,9 +159,108 @@ public:
     last_source_.reset();
     last_now_.reset();
     yellow_start_lower_bound_sec_.reset();
+    last_real_green_source_.reset();
+    last_real_green_processed_.reset();
+    input_source_highwater_.reset();
+    input_now_highwater_.reset();
+    unknown_grace_active_ = false;
   }
 
 private:
+  // Clear authorization without forgetting an already consumed input stamp.
+  // In particular, G -> UNKNOWN(newer stamp) -> G(older/duplicate stamp) must
+  // never renew either the grant or the original green's processing lease.
+  void clearAuthorization()
+  {
+    previous_ = Observation::Missing;
+    yellow_from_authorized_green_ = false;
+    green_confirmations_ = 0;
+    green_authorized_ = false;
+    last_source_.reset();
+    last_now_.reset();
+    yellow_start_lower_bound_sec_.reset();
+    last_real_green_source_.reset();
+    last_real_green_processed_.reset();
+    unknown_grace_active_ = false;
+  }
+
+  bool observeWithUnknownGrace(
+    Observation observation, double source_sec, double now_sec, double timeout_sec,
+    bool has_color_evidence)
+  {
+    unknown_grace_active_ = false;
+    const bool valid_now = std::isfinite(now_sec) && now_sec > 0.0;
+    const bool fresh = std::isfinite(source_sec) && source_sec > 0.0 && valid_now &&
+      std::isfinite(timeout_sec) && timeout_sec > 0.0 &&
+      now_sec >= source_sec && now_sec - source_sec <= timeout_sec;
+    if (valid_now && input_now_highwater_ && now_sec < *input_now_highwater_) {
+      // A new clock epoch must first STOP, even with confirmation count one.
+      reset();
+      input_now_highwater_ = now_sec;
+      if (fresh) input_source_highwater_ = source_sec;
+      return true;
+    }
+    if (valid_now) input_now_highwater_ = now_sec;
+    if (!fresh || observation == Observation::Missing || observation == Observation::Stale) {
+      clearAuthorization();
+      return true;
+    }
+    if (input_source_highwater_ && source_sec < *input_source_highwater_) {
+      clearAuthorization();
+      return true;
+    }
+    const bool distinct = !input_source_highwater_ || source_sec > *input_source_highwater_;
+    input_source_highwater_ = source_sec;
+    if (observation == Observation::Unknown) {
+      const bool in_original_lease = last_real_green_source_ && last_real_green_processed_ &&
+        now_sec >= *last_real_green_source_ && now_sec >= *last_real_green_processed_ &&
+        now_sec - *last_real_green_source_ <= unknown_grace_sec_ &&
+        now_sec - *last_real_green_processed_ <= unknown_grace_sec_;
+      if (!has_color_evidence && previous_ == Observation::AuthorizedGreen &&
+          green_authorized_ && in_original_lease) {
+        // Retain only the previous grant. Do not turn UNKNOWN into a new green,
+        // increment confirmations, refresh its source/lease, or move Y's lower
+        // onset bound to this UNKNOWN image's newer timestamp.
+        unknown_grace_active_ = true;
+        return false;
+      }
+      clearAuthorization();
+      return true;
+    }
+    if (last_source_ && now_sec - *last_source_ > timeout_sec) clearAuthorization();
+    if (observation == Observation::Yellow) {
+      if (previous_ != Observation::Yellow) {
+        yellow_from_authorized_green_ = previous_ == Observation::AuthorizedGreen &&
+          green_authorized_ && last_real_green_source_ && source_sec > *last_real_green_source_ &&
+          now_sec - *last_real_green_source_ <= timeout_sec;
+        yellow_start_lower_bound_sec_ = yellow_from_authorized_green_ ? last_real_green_source_ : std::nullopt;
+      }
+      green_confirmations_ = 0;
+      green_authorized_ = false;
+      last_real_green_source_.reset();
+      last_real_green_processed_.reset();
+    } else if (observation == Observation::AuthorizedGreen) {
+      yellow_from_authorized_green_ = false;
+      yellow_start_lower_bound_sec_.reset();
+      if (previous_ != Observation::AuthorizedGreen) {
+        green_confirmations_ = 0;
+        green_authorized_ = false;
+      }
+      if (distinct && green_confirmations_ < required_green_observations_) ++green_confirmations_;
+      green_authorized_ = green_confirmations_ >= required_green_observations_;
+      if (distinct && green_authorized_) {
+        last_real_green_source_ = source_sec;
+        last_real_green_processed_ = now_sec;
+      }
+    } else {
+      clearAuthorization();
+    }
+    previous_ = observation;
+    last_source_ = source_sec;
+    last_now_ = now_sec;
+    return observation != Observation::AuthorizedGreen || !green_authorized_;
+  }
+
   Observation previous_{Observation::Missing};
   bool yellow_from_authorized_green_{false};
   std::size_t green_confirmations_{0};
@@ -147,6 +269,12 @@ private:
   std::optional<double> last_source_;
   std::optional<double> last_now_;
   std::optional<double> yellow_start_lower_bound_sec_;
+  double unknown_grace_sec_{0.0};
+  bool unknown_grace_active_{false};
+  std::optional<double> last_real_green_source_;
+  std::optional<double> last_real_green_processed_;
+  std::optional<double> input_source_highwater_;
+  std::optional<double> input_now_highwater_;
 };
 
 struct TimedYellowDecision

@@ -20,6 +20,10 @@
   <arg name="publish_debug_image" default="false" />
   <arg name="near_rescue_enabled" default="true" />
   <arg name="planner_compliance_observations" default="true" />
+  <arg name="preserve_unreadable_color_evidence" default="$(arg planner_compliance_observations)" />
+  <arg name="stamped_vote_window_size" default="0" />
+  <arg name="stamped_vote_max_age_sec" default="0.5" />
+  <arg name="stamped_vote_startup_passthrough" default="false" />
   <arg name="detection_miss_hold_sec" default="0.2" />
   <arg name="low_confidence_hold_sec" default="0.3" />
   <arg name="no_lamps_hold_sec" default="0.2" />
@@ -57,6 +61,10 @@
     <arg name="publish_debug_image" value="$(arg publish_debug_image)" />
     <arg name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
     <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <arg name="preserve_unreadable_color_evidence" value="$(arg preserve_unreadable_color_evidence)" />
+    <arg name="stamped_vote_window_size" value="$(arg stamped_vote_window_size)" />
+    <arg name="stamped_vote_max_age_sec" value="$(arg stamped_vote_max_age_sec)" />
+    <arg name="stamped_vote_startup_passthrough" value="$(arg stamped_vote_startup_passthrough)" />
     <arg name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
     <arg name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
     <arg name="no_lamps_hold_sec" value="$(arg no_lamps_hold_sec)" />

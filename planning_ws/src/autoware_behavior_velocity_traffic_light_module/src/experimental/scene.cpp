@@ -58,6 +58,7 @@ TrafficLightModule::TrafficLightModule(
 {
   planner_param_ = planner_param;
   signal_compliance_guard_.setRequiredGreenObservations(planner_param_.signal_compliance_required_green_observations);
+  signal_compliance_guard_.setUnknownGraceSec(planner_param_.signal_compliance_unknown_grace_sec);
   prev_looking_tl_state_.traffic_light_group_id = 0;
 }
 
@@ -310,7 +311,7 @@ bool TrafficLightModule::isStopSignal(
     }
     const bool require_stop = signal_compliance_guard_.observe(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
-      clock_->now().toSec(), planner_param_.tl_state_timeout);
+      clock_->now().toSec(), planner_param_.tl_state_timeout, has_color_evidence);
     if (signal_compliance::deferUnseenUntilObserved(
           planner_param_.defer_unseen_until_observed, seen_signal_on_approach_, observation)) {
       RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
@@ -340,10 +341,15 @@ bool TrafficLightModule::isStopSignal(
       }
     }
     RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
-      "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d",
+      "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d unknown_grace_active=%d unknown_grace_sec=%.3f last_real_green_source_age_sec=%.3f last_real_green_processing_age_sec=%.3f",
       traffic_light_reg_elem_.id(), signal_compliance::observationName(observation),
       traffic_signal_stamp_ ? (clock_->now()-*traffic_signal_stamp_).toSec() : -1.,
-      signal_compliance_guard_.greenConfirmationCount(), require_stop);
+      signal_compliance_guard_.greenConfirmationCount(), require_stop,
+      signal_compliance_guard_.unknownGraceActive(), signal_compliance_guard_.unknownGraceSec(),
+      signal_compliance_guard_.lastRealGreenSourceSec() ?
+        clock_->now().toSec()-*signal_compliance_guard_.lastRealGreenSourceSec() : -1.,
+      signal_compliance_guard_.lastRealGreenProcessedSec() ?
+        clock_->now().toSec()-*signal_compliance_guard_.lastRealGreenProcessedSec() : -1.);
     return require_stop;
   }
 

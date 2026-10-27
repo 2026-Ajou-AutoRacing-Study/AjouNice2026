@@ -57,11 +57,16 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   planner_param_.use_official_judging_lines = node.hasParam(ns + "/signal_judging_lines");
   planner_param_.signal_judging_lines = signal_compliance::loadSignalJudgingLines(node, ns + "/signal_judging_lines");
   node.param<int>(ns + "/signal_compliance_required_green_observations", planner_param_.signal_compliance_required_green_observations, 3);
+  node.param<double>(ns + "/signal_compliance_unknown_grace_sec", planner_param_.signal_compliance_unknown_grace_sec, 0.0);
   node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);
   node.param<double>(ns + "/signal_compliance_min_yellow_sec", planner_param_.signal_compliance_min_yellow_sec, 2.0);
   node.param<double>(ns + "/signal_compliance_yellow_time_margin_sec", planner_param_.signal_compliance_yellow_time_margin_sec, 0.2);
   if (planner_param_.signal_compliance_required_green_observations < 1 ||
       planner_param_.signal_compliance_required_green_observations > 3 ||
+      !std::isfinite(planner_param_.signal_compliance_unknown_grace_sec) ||
+      planner_param_.signal_compliance_unknown_grace_sec < 0.0 ||
+      planner_param_.signal_compliance_unknown_grace_sec > 0.3 ||
+      (planner_param_.signal_compliance_unknown_grace_sec > 0.0 && !planner_param_.enable_signal_compliance_guard) ||
       !std::isfinite(planner_param_.signal_compliance_min_yellow_sec) ||
       planner_param_.signal_compliance_min_yellow_sec <= 0.0 ||
       !std::isfinite(planner_param_.signal_compliance_yellow_time_margin_sec) ||

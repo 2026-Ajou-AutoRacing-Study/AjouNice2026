@@ -55,6 +55,8 @@ from traffic_light_near_rescue import (near_rescue_config, near_rescue_decision,
 from traffic_light_debug_view import render_node_overlay
 from traffic_light_observation_handoff import detection_miss_context, low_confidence_context, no_lamps_context
 from traffic_light_visual_continuation import VisualContinuation
+from traffic_light_stamped_vote import StampedPhaseVote
+from traffic_light_unreadable_evidence import unreadable_color_evidence
 
 COLOR_MAP = {
     "red": TrafficLightElement.RED,
@@ -231,6 +233,24 @@ class TrafficLightNode:
         self.planner_compliance_observations = rospy.get_param("~planner_compliance_observations", False)
         if type(self.planner_compliance_observations) is not bool:
             raise ValueError("planner_compliance_observations must be an explicit bool")
+        self.preserve_unreadable_color_evidence = rospy.get_param('~preserve_unreadable_color_evidence', False)
+        if type(self.preserve_unreadable_color_evidence) is not bool:
+            raise ValueError('preserve_unreadable_color_evidence must be an explicit bool')
+        if self.preserve_unreadable_color_evidence and not self.planner_compliance_observations:
+            raise ValueError('unreadable color evidence requires observed-only handoff, not legacy corrections')
+        self.stamped_vote_window_size = rospy.get_param('~stamped_vote_window_size', 0)
+        if type(self.stamped_vote_window_size) is not int or self.stamped_vote_window_size not in (0, 3, 7):
+            raise ValueError('stamped_vote_window_size must be 0 (disabled), 3, or 7 (experiment)')
+        self.stamped_vote_max_age_sec = rospy.get_param('~stamped_vote_max_age_sec', .5)
+        self.stamped_vote_startup_passthrough = rospy.get_param('~stamped_vote_startup_passthrough', False)
+        if type(self.stamped_vote_startup_passthrough) is not bool:
+            raise ValueError('stamped_vote_startup_passthrough must be an explicit bool')
+        self._stamped_vote = None
+        if self.stamped_vote_window_size:
+            if not self.planner_compliance_observations or self.selection_mode != 'map_association':
+                raise ValueError('stamped vote requires observed-only map_association; not legacy corrections')
+            self._stamped_vote = StampedPhaseVote(self.stamped_vote_window_size, self.stamped_vote_max_age_sec,
+                                                  self.stamped_vote_startup_passthrough)
         self.detection_miss_hold_sec = float(rospy.get_param("~detection_miss_hold_sec", .2))
         if not 0 <= self.detection_miss_hold_sec <= .2:
             rospy.logwarn("[Traffic] invalid detection hold; disabling optional dropout hold")
@@ -284,6 +304,10 @@ class TrafficLightNode:
             "detector_requested_device": str(self.inference_device), "detector_imgsz": self.detector_imgsz,
             "cnn_crop_margin_px": self.cnn_crop_margin_px,
             "planner_compliance_observations": self.planner_compliance_observations,
+            "preserve_unreadable_color_evidence": self.preserve_unreadable_color_evidence,
+            "stamped_vote_window_size": self.stamped_vote_window_size,
+            "stamped_vote_max_age_sec": self.stamped_vote_max_age_sec,
+            "stamped_vote_startup_passthrough": self.stamped_vote_startup_passthrough,
             "low_confidence_hold_sec": self.low_confidence_hold_sec,
             "no_lamps_hold_sec": self.no_lamps_hold_sec,
             "no_lamps_hold_source_age_cap_sec": .3,
@@ -483,6 +507,8 @@ class TrafficLightNode:
             self._last_policy_group_id = group.traffic_light_group_id
             self._selected_head_id = None
             if hasattr(self,'_visual_continuation'):self._visual_continuation.reset()
+            if getattr(self, '_stamped_vote', None) is not None:
+                self._stamped_vote.reset()
 
         previous_head_id = self._selected_head_id
         packet = None
@@ -661,23 +687,39 @@ class TrafficLightNode:
 
         self.raw_debug_pub.publish(String(data=_raw_label_for(raw_color_results)))
 
-        color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
-            raw_color_results, policy_reason, group.traffic_light_group_id,
-            (rospy.Time.now().to_sec() if self.planner_compliance_observations else now.to_sec()),
-            raw_det_conf, self.signal_smoother,
-            source_stamp_ns=msg.header.stamp.to_nsec(),
-            use_smoothing=not self.planner_compliance_observations,
-            observation_head_id=selection.get("head_id") or hold_context.get("head_id"),
-            detection_miss_hold_eligible=hold_context["eligible"],
-            detection_miss_hold_sec=getattr(self, "detection_miss_hold_sec", .2),
-            low_confidence_hold_eligible=low_confidence_hold["eligible"],
-            low_confidence_hold_sec=getattr(self, "low_confidence_hold_sec", .3),
-            low_confidence_confident_red=low_confidence_hold.get("confident_red", False),
-            no_lamps_hold_eligible=dark_hold['eligible'],
-            no_lamps_hold_sec=getattr(self, 'no_lamps_hold_sec', 0.),
-            cnn_gap_confident_lamps=dark_hold.get('confident_lamps', ()),
-        )
-        observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
+        stamped_vote_debug = {'enabled': False}
+        if getattr(self, '_stamped_vote', None) is not None:
+            # Vote CURRENT observed-only normalized frames, never the repeated
+            # output of production's detector/CNN-gap holds. A retained head
+            # without a current crop is identity loss for this experiment.
+            identity_valid = (best is not None and selection.get('status') == 'matched'
+                and selection.get('reason') in ('map_head_association', 'visual_continuation_match')
+                and group.traffic_light_group_id in MISSION_GROUP_IDS
+                and self._near_retry_context_reason(packet, group.traffic_light_group_id) is None)
+            voted = self._stamped_vote.update(raw_color_results, normalized_reason=policy_reason,
+                group_id=group.traffic_light_group_id, head_id=selection.get('head_id'),
+                source_stamp_ns=msg.header.stamp.to_nsec(), now_ns=rospy.Time.now().to_nsec(),
+                confidence=raw_det_conf, identity_valid=identity_valid)
+            color_results, det_conf, transition_reason = voted['lamps'], voted['confidence'], voted['reason']
+            observation_timing, stamped_vote_debug = voted['observation_timing'], voted['debug']
+        else:
+            color_results, det_conf, transition_reason = self.signal_phase_policy.process_normalized(
+                raw_color_results, policy_reason, group.traffic_light_group_id,
+                (rospy.Time.now().to_sec() if self.planner_compliance_observations else now.to_sec()),
+                raw_det_conf, self.signal_smoother,
+                source_stamp_ns=msg.header.stamp.to_nsec(),
+                use_smoothing=not self.planner_compliance_observations,
+                observation_head_id=selection.get("head_id") or hold_context.get("head_id"),
+                detection_miss_hold_eligible=hold_context["eligible"],
+                detection_miss_hold_sec=getattr(self, "detection_miss_hold_sec", .2),
+                low_confidence_hold_eligible=low_confidence_hold["eligible"],
+                low_confidence_hold_sec=getattr(self, "low_confidence_hold_sec", .3),
+                low_confidence_confident_red=low_confidence_hold.get("confident_red", False),
+                no_lamps_hold_eligible=dark_hold['eligible'],
+                no_lamps_hold_sec=getattr(self, 'no_lamps_hold_sec', 0.),
+                cnn_gap_confident_lamps=dark_hold.get('confident_lamps', ()),
+            )
+            observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
         adopted_ns = observation_timing.get("adopted_observation_source_stamp_ns")
         if observation_timing.get("output_is_observed"):
             # A held/smoothed winner is not a new observation of this JPEG.
@@ -697,6 +739,7 @@ class TrafficLightNode:
             last_trusted_observation_age_sec=((output_now_ns-last_trusted_ns)/1e9
                                              if last_trusted_ns is not None else None),
             output_stamp_basis=("adopted_lamp_observation" if observation_timing.get("output_is_observed")
+                                else "current_image_stamped_vote_unknown" if stamped_vote_debug['enabled']
                                 else "current_image_policy_fallback"))
         if policy_reason.endswith(":fail_open"):
             self.status.note(_StatusLog.WARN, "검출 없음 -> fallback")
@@ -704,6 +747,15 @@ class TrafficLightNode:
             self.status.note(_StatusLog.WARN, "관측 가드 만료")
         self.policy_debug_pub.publish(String(data=f"{policy_reason}|{transition_reason}"))
 
+        wire_unreadable_color_evidence = []
+        if (getattr(self, 'preserve_unreadable_color_evidence', False)
+                and self.planner_compliance_observations and not raw_color_results and not color_results
+                and best is not None and selection.get('status') == 'matched'
+                and selection.get('reason') in ('map_head_association', 'visual_continuation_match')
+                and group.traffic_light_group_id in MISSION_GROUP_IDS
+                and self._near_retry_context_reason(packet, group.traffic_light_group_id) is None):
+            wire_unreadable_color_evidence = unreadable_color_evidence(
+                detected_color_results, classifier_debug, raw_det_conf)
         labels_for_debug = []
         for color, shape, is_left in color_results:
             elem = TrafficLightElement()
@@ -723,6 +775,13 @@ class TrafficLightNode:
                 labels_for_debug.append(color)
             elem.status = TrafficLightElement.SOLID_ON
             elem.confidence = det_conf
+            group.elements.append(elem)
+        for evidence in wire_unreadable_color_evidence:
+            elem = TrafficLightElement()
+            elem.color = COLOR_MAP[evidence['color']]
+            elem.shape = TrafficLightElement.UNKNOWN
+            elem.status = TrafficLightElement.UNKNOWN
+            elem.confidence = evidence['confidence']
             group.elements.append(elem)
         if labels_for_debug:
             label_text = "+".join(labels_for_debug)
@@ -763,6 +822,11 @@ class TrafficLightNode:
             "final_tuples": color_results,
             "final_confidence": det_conf,
             "planner_compliance_observations": self.planner_compliance_observations,
+            "preserve_unreadable_color_evidence": getattr(self, 'preserve_unreadable_color_evidence', False),
+            "wire_unreadable_color_evidence": wire_unreadable_color_evidence,
+            "raw_observation_source_stamp_ns": msg.header.stamp.to_nsec(),
+            "raw_observation_confidence": raw_det_conf,
+            "stamped_vote": stamped_vote_debug,
             "observation_timing": observation_timing,
             "policy_reason": policy_reason,
             "transition_reason": transition_reason})

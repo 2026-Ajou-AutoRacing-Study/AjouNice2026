@@ -18,7 +18,8 @@ from pathlib import Path
 
 from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolve_path,
                      prediction_horizon, prediction_mixed_horizon_enabled,
-                     prediction_highway_horizon, prediction_highway_mode)
+                     prediction_highway_horizon, prediction_highway_mode,
+                     traffic_temporal_options)
 from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
 from .traffic_light import (runtime_mode, runtime_settings, profile_name, candidate_assets,
@@ -180,6 +181,10 @@ def _start_persistent(cfg, processes, monitor):
 def _start_case_stack(cfg, processes, monitor):
     stack, network = cfg["stack"], cfg["network"]
     traffic_options = cfg.get('traffic_light_options', traffic_launch_options(stack))
+    temporal = cfg.get('traffic_light_temporal_options')
+    if temporal is None:
+        temporal = traffic_temporal_options(stack,
+            legacy_snapshot=Path(cfg.get('path', '')).name == 'config_snapshot.yaml')
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
     after = time.monotonic()
     if stack["pose_source"] == "localization":
@@ -212,7 +217,10 @@ def _start_case_stack(cfg, processes, monitor):
         processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
             isolate_python=runtime_mode(stack) == "virtualenv",
-            publish_debug_image=traffic_options['publish_debug_image'], **extra))
+            publish_debug_image=traffic_options['publish_debug_image'],
+            preserve_unreadable_color_evidence=temporal['preserve_unreadable_color_evidence'],
+            planner_compliance_observations=temporal['planner_compliance_observations'],
+            stamped_vote_window_size=temporal['stamped_vote_window_size'], **extra))
         if traffic_options['debug_view']:
             processes.start('traffic_light_debug_view', _launch('traffic_light_detection',
                 'traffic_light_debug_view.launch',
@@ -222,8 +230,10 @@ def _start_case_stack(cfg, processes, monitor):
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
         enable_traffic_light_planner=stack.get("traffic_light", False),
+        enable_signal_compliance_guard=temporal['enable_signal_compliance_guard'],
+        signal_compliance_unknown_grace_sec=temporal['signal_compliance_unknown_grace_sec'],
         enable_yellow_passthrough=traffic_options['yellow_passthrough'],
-        signal_compliance_required_green_observations=traffic_options.get('signal_compliance_required_green_observations', 1),
+        signal_compliance_required_green_observations=temporal['signal_compliance_required_green_observations'],
         signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
         signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),
         signal_compliance_enable_timed_yellow=traffic_options.get('signal_compliance_enable_timed_yellow', False),

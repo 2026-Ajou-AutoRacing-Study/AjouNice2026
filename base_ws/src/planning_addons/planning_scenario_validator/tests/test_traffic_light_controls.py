@@ -276,7 +276,10 @@ class TrafficControlsTests(unittest.TestCase):
                     args = {e.get('name'): e.get('default') for e in xml.findall('arg')}
                     self.assertEqual(args[key], str(default).lower())
                 params = {e.get('name'): e.get('value') for e in planning.findall('param')}
-                self.assertEqual(params['/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/'+key], '$(arg '+key+')')
+                expected = ('$(eval arg(\'enable_signal_compliance_guard\') and '
+                            'arg(\'signal_compliance_enable_timed_yellow\'))'
+                            if key == 'signal_compliance_enable_timed_yellow' else '$(arg '+key+')')
+                self.assertEqual(params['/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/'+key], expected)
                 included = [e for e in stack.findall('include') if e.get('file', '').endswith('/launch/planning.launch')]
                 self.assertEqual(len(included), 1)
                 forwarded = {e.get('name'): e.get('value') for e in included[0].findall('arg')}

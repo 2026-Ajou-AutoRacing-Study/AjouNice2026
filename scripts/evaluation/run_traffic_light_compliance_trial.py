@@ -9,8 +9,10 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -48,12 +50,20 @@ def launch_arguments(package, filename, arguments, guarded, route_progress, prox
     if package == 'ajounice_planning_integration' and filename == 'planning.launch':
         result.update(enable_signal_compliance_guard=guarded,
                       enable_yellow_passthrough=yellow_passthrough,
+                      # Freeze historical trial baselines across launch promotion.
+                      # Explicit temporal_video_launch_arguments overrides this.
+                      signal_compliance_unknown_grace_sec=0.0,
                       signal_compliance_front_axle_offset_m=3.0,
                       traffic_light_state_timeout_sec=signal_timeout_sec)
+        if not guarded:
+            result.update(defer_unseen_until_observed=False,
+                          defer_far_unseen_unknown=False,
+                          signal_compliance_enable_timed_yellow=False)
     if package == 'traffic_light_detection' and filename in (
             'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
         result['route_progress_guard'] = route_progress
         result['planner_compliance_observations'] = temporal_direct
+        result['preserve_unreadable_color_evidence'] = False
         if visual_continuation_sec is not None:
             result['visual_continuation_sec'] = visual_continuation_sec
         if perception_odometry_topic is not None:
@@ -91,8 +101,113 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
     return result
 
 
+def temporal_video_launch_arguments(package, filename, arguments, required_green=None,
+                                    stamped_vote=None, publish_debug=False, *,
+                                    stamped_vote_max_age_sec=None,
+                                    stamped_vote_startup_passthrough=None,
+                                    unknown_grace_sec=None):
+    """Explicit trial-only changes; never select legacy corrections to get a vote."""
+    result = dict(arguments)
+    if required_green is not None and (type(required_green) is not int or not 1 <= required_green <= 3):
+        raise ValueError('required_green must be 1..3')
+    if unknown_grace_sec is not None and (
+            isinstance(unknown_grace_sec, bool) or not isinstance(unknown_grace_sec, (int, float))
+            or not math.isfinite(unknown_grace_sec) or not 0 <= unknown_grace_sec <= .3):
+        raise ValueError('unknown grace must be finite 0..0.3 seconds')
+    if unknown_grace_sec and stamped_vote not in (None, 0):
+        raise ValueError('UNKNOWN grace trial cannot also enable a phase-voting candidate')
+    if stamped_vote is not None and (type(stamped_vote) is not int or stamped_vote not in (0, 3, 7)):
+        raise ValueError('stamped_vote must be 0, 3 or 7')
+    if stamped_vote_max_age_sec is not None:
+        cap = .9 if stamped_vote == 7 else .5
+        if (stamped_vote not in (3, 7) or isinstance(stamped_vote_max_age_sec, bool)
+                or not isinstance(stamped_vote_max_age_sec, (int, float))
+                or not math.isfinite(stamped_vote_max_age_sec)
+                or not 0 < stamped_vote_max_age_sec <= cap):
+            raise ValueError('explicit vote age requires enabled window and its bounded age cap')
+    if stamped_vote_startup_passthrough is not None and (
+            stamped_vote not in (3, 7) or type(stamped_vote_startup_passthrough) is not bool):
+        raise ValueError('startup passthrough requires enabled window and an explicit bool')
+    if package == 'ajounice_planning_integration' and filename == 'planning.launch':
+        if required_green is not None:
+            result['signal_compliance_required_green_observations'] = required_green
+        if unknown_grace_sec is not None:
+            result['signal_compliance_unknown_grace_sec'] = unknown_grace_sec
+    if package == 'traffic_light_detection' and filename in (
+            'traffic_light_node.launch', 'traffic_light_v5_candidate.launch'):
+        if stamped_vote is not None:
+            result['stamped_vote_window_size'] = stamped_vote
+        if stamped_vote_max_age_sec is not None:
+            result['stamped_vote_max_age_sec'] = stamped_vote_max_age_sec
+        if stamped_vote_startup_passthrough is not None:
+            result['stamped_vote_startup_passthrough'] = stamped_vote_startup_passthrough
+        if publish_debug:
+            result['publish_debug_image'] = True
+        if unknown_grace_sec is not None:
+            result['preserve_unreadable_color_evidence'] = unknown_grace_sec > 0
+            if unknown_grace_sec > 0:
+                # Do not inherit a phase-vote/legacy handoff from an old YAML.
+                # This explicit trial is the direct-observation alternative.
+                result['stamped_vote_window_size'] = 0
+                result['planner_compliance_observations'] = True
+    return result
+
+
+def simulator_capture_geometry(window_id, display):
+    """Record only the explicitly chosen Simulator window, not a private desktop."""
+    if not re.fullmatch(r'0x[0-9a-fA-F]+', window_id):
+        raise ValueError('Explicit hexadecimal Simulator window ID required')
+    env = dict(os.environ, DISPLAY=display)
+    identity = subprocess.check_output(['xprop','-id',window_id,'WM_CLASS'],env=env,text=True,timeout=5)
+    if 'Simulator.x86_64' not in identity:
+        raise ValueError('Selected window is not the MORAI Simulator')
+    info = subprocess.check_output(['xwininfo','-id',window_id],env=env,text=True,timeout=5)
+    values = []
+    for key in ('Absolute upper-left X','Absolute upper-left Y','Width','Height'):
+        found = re.search(re.escape(key)+r':\s*(-?\d+)', info)
+        if found is None:
+            raise ValueError('Missing X11 window geometry')
+        values.append(int(found[1]))
+    x,y,w,h = values
+    if min(x,y)<0 or w<320 or h<240 or 'IsViewable' not in info:
+        raise ValueError('Simulator window is not visibly captureable')
+    return dict(window_id=window_id,display=display,x=x,y=y,width=w//2*2,height=h//2*2)
+
+
+def activate_simulator_for_capture(window_id, display):
+    """Explicit video operation: prevent an editor covering the capture region."""
+    code = '''import gi,sys,time
+gi.require_version('Wnck','3.0');gi.require_version('Gdk','3.0');gi.require_version('GdkX11','3.0')
+from gi.repository import Wnck,Gdk,GdkX11,GLib
+s=Wnck.Screen.get_default();s.force_update();wid=int(sys.argv[1],16)
+w=next(w for w in s.get_windows() if w.get_xid()==wid)
+w.activate(GdkX11.x11_get_server_time(Gdk.get_default_root_window()))
+c=GLib.MainContext.default()
+for _ in range(10):
+ while c.pending():c.iteration(False)
+ time.sleep(.05)
+s.force_update()
+if s.get_active_window() is None or s.get_active_window().get_xid()!=wid:
+ raise RuntimeError('Simulator could not be raised for screen recording')
+'''
+    subprocess.run(['/usr/bin/python3','-c',code,window_id],check=True,
+                   env=dict(os.environ,DISPLAY=display),timeout=5,capture_output=True)
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def owned_child_exit_grace_sec(name):
+    # Recorder EOF finalization allows 20s plus a bounded encoder fallback.
+    return 30 if name == 'front_video' else 8
+
+
+def validate_video_request(enabled, front_only, label, window_id):
+    if front_only and not enabled:
+        raise ValueError('Front-only recording requires --record-video')
+    if enabled and (not label or not front_only and not window_id):
+        raise ValueError('Video requires a label and, unless front-only, an explicit Simulator window ID')
 
 
 def require_trial_contract(cfg):
@@ -191,6 +306,19 @@ def main():
     parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
     parser.add_argument('--compliance-debug', action='store_true',
                         help='Development-only traffic C++ DEBUG trace; never a production logger default')
+    parser.add_argument('--required-green-observations', type=int, choices=(1,2,3))
+    parser.add_argument('--unknown-grace-sec', type=float,
+                        help='Guarded direct-observation trial only: pure UNKNOWN after authorized G, at most 0.3s')
+    parser.add_argument('--stamped-vote-window-size', type=int, choices=(0,3,7))
+    parser.add_argument('--stamped-vote-max-age-sec', type=float)
+    parser.add_argument('--stamped-vote-startup-passthrough', choices=('true','false'))
+    parser.add_argument('--record-video', action='store_true')
+    parser.add_argument('--front-video-only', action='store_true',
+                        help='Record actual annotated camera/telemetry only; do not capture any desktop rectangle')
+    parser.add_argument('--video-label', choices=('current','confirm2','vote3','vote3_group','vote7','unknown_grace'))
+    parser.add_argument('--video-display', default=os.environ.get('DISPLAY',':0'))
+    parser.add_argument('--morai-window-id', help='Explicit Simulator X11 ID; only this rectangle is recorded')
+    parser.add_argument('--video-encoder', choices=('libx264','h264_nvenc'), default='libx264')
     parser.add_argument('--native-python', type=Path,
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
@@ -207,6 +335,29 @@ def main():
         parser.error('Planner-only fixtures cannot run with a native signal-control experiment')
     if args.mode == 'production' and (args.experiment != 'natural' or args.planner_fixture):
         parser.error('Unmodified production defaults require natural signals without a proxy')
+    if args.mode == 'production' and (args.required_green_observations is not None or
+                                      args.stamped_vote_window_size is not None or
+                                      args.stamped_vote_max_age_sec is not None or
+                                      args.stamped_vote_startup_passthrough is not None or
+                                      args.unknown_grace_sec is not None):
+        parser.error('Explicit temporal candidates require guarded mode, not production mode')
+    if args.unknown_grace_sec is not None and (args.mode != 'guarded' or args.temporal_direct != 'true'):
+        parser.error('UNKNOWN grace requires explicit guarded direct-observation mode')
+    if args.stamped_vote_window_size in (3,7) and (args.mode != 'guarded' or args.temporal_direct != 'true'):
+        parser.error('Stamped vote requires guarded mode with --temporal-direct true')
+    try:
+        temporal_video_launch_arguments('validation', 'only', {},
+            stamped_vote=args.stamped_vote_window_size,
+            stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+            stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                             else args.stamped_vote_startup_passthrough == 'true'),
+            unknown_grace_sec=args.unknown_grace_sec)
+    except ValueError as exc:
+        parser.error(str(exc))
+    try:
+        validate_video_request(args.record_video, args.front_video_only, args.video_label, args.morai_window_id)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.visual_continuation_sec is not None and (
             args.mode == 'production' or not 0 <= args.visual_continuation_sec <= .3):
         parser.error('Visual continuation candidate requires explicit baseline/guarded mode and 0..0.3s')
@@ -239,6 +390,8 @@ def main():
         candidate_map_sha = digest(args.map_file)
     if args.preparation_geometry is not None:
         load_geometry(args.preparation_geometry)
+    screen_geometry = (simulator_capture_geometry(args.morai_window_id,args.video_display)
+                       if args.record_video and not args.front_video_only else None)
     production = args.mode == 'production'
     guarded = None if production else args.mode == 'guarded'
     progress = None if production else args.route_progress == 'true'
@@ -264,6 +417,19 @@ def main():
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
+        required_green_observations=args.required_green_observations,
+        signal_compliance_unknown_grace_sec=(args.unknown_grace_sec if production or
+            args.unknown_grace_sec is not None else 0.0),
+        stamped_vote_window_size=args.stamped_vote_window_size,
+        stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+        stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                         else args.stamped_vote_startup_passthrough == 'true'),
+        video=dict(enabled=args.record_video,label=args.video_label,encoder=args.video_encoder,
+                   front_only=args.front_video_only,
+                   simulator_rectangle=screen_geometry,
+                   source=('stamped current annotated front camera only' if args.front_video_only else
+                           'actual Simulator screen + stamped current annotated front camera'),
+                   synthetic_perception_faults=False),
         installed_traffic_plugin_sha256=digest(plugin) if plugin.is_file() else None,
         config_sha256=digest(args.config), geometry_sha256=digest(args.geometry),
         preparation_geometry=(str(args.preparation_geometry) if args.preparation_geometry else None),
@@ -329,6 +495,12 @@ def main():
             visual_continuation_sec=args.visual_continuation_sec,
             perception_odometry_topic=args.perception_odometry_topic)
         selected = map_launch_arguments(package, filename, selected, args.map_file, candidate_map_sha)
+        selected = temporal_video_launch_arguments(package,filename,selected,
+            args.required_green_observations,args.stamped_vote_window_size,args.record_video,
+            stamped_vote_max_age_sec=args.stamped_vote_max_age_sec,
+            stamped_vote_startup_passthrough=(None if args.stamped_vote_startup_passthrough is None
+                                             else args.stamped_vote_startup_passthrough == 'true'),
+            unknown_grace_sec=args.unknown_grace_sec)
         if proxy and package == 'traffic_light_detection' and not proxy_started:
             import rospy
             from autoware_perception_msgs.msg import TrafficLightGroupArray
@@ -463,7 +635,7 @@ def main():
             if process.poll() is None:
                 process.terminate()
                 try:
-                    process.wait(timeout=8)
+                    process.wait(timeout=owned_child_exit_grace_sec(name))
                 except subprocess.TimeoutExpired:
                     event(dict(event='owned_child_timeout', name=name))
                     process.kill(); process.wait(timeout=3)
@@ -481,6 +653,24 @@ def main():
         event(dict(event='global_validator_graph_lock_owned'))
         def prepare_helpers():
             duration = min(1800, max(case.timeout_sec for case in cfg['cases']) + 300)
+            if args.record_video:
+                if not args.front_video_only:
+                    activate_simulator_for_capture(args.morai_window_id,args.video_display)
+                    current_geometry=simulator_capture_geometry(args.morai_window_id,args.video_display)
+                    if current_geometry != screen_geometry:
+                        raise RuntimeError('Simulator window moved after video preflight')
+                    g=screen_geometry
+                    codec=(['-c:v','h264_nvenc','-preset','fast','-b:v','2500k']
+                           if args.video_encoder=='h264_nvenc' else
+                           ['-c:v','libx264','-preset','ultrafast','-crf','28','-threads','2'])
+                    start('simulator_video',['ffmpeg','-nostdin','-loglevel','warning','-n',
+                        '-f','x11grab','-framerate','10','-video_size',f"{g['width']}x{g['height']}",
+                        '-draw_mouse','0','-i',f"{args.video_display}+{g['x']},{g['y']}",
+                        '-t',str(duration),*codec,'-pix_fmt','yuv420p',
+                        str(args.output/'simulator.mp4')])
+                start('front_video',['/usr/bin/python3',str(ROOT/'scripts/evaluation/record_traffic_light_evidence_video.py'),
+                    '--output',str(args.output/'front_video'),'--label',args.video_label,
+                    '--fps','10','--max-seconds',str(duration),'--encoder',args.video_encoder])
             start('observer', [str(args.native_python), str(ROOT/'scripts/evaluation/observe_traffic_light_compliance.py'),
                 '--output', str(args.output/'observer'), '--geometry', str(args.geometry), '--duration-sec',str(duration),
                 '--crossing-jpegs'])

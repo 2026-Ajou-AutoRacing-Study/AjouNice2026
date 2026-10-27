@@ -187,6 +187,238 @@ TEST(SignalComplianceGuard, StaleGapAndClockRollbackCannotCarryGreenConfirmation
   EXPECT_EQ(guard.greenConfirmationCount(), 1U);
 }
 
+TEST(SignalComplianceUnknownGrace, DefaultZeroAndImplicitUnknownEligibilityNeverChangeStops)
+{
+  compliance::Guard guard;
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.05, 10.05, 1., false));
+  EXPECT_FALSE(guard.unknownGraceActive());
+  guard.setUnknownGraceSec(.2);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 11., 11., 1.));
+  // Default has_color_evidence=true is deliberately fail-closed for old callers.
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 11.05, 11.05, 1.));
+  EXPECT_FALSE(guard.unknownGraceActive());
+}
+
+TEST(SignalComplianceUnknownGrace, SetterIsFiniteBoundedAndConfigurationChangesResetGrant)
+{
+  compliance::Guard guard;
+  for (const double invalid : {-.001, .300001, std::numeric_limits<double>::infinity(),
+                               std::numeric_limits<double>::quiet_NaN()}) {
+    EXPECT_THROW(guard.setUnknownGraceSec(invalid), std::invalid_argument);
+  }
+  guard.setUnknownGraceSec(.3);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  guard.setUnknownGraceSec(.1);
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.05, 10.05, 1., false));
+  guard.setUnknownGraceSec(0.);
+}
+
+TEST(SignalComplianceUnknownGrace, ThreeTenthsLeaseStillExpiresAndRealColorCannotBeHidden)
+{
+  for (const int count : {1,2}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.3);
+    guard.setRequiredGreenObservations(count);
+    for (int n=0; n<count; ++n) {
+      const double source=10.-(count-1-n)*.01;
+      EXPECT_EQ(guard.observe(Observation::AuthorizedGreen,source,source+.02,1.),n<count-1);
+    }
+    EXPECT_FALSE(guard.observe(Observation::Unknown,10.15,10.16,1.,false));
+    EXPECT_FALSE(guard.observe(Observation::Unknown,10.28,10.29,1.,false));
+    EXPECT_TRUE(guard.unknownGraceActive());
+    EXPECT_TRUE(guard.observe(Observation::Unknown,10.30,10.301,1.,false));
+    EXPECT_FALSE(guard.unknownGraceActive());
+  }
+  // Fresh UNKNOWN receipt cannot refresh the actual green's older source.
+  compliance::Guard aged;
+  aged.setUnknownGraceSec(.3);
+  aged.setRequiredGreenObservations(1);
+  EXPECT_FALSE(aged.observe(Observation::AuthorizedGreen,10.,10.25,1.));
+  EXPECT_TRUE(aged.observe(Observation::Unknown,10.30,10.31,1.,false));
+  for (const auto phase : {Observation::Stop,Observation::Yellow,Observation::Unknown}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.3);
+    guard.setRequiredGreenObservations(1);
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen,10.,10.,1.));
+    EXPECT_FALSE(guard.observe(Observation::Unknown,10.1,10.1,1.,false));
+    EXPECT_TRUE(guard.observe(phase,10.2,10.2,1.,true));
+    EXPECT_FALSE(guard.unknownGraceActive());
+    EXPECT_TRUE(guard.observe(Observation::Unknown,10.21,10.21,1.,false));
+  }
+}
+
+TEST(SignalComplianceUnknownGrace, RepeatedUnknownCannotExtendOriginalSourceOrProcessingLease)
+{
+  for (const int count : {1, 2, 3}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(count);
+    for (int i=0; i<count; ++i) {
+      const double source=10.+i*.01;
+      EXPECT_EQ(guard.observe(Observation::AuthorizedGreen, source, source+.03, 1.), i<count-1);
+    }
+    const double last=10.+(count-1)*.01;
+    EXPECT_FALSE(guard.observe(Observation::Unknown, last+.1, last+.11, 1., false));
+    EXPECT_TRUE(guard.unknownGraceActive());
+    EXPECT_EQ(guard.greenConfirmationCount(), static_cast<std::size_t>(count));
+    EXPECT_FALSE(guard.observe(Observation::Unknown, last+.15, last+.18, 1., false));
+    EXPECT_TRUE(guard.unknownGraceActive());
+    EXPECT_TRUE(guard.observe(Observation::Unknown, last+.19, last+.201, 1., false));
+    EXPECT_FALSE(guard.unknownGraceActive());
+    EXPECT_EQ(guard.greenConfirmationCount(), 0U);
+  }
+}
+
+TEST(SignalComplianceUnknownGrace, OldRealGreenIsNotMadeFreshByCurrentUnknownImage)
+{
+  compliance::Guard guard;
+  guard.setUnknownGraceSec(.2);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10.15, 1.));
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.21, 10.22, 1., false));
+  EXPECT_FALSE(guard.unknownGraceActive());
+}
+
+TEST(SignalComplianceUnknownGrace, DuplicateRealGreenDoesNotRenewProcessingLease)
+{
+  compliance::Guard guard;
+  guard.setUnknownGraceSec(.2);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10.19, 1.));
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.20, 10.21, 1., false));
+  EXPECT_FALSE(guard.unknownGraceActive());
+}
+
+TEST(SignalComplianceUnknownGrace, UnconfirmedGrantNeverGetsUnknownGrace)
+{
+  for (const int count : {2, 3}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(count);
+    EXPECT_TRUE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+    EXPECT_TRUE(guard.observe(Observation::Unknown, 10.05, 10.05, 1., false));
+    EXPECT_EQ(guard.greenConfirmationCount(), 0U);
+    for (int i=0; i<count; ++i) {
+      const double source=10.1+i*.01;
+      EXPECT_EQ(guard.observe(Observation::AuthorizedGreen, source, source, 1.), i<count-1);
+    }
+  }
+}
+
+TEST(SignalComplianceUnknownGrace, NewStopYellowOrKnownColorUnknownIsImmediate)
+{
+  for (const auto phase : {Observation::Stop, Observation::Yellow, Observation::Unknown}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(1);
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+    EXPECT_FALSE(guard.observe(Observation::Unknown, 10.05, 10.05, 1., false));
+    EXPECT_TRUE(guard.observe(phase, 10.1, 10.1, 1., true));
+    EXPECT_FALSE(guard.unknownGraceActive());
+    EXPECT_TRUE(guard.observe(Observation::Unknown, 10.12, 10.12, 1., false));
+  }
+}
+
+TEST(SignalComplianceUnknownGrace, MissingStaleInvalidSourceAndResetCannotReuseGrant)
+{
+  for (const auto phase : {Observation::Missing, Observation::Stale}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(1);
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+    EXPECT_TRUE(guard.observe(phase, 10.05, 10.05, 1., false));
+    EXPECT_TRUE(guard.observe(Observation::Unknown, 10.1, 10.1, 1., false));
+  }
+  for (const double source : {0., 9., 10.2, std::numeric_limits<double>::quiet_NaN()}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(1);
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+    EXPECT_TRUE(guard.observe(Observation::Unknown, source, 10.1, 1., false));
+    EXPECT_TRUE(guard.observe(Observation::Unknown, 10.15, 10.15, 1., false));
+  }
+  compliance::Guard guard;
+  guard.setUnknownGraceSec(.2);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  guard.reset();
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.1, 10.1, 1., false));
+}
+
+TEST(SignalComplianceUnknownGrace, UnknownHighwaterRejectsOldGreenAndDuplicateCannotRegrant)
+{
+  compliance::Guard guard;
+  guard.setUnknownGraceSec(.2);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  EXPECT_FALSE(guard.observe(Observation::Unknown, 10.1, 10.1, 1., false));
+  EXPECT_TRUE(guard.observe(Observation::AuthorizedGreen, 10.05, 10.12, 1.));
+  EXPECT_TRUE(guard.observe(Observation::AuthorizedGreen, 10.1, 10.13, 1.));
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 10.14, 10.14, 1., false));
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10.15, 10.15, 1.));
+}
+
+TEST(SignalComplianceUnknownGrace, ClockReversalMustStopEvenWithOneConfirmation)
+{
+  compliance::Guard guard;
+  guard.setUnknownGraceSec(.2);
+  guard.setRequiredGreenObservations(1);
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+  EXPECT_TRUE(guard.observe(Observation::AuthorizedGreen, 9., 9., 1.));
+  EXPECT_TRUE(guard.observe(Observation::Unknown, 9.05, 9.05, 1., false));
+  EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 9.1, 9.1, 1.));
+}
+
+TEST(SignalComplianceUnknownGrace, UnknownDoesNotMoveYellowOnsetBoundAndRealRecoveryDoes)
+{
+  for (const bool recover : {false, true}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(2);
+    EXPECT_TRUE(guard.observe(Observation::AuthorizedGreen, 10., 10., 1.));
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10.02, 10.02, 1.));
+    EXPECT_FALSE(guard.observe(Observation::Unknown, 10.1, 10.1, 1., false));
+    EXPECT_FALSE(guard.yellowStartLowerBoundSec());
+    if (recover) EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10.12, 10.12, 1.));
+    EXPECT_TRUE(guard.observe(Observation::Yellow, 10.15, 10.15, 1.));
+    EXPECT_TRUE(guard.yellowTransitionEligible());
+    ASSERT_TRUE(guard.yellowStartLowerBoundSec());
+    EXPECT_DOUBLE_EQ(*guard.yellowStartLowerBoundSec(), recover ? 10.12 : 10.02);
+    EXPECT_TRUE(guard.observe(Observation::Yellow, 10.2, 10.2, 1.));
+    EXPECT_DOUBLE_EQ(*guard.yellowStartLowerBoundSec(), recover ? 10.12 : 10.02);
+  }
+}
+
+TEST(SignalComplianceUnknownGrace, DuplicateUnknownSourceReclassifiedGreenCannotMoveYellowBound)
+{
+  for (const int count : {1,2}) {
+    compliance::Guard guard;
+    guard.setUnknownGraceSec(.2);
+    guard.setRequiredGreenObservations(count);
+    for (int n=0; n<count; ++n) {
+      const double source=10.-(count-1-n)*.01;
+      EXPECT_EQ(guard.observe(Observation::AuthorizedGreen, source, source, 1.),n<count-1);
+    }
+    EXPECT_FALSE(guard.observe(Observation::Unknown, 10.05, 10.05, 1., false));
+    // Same original image now claims green: it may not supply a new source,
+    // confirmation, processing lease or a later lower bound for yellow onset.
+    EXPECT_FALSE(guard.observe(Observation::AuthorizedGreen, 10.05, 10.06, 1.));
+    EXPECT_EQ(guard.greenConfirmationCount(),static_cast<std::size_t>(count));
+    ASSERT_TRUE(guard.lastRealGreenSourceSec());
+    EXPECT_DOUBLE_EQ(*guard.lastRealGreenSourceSec(),10.);
+    ASSERT_TRUE(guard.lastRealGreenProcessedSec());
+    EXPECT_DOUBLE_EQ(*guard.lastRealGreenProcessedSec(),10.);
+    EXPECT_TRUE(guard.observe(Observation::Yellow,10.1,10.1,1.));
+    EXPECT_TRUE(guard.yellowTransitionEligible());
+    ASSERT_TRUE(guard.yellowStartLowerBoundSec());
+    EXPECT_DOUBLE_EQ(*guard.yellowStartLowerBoundSec(),10.);
+  }
+}
+
 namespace
 {
 // Independent time-step oracle: integrate acceleration and velocity directly,

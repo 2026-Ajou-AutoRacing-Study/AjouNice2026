@@ -46,6 +46,8 @@ def prepare_execution(source, *, check_install=True):
         traffic_light_yellow_passthrough=options['yellow_passthrough'],
         traffic_light_debug_view=options['debug_view'])
     document['stack'].update(timed_policy_options(cfg['stack']))
+    document['stack'].update(cfg['traffic_light_temporal_options'])
+    document['stack']['traffic_light_profile'] = profile_name(cfg['stack'])
     if cfg['stack'].get('traffic_light', False):
         # Freeze the resolved selection, including the promoted default.
         python, _ = runtime_settings(cfg['stack'], resolve_path('.'))

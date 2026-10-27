@@ -1,6 +1,6 @@
 # 신호등 인지 CURRENT
 
-상태: 2026-10-27. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 황색 통과·디버그 화면 기본 OFF**다.
+상태: 2026-10-27. **v5 지도+CNN·준수 가드·직접 관측·route 보호 ON, 허가 뒤 순수 UNKNOWN 유예0.3초, 황색 통과·투표·디버그 화면 OFF**다.
 환경 실행은 [패키지 README](../../../base_ws/src/perception/traffic_light_detection/README.md)를 따른다. 과거 문서의 개선 제안이나 연구 가중치를 운영 기본값으로 읽지 않는다.
 
 ## 운영 기준
@@ -68,7 +68,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
-3. 초기 crop은 [이전 근거](261025_CNN_CROP_CANDIDATE_EVALUATION.md), 최종 모델은 위 통합 기록을 본다.
+3. [3/2 영상](261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md)·[7/4 비교](261027_SEVEN_FOUR_DRIVING_COMPARISON.md)·[옛 전체 경로 감사](261027_LEGACY_ROBUSTNESS_AUDIT.md) 후 [순수 UNKNOWN 유예](261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md)를 **운영0.3초로 승격**했다. 실제 허가 원본/처리 age가 모두 기한 내일 때만 이어주며 새 R/Y·색이 있는 모순은 즉시 기존 판단에 전달한다. marker ON·허가1회·투표0·황색OFF를 묶는다. traffic OFF/legacy/옛 snapshot은 유예0을 보존한다. [배포·복귀](261027_UNKNOWN_GRACE_RELEASE.md)를 따른다. 과거 profile·D1.5초 hold·UNKNOWN/Y 무조건 GO는 복원하지 않았다.
 4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
 
 - [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. 당시에는 timeout1초·황색OFF·허가3회·ID0 경계를 유지했으며, 허가 확인만 2026-10-27에 별도 1회로 변경했다. 인식 모델 성능은 그대로다. 자연 풀주행 2회의 A/B/C/D 관측열 오프라인 대조에서 안정 허가 구간의 첫 관측→세 번째 관측 간격은 0.209~0.260초였다. 총190개 허가 프레임 중 전후0.25초의 동일 native 상태로 확인 가능한184개는 모두 방향 허가였고, 6개는 그 조건으로 미확인이다. B에는 한 프레임만 허가로 나온 구간 3개가 있었고 주변 native 조회는 녹색이었다. 1회 설정에서는 이런 구간에 궤적이 잠깐 열렸다 닫힐 수 있다. **이190프레임 대조 자체는1회 설정의 폐루프 평가가 아니며**, 오출발률이나 실대회 패널티 변화를 인증하지 않는다. 이후 로컬1회 설정 주행은 위 [허용 범위 대조](261027_SELECTION_TOLERANCE_COMPARISON.md)에 기록했다. 기존 실행 snapshot에서 허가3회를 명시했다면 그대로 유지된다.

@@ -125,6 +125,23 @@ helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms�
 (`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
 빈 관측이며 HSV로 몰래 전환하지 않는다. 현재 launch는 `planner_compliance_observations:=true`로
 상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 1개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
+실주행 비교용 `stamped_vote_window_size:=3/7`은 관측 보존·지도 선택에서만 쓰는 **시험 후보**이며 기본은 `0`이다.
+같은 regulatory group의 원본 3개 중 2개 또는 7개 중 4개가 같아야 한다. 3/2의 지연·C head 전환 보완은 [영상 비교](../../../../docs/perception/traffic_light/261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md), 7/4의 남은 공백·R/Y 지연은 [추가 비교](../../../../docs/perception/traffic_light/261027_SEVEN_FOUR_DRIVING_COMPARISON.md)를 본다.
+7/4 재현 시험은 `stamped_vote_window_size:=7 stamped_vote_max_age_sec:=0.9 stamped_vote_startup_passthrough:=true`를 **함께** 명시했다. 첫 여섯 고유 입력은 즉시 전달하고 이후 4표를 요구한다. 기본 age0.5초만으로는 10Hz의 7장을 채우기 어렵다. 0.9초는 전체 표의 원본 age 상한이지 추가 고정 hold나 황색 잔여시간 보장이 아니다. 과거 HSV/profile 보정·RED fallback의 전면 복원도 아니다.
+
+2026-10-27 [UNKNOWN 유예 비교](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md) 후
+사용자 승인으로 `signal_compliance_unknown_grace_sec:=0.3`을 운영 launch 기본으로 승격했다.
+직접 관측의 `preserve_unreadable_color_evidence:=true`를 함께 적용해 모순/부분 양성 색을
+빈 판독으로 숨기지 않는다. 양성 색 표식은 UNKNOWN shape/status이며 새 방향 허가가 아니다.
+전체 스택과 새 validator 실행은 이 두 값을 묶으며, traffic OFF·guard OFF·legacy는 유예0으로 정규화한다.
+예전 frozen snapshot에 새 설정이 없으면 유예0으로 재개하며 원본 snapshot을 수정하지 않는다.
+시험 wrapper의 guarded/legacy 기준선은 유예0을 명시한다. 새 기본값을 시험하려면 production 모드,
+명시적 비교는 `--mode guarded --temporal-direct true --unknown-grace-sec 0.3`을 사용한다.
+phase 투표는 운영0이다. 단독 legacy 인지와 별도 planning을 함께 실행할 경우 planning에도
+`signal_compliance_unknown_grace_sec:=0.0`을 명시한다. 다른 인지 노드에 planner 값만 혼합하지 않는다.
+R/Y를 이 유예로 덮지 않고 기존 판단에 바로 전달하나, 색 증거 자체가 없으면 마지막 G 원본 시각 뒤 최대0.3초 허가가 남을 수 있다.
+설치·재시작·되돌리기와 검증 한계는 [배포 정리](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_RELEASE.md)를 따른다.
+
 `detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
 `debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
 장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이

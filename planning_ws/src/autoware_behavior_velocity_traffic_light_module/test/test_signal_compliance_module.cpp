@@ -57,7 +57,8 @@ protected:
   }
 
   void configure(int64_t group, bool guarded=true, bool yellow_passthrough=true,
-                 double judging_x=10., bool original_available=true)
+                 double judging_x=10., bool original_available=true,
+                 double unknown_grace_sec=0., int confirmations=3)
   {
     group_=group;
     lanelet::Points3d points{
@@ -74,6 +75,8 @@ protected:
     // Existing dilemma/legacy tests are explicit ON comparisons, not defaults.
     params.enable_yellow_passthrough=yellow_passthrough;
     params.competition_fail_open=true; params.enable_signal_compliance_guard=guarded;
+    params.signal_compliance_unknown_grace_sec=unknown_grace_sec;
+    params.signal_compliance_required_green_observations=confirmations;
     params.signal_compliance_front_axle_offset_m=3.;
     params.use_official_judging_lines=true;
     if(original_available) params.signal_judging_lines={{group,{{judging_x,-3.},{judging_x,3.}},{1.,0.}}};
@@ -268,6 +271,70 @@ TEST_F(TrafficLightComplianceModuleTest, FreshEmptyUnknownStreamStopsUntilThreeN
       tick(); put(green()); EXPECT_FALSE(modifiesToStop());
     }
   }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, UnknownGraceRetainsOnlyConfirmedDirectionalGreenOnActualPath)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    for (const int count : {1,2}) {
+      configure(group,true,false,10.,true,.2,count); pose(0.,2.);
+      for (int n=0; n<count; ++n) {
+        tick(.01); put(green()); EXPECT_EQ(modifiesToStop(), n<count-1);
+      }
+      Signal empty;
+      tick(.05); put(empty); EXPECT_FALSE(modifiesToStop());
+      // Neither another callback nor another UNKNOWN image starts a new lease.
+      tick(.05); put(empty); EXPECT_FALSE(modifiesToStop());
+      tick(.101); put(empty); EXPECT_TRUE(modifiesToStop());
+      tick(.01); put(green()); EXPECT_EQ(modifiesToStop(), count>1);
+    }
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, UnknownGraceKnownColorMarkersAndRedYellowStopImmediately)
+{
+  for (const auto color : {Element::RED,Element::AMBER,Element::GREEN}) {
+    configure(201351,true,false,10.,true,.2,1); pose(0.,2.);
+    tick(.01); put(green()); EXPECT_FALSE(modifiesToStop());
+    Signal empty;
+    tick(.02); put(empty); EXPECT_FALSE(modifiesToStop());
+    Signal evidence; auto marker=lamp(color,Element::UNKNOWN); marker.status=Element::UNKNOWN;
+    evidence.elements={marker};
+    tick(.02); put(evidence); EXPECT_TRUE(modifiesToStop());
+    tick(.02); put(empty); EXPECT_TRUE(modifiesToStop());
+  }
+  for (const bool is_yellow : {false,true}) {
+    configure(201351,true,false,10.,true,.2,1); pose(0.,2.);
+    tick(.01); put(green()); EXPECT_FALSE(modifiesToStop());
+    tick(.02); put(is_yellow ? yellow() : red()); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, UnknownGraceCannotReleaseFromUnconfirmedOrWrongDirectionGreen)
+{
+  configure(201351,true,false,10.,true,.2,2); pose(0.,2.);
+  tick(.01); put(green()); EXPECT_TRUE(modifiesToStop());
+  Signal empty;
+  tick(.02); put(empty); EXPECT_TRUE(modifiesToStop());
+  configure(201326,true,false,10.,true,.2,1); pose(0.,2.);
+  Signal circle_green; circle_green.elements={lamp(Element::GREEN)};
+  tick(.01); put(circle_green); EXPECT_TRUE(modifiesToStop());
+  tick(.02); put(empty); EXPECT_TRUE(modifiesToStop());
+}
+
+TEST_F(TrafficLightComplianceModuleTest, UnknownGraceOriginalGreenAgeAndMissingStillInvalidateLease)
+{
+  configure(201351,true,false,10.,true,.2,1); pose(0.,2.);
+  tick(.01); put(green(),.15); EXPECT_FALSE(modifiesToStop());
+  Signal empty;
+  tick(.06); put(empty); EXPECT_TRUE(modifiesToStop());
+  tick(.01); put(green()); EXPECT_FALSE(modifiesToStop());
+  setFailOpen(false);
+  data_->traffic_light_id_map_raw_.clear(); tick(.02); EXPECT_TRUE(modifiesToStop());
+  tick(.02); put(empty); EXPECT_TRUE(modifiesToStop());
+  tick(.01); put(green()); EXPECT_FALSE(modifiesToStop());
+  tick(.02); put(empty,2.); EXPECT_TRUE(modifiesToStop());
+  tick(.02); put(empty); EXPECT_TRUE(modifiesToStop());
 }
 
 TEST_F(TrafficLightComplianceModuleTest, FarUnseenEmptyDefersOnlyBeforeFirstReadableLamp)
