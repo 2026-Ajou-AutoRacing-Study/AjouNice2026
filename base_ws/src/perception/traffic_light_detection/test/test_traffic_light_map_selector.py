@@ -148,10 +148,10 @@ class MapSelectorTest(unittest.TestCase):
         self.assertEqual(padding[0], lower_z[0])
         self.assertGreater(padding[1], lower_z[1])
 
-    def test_independent_vertical_bound_keeps_reported_z_uncertainty_and_X90(self):
+    def test_independent_vertical_bound_keeps_reported_z_uncertainty_and_explicit_X90(self):
         with self.assertRaises(ValueError) as failure:
             uncertainty_padding(self.camera, 18., .03, math.radians(.5), vertical_sigma_m=1., camera_up_m=5.,
-                                max_vertical_padding_px=90.)
+                                max_vertical_padding_px=90., max_padding_px=90.)
         self.assertEqual(failure.exception.bounds_xy_px, (90., 90.))
         padding = uncertainty_padding(self.camera, 18., .03, math.radians(.5), vertical_sigma_m=1.,
                                       camera_up_m=5., max_vertical_padding_px=180.)
@@ -177,7 +177,8 @@ class MapSelectorTest(unittest.TestCase):
 
     def test_single_configuration_contract_and_horizontal_housing_aspect_guard(self):
         config = selector_config()
-        self.assertEqual(config.max_padding_px, 90.)
+        self.assertEqual(config.max_padding_px, 120.)
+        self.assertEqual(config.max_yaw_sigma_degrees, 4.)
         self.assertEqual(config.max_vertical_padding_px, 200.)
         self.assertEqual(config.min_aspect_ratio_factor, .4)
         for bad in ({"unknown": 1}, {"max_padding_px": -1}, {"min_aspect_ratio_factor": 3., "max_aspect_ratio_factor": 2.}):
@@ -199,6 +200,31 @@ class MapSelectorTest(unittest.TestCase):
                       "max_position_sigma_m", "max_vertical_sigma_m", "max_yaw_sigma_degrees",
                       "max_view_angle_degrees", "min_height_px", "base_margin_px", "pitch_tolerance_degrees"):
             self.assertEqual(float(args["map_"+field]), getattr(DEFAULT_SELECTOR_CONFIG, field))
+
+    def test_moderate_yaw_uncertainty_reads_target_without_prior_anchor(self):
+        covariance = [0.]*36
+        covariance[35] = math.radians(3.5)**2
+        xy, z, yaw = covariance_sigmas(covariance)
+        rois, _ = self.project([simple_head()], position_sigma_m=xy,
+                               vertical_sigma_m=z, yaw_sigma_rad=yaw)
+        self.assertEqual(len(rois), 1)
+        self.assertGreater(rois[0]['padding_xy_px'][0], 90.)
+        self.assertIsNotNone(associate_boxes([box(rois[0]['bbox_xyxy'])], rois, 10)[0])
+        with self.assertRaises(ValueError):
+            covariance_sigmas(covariance, max_yaw_sigma_degrees=3.)
+        covariance[35] = math.radians(4.1)**2
+        with self.assertRaises(ValueError):
+            covariance_sigmas(covariance)
+
+    def test_wider_search_keeps_higher_confidence_other_signal_out(self):
+        rois, _ = self.project([simple_head('target'),
+            simple_head('other', group=20, center=(20., -3., 2.))],
+            yaw_sigma_rad=math.radians(3.5))
+        target, other = [box(r['bbox_xyxy'], confidence=c) for r,c in zip(rois,(.7,.99))]
+        best, decision = associate_boxes([target, other], rois, 10)
+        self.assertIs(best, target)
+        self.assertEqual(decision['head_id'], 'target')
+        self.assertTrue(any(r['reason']=='other_head_identity_ambiguous' for r in decision['rejected']))
 
     def test_packet_group_time_resolution_frame_and_zero_stamp_gates(self):
         packet = {"schema_version": 1, "source_stamp_ns": 1000000000,

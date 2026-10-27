@@ -2,6 +2,8 @@
 
 상태: **로컬 소스·설치본 일치 확인, 오프라인 재생과 로컬 폐루프 주행 검증**. 팀 PC 설치본과 LAN 풀스택에서의 효과는 아직 확인하지 않았다. 이 기록은 이전 [연속 완충 시험](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)을 대체하지 않는다.
 
+이후 지도 허용 범위를3°·90px에서4°·120px로 완화했다. 현재값과 추가 replay·주행 결과는 [선택 허용 범위 대조](261027_SELECTION_TOLERANCE_COMPARISON.md)를 따른다. 아래3° 경계와 수치는 당시 대조 실험의 기록이다.
+
 ## 받은 bag에서 확인한 것
 
 팀장님 bag `rosbags/traffic_light/261027_teamlead_011017/planning_rviz_20261027_011017.bag`의 `/map/vector_map`은 `version_map=88`이다. B 접근 중 같은 정지 목표가 약 69.159·69.741·71.046초에 다시 들어갔다가 빠졌고, 차속은 약 16.16→0.42m/s로 떨어졌다. 그 시각의 원본 전방 영상에는 B 후보 신호의 녹색 점등이 보인다. 반면 `/perception/traffic_light_recognition/{map_rois,traffic_signals}`와 `/traffic_light_node/debug_{selection,classifier,runtime}`가 녹화되지 않아 **실제 팀 PC에서 어느 단계가 실패했는지는 특정할 수 없다**. `Traffic map ROI missing` 일곱 건은 약 0초와 125~150초의 `route_missing_or_stale`이며 B의 약 64~74초와 겹치지 않는다. 상세 시각·원본 해시는 로컬 `planner_logs/analysis/261027_teamlead_011017_B_actual/REPORT.md`에 보존했다.

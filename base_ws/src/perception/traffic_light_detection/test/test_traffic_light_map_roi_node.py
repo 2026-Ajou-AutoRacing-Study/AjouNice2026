@@ -62,7 +62,8 @@ class MapRoiNodeTest(unittest.TestCase):
         node.camera = load_camera(ROOT / "configs/sensors/Sensor_competition_local.json")
         node.map_frame, node.base_frame = "map", "base_link"
         node.route_stale, node.pose_delta, node.pose_age = 2., .15, .5
-        node.max_position_sigma, node.max_yaw_sigma = 1.5, 3.
+        node.max_position_sigma = DEFAULT_SELECTOR_CONFIG.max_position_sigma_m
+        node.max_yaw_sigma = DEFAULT_SELECTOR_CONFIG.max_yaw_sigma_degrees
         node.max_vertical_sigma = 1.5
         node.selector_config = DEFAULT_SELECTOR_CONFIG
         node.projection_options = {}
@@ -210,13 +211,13 @@ class MapRoiNodeTest(unittest.TestCase):
     def test_uncertainty_candidate_preserves_real_sigma_and_normal_missing(self):
         node=self.node();node.visual_continuation_sec=.3
         node._poses[0][0].pose.covariance[14]=1.
-        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        node._poses[0][0].pose.covariance[35]=math.radians(4.5)**2
         packet=self.call(node)
         self.assertEqual(packet['status'],'missing')
         self.assertEqual(packet['reason'],'localization_uncertainty_exceeds_bound')
         self.assertEqual(packet['rois'],[])
         evidence=packet['nominal_continuation']
-        self.assertAlmostEqual(evidence['actual_yaw_sigma_degrees'],4.)
+        self.assertAlmostEqual(evidence['actual_yaw_sigma_degrees'],4.5)
         self.assertEqual(evidence['actual_z_sigma_m'],1.)
         self.assertFalse(evidence['normal_eligibility'])
         self.assertTrue(evidence['rois'])
@@ -224,7 +225,7 @@ class MapRoiNodeTest(unittest.TestCase):
 
     def test_uncertainty_with_tf_failure_has_no_nominal_continuation_evidence(self):
         node=self.node();node.visual_continuation_sec=.3
-        node._poses[0][0].pose.covariance[35]=math.radians(4.)**2
+        node._poses[0][0].pose.covariance[35]=math.radians(4.5)**2
         node.buffer.lookup_transform.side_effect=TransformError('image-time TF unavailable')
         packet=self.call(node)
         self.assertEqual(packet['status'],'missing')
@@ -233,12 +234,12 @@ class MapRoiNodeTest(unittest.TestCase):
     def test_per_head_padding_rejection_gets_nominal_evidence_but_normal_caps_unchanged(self):
         node=self.node();node.visual_continuation_sec=.3
         node.geometry['heads'][0]['point'][0]=10.
-        node._poses[0][0].pose.covariance[35]=math.radians(2.9)**2
+        node._poses[0][0].pose.covariance[35]=math.radians(3.9)**2
         packet=self.call(node)
         self.assertEqual(packet['status'],'ready')
         self.assertEqual(packet['reason'],'no_visible_route_head')
         self.assertTrue(any(r['reason']=='projection_uncertainty_exceeds_bound' for r in packet['rejected_heads']))
-        self.assertEqual(packet['selector_config']['max_padding_px'],90.)
+        self.assertEqual(packet['selector_config']['max_padding_px'],120.)
         self.assertFalse(packet['nominal_continuation']['rois'][0]['eligible'])
 
 

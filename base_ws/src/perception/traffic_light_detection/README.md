@@ -27,7 +27,7 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
 - 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
-- map 기본은 v87다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
+- map 기본은 v88이다. 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
 ## Competition signal policy
 
@@ -89,7 +89,10 @@ camera frame을 대신 제공하지 않는다. 이름만 맞추는 새 정적 TF
 정면 각도·깊이·최소 투영 크기·공분산 기반 bounded padding을 검사한다. 투영은
 가림·실제 점등·완벽한 identity의 GT가 아니므로 실제 YOLO/측위 입력 검증이 남는다.
 
-지도 모드의 검색 상한은 수평 90px·수직 200px로 분리한다. XY 최대 고유축 표준편차와
+지도 모드의 검색 상한은 수평 120px·수직 200px, yaw 불확실성 상한은4°다. 이전90px·3°와의
+[선택/비회귀 비교](../../../../docs/perception/traffic_light/261027_SELECTION_TOLERANCE_COMPARISON.md)를 본다.
+`traffic_light_node.launch`와 v5 호환 launch에서 `map_max_padding_px:=90 map_max_yaw_sigma_degrees:=3`으로 복귀한다.
+XY 최대 고유축 표준편차와
 GNSS Z 표준편차를 별도로 투영하며 Z가 수평 검색을 넓히지 않는다. 현재 Z 분산 1은
 EKF placeholder가 아니라 `vertical_stddev_m=1.0`의 명시적 GNSS 설정이므로 유지한다.
 기존 개발 val 66장의 저장 검출 박스 재생에서 수직 90px는 42개 정상 검출을 잃었고,
@@ -121,7 +124,7 @@ helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms�
 실제 crop 좌표를 기록한다. CNN만 기본 12px crop margin을 적용한다
 (`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
 빈 관측이며 HSV로 몰래 전환하지 않는다. 현재 launch는 `planner_compliance_observations:=true`로
-상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 3개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
+상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 1개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
 `detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
 `debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
 장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이
@@ -167,6 +170,6 @@ UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 �
 PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
 그 후 황색 ETA에 한해 원본 MGeo 판정선 profile을 독립적으로 추가했다. 옛 추가 margin을 되살린 것은 아니다.
 기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
-이동 중 화각 이탈 문제는 여전히 남고 황색 기본 OFF·허가3회는 유지한다.
+이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 OFF·허가1회가 현재값이며 과거 실험의 허가3회와 구별한다.
 [최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.
 [변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

@@ -87,7 +87,7 @@ def section(t,windows=WINDOWS):
     return next((k for k,a,b in windows if a<=t<=b),None)
 
 
-def extract(bag_path,output,yaw_cap=3.,visual_sec=0.,map_file=None,windows_json=None):
+def extract(bag_path,output,yaw_cap=3.,visual_sec=0.,map_file=None,windows_json=None,horizontal_cap=90.):
     windows,map_source,window_source=replay_configuration(map_file,windows_json)
     bag_before=file_identity(bag_path)
     source_paths=(Path(__file__),PACKAGE/'scripts/traffic_light_map_roi_node.py',
@@ -104,6 +104,8 @@ def extract(bag_path,output,yaw_cap=3.,visual_sec=0.,map_file=None,windows_json=
     from traffic_light_route_group_id_node import restrict_route_groups,MISSION_GROUP_IDS
     from dataclasses import replace
     if not 3.<=yaw_cap<=5.:raise ValueError('Audit yaw cap must be within 3..5 degrees')
+    if not math.isfinite(horizontal_cap) or not 0<horizontal_cap<=320.:
+        raise ValueError('Audit horizontal padding cap must be within (0,320] pixels')
     output=output.resolve();output.relative_to(ROOT/'planner_logs/analysis')
     if output.exists():raise FileExistsError('Fresh extraction output required')
     buffer=tf2_py.BufferCore(rospy.Duration(1000.))
@@ -125,7 +127,10 @@ def extract(bag_path,output,yaw_cap=3.,visual_sec=0.,map_file=None,windows_json=
         helper.map_frame,helper.base_frame='map','base_link'
         helper.route_stale,helper.pose_delta,helper.pose_age=2.,.15,.5
         helper.visual_continuation_sec=visual_sec
-        helper.selector_config=replace(DEFAULT_SELECTOR_CONFIG,max_yaw_sigma_degrees=yaw_cap)
+        # Preserve the old replay recipe unless the caller explicitly selects
+        # newer bounds; runtime defaults must not silently alter this ablation.
+        helper.selector_config=replace(DEFAULT_SELECTOR_CONFIG,max_yaw_sigma_degrees=yaw_cap,
+                                       max_padding_px=horizontal_cap)
         helper.max_position_sigma=helper.selector_config.max_position_sigma_m
         helper.max_vertical_sigma=helper.selector_config.max_vertical_sigma_m
         helper.max_yaw_sigma=helper.selector_config.max_yaw_sigma_degrees
@@ -165,7 +170,8 @@ def extract(bag_path,output,yaw_cap=3.,visual_sec=0.,map_file=None,windows_json=
     report=dict(schema='continuous_signal_callback_inputs_v1',bag=str(bag_path),windows=windows,
         bag_identity=bag_before,map=map_source,windows_source=window_source,
         replay_role='current_source_counterfactual_not_recorded_runtime',
-        raw_frames=len(rows),yaw_cap_degrees=yaw_cap,visual_continuation_sec=visual_sec,
+        raw_frames=len(rows),yaw_cap_degrees=yaw_cap,horizontal_padding_cap_px=horizontal_cap,
+        visual_continuation_sec=visual_sec,
         sources=source_hashes,
         records=rows,limitations=['Current source/geometry/model replay, not recorded traffic output.',
             'TF preloaded for exact source queries: live TF arrival timing and wait failures are not recreated.',
@@ -314,11 +320,13 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('stage',choices=['extract','infer'])
     p.add_argument('--bag',type=Path);p.add_argument('--inputs',type=Path);p.add_argument('--output',type=Path,required=True)
     p.add_argument('--yaw-cap',type=float,default=3.)
+    p.add_argument('--horizontal-cap',type=float,default=90.,
+                   help='extract: old recipe defaults to90; current runtime uses120 with --yaw-cap4')
     p.add_argument('--device',choices=['auto','cpu','cuda:0'],default='auto')
     p.add_argument('--visual-sec',type=float,default=0.)
     p.add_argument('--cpu-threads',type=int,default=4,help='infer: torch intra-op threads (1..8); default keeps old replay setting')
     p.add_argument('--map-file',type=Path,help='extract: explicit OSM; omitted keeps the old v87 replay fixture')
     p.add_argument('--windows-json',type=Path,help='extract: JSON [["A",start,end],...] in bag-relative seconds; required for v94')
     a=p.parse_args()
-    if a.stage=='extract':extract(a.bag.resolve(strict=True),a.output,a.yaw_cap,a.visual_sec,a.map_file,a.windows_json)
+    if a.stage=='extract':extract(a.bag.resolve(strict=True),a.output,a.yaw_cap,a.visual_sec,a.map_file,a.windows_json,a.horizontal_cap)
     else:infer(a.inputs.resolve(strict=True),a.output,a.device,a.visual_sec,a.cpu_threads)

@@ -36,13 +36,13 @@
   <arg name="sensor_config" default="$(env AJOUNICE_ROOT)/configs/sensors/Sensor_competition_local.json" />
   <arg name="map_base_margin_px" default="12.0" />
   <arg name="map_pitch_tolerance_degrees" default="1.0" />
-  <arg name="map_max_padding_px" default="90.0" />
+  <arg name="map_max_padding_px" default="120.0" />
   <arg name="map_max_vertical_padding_px" default="200.0" />
   <arg name="map_min_aspect_ratio_factor" default="0.4" />
   <arg name="map_max_aspect_ratio_factor" default="2.5" />
   <arg name="map_max_position_sigma_m" default="1.5" />
   <arg name="map_max_vertical_sigma_m" default="1.5" />
-  <arg name="map_max_yaw_sigma_degrees" default="3.0" />
+  <arg name="map_max_yaw_sigma_degrees" default="4.0" />
   <arg name="map_max_view_angle_degrees" default="45.0" />
   <arg name="map_min_height_px" default="3.0" />
   <arg name="map_packet_max_image_delta_sec" default="0.0" />

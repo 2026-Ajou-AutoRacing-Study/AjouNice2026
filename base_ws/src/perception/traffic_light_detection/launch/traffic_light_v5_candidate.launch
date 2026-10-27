@@ -24,6 +24,8 @@
   <arg name="low_confidence_hold_sec" default="0.3" />
   <arg name="visual_continuation_sec" default="0.3" />
   <arg name="route_progress_guard" default="true" />
+  <arg name="map_max_padding_px" default="120.0" />
+  <arg name="map_max_yaw_sigma_degrees" default="4.0" />
   <arg name="map_max_vertical_padding_px" default="200.0" />
   <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
     <arg name="inference_python" value="$(arg inference_python)" />
@@ -58,6 +60,8 @@
     <arg name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
     <arg name="visual_continuation_sec" value="$(arg visual_continuation_sec)" />
     <arg name="route_progress_guard" value="$(arg route_progress_guard)" />
+    <arg name="map_max_padding_px" value="$(arg map_max_padding_px)" />
+    <arg name="map_max_yaw_sigma_degrees" value="$(arg map_max_yaw_sigma_degrees)" />
     <arg name="map_max_vertical_padding_px" value="$(arg map_max_vertical_padding_px)" />
   </include>
 </launch>
