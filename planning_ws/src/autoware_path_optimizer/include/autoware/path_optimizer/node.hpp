@@ -107,6 +107,13 @@ protected:  // for the static_centerline_generator package
   ros::WallTimer scene_timeout_timer_;
   bool require_obstacle_scene_{false};
   double obstacle_search_time_budget_ms_{100.0};
+  double obstacle_continuity_weight_{3.0};
+  std::string output_resampling_method_{"gaussian"};
+  double output_gaussian_sigma_m_{0.25};
+  bool obstacle_candidate_trace_enabled_{false};
+  std::string obstacle_candidate_trace_;
+  std::string optimization_reset_reason_;
+  rclcpp::Publisher<StringStamped>::SharedPtr obstacle_candidate_trace_pub_;
   double obstacle_fallback_deceleration_{7.0};
   double obstacle_max_forward_length_{60.0};
   double obstacle_return_length_{15.0};

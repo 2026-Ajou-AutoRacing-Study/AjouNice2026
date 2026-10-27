@@ -22,6 +22,7 @@
 #include "autoware/path_optimizer/ros1_compat.hpp"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace autoware::path_optimizer
@@ -33,6 +34,7 @@ public:
   void onParam(const std::vector<rclcpp::Parameter> & parameters);
 
   bool isResetRequired(const PlannerData & planner_data) const;
+  const std::string & lastResetReason() const { return last_reset_reason_; }
 
   bool isReplanRequired(const PlannerData & planner_data, const rclcpp::Time & current_time) const;
 
@@ -41,6 +43,7 @@ public:
     const rclcpp::Time & current_time);
 
 private:
+  mutable std::string last_reset_reason_;
   EgoNearestParam ego_nearest_param_;
   rclcpp::Logger logger_;
 

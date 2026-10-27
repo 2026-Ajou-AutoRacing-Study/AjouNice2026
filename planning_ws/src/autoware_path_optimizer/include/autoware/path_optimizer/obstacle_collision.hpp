@@ -20,9 +20,12 @@ inline bool isAlignedWithEgoPose(
 }
 
 inline std::optional<size_t> firstCurvatureViolation(
-  const std::vector<TrajectoryPoint> & points, size_t start, size_t end, double limit)
+  const std::vector<TrajectoryPoint> & points, size_t start, size_t end, double wide_limit)
 {
   if (points.size() < 3) return std::nullopt;
+  // Adjacent-point curvature has its own geometric threshold [1/m]. The wider
+  // estimate below still uses the vehicle-model limit supplied by the caller.
+  constexpr double local_curvature_limit = 0.4;
   std::vector<double> arc(points.size(), 0.0);
   for (size_t i = 1; i < points.size(); ++i) {
     arc[i] = arc[i - 1] + std::hypot(points[i].pose.position.x - points[i - 1].pose.position.x,
@@ -42,7 +45,7 @@ inline std::optional<size_t> firstCurvatureViolation(
       const double local_curvature = 2.0 * std::abs(
         (local_b.x-local_a.x)*(local_c.y-local_a.y) -
         (local_b.y-local_a.y)*(local_c.x-local_a.x)) / local_denominator;
-      if (!std::isfinite(local_curvature) || local_curvature > limit + 1e-3) return i;
+      if (!std::isfinite(local_curvature) || local_curvature > local_curvature_limit) return i;
     }
     size_t lo = i - 1, hi = i + 1;
     while (lo > 0 && arc[i] - arc[lo] < 1.0) --lo;
@@ -54,7 +57,7 @@ inline std::optional<size_t> firstCurvatureViolation(
       std::hypot(c.x-a.x,c.y-a.y);
     if (denominator < 1e-8) continue;
     const double curvature = 2.0 * std::abs((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)) / denominator;
-    if (!std::isfinite(curvature) || curvature > limit + 1e-3) return i;
+    if (!std::isfinite(curvature) || curvature > wide_limit + 1e-3) return i;
   }
   return std::nullopt;
 }
