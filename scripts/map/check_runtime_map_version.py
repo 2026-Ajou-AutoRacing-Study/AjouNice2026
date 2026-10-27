@@ -197,7 +197,10 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
         for path in (root / directory).rglob('*'):
             if (not path.is_file() or 'docs' in path.parts or 'legacy' in path.parts or
                     path.name in frozen_programs or
-                    ('tracking_prediction_evaluation' in path.parts and path.suffix != '.launch')):
+                    ('tracking_prediction_evaluation' in path.parts and path.suffix != '.launch'
+                     and path.name not in {'evaluate_pipeline_prediction.py', 'evaluate_velocity_oracle_ablation.py',
+                                           'audit_lanelet_centerline_bias.py', 'evaluate_map_centerline_snap_ablation.py',
+                                           'evaluate_oracle_prediction.py'})):
                 continue
             relative = str(path.relative_to(root))
             # The manifest's runtime contract was checked above; its base-map
@@ -232,9 +235,8 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
             allowed = {95, VERSION} if relative == PROFILE_TEST else {VERSION}
             # Validator START provenance and recorded-profile fixtures intentionally pin v94.
             if relative in {
-                    'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/localization_contract.py',
-                    'base_ws/src/planning_addons/planning_scenario_validator/tests/test_route_profile.py',
-                    'base_ws/src/planning_addons/planning_scenario_validator/tests/test_localization_snapshots.py'}:
+                                        'base_ws/src/planning_addons/planning_scenario_validator/tests/test_route_profile.py',
+}:
                 allowed.add(94)
             for line_number, line in enumerate(content.splitlines(), 1):
                 if line.lstrip().startswith('#'):
