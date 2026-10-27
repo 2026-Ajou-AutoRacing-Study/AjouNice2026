@@ -1,10 +1,14 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_version" default="99"/>
-  <!-- Explicit development map candidates; omitted arguments keep the released map. -->
+  <!-- Released runtime accepts only v99; reject old explicit overrides at parse time. -->
+  <arg name="_require_v99_map_version" value="$(eval {'99': 'v99-only'}[str(arg('map_version'))])"/>
+  <!-- Map and requester remain pinned to the released v99 contract. -->
   <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
+  <arg name="_require_v99_map_file" value="$(eval {True: 'v99-only'}[arg('map_file') == arg('repo_root') + '/kcity_map/lanelet_map/lanelet2_map_v99.osm'])"/>
   <arg name="map_sha256" default="$(eval {'87': '70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575', '94': '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf', '95': 'a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e', '96': '98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd', '97': 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9', '98': '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0', '99': 'e9d28ebad8b5c1ed7b876c18702923e44b75a53d7f3db4e856eafe6ef756db30'}[str(arg('map_version'))])"/>
   <arg name="route_requester_config_file" default="$(arg repo_root)/base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v$(arg map_version).param.yaml"/>
+  <arg name="_require_v99_requester_config" value="$(eval {True: 'v99-only'}[arg('route_requester_config_file') == arg('repo_root') + '/base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v99.param.yaml'])"/>
   <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
             file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->

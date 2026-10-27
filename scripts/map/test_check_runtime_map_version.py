@@ -87,6 +87,13 @@ class RuntimeMapAuditTest(unittest.TestCase):
         self.assertEqual(self.audit(), [])
         self.assertEqual(checker.VERSION, 99)
 
+    def test_version_lock_negative_fixture_may_name_v98_but_cannot_hide_other_versions(self):
+        path = 'scripts/runtime/test_v99_map_lock.py'
+        self.write(path, 'OLD_MAP = "lanelet2_map_v98.osm"\n')
+        self.assertEqual(self.audit(), [])
+        self.write(path, 'OLD_MAP = "lanelet2_map_v87.osm"\n')
+        self.assert_issue('lanelet2_map_v87')
+
     def test_non_profile_source_still_rejects_non_default_version(self):
         self.write('planning_ws/src/example/loader.cpp', 'map = "lanelet2_map_v87.osm";\n')
         self.assert_issue('lanelet2_map_v87')

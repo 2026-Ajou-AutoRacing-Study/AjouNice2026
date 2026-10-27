@@ -90,8 +90,11 @@
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_version" default="99"/>
+  <!-- Released runtime accepts only v99; reject old explicit overrides at parse time. -->
+  <arg name="_require_v99_map_version" value="$(eval {'99': 'v99-only'}[str(arg('map_version'))])"/>
   <arg name="map_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
+  <arg name="_require_v99_map_file" value="$(eval {True: 'v99-only'}[arg('map_file') == arg('repo_root') + '/kcity_map/lanelet_map/lanelet2_map_v99.osm'])"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="fastbev_checkpoint"
