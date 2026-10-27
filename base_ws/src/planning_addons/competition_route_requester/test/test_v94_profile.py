@@ -79,11 +79,10 @@ class V94ProfileTest(unittest.TestCase):
         self.assertEqual(self.routes['map']['sha256'], V94_SHA)
         self.assertEqual(set(self.manifest['stopline_patch']['changed_node_ids']), STOP_NODES)
 
-    def test_public_and_explicit_requester_select_the_same_v94_contract(self):
+    def test_explicit_v94_preserves_current_operating_policy(self):
         expected = dict(self.base_cfg,
             route_definition_file='kcity_v94_competition_route.yaml')
         self.assertEqual(self.cfg, expected)
-        self.assertEqual(self.base_cfg['route_definition_file'], 'kcity_v94_competition_route.yaml')
 
     def test_all_five_operation_cases_keep_the_released_policy(self):
         for case in policy.CASES:

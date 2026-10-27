@@ -4,7 +4,7 @@ import copy
 import hashlib
 import xml.etree.ElementTree as ET
 
-import pytest
+import unittest
 import yaml
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -40,7 +40,7 @@ def test_manifest_and_map_sha_match_without_publishing_map():
     assert route['projector_file'] == manifest['projector_file']
     path = ROOT / manifest['map_file']
     if not path.exists():
-        pytest.skip('v98 OSM is supplied separately')
+        raise unittest.SkipTest('Provision v98 with scripts/map/prepare_kcity_v98.py')
     assert hashlib.sha256(path.read_bytes()).hexdigest() == SHA
     metadata = next(e for _, e in ET.iterparse(path, events=('start',)) if e.tag == 'MetaInfo')
     assert metadata.get('map_version') == '98'
@@ -59,7 +59,7 @@ def test_v98_mission_and_rule_policy_preserves_v97():
 def test_v98_requested_lanelet_speed_limit():
     path = ROOT / 'kcity_map/lanelet_map/lanelet2_map_v98.osm'
     if not path.exists():
-        pytest.skip('v98 OSM is supplied separately')
+        raise unittest.SkipTest('Provision v98 with scripts/map/prepare_kcity_v98.py')
     relation = next(e for _, e in ET.iterparse(path, events=('end',))
                     if e.tag == 'relation' and e.get('id') == '200968')
     assert {e.get('k'): e.get('v') for e in relation.findall('tag')}['speed_limit'] == '40'
@@ -68,7 +68,7 @@ def test_v98_requested_lanelet_speed_limit():
 def test_v98_only_changes_approved_centerline_and_metadata():
     paths = [ROOT / f'kcity_map/lanelet_map/lanelet2_map_v{v}.osm' for v in (97, 98)]
     if not all(p.exists() for p in paths):
-        pytest.skip('Provision v97 and v98 for full asset comparison')
+        raise unittest.SkipTest('Provision v97 and v98 for full asset comparison')
     old, new = (ET.parse(p).getroot() for p in paths)
     def layer(root, kind):
         return {e.get('id'): ET.tostring(e) for e in root.findall(kind)}
