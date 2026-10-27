@@ -1,6 +1,10 @@
 """Static deployment contracts, not a live-driving or model accuracy test."""
 from pathlib import Path
+import importlib.util
+import os
 import xml.etree.ElementTree as ET
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[5]
@@ -42,7 +46,8 @@ def test_explicit_legacy_model_keeps_its_original_observation_filter_and_route_m
 def test_planning_default_is_compliance_with_explicit_front_axle_and_freshness_not_yellow_period():
     args = arguments(INTEGRATION/'planning.launch')
     assert args['enable_signal_compliance_guard'] == 'true'
-    assert args['enable_yellow_passthrough'] == 'false'
+    # e46797b7 intentionally promoted the decision-line policy to default ON.
+    assert args['enable_yellow_passthrough'] == 'true'
     assert args['signal_compliance_front_axle_offset_m'] == '3.0'
     assert args['traffic_light_state_timeout_sec'] == '1.0'
     params = {node.attrib['name']: node.attrib.get('value')
@@ -72,9 +77,27 @@ def test_integrated_stack_forwards_policy_and_local_or_lan_sensor_settings():
     assert traffic['sensor_config'] == '$(arg sensor_config)'
     assert args['enable_signal_compliance_guard'] == 'true'
     assert planning['enable_signal_compliance_guard'] == '$(arg enable_signal_compliance_guard)'
-    assert args['enable_yellow_passthrough'] == 'false'
+    assert args['enable_yellow_passthrough'] == 'true'
     assert planning['enable_yellow_passthrough'] == '$(arg enable_yellow_passthrough)'
     assert args['traffic_light_debug_image'] == 'false'
     assert traffic['publish_debug_image'] == '$(arg traffic_light_debug_image)'
     assert args['traffic_light_state_timeout_sec'] == '1.0'
     assert planning['traffic_light_state_timeout_sec'] == '$(arg traffic_light_state_timeout_sec)'
+
+
+@pytest.mark.skipif(os.environ.get('AJOUNICE_TEST_LAUNCH_DUMP') != '1',
+                    reason='Set AJOUNICE_TEST_LAUNCH_DUMP=1 for read-only launch resolution')
+@pytest.mark.parametrize('entrypoint', ('planning', 'stack'))
+@pytest.mark.parametrize('override, expected', ((None, True), ('false', False)))
+def test_resolved_yellow_default_on_and_explicit_off_remain_available(entrypoint, override, expected):
+    spec = importlib.util.spec_from_file_location('production_defaults_launch_dump',
+        ROOT / 'scripts/runtime/test_traffic_light_unknown_grace_release.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    flags = ['start_requester:=false']
+    if override is not None:
+        flags.append('enable_yellow_passthrough:=' + override)
+    params = module.launch_dump(entrypoint, flags)
+    prefix = '/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/'
+    assert params[prefix + 'enable_yellow_passthrough'] is expected
+    assert params[prefix + 'enable_signal_compliance_guard'] is True
