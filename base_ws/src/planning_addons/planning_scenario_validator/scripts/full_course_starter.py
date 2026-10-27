@@ -9,7 +9,7 @@ from planning_scenario_validator.authoring import annotated_yaml
 from planning_scenario_validator.traffic_light import DEFAULT_PYTHON
 
 
-ROUTE_SOURCE = 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v88_competition_route.yaml'
+ROUTE_SOURCE = 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v94_competition_route.yaml'
 
 
 def build_full_course(sample, geometry, template, root, package, output, validate):

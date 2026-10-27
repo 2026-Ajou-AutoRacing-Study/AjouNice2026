@@ -25,11 +25,14 @@ class RuntimeMapAuditTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        baseline = b'<osm><MetaInfo map_version="88"/></osm>'
+        baseline = b'<osm><MetaInfo map_version="94"/></osm>'
         sha_patch = patch.object(checker, 'SHA', hashlib.sha256(baseline).hexdigest())
         sha_patch.start()
         self.addCleanup(sha_patch.stop)
-        self.write('kcity_map/lanelet_map/lanelet2_map_v88.osm', baseline)
+        profile_patch = patch.object(checker, 'PROFILE_SHA', checker.SHA)
+        profile_patch.start()
+        self.addCleanup(profile_patch.stop)
+        self.write('kcity_map/lanelet_map/lanelet2_map_v94.osm', baseline)
         self.map_contract = dict(version=94,
             file='kcity_map/lanelet_map/lanelet2_map_v94.osm',
             projector_file='kcity_map/lanelet_map/map_projector_info_v1.yaml',
@@ -59,9 +62,8 @@ class RuntimeMapAuditTest(unittest.TestCase):
         self.write(ENTRY, '<launch><include file="$(find ajounice_planning_integration)/launch/planning.launch">'
             '<arg name="map_version" value="94"/></include></launch>')
 
-    def planning(self, version='88', default_sha=None, profile_sha=None):
-        hashes = {'88': default_sha or checker.SHA,
-                  '94': profile_sha or checker.PROFILE_SHA}
+    def planning(self, version='94', default_sha=None, profile_sha=None):
+        hashes = {'94': default_sha or profile_sha or checker.SHA}
         return ('<launch><arg name="map_version" default="' + version + '"/>'
             '<arg name="map_file" default="$(arg repo_root)/lanelet2_map_v$(arg map_version).osm"/>'
             '<arg name="map_sha256" default="$(eval ' + repr(hashes) + "[str(arg('map_version'))])\"/>"
@@ -81,34 +83,34 @@ class RuntimeMapAuditTest(unittest.TestCase):
             installed = INSTALL + relative.split(ADDONS + '/', 1)[1]
             self.write(installed, (self.root / relative).read_bytes())
 
-    def test_explicit_profile_is_valid_without_optional_drive_osm(self):
+    def test_default_profile_is_valid_with_pinned_v94_osm(self):
         self.assertEqual(self.audit(), [])
-        self.assertEqual(checker.VERSION, 88)
+        self.assertEqual(checker.VERSION, 94)
 
     def test_non_profile_source_still_rejects_non_default_version(self):
         self.write('planning_ws/src/example/loader.cpp', 'map = "lanelet2_map_v87.osm";\n')
         self.assert_issue('lanelet2_map_v87')
 
-    def test_non_profile_runtime_cannot_select_v94_as_default(self):
-        self.write('scripts/runtime/example.py', 'MAP = "lanelet2_map_v94.osm"\n')
-        self.assert_issue('lanelet2_map_v94')
+    def test_non_profile_runtime_cannot_select_v88_as_default(self):
+        self.write('scripts/runtime/example.py', 'MAP = "lanelet2_map_v88.osm"\n')
+        self.assert_issue('lanelet2_map_v88')
 
     def test_profile_test_remains_scanned_for_other_versions(self):
         self.write(checker.PROFILE_TEST, 'MAP = "kcity_v93_competition_route.yaml"\n')
         self.assert_issue('kcity_v93')
 
     def test_dynamic_map_path_cannot_hide_changed_default(self):
-        self.write(PLANNING, self.planning(version='94'))
-        self.assert_issue('map_version default must remain 88')
+        self.write(PLANNING, self.planning(version='88'))
+        self.assert_issue('map_version default must remain 94')
 
     def test_dynamic_map_path_requires_a_local_default(self):
         self.write(PLANNING, '<launch><arg name="map_file" '
             'default="lanelet2_map_v$(arg map_version).osm"/></launch>')
         self.assert_issue('no local map_version default')
 
-    def test_ordinary_include_cannot_force_profile_version(self):
+    def test_ordinary_include_cannot_force_old_version(self):
         self.write(PLANNING, self.planning().replace('</launch>',
-            '<include file="example.launch"><arg name="map_version" value="94"/></include></launch>'))
+            '<include file="example.launch"><arg name="map_version" value="88"/></include></launch>'))
         self.assert_issue('ordinary include overrides map_version')
 
     def test_forwarded_released_map_version_is_valid(self):
@@ -166,7 +168,7 @@ class RuntimeMapAuditTest(unittest.TestCase):
             self.assert_issue('OSM MetaInfo version mismatch')
 
     def test_released_map_hash_guard_remains_mandatory(self):
-        self.write('kcity_map/lanelet_map/lanelet2_map_v88.osm', b'changed')
+        self.write('kcity_map/lanelet_map/lanelet2_map_v94.osm', b'changed')
         self.assert_issue('Map SHA mismatch')
 
     def test_installed_explicit_profile_is_checked_not_rejected_as_default(self):
@@ -198,30 +200,26 @@ class RuntimeMapAuditTest(unittest.TestCase):
         self.assertEqual(self.audit(), [])
 
     def test_exact_preparer_tool_references_are_not_runtime_map_selection(self):
-        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=88\n'
-            '/usr/bin/python3 "$ROOT/scripts/map/prepare_kcity_v94.py"\n')
+        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=94\n'
+            '/usr/bin/python3 "$ROOT/scripts/map/prepare_kcity_v94.py"\n' + checker.RETIRED_REQUESTER_CLEANUP + '\n')
         self.write('scripts/runtime/test_update_competition_runtime.py',
                    'fixture = "scripts/map/prepare_kcity_v94.py"\n')
         self.assertEqual(self.audit(), [])
 
     def test_preparer_exception_does_not_allow_map_reference_on_same_line(self):
-        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=88\n'
-            'TOOL="scripts/map/prepare_kcity_v94.py" MAP="lanelet2_map_v94.osm"\n')
-        self.assert_issue('lanelet2_map_v94')
+        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=94\n'
+            'TOOL="scripts/map/prepare_kcity_v94.py" MAP="lanelet2_map_v88.osm"\n')
+        self.assert_issue('lanelet2_map_v88')
 
-    def test_preparer_exception_is_exact_and_limited_to_the_two_callers(self):
-        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=88\n'
-            'TOOL="scripts/map/prepare_kcity_v94.py_unreviewed"\n')
-        self.assert_issue('kcity_v94')
-        self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=88\n')
+    def test_other_callers_may_prepare_the_default_v94_asset(self):
         self.write('scripts/runtime/other.py', 'TOOL="scripts/map/prepare_kcity_v94.py"\n')
-        self.assert_issue('kcity_v94')
+        self.assertEqual(self.audit(), [])
 
     def test_runtime_update_wrapper_keeps_a_literal_released_default(self):
-        for default in ('94', '"94"', '${MAP_VERSION:-94}'):
+        for default in ('88', '"88"', '${MAP_VERSION:-94}'):
             with self.subTest(default=default):
                 self.write(checker.UPDATE_WRAPPER, 'MAP_VERSION=' + default + '\n')
-                self.assert_issue('wrapper MAP_VERSION default must remain 88')
+                self.assert_issue('wrapper MAP_VERSION default must remain 94')
 
     def workspace_copy(self, *, installed_content=None):
         tail = 'highway/workspace/personal_snapshot.yaml'

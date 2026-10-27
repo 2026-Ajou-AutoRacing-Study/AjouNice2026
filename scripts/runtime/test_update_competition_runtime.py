@@ -66,18 +66,18 @@ def workspace(tmp_path):
     return tmp_path, run
 
 
-def test_default_builds_all_scoped_packages_then_installer_without_preparing_map(workspace):
+def test_default_builds_all_scoped_packages_then_installer_after_preparing_v94_map(workspace):
     root, run = workspace
     result, calls = run('--device', 'cpu', '--models-dir', str(root / 'models with spaces'))
     assert result.returncode == 0, result.stderr
-    assert [call[0] for call in calls] == ['planning'] + ['cmake'] * 7 + ['installer']
-    assert calls[0][1:] == ['--pkg', *PLANNING, '--make-args', '-j2', '-l2']
+    assert [call[0] for call in calls] == ['prepare', 'planning'] + ['cmake'] * 7 + ['installer']
+    assert calls[1][1:] == ['--pkg', *PLANNING, '--make-args', '-j2', '-l2']
     assert calls[-1][1:] == ['--device', 'cpu', '--models-dir', str(root / 'models with spaces')]
-    for call, relative in zip(calls[1:-1], ASSETS):
+    for call, relative in zip(calls[2:-1], ASSETS):
         assert call[1:] == ['--build', str(root / 'base_ws/build_aw149' / relative.rsplit('/', 1)[-1]),
                             '--target', 'install', '--', '-j2']
     for name in ('planning', 'traffic', 'tracking'):
-        assert f'{name} map_version:=88' in result.stdout
+        assert f'{name} map_version:=94' in result.stdout
 
 
 @pytest.mark.parametrize('remote,expected', [(None, []), ('teammate_private', ['--remote', 'teammate_private'])])
@@ -99,8 +99,8 @@ def test_missing_any_asset_cache_uses_one_scoped_catkin_fallback(workspace):
     (root / 'base_ws/build_aw149/bringup/CMakeCache.txt').unlink()
     result, calls = run()
     assert result.returncode == 0, result.stderr
-    assert [call[0] for call in calls] == ['planning', 'catkin_make_isolated', 'installer']
-    fallback = calls[1]
+    assert [call[0] for call in calls] == ['prepare', 'planning', 'catkin_make_isolated', 'installer']
+    fallback = calls[2]
     start = fallback.index('--pkg') + 1
     assert fallback[start:start + 7] == [relative.rsplit('/', 1)[-1] for relative in ASSETS]
     assert fallback[-3:] == ['--make-args', '-j2', '-l2']
@@ -108,7 +108,7 @@ def test_missing_any_asset_cache_uses_one_scoped_catkin_fallback(workspace):
 
 @pytest.mark.parametrize('arguments', [
     ['--check'], ['--models-only'], ['--skip-build'], ['--unknown'],
-    ['--map-version', '87'], ['--map-version'], ['--device', 'oops'],
+    ['--map-version', '87'], ['--map-version', '88'], ['--map-version'], ['--device', 'oops'],
     ['--archive', '--device', 'cpu'], ['--map-remote', 'name:path'],
 ])
 def test_invalid_or_partial_options_fail_before_any_action(workspace, arguments):

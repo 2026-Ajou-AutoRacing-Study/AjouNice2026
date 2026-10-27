@@ -11,7 +11,7 @@ from planning_scenario_validator.config import ROOT, load_campaign, resolve_path
 from planning_scenario_validator.executions import prepare_execution, load_execution
 from planning_scenario_validator.route_profile import normalize, ProfileGeometry, preferred_primitives, apply_and_verify
 
-DEFINITION = ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v88_competition_route.yaml'
+DEFINITION = ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v94_competition_route.yaml'
 SOURCE = ROOT / 'base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/example.yaml'
 
 

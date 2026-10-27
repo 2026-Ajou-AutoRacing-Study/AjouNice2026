@@ -10,9 +10,9 @@ if __name__ == '__main__':
     rospy.init_node('map_projector_publisher')
     root = Path(rospy.get_param('~repo_root'))
     map_path = Path(rospy.get_param(
-        '~map_file', str(root/'kcity_map/lanelet_map/lanelet2_map_v88.osm')))
+        '~map_file', str(root/'kcity_map/lanelet_map/lanelet2_map_v94.osm')))
     map_sha = rospy.get_param(
-        '~map_sha256', 'dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37')
+        '~map_sha256', '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf')
     path = root/'kcity_map/lanelet_map/map_projector_info_v1.yaml'
     if hashlib.sha256(map_path.read_bytes()).hexdigest() != map_sha:
         raise ValueError('unreviewed map SHA; update the route/map contract first')

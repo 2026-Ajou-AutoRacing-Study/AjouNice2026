@@ -51,7 +51,7 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 
 | 항목 | 현재 계약 |
 |---|---|
-| Map | `kcity_map/lanelet_map/lanelet2_map_v88.osm` 기본. `map_version:=94`로 명시 선택 가능하며 실제 `map_file` override·설치본도 확인 |
+| Map | `kcity_map/lanelet_map/lanelet2_map_v94.osm` 소스 기본. planning·공용 리퀘스터도 v94이며 실제 `map_file` override·설치본도 확인 |
 | Horizon | **로터리/일반 최대 3초·고주로 최대 10초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
 | Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
 | 경로 | start lanelet 최대 3개, 최종 path 최대 6개, centerline lateral convergence 1.5s |

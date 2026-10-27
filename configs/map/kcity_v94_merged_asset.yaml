@@ -1,6 +1,6 @@
 schema_version: 1
 map_version: 94
-status: merged_team_asset_not_runtime_default
+status: source_runtime_default
 map_file: kcity_map/lanelet_map/lanelet2_map_v94.osm
 map_sha256: 3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf
 map_md5: ce5047b8abc12f5f26a68a42b6e49a50
@@ -46,7 +46,8 @@ drive_file_id: 1xYkuxl-hTyXbBhOx10PROBzLHj1HaBhv
 required_remote_for_followup: ajou_drive_private
 public_client_fallback_allowed: false
 dedicated_remote_state: authenticated_and_read_verified
-runtime_defaults_changed: false
+runtime_defaults_changed: true
+runtime_default_scope: source_only_install_and_restart_required
 live_closed_loop_validation_after_merge: focused_A_pass_not_full_stack_certification
 focused_live_validation:
   execution_id: traffic_light_compliance_A_map_candidate_261026_233610

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit released map defaults and separately pinned, explicit map profiles."""
+"""Audit v94 runtime defaults and the pinned requester/map contract."""
 import argparse
 import ast
 import hashlib
@@ -12,8 +12,8 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = 88
-SHA = 'dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37'
+VERSION = 94
+SHA = '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'
 PROFILE_VERSION = 94
 PROFILE_SHA = '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'
 SOURCE_ROOTS = ('base_ws/src', 'planning_ws/src', 'configs', 'scripts/runtime')
@@ -22,6 +22,11 @@ INSTALL_ROOTS = ('base_ws/install_aw149', 'base_ws/install_planning_addons',
 PROFILE_TEST = ('base_ws/src/planning_addons/competition_route_requester/'
                 'test/test_v94_profile.py')
 UPDATE_WRAPPER = 'scripts/runtime/update_competition_runtime.sh'
+# Exact retired install paths are deletion targets, never runtime consumers.
+RETIRED_REQUESTER_CLEANUP = (
+    'for retired in competition_route_requester/config/competition_route_requester_v88.param.yaml '
+    'competition_route_requester/config/kcity_v88_competition_route.yaml '
+    'ajounice_planning_integration/launch/competition_planning_v88.launch; do')
 PROFILE_PREPARER_REFERENCES = {UPDATE_WRAPPER, 'scripts/runtime/test_update_competition_runtime.py'}
 PROFILE_PREPARER = re.compile(r'(?<![\w])prepare_kcity_v94\.py(?![\w.])')
 VALIDATOR_MISSIONS = ('base_ws/src/planning_addons/planning_scenario_validator/'
@@ -43,7 +48,7 @@ def read_yaml(path):
 
 
 def check_profile(root, installed=False):
-    """Do not mistake opt-in assets for defaults, or skip their own contract."""
+    """Validate the v94 manifest, requester configuration and explicit entrypoint."""
     issues = []
     manifest_path = root / 'configs/map/kcity_v94_merged_asset.yaml'
     try:
@@ -88,8 +93,8 @@ def check_profile(root, installed=False):
         except (OSError, ValueError, yaml.YAMLError, ET.ParseError) as error:
             issues.append(f'{label} v94 profile: {error}')
     asset = root / expected['file']
-    # v94 is distributed through team Drive, not a prerequisite for checking a
-    # fresh checkout. If provisioned, its bytes and embedded version must agree.
+    # v94 is distributed through team Drive. Verify metadata when present;
+    # check_runtime also requires the default asset and verifies its SHA.
     if asset.is_file():
         if digest(asset) != PROFILE_SHA:
             issues.append('explicit v94 map SHA mismatch')
@@ -195,6 +200,10 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
                     ('tracking_prediction_evaluation' in path.parts and path.suffix != '.launch')):
                 continue
             relative = str(path.relative_to(root))
+            # The manifest's runtime contract was checked above; its base-map
+            # and stop-line provenance deliberately names historical assets.
+            if relative == 'configs/map/kcity_v94_merged_asset.yaml':
+                continue
             if '/install' not in str(path) and relative not in source_files:
                 continue
             if path.parent == root / 'configs/map' and path.name.endswith('_stopline_candidate.yaml'):
@@ -218,11 +227,13 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
                 definitions = re.findall(r'^MAP_VERSION=(.*)$', content, flags=re.MULTILINE)
                 if len(definitions) != 1 or definitions[0].strip().strip('\'"') != str(VERSION):
                     issues.append(f'{relative}: wrapper MAP_VERSION default must remain {VERSION}')
-            # This one profile test intentionally compares v88 against v94.
+            # This one asset test intentionally compares historical v88 against v94.
             # Continue scanning it: any other version is still an error.
-            allowed = {VERSION, PROFILE_VERSION} if relative == PROFILE_TEST else {VERSION}
+            allowed = {88, VERSION} if relative == PROFILE_TEST else {VERSION}
             for line_number, line in enumerate(content.splitlines(), 1):
                 if line.lstrip().startswith('#'):
+                    continue
+                if relative == UPDATE_WRAPPER and line.strip() == RETIRED_REQUESTER_CLEANUP:
                     continue
                 for match in VERSION_REF.finditer(line):
                     count += 1
