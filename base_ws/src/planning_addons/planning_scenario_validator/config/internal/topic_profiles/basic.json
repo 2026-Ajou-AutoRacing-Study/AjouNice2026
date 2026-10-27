@@ -41,5 +41,12 @@
   "/tf",
   "/tf_static",
   "/diagnostics",
-  "/rosout"
+  "/rosout",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/state_trace",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/ego_ttc",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/object_ttc",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout",
+  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout",
+  "/planning/planning_factors/roundabout"
 ]

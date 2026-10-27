@@ -109,6 +109,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   odometry->twist.twist.linear.x = 30.0;
   data->self_odometry_ptr = odometry;
   auto & p = data->lc_param_ptr->trajectory;
+  p.allow_decelerating_lane_change = true;
   p.min_prepare_duration = 0;
   p.lon_acc_sampling_num = 20;
   p.min_longitudinal_acc = -8;
@@ -148,6 +149,48 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
       EXPECT_NEAR(metric.length, 30 * metric.duration + 0.5 * requested * metric.duration * metric.duration, epsilon);
     }
   }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, DeceleratingLaneChangeToggleKeepsPreparationBraking)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change::calculation;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->twist.twist.linear.x = 20.0;
+  data->self_odometry_ptr = odometry;
+  auto & p = data->lc_param_ptr->trajectory;
+  EXPECT_FALSE(p.allow_decelerating_lane_change);
+  p.min_prepare_duration = 0.0;
+  p.prepare_duration_samples = {0.0, 2.0};
+  p.min_longitudinal_acc = -6.0;
+  p.max_longitudinal_acc = 3.7;
+  p.min_lane_changing_velocity = 2.78;
+  p.lon_acc_sampling_num = 10;
+  p.lat_acc_map.add(0.0, 1.0, 1.0);
+  p.lat_acc_sampling_num = 1;
+  p.lateral_jerk = 5.0;
+  data->bpp_param_ptr->min_acc = -6.0;
+  data->bpp_param_ptr->max_acc = 3.7;
+  data->bpp_param_ptr->max_vel = 40.0;
+
+  const auto preparation = calc_prepare_phase_metrics(data, 20.0, 40.0);
+  EXPECT_TRUE(std::any_of(preparation.begin(), preparation.end(), [](const auto & m) {
+    return m.duration > 0.0 && m.actual_lon_accel < 0.0 && m.velocity < 20.0;
+  }));
+  EXPECT_TRUE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0).empty());
+  EXPECT_FALSE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, 0.0, 1000.0).empty());
+  EXPECT_FALSE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, 2.0, 1000.0).empty());
+
+  p.allow_decelerating_lane_change = true;
+  const auto braking = calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0);
+  ASSERT_FALSE(braking.empty());
+  EXPECT_DOUBLE_EQ(braking.front().actual_lon_accel, -2.0);
+  EXPECT_LT(braking.front().velocity, 20.0);
+  p.allow_decelerating_lane_change = false;
+  EXPECT_TRUE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0).empty());
 }
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CoastingAndGentleBrakingPrecedeRecordedTenKmhCandidate)

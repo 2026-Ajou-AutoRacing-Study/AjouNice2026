@@ -32,5 +32,5 @@ trajectory_checker/trajectory_shift/enable: true
 trajectory_checker/trajectory_shift/lat_shift_th: 0.5
 trajectory_checker/trajectory_shift/forward_shift_th: 1.0
 trajectory_checker/trajectory_shift/backward_shift_th: 0.1
-trajectory_checker/trajectory_shift/handling_type: 2
+trajectory_checker/trajectory_shift/handling_type: 1
 trajectory_checker/trajectory_shift/override_error_diag: false

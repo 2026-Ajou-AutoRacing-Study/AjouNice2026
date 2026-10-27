@@ -368,6 +368,12 @@ void EBPathSmoother::updateConstraint(
         //       The front point is previous optimized one, and the others are the input ones.
         return p.clearance_for_fix;
       }
+      if (!is_goal_contained && static_cast<int>(i) >= std::max(0, pad_start_idx - 3)) {
+        // The optimized prefix is extended with the input path. Anchor its last
+        // three samples to that path so the join retains the input position,
+        // heading and discrete curvature instead of a free optimization edge.
+        return p.clearance_for_fix;
+      }
       if (is_goal_contained) {
         // NOTE: fix goal and its previous pose to keep goal orientation
         if (p.num_points - 2 <= static_cast<int>(i) || pad_start_idx - 2 <= static_cast<int>(i)) {

@@ -559,9 +559,28 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
 
   // 2. make trajectory kinematically-feasible and collision-free (= inside the drivable area)
   //    with model predictive trajectory
-  const auto mpt_traj = p.obstacles.empty()
+  const auto history_before_optimization = mpt_optimizer_ptr_->history();
+  const auto optimization_started = std::chrono::steady_clock::now();
+  auto mpt_traj = p.obstacles.empty()
     ? mpt_optimizer_ptr_->optimizeTrajectory(planner_data)
     : optimizeObstacleCandidates(planner_data);
+  // A terminal match can be infeasible in the short nominal window. Solve a
+  // longer window instead of bridging back to the input outside the QP.
+  if (!mpt_traj && p.obstacles.empty()) {
+    const double base_length =
+      mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength();
+    for (double forward = base_length + 10.0;
+         forward <= obstacle_max_forward_length_ + 1e-6; forward += 10.0) {
+      const double elapsed_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - optimization_started).count();
+      if (elapsed_ms >= obstacle_search_time_budget_ms_) break;
+      auto longer = planner_data;
+      longer.optimization_forward_length = forward;
+      mpt_optimizer_ptr_->restoreHistory(history_before_optimization);
+      mpt_traj = mpt_optimizer_ptr_->optimizeTrajectory(longer);
+      if (mpt_traj) break;
+    }
+  }
 
   is_optimization_failed_ = !static_cast<bool>(mpt_traj);
   if (mpt_traj) {
@@ -942,13 +961,16 @@ std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
   const size_t joint_start_traj_seg_idx =
     trajectory_utils::findEgoSegmentIndex(traj_points, joint_start_pose, ego_nearest_param_);
 
-  // crop trajectory for extension
-  constexpr double joint_traj_max_length_for_smoothing = 15.0;
-  constexpr double joint_traj_min_length_for_smoothing = 5.0;
-  const auto joint_end_traj_point_idx = trajectory_utils::getPointIndexAfter(
-    traj_points, joint_start_pose.position, joint_start_traj_seg_idx,
-    joint_traj_max_length_for_smoothing, joint_traj_min_length_for_smoothing);
-  if (!joint_end_traj_point_idx) {
+  // The MPT terminal samples match the input path. Retain every following
+  // input sample; a 5--15 m gap discards road curvature and makes resampling
+  // concentrate the missing turn at the far end of the join.
+  size_t joint_end_traj_point_idx = joint_start_traj_seg_idx + 1;
+  while (joint_end_traj_point_idx < traj_points.size() &&
+         autoware_utils::calc_distance2d(
+           traj_points.at(joint_end_traj_point_idx), joint_start_pose) < 1e-4) {
+    ++joint_end_traj_point_idx;
+  }
+  if (joint_end_traj_point_idx >= traj_points.size()) {
     return trajectory_utils::resampleTrajectoryPoints(
       optimized_traj_points, traj_param_.output_delta_arc_length, true);
   }
@@ -956,7 +978,7 @@ std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
   // calculate full trajectory points
   const auto full_traj_points = [&]() {
     auto extended_traj_points = std::vector<TrajectoryPoint>{
-      traj_points.begin() + *joint_end_traj_point_idx, traj_points.end()};
+      traj_points.begin() + joint_end_traj_point_idx, traj_points.end()};
 
     if (!extended_traj_points.empty() && !optimized_traj_points.empty()) {
       // NOTE: Without this code, if optimized_traj_points's back is non zero velocity and
@@ -974,7 +996,7 @@ std::vector<TrajectoryPoint> PathOptimizer::extendTrajectory(
     full_traj_points, traj_param_.output_delta_arc_length, true);
 
   // update stop velocity on joint
-  for (size_t i = joint_start_traj_seg_idx + 1; i <= *joint_end_traj_point_idx; ++i) {
+  for (size_t i = joint_start_traj_seg_idx + 1; i <= joint_end_traj_point_idx; ++i) {
     if (hasZeroVelocity(traj_points.at(i))) {
       if (i != 0 && !hasZeroVelocity(traj_points.at(i - 1))) {
         // Here is when current point is 0 velocity, but previous point is not 0 velocity.

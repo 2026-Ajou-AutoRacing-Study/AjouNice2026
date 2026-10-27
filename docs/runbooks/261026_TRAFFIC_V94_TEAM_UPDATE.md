@@ -1,15 +1,15 @@
 # 신호등 움찔 보완·명시적 v94 팀 적용
 
 기준: 2026-10-26. 기존 ROS1 workspace·NVIDIA 환경이 있는 팀 PC용이다.
-일반 `planning`·`traffic`·`tracking`의 지도 기본은 팀 최신 **v88**을 유지한다.
-v94는 v88 도로/속도/Route A/B를 보존하고 검증한 정지선8개 node만 옮긴 선택 profile이다.
+2026-10-27 기본값 통일: 일반 `planning`·`traffic`·`tracking`과 공용 리퀘스터의 소스 기본은 **v94**다. v88 리퀘스터·경로 정의·전용 planning launch는 제거했다.
+v94는 v88 도로/속도/Route A/B를 보존하고 검증한 정지선8개 node만 옮긴 기본 profile이다.
 
 ## 정차하고 스택 종료 후 업데이트
 
 ```bash
 cd ~/AjouNice2026
 git pull --ff-only origin planning/autoware-universe-to-ros1
-bash scripts/runtime/update_competition_runtime.sh --map-version 94
+bash scripts/runtime/update_competition_runtime.sh
 ```
 
 업데이트 스크립트는 노드·주행을 시작하지 않고, C++ 의존 모듈과 base 설치본·신호등 모델/환경을 맞춘다.
@@ -28,16 +28,16 @@ luv PC의 기본은 `ajou_drive_private`이며 인증 실패 시 reconnect한다
 기존 canonical 노드를 동시에 두 벌 띄우지 않는다. 최신 공용 alias가 준비된 셸 기준:
 
 ```bash
-planning map_version:=94
-traffic map_version:=94
-tracking map_version:=94
+planning
+traffic
+tracking
 ```
 
 `planning` alias가 없는 경우에는 source 후
 `roslaunch ajounice_planning_integration competition_planning_v94.launch`가 같은 지도 profile을 선택한다.
 통합 `morai_planning_stack.launch` 사용자는 `map_version:=94` 한 번으로 planning·신호등·Map-CV에
-같은 지도를 전달한다. 이 변경이 controller 시작 기본값이나 `/Ego_topic` 사용 여부를 바꾸지는 않는다.
-Validator는 기존 v88 경로 그대로이며 이 명령으로 과거 실행 snapshot이나 개인 YAML을 수정하지 않는다.
+같은 지도를 전달한다. 생략해도 기본은94다. 이 변경이 controller 시작 기본값이나 `/Ego_topic` 사용 여부를 바꾸지는 않는다.
+기존 Validator 개인 캠페인 설정은 그대로이며 이 명령으로 과거 실행 snapshot이나 개인 YAML을 수정하지 않는다.
 
 ## 무엇을 막았나
 
@@ -45,6 +45,8 @@ Validator는 기존 v88 경로 그대로이며 이 명령으로 과거 실행 sn
 - map94·Route A/B88 혼합: requester가 출발 요청을 거부한다. v94 profile은 두 값을 함께 선택한다.
 - planning94·신호등/Map-CV88 혼합: 같은 version 인자/공유 map_file을 사용한다.
 - `git pull`만 하고 설치본이 옛날인 상태: updater가 관련 C++·Python·launch/config를 설치한다.
+
+기본값 통일은 소스 변경이다. 아래 과거 설치·주행 기록은 이번 변경의 재설치·실주행 검증을 뜻하지 않는다.
 
 ## 신호등 정책과 검증 경계
 

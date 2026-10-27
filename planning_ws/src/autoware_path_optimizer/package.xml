@@ -38,4 +38,5 @@
   <exec_depend>autoware_global_parameter_loader</exec_depend>
 
   <test_depend>rostest</test_depend>
+  <test_depend>rospy</test_depend>
 </package>

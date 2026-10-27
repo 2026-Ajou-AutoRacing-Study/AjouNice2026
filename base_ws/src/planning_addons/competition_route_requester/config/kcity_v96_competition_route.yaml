@@ -1,11 +1,11 @@
-# K-City v88 preferred corridor: 200360 -> 201479 -> 201451.
+# K-City v96: v88 route contract, local 200311 centerline repair. Preferred corridor: 200360 -> 201479 -> 201451.
 schema_version: 1
 frame_id: map
 map:
-  version: 88
-  file: kcity_map/lanelet_map/lanelet2_map_v88.osm
+  version: 96
+  file: kcity_map/lanelet_map/lanelet2_map_v96.osm
   projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
-  sha256: dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37
+  sha256: 98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd
 start:
   source: 2026 competition official START / END
   morai_map_pose:

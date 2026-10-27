@@ -53,3 +53,6 @@ traffic/validator/integration 증분 설치가 필요하며, 이미 켜진 스�
 이는 7/4의 R/Y 전환 지연을 도입하지 않는 대신 제한적으로 택한 공백 완화다.
 최신 planning 지도·팀4090·LAN·BEVFusion 동시 부하·공식 신호 패널티까지 인증한 것은 아니다.
 과거 날짜별 증거와 현재 운영 설정·설치 receipt를 구분한다.
+이번 PR에는 최신 planning 변경을 통합하며 운영 지도 기본은 v96이다. v88 시험은 통합 전
+`6e663eea`까지의 코드·동결 설정·receipt에 대응한다. 최신 코드에서 `--map-file`만 v88로
+바꾸면 route/mission 기본은 v96으로 남을 수 있어 그 명령만으로 역사 시험을 재현하지 않는다.

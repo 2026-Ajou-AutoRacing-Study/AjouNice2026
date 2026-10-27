@@ -1,5 +1,5 @@
 <launch>
-  <!-- Explicit v94 profile; ordinary planning still defaults to v88.
+  <!-- v94 profile; ordinary planning uses the same map and requester.
        The v88 road/Route A/B policy is preserved; reviewed stop lines differ. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="enable_traffic_light_planner" default="true"/>

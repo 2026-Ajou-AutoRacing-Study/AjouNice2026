@@ -1,0 +1,36 @@
+schema_version: 1
+map_version: 96
+status: source_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v96.osm
+map_sha256: 98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd
+map_md5: 7e59fd408b03341c526d4a8706408eb3
+size_bytes: 31908471
+source:
+  map_file: kcity_map/lanelet_map/lanelet2_map_v95.osm
+  sha256: a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e
+  origin: existing_local_asset
+  drive_verified: false
+scope: GPS shadow straight corridor, both lanelets
+speed_limit_changes_kph:
+  200374: {before: 59, after: 40}
+  200471: {before: 59, after: 40}
+geometry_and_topology_identical_to_source: true
+other_attributes_identical_except_map_version: true
+node_count: 151258
+way_count: 4177
+relation_count: 1373
+lanelet_count: 1295
+duplicate_ids: 0
+dangling_references: 0
+validation: parsed XML and exact element comparison against v95
+receipt: planner_logs/analysis/map_v96_shadow_speed/receipt.json
+runtime_defaults_changed: true
+runtime_install_or_restart_performed: false
+live_validation: not_run
+drive_uploaded: false
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+map_storage: separately_distributed_asset
+git_map_publication: excluded
+provision_command: python3 scripts/map/prepare_kcity_v96.py --source /path/to/lanelet2_map_v96.osm
+verification_command: python3 scripts/map/prepare_kcity_v96.py --check
+runtime_adoption: source_only_install_and_restart_required

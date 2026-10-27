@@ -33,6 +33,7 @@ if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   add_rostest_gtest(test_eb_history_reset test/eb_history_reset.test test/test_eb_history_reset.cpp)
   target_link_libraries(test_eb_history_reset ${PROJECT_NAME} ${catkin_LIBRARIES})
+  add_rostest(test/path_extension.test)
 endif()
 
 install(TARGETS ${PROJECT_NAME} elastic_band_smoother_node

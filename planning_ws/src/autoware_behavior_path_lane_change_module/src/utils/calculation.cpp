@@ -673,6 +673,8 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
     const double lane_changing_accel = calc_lane_changing_acceleration(
       common_data_ptr, initial_velocity, max_path_velocity, lane_changing_duration, lon_accel);
     if (!std::isfinite(lane_changing_accel)) continue;
+    if (!common_data_ptr->lc_param_ptr->trajectory.allow_decelerating_lane_change &&
+        lane_changing_accel < -1e-6) continue;
 
     const auto lane_changing_length = calculation::calc_phase_length(
       initial_velocity, max_vel, lane_changing_accel, lane_changing_duration);

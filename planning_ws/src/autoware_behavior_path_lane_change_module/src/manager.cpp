@@ -99,6 +99,8 @@ LCParamPtr LaneChangeModuleManager::set_params(ros::NodeHandle * node, const std
   }
 
   node->param("lane_change/trajectory/compact_sampling", p.trajectory.compact_sampling, false);
+  node->param("lane_change/trajectory/allow_decelerating_lane_change",
+              p.trajectory.allow_decelerating_lane_change, false);
   node->getParam("lane_change/trajectory/lateral_acceleration_samples",
                  p.trajectory.lateral_acceleration_samples);
   for (const double value : p.trajectory.lateral_acceleration_samples) {
@@ -457,6 +459,8 @@ void LaneChangeModuleManager::updateModuleParams(const std::vector<rclcpp::Param
 
   {
     const std::string ns = "lane_change.trajectory.";
+    update_param<bool>(parameters, ns + "allow_decelerating_lane_change",
+      p->trajectory.allow_decelerating_lane_change);
     update_param<double>(
       parameters, ns + "max_prepare_duration", p->trajectory.max_prepare_duration);
     update_param<double>(

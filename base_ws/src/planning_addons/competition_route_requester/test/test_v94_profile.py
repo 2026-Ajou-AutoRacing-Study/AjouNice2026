@@ -59,7 +59,6 @@ class V94ProfileTest(unittest.TestCase):
     def setUpClass(cls):
         cls.base_cfg = yaml.safe_load((CONFIG / 'competition_route_requester.param.yaml').read_text())
         cls.cfg = yaml.safe_load((CONFIG / 'competition_route_requester_v94.param.yaml').read_text())
-        cls.base_routes = yaml.safe_load((CONFIG / 'kcity_v88_competition_route.yaml').read_text())
         cls.routes = yaml.safe_load((CONFIG / 'kcity_v94_competition_route.yaml').read_text())
         cls.manifest = yaml.safe_load(MANIFEST.read_text())
 
@@ -78,30 +77,17 @@ class V94ProfileTest(unittest.TestCase):
         })
         self.assertEqual(self.routes['map']['version'], 94)
         self.assertEqual(self.routes['map']['sha256'], V94_SHA)
-        self.assertEqual(self.base_routes['map']['sha256'], self.manifest['teammate_base']['sha256'])
         self.assertEqual(set(self.manifest['stopline_patch']['changed_node_ids']), STOP_NODES)
 
-    def test_route_poses_ids_uuid_and_transition_rules_are_unchanged(self):
-        expected = copy.deepcopy(self.base_routes)
-        expected['map'].update(version=94,
-            file='kcity_map/lanelet_map/lanelet2_map_v94.osm', sha256=V94_SHA)
-        self.assertEqual(self.routes, expected)
-
-    def test_only_requester_route_definition_selection_changes(self):
+    def test_public_and_explicit_requester_select_the_same_v94_contract(self):
         expected = dict(self.base_cfg,
             route_definition_file='kcity_v94_competition_route.yaml')
         self.assertEqual(self.cfg, expected)
-        self.assertEqual(self.base_cfg['route_definition_file'], 'kcity_v88_competition_route.yaml')
+        self.assertEqual(self.base_cfg['route_definition_file'], 'kcity_v94_competition_route.yaml')
 
     def test_all_five_operation_cases_keep_the_released_policy(self):
         for case in policy.CASES:
             policy.validate(dict(self.cfg, route_operation_case=case), self.routes)
-            for active in (None, 'route_a', 'route_b', 'fallback_route'):
-                for lane, arc in ((200889, 0), (200258, 0), (200258, 8),
-                                  (201439, 43.191875), (200360, 8)):
-                    self.assertEqual(
-                        policy.next_normal(case, active, lane, arc, self.routes),
-                        policy.next_normal(case, active, lane, arc, self.base_routes))
             for key in ('route_a', 'route_b', 'fallback_route'):
                 definition = self.routes[key]
                 goal = self.routes['poses'][definition['goal_ref']]
@@ -112,7 +98,7 @@ class V94ProfileTest(unittest.TestCase):
     def test_provisioned_asset_sha_and_only_eight_stop_nodes_and_version_change(self):
         path = self.require_asset()
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), V94_SHA)
-        base = REPO / self.base_routes['map']['file']
+        base = REPO / 'kcity_map/lanelet_map/lanelet2_map_v88.osm'
         self.assertEqual(hashlib.sha256(base.read_bytes()).hexdigest(),
                          self.manifest['teammate_base']['sha256'])
         changed_nodes = set()

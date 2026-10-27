@@ -137,6 +137,8 @@ struct TrajectoryParameters
   int lat_acc_sampling_num{10};
   LateralAccelerationMap lat_acc_map{};
   bool compact_sampling{false};
+  // Candidate policy only: preparation and safety braking remain permitted.
+  bool allow_decelerating_lane_change{false};
   std::vector<double> prepare_duration_samples{};
   std::vector<double> lateral_acceleration_samples{};
 };
