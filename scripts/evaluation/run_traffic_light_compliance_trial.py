@@ -367,6 +367,8 @@ def main():
                         help='Explicit stopped-yellow stress durations, for example 2,3; not an operating-time assumption')
     parser.add_argument('--trigger-front-distance-m', type=float, default=8.,
                         help='Real moving-native-yellow trigger distance from front axle to finite stopline')
+    parser.add_argument('--trigger-distance-basis', choices=('finite_front', 'planner_target'), default='finite_front')
+    parser.add_argument('--moving-red-hold-sec', type=float, default=3.)
     parser.add_argument('--planner-fixture', choices=FIXTURE_MODES,
                         help='Explicit synthetic planner-only input; no native SET or perception qualification')
     parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
@@ -406,6 +408,8 @@ def main():
     if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
         parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
     moving_native = args.experiment == 'moving-native-yellow'
+    if not math.isfinite(args.moving_red_hold_sec) or not 1 <= args.moving_red_hold_sec <= 20:
+        parser.error('Moving red hold must be within 1..20 seconds')
     if moving_native and (args.yellow_durations_sec not in ((1.,), (2.,), (3.,)) or
                           not 1. <= args.trigger_front_distance_m <= 60.):
         parser.error('Moving native trial requires one --yellow-durations-sec 1|2|3 and trigger distance 1..60m')
@@ -506,6 +510,8 @@ def main():
         synthetic_canonical_signal_proxy=proxy,
         observation_start_depth_m=args.observation_start_depth_m,
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
+        trigger_distance_basis=getattr(args, 'trigger_distance_basis', 'finite_front'),
+        moving_red_hold_sec=getattr(args, 'moving_red_hold_sec', 3.),
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
         required_green_observations=args.required_green_observations,
@@ -848,6 +854,8 @@ def main():
                         ','.join(format(value, 'g') for value in args.yellow_durations_sec)))
                 if moving_native:
                     phase_command.extend(('--trigger-front-distance-m', str(args.trigger_front_distance_m)))
+                    phase_command.extend(('--trigger-distance-basis', getattr(args, 'trigger_distance_basis', 'finite_front'),
+                        '--moving-red-hold-sec', str(getattr(args, 'moving_red_hold_sec', 3.))))
                 start('phase_controller', phase_command)
             def watch():
                 while not done.wait(.2):

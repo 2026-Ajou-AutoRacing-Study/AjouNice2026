@@ -22,6 +22,21 @@ def inputs(now=10., ros_ns=10000000000, gear=4, x=6., y=0., speed=0., yaw=0.):
     return latest
 
 
+def test_planner_target_probe_can_trigger_on_curves_but_not_stale_or_wrong_mission():
+    latest = inputs(speed=10., yaw=math.pi/2)
+    latest['signal'] = dict(receipt_monotonic=10., source_stamp_ns=10000000000, authorized=True)
+    latest['planner'] = dict(receipt_monotonic=10., source_stamp_ns=10000000000,
+        value={'group_id': 201351, 'target_m': 24.})
+    group = dict(GROUP, group_id=201351)
+    assert not trial.moving_trigger_gate(latest, group, 10., 10000000000, 25.)['ready']
+    assert trial.moving_trigger_gate(latest, group, 10., 10000000000, 25., distance_basis='planner_target')['ready']
+    latest['planner']['value']['group_id'] = 201365
+    assert not trial.moving_trigger_gate(latest, group, 10., 10000000000, 25., distance_basis='planner_target')['ready']
+    latest['planner']['value']['group_id'] = 201351
+    latest['planner']['receipt_monotonic'] = 9.
+    assert not trial.moving_trigger_gate(latest, group, 10., 10000000000, 25., distance_basis='planner_target')['ready']
+
+
 def test_only_four_explicit_mission_groups_can_receive_override_programs():
     assert trial.parse_group('A') == trial.parse_group('201351') == 201351
     assert trial.parse_group('B') == trial.parse_group('201365') == 201365

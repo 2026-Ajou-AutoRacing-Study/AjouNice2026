@@ -180,11 +180,25 @@ class TerminalCrossingRelease:
         return self.crossing is not None and finite(now) - self.crossing['observed_monotonic'] >= self.tail_sec
 
 
-def moving_trigger_gate(latest, group, now, ros_ns, trigger_distance_m, offset=3.):
+def moving_trigger_gate(latest, group, now, ros_ns, trigger_distance_m, offset=3.,
+                        distance_basis='finite_front'):
     fresh, reason = fresh_inputs(latest, now, ros_ns)
     if not fresh:
         raise TrialError('Moving trial input invalid: '+reason)
     geometry = moving_front_geometry(latest['odom'], group, offset)
+    if distance_basis == 'planner_target':
+        row = latest.get('planner', {})
+        value = row.get('value') or {}
+        distance = value.get('target_m')
+        age = now-row.get('receipt_monotonic', -1e30)
+        source = row.get('source_stamp_ns')
+        source_age = (ros_ns-source)/1e9 if type(source) is int and source > 0 else float('inf')
+        valid = (value.get('group_id') == group['group_id'] and
+                 type(distance) in (int, float) and math.isfinite(distance) and
+                 0 <= age <= .3 and 0 <= source_age <= .3)
+        geometry = dict(ready=valid, front_distance_m=distance if valid else None,
+                        distance_basis='planner_bumper_stop_target_not_front_axle_line',
+                        reason='current_planner_target' if valid else 'planner_target_missing_or_stale')
     speed = finite(latest['odom']['velocity_xyz'][0])
     signal_row = latest.get('signal', {})
     signal_age = now-signal_row.get('receipt_monotonic', -1e30)
@@ -440,6 +454,12 @@ def run(args):
     group = next(row for row in groups if row['group_id'] == group_id)
     stages = experiment_stages(group_id, args.experiment, getattr(args, 'yellow_durations_sec', None))
     moving_native = args.experiment == 'moving-native-yellow'
+    moving_red_hold = finite(getattr(args, 'moving_red_hold_sec', 3.))
+    if not 1 <= moving_red_hold <= 20:
+        raise ValueError('Moving red hold must be within 1..20 seconds')
+    if moving_native:
+        stages[1]['seconds'] = moving_red_hold
+    distance_basis = getattr(args, 'trigger_distance_basis', 'finite_front')
     first_yellow = args.experiment == 'first-observation-yellow'
     release_after_crossing = moving_native or first_yellow
     transport = native_transport(getattr(args, 'native_transport', 'persistent'))
@@ -457,6 +477,7 @@ def run(args):
                         else getattr(args, 'yellow_durations_sec', None)),
                     max_seconds=args.max_seconds, front_axle_offset_m=args.front_axle_offset_m,
                     trigger_front_distance_m=trigger_distance if moving_native else None,
+                    trigger_distance_basis=distance_basis,
                     terminal_release_after_finite_front_crossing=release_after_crossing,
                     terminal_crossing_tail_sec=TERMINAL_CROSSING_TAIL_SEC if release_after_crossing else None,
                     initial_arming_native_color=(controlled_go_state(group_id) if moving_native else
@@ -511,6 +532,11 @@ def run(args):
                         row.update(position_xyz=[position.x, position.y, position.z], quaternion_xyzw=[q.x, q.y, q.z, q.w],
                                    velocity_xyz=[velocity.x, velocity.y, velocity.z], frame=message.header.frame_id)
                     elif name == 'gear': row['value'] = message.data
+                    elif name == 'planner':
+                        value = json.loads(message.data)
+                        if value.get('group_id') != group_id:
+                            return  # Other future missions must not replace this group's state.
+                        row['value'] = value
                     elif name == 'signal':
                         wanted = [g for g in message.traffic_light_groups if int(g.traffic_light_group_id) == group_id]
                         shape = 2 if group_id == 201326 else 1
@@ -536,6 +562,10 @@ def run(args):
     subscriptions = [rospy.Subscriber(topic, rospy.AnyMsg, callback(name), queue_size=5)
                      for name, topic in (('odom', args.odometry_topic), ('gear', args.gear_topic), ('ctrl', '/ctrl_cmd'))]
     if moving_native:
+        if distance_basis == 'planner_target':
+            subscriptions.append(rospy.Subscriber(
+                '/perception/traffic_light_recognition/planner_decision_debug',
+                rospy.AnyMsg, callback('planner'), queue_size=5))
         subscriptions.append(rospy.Subscriber('/perception/traffic_light_recognition/traffic_signals',
                              rospy.AnyMsg, callback('signal'), queue_size=5))
     publisher = rospy.Publisher(FAULT_TOPIC, String, queue_size=1, latch=False)
@@ -621,7 +651,7 @@ def run(args):
                         raise TrialError('Moving approach native authorized phase not confirmed')
                 with lock:
                     gate = moving_trigger_gate(latest, group, time.monotonic(), rospy.Time.now().to_nsec(),
-                                               trigger_distance, args.front_axle_offset_m)
+                                               trigger_distance, args.front_axle_offset_m, distance_basis)
                 source = gate['signal_source_stamp_ns']
                 if matched and gate['route_authorized']:
                     if last_stamp is not None and source < last_stamp:
@@ -790,6 +820,8 @@ def main():
     parser.add_argument('--max-seconds', type=float, default=120.)
     parser.add_argument('--front-axle-offset-m', type=float, default=3.)
     parser.add_argument('--trigger-front-distance-m', type=float, default=8.)
+    parser.add_argument('--trigger-distance-basis', choices=('finite_front', 'planner_target'), default='finite_front')
+    parser.add_argument('--moving-red-hold-sec', type=float, default=3.)
     parser.add_argument('--native-transport', choices=('persistent', 'udp'), default='persistent',
                         help='Persistent gRPC by default; udp only reproduces unqualified historical impulse trials')
     parser.add_argument('--odometry-topic', default='/localization/kinematic_state')
