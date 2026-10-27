@@ -21,6 +21,7 @@
 #include "autoware/signal_processing/lowpass_filter_1d.hpp"
 #include "cruise_planning_debug_info.hpp"
 #include "pid_controller.hpp"
+#include "rss_prediction.hpp"
 
 #include <ros/node_handle.h>
 
@@ -52,6 +53,7 @@ public:
     double error_cruise_dist;
     double dist_to_obstacle;
     double target_dist_to_obstacle;
+    RSSPrediction prediction;
   };
 
   PIDBasedPlanner(
@@ -162,6 +164,7 @@ private:
   bool use_velocity_limit_based_planner_{true};
 
   double time_to_evaluate_rss_;
+  RSSPredictionParameters rss_prediction_param_;
   double target_distance_scale_{1.0};
 
   std::function<double(double)> error_func_;

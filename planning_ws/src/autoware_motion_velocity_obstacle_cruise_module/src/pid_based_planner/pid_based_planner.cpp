@@ -156,6 +156,15 @@ PIDBasedPlanner::PIDBasedPlanner(
     "obstacle_cruise.cruise_planning.pid_based_planner.min_cruise_target_vel");
   time_to_evaluate_rss_ = get_or_declare_parameter<double>(node,
     "obstacle_cruise.cruise_planning.pid_based_planner.time_to_evaluate_rss");
+  const std::string prediction_prefix =
+    "obstacle_cruise/cruise_planning/pid_based_planner/rss_prediction/";
+  node.param(prediction_prefix + "enabled", rss_prediction_param_.enabled, false);
+  node.param(prediction_prefix + "start_relative_speed_kph",
+    rss_prediction_param_.start_relative_speed_kph, 30.0);
+  node.param(prediction_prefix + "full_relative_speed_kph",
+    rss_prediction_param_.full_relative_speed_kph, 80.0);
+  node.param(prediction_prefix + "max_time", rss_prediction_param_.max_time, 1.0);
+  rss_prediction_param_.validate(time_to_evaluate_rss_);
   const auto error_function_type = get_or_declare_parameter<std::string>(node,
     "obstacle_cruise.cruise_planning.pid_based_planner.error_function_type");
   error_func_ = [&]() -> std::function<double(double)> {
@@ -246,9 +255,11 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
     // TODO(murooka) this is not dist to obstacle
     const double dist_to_obstacle =
       calc_distance_to_collisionPoint(
-        stop_traj_points, planner_data, obstacle.collision_points.front().point) +
-      (obstacle.velocity - planner_data->current_odometry.twist.twist.linear.x) *
-        time_to_evaluate_rss_;
+        stop_traj_points, planner_data, obstacle.collision_points.front().point);
+    const auto prediction = evaluate_rss_prediction(
+      dist_to_obstacle,
+      planner_data->current_odometry.twist.twist.linear.x - obstacle.velocity,
+      time_to_evaluate_rss_, rss_prediction_param_);
 
     // calculate distance between ego and obstacle based on RSS
     // Scale the complete RSS target, then preserve the configured minimum gap.
@@ -259,7 +270,8 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
         cruise_planning_param_.safe_distance_margin));
 
     // calculate error distance and normalized one
-    const double error_cruise_dist = dist_to_obstacle - target_dist_to_obstacle;
+    const double error_cruise_dist =
+      dist_to_obstacle - target_dist_to_obstacle - prediction.correction;
     if (cruise_obstacle_info) {
       if (error_cruise_dist > cruise_obstacle_info->error_cruise_dist) {
         continue;
@@ -267,6 +279,7 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
     }
     cruise_obstacle_info =
       CruiseObstacleInfo(obstacle, error_cruise_dist, dist_to_obstacle, target_dist_to_obstacle);
+    cruise_obstacle_info->prediction = prediction;
   }
 
   if (!cruise_obstacle_info) {  // if obstacle to cruise was not found
@@ -284,6 +297,14 @@ std::optional<PIDBasedPlanner::CruiseObstacleInfo> PIDBasedPlanner::calc_obstacl
 
   // if obstacle to cruise was found
   {  // debug data
+    cruise_planning_debug_info_.set(
+      CruisePlanningDebugInfo::TYPE::RSS_PREDICTION_TIME, cruise_obstacle_info->prediction.time);
+    cruise_planning_debug_info_.set(
+      CruisePlanningDebugInfo::TYPE::RSS_PROJECTED_DISTANCE,
+      cruise_obstacle_info->prediction.projected_distance);
+    cruise_planning_debug_info_.set(
+      CruisePlanningDebugInfo::TYPE::RSS_APPLIED_CORRECTION,
+      cruise_obstacle_info->prediction.correction);
     cruise_planning_debug_info_.set(
       CruisePlanningDebugInfo::TYPE::CRUISE_RELATIVE_EGO_VELOCITY,
       planner_data->current_odometry.twist.twist.linear.x -
@@ -435,7 +456,8 @@ VelocityLimit PIDBasedPlanner::plan_cruise_with_velocity_limit(
 
   const double filtered_normalized_error_cruise_dist = [&]() {
     const double normalized_error_cruise_dist =
-      cruise_obstacle_info.error_cruise_dist / cruise_obstacle_info.dist_to_obstacle;
+      normalize_cruise_distance_error(
+        cruise_obstacle_info.error_cruise_dist, cruise_obstacle_info.dist_to_obstacle);
     return lpf_normalized_error_cruise_dist_ptr_->filter(normalized_error_cruise_dist);
   }();
 
@@ -504,7 +526,8 @@ std::vector<TrajectoryPoint> PIDBasedPlanner::plan_cruise_with_trajectory(
 
   const double filtered_normalized_error_cruise_dist = [&]() {
     const double normalized_error_cruise_dist =
-      cruise_obstacle_info.error_cruise_dist / cruise_obstacle_info.dist_to_obstacle;
+      normalize_cruise_distance_error(
+        cruise_obstacle_info.error_cruise_dist, cruise_obstacle_info.dist_to_obstacle);
     return lpf_normalized_error_cruise_dist_ptr_->filter(normalized_error_cruise_dist);
   }();
 
@@ -701,6 +724,21 @@ std::vector<TrajectoryPoint> PIDBasedPlanner::get_acceleration_limited_trajector
 
 void PIDBasedPlanner::updateParameters(const ParameterMap & parameters)
 {
+  // Validate the complete prediction update before mutating planner state.
+  auto prediction = rss_prediction_param_;
+  double fixed_time = time_to_evaluate_rss_;
+  const std::string prefix = "obstacle_cruise.cruise_planning.pid_based_planner.";
+  autoware_utils::update_param<double>(parameters, prefix + "time_to_evaluate_rss", fixed_time);
+  autoware_utils::update_param<bool>(parameters, prefix + "rss_prediction.enabled", prediction.enabled);
+  autoware_utils::update_param<double>(parameters,
+    prefix + "rss_prediction.start_relative_speed_kph", prediction.start_relative_speed_kph);
+  autoware_utils::update_param<double>(parameters,
+    prefix + "rss_prediction.full_relative_speed_kph", prediction.full_relative_speed_kph);
+  autoware_utils::update_param<double>(parameters,
+    prefix + "rss_prediction.max_time", prediction.max_time);
+  prediction.validate(fixed_time);
+  rss_prediction_param_ = prediction;
+  time_to_evaluate_rss_ = fixed_time;
   autoware_utils::update_param<double>(
     parameters, "obstacle_cruise.cruise_planning.pid_based_planner.min_accel_during_cruise",
     min_accel_during_cruise_);
@@ -808,8 +846,5 @@ void PIDBasedPlanner::updateParameters(const ParameterMap & parameters)
   autoware_utils::update_param<double>(
     parameters, "obstacle_cruise.cruise_planning.pid_based_planner.min_cruise_target_vel",
     min_cruise_target_vel_);
-  autoware_utils::update_param<double>(
-    parameters, "obstacle_cruise.cruise_planning.pid_based_planner.time_to_evaluate_rss",
-    time_to_evaluate_rss_);
 }
 }  // namespace autoware::motion_velocity_planner
