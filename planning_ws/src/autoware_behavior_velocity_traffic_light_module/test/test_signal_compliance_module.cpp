@@ -69,6 +69,10 @@ protected:
     lanelet::Lanelet lane(group+1000);
     lane.attributes()["turn_direction"] = group==201326 ? "left" : "straight";
     TrafficLightModule::PlannerParam params{};
+    // Pin the original numerical boundary fixtures; production defaults are
+    // tested independently below and may be recalibrated without moving these scenes.
+    params.signal_compliance_yellow_deceleration_mps2=8.;
+    params.signal_compliance_yellow_jerk_mps3=16.;
     params.tl_state_timeout=1.; params.yellow_lamp_period=2.75;
     params.yellow_light_stop_velocity=1.; params.stop_time_hysteresis=.1;
     params.enable_pass_judge=true; params.yellow_light_is_go=true;
@@ -196,6 +200,14 @@ TEST_F(TrafficLightComplianceModuleTest, ABCDThreeFreshSourcesUseActualDirection
     tick(); put(green()); EXPECT_FALSE(modifiesToStop());
     tick(); put(red()); EXPECT_TRUE(modifiesToStop());
   }
+}
+
+TEST_F(TrafficLightComplianceModuleTest, CalibratedDefaultsKeepYellowOptIn)
+{
+  const TrafficLightModule::PlannerParam params{};
+  EXPECT_FALSE(params.enable_yellow_passthrough);
+  EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_deceleration_mps2,6.);
+  EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_jerk_mps3,10.);
 }
 
 TEST_F(TrafficLightComplianceModuleTest, ABCDJerkDecisionBoundaryIgnoresOldLampPeriod)

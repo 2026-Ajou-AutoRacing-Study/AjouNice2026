@@ -208,10 +208,12 @@ PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리
 ## 황색 ON: Lanelet 정차 목표 기준 판단선 1회 확정
 
 기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 OFF다.
-준수 가드 ON에서 켜면 b8·J16의 jerk 제동거리로 판단선을 계산한다.
-`signal_compliance_yellow_deceleration_mps2:=8.0`, `signal_compliance_yellow_jerk_mps3:=16.0`이 판단용 값이다.
+준수 가드 ON에서 켜면 b6·J10의 jerk 제동거리로 판단선을 계산한다.
+`signal_compliance_yellow_deceleration_mps2:=6.0`, `signal_compliance_yellow_jerk_mps3:=10.0`이 판단용 값이다.
 2026-10-28 사용자 요청으로 공통 응답지연은0.0초다(`system_delay`는0.5초 유지).
-기존 experimental planning 감속도6·jerk10과 황색 판단용8은 변경하지 않았다. 이전 영상은 응답지연0.5초 조건이다.
+후속 36/56km/h 실제 제동 비교 후 판단용 기본8·16만6·10으로 맞췄다. 기존 planner/controller 제한은 바꾸지 않았다.
+이는 시험한 race profile용 근사이며 normal profile의2.8·5에 대한 제동 인증이 아니다.
+기존 실행에 명시된8·16은 자동 변경하지 않는다. [실측·한계](../../../../docs/perception/traffic_light/261028_DECISION_LINE_PR_VALIDATION.md#calibration-261028)를 본다.
 거리는 이미 앞범퍼·stop_margin이 반영된 기존 Lanelet 정차 목표까지의 경로 거리다.
 앞차축3m를 다시 빼지 않는다. 신선한 방향 허가·주행 중 `목표거리<=제동거리`가 되면 GO를1회 확정한다.
 확정 전 Y/R은 STOP이며, STOP 이력은 가상선 전/후 정차·UNKNOWN으로 풀리지 않고 새 방향 허가에 해제한다.

@@ -62,8 +62,8 @@ TrafficLightModuleManager::TrafficLightModuleManager(ros::NodeHandle & node)
   planner_param_.signal_judging_lines = signal_compliance::loadSignalJudgingLines(node, ns + "/signal_judging_lines");
   node.param<int>(ns + "/signal_compliance_required_green_observations", planner_param_.signal_compliance_required_green_observations, 3);
   node.param<double>(ns + "/signal_compliance_unknown_grace_sec", planner_param_.signal_compliance_unknown_grace_sec, 0.0);
-  node.param<double>(ns + "/signal_compliance_yellow_deceleration_mps2", planner_param_.signal_compliance_yellow_deceleration_mps2, 8.0);
-  node.param<double>(ns + "/signal_compliance_yellow_jerk_mps3", planner_param_.signal_compliance_yellow_jerk_mps3, 16.0);
+  node.param<double>(ns + "/signal_compliance_yellow_deceleration_mps2", planner_param_.signal_compliance_yellow_deceleration_mps2, 6.0);
+  node.param<double>(ns + "/signal_compliance_yellow_jerk_mps3", planner_param_.signal_compliance_yellow_jerk_mps3, 10.0);
   // Read obsolete timed-yellow values for launch/snapshot compatibility only.
   // They cannot select or veto the new Lanelet stopping-distance policy.
   node.param<bool>(ns + "/signal_compliance_enable_timed_yellow", planner_param_.signal_compliance_enable_timed_yellow, false);

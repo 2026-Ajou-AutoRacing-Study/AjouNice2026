@@ -66,3 +66,59 @@ CNN도 G를 읽었다. 따라서 이 표본을 CNN 적색→녹색 오판으로 
   viewport(461,401,519,511)만 잘라 전방 오른쪽에 붙였다. 별도 화면 녹화 시작을 전방14.85초에
   근사 정렬했으며 정밀 지연·프레임 동기 인증은 아니다. 전방 시각/픽셀/로그는 유지하고
   BEV가 없는 처음/끝은 없음으로 표시한다. 재사용 도구는 `scripts/evaluation/compose_traffic_front_planviz_video.py`다.
+
+<a id="calibration-261028"></a>
+## 후속: 실제 제어 제한과 6/10 비교 (2026-10-28)
+
+이 절은 위8/16 시험과 최신 planning784713d5 통합 **이후**의 추가 근거다.
+인지·판단 상태기계·지연0·지도v97·원본 채점선은 유지하고 계산용b/J만6/10으로 명시했다.
+로컬 MR, localization+od_gt, 실제 ROS1 planner/PP·PI이며 BEVFusion·LAN/4090 부하 인증은 아니다.
+시험용 내부 속도 상한만10/16m/s로 설정했고 throttle/brake/gear를 시험 도구가 직접 주지 않았다.
+고유 sender의 상한은 정지/P 뒤 해제하며 다른 sender를 clear하지 않는다.
+
+| B 황색 STOP | 저속 | 고속 |
+|---|---:|---:|
+| 첫 STOP 영상 시각 | 105.3초 | 100.0초 |
+| 실제 Ego 속도 | 35.75km/h | 55.88km/h |
+| 계산 D (b6/J10/지연0) | 11.18m | 24.80m |
+| STOP 요청 시 Lanelet 목표 잔여량 | 11.53m | 25.31m |
+| 정차까지 Ego 속도 적분 | 10.86m | 25.16m |
+| 같은 구간 목표 잔여량 변화 | 11.69m | 24.88m |
+| 최종 목표 잔여량 (+선 전/−초과) | −0.16m | +0.43m |
+| 정차 소요 | 2.20초 | 3.40초 |
+| 카메라 age p95 | 0.158초 | 0.195초 |
+
+둘 다 현재 카메라에서 녹색을 여러 번 읽은 뒤 황색 STOP을 요청했고 정차까지 STOP이 유지됐다.
+시험 제어기 기록의 직전 연속 허가 관측 수는19/4개다. 저속에는 그보다 이른 GO/STOP 변동도 있어
+전체 영상이 무변동이었다고 주장하지 않으며, 표에는 연속 황색 STOP 구간만 썼다.
+두 실행은 SUCCESS와 실제 정지/P를 확인했다. 목표는 기존 세 번째 waypoint이며 D 완주 시험은 아니다.
+강제 신호 시험이며 고속 A 대기 해제 SET, 저속 종료 뒤 D SET도 별도 기록했다.
+native 요청/조회값을 픽셀 GT나 운영 입력으로 사용하지 않았다.
+
+실행 snapshot의 실제 BVP 제한은−6m/s²·−10m/s³였다. 제어기 허용 최대8은 즉시8을
+요청한다는 뜻이 아니며 brake 상승률2/s·가속도 LPF0.1초도 있다. 저속 제어 debug의
+목표 감속은 약−5.8m/s², 실제 감속은 순간 더 강했다. 이 때문에8/16 계산과 실제 정지가
+다를 근거가 있으며, 단순히 GPU/CPU 지연 때문이라고 단정하지 않는다.
+
+**판단:** 계산용 기본을6/10으로 맞추되 황색 master OFF와 응답지연0은 유지한다.
+launch·validator·normal/experimental C++ 기본값을 통일했으며 실제 planner/controller 제한은 바꾸지 않았다.
+normal planning profile은 별도로2.8/5이며 이번 보정의 검증 범위가 아니다. 그 profile에
+황색 ON을 적용하려면 별도 설정·제동 확인이 필요하다. 기존 YAML의 명시값·frozen snapshot은 보존한다.
+
+속도 적분과 localization/path 거리는 저속에서 약0.83m 달랐고 고속 계산도 적분보다0.36m 짧다.
+따라서6/10도 정지거리의 엄밀한 상한·판단선 등호에서의 정지·적색 미위반 보장은 아니다.
+동일 B 구간 두 속도의 개발 검증이며 계수를 추가로 한 표본에 맞추지 않았다.
+더 큰D는 늦은 STOP 위험을 줄이는 대신 GO확정을 더 일찍 만들 수 있으므로 단순한 안전성 향상으로 읽지 않는다.
+중간 속도13m/s 추가 실행은 trajectory75초 대기 초과/재요청 거절로 출발 전 MANUAL_ABORT했고
+정지/P 확인·제어 생존 프로세스0을 확인했다. 제동 검증 성공 표본에 넣지 않았다.
+
+- 자료: `artifacts/evaluation/traffic_braking_calibration_261028/{low,high}/`의
+  `braking_B_final.json`, `front_video/frames.jsonl`, phase events 및 `supervisor_{low,high}/summary.json`.
+- validator 실행: `calibration_6_10_low_261028_261028_055705`,
+  `calibration_6_10_high_261028_261028_060006`, 실패 `calibration_6_10_mid_261028_261028_060258`.
+- 고속 새 합본: `high/front_planviz/front_planviz.mp4`. 실제 녹화v97 viewport만 합쳤고
+  시작 offset14.85초는 근사다. 정밀 시간 대조는 원본 ROS stamp/bag을 사용한다.
+- 보정 후 관련 Python174개(실제 source/installed launch 해석 포함)와 Native120개 통과.
+  Native는 별도 ROS master에서 실행했고 시험 master도 종료했다. C++ plugin·validator·launch
+  증분 설치 후 scoped source/install 계약 검사를 통과했다. 문서 검사의 기존 지도 README
+  줄 수 초과1개는 그대로 남기며 이번 신호등 보정의 성공으로 숨기지 않는다.

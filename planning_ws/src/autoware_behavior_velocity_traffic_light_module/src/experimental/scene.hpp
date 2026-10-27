@@ -82,8 +82,8 @@ public:
     int signal_compliance_required_green_observations{3};
     double signal_compliance_unknown_grace_sec{0.0};
     // Positive magnitude for yellow decision only; not a controller command.
-    double signal_compliance_yellow_deceleration_mps2{8.0};
-    double signal_compliance_yellow_jerk_mps3{16.0};
+    double signal_compliance_yellow_deceleration_mps2{6.0};
+    double signal_compliance_yellow_jerk_mps3{10.0};
     // Deprecated compatibility fields: production no longer selects timed yellow.
     bool signal_compliance_enable_timed_yellow{false};
     double signal_compliance_min_yellow_sec{2.0};

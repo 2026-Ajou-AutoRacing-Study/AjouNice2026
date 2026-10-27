@@ -47,6 +47,18 @@ TEST(SignalDecisionLineDistance, TriangularBranchAndBoundaryAreContinuous)
               *compliance::jerkStoppingDistance(2+1e-7, 8, 16, 0), 2e-7);
 }
 
+TEST(SignalDecisionLineDistance, CalibratedRaceEstimateIsLongerWithoutChangingDelay)
+{
+  // Round-speed comparisons independent of the measured development samples.
+  for (const double velocity : {5.,10.,13.,16.,20.}) {
+    const auto original=compliance::jerkStoppingDistance(velocity,8.,16.,0.);
+    const auto calibrated=compliance::jerkStoppingDistance(velocity,6.,10.,0.);
+    ASSERT_TRUE(original); ASSERT_TRUE(calibrated);
+    EXPECT_GT(*calibrated,*original);
+  }
+  EXPECT_NEAR(*compliance::jerkStoppingDistance(10.,6.,10.,0.),11.243333333333334,1e-10);
+}
+
 TEST(SignalDecisionLineDistance, DelayRemainsSeparateFromJerk)
 {
   const auto zero = compliance::jerkStoppingDistance(10, 8, 16, 0);

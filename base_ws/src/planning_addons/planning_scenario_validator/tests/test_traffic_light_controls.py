@@ -319,18 +319,18 @@ class TrafficControlsTests(unittest.TestCase):
             runner._start_case_stack(cfg, processes, Mock())
         command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
         self.assertIn('signal_compliance_enable_timed_yellow:=false', command)
-        self.assertIn('signal_compliance_yellow_deceleration_mps2:=8.0', command)
-        self.assertIn('signal_compliance_yellow_jerk_mps3:=16.0', command)
+        self.assertIn('signal_compliance_yellow_deceleration_mps2:=6.0', command)
+        self.assertIn('signal_compliance_yellow_jerk_mps3:=10.0', command)
         self.assertEqual(self.document['stack']['signal_compliance_min_yellow_sec'], -1.)
 
     def test_new_snapshot_freezes_yellow_deceleration_and_records_replaced_policy_provenance(self):
         path = self.save(); before = path.read_bytes()
         cfg = executions.prepare_execution(path, check_install=False)
         self.assertEqual(path.read_bytes(), before)
-        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_deceleration_mps2'], 8.)
-        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_jerk_mps3'], 16.)
+        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_deceleration_mps2'], 6.)
+        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_jerk_mps3'], 10.)
         self.assertEqual(cfg['execution']['traffic_light_yellow_policy'], dict(
-            implementation=YELLOW_POLICY_IMPLEMENTATION, deceleration_mps2=8., jerk_mps3=16.,
+            implementation=YELLOW_POLICY_IMPLEMENTATION, deceleration_mps2=6., jerk_mps3=10.,
             timed_candidate_active=False))
         resumed = executions.load_execution(cfg['output'], check_install=False)
         self.assertEqual(resumed['execution']['traffic_light_yellow_policy'],
@@ -348,6 +348,13 @@ class TrafficControlsTests(unittest.TestCase):
         cfg['path'].write_text(yaml.safe_dump(changed))
         with self.assertRaisesRegex(ValueError, '변경'):
             executions.load_execution(cfg['output'], check_install=False)
+
+    def test_explicit_original_braking_values_are_not_silently_migrated(self):
+        self.document['stack'].update(signal_compliance_yellow_deceleration_mps2=8.,
+                                      signal_compliance_yellow_jerk_mps3=16.)
+        cfg = executions.prepare_execution(self.save(), check_install=False)
+        self.assertEqual(cfg['execution']['traffic_light_yellow_policy']['deceleration_mps2'],8.)
+        self.assertEqual(cfg['execution']['traffic_light_yellow_policy']['jerk_mps3'],16.)
 
 
 @unittest.skipUnless(os.environ.get('DISPLAY'), 'requires isolated Xvfb')

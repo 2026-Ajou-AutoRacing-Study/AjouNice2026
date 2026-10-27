@@ -22,8 +22,8 @@ class YellowBrakingLaunchTest(unittest.TestCase):
                 root = ET.parse(LAUNCH/filename).getroot()
                 arguments = {row.get('name'): row.get('default') for row in root.findall('arg')}
                 self.assertEqual(arguments['enable_yellow_passthrough'], 'false')
-                self.assertEqual(arguments[KEY], '8.0')
-                self.assertEqual(arguments[JERK_KEY], '16.0')
+                self.assertEqual(arguments[KEY], '6.0')
+                self.assertEqual(arguments[JERK_KEY], '10.0')
         root = ET.parse(LAUNCH/'planning.launch').getroot()
         parameters = {row.get('name'): row for row in root.findall('param')}
         self.assertEqual(parameters[PREFIX+KEY].get('value'), '$(arg '+KEY+')')

@@ -63,6 +63,9 @@ protected:
     lanelet::Lanelet lane(group+1000);
     lane.attributes()["turn_direction"]=group==201326 ? "left" : "straight";
     TrafficLightModule::PlannerParam params{};
+    // Original 8/16 fixture coordinates remain explicit historical comparisons.
+    params.signal_compliance_yellow_deceleration_mps2=8.;
+    params.signal_compliance_yellow_jerk_mps3=16.;
     params.stop_margin=stop_margin;
     params.tl_state_timeout=.5; params.yellow_lamp_period=2.75;
     params.yellow_light_stop_velocity=1.; params.stop_time_hysteresis=.1;
@@ -148,6 +151,14 @@ protected:
     }
   }
 };
+
+TEST_F(TrafficTimedYellowExperimentalTest, CalibratedDefaultsKeepYellowOptIn)
+{
+  const TrafficLightModule::PlannerParam params{};
+  EXPECT_FALSE(params.enable_yellow_passthrough);
+  EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_deceleration_mps2,6.);
+  EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_jerk_mps3,10.);
+}
 
 TEST_F(TrafficTimedYellowExperimentalTest, ABCDFarUnseenEmptyOpensPathButRedAndNearEmptyStop)
 {

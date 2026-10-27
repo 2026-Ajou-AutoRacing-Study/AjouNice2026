@@ -13,8 +13,8 @@ LABEL_PROFILES = {label: profile for profile, label in PROFILE_LABELS.items()}
 DEFAULT_MODELS_ROOT = '~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f'
 YELLOW_POLICY_IMPLEMENTATION = 'lanelet_decision_line_jerk_v2'
 YELLOW_BRAKING_DEFAULTS = {
-    'signal_compliance_yellow_deceleration_mps2': 8.0,
-    'signal_compliance_yellow_jerk_mps3': 16.0,
+    'signal_compliance_yellow_deceleration_mps2': 6.0,
+    'signal_compliance_yellow_jerk_mps3': 10.0,
 }
 TIMED_POLICY_DEFAULTS = {
     'signal_compliance_required_green_observations': 1,

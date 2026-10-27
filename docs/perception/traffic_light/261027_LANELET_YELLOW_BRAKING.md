@@ -8,6 +8,10 @@
 
 ## 후속: 판단선 1회 확정 v2 (2026-10-28)
 
+후속 보정: 아래8/16은 초기 구현·실험 조건이다. 현재 계산 기본은 실측 비교 후6/10으로 변경했으며
+황색 master는OFF다. [제동 보정 기록](261028_DECISION_LINE_PR_VALIDATION.md#calibration-261028)을 따른다.
+이 문서의 이전 수치·영상·고정 snapshot은 수정하지 않는다.
+
 사용자/팀 합의로 아래의 기존 황색 전환 전용 식 대신 **jerk 판단선 상태기계**를 구현했다.
 기존 `enable_yellow_passthrough` ON + 준수 guard ON일 때 v2를 사용하며 master 기본 OFF는 유지한다.
 OFF는 기존 색 판단을 유지하되, STOP 이력 때문에 정차한 차량의 가상선 초과 자동 GO는 막는다.

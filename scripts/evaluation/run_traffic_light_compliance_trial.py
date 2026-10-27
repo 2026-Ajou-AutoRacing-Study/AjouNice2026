@@ -369,6 +369,8 @@ def main():
                         help='Real moving-native-yellow trigger distance from front axle to finite stopline')
     parser.add_argument('--trigger-distance-basis', choices=('finite_front', 'planner_target'), default='finite_front')
     parser.add_argument('--moving-red-hold-sec', type=float, default=3.)
+    parser.add_argument('--evaluation-speed-cap-mps', type=float,
+                        help='Owned development-only internal speed ceiling, not a vehicle command')
     parser.add_argument('--planner-fixture', choices=FIXTURE_MODES,
                         help='Explicit synthetic planner-only input; no native SET or perception qualification')
     parser.add_argument('--fixture-probe-seconds', type=float, choices=(2., 3.), default=2.)
@@ -408,6 +410,11 @@ def main():
     if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'first-observation-yellow', 'moving-native-yellow'):
         parser.error('Explicit yellow durations apply only to stopped-yellow or moving-native-yellow')
     moving_native = args.experiment == 'moving-native-yellow'
+    if args.evaluation_speed_cap_mps is not None:
+        from publish_traffic_braking_trial_speed_cap import validate_cap
+        validate_cap(args.evaluation_speed_cap_mps)
+        if args.mode == 'production':
+            parser.error('Unmodified production trials cannot install an evaluation speed cap')
     if not math.isfinite(args.moving_red_hold_sec) or not 1 <= args.moving_red_hold_sec <= 20:
         parser.error('Moving red hold must be within 1..20 seconds')
     if moving_native and (args.yellow_durations_sec not in ((1.,), (2.,), (3.,)) or
@@ -512,6 +519,7 @@ def main():
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
         trigger_distance_basis=getattr(args, 'trigger_distance_basis', 'finite_front'),
         moving_red_hold_sec=getattr(args, 'moving_red_hold_sec', 3.),
+        evaluation_speed_cap_mps=getattr(args, 'evaluation_speed_cap_mps', None),
         perception_qualification=not fixture,
         compliance_debug_enabled=args.compliance_debug,
         required_green_observations=args.required_green_observations,
@@ -804,6 +812,11 @@ def main():
         event(dict(event='global_validator_graph_lock_owned'))
         def prepare_helpers():
             duration = min(1800, max(case.timeout_sec for case in cfg['cases']) + 300)
+            if args.evaluation_speed_cap_mps is not None:
+                start('evaluation_speed_cap', ['/usr/bin/python3',
+                    str(ROOT/'scripts/evaluation/publish_traffic_braking_trial_speed_cap.py'),
+                    '--max-velocity-mps', str(args.evaluation_speed_cap_mps),
+                    '--max-seconds', str(duration), '--output', str(args.output/'speed_cap')])
             start('runtime_timing', ['/usr/bin/python3',
                 str(ROOT/'scripts/evaluation/observe_traffic_light_runtime_timing.py'),
                 '--duration-sec', str(duration), '--output-dir', str(args.output/'runtime_timing')])
