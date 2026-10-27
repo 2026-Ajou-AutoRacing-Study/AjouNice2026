@@ -142,3 +142,8 @@ source/install 검사도 통과했다. 이전 설치본에만 남았던 v85 spee
 광역 validator 검사는476개 통과·2개 실패다. 기존 `test_full_course`의 경유점 목록과
 `test_mission_starters`의 roundabout manifest SHA 불일치이며, 관련 mission 파일을
 이번 ON 전환에서 바꾸거나 검사를 완화하지 않았다. 집중 신호등 검사 통과와 구분한다.
+
+원격 직접 병합cda35545도 확인했다. 부모는600125b1과우리22a5f87c이며, tree SHA가
+로컬 통합aa8b7b51과동일했다. 잘못된 덮어쓰기나 별도 충돌 수정은 없어서 revert하지 않았다.
+그 병합을 로컬에도 가져왔고 파일 내용 변화0을 확인했다. 최종 PR은 이미 들어간 인지/ROI/6·10
+전체를 새 변경으로 중복 주장하지 않고, 남은 기본ON·GUI·검사·현재 문서 변경을 반영한다.
