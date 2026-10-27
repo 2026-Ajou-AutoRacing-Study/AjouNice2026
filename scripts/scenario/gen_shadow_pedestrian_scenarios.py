@@ -279,20 +279,23 @@ def main():
         d['waypointDataList'] = paths
         nm = 'sq%03d_%s_c%02d_v%02d_%s%s' % (idx, pat, cell + 1, spd, lon, '_x2' if n == 2 else '')
         json.dump(d, open(os.path.join(OUT, nm + '.json'), 'w'), ensure_ascii=False)
+        ad1 = d['pedestrianList'][0]['activeDistance']
+        # 실현 TTC. 앞쪽 칸은 ego 스폰이 터널 입구 34.6 m 앞이라 room 제한에
+        # 걸려 MIN_TTC 를 못 채운다. 분석 때 이 값으로 거르면 된다.
         rows.append([nm, n, cell + 1, pat, spd, round(SPEEDS[spd], 2), lon,
-                     d['pedestrianList'][0]['activeDistance'], a1[1], round(d1, 1),
+                     ad1, round(ad1 / V_EGO, 2), a1[1], round(d1, 1),
                      *(second if second else ('', '', '', '', ''))])
 
     for i, src in enumerate(['hid_soa_baseline_00', 'hid_soa_baseline_01', 'hid_soa_normal_11']):
         p = os.path.join(SRC, src + '.json')
         if os.path.exists(p):
             shutil.copy(p, os.path.join(OUT, 'sq_base%d.json' % i))
-            rows.append(['sq_base%d' % i, 0, '', '', '', '', '', '', '', '', '', '', '', '', ''])
+            rows.append(['sq_base%d' % i, 0] + [''] * 14)
 
     with open(os.path.join(OUT, '_manifest.csv'), 'w', newline='') as fh:
         w = csv.writer(fh)
         w.writerow(['name', 'ped', 'cell', 'pattern', 'speed_field', 'speed_mps', 'lon',
-                    'active_distance', 'asset', 'walk_m',
+                    'active_distance', 'ttc_s', 'asset', 'walk_m',
                     'cell2', 'pattern2', 'speed2', 'lon2', 'asset2'])
         w.writerows(rows)
 
@@ -300,8 +303,11 @@ def main():
 
     n2 = sum(1 for r in rows if r[1] == 2)
     print()
-    print('시드 %d · 시나리오 %d개 (2명 %d개) + baseline 3 = %d개'
-          % (args.seed, len(plan), n2, len(rows)))
+    ttcs = [r[8] for r in rows if r[1]]
+    print('시드 %d · 시나리오 %d개 (2명 %d개) + baseline %d = %d개'
+          % (args.seed, len(plan), n2, len(rows) - len(plan), len(rows)))
+    print('실현 TTC %.2f~%.2f s (하한 목표 %.1f s, 앞쪽 칸은 스폰 거리 제한)'
+          % (min(ttcs), max(ttcs), MIN_TTC))
     print('칸 %d개 × %.2f m · 회랑 %.1f m · 패턴 %d · 속도 %s · 종길이 %s'
           % (NCELL, CELL, CORR, len(PATTERNS), list(SPEEDS), list(LONS)))
     print('자산 %d종 (카탈로그 person/enabled) · 2명 최소 종간격 %.0f m'
