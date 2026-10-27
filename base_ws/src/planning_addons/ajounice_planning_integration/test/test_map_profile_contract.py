@@ -68,3 +68,18 @@ def test_separate_terminal_consumers_accept_the_same_version_argument():
         args = arguments(path)
         assert args['map_version'] == '99'
         assert args[key].endswith('/lanelet2_map_v$(arg map_version).osm')
+
+
+def test_current_version_selectors_reject_non_v99_before_nodes_start():
+    signal = ROOT / 'base_ws/src/perception/traffic_light_detection/launch'
+    pipeline = ROOT / 'base_ws/src/perception_object_pipeline/launch'
+    paths = [LAUNCH / name for name in ('competition_planning.launch', 'planning.launch',
+                                       'morai_planning_stack.launch')]
+    paths += [signal / name for name in ('traffic_light_node.launch', 'traffic_light_v5_candidate.launch')]
+    paths += [pipeline / name for name in ('object_pipeline.launch', 'tracking_prediction.launch',
+                                         'object_prediction.launch')]
+    for path in paths:
+        guard = next(arg for arg in parsed(path).findall('arg')
+                     if arg.get('name') == '_require_v99_map_version')
+        assert guard.get('value') == "$(eval {'99': 'v99-only'}[str(arg('map_version'))])"
+        assert guard.get('default') is None  # A fixed value cannot be overridden by CLI args.

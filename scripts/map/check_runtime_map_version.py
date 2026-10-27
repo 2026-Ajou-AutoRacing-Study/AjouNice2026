@@ -232,7 +232,8 @@ def check_runtime(root=ROOT, *, installed=False, source_files=None, ignored_sour
                     issues.append(f'{relative}: wrapper MAP_VERSION default must remain {VERSION}')
             # The current profile test compares unchanged route policy with v98.
             # Continue scanning it: any other version is still an error.
-            allowed = {98, VERSION} if relative == PROFILE_TEST else {VERSION}
+            allowed = {98, VERSION} if relative in {PROFILE_TEST,
+                'scripts/runtime/test_v99_map_lock.py'} else {VERSION}
             # Validator START provenance and recorded-profile fixtures intentionally pin v94.
             if relative in {
                                         'base_ws/src/planning_addons/planning_scenario_validator/tests/test_route_profile.py',

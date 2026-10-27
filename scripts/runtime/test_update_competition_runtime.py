@@ -91,18 +91,26 @@ def test_default_builds_all_scoped_packages_then_installer_after_verifying_v99_m
         assert f'{name} map_version:=99' in result.stdout
 
 
-@pytest.mark.parametrize('remote,expected', [(None, []), ('teammate_private', ['--remote', 'teammate_private'])])
-def test_v94_provisions_before_build_and_map_remote_is_not_model_remote(workspace, remote, expected):
+@pytest.mark.parametrize('version', ['87', '88', '94', '95', '96', '97', '98', '100'])
+def test_non_v99_versions_are_rejected_before_any_action(workspace, version):
     _, run = workspace
-    options = ['--map-version', '94', '--remote', 'model_private']
-    if remote:
-        options += ['--map-remote', remote]
-    result, calls = run(*options)
+    result, calls = run('--map-version', version)
+    assert result.returncode != 0
+    assert 'Only map version 99 is supported' in result.stderr
+    assert calls == []
+
+
+def test_v99_accepts_model_remote_but_rejects_map_remote_before_any_action(workspace):
+    _, run = workspace
+    result, calls = run('--map-version', '99', '--remote', 'model_private')
     assert result.returncode == 0, result.stderr
-    assert calls[0] == ['prepare', *expected]
-    assert calls[1][0] == 'planning'
+    assert calls[0] == ['prepare', '--check']
     assert calls[-1] == ['installer', '--remote', 'model_private']
-    assert 'planning map_version:=94' in result.stdout
+    before = list(calls)
+    result, calls = run('--map-remote', 'teammate_private')
+    assert calls == before
+    assert result.returncode != 0
+    assert '--map-remote is unsupported' in result.stderr
 
 
 def test_missing_any_asset_cache_uses_one_scoped_catkin_fallback(workspace):
@@ -133,7 +141,7 @@ def test_invalid_or_partial_options_fail_before_any_action(workspace, arguments)
 @pytest.mark.parametrize('stage', ['prepare', 'planning', 'cmake', 'installer'])
 def test_failed_stage_never_claims_install_complete(workspace, stage):
     _, run = workspace
-    result, calls = run('--map-version', '94', fail=stage)
+    result, calls = run('--map-version', '99', fail=stage)
     assert result.returncode != 0
     assert calls[-1][0] == stage
     assert '[INSTALLED]' not in result.stdout
@@ -147,7 +155,7 @@ def test_foreign_cache_fails_before_preparation_even_if_another_cache_is_missing
     cache = root / 'base_ws/build_aw149/competition_rule_monitor/CMakeCache.txt'
     cache.write_text('\n'.join(f'{key}:PATH=/foreign/workspace' if line.startswith(key + ':') else line
                                for line in cache.read_text().splitlines()))
-    result, calls = run('--map-version', '94')
+    result, calls = run('--map-version', '99')
     assert result.returncode != 0
     assert 'Refusing foreign/moved CMake cache' in result.stderr
     assert not calls
@@ -177,7 +185,7 @@ def test_downstream_installer_cache_is_checked_before_provisioning(workspace, wo
     cache = root / workspace_name / build / relative.rsplit('/', 1)[-1] / 'CMakeCache.txt'
     cache.parent.mkdir(parents=True)
     cache.write_text('CMAKE_HOME_DIRECTORY:INTERNAL=/foreign/installer\n')
-    result, calls = run('--map-version', '94')
+    result, calls = run('--map-version', '99')
     assert result.returncode != 0
     assert 'Refusing foreign/moved CMake cache' in result.stderr
     assert not calls

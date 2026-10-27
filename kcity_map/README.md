@@ -13,6 +13,8 @@ python3 scripts/map/check_runtime_map_version.py --installed
 ```
 
 클린빌드도 v99를 검사한 뒤 진행한다. 파일이 없거나 SHA가 다르면 중단하며 구버전으로 대체하지 않는다.
+일반 planning·통합 stack·인지 launch와 업데이트 도구는 v99 이외 버전·지도 경로를 거부한다.
+과거 버전별 launch는 이력 보존용이며 현재 공통 planning 진입점에서 실행이 거부된다.
 설치 반영 후 실행 중인 노드는 재시작해야 새 지도를 로드한다. 아래 설명은 이전 자산 이력이다.
 
 이전 v98은 중심선 연결을 수정한 지도다.
