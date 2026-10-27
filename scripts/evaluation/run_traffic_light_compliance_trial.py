@@ -98,7 +98,62 @@ def map_launch_arguments(package, filename, arguments, map_file, map_sha256):
         result['lanelet2_map_file'] = str(map_file)
     if package == 'perception_object_pipeline' and filename == 'object_pipeline.launch':
         result['map_file'] = str(map_file)
+    if package == 'bringup' and filename == 'aw149_planning_rviz.launch':
+        result['map_file'] = str(map_file)
     return result
+
+
+def validate_short_cycle_request(experiment, plan, mode, temporal_direct):
+    """Renderer stress is explicit and never substitutes native GT for vision."""
+    enabled = experiment == 'short-native-cycles'
+    if enabled != (plan is not None):
+        raise ValueError('short-native-cycles requires --short-cycle-plan, and only that experiment accepts it')
+    if enabled and (mode != 'guarded' or temporal_direct != 'true'):
+        raise ValueError('Short native cycles require guarded direct-observation mode')
+    if enabled:
+        body = json.loads(Path(plan).read_text())
+        if not isinstance(body, dict):
+            raise ValueError('Short-cycle plan must be a JSON object')
+    return enabled
+
+
+class CrossingVideoDeadline:
+    """Read only newly written observer rows; never stop driving on a video cut."""
+    def __init__(self, path, group_id, tail_sec, direction='negative_to_positive'):
+        if (group_id != 201326 or isinstance(tail_sec, bool)
+                or not isinstance(tail_sec, (int, float)) or not math.isfinite(tail_sec)
+                or not 0 < tail_sec <= 30
+                or direction not in ('negative_to_positive', 'positive_to_negative')):
+            raise ValueError('Video cut requires D group201326, a directed crossing and a finite0..30s positive tail')
+        self.path, self.group_id, self.tail_sec = Path(path), group_id, tail_sec
+        self.direction = direction
+        self.offset, self.pending, self.deadline, self.trigger = 0, b'', None, None
+
+    def poll(self, now):
+        if self.deadline is None and self.path.is_file():
+            with self.path.open('rb') as stream:
+                stream.seek(self.offset)
+                data = stream.read(4 * 1024 * 1024)
+                self.offset = stream.tell()
+            rows = (self.pending + data).split(b'\n')
+            self.pending = rows.pop()
+            if len(self.pending) > 4 * 1024 * 1024:
+                raise ValueError('Observer JSONL row exceeds the bounded video-cut reader')
+            for row in rows:
+                try:
+                    body = json.loads(row)
+                except (ValueError, UnicodeDecodeError):
+                    continue
+                if (isinstance(body, dict)
+                        and body.get('event') == 'front_point_segment_crossing_pending_native_bracket'
+                        and body.get('group_id') == self.group_id
+                        and body.get('pose_time_verified') is True
+                        and body.get('direction') == self.direction):
+                    self.trigger = body
+                    # Receipt now is conservative if polling was delayed.
+                    self.deadline = now + self.tail_sec
+                    break
+        return self.deadline is not None and now >= self.deadline
 
 
 def temporal_video_launch_arguments(package, filename, arguments, required_green=None,
@@ -287,7 +342,9 @@ def main():
     parser.add_argument('--mode', choices=('baseline', 'guarded', 'production'), required=True,
                         help='production leaves policy launch defaults untouched; natural signals only')
     parser.add_argument('--route-progress', choices=('true', 'false'), default='true')
-    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow'), default='natural')
+    parser.add_argument('--experiment', choices=('natural', 'stopped-yellow', 'missing-signal', 'green-loss', 'moving-native-yellow', 'short-native-cycles'), default='natural')
+    parser.add_argument('--short-cycle-plan', type=Path,
+                        help='Explicit native-rendered phase plan; development stress, never natural signals')
     parser.add_argument('--temporal-direct', choices=('true','false'), default='false')
     parser.add_argument('--visual-continuation-sec', type=float,
                         help='Explicit bounded visual-identity candidate (0..0.3s), not production mode')
@@ -319,10 +376,22 @@ def main():
     parser.add_argument('--video-display', default=os.environ.get('DISPLAY',':0'))
     parser.add_argument('--morai-window-id', help='Explicit Simulator X11 ID; only this rectangle is recorded')
     parser.add_argument('--video-encoder', choices=('libx264','h264_nvenc'), default='libx264')
+    parser.add_argument('--stop-video-after-group', type=int, choices=(201326,),
+                        help='Stop owned videos after a verified forward D crossing; bag/controller keep running')
+    parser.add_argument('--video-tail-sec', type=float, default=5.)
     parser.add_argument('--native-python', type=Path,
                         default=Path.home()/'miniconda3/envs/traffic_light_gpu/bin/python')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
+    try:
+        short_cycles = validate_short_cycle_request(args.experiment, args.short_cycle_plan,
+                                                   args.mode, args.temporal_direct)
+        if args.stop_video_after_group is not None:
+            CrossingVideoDeadline('/unused', args.stop_video_after_group, args.video_tail_sec)
+            if not args.record_video:
+                raise ValueError('D video cut requires --record-video')
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
     if args.preparation_geometry is not None and args.experiment not in ('stopped-yellow', 'missing-signal'):
         parser.error('Separate preparation geometry applies only to stationary native-control trials')
     if args.yellow_durations_sec is not None and args.experiment not in ('stopped-yellow', 'moving-native-yellow'):
@@ -383,7 +452,12 @@ def main():
         parser.error('Use a fresh evidence directory; this wrapper NEVER resumes')
     if not args.native_python.is_file() or not args.geometry.is_file():
         parser.error('Existing native Python and explicit geometry are required')
-    load_geometry(args.geometry)
+    geometry_groups, _ = load_geometry(args.geometry)
+    d_crossing_direction = next(group.get('crossing_direction', 'both') for group in geometry_groups
+                               if group['group_id'] == 201326)
+    if d_crossing_direction == 'both':
+        # Historical audited D geometry's forward crossing orientation.
+        d_crossing_direction = 'negative_to_positive'
     candidate_map_sha = None
     if args.map_file is not None:
         args.map_file = args.map_file.resolve(strict=True)
@@ -397,7 +471,7 @@ def main():
     progress = None if production else args.route_progress == 'true'
     fixture = args.planner_fixture is not None
     native_signal_control = args.experiment != 'natural' and not fixture
-    proxy = args.experiment not in ('natural', 'moving-native-yellow') or fixture
+    proxy = args.experiment not in ('natural', 'moving-native-yellow', 'short-native-cycles') or fixture
     plugin = ROOT/'planning_ws/install_isolated/lib/libautoware_behavior_velocity_traffic_light_module.so'
     receipt = dict(mode=args.mode, route_progress=progress, experiment=args.experiment,
         production_policy_defaults_unmodified=production,
@@ -412,6 +486,11 @@ def main():
         planner_fixture=args.planner_fixture, planner_fixture_is_synthetic=fixture,
         fixture_probe_seconds=args.fixture_probe_seconds if fixture else None,
         native_signal_SET_enabled=native_signal_control,
+        native_signal_program_stress=short_cycles,
+        passive_runtime_timing_enabled=True,
+        natural_signal_program=not native_signal_control and not fixture,
+        short_cycle_plan=(str(args.short_cycle_plan.resolve()) if short_cycles else None),
+        short_cycle_plan_sha256=(digest(args.short_cycle_plan) if short_cycles else None),
         real_native_moving_yellow=moving_native,
         synthetic_canonical_signal_proxy=proxy,
         trigger_front_distance_m=args.trigger_front_distance_m if moving_native else None,
@@ -441,6 +520,9 @@ def main():
         planner='real ROS1 planner/controller through unmodified validator runner')
     receipt['map_candidate'] = (dict(path=str(args.map_file), sha256=candidate_map_sha)
                                 if args.map_file is not None else None)
+    receipt['video_cut'] = dict(group_id=args.stop_video_after_group,
+        tail_sec=args.video_tail_sec, crossing_direction=d_crossing_direction,
+        driving_continues_to_safe_goal=True)
     if args.check:
         print(json.dumps(receipt, indent=2))
         return runner.main([str(args.config), '--check'])
@@ -461,6 +543,12 @@ def main():
     lock, done, fatal = threading.Lock(), threading.Event(), threading.Event()
     phase_teardown = threading.Event()
     children, handles, subscriptions = [], [], []
+    video_recorders, intentionally_stopped_video = [], set()
+    video_cut_started = threading.Event()
+    video_cut = (CrossingVideoDeadline(args.output/'observer/observations.jsonl',
+                                      args.stop_video_after_group, args.video_tail_sec,
+                                      d_crossing_direction)
+                 if args.stop_video_after_group is not None else None)
     state = dict(mode='none', group_id=args.group_id, receipt_monotonic=0., received=False, terminal=False)
     fixture_state = dict(received=False, started_monotonic=time.monotonic(),
                          receipt_monotonic=0., handoff_real=False, error=False)
@@ -483,6 +571,49 @@ def main():
     original_stop = runner._stop_and_verify
     original_monitor = runner.LiveMonitor
     original_campaign = runner._run_campaign
+    original_recording = runner.Recording
+
+    class TrialRecording(original_recording):
+        def __init__(self, *recording_args, **recording_kwargs):
+            super().__init__(*recording_args, **recording_kwargs)
+            self.video_lock = threading.Lock()
+
+        def start(self, basename):
+            super().start(basename)
+            video_recorders.append(self)
+
+        def stop_video_only(self):
+            from planning_scenario_validator.runtime import stop_group
+            with self.video_lock:
+                if self.video is not None and self.video.poll() is None:
+                    stop_group(self.video, timeout=15)
+                    event(dict(event='validator_screen_video_cut', path=str(self.video_path)))
+
+        def stop(self, final_basename):
+            with self.video_lock:
+                return super().stop(final_basename)
+
+    def cut_owned_videos():
+        try:
+            event(dict(event='D_video_cut_started', crossing=video_cut.trigger,
+                       controller_and_bag_continue=True))
+            stopped = []
+            for name, process in children:
+                if name in ('front_video', 'simulator_video') and process.poll() is None:
+                    intentionally_stopped_video.add(name)
+                    process.send_signal(signal.SIGTERM if name == 'front_video' else signal.SIGINT)
+                    stopped.append((name, process))
+            for recorder in video_recorders:
+                recorder.stop_video_only()
+            for name, process in stopped:
+                process.wait(timeout=owned_child_exit_grace_sec(name))
+                if name == 'front_video' and process.returncode != 0:
+                    raise RuntimeError('Front video failed to finalize: '+str(process.returncode))
+                event(dict(event='owned_video_cut', name=name, returncode=process.returncode))
+            event(dict(event='D_video_cut_complete', controller_and_bag_continue=True))
+        except Exception as error:
+            event(dict(event='D_video_cut_error', error=repr(error)))
+            fatal.set()
     proxy_started = False
     publisher = None
     def selected_launch(package, filename, **kwargs):
@@ -653,6 +784,9 @@ def main():
         event(dict(event='global_validator_graph_lock_owned'))
         def prepare_helpers():
             duration = min(1800, max(case.timeout_sec for case in cfg['cases']) + 300)
+            start('runtime_timing', ['/usr/bin/python3',
+                str(ROOT/'scripts/evaluation/observe_traffic_light_runtime_timing.py'),
+                '--duration-sec', str(duration), '--output-dir', str(args.output/'runtime_timing')])
             if args.record_video:
                 if not args.front_video_only:
                     activate_simulator_for_capture(args.morai_window_id,args.video_display)
@@ -681,6 +815,13 @@ def main():
                     '--output', str(args.output/'planner_fixture'), '--geometry', str(args.geometry),
                     '--group-id', str(args.group_id), '--mode', args.planner_fixture,
                     '--probe-seconds', str(args.fixture_probe_seconds), '--max-seconds', str(duration)])
+            elif short_cycles:
+                if digest(args.short_cycle_plan) != receipt['short_cycle_plan_sha256']:
+                    raise RuntimeError('Short-cycle plan changed after qualification')
+                start('phase_controller', [str(args.native_python),
+                    str(ROOT/'scripts/evaluation/control_traffic_light_short_cycles.py'),
+                    '--plan', str(args.short_cycle_plan), '--output',
+                    str(args.output/'phase_controller'), '--max-seconds', str(duration)])
             elif native_signal_control:
                 phase_script = ('control_traffic_light_green_loss_trial.py' if args.experiment=='green-loss'
                                 else 'control_traffic_light_policy_trial.py')
@@ -696,13 +837,17 @@ def main():
             def watch():
                 while not done.wait(.2):
                     try:
+                        if video_cut is not None and not video_cut_started.is_set() and video_cut.poll(time.monotonic()):
+                            video_cut_started.set()
+                            threading.Thread(target=cut_owned_videos, daemon=True).start()
                         with lock:
                             if not phase_teardown.is_set():
                                 if fixture and proxy_started:
                                     fixture_relay_mode(fixture_state, time.monotonic())
                                 elif not fixture:
                                     active_fault_mode(state, time.monotonic())
-                    except RuntimeError:
+                    except (RuntimeError, ValueError, OSError) as error:
+                        event(dict(event='trial_watch_error', error=repr(error)))
                         fatal.set()
                     if fatal.is_set() and not phase_teardown.is_set():
                         event(dict(event='proxy_fatal_abort'))
@@ -710,6 +855,8 @@ def main():
                         return
                     for name, process in children:
                         code = process.poll()
+                        if name in intentionally_stopped_video:
+                            continue
                         if (code is not None and (code != 0 or name == 'observer' or fixture) and
                                 not (name == 'phase_controller' and phase_teardown.is_set())):
                             event(dict(event='child_error_abort', name=name, returncode=code))
@@ -724,6 +871,7 @@ def main():
         runner._stop_and_verify = selected_stop
         runner.LiveMonitor = TrialMonitor
         runner._run_campaign = selected_campaign
+        runner.Recording = TrialRecording
         code = runner.main([str(args.config), '--resume','false'])
         event(dict(event='validator_returned', returncode=code))
         return code
@@ -733,6 +881,7 @@ def main():
         runner._stop_and_verify = original_stop
         runner.LiveMonitor = original_monitor
         runner._run_campaign = original_campaign
+        runner.Recording = original_recording
         close_helpers()
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)

@@ -93,6 +93,62 @@ from run_traffic_light_compliance_trial import (CANONICAL, SOURCE_TOPIC, active_
     fault_copy, fixture_relay_mode, validated_fixture_status, launch_arguments,
     require_trial_contract, run_owned_trial, signal_topic_conflicts, with_compliance_debug)
 from run_traffic_light_compliance_trial import map_launch_arguments
+from run_traffic_light_compliance_trial import CrossingVideoDeadline, validate_short_cycle_request
+
+
+def test_short_cycle_plan_is_explicit_guarded_direct_stress_only(tmp_path):
+    plan = tmp_path/'cycles.json'
+    plan.write_text('{"groups": []}')
+    assert validate_short_cycle_request('short-native-cycles', plan, 'guarded', 'true') is True
+    assert validate_short_cycle_request('natural', None, 'production', 'false') is False
+    for options in (('natural', plan, 'guarded', 'true'),
+                    ('short-native-cycles', None, 'guarded', 'true'),
+                    ('short-native-cycles', plan, 'production', 'true'),
+                    ('short-native-cycles', plan, 'guarded', 'false')):
+        with pytest.raises(ValueError):
+            validate_short_cycle_request(*options)
+    plan.write_text('[]')
+    with pytest.raises(ValueError):
+        validate_short_cycle_request('short-native-cycles', plan, 'guarded', 'true')
+
+
+def test_video_cut_requires_only_verified_forward_D_crossing_and_finite_tail(tmp_path):
+    import json
+    path = tmp_path/'observer.jsonl'
+    deadline = CrossingVideoDeadline(path, 201326, 5.)
+    assert deadline.poll(10.) is False
+    event = dict(event='front_point_segment_crossing_pending_native_bracket',
+                 group_id=201326, pose_time_verified=True, direction='negative_to_positive')
+    rows = [dict(event, group_id=201351), dict(event, pose_time_verified=False),
+            dict(event, direction='positive_to_negative'), []]
+    path.write_text('\n'.join(json.dumps(row) for row in rows)+'\n')
+    assert deadline.poll(11.) is False
+    with path.open('a') as stream:
+        stream.write(json.dumps(event)[:30])
+    assert deadline.poll(12.) is False
+    with path.open('a') as stream:
+        stream.write(json.dumps(event)[30:]+'\n')
+    assert deadline.poll(13.) is False
+    assert deadline.deadline == 18.
+    assert deadline.poll(17.999) is False
+    assert deadline.poll(18.) is True
+    assert deadline.poll(19.) is True
+    assert deadline.trigger == event
+    for group, tail in ((201351, 5.), (201326, 0), (201326, -1),
+                        (201326, float('nan')), (201326, 31), (201326, True)):
+        with pytest.raises(ValueError):
+            CrossingVideoDeadline(path, group, tail)
+
+
+def test_video_cut_respects_explicit_geometry_direction(tmp_path):
+    import json
+    path = tmp_path/'observer.jsonl'
+    event = dict(event='front_point_segment_crossing_pending_native_bracket',
+                 group_id=201326, pose_time_verified=True, direction='positive_to_negative')
+    path.write_text(json.dumps(event)+'\n')
+    deadline = CrossingVideoDeadline(path, 201326, 1., 'positive_to_negative')
+    assert deadline.poll(10.) is False
+    assert deadline.poll(11.) is True
 
 
 def test_map_candidate_is_shared_without_overriding_policy_or_models():
@@ -109,6 +165,8 @@ def test_map_candidate_is_shared_without_overriding_policy_or_models():
     prediction = map_launch_arguments('perception_object_pipeline', 'object_pipeline.launch',
                                       original, '/candidate', 'sha')
     assert prediction == dict(device='0', map_file='/candidate')
+    assert map_launch_arguments('bringup', 'aw149_planning_rviz.launch', original,
+                                '/candidate', 'sha') == dict(device='0', map_file='/candidate')
     assert original == dict(device='0')
 
 
