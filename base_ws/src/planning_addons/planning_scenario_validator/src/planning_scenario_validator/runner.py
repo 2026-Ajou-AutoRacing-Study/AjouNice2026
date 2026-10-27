@@ -233,10 +233,12 @@ def _start_case_stack(cfg, processes, monitor):
         enable_signal_compliance_guard=temporal['enable_signal_compliance_guard'],
         signal_compliance_unknown_grace_sec=temporal['signal_compliance_unknown_grace_sec'],
         enable_yellow_passthrough=traffic_options['yellow_passthrough'],
+        signal_compliance_yellow_deceleration_mps2=traffic_options.get('signal_compliance_yellow_deceleration_mps2', 8.0),
         signal_compliance_required_green_observations=temporal['signal_compliance_required_green_observations'],
         signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
         signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),
-        signal_compliance_enable_timed_yellow=traffic_options.get('signal_compliance_enable_timed_yellow', False),
+        # Old timed fields remain in frozen inputs, but cannot reactivate the replaced policy.
+        signal_compliance_enable_timed_yellow=False,
         publish_fixed_autonomous_mode=True, use_ground_pointcloud=False,
         use_occupancy_grid=False))
 

@@ -13,7 +13,9 @@ from planning_scenario_validator import batch, executions, gui, runner
 from planning_scenario_validator.authoring import quick_test_document
 from planning_scenario_validator.config import ConfigError, load_campaign, validate_campaign_document
 from planning_scenario_validator.recording_options import TRAFFIC_LIGHT_DEBUG_TOPIC
-from planning_scenario_validator.traffic_light import launch_options, timed_policy_options, TIMED_POLICY_DEFAULTS
+from planning_scenario_validator.traffic_light import (launch_options, timed_policy_options,
+    TIMED_POLICY_DEFAULTS, yellow_braking_options, YELLOW_BRAKING_DEFAULTS,
+    YELLOW_POLICY_IMPLEMENTATION)
 
 
 YELLOW = 'traffic_light_yellow_passthrough'
@@ -217,7 +219,7 @@ class TrafficControlsTests(unittest.TestCase):
              patch.object(runner, 'candidate_assets', return_value=None):
             runner._start_case_stack(cfg, processes, Mock())
         command = next(c.args[1] for c in processes.start.call_args_list if c.args[0] == 'planning')
-        for argument in ('signal_compliance_enable_timed_yellow:=true',
+        for argument in ('signal_compliance_enable_timed_yellow:=false',
                          'signal_compliance_required_green_observations:=2',
                          'signal_compliance_min_yellow_sec:=2.0',
                          'signal_compliance_yellow_time_margin_sec:=0.25',
@@ -237,8 +239,8 @@ class TrafficControlsTests(unittest.TestCase):
         bad = {
             'signal_compliance_required_green_observations': (0, 4, 2., True, '2', None),
             'signal_compliance_enable_timed_yellow': (0, 1, 'false', None),
-            'signal_compliance_min_yellow_sec': (0, -1, 11, True, '2', float('inf'), float('nan')),
-            'signal_compliance_yellow_time_margin_sec': (-.1, 2., True, '.2', float('inf'), float('nan')),
+            'signal_compliance_min_yellow_sec': (True, '2', float('inf'), float('nan')),
+            'signal_compliance_yellow_time_margin_sec': (True, '.2', float('inf'), float('nan')),
         }
         for key, values in bad.items():
             for value in values:
@@ -276,14 +278,62 @@ class TrafficControlsTests(unittest.TestCase):
                     args = {e.get('name'): e.get('default') for e in xml.findall('arg')}
                     self.assertEqual(args[key], str(default).lower())
                 params = {e.get('name'): e.get('value') for e in planning.findall('param')}
-                expected = ('$(eval arg(\'enable_signal_compliance_guard\') and '
-                            'arg(\'signal_compliance_enable_timed_yellow\'))'
+                expected = ('false'
                             if key == 'signal_compliance_enable_timed_yellow' else '$(arg '+key+')')
                 self.assertEqual(params['/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/'+key], expected)
                 included = [e for e in stack.findall('include') if e.get('file', '').endswith('/launch/planning.launch')]
                 self.assertEqual(len(included), 1)
                 forwarded = {e.get('name'): e.get('value') for e in included[0].findall('arg')}
                 self.assertEqual(forwarded[key], '$(arg '+key+')')
+
+    def test_yellow_braking_deceleration_defaults_is_positive_finite_and_not_gui_migrated(self):
+        self.assertEqual(yellow_braking_options({}), YELLOW_BRAKING_DEFAULTS)
+        for invalid in (0, -8, True, '8', None, float('inf'), float('nan')):
+            with self.subTest(invalid=invalid):
+                document = copy.deepcopy(self.document)
+                document['stack']['signal_compliance_yellow_deceleration_mps2'] = invalid
+                with self.assertRaisesRegex(ConfigError, 'yellow_deceleration_mps2'):
+                    validate_campaign_document(document)
+        self.document['stack']['signal_compliance_yellow_deceleration_mps2'] = 7.5
+        values = gui.form_values(self.document)
+        self.assertEqual(gui.build_document(self.document, values), self.document)
+        self.assertEqual(gui.operator_document(self.document, self.document, values, None), self.document)
+        cfg = self.load(); processes = Mock()
+        with patch.object(runner, 'runtime_settings', return_value=('/mock/python', '0')), \
+             patch.object(runner, 'candidate_assets', return_value=None):
+            runner._start_case_stack(cfg, processes, Mock())
+        command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
+        self.assertIn('signal_compliance_yellow_deceleration_mps2:=7.5', command)
+        self.assertIn('enable_yellow_passthrough:=false', command)
+
+    def test_old_timed_values_are_accepted_but_cannot_enable_the_replaced_branch(self):
+        self.document['stack'].update(signal_compliance_enable_timed_yellow=True,
+            signal_compliance_min_yellow_sec=-1., signal_compliance_yellow_time_margin_sec=20.)
+        cfg = self.load(); processes = Mock()
+        self.assertTrue(cfg['traffic_light_options']['signal_compliance_enable_timed_yellow'])
+        with patch.object(runner, 'runtime_settings', return_value=('/mock/python', '0')), \
+             patch.object(runner, 'candidate_assets', return_value=None):
+            runner._start_case_stack(cfg, processes, Mock())
+        command = next(call.args[1] for call in processes.start.call_args_list if call.args[0] == 'planning')
+        self.assertIn('signal_compliance_enable_timed_yellow:=false', command)
+        self.assertIn('signal_compliance_yellow_deceleration_mps2:=8.0', command)
+        self.assertEqual(self.document['stack']['signal_compliance_min_yellow_sec'], -1.)
+
+    def test_new_snapshot_freezes_yellow_deceleration_and_records_replaced_policy_provenance(self):
+        path = self.save(); before = path.read_bytes()
+        cfg = executions.prepare_execution(path, check_install=False)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(cfg['document']['stack']['signal_compliance_yellow_deceleration_mps2'], 8.)
+        self.assertEqual(cfg['execution']['traffic_light_yellow_policy'], dict(
+            implementation=YELLOW_POLICY_IMPLEMENTATION, deceleration_mps2=8., timed_candidate_active=False))
+        resumed = executions.load_execution(cfg['output'], check_install=False)
+        self.assertEqual(resumed['execution']['traffic_light_yellow_policy'],
+                         cfg['execution']['traffic_light_yellow_policy'])
+        changed = yaml.safe_load(cfg['path'].read_text())
+        changed['stack']['signal_compliance_yellow_deceleration_mps2'] = 7.5
+        cfg['path'].write_text(yaml.safe_dump(changed))
+        with self.assertRaisesRegex(ValueError, '변경'):
+            executions.load_execution(cfg['output'], check_install=False)
 
 
 @unittest.skipUnless(os.environ.get('DISPLAY'), 'requires isolated Xvfb')

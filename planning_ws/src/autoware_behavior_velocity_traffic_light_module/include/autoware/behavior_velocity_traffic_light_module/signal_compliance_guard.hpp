@@ -277,6 +277,51 @@ private:
   std::optional<double> input_now_highwater_;
 };
 
+struct LaneletYellowDecision
+{
+  bool allow{false};
+  const char * reason{"disabled"};
+  double stopping_distance_m{std::numeric_limits<double>::quiet_NaN()};
+  double stopping_target_distance_m{std::numeric_limits<double>::quiet_NaN()};
+};
+
+// Competition yellow policy: retain a previously granted, moving approach only
+// when the camera-friendly Lanelet stopping target cannot be reached before
+// stopping under this explicitly simplified model. This is not a guarantee of
+// measured braking capability, lamp duration, or a legal original-line crossing.
+// The target already includes the front-bumper offset and stop margin. Do not
+// subtract the wheelbase/front-axle offset from it a second time.
+inline LaneletYellowDecision laneletYellowDecision(
+  bool enabled, bool transition_eligible, bool previous_stop, double velocity_mps,
+  double slow_velocity_mps, double response_delay_sec, double deceleration_mps2,
+  double signed_stopping_target_distance_m)
+{
+  LaneletYellowDecision result;
+  result.stopping_target_distance_m = signed_stopping_target_distance_m;
+  if (!enabled) return result;
+  result.reason = "invalid_input";
+  if (!std::isfinite(velocity_mps) || velocity_mps < 0.0 ||
+      !std::isfinite(slow_velocity_mps) || slow_velocity_mps <= 0.0 ||
+      !std::isfinite(response_delay_sec) || response_delay_sec < 0.0 ||
+      !std::isfinite(deceleration_mps2) || deceleration_mps2 <= 0.0 ||
+      !std::isfinite(signed_stopping_target_distance_m)) {
+    return result;
+  }
+  result.stopping_distance_m = velocity_mps * response_delay_sec +
+    velocity_mps * velocity_mps / (2.0 * deceleration_mps2);
+  if (!std::isfinite(result.stopping_distance_m)) return result;
+  result.reason = "no_observed_authorized_transition";
+  if (!transition_eligible) return result;
+  result.reason = "already_stopped_or_slow";
+  if (previous_stop || velocity_mps < slow_velocity_mps) return result;
+  // Equality means the model can stop at the target, so retain STOP on the tie.
+  result.allow = result.stopping_distance_m > signed_stopping_target_distance_m;
+  result.reason = result.allow ? "cannot_stop_before_lanelet_target" : "lanelet_target_stoppable";
+  return result;
+}
+
+// Historical pure helper, retained only for old experiment reproduction/tests.
+// Production scenes no longer call this duration/ETA policy.
 struct TimedYellowDecision
 {
   bool allow{false};

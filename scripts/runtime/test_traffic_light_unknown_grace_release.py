@@ -73,6 +73,26 @@ def launch_dump(name, overrides=()):
         script += 'source '+shlex.quote(setup)+'\n'
     if tree == 'source':
         script += 'export ROS_PACKAGE_PATH='+shlex.quote(str(TRAFFIC)+':'+str(PLANNING))+':"$ROS_PACKAGE_PATH"\n'
+        # roslaunch $(find pkg)/launch/file uses catkin resource lookup, whose
+        # CMAKE_PREFIX_PATH precedes rospack's ROS_PACKAGE_PATH. Merely prefixing
+        # source packages therefore still included old installed launch files.
+        # Remove only this base install prefix; other packages remain available
+        # through ROS_PACKAGE_PATH and the planning/ROS installation prefixes.
+        script += 'source_prefix='+shlex.quote(str(ROOT/'base_ws/install_aw149'))+'\n'
+        script += 'prefixes=":$CMAKE_PREFIX_PATH:"\n'
+        script += 'prefixes="${prefixes//:$source_prefix:/:}"\n'
+        script += 'export CMAKE_PREFIX_PATH="${prefixes#:}"\n'
+        script += 'export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH%:}"\n'
+        expected = [(package.name, str(package), str(package/'launch'/filename))
+                    for package, filename in (LAUNCHES['node'], LAUNCHES['planning'])]
+        probe = ('import roslib.packages, subprocess, sys\n'
+                 'for package, directory, launch in '+repr(expected)+':\n'
+                 '    found = subprocess.check_output(["rospack", "find", package], text=True).strip()\n'
+                 '    resources = roslib.packages.find_resource(package, launch.rsplit("/", 1)[-1])\n'
+                 '    if found != directory or not resources or resources[0] != launch:\n'
+                 '        raise RuntimeError("source routing mismatch: rospack find %s -> %r; resources=%r; expected=%r" % (package, found, resources, launch))\n'
+                 '    print("source routing verified: rospack find %s -> %s; launch -> %s" % (package, found, resources[0]), file=sys.stderr)\n')
+        script += '/usr/bin/python3 -c '+shlex.quote(probe)+'\n'
     script += 'exec roslaunch --dump-params "$@"\n'
     with tempfile.TemporaryDirectory(prefix='ajou_launch_dump_') as ros_home:
         env = dict(PATH='/usr/bin:/bin', LANG='C.UTF-8', HOME=os.environ.get('HOME', '/tmp'),
@@ -186,6 +206,7 @@ class ResolvedUnknownGraceReleaseTest(unittest.TestCase):
         self.assertIs(params[PREFIX+'enable_signal_compliance_guard'], True)
         self.assertIs(params[PREFIX+'enable_yellow_passthrough'], False)
         self.assertIs(params[PREFIX+'signal_compliance_enable_timed_yellow'], False)
+        self.assertEqual(params[PREFIX+'signal_compliance_yellow_deceleration_mps2'], 8.)
 
     def test_guard_off_normalizes_incompatible_defaults_and_explicit_requests(self):
         for extra in ([], [GRACE+':=0.3', 'defer_unseen_until_observed:=true',

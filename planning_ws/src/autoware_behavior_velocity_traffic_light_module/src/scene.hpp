@@ -85,6 +85,9 @@ public:
     double signal_compliance_front_axle_offset_m{-1.0};
     int signal_compliance_required_green_observations{3};
     double signal_compliance_unknown_grace_sec{0.0};
+    // Positive magnitude for yellow decision only; not a controller command.
+    double signal_compliance_yellow_deceleration_mps2{8.0};
+    // Deprecated compatibility fields: production no longer selects timed yellow.
     bool signal_compliance_enable_timed_yellow{false};
     double signal_compliance_min_yellow_sec{2.0};
     double signal_compliance_yellow_time_margin_sec{0.2};
@@ -148,7 +151,6 @@ private:
 
   bool isStopSignal(double distance_to_stop_point = 0.0);
   bool seen_signal_on_approach_{false};
-  std::optional<double> official_front_line_distance_;
 
   // Store how the current yellow sequence started
   YellowState yellow_transition_state_;

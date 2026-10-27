@@ -90,7 +90,7 @@ protected:
     now_+=dt; ros::Time t; t.fromSec(now_); ros::Time::setNow(t);
   }
 
-  void pose(double rear_x=0., double speed=5.)
+  void pose(double rear_x=3., double speed=5.)
   {
     nav_msgs::Odometry m; m.header.stamp=ros::Time::now();m.header.frame_id="map";
     m.pose.pose.position.x=rear_x;m.pose.pose.orientation.w=1.;m.twist.twist.linear.x=speed;
@@ -141,7 +141,7 @@ protected:
     return std::any_of(p.begin(),p.end(),[](const auto & q){return q.point.longitudinal_velocity_mps<.001;});
   }
 
-  void confirmedGreen(double rear_x=0.,double speed=5.,int count=3)
+  void confirmedGreen(double rear_x=3.,double speed=5.,int count=3)
   {
     for(int n=0;n<count;++n) {
       tick();pose(rear_x,speed);put(green());EXPECT_EQ(stops(),n<count-1);
@@ -233,36 +233,36 @@ TEST_F(TrafficTimedYellowExperimentalTest, InitialUnseenStaysOpenNearLineUntilRe
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, YellowETAMustReachOriginalLineNotEarlierCameraStopTarget)
+TEST_F(TrafficTimedYellowExperimentalTest, YellowUsesCameraTargetNotFartherOriginalCrossingLine)
 {
   for(const auto group:{201351,201365,201290,201326}) {
     configure(group,true,true,3,2.,0.,true,20.);
     confirmedGreen(0.,5.); tick(); pose(0.,5.); put(yellow());
-    // Virtual line10m would give1.4s. Original line20m gives3.4s: deny.
+    // Bumper target6.155m is beyond the simple stopping distance4.0625m: STOP.
     EXPECT_TRUE(stops());
     configure(group,true,true,3,2.,0.,true,20.);
     confirmedGreen(10.,5.); tick(); pose(10.,5.); put(yellow());
-    // The virtual stop target is behind ego, but real judging ETA is1.4s.
+    // Camera stop target is behind ego, original line not crossed: retain GO.
     EXPECT_FALSE(stops());
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, MissingOriginalLineDisablesTimeOverrideWithoutStartupFailure)
+TEST_F(TrafficTimedYellowExperimentalTest, MissingOriginalLineStillUsesLaneletYellowDecision)
 {
   configure(201351,true,true,3,2.,0.,true,20.,false);
   confirmedGreen(); tick(); pose(); put(yellow());
-  EXPECT_TRUE(stops());
+  EXPECT_FALSE(stops());
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, ABCDTimeCandidatePassesWhereOldPhysicalExceptionStops)
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDObsoleteTimedSwitchCannotChangeNewDecision)
 {
-  // Rear x0 -> front axle x3 -> line7m away. v5 has physical stop distance6m,
-  // so legacy exception stops, but 1.4s ETA+.2 margin fits 1.9s budget.
+  // Rear3 -> Lanelet bumper target3.155m. Simple stop4.0625m: GO,
+  // independently of the obsolete timing switch and its former ETA policy.
   for(const auto group:{201351,201365,201290,201326}) {
     SCOPED_TRACE(group);
     for(const bool timed:{false,true}) {
       configure(group,true,timed);confirmedGreen();tick();pose();put(yellow());
-      EXPECT_EQ(stops(),!timed);
+      EXPECT_FALSE(stops());
     }
   }
 }
@@ -282,11 +282,43 @@ TEST_F(TrafficTimedYellowExperimentalTest, ABCDFirstYellowAndStoppedYellowNeverS
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, OneSecondRejectsSameReachableTwoAndThreeSecondCase)
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDPriorStopCannotBecomeYellowDepartureCloserToTarget)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    configure(group); confirmedGreen(0.,5.);
+    tick(); pose(0.,5.); put(yellow()); EXPECT_TRUE(stops());
+    tick(); pose(6.,5.); put(yellow()); EXPECT_TRUE(stops());
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDUnknownGracePreservesOnlyPriorGrantedTransition)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    for (const bool expired : {false,true}) {
+      configure(group,true,true,1,2.,0.,false,20.,true,false,false,.3);
+      tick(); pose(3.,5.); put(green()); EXPECT_FALSE(stops());
+      Signal empty; tick(expired ? .31 : .05); put(empty); EXPECT_EQ(stops(),expired);
+      tick(.05); put(yellow()); EXPECT_EQ(stops(),expired);
+    }
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, ABCDRedPastCameraTargetStillStopsBeforeOfficialCrossing)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    configure(group,true,true,1,2.,0.,false,20.);
+    tick(); pose(6.5,2.); put(green()); EXPECT_FALSE(stops());
+    tick(); put(yellow()); EXPECT_FALSE(stops());
+    tick(); put(red()); EXPECT_TRUE(stops());
+    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
+  }
+}
+
+TEST_F(TrafficTimedYellowExperimentalTest, ObsoleteYellowDurationsNoLongerAffectDecision)
 {
   for(const double minimum:{1.,2.,3.}) {
     configure(201351,true,true,3,minimum);confirmedGreen();tick();pose();put(yellow());
-    EXPECT_EQ(stops(),minimum==1.);
+    EXPECT_FALSE(stops());
   }
 }
 
@@ -318,19 +350,21 @@ TEST_F(TrafficTimedYellowExperimentalTest, RedMissingAndStaleInvalidateAnEarlier
   }
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, DeadlineDoesNotRenewAndLatePositiveArrivalMustStop)
+TEST_F(TrafficTimedYellowExperimentalTest, FreshYellowDoesNotUseAnAssumedElapsedTimeDeadline)
 {
   configure(201351);confirmedGreen();tick();pose();put(yellow());ASSERT_FALSE(stops());
-  for(int n=0;n<10;++n){tick();pose();put(yellow());}
-  EXPECT_TRUE(stops()); // Vehicle artificially held at same pose: time expired.
+  // Process every fresh frame: skipping the callbacks would intentionally
+  // exceed the separate .5s observation timeout, not a yellow phase deadline.
+  for(int n=0;n<10;++n){tick();pose();put(yellow());EXPECT_FALSE(stops());}
+  EXPECT_FALSE(stops()); // Artificial fixed pose/speed: same braking geometry, no duration model.
 }
 
-TEST_F(TrafficTimedYellowExperimentalTest, CurrentBrakingThatStopsBeforeLineDoesNotPass)
+TEST_F(TrafficTimedYellowExperimentalTest, CurrentAccelerationDoesNotChangeSimpleBrakingApproximation)
 {
   configure(201351);confirmedGreen();
   auto braking=std::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
   braking->accel.accel.linear.x=-3.;data_->current_acceleration=braking;
-  tick();pose();put(yellow());EXPECT_TRUE(stops());
+  tick();pose();put(yellow());EXPECT_FALSE(stops());
 }
 
 TEST_F(TrafficTimedYellowExperimentalTest, AlreadyCrossedClearsRedEvenWithMasterOff)

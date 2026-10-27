@@ -127,22 +127,9 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     signed_arc_length_to_stop_point, planner_param_.stop_margin,
     planner_data_->vehicle_info_.max_longitudinal_offset_m,
     planner_param_.signal_compliance_front_axle_offset_m);
-  official_front_line_distance_.reset();
-  if (planner_param_.enable_signal_compliance_guard && planner_param_.use_official_judging_lines) {
-    if (official_line) {
-      std::vector<signal_compliance::JudgingPoint> route;
-      route.reserve(input_path.points.size());
-      for (const auto & point : input_path.points) {
-        route.push_back({point.point.pose.position.x, point.point.pose.position.y});
-      }
-      official_front_line_distance_ = signal_compliance::pathJudgingLineDistance(*official_line, route, official_front);
-    }
-    if (!official_front_line_distance_) {
-      RCLCPP_WARN_THROTTLE(logger_, *clock_, 5000,
-        "[signal_judging_line] reg=%ld original-line ETA unavailable; yellow override disabled",
-        traffic_light_reg_elem_.id());
-    }
-  }
+  // Original-MGeo/front-axle geometry is used only to clear a crossed signal.
+  // Yellow braking uses signed_arc_length_to_stop_point, the earlier Lanelet
+  // bumper stopping target, even if original-line geometry is unavailable.
   // Keep the proven yellow-OFF clearing behavior. The explicit yellow
   // candidate must retain judging-line compliance through the original line.
   const auto crossing_distance = planner_param_.use_official_judging_lines && planner_param_.enable_yellow_passthrough ?
@@ -542,66 +529,34 @@ bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
   if (!planner_param_.enable_yellow_passthrough) {
     return false;
   }
-  const double max_acc = planner_data_->max_stop_acceleration_threshold;
-  const double max_jerk = planner_data_->max_stop_jerk_threshold;
-  const double delay_response_time = planner_data_->delay_response_time;
-
-  const double reachable_distance =
-    planner_data_->current_velocity->twist.linear.x * planner_param_.yellow_lamp_period;
-
-  // Calculate distance until ego vehicle decide not to stop,
-  // taking into account the jerk and acceleration.
-  const double pass_judge_line_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
-    planner_data_->current_velocity->twist.linear.x,
-    planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
-    delay_response_time);
-
   if (planner_param_.enable_signal_compliance_guard) {
-    // Failing to stop at the conservative bumper target is NOT sufficient to
-    // authorize a yellow crossing if the front axle can still stop before the line.
-    const auto candidate_stop_distance = signal_compliance::candidateStoppingDistance(
-      planner_data_->current_velocity->twist.linear.x,
-      planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
-      delay_response_time, pass_judge_line_distance);
-    // Yellow timing/physical pass judgement must NEVER substitute the earlier
-    // camera stop target for the original MORAI judging line.
-    const auto front_line_distance = official_front_line_distance_;
-    if (planner_param_.signal_compliance_enable_timed_yellow) {
-      const auto decision = signal_compliance::timedYellowDecision(
-        planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
-        is_prev_state_stop_ || planner_data_->isVehicleStopped(),
-        planner_data_->current_velocity->twist.linear.x,
-        planner_data_->current_acceleration->accel.accel.linear.x,
-        planner_param_.yellow_light_stop_velocity,
-        front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
-        clock_->now().toSec(), signal_compliance_guard_.yellowStartLowerBoundSec(),
-        planner_param_.signal_compliance_min_yellow_sec, planner_param_.signal_compliance_yellow_time_margin_sec);
-      RCLCPP_INFO_THROTTLE(logger_, *clock_, 200,
-        "[signal_timed_yellow] reg=%ld allow=%d reason=%s remaining_sec=%.3f arrival_sec=%.3f margin_sec=%.3f front_line_m=%.3f min_yellow_assumption_sec=%.3f line_basis=original_morai_mgeo",
-        traffic_light_reg_elem_.id(), decision.allow, decision.reason, decision.remaining_sec,
-        decision.arrival_sec, planner_param_.signal_compliance_yellow_time_margin_sec,
-        front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
-        planner_param_.signal_compliance_min_yellow_sec);
-      return decision.allow;
-    }
-    const bool allow_pass = front_line_distance && candidate_stop_distance &&
-      signal_compliance::yellowPassthroughAllowed(
+    // Replaces both prior jerk-based and timed-yellow candidates. Deprecated
+    // timing fields are intentionally ignored; no lamp duration is presumed.
+    const auto decision = signal_compliance::laneletYellowDecision(
       planner_param_.enable_pass_judge, signal_compliance_guard_.yellowTransitionEligible(),
       is_prev_state_stop_ || planner_data_->isVehicleStopped(),
       planner_data_->current_velocity->twist.linear.x, planner_param_.yellow_light_stop_velocity,
-      *candidate_stop_distance, *front_line_distance);
-    RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
-      "[signal_compliance] reg=%ld state=APPROACH class=%s front_line_m=%.3f judge_stop_m=%.3f legacy_judge_stop_m=%.3f velocity_mps=%.3f source_age_sec=%.3f green_count=%zu yellow_eligible=%d passthrough=%d",
+      planner_data_->delay_response_time,
+      planner_param_.signal_compliance_yellow_deceleration_mps2, signed_arc_length);
+    RCLCPP_INFO_THROTTLE(logger_, *clock_, 200,
+      "[signal_lanelet_yellow] reg=%ld class=%s allow=%d reason=%s stop_target_m=%.3f stopping_distance_m=%.3f velocity_mps=%.3f response_delay_sec=%.3f deceleration_mps2=%.3f yellow_eligible=%d line_basis=lanelet_bumper_stop_target",
       traffic_light_reg_elem_.id(), signal_compliance::observationName(signal_compliance_guard_.lastObservation()),
-      front_line_distance.value_or(std::numeric_limits<double>::quiet_NaN()),
-      candidate_stop_distance.value_or(std::numeric_limits<double>::quiet_NaN()), pass_judge_line_distance,
+      decision.allow, decision.reason, decision.stopping_target_distance_m, decision.stopping_distance_m,
       planner_data_->current_velocity->twist.linear.x,
-      traffic_signal_stamp_ ? (clock_->now()-*traffic_signal_stamp_).toSec() : -1.,
-      signal_compliance_guard_.greenConfirmationCount(),
-      signal_compliance_guard_.yellowTransitionEligible(), allow_pass);
-    return allow_pass;
+      planner_data_->delay_response_time, planner_param_.signal_compliance_yellow_deceleration_mps2,
+      signal_compliance_guard_.yellowTransitionEligible());
+    return decision.allow;
   }
 
+  // Explicit guard-OFF legacy rollback only. Production never selects this
+  // old period/jerk branch; its historical semantics remain reproducible.
+  const double reachable_distance =
+    planner_data_->current_velocity->twist.linear.x * planner_param_.yellow_lamp_period;
+  const double pass_judge_line_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
+    planner_data_->current_velocity->twist.linear.x,
+    planner_data_->current_acceleration->accel.accel.linear.x,
+    planner_data_->max_stop_acceleration_threshold, planner_data_->max_stop_jerk_threshold,
+    planner_data_->delay_response_time);
   const bool distance_stoppable = pass_judge_line_distance < signed_arc_length;
   const bool slow_velocity =
     planner_data_->current_velocity->twist.linear.x < planner_param_.yellow_light_stop_velocity;

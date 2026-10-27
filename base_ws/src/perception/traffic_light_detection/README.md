@@ -194,8 +194,25 @@ UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 �
 `traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.
 정차 위치는 Lanelet ref_line의 실제 좌표로 관리하며 이 노드가 지도 OSM을 바꾸지 않는다.
 PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
-그 후 황색 ETA에 한해 원본 MGeo 판정선 profile을 독립적으로 추가했다. 옛 추가 margin을 되살린 것은 아니다.
+그 후 원본 MGeo 판정선 profile을 독립적으로 추가했다. 2026-10-27부터 황색 GO 판단은
+아래 Lanelet 제동거리 근사로 대체하고 MGeo선은 황색 ON의 실제 통과 완료 확인에만 유지한다.
 기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
 이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 OFF·허가1회가 현재값이며 과거 실험의 허가3회와 구별한다.
+
+## 황색 ON: Lanelet 정차 목표 기준 제동거리
+
+기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 OFF다.
+준수 가드 ON에서 황색 예외를 켜면 `v*delay_response_time + v²/(2*a)`를 계산한다.
+`a=signal_compliance_yellow_deceleration_mps2` 기본8.0이며 판단용 값이다.
+현재 공통 응답지연0.5초를 그대로 쓰고, 실제 제어/planning 감속도6·jerk10을 변경하지 않는다.
+거리는 이미 앞범퍼·stop_margin이 반영된 기존 Lanelet 정차 목표까지의 경로 거리다.
+앞차축3m를 다시 빼지 않는다. 엄격히 `예상 정지거리 > 목표까지 거리`일 때만 진행한다.
+같으면 정지하며, 최초 황색·이미 정차·기존 STOP·방향 허가 없는 이전 신호는 예외 대상이 아니다.
+
+예전 timed flag/minimum/margin 인자는 옛 YAML 호환용으로 받지만 시간제한 분기를 활성화하지 않는다.
+황색 지속시간을 가정하지 않으므로, 적색 전 실제 채점선 통과 보장은 아니다.
+공식선 앞에서 새 RED/판독 불가가 오면 기존 정지/UNKNOWN 정책을 유지한다.
+`enable_signal_compliance_guard:=false`는 여전히 명시적 legacy 정책 복귀다.
+세부 조건·설정·검증 한계는 [교체 기록](../../../../docs/perception/traffic_light/261027_LANELET_YELLOW_BRAKING.md)을 본다.
 [최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.
 [변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

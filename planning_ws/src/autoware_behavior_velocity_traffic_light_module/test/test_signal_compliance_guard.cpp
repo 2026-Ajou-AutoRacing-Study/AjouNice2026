@@ -515,3 +515,48 @@ TEST(SignalComplianceBraking, InvalidBrakingInputsCannotAuthorizeYellowPass)
   EXPECT_FALSE(compliance::candidateStoppingDistance(1.,0.,-6.,-10.,.5,-1.));
   EXPECT_DOUBLE_EQ(*compliance::candidateStoppingDistance(0.,0.,-6.,-10.,.5,0.),0.);
 }
+
+TEST(SignalLaneletYellow, SimpleDistanceDelayAndStrictBoundary)
+{
+  const auto exact=compliance::laneletYellowDecision(true,true,false,8.,1.,.5,8.,8.);
+  EXPECT_FALSE(exact.allow);
+  EXPECT_DOUBLE_EQ(exact.stopping_distance_m,8.);
+  EXPECT_DOUBLE_EQ(exact.stopping_target_distance_m,8.);
+  EXPECT_STREQ(exact.reason,"lanelet_target_stoppable");
+  EXPECT_TRUE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,8.,7.999).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,8.,8.001).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,0.,8.,7.).allow);
+  EXPECT_TRUE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,8.,7.).allow);
+  EXPECT_TRUE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,4.,10.).allow);
+  // Signed target may be behind ego, while the independent original crossing
+  // line remains ahead. Never reinterpret it as a negative invalid line ETA.
+  EXPECT_TRUE(compliance::laneletYellowDecision(true,true,false,2.,1.,.5,8.,-.1).allow);
+}
+
+TEST(SignalLaneletYellow, EligibilityAndStoppedDepartureCannotBeBypassed)
+{
+  EXPECT_FALSE(compliance::laneletYellowDecision(false,true,false,8.,1.,.5,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,false,false,8.,1.,.5,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,true,8.,1.,.5,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,.99,1.,.5,8.,-.1).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,0.,1.,.5,8.,-.1).allow);
+}
+
+TEST(SignalLaneletYellow, InvalidAndNonfiniteInputsFailClosed)
+{
+  const double nan=std::numeric_limits<double>::quiet_NaN();
+  const double inf=std::numeric_limits<double>::infinity();
+  for (const double invalid : {nan,inf,-inf}) {
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,invalid,1.,.5,8.,1.).allow);
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,invalid,.5,8.,1.).allow);
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,invalid,8.,1.).allow);
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,invalid,1.).allow);
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,8.,invalid).allow);
+  }
+  for (const double invalid : {0.,-8.})
+    EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,.5,invalid,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,-1.,1.,.5,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,0.,.5,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,8.,1.,-.1,8.,1.).allow);
+  EXPECT_FALSE(compliance::laneletYellowDecision(true,true,false,1e308,1.,.5,8.,1.).allow);
+}

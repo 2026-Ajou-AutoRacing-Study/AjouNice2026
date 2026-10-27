@@ -37,7 +37,7 @@
   `competition_fail_open=true`의 미수신·timeout GO를 복구했다. 신호등 미실행과 노드 다운은 이 정책에서 구분되지 않는다.
   [황색 스위치·샘플 시간·GUI](261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#yellow-controls-261026)에서 현재 OFF 기본과 이전 ON 시험을 구분한다.
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
-- [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 당시 시험값이다. 운영 기본 허가 확인은 2026-10-27에 1회로 변경했다.
+- 황색 master는 기본 OFF다. ON 시 [Lanelet 제동거리 정책](261027_LANELET_YELLOW_BRAKING.md)으로 기존 jerk/잔여시간 판단을 대체한다: `v*응답지연+v²/(2*8)`이 기존 Lanelet 정차 목표 거리보다 클 때만 기존 허가→황색 주행을 이어간다. 첫 황색·정차·기존 STOP 뒤 출발은 금지다. [옛 시간제한 후보](261026_TIMED_YELLOW_CANDIDATE.md)의2초 가정은 더 이상 활성 판단식이 아니다.
 - 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml) 뒤 최신 planning은 **v96** 지도·SHA·Route A/B를 기본으로 선택한다([지도 현재 계약](../../../kcity_map/README.md)). 아래 v88/v93 날짜별 실주행 증거를 v96·LAN 인증으로 쓰지 않는다.
 - 단발 detector 누락은 원본 age 0.2초, 정상 지도 연결의 CNN 공백은 위 공유0.2초가 우선이며, 그 밖의 기존 이동 중 soft 저확신 경로만 0.3초/원본 age0.5초 한도를 유지한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 로컬 소스·설치본에는 이전 박스 IoU가 낮아도 현재 영상 시각의 크기 비례 지도 투영과 현재 검출 박스가 일치하면 같은 head로 재판독하는 보완을 추가·검사했다. 로컬 B 근접·풀경로 폐루프는 PASS했으나 **새 투영 분기는 두 주행에서 발동하지 않아 팀 PC 설치본·LAN 효과 검증은 별도**다. 위 no_lamps 완충을 벗어난 무점등과 실제 화각 이탈은 UNKNOWN으로 남기며, 다음 lanelet ID만으로 다른 YOLO 박스를 강제 연결하는 규칙은 추가하지 않는다. [B bag 원인·후보·실주행 검증](261027_B_ROI_PROJECTION_CONTINUATION.md)을 본다.
 - Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 현재 기본인 신선한 1개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
@@ -60,7 +60,7 @@
 특히 D-2에서 G와 Y 단독은 좌회전 신호가 아니다.
 R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미를 복원하지 않는다.
 위 표는 관측된 자연 프로그램이며 CNN 입력 GT가 아니다. D의 Y도 R로 바꾸지 않고 비허가로 판단한다.
-허가 없는 Y/R+Y 새 출발은 금지다. 물리 통과선·시야 계약 전까지 황색 override는 보류하며 무패널티를 보증하지 않는다.
+허가 없는 Y/R+Y 새 출발은 금지다. 황색 ON의8m/s²는 의사결정용 근사일 뿐 실측 제동 성능·적색 전 통과·무패널티를 보증하지 않는다.
 사용자가 재확인한 미션 명칭은 A·B·C(두 physical head)·D(옛 D-2)다.
 동적 교차로 뒤에 보이는 옛 D-1은 검출 라벨로 존재해도 미션 신호 허용 대상으로 쓰지 않는다.
 
@@ -69,7 +69,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 1. C016/C018은 같은 신호 프로그램이다. 단일 등 강제 제어의 불일치를 자연 주행 오류로 세지 않는다.
 2. 지도 crop은 근사치다. native 상태가 맞아도 선택 연속성을 보장하지 않는다. [과거 연속 제동 대조](261026_TIMED_YELLOW_CANDIDATE.md#continuous-braking-comparison)에서 v90 A/B/D의 허가 판독 중단·짧은 재정지를 확인했다. CPU·화각 하나로 단정하지 않는다.
 3. [3/2 영상](261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md)·[7/4 비교](261027_SEVEN_FOUR_DRIVING_COMPARISON.md)·[옛 전체 경로 감사](261027_LEGACY_ROBUSTNESS_AUDIT.md) 후 [순수 UNKNOWN 유예](261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md)를 **운영0.3초로 승격**했다. 실제 허가 원본/처리 age가 모두 기한 내일 때만 이어주며 새 R/Y·색이 있는 모순은 즉시 기존 판단에 전달한다. marker ON·허가1회·투표0·황색OFF를 묶는다. traffic OFF/legacy/옛 snapshot은 유예0을 보존한다. [배포·복귀](261027_UNKNOWN_GRACE_RELEASE.md)를 따른다. 과거 profile·D1.5초 hold·UNKNOWN/Y 무조건 GO는 복원하지 않았다.
-4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON 후보의 ETA·통과는 원본 MGeo선 기준이며 D 사각 구간 검증은 남는다.
+4. `route_progress_guard`는 기본 ON이다. 지난 미션 재선택을 억제하고 route/큰 재배치/시간 역전 시 초기화한다. timeout은 원본 stamp 기준 1.0초다. 황색 OFF 기본 GO_OUT은 지도선 기준 유지, 황색 ON의 제동 가능성은 Lanelet 목표 기준·통과 완료는 원본 MGeo선/앞차축3m 기준으로 분리한다.
 
 - [움찔 실주행 수정](261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md): 신호등 입력 covariance stress의 실제 재제동1→0 확인 후 **launch 기본0.3초로 적용**. 새 v94 bag B의 STOP5회 근방에서 같은 영상의 현재 녹색 판독 회복을 확인했지만 인과·완치 인증은 아니다. 당시에는 timeout1초·황색OFF·허가3회·ID0 경계를 유지했으며, 허가 확인만 2026-10-27에 별도 1회로 변경했다. 인식 모델 성능은 그대로다. 자연 풀주행 2회의 A/B/C/D 관측열 오프라인 대조에서 안정 허가 구간의 첫 관측→세 번째 관측 간격은 0.209~0.260초였다. 총190개 허가 프레임 중 전후0.25초의 동일 native 상태로 확인 가능한184개는 모두 방향 허가였고, 6개는 그 조건으로 미확인이다. B에는 한 프레임만 허가로 나온 구간 3개가 있었고 주변 native 조회는 녹색이었다. 1회 설정에서는 이런 구간에 궤적이 잠깐 열렸다 닫힐 수 있다. **이190프레임 대조 자체는1회 설정의 폐루프 평가가 아니며**, 오출발률이나 실대회 패널티 변화를 인증하지 않는다. 이후 로컬1회 설정 주행은 위 [허용 범위 대조](261027_SELECTION_TOLERANCE_COMPARISON.md)에 기록했다. 기존 실행 snapshot에서 허가3회를 명시했다면 그대로 유지된다.
 

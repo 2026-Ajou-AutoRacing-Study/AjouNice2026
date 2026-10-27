@@ -23,10 +23,12 @@
   <arg name="enable_traffic_light_planner" default="true"/>
   <!-- Production compliance policy; false is an explicit legacy-policy rollback. -->
   <arg name="enable_signal_compliance_guard" default="true"/>
-  <!-- Opt-in moving green->yellow dilemma exception, not a yellow departure grant. -->
+  <!-- Opt-in moving green->yellow Lanelet-target braking exception, not a departure grant. -->
   <arg name="enable_yellow_passthrough" default="false"/>
-  <!-- Timed candidate requires both this flag and the yellow master switch.
-       2.0s is an explicit minimum-duration assumption, not an official guarantee. -->
+  <!-- Yellow-only stopping approximation; does NOT change global/controller deceleration. -->
+  <arg name="signal_compliance_yellow_deceleration_mps2" default="8.0"/>
+  <!-- Deprecated timed-candidate arguments remain accepted for existing launch commands.
+       They no longer enable a separate timing branch or assume a yellow duration. -->
   <arg name="signal_compliance_enable_timed_yellow" default="false"/>
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
@@ -109,8 +111,10 @@
          value="$(arg enable_signal_compliance_guard)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/enable_yellow_passthrough"
          value="$(arg enable_yellow_passthrough)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_deceleration_mps2"
+         value="$(arg signal_compliance_yellow_deceleration_mps2)" type="double"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_enable_timed_yellow"
-         value="$(eval arg('enable_signal_compliance_guard') and arg('signal_compliance_enable_timed_yellow'))"/>
+         value="false"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_min_yellow_sec"
          value="$(arg signal_compliance_min_yellow_sec)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_time_margin_sec"

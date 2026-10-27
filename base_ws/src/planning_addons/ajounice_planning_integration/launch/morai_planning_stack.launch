@@ -56,6 +56,8 @@
   <arg name="traffic_light_device" default="0"/>
   <arg name="enable_signal_compliance_guard" default="true"/>
   <arg name="enable_yellow_passthrough" default="false"/>
+  <arg name="signal_compliance_yellow_deceleration_mps2" default="8.0"/>
+  <!-- Compatibility-only; planning uses the Lanelet-target braking policy. -->
   <arg name="signal_compliance_enable_timed_yellow" default="false"/>
   <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
   <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
@@ -180,6 +182,7 @@
          value="$(arg enable_traffic_light_planner)"/>
     <arg name="enable_signal_compliance_guard" value="$(arg enable_signal_compliance_guard)"/>
     <arg name="enable_yellow_passthrough" value="$(arg enable_yellow_passthrough)"/>
+    <arg name="signal_compliance_yellow_deceleration_mps2" value="$(arg signal_compliance_yellow_deceleration_mps2)"/>
     <arg name="signal_compliance_enable_timed_yellow" value="$(arg signal_compliance_enable_timed_yellow)"/>
     <arg name="signal_compliance_min_yellow_sec" value="$(arg signal_compliance_min_yellow_sec)"/>
     <arg name="signal_compliance_yellow_time_margin_sec" value="$(arg signal_compliance_yellow_time_margin_sec)"/>
