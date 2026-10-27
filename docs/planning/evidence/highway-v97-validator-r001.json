@@ -1,0 +1,77 @@
+{
+  "schema": "ajounice.planning.highway_validator.v1",
+  "recorded_at": "2026-10-27T22:06:44+09:00",
+  "branch": "planning/autoware-universe-to-ros1",
+  "git_commit": "4decd55e7499d1cbb1207d9e82a3cb9374ade813",
+  "campaign": {
+    "execution_id": "ajou_highway_bev_desktop_261027_211840",
+    "configuration": "base_ws/src/planning_addons/planning_scenario_validator/config/users/ajou/highway_bev_desktop.yaml",
+    "configuration_sha256": "0da352115c3613b69878bcb010532a52b73c76fe2e3ee250b42cac2a0da0cdf6",
+    "source_scenarios": "base_ws/src/planning_addons/planning_scenario_validator/config/missions/highway/base/scenarios",
+    "case_count": 24,
+    "first_pass": { "pass": 15, "fail": 9, "system_error": 0 },
+    "failed_cases_rerun": true,
+    "final": { "pass": 18, "fail": 6, "system_error": 0 }
+  },
+  "runtime_contract": {
+    "map": {
+      "version": 97,
+      "file": "kcity_map/lanelet_map/lanelet2_map_v97.osm",
+      "sha256": "da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9"
+    },
+    "detector": {
+      "preset": "base5_e12",
+      "checkpoint_sha256": "f3ade1bf17375c061ea6c0284d636cfc647c98b745f4534cb365499e1394dba8",
+      "fingerprint": "8bb219f16dcea31ca7d92c73e8801be271e3bdad75774afd5f45a802f2a42a4e"
+    },
+    "localization_fingerprint": "e2683c36c8e32b1a39b7d7df83210136b8aea0e820b5e6653af0354e4513e834"
+  },
+  "final_results": {
+    "pass": [
+      "high_baseline_00",
+      "high_baseline_01",
+      "high_normal_02",
+      "high_normal_04",
+      "high_normal_06",
+      "high_normal_08",
+      "high_normal_09",
+      "high_normal_10",
+      "high_normal_11",
+      "high_normal_12",
+      "high_normal_13",
+      "high_normal_14",
+      "high_normal_15",
+      "high_stress_17",
+      "high_stress_18",
+      "high_stress_19",
+      "high_stress_22",
+      "high_stress_23"
+    ],
+    "failures": {
+      "high_normal_03": { "reason": "TIMEOUT", "attempts": 2 },
+      "high_normal_05": { "reason": "COLLISION", "attempts": 2 },
+      "high_normal_07": { "reason": "COLLISION", "attempts": 2 },
+      "high_stress_16": { "reason": "COLLISION", "attempts": 2 },
+      "high_stress_20": { "reason": "COLLISION", "attempts": 2 },
+      "high_stress_21": { "reason": "COLLISION", "attempts": 2 }
+    },
+    "rerun_to_pass": [
+      "high_normal_06",
+      "high_normal_10",
+      "high_stress_23"
+    ]
+  },
+  "raw_artifacts": {
+    "campaign_state": "planner_logs/validation/ajou_highway_bev_desktop_261027_211840/campaign_state.json",
+    "campaign_state_sha256": "7ca53ca59d5f5590e8b69844871fed7183966e17e7b3cc097cf92fba2e763276",
+    "git_status": "ignored raw bags, videos, staged MORAI scenario copies, and the separately supplied map are intentionally excluded from Git"
+  },
+  "claim_boundary": {
+    "proven": "The v97 map SHA was verified and the 24-case closed-loop MORAI highway campaign completed without a system error; 18 final case records reached the goal and six final case records failed.",
+    "not_proven": [
+      "Safe highway merge behavior for every NPC timing or MORAI RandomMode realization",
+      "The exact responsible planning module for the remaining collisions",
+      "A clean-source validation: local validator source changes were intentionally left uncommitted and excluded from this evidence-only commit"
+    ]
+  }
+}
