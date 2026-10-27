@@ -5,7 +5,7 @@
   <arg name="gt_source" default="ego"/>
   <arg name="initial_position_source" default="ego"/>
   <arg name="official_start_config"
-       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v94_rules.yaml"/>
+       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v95_rules.yaml"/>
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="sensor_config"

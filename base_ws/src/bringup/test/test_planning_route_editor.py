@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[4]
 class RouteEditorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v94_competition_route.yaml').read_text())
+        definition = yaml.safe_load((ROOT / 'base_ws/src/planning_addons/competition_route_requester/config/kcity_v95_competition_route.yaml').read_text())
         cls.road = EDITOR.RouteMap(ROOT, definition)
 
     def setUp(self):
