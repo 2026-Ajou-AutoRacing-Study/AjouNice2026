@@ -638,7 +638,7 @@ class TrafficLightNode:
         classifier_debug["low_confidence_hold"] = low_confidence_hold
         dark_hold = no_lamps_context(packet, selection, classifier_debug, previous_head_id,
             group.traffic_light_group_id, msg.header.stamp.to_nsec(), rospy.Time.now().to_nsec(),
-            self.map_packet_max_age_sec)
+            self.map_packet_max_age_sec, include_soft=True)
         if (dark_hold['eligible'] and
                 self._near_retry_context_reason(packet, group.traffic_light_group_id) is not None):
             dark_hold.update(eligible=False, reason='route_or_packet_changed_before_handoff')
@@ -675,6 +675,7 @@ class TrafficLightNode:
             low_confidence_confident_red=low_confidence_hold.get("confident_red", False),
             no_lamps_hold_eligible=dark_hold['eligible'],
             no_lamps_hold_sec=getattr(self, 'no_lamps_hold_sec', 0.),
+            cnn_gap_confident_lamps=dark_hold.get('confident_lamps', ()),
         )
         observation_timing = self.signal_phase_policy.output_observation_metadata(group.traffic_light_group_id)
         adopted_ns = observation_timing.get("adopted_observation_source_stamp_ns")

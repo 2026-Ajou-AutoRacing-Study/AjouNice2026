@@ -7,15 +7,28 @@ import math
 
 
 def no_lamps_context(packet, selection, classifier, previous_head_id, group_id,
-                     source_stamp_ns, now_ns, max_packet_age_sec=.5):
-    """Qualify an explicitly dark current crop of the same mapped housing.
+                     source_stamp_ns, now_ns, max_packet_age_sec=.5, *, include_soft=False):
+    """Qualify a dark crop, or opt-in soft abstention, of the same housing.
 
     The policy supplies the small, nonrenewable time budget. No box, uncertain
-    bits, another head or absent geometry are not this particular dropout.
+    another head or absent geometry are not this particular dropout. Confident
+    positive bits in a soft abstention must be checked against cached lamps.
     """
     result = dict(eligible=False, head_id=previous_head_id,
                   reason='not_a_qualified_no_lamps_gap')
     try:
+        if not isinstance(classifier, dict):
+            return result
+        bits = classifier.get('bits')
+        if (not isinstance(bits, dict) or set(bits) != {'red','yellow','green','left_arrow'}
+                or any(v is not None and type(v) is not int for v in bits.values())
+                or any(v not in (0, 1, None) for v in bits.values())):
+            return result
+        dark = (classifier.get('known') is True and classifier.get('reason') == 'no_lamps'
+                and all(v == 0 for v in bits.values()))
+        soft = (include_soft and classifier.get('known') is False
+                and str(classifier.get('reason', '')).startswith('low_confidence_bits:')
+                and None in bits.values())
         if (not previous_head_id or not isinstance(packet, dict)
                 or not isinstance(selection, dict) or not isinstance(classifier, dict)
                 or packet.get('status') != 'ready' or type(group_id) is not int or group_id <= 0
@@ -26,10 +39,7 @@ def no_lamps_context(packet, selection, classifier, previous_head_id, group_id,
                 or selection.get('status') != 'matched'
                 or selection.get('reason') != 'map_head_association'
                 or selection.get('head_id') != previous_head_id
-                or classifier.get('known') is not True or classifier.get('reason') != 'no_lamps'
-                or classifier.get('tuples') != []
-                or classifier.get('bits') != {'red': 0, 'yellow': 0, 'green': 0, 'left_arrow': 0}
-                or any(type(v) is not int for v in classifier['bits'].values())):
+                or not (dark or soft) or classifier.get('tuples') != []):
             return result
         same_head = [r for r in packet.get('rois', []) if r.get('eligible') is True
                      and r.get('group_id') == group_id and r.get('head_id') == previous_head_id]
@@ -37,8 +47,11 @@ def no_lamps_context(packet, selection, classifier, previous_head_id, group_id,
             return result
     except (KeyError, TypeError, ValueError, OverflowError):
         return result
+    confident = [(('green', 'arrow') if key == 'left_arrow' else (key, 'circle'))
+                 for key, value in bits.items() if value == 1]
     return dict(eligible=True, head_id=previous_head_id,
-                reason='fresh_same_housing_no_lamps')
+                reason='fresh_same_housing_no_lamps' if dark else 'fresh_same_housing_soft_gap',
+                gap_kind='no_lamps' if dark else 'low_confidence', confident_lamps=confident)
 
 def detection_miss_context(packet, selection, previous_head_id, group_id,
                            source_stamp_ns, now_ns, max_packet_age_sec=.5):

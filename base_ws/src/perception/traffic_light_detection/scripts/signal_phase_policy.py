@@ -195,10 +195,11 @@ class SignalPhasePolicy:
                                     detection_miss_hold_eligible, detection_miss_hold_sec,
                                     low_confidence_hold_eligible, low_confidence_hold_sec,
                                     low_confidence_confident_red,
-                                    no_lamps_hold_eligible, no_lamps_hold_sec):
+                                    no_lamps_hold_eligible, no_lamps_hold_sec,
+                                    cnn_gap_confident_lamps):
         """Production-only brief detection gap, not a lamp majority vote.
 
-        The caller establishes fresh map/TF/identity and detection-only failure.
+        The caller establishes fresh map/TF/identity and a qualified brief gap.
         A held result keeps the original image source stamp and cannot extend
         its own deadline or count as another green confirmation downstream.
         """
@@ -273,14 +274,17 @@ class SignalPhasePolicy:
         if (no_lamps_hold_sec > 0 and no_lamps_hold_eligible and head_valid and cached
                 and cached[4] == observation_head_id and not normalized
                 and not reason.endswith(':observation_rejected')
-                and not any(lamp[0] == 'yellow' for lamp in cached[0])
+                and all(tuple(lamp) in {(x[0], x[1]) for x in cached[0]}
+                        for lamp in cnn_gap_confident_lamps)
                 and 0 <= processing_age_sec <= no_lamps_hold_sec
                 and 0 <= cache_age_sec <= .3):
             lamps, conf, observed_clock, observed_source, _ = cached
+            origin = 'no_lamps_hold' if not cnn_gap_confident_lamps else 'cnn_gap_hold'
             self._record_output_observation(group_id, stamp, source_stamp_ns, observed_source,
-                                            observed_clock, True, 'no_lamps_hold')
-            return list(lamps), conf, 'direct_observation:no_lamps_hold'
+                                            observed_clock, True, origin)
+            return list(lamps), conf, 'direct_observation:' + origin
         if (low_confidence_hold_sec > 0 and low_confidence_hold_eligible and head_valid
+                and not (no_lamps_hold_sec > 0 and no_lamps_hold_eligible)
                 and source_stamp_ns is not None and cached and cached[4] == observation_head_id
                 and source_stamp_ns <= stamp*1e9 and not normalized
                 and not reason.endswith(":observation_rejected")
@@ -328,7 +332,8 @@ class SignalPhasePolicy:
                            observation_head_id=None, detection_miss_hold_eligible=False,
                            detection_miss_hold_sec=.2, low_confidence_hold_eligible=False,
                            low_confidence_hold_sec=.3, low_confidence_confident_red=False,
-                           no_lamps_hold_eligible=False, no_lamps_hold_sec=0.):
+                           no_lamps_hold_eligible=False, no_lamps_hold_sec=0.,
+                           cnn_gap_confident_lamps=()):
         """Keep missing observations out of the phase vote and history (D-2).
 
         ``stamp`` remains the advancing guard clock, normally rospy.now(). The
@@ -349,7 +354,7 @@ class SignalPhasePolicy:
             return self._process_direct_observation(normalized, reason, group_id, stamp, confidence,
                 source_stamp_ns, observation_head_id, detection_miss_hold_eligible, detection_miss_hold_sec,
                 low_confidence_hold_eligible, low_confidence_hold_sec, low_confidence_confident_red,
-                no_lamps_hold_eligible, no_lamps_hold_sec)
+                no_lamps_hold_eligible, no_lamps_hold_sec, cnn_gap_confident_lamps)
         valid = not reason.endswith(":fail_open")
         profile = self.profiles[self.profile_name(group_id)]
         limits = profile.get("observation_guard")

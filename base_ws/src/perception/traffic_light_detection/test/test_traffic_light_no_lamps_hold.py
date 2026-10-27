@@ -65,10 +65,13 @@ def test_missing_identity_first_observation_and_zero_switch_do_not_inherit_green
     assert result['final_tuples'] == []
 
 
-def test_yellow_is_not_extended_and_stale_old_source_cannot_hold(rig):
+def test_yellow_is_held_with_original_stamp_and_stale_old_source_cannot_hold(rig):
     case, node = rig
     case.step(node, 10.01, 10., raw=[Y])
-    assert case.step(node, 10.13, 10.12, observation=dark())[1]['final_tuples'] == []
+    wire, result = case.step(node, 10.13, 10.12, observation=dark())
+    assert result['final_tuples'] == [list(Y)]
+    assert wire.stamp.to_nsec() == 10_000_000_000
+    assert case.step(node, 10.22, 10.21, observation=dark())[1]['final_tuples'] == []
     node = case.node(); node.no_lamps_hold_sec = .2
     case.step(node, 10.31, 10., raw=[G])
     assert case.step(node, 10.35, 10.34, observation=dark())[1]['final_tuples'] == []
@@ -113,3 +116,82 @@ def test_full_phase_majority_delays_new_stop_but_no_lamps_retention_does_not(rig
         assert result['final_tuples'] == [list(Y)]
         assert voter.update([Y]) == [G]
     assert voter.update([Y]) == [Y]
+
+
+@pytest.mark.parametrize('lamps,probabilities', (
+    ([R], (.5,.01,.01,.01)), ([G], (.01,.01,.5,.01)),
+    ([Y], (.01,.5,.01,.01)), ([R,Y], (.99,.5,.01,.01))))
+def test_alternating_soft_and_dark_share_one_nonrenewable_budget(rig, lamps, probabilities):
+    case, node = rig
+    node._resolve_group_id = lambda: 201326
+    case.step(node, 10.01, 10., raw=lamps)
+    soft = observation_from_probabilities(probabilities)
+    assert not soft.known
+    for now, source, observation in ((10.08,10.07,soft), (10.14,10.13,dark()),
+                                      (10.20,10.19,soft)):
+        wire,result=case.step(node,now,source,observation=observation)
+        assert result['final_tuples'] == [list(x) for x in lamps]
+        assert wire.stamp.to_nsec() == 10_000_000_000
+    assert case.step(node,10.22,10.21,observation=dark())[1]['final_tuples'] == []
+    assert case.step(node,10.24,10.23,observation=soft)[1]['final_tuples'] == []
+
+
+@pytest.mark.parametrize('lamps', ([R], [G], [R,Y]))
+def test_new_lamp_replaces_held_yellow_immediately(rig, lamps):
+    case,node=rig
+    node._resolve_group_id = lambda: 201326
+    case.step(node,10.01,10.,raw=[Y])
+    case.step(node,10.08,10.07,observation=dark())
+    wire,result=case.step(node,10.14,10.13,raw=lamps)
+    assert result['final_tuples'] == [list(x) for x in lamps]
+    assert wire.stamp.to_nsec() == 10_130_000_000
+    assert result['observation_timing']['output_origin'] == 'current_observation'
+
+
+def test_confident_new_red_or_yellow_inside_soft_output_never_keeps_old_green(rig):
+    case,node=rig
+    for probabilities in ((.99,.5,.01,.01), (.5,.99,.01,.01)):
+        node=case.node();node.no_lamps_hold_sec=.2
+        case.step(node,10.01,10.,raw=[G])
+        soft=observation_from_probabilities(probabilities)
+        assert not soft.known
+        assert case.step(node,10.10,10.09,observation=soft)[1]['final_tuples'] == []
+
+
+def test_held_yellow_does_not_restart_native_planner_yellow_budget(tmp_path):
+    """Execute the real header, not a Python imitation of planner state."""
+    from pathlib import Path
+    import subprocess
+    root=Path(__file__).resolve().parents[5]
+    include=root/'planning_ws/src/autoware_behavior_velocity_traffic_light_module/include'
+    source=tmp_path/'yellow.cpp'
+    source.write_text('''
+#include <cassert>
+#include "autoware/behavior_velocity_traffic_light_module/signal_compliance_guard.hpp"
+using namespace autoware::behavior_velocity_planner::signal_compliance;
+int main() {
+  Guard g; g.setRequiredGreenObservations(1);
+  assert(!g.observe(Observation::AuthorizedGreen, 10., 10.01, 1.));
+  g.observe(Observation::Yellow, 10.1, 10.11, 1.);
+  assert(g.yellowTransitionEligible());
+  assert(*g.yellowStartLowerBoundSec() == 10.);
+  for (double now : {10.18, 10.25}) {
+    g.observe(Observation::Yellow, 10.1, now, 1.); // held ORIGINAL source
+    auto d=timedYellowDecision(true,g.yellowTransitionEligible(),false,
+      10.,0.,1.,5.,now,g.yellowStartLowerBoundSec(),2.,.2);
+    assert(std::abs(d.remaining_sec-(2.-(now-10.))) < 1e-9);
+    assert(d.allow);
+    assert(*g.yellowStartLowerBoundSec() == 10.);
+  }
+  auto off=timedYellowDecision(false,true,false,10.,0.,1.,5.,10.25,10.,2.,.2);
+  assert(!off.allow);
+  auto expired=timedYellowDecision(true,true,false,10.,0.,1.,5.,11.9,10.,2.,.2);
+  assert(!expired.allow);
+  g.observe(Observation::Stop,10.26,10.27,1.);
+  assert(!g.yellowTransitionEligible());
+}
+''')
+    binary=tmp_path/'yellow'
+    subprocess.run(['g++','-std=c++17','-I'+str(include),str(source),'-o',str(binary)],
+                   check=True,timeout=30,capture_output=True)
+    subprocess.run([str(binary)],check=True,timeout=10,capture_output=True)

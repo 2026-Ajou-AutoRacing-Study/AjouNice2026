@@ -152,9 +152,12 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 실제 R/Y·모순·TF/지도/identity 실패는 즉시 반영한다.
 
 `no_lamps_hold_sec:=0.2`는 현재 지도와 YOLO가 **동일 housing**을 선택했는데 CNN만
-`no_lamps`가 된 짧은 공백을 완충한다. 이전 황색은 유지하지 않으며 새 R/Y는 첫 프레임에 반영한다.
+`no_lamps` 또는 soft 저확신이 된 짧은 공백을 같은 기한으로 완충한다. 정차 중 R과 황색도 포함하며 새 정상 색은 첫 프레임에 반영한다.
 이전 관측의 처리 시각부터 최대0.2초·원본 age0.3초를 넘기지 않고 stamp도 그대로 보존한다.
 지속 소등은 UNKNOWN으로 돌아가며, 실제 소등 직후에는 이전 허가가 최대0.2초 남을 수 있다.
+저확신에 확실히 켜진 새 R/Y 등이 있으면 그 램프가 없던 과거 색으로 덮지 않는다.
+같은 정상 지도 연결의 공백은 이 공유0.2초가 우선이며, 종류가 바뀌어도 기한을 연장하지 않는다.
+황색 원본 stamp·planner의 황색 시작/잔여시간은 갱신하지 않는다.
 `no_lamps_hold_sec:=0`으로 이 보완만 끈다. [실제 관측열 비교·한계](../../../../docs/perception/traffic_light/261027_NO_LAMPS_BOUNDED_HOLD.md)를 본다.
 
 `visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을

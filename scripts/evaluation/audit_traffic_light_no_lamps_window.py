@@ -75,8 +75,8 @@ def from_bag(path):
     return {path.parent.parent.parent.name: rows}
 
 
-def evaluate(rows):
-    counts, changes, mismatches = Counter(), [], []
+def evaluate(rows, include_soft=False):
+    counts, changes, mismatches, candidate_changes = Counter(), [], [], []
     methods = {str(t): SignalPhasePolicy.from_yaml(PACKAGE/'config/traffic_signal_profiles.yaml')
                for t in (0., .1, .2, .3)}
     smoothers = {k: SignalSmoother(7, 4) for k in methods}
@@ -90,7 +90,8 @@ def evaluate(rows):
         if group != previous_group:
             previous_head, last_valid = None, None
             for v in votes.values(): v.reset()
-        context = no_lamps_context(packet, s, c, previous_head, group, ns, round(clock*1e9))
+        context = no_lamps_context(packet, s, c, previous_head, group, ns, round(clock*1e9),
+                                   include_soft=include_soft)
         normalized = [tuple(x) for x in d['normalized_tuples']]
         eligible = d.get('detection_miss_hold', {})
         soft = d.get('low_confidence_hold', {})
@@ -107,12 +108,21 @@ def evaluate(rows):
                 detection_miss_hold_eligible=eligible.get('eligible', False),
                 low_confidence_hold_eligible=soft.get('eligible', False),
                 low_confidence_confident_red=soft.get('confident_red', False),
-                no_lamps_hold_eligible=context['eligible'], no_lamps_hold_sec=float(key))
+                no_lamps_hold_eligible=context['eligible'], no_lamps_hold_sec=float(key),
+                cnn_gap_confident_lamps=context.get('confident_lamps', ()))
             result = [list(x) for x in result]
             outputs['hold'+key] = result
             if key == '0.0' and result != d['final_tuples']:
                 mismatches.append(dict(t=row['t'], expected=d['final_tuples'], actual=result))
-            if reason == 'direct_observation:no_lamps_hold':
+            if key == '0.2' and group:
+                counts[f'group{group}:recorded_unknown'] += not bool(d['final_tuples'])
+                counts[f'group{group}:candidate_unknown'] += not bool(result)
+                if result != d['final_tuples']:
+                    candidate_changes.append(dict(t=row['t'],group=group,reason=c.get('reason'),
+                        recorded=d['final_tuples'],candidate=result))
+                if normalized and result != [list(x) for x in normalized]:
+                    counts['candidate_explicit_phase_disagreement'] += 1
+            if reason in ('direct_observation:no_lamps_hold','direct_observation:cnn_gap_hold'):
                 counts['hold'+key+':held'] += 1
                 counts['hold'+key+':held_go'] += allows(result, group)
                 meta = policy.output_observation_metadata(group)
@@ -130,7 +140,8 @@ def evaluate(rows):
             last_valid = dict(t=row['t'], source=ns, lamps=d['normalized_tuples'])
         previous_group = group
         previous_head = d.get('head_id') or (eligible.get('head_id') if eligible.get('eligible') else None)
-    return dict(counts=dict(counts), baseline_mismatches=mismatches, held_frames=changes)
+    return dict(counts=dict(counts), baseline_mismatches=mismatches, held_frames=changes,
+                candidate_changes=candidate_changes)
 
 
 def synthetic_transitions():
@@ -166,6 +177,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--callback', type=Path)
     p.add_argument('--bag', type=Path, action='append', default=[])
+    p.add_argument('--include-soft', action='store_true', help='Shared CNN gap including soft bits')
     p.add_argument('--output', type=Path, required=True)
     a = p.parse_args()
     output = a.output.resolve()
@@ -175,13 +187,14 @@ def main():
     before = {str(path.resolve()): (path.stat().st_size, path.stat().st_mtime_ns) for path in files}
     datasets = from_callback(a.callback) if a.callback else {}
     for path in a.bag: datasets.update(from_bag(path))
-    results = {k: evaluate(v) for k, v in datasets.items()}
+    results = {k: evaluate(v,a.include_soft) for k, v in datasets.items()}
     if any((Path(p).stat().st_size, Path(p).stat().st_mtime_ns) != v for p,v in before.items()):
         raise RuntimeError('Input changed during audit')
     sources = {str(path.relative_to(ROOT)): digest(path) for path in
         (PACKAGE/'scripts/signal_phase_policy.py', PACKAGE/'scripts/traffic_light_observation_handoff.py',
          PACKAGE/'scripts/signal_smoother.py', Path(__file__).resolve())}
-    report = dict(results=results, synthetic_10hz_transitions=synthetic_transitions(),
+    report = dict(results=results, include_soft=a.include_soft,
+        synthetic_10hz_transitions=synthetic_transitions(),
         input_identity=before, sources=sources,
         limitations=['Recorded classifier observations, no independent lamp/native GT.',
             'Policy tuple replay; cached wire confidence is not reconstructed.',
