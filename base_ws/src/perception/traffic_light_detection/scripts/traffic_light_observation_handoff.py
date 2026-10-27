@@ -5,6 +5,41 @@ the small source-age budget; invalid geometry/identity is not a detector miss.
 """
 import math
 
+
+def no_lamps_context(packet, selection, classifier, previous_head_id, group_id,
+                     source_stamp_ns, now_ns, max_packet_age_sec=.5):
+    """Qualify an explicitly dark current crop of the same mapped housing.
+
+    The policy supplies the small, nonrenewable time budget. No box, uncertain
+    bits, another head or absent geometry are not this particular dropout.
+    """
+    result = dict(eligible=False, head_id=previous_head_id,
+                  reason='not_a_qualified_no_lamps_gap')
+    try:
+        if (not previous_head_id or not isinstance(packet, dict)
+                or not isinstance(selection, dict) or not isinstance(classifier, dict)
+                or packet.get('status') != 'ready' or type(group_id) is not int or group_id <= 0
+                or packet.get('group_id') != group_id or type(source_stamp_ns) is not int
+                or source_stamp_ns <= 0 or packet.get('source_stamp_ns') != source_stamp_ns
+                or not 0 <= (now_ns-packet['generated_stamp_ns'])/1e9 <= max_packet_age_sec
+                or not 0 <= (now_ns-source_stamp_ns)/1e9 <= max_packet_age_sec
+                or selection.get('status') != 'matched'
+                or selection.get('reason') != 'map_head_association'
+                or selection.get('head_id') != previous_head_id
+                or classifier.get('known') is not True or classifier.get('reason') != 'no_lamps'
+                or classifier.get('tuples') != []
+                or classifier.get('bits') != {'red': 0, 'yellow': 0, 'green': 0, 'left_arrow': 0}
+                or any(type(v) is not int for v in classifier['bits'].values())):
+            return result
+        same_head = [r for r in packet.get('rois', []) if r.get('eligible') is True
+                     and r.get('group_id') == group_id and r.get('head_id') == previous_head_id]
+        if len(same_head) != 1:
+            return result
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return result
+    return dict(eligible=True, head_id=previous_head_id,
+                reason='fresh_same_housing_no_lamps')
+
 def detection_miss_context(packet, selection, previous_head_id, group_id,
                            source_stamp_ns, now_ns, max_packet_age_sec=.5):
     result = {"eligible": False, "head_id": previous_head_id,

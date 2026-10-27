@@ -11,7 +11,7 @@
   고정 모델 SHA·경로는 [배포 계약](../../../configs/perception/traffic_light_v5_candidate_release.json)을 따른다.
 - 운영은 CNN 4-bit 관측 보존이며, 색·화살표를 추가하는 보정은 명시적 legacy에만 남는다.
   `debug_observed_label`은 보정 전, `debug_raw_label`은 이름과 달리 보정 후다.
-- 운영 A/B/C/D의 미완충 판독 불가·모순 조합은 UNKNOWN이다. 같은 head의 이동 중 저확신만 짧게 이전 관측으로 완충한다. D-1은 passthrough이고
+- 운영 A/B/C/D의 미완충 판독 불가·모순 조합은 UNKNOWN이다. 같은 head의 이동 중 저확신과 `no_lamps_hold_sec=0.2`의 단발 무점등만 짧게 완충한다(이전 황색 제외·새 R/Y 즉시 전달·원본 age0.3초 상한). [no_lamps 비교·실제 소등 유지 위험](261027_NO_LAMPS_BOUNDED_HOLD.md)을 본다. D-1은 passthrough이고
   판단 모듈에서 제외된다. 별도 planning competition fail-open과 혼동하지 않는다.
 - native 신호 조회·제어 및 `/Ego_topic`은 **개발 평가용**이다. 운영 후보의 지도 연결 입력은 localization/TF이며 native API·Ego를 사용하지 않는다.
   개발 수집·평가 도구를 대회 알고리즘의 의존성으로 연결하지 않았다.
@@ -39,7 +39,7 @@
 - 팀 설치·GUI 선택·복귀는 [v5 시험 배포](V5_CANDIDATE_HANDOFF.md). 모델 압축본 한 파일만 공개 읽기이며 데이터·부모 백업은 비공개다.
 - [시간제한 황색 후보](261026_TIMED_YELLOW_CANDIDATE.md)는 별도 flag 기본 OFF다. 2초 가정·0.2초 여유·허가 2회는 당시 시험값이다. 운영 기본 허가 확인은 2026-10-27에 1회로 변경했다.
 - 정차 위치는 Lanelet/`traffic_light.stop_margin: 0.0`이다. **v93 좌표(A+0.75/B+2.6/C+0.35/D+2.6m)**를 팀장님v88-2 도로에 합친 [v94](../../../configs/map/kcity_v94_merged_asset.yaml)는 명시적 `map_version:=94`로 지도·SHA·Route A/B를 함께 고른다. 최신 planning 기본v88은 유지하며 [팀 업데이트](../../runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. [v93 실측](261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93) 차이2.34px를 새 LAN 인증으로 쓰지 않는다.
-- 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 로컬 소스·설치본에는 이전 박스 IoU가 낮아도 현재 영상 시각의 크기 비례 지도 투영과 현재 검출 박스가 일치하면 같은 head로 재판독하는 보완을 추가·검사했다. 로컬 B 근접·풀경로 폐루프는 PASS했으나 **새 투영 분기는 두 주행에서 발동하지 않아 팀 PC 설치본·LAN 효과 검증은 별도**다. `no_lamps`와 실제 화각 이탈은 UNKNOWN으로 남기며, 다음 lanelet ID만으로 다른 YOLO 박스를 강제 연결하는 규칙은 추가하지 않는다. [B bag 원인·후보·실주행 검증](261027_B_ROI_PROJECTION_CONTINUATION.md)을 본다.
+- 단발 detector 누락은 원본 age 0.2초, 이동 중 CNN soft 저확신은 0.3초/원본 age 0.5초까지 보존한다. 짧은 지도 불확실성 증가에는 최근 동일 head의 **현재 YOLO/CNN 재판독**을 최대0.3초 허용한다(`visual_continuation_sec=0` 복귀). 로컬 소스·설치본에는 이전 박스 IoU가 낮아도 현재 영상 시각의 크기 비례 지도 투영과 현재 검출 박스가 일치하면 같은 head로 재판독하는 보완을 추가·검사했다. 로컬 B 근접·풀경로 폐루프는 PASS했으나 **새 투영 분기는 두 주행에서 발동하지 않아 팀 PC 설치본·LAN 효과 검증은 별도**다. 위 no_lamps 완충을 벗어난 무점등과 실제 화각 이탈은 UNKNOWN으로 남기며, 다음 lanelet ID만으로 다른 YOLO 박스를 강제 연결하는 규칙은 추가하지 않는다. [B bag 원인·후보·실주행 검증](261027_B_ROI_PROJECTION_CONTINUATION.md)을 본다.
 - Planning 기본 `defer_unseen_until_observed:=true`: 이번 접근에서 색 근거를 한 번도 읽지 못한 신선한 UNKNOWN에는 정지점을 넣지 않는다. **가까워져도 거리 경계는 없다.** 알려진 색이 하나라도 보이지만 조합·형상이 모호하면 STOP하고 이후 누락에도 이력을 유지한다. 첫 적색·황색은 즉시 STOP, 허가 신호는 현재 기본인 신선한 1개 관측 후 GO다. 첫 색 근거를 읽은 뒤의 UNKNOWN은 기존 완충 한도를 벗어나면 STOP이며, timeout·미수신은 별도 `competition_fail_open` 계약을 따른다. 이는 신호를 녹색으로 재분류하는 기능이 아니다. 대회 시뮬레이션의 DNF 위험을 줄이기 위한 선택이며, 첫 판독 자체가 끝내 없으면 적색을 통과할 수 있는 위험이 남는다. 보수적 복귀는 `defer_unseen_until_observed:=false`, 기존 거리 경계 후보는 `defer_unseen_until_observed:=false defer_far_unseen_unknown:=true`로 선택한다. A/B/C/D 자연 풀주행 2회에서 첫 신호가 일찍 읽혀 거리 경계 효과는 분리 검증되지 않았고, 공식 LAN 판정도 별도다.
 - D 근접 누락은 수직 상한200px·조건부640 재검출로 보완했고 Sunny13·Foggy13 무객체 실제 폐루프는 PASS했다.
   [근접 보완·검증 범위](261025_NEAR_SIGNAL_RECOVERY.md) 참고. `traffic_legacy`/GUI legacy는 명시적 복귀다.

@@ -145,11 +145,17 @@ unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고
 ## 2026-10-26 관측 보존과 정차 시야 보완
 
 운영 direct 경로는 `observed_phases`의 실제 램프만 전달한다. C의 화살표를 보고 직진G를
-추가하거나 D의Y를R로 바꾸지 않는다. 모순·무점등·완충되지 않은 저확신은 UNKNOWN이며 legacy 보정과 구분한다.
+추가하거나 D의Y를R로 바꾸지 않는다. 모순·완충되지 않은 무점등/저확신은 UNKNOWN이며 legacy 보정과 구분한다.
 `detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
 누락만 완충한다. `low_confidence_hold_sec:=0.3`은 같은 head의 CNN soft 저확신만 이동 중 완충하며
 최대 원본 age 0.5초를 추가로 요구한다. `0`이면 새 완충만 OFF다. 양쪽 모두 원본 stamp를 보존하고
-실제 R/Y·확신 소등·모순·TF/지도/identity 실패는 즉시 반영한다.
+실제 R/Y·모순·TF/지도/identity 실패는 즉시 반영한다.
+
+`no_lamps_hold_sec:=0.2`는 현재 지도와 YOLO가 **동일 housing**을 선택했는데 CNN만
+`no_lamps`가 된 짧은 공백을 완충한다. 이전 황색은 유지하지 않으며 새 R/Y는 첫 프레임에 반영한다.
+이전 관측의 처리 시각부터 최대0.2초·원본 age0.3초를 넘기지 않고 stamp도 그대로 보존한다.
+지속 소등은 UNKNOWN으로 돌아가며, 실제 소등 직후에는 이전 허가가 최대0.2초 남을 수 있다.
+`no_lamps_hold_sec:=0`으로 이 보완만 끈다. [실제 관측열 비교·한계](../../../../docs/perception/traffic_light/261027_NO_LAMPS_BOUNDED_HOLD.md)를 본다.
 
 `visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
 현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 박스 IoU가 낮아도

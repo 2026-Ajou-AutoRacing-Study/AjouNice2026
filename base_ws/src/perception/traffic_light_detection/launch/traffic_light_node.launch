@@ -19,6 +19,7 @@
   <arg name="detection_miss_hold_sec" default="0.2" />
   <!-- Matched moving head's soft CNN abstention only; 0 disables. -->
   <arg name="low_confidence_hold_sec" default="0.3" />
+  <arg name="no_lamps_hold_sec" default="0.2" />
   <arg name="visual_continuation_sec" default="0.3" />
   <!-- Preserve the traffic-light team's validated decision cadence. GPU
        execution reduces compute load; it must not silently retune semantics. -->
@@ -154,6 +155,7 @@
     <param name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
     <param name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
     <param name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
+    <param name="no_lamps_hold_sec" value="$(arg no_lamps_hold_sec)" />
     <param name="visual_continuation_sec" value="$(arg visual_continuation_sec)" />
     <param name="max_rate_hz" value="$(arg max_rate_hz)" />
     <param name="selection_mode" value="$(arg selection_mode)" />
