@@ -183,6 +183,15 @@ field_log_list() {
   base="$(basename -- "$prefix")"
   echo "Current field log prefix: $prefix"
   find "$log_dir" -maxdepth 1 -type f -name "${base}_*" -exec ls -lh -- {} +
+  if [[ -d "${prefix}_console" ]]; then
+    find "${prefix}_console" -maxdepth 1 -type f -exec ls -lh -- {} +
+  fi
+}
+
+# Final-readiness branch: opt-in Korean operator view, one-second aggregation.
+# The original aliases/field_log_tee remain unchanged for raw terminal output.
+field() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" "$@"
 }
 
 # planning-----------------------------------------------

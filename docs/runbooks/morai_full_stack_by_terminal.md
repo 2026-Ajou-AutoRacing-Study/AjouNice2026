@@ -42,18 +42,104 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v87.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v99.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. MORAI의 공식 K-City 맵과 원하는 competition scenario를 연다. 알고리즘 지도는 Lanelet v87다.
+1. MORAI의 공식 K-City 맵과 원하는 competition scenario를 연다. 알고리즘 지도는 Lanelet v99다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
 
 로드할 현장점검 원본의 정확한 경로와 IP·Ego 미사용 기준은
 [현장 파일 안내](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)를 따른다.
+
+## 마지막 대비 브랜치: 한국어 1초 요약 화면
+
+`competition/final-readiness-261028`에서 추가한 **명시적 선택 기능**이다.
+기존 alias·노드 로그 레벨·주행 정책은 바꾸지 않는다. `field`만 앞에 붙이면
+기존 명령과 인자를 그대로 실행하면서 stdout/stderr 원문은 파일에 남기고 화면은 요약한다.
+기존 `명령 | field_log_tee 이름`과 **동시에 사용하지 않는다**.
+
+각 터미널에서 `ajou` 후 아래 한 줄씩 실행한다. Terminal 1이 먼저이며 제어는 마지막이다.
+
+| 터미널 | 실행 명령 |
+|---|---|
+| 1 ROS·새 공유 로그 세션 | `field rc` |
+| 2 대회 LAN 통신 | `field udp_lan enable_ego_vehicle_status:=false` |
+| 3 센서 좌표계 | `field sensing_lan` |
+| 4 공식 START 측위 | `field localization initial_position_source:=official_start` |
+| 5 E12 객체 검출 | `field bevfusion` |
+| 6 추적·지도 예측 | `field tracking` |
+| 7 신호등 | `field traffic` |
+| 8 판단 | `field planning` |
+| 9 지도 화면 | `field planviz show_morai_gt:=false` |
+| 10 제어: 궤적·제어권·안전 확인 후에만 | `field traj_fol_a` |
+
+로컬 MORAI는 `field udp`, `field sensing`으로 바꾼다. **공식 START 초기화를 중간
+checkpoint에 적용하지 않는다.** 실행 중인 스택을 이 기능이 자동 교체/재시작하지 않는다.
+기존 터미널을 재시작해야 새 표시가 적용되며 제어 중 임의 재시작하지 않는다.
+
+- 보통 1초에 한 줄: 해당 구간의 오류/주의 횟수와 가장 중요한 로그를 표시한다.
+  새 오류 종류는 즉시 알리되 한 구간 최대3종이다. 반복 오류는 횟수로 합친다.
+- 오류 뒤 INFO가 와도 **누적오류·마지막 오류 시각**을 남긴다(횟수는 오류 로그 행 수).
+  이는 오류 이력이며
+  지속 고장/복구 판정은 아니다. 새 실행에서 초기화한다.
+- 모르는 경고/오류는 원문 일부를 그대로 표시한다. 번역 규칙 밖의 의미를 추정하지 않는다.
+  INFO는 최신 한 항목만 보이므로 상세 진단은 원문을 확인한다.
+- `출력 대기·새 로그 없음`은 토픽 정상 판정이 아니다. Hz·지연·제어 상태는 별도다.
+  신호등 `OFF/UNKNOWN`도 원거리·통과후·정상 미션 외 상황을 포함하므로 단독 고장으로 표시하지 않는다.
+- 시작 전에 원문 파일을 못 열면 명령을 시작하지 않는다. **시작 후** 디스크 오류는
+  `원문 저장 실패 지속`을 남기고 실제 스택은 유지한다. 그 이후 원문은 보존되지 않는다.
+  자식이 정상 종료했더라도 이 경우 wrapper는 기록 실패 코드2를 반환한다.
+- Ctrl-C/TERM은 **이번 실행이 만든 프로세스 그룹만** 종료 요청한다. 기본20초 뒤에도
+  종료하지 않으면 해당 그룹만 강제 종료한다. 차량 정지·P를 보장하는 비상정지 장치는 아니다.
+  기존처럼 제어부터 종료하고, 살아 있는 다른 스택에 일괄 `pkill`하지 않는다.
+  wrapper가 터미널 종료 SIGHUP을 받으면 Ctrl-C와 같은 종료 요청을 전달한다.
+
+원문 경로는 시작 시 출력한다. 같은 공유 세션 아래
+`artifacts/field_logs/<세션>_console/<명령시각>_<구성요소>_raw.log`에 저장하며
+매번 새 파일을 사용한다. Docker 내부 출력 전체·ROS bag·`/rosout` 전체를 대신하지 않는다.
+
+```bash
+field_log_list                       # 현재 공유 세션의 원문 파일 확인
+tail -f /시작할_때_표시된/원본_raw.log # 상세 로그가 필요할 때 별도 터미널
+python3 scripts/runtime/field_console.py demo  # ROS를 시작하지 않는 모의 출력
+python3 scripts/evaluation/render_field_console_preview.py # 선택: PNG 예시, Pillow 필요
+```
+
+기본 화면 폭120칸이다. 좁은 터미널은 실행 전에 `export AJOUNICE_FIELD_LOG_WIDTH=90`으로
+줄인다(최소60). 기본1초 주기는 `AJOUNICE_FIELD_LOG_INTERVAL`로 바꿀 수 있다(최소0.05초).
+터미널을 요약하지 않으려면 기존 alias를 그대로 실행하면 된다. 재빌드·가상환경은 필요 없다.
+
+### 현장에서 자주 확인할 메시지의 의미
+
+아래는 **현재 소스의 오류 서명별 대응**이며 발생 빈도 통계나 자동 복구 기능이 아니다.
+
+| 요약 | 우선 확인 |
+|---|---|
+| 추론 서버 요청/센서 전처리 실패 | BEVFusion Docker·가중치·서버, 입력/예외 원문 |
+| 카메라·LiDAR 시각 불일치·입력 폐기 | sensor stamp·카메라 입력·부하; 단순 GPU 속도 문제로 단정 금지 |
+| 검출 발행 중복·실행 거부 | 기존 detector publisher 확인; 임의로 안전 검사를 해제하지 않음 |
+| 신호 CNN 실행 불가/가중치 없음 | 신호등 설치기·관리 Python·모델 경로 확인 |
+| 판단 경로 없음/입력 대기 | route·측위·perception·`/planning/trajectory` 확인 |
+| 입력 오래됨 | 실제 입력 Hz/age, 차량 상태·trajectory·제어 토픽 확인 |
+| GPS 높이 유지·XY 추정 계속 | 음영의 의도된 z 유지일 수 있음; XY 정확도 인증은 아님 |
+| TRT 미사용·동일 모델 일반 추론 | 동일 모델 fallback이므로 인식 중단은 아님; 속도 확인 |
+| 신호 미수신·기존 GO 우회 중 | 녹색을 읽었다는 뜻 아님; 기존 fail-open 경로 확인 |
+| 포트 점유/ROS master/지도 오류 | 중복 실행·ROS 환경·v99 준비 및 원문 확인 |
+| 원문 저장 실패 지속 | 디스크 공간/권한 확보; 실행은 계속되지만 이후 원문 누락 |
+
+Controller는 입력 stale/frame 불일치에 **stdout 없이 정지 명령을 낼 수도 있다**.
+이 화면만으로 정지 원인을 모두 알 수는 없다. `/control/autoware/failure_reason`,
+`/ctrl_cmd`, state/trajectory의 freshness와 rosbag도 함께 확인한다.
+이 브랜치의 모의/오프라인 로그 검사는 실대회 LAN 폐루프 검증이 아니다.
+
+검증(2026-10-28): 모의 실행·분류·종료·디스크/화면 장애 격리29개와 관련 신호등
+launch/배포 계약을 합쳐50개 통과했다. 기존 planning2416행·traffic103행 로그를
+오프라인 처리한 raw 파일은 각각 원본 SHA256과 일치했다. 실제 스택을 새로 시작하거나
+중단하지 않았으며 출력 예시 PNG는 모의 로그임을 명시한다.
 
 ## 대회 현장 권장: alias + `tee` 로그 세션
 
