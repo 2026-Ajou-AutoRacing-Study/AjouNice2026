@@ -152,10 +152,10 @@ protected:
   }
 };
 
-TEST_F(TrafficTimedYellowExperimentalTest, CalibratedDefaultsKeepYellowOptIn)
+TEST_F(TrafficTimedYellowExperimentalTest, CalibratedDefaultsEnableDecisionLine)
 {
   const TrafficLightModule::PlannerParam params{};
-  EXPECT_FALSE(params.enable_yellow_passthrough);
+  EXPECT_TRUE(params.enable_yellow_passthrough);
   EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_deceleration_mps2,6.);
   EXPECT_DOUBLE_EQ(params.signal_compliance_yellow_jerk_mps3,10.);
 }

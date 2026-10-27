@@ -40,7 +40,7 @@ COMMENTS = {
     'recording.bag_enabled': 'false=rosbag 프로세스 자체를 실행하지 않음. 실시간 판정·JSON·CSV와 별도 영상 설정은 유지. 생략 시 기존처럼 true.',
     'recording.selected_topics': '직접 선택한 절대 토픽 목록. topic_profile 대신 사용. include_sensors가 true면 센서 5개를 추가.',
     "stack.traffic_light": "이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.",
-    "stack.traffic_light_yellow_passthrough": "기본 false인 황색 예외 master입니다. 정차 중 황색 출발은 허용하지 않습니다. 시간제한 후보는 고급 YAML에서 별도로 켭니다.",
+    "stack.traffic_light_yellow_passthrough": "기본 true인 판단선 1회 확정 master입니다. 정차 중·첫 관측 황색 출발은 허용하지 않습니다. false로 기존 색 판단에 복귀합니다.",
     "stack.signal_compliance_enable_timed_yellow": "기본 false. 시간제한 후보는 이 값과 황색 통과 허용이 모두 true여야 작동합니다. 기존 GUI 황색 체크만으로 자동 활성화하지 않습니다.",
     "stack.signal_compliance_min_yellow_sec": "기본 2.0초. 공식 보장이 아닌 명시적 최소 황색 가정입니다. 최초 황색 관측부터 이 시간을 새로 세지 않습니다.",
     "stack.signal_compliance_yellow_time_margin_sec": "기본 0.2초. 지연/도달 시간 불확실성 여유이며 검증된 종단 지연 상한은 아닙니다. 최소 황색 시간보다 작아야 합니다.",

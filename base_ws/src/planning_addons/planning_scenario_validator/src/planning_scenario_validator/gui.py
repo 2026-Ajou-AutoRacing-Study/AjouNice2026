@@ -184,7 +184,7 @@ def form_values(document):
         'recording_mode': bag_options.mode_label(recording),
         'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
-        "traffic_light_yellow_passthrough": stack.get('traffic_light_yellow_passthrough', False),
+        "traffic_light_yellow_passthrough": stack.get('traffic_light_yellow_passthrough', True),
         "traffic_light_debug_view": stack.get('traffic_light_debug_view', False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
         "traffic_light_python": (DEFAULT_PYTHON if stack.get('traffic_light_python') == '/usr/bin/python3'

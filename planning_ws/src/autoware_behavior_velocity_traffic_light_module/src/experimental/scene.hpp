@@ -70,7 +70,7 @@ public:
     double stop_time_hysteresis;
     bool enable_pass_judge;
     // Master pre-line yellow override; does not disable already-crossed clearing.
-    bool enable_yellow_passthrough{false};
+    bool enable_yellow_passthrough{true};
     bool yellow_light_is_go{false};
     bool competition_fail_open{false};
     bool enable_signal_compliance_guard{false};

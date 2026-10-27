@@ -202,12 +202,13 @@ UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 �
 PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
 그 후 원본 MGeo 판정선 profile을 독립적으로 추가했다. 2026-10-27부터 황색 GO 판단은
 아래 Lanelet 제동거리 근사로 대체하고 MGeo선은 황색 ON의 실제 통과 완료 확인에만 유지한다.
-기본 황색 OFF의 지도선 GO_OUT은 유지하며, 황색 ON 후보만 원본선 crossing을 사용한다.
-이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 OFF·허가1회가 현재값이며 과거 실험의 허가3회와 구별한다.
+명시적 황색 OFF의 지도선 GO_OUT은 유지하며, 기본 ON은 원본선 crossing을 사용한다.
+이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 ON·허가1회가 현재값이며 과거 실험의 OFF/허가3회와 구별한다.
 
 ## 황색 ON: Lanelet 정차 목표 기준 판단선 1회 확정
 
-기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 OFF다.
+기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 ON이다.
+명시적 false는 기존 색 판단으로 복귀하며 동결 실행·개인 YAML의 명시값은 자동 변경하지 않는다.
 준수 가드 ON에서 켜면 b6·J10의 jerk 제동거리로 판단선을 계산한다.
 `signal_compliance_yellow_deceleration_mps2:=6.0`, `signal_compliance_yellow_jerk_mps3:=10.0`이 판단용 값이다.
 2026-10-28 사용자 요청으로 공통 응답지연은0.0초다(`system_delay`는0.5초 유지).

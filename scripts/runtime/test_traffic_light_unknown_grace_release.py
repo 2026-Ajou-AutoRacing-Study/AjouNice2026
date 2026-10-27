@@ -204,9 +204,10 @@ class ResolvedUnknownGraceReleaseTest(unittest.TestCase):
         params = launch_dump('planning', ['start_requester:=false'])
         self.assertEqual(params[PREFIX+GRACE], .3)
         self.assertIs(params[PREFIX+'enable_signal_compliance_guard'], True)
-        self.assertIs(params[PREFIX+'enable_yellow_passthrough'], False)
+        self.assertIs(params[PREFIX+'enable_yellow_passthrough'], True)
         self.assertIs(params[PREFIX+'signal_compliance_enable_timed_yellow'], False)
-        self.assertEqual(params[PREFIX+'signal_compliance_yellow_deceleration_mps2'], 8.)
+        self.assertEqual(params[PREFIX+'signal_compliance_yellow_deceleration_mps2'], 6.)
+        self.assertEqual(params[PREFIX+'signal_compliance_yellow_jerk_mps3'], 10.)
 
     def test_guard_off_normalizes_incompatible_defaults_and_explicit_requests(self):
         for extra in ([], [GRACE+':=0.3', 'defer_unseen_until_observed:=true',
