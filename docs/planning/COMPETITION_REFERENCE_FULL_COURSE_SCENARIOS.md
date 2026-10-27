@@ -86,3 +86,37 @@ base_ws/src/planning_addons/planning_scenario_validator/config/missions/full_cou
 
 생성기는 개인 workspace의
 `contest_reference_20261027/import_competition_reference_scenarios.py`에 보존되어 있다. 같은 zip과 전체 코스 베이스를 입력으로 사용하면 actor 위치 계약과 회전교차로 25 km/h 상한을 다시 적용한다. 원본 zip·생성 JSON·캠페인 YAML은 개인 작업 산출물이므로 이 Git 문서에는 포함하지 않는다.
+
+## 복합 전체 코스 커버리지 세트
+
+앞 절의 1,114개는 각 상황군을 **단독으로 바꾼 후보 풀**이다. 실제 전체 코스 검증에는 한 JSON 안에서 정적·동적·고속도로·회전교차로·GPS 음영 정적·GPS 음영 동적 조건이 모두 바뀌어야 한다. 이를 위해 별도의 복합 세트를 생성했다.
+
+| 항목 | 값 |
+| --- | ---: |
+| 복합 전체 코스 JSON | 300개 |
+| 각 JSON의 component | 6개 상황군에서 active source 1개씩 |
+| 사용 active source | 정적 17 / 동적 300 / 고속 125 / 회전 168 / 음영 정적 200 / 음영 동적 300 |
+| 제외 source | 동적 `dq_base0`, 음영 동적 `sq_base0~2`: 해당 상황의 실제 동적 actor가 없는 baseline |
+
+300개는 6개 상황군 중 가장 큰 active 풀 크기다. 각 상황군의 선택 순서는 서로 다른 stride를 사용한 순환 배치이므로, 모든 active source가 적어도 한 번은 복합 장면에 포함되고 연속 장면에서 같은 source를 반복하지 않는다. 이는 전수 Cartesian product가 아니라 실행 가능한 bounded coverage다.
+
+```text
+정적 17 × 동적 300 × 고속 125 × 회전 168 × 음영 정적 200 × 음영 동적 300
+```
+
+위 전수 조합은 현실적으로 실행할 수 없으므로 생성하지 않았다.
+
+복합 장면은 대회 전체 코스의 Ego·지도·신호·음영·경유점은 유지한다. actor 목록은 빈 상태에서 여섯 component를 병합하고, component 간 `UNIQUEID` 충돌은 재할당한다. source의 위치·회전·asset·link·spawn 값은 보존한다. 회전교차로의 병합 NPC 속도는 계속 25 km/h 이하로 제한한다.
+
+로컬 실행 설정:
+
+```text
+.../full_course/workspace/contest_reference_20261027/
+  composite_coverage_300/scenarios/full_mix_001.json ~ full_mix_300.json
+  contest_reference_20261027_composite_coverage_bev.yaml
+  contest_reference_20261027_composite_coverage_smoke_bev.yaml
+```
+
+`smoke` YAML은 `full_mix_001.json` 한 장면만 선택한다. 전체 300개를 실행하기 전에는 이 한 장면의 MORAI actor 동작·route·신호·녹화를 먼저 확인한다.
+
+생성 후 300개 JSON 파싱, 모든 active source 포함, actor `UNIQUEID` 중복 0건, 회전교차로 25 km/h 초과 0건, 두 YAML의 대상 파일 수(300/1)를 검증했다. 실제 MORAI 폐루프 주행은 아직 수행하지 않았다.
