@@ -58,11 +58,13 @@ void ReplanChecker::onParam(const std::vector<rclcpp::Parameter> & parameters)
 bool ReplanChecker::isResetRequired(const PlannerData & planner_data) const
 {
   const auto & p = planner_data;
+  last_reset_reason_.clear();
 
   const bool reset_required = [&]() {
     // guard for invalid variables
     if (!prev_traj_points_ptr_ || !prev_ego_pose_ptr_ ||
         prev_traj_points_ptr_->size() < 2 || p.traj_points.size() < 2) {
+      last_reset_reason_ = "missing_previous_input";
       return true;
     }
     const auto & prev_traj_points = *prev_traj_points_ptr_;
@@ -71,12 +73,14 @@ bool ReplanChecker::isResetRequired(const PlannerData & planner_data) const
     // move this anchor substantially while the error at Ego remains below the
     // generic reset threshold. Do not stitch old MPT fixed points to that path.
     if (isPathStartChanged(planner_data, prev_traj_points)) {
+      last_reset_reason_ = "input_path_start_changed";
       RCLCPP_DEBUG(logger_, "Reset optimization since the input path start changed.");
       return true;
     }
 
     // path shape changes
     if (isPathAroundEgoChanged(planner_data, prev_traj_points)) {
+      last_reset_reason_ = "input_path_around_ego_changed";
       RCLCPP_DEBUG(
         logger_, "Replan with resetting optimization since path shape around ego changed.");
       return true;
@@ -84,6 +88,7 @@ bool ReplanChecker::isResetRequired(const PlannerData & planner_data) const
 
     // path goal changes
     if (isPathGoalChanged(planner_data, prev_traj_points)) {
+      last_reset_reason_ = "input_path_goal_changed";
       RCLCPP_DEBUG(logger_, "Replan with resetting optimization since path goal changed.");
       return true;
     }
@@ -92,6 +97,7 @@ bool ReplanChecker::isResetRequired(const PlannerData & planner_data) const
     const double delta_dist =
       autoware_utils::calc_distance2d(p.ego_pose, prev_ego_pose_ptr_->position);
     if (max_ego_moving_dist_ < delta_dist) {
+      last_reset_reason_ = "ego_moved_beyond_reset_threshold";
       RCLCPP_DEBUG(
         logger_,
         "Replan with resetting optimization since current ego pose is far from previous ego pose.");

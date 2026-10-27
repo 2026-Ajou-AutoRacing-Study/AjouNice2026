@@ -598,8 +598,10 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   qp_input_stamp() = p.header.stamp;
   const auto & traj_points = p.traj_points;
   candidate_trial_ = !p.obstacles.empty();
+  last_rejection_reason_.clear();
   exactly_checked_ego_index_.reset();
   const auto reject_candidate = [&](const char * reason) -> std::optional<std::vector<TrajectoryPoint>> {
+    last_rejection_reason_ = reason;
     if (candidate_trial_ && std::getenv("AJOUNICE_OBSTACLE_DIAG")) {
       RCLCPP_INFO(logger_, "[MPT candidate] t=%.3f rejected: %s", p.header.stamp.toSec(), reason);
     }

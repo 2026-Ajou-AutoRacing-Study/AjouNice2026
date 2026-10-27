@@ -8,6 +8,10 @@ option/debug/enable_pub_extra_debug_marker: false
 option/debug/enable_debug_info: false
 option/debug/enable_calculation_time_info: true
 common/output_delta_arc_length: 0.2
+# Spatial Gaussian XY smoothing after MPT, followed by cubic resampling.
+# Sigma is in metres (not samples or seconds). Use akima for legacy comparison.
+output_resampling/method: gaussian
+output_resampling/gaussian_sigma_m: 0.25
 # Retry budget between seeds/refinements as well as side candidates.
 # A single solver call can still exceed the budget.
 obstacle_search_time_budget_ms: 100.0

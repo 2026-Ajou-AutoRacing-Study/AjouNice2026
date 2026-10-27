@@ -40,6 +40,7 @@ add_library(${PROJECT_NAME} SHARED
   src/node.cpp src/replan_checker.cpp src/mpt_optimizer.cpp src/obstacle_clustering.cpp src/state_equation_generator.cpp
   src/debug_marker.cpp src/vehicle_model/vehicle_model_interface.cpp
   src/vehicle_model/vehicle_model_bicycle_kinematics.cpp src/utils/trajectory_utils.cpp
+  src/utils/gaussian_resampling.cpp
   src/utils/geometry_utils.cpp)
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} BEFORE PUBLIC include ${CMAKE_CURRENT_SOURCE_DIR}/src/acados_mpc/include ${CMAKE_CURRENT_BINARY_DIR} ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
@@ -51,7 +52,17 @@ target_compile_features(path_optimizer_node PRIVATE cxx_std_17)
 target_link_libraries(path_optimizer_node PRIVATE ${PROJECT_NAME})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_reference_heading_dynamics test/test_reference_heading_dynamics.cpp)
+  if(TARGET test_reference_heading_dynamics)
+    target_link_libraries(test_reference_heading_dynamics ${PROJECT_NAME})
+  endif()
+  catkin_add_gtest(test_gaussian_resampling test/test_gaussian_resampling.cpp)
+  if(TARGET test_gaussian_resampling)
+    target_link_libraries(test_gaussian_resampling ${PROJECT_NAME})
+  endif()
   find_package(rostest REQUIRED)
+  add_rostest_gtest(test_obstacle_direction_priority test/obstacle_direction_priority.test test/test_obstacle_direction_priority.cpp)
+  target_link_libraries(test_obstacle_direction_priority ${PROJECT_NAME} ${catkin_LIBRARIES})
   add_rostest(test/path_extension.test)
   add_rostest_gtest(test_reused_geometry_velocity test/reused_geometry_velocity.test test/test_reused_geometry_velocity.cpp)
   target_link_libraries(test_reused_geometry_velocity ${PROJECT_NAME} ${catkin_LIBRARIES})

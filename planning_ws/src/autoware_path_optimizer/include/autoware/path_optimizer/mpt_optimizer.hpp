@@ -211,6 +211,7 @@ public:
     }
   }
   History history() const { return {prev_ref_points_ptr_, prev_optimized_traj_points_ptr_}; }
+  const std::string & lastRejectionReason() const { return last_rejection_reason_; }
   void restoreHistory(const History & history) {
     prev_ref_points_ptr_ = history.reference;
     prev_optimized_traj_points_ptr_ = history.trajectory;
@@ -228,6 +229,7 @@ public:
   }
 
 private:
+  std::string last_rejection_reason_;
   struct ValueMatrix
   {
     Eigen::SparseMatrix<double> Q;
