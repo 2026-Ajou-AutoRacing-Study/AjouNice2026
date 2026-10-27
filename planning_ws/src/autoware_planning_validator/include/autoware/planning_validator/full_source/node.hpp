@@ -90,6 +90,7 @@ private:
   Trajectory::ConstPtr last_published_trajectory_;
   Odometry::ConstPtr scene_check_odometry_;
   uint32_t published_trajectory_sequence_{0};
+  bool enable_static_scene_guard_{true};
   double static_scene_deceleration_{7.0};
   autoware_utils::InterProcessPollingSubscriber<
     LaneletRoute, autoware_utils::polling_policy::Newest>

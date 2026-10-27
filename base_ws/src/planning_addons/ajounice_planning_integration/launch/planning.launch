@@ -14,6 +14,8 @@
        default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v97.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
+  <!-- Validator reports ordinary checks; static-scene speed intervention is opt-in. -->
+  <arg name="enable_static_scene_guard" default="false"/>
   <arg name="is_simulation" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
@@ -93,6 +95,8 @@
          value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
   </include>
   <!-- Base-owned runtime override; keep the ported Autoware source/config unchanged. -->
+  <param name="/planning_validator/enable_static_scene_guard"
+         value="$(arg enable_static_scene_guard)" type="bool"/>
   <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/slot2">
     [side_shift, avoidance_by_lane_change, static_obstacle_avoidance, lane_change_left, lane_change_right, bidirectional_traffic]
   </rosparam>
