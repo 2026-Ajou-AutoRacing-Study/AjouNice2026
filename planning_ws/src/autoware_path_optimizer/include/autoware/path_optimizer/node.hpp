@@ -83,6 +83,7 @@ protected:  // for the static_centerline_generator package
   std::optional<rclcpp::Time> last_successful_optimization_time_;
   std::optional<std::vector<TrajectoryPoint>> last_validated_output_;
   bool using_final_geometry_{false};
+  double retained_optimization_forward_length_{0.0};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
   std::string outside_drivable_area_check_footprint_;
 
