@@ -42,12 +42,14 @@ def planner_records(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--planner-log', type=Path, required=True)
+    parser.add_argument('--planner-log', type=Path,
+                        help='Optional legacy log adapter; omit to preserve recorded planner topic data')
+    parser.add_argument('--preview-sec', type=float, default=80.)
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     output = video.validate_output(args.output)
     import cv2
-    rows = planner_records(args.planner_log)
+    rows = planner_records(args.planner_log) if args.planner_log is not None else []
     frames = [json.loads(line) for line in (args.source/'frames.jsonl').open()]
     capture = cv2.VideoCapture(str(args.source/'front_evidence.mp4'))
     fps = capture.get(cv2.CAP_PROP_FPS)
@@ -71,13 +73,15 @@ def main():
                 runtime = evidence['telemetry']['runtime'].get('value') or {}
                 group = (runtime.get('frame_decision') or {}).get('group_id')
                 selected = latest.get(group)
-                evidence['telemetry']['planner_decision'] = {} if selected is None else dict(
-                    value=selected[1], receipt_age_sec=(now-selected[0])/1e9,
-                    receipt_ros_ns=selected[0], provenance='historical_0.5s_sample_not_exact_camera')
-                frame = video.render_frame(image, '과거 판단 0.5초 표본', evidence)
+                if args.planner_log is not None:
+                    evidence['telemetry']['planner_decision'] = {} if selected is None else dict(
+                        value=selected[1], receipt_age_sec=(now-selected[0])/1e9,
+                        receipt_ros_ns=selected[0], provenance='historical_0.5s_sample_not_exact_camera')
+                frame = video.render_frame(image,
+                    '과거 판단 0.5초 표본' if args.planner_log is not None else '기록된 판단 토픽', evidence)
                 process.stdin.write(frame.tobytes())
                 manifest.write(json.dumps(evidence, ensure_ascii=False, allow_nan=False)+'\n')
-                if index == min(800, len(frames)-1):
+                if index == min(round(args.preview_sec*fps), len(frames)-1):
                     cv2.imwrite(str(output/'preview.png'), frame)
             if capture.read()[0]:
                 raise RuntimeError('Video contains frames absent from manifest')
@@ -88,10 +92,11 @@ def main():
         if result:
             raise RuntimeError('ffmpeg failed: see ffmpeg.log')
     hashes = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
-              for path in (args.source/'frames.jsonl', args.planner_log)}
+              for path in (args.source/'frames.jsonl', args.planner_log) if path is not None}
     (output/'metadata.json').write_text(json.dumps(dict(source=str(args.source),
         input_sha256=hashes, frames=len(frames), fps=fps, planner_sample_max_age_sec=.75,
-        note='Derived view only. Old logs retained. Past-only, same-mission planner samples.'), indent=2))
+        note=('Derived view with legacy sampled logs.' if args.planner_log is not None else
+              'Derived view with original recorded planner topic. No legacy log substitution.')), indent=2))
     print(output/'front_evidence.mp4')
 
 

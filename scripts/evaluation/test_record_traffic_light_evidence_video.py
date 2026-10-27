@@ -18,6 +18,20 @@ def record(payload=None, source=10_000_000_000, receipt=10., sequence=1):
 
 
 class EvidenceVideoTest(unittest.TestCase):
+    def test_signal_reason_does_not_infer_vehicle_braking_from_lamp(self):
+        runtime = record({'frame_decision': {'group_id': 201365,
+            'observed_tuples': [['yellow', 'circle', 1]]}})
+        planner = record({'group_id': 201365, 'require_stop': True, 'committed': False,
+            'reason': 'stop_selected', 'target_m': 24.23, 'brake_m': 19.55})
+        evidence = video.frame_evidence(882, 10, 10, 10.1, 10_100_000_000,
+            {'runtime': runtime, 'planner_decision:201365': planner,
+             'command': record({'brake': .1})}, record(), False)
+        lines = video.telemetry_lines('current', evidence)
+        self.assertIn('브레이크 명령 0.100', lines[1])
+        self.assertIn('STOP 선택', lines[3])
+        self.assertIn('판단선 밖(d>D)', lines[3])
+        self.assertEqual(lines[-1], '')
+
     def test_footer_signal_depth_is_distinct_from_stopline_distance(self):
         runtime = record({'frame_decision': {'group_id': 201351,
             'observation_distance_gate': {'current_matched_camera_depth_m': 37.125}}})

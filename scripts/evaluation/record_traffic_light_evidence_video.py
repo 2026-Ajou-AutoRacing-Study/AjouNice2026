@@ -205,6 +205,24 @@ def number(value, digits=2):
     return '?' if not isinstance(value, (int, float)) or not math.isfinite(value) else ('%.*f' % (digits, value))
 
 
+def decision_reason_text(value):
+    """Exact signal-state reason, not a claimed cause for all vehicle braking."""
+    names = {
+        'stop_selected': 'STOP 선택(비허가 신호·GO 미확정)',
+        'retain_stop_until_fresh_authorization': 'STOP 이력 유지·새 방향 허가 대기',
+        'decision_boundary_authorized_go': '판단선 안에서 방향 허가 → GO 확정',
+        'retain_committed_go': '이미 확정한 GO 유지',
+        'authorized_before_boundary_or_stationary': '방향 허가·판단선 밖 또는 정차 중',
+        'approach_without_new_authorization': 'GO 미확정·기존 관측 정책 적용',
+        'competition_fail_open': '미수신/시간초과 → 기존 fail-open GO',
+        'yellow_master_off': '황색 예외 OFF·일반 신호 판단',
+        'invalid_velocity': '유효하지 않은 속도 → STOP',
+        'invalid_clock': '유효하지 않은 시각 → STOP',
+        'clock_rewind': '시각 역전 → 재판단 STOP',
+    }
+    return names.get(value.get('reason'), '신호 판단 근거 미수신')
+
+
 def telemetry_lines(label, evidence):
     telemetry = evidence['telemetry']
     runtime = telemetry.get('runtime', {}).get('value') or {}
@@ -224,18 +242,20 @@ def telemetry_lines(label, evidence):
     state = ('GO 확정' if value.get('committed') else '접근·재판단') if valid else '미수신/오래된 기록'
     speed = (telemetry.get('ego', {}).get('value') or {}).get('speed_kph')
     gate = observation.get('observation_distance_gate') or {}
-    hold = observation.get('observation_timing') or {}
     distances = value if valid else {}
+    brake_command = (telemetry.get('command', {}).get('value') or {}).get('brake')
+    reason = decision_reason_text(value) if valid else '신호 판단 근거 미수신/오래됨'
+    target, braking = distances.get('target_m'), distances.get('brake_m')
+    boundary = ''
+    if all(type(x) in (int, float) and math.isfinite(x) for x in (target, braking)):
+        boundary = ' | 판단선 밖(d>D)' if target > braking else ' | 판단선 안(d≤D)'
     return [
         '미션 %s  |  실제 속도 %s km/h  |  관측: %s' % (mission, number(speed, 1), lamps),
-        '신호 판단: %s  |  %s' % (verdict, state),
+        '신호 판단: %s | %s | 브레이크 명령 %s' % (verdict, state, number(brake_command, 3)),
         '정차 목표 %s m | 채점선 %s m | 계산 제동거리 %s m | 신호등까지(전방 깊이) %s m' %
         (tuple(number(distances.get(key)) for key in ('target_m', 'official_m', 'brake_m')) +
          (number(gate.get('current_matched_camera_depth_m')),)),
-        '판독: %s  |  판단 기록 나이 %s초  |  영상 %.1f초' %
-        ('원거리 미사용' if gate.get('suppressed') else
-         '이전 관측 완충' if hold.get('output_is_held') else '현재 관측',
-         number(age, 2), evidence['pts_sec']),
+        '신호 근거: %s%s | 영상 %.1f초' % (reason, boundary, evidence['pts_sec']),
         ('판단 주기 아님: GO/STOP 표시는 약 0.5초 간격의 과거 요약 로그 기준'
          if label == '과거 판단 0.5초 표본' else ''),
     ]
