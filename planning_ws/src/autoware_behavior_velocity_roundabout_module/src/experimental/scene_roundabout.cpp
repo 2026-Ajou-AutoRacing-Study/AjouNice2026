@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <sstream>
 #include <memory>
 #include <set>
 #include <string>
@@ -31,6 +32,18 @@ namespace autoware::behavior_velocity_planner::experimental
 
 namespace
 {
+
+// Observation only: all values are snapshots of the actual decision cycle.
+template<class T>
+void traceValue(diagnostic_msgs::DiagnosticStatus & trace, const std::string & key, const T & value)
+{
+  diagnostic_msgs::KeyValue item;
+  item.key = key;
+  std::ostringstream stream;
+  stream << std::boolalpha << value;
+  item.value = stream.str();
+  trace.values.push_back(item);
+}
 
 using autoware_utils::append_marker_array;
 using autoware_utils::create_marker_color;
@@ -127,6 +140,8 @@ RoundaboutModule::RoundaboutModule(
   lane_id_(lane_id),
   associative_ids_(associative_ids)
 {
+  decision_state_pub_ = node.advertise<diagnostic_msgs::DiagnosticArray>(
+    "debug/roundabout/state_trace", 10);
   collision_state_machine_.setMarginTime(
     planner_param_.collision_detection.collision_detection_hold_time);
   ego_ttc_pub_ = node.advertise<autoware_internal_debug_msgs::Float64MultiArrayStamped>(
@@ -143,6 +158,15 @@ bool RoundaboutModule::modifyPathVelocity(
   auto path_msg = planning_utils::fromTrajectory(path, left_bound, right_bound);
 
   debug_data_ = DebugData();
+  decision_trace_ = diagnostic_msgs::DiagnosticStatus{};
+  decision_trace_.name = "roundabout/" + std::to_string(module_id_);
+  decision_trace_.hardware_id = std::to_string(lane_id_);
+  traceValue(decision_trace_, "schema_version", 1);
+  traceValue(decision_trace_, "permanent_go_before", is_permanent_go_);
+  traceValue(decision_trace_, "previous_decision", formatDecisionResult(prev_decision_result_, isActivated()));
+  traceValue(decision_trace_, "ego_velocity_mps", planner_data.current_velocity->twist.linear.x);
+  traceValue(decision_trace_, "early_pass_judge_enabled", planner_param_.common.enable_pass_judge_before_default_stopline);
+  traceValue(decision_trace_, "hold_time_s", planner_param_.collision_detection.collision_detection_hold_time);
 
   initializeRTCStatus();
 
@@ -159,6 +183,26 @@ bool RoundaboutModule::modifyPathVelocity(
 
   reactRTCApproval(decision_result, &path_msg, planner_data);
 
+  traceValue(decision_trace_, "permanent_go_after", is_permanent_go_);
+  traceValue(decision_trace_, "rtc_activated", isActivated());
+  traceValue(decision_trace_, "decision", formatDecisionResult(decision_result, isActivated()));
+  traceValue(decision_trace_, "collision_state", StateMachine::toString(collision_state_machine_.getState()));
+  decision_trace_.message = std::holds_alternative<RoundaboutCollisionStop>(decision_result) ?
+    "CollisionStop" : (std::holds_alternative<RoundaboutSafe>(decision_result) ? "Safe" :
+    (std::holds_alternative<RoundaboutOverPassJudge>(decision_result) ? "OverPassJudge" : "InternalError"));
+  for (size_t i = 0; i < path_msg.points.size(); ++i) {
+    if (path_msg.points[i].point.longitudinal_velocity_mps < 0.01) {
+      traceValue(decision_trace_, "output_first_zero_index", i);
+      traceValue(decision_trace_, "output_first_zero_x", path_msg.points[i].point.pose.position.x);
+      traceValue(decision_trace_, "output_first_zero_y", path_msg.points[i].point.pose.position.y);
+      break;
+    }
+  }
+  diagnostic_msgs::DiagnosticArray trace_message;
+  trace_message.header.stamp = clock_->now();
+  trace_message.header.frame_id = "map";
+  trace_message.status.push_back(decision_trace_);
+  decision_state_pub_.publish(trace_message);
   planning_utils::toTrajectory(path_msg, path);
   return true;
 }
@@ -180,6 +224,13 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(
   const auto & roundabout_lanelets = roundabout_lanelets_.value();
 
   const auto closest_idx = roundabout_stoplines.closest_idx;
+  traceValue(decision_trace_, "geometry_valid", true);
+  traceValue(decision_trace_, "closest_index", closest_idx);
+  traceValue(decision_trace_, "pass_judge_index", roundabout_stoplines.first_pass_judge_line);
+  if (roundabout_stoplines.default_stopline) {
+    traceValue(decision_trace_, "default_stopline_distance_m", autoware::motion_utils::calcSignedArcLength(
+      path->points, closest_idx, roundabout_stoplines.default_stopline.value()));
+  }
   const auto can_smoothly_stop_at = [&](const auto & stop_line_idx) {
     const double max_accel = planner_data.max_stop_acceleration_threshold;
     const double max_jerk = planner_data.max_stop_jerk_threshold;
@@ -285,6 +336,20 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(
   roundabout_ros1::setStateWithMarginTime(collision_state_machine_, 
     has_collision ? StateMachine::State::STOP : StateMachine::State::GO,
     (logger_ + ".collision state_machine"), *clock_);
+  traceValue(decision_trace_, "raw_collision", has_collision);
+  traceValue(decision_trace_, "over_pass_judge", is_over_1st_pass_judge_line);
+  traceValue(decision_trace_, "first_safe_pass", safely_passed_1st_judge_line);
+  traceValue(decision_trace_, "hold_duration_s", collision_state_machine_.getDuration());
+  for (const auto & object : object_info_manager_.attentionObjects()) {
+    const auto prefix = "object/" + object->uuid_str + "/";
+    traceValue(decision_trace_, prefix + "observed_velocity_mps", object->observed_velocity());
+    traceValue(decision_trace_, prefix + "unsafe", object->unsafe_info().has_value());
+    if (const auto unsafe = object->unsafe_info()) {
+      traceValue(decision_trace_, prefix + "ttc_begin_s", unsafe->interval_time.first);
+      traceValue(decision_trace_, prefix + "ttc_end_s", unsafe->interval_time.second);
+      traceValue(decision_trace_, prefix + "lane_position", static_cast<int>(unsafe->lane_position));
+    }
+  }
   const bool has_collision_with_margin =
     collision_state_machine_.getState() == StateMachine::State::STOP;
   const std::string safety_diag =
@@ -537,6 +602,8 @@ RoundaboutModule::PassJudgeStatus RoundaboutModule::isOverPassJudgeLinesStatus(
   const bool is_over_default_stopline =
     util::isOverTargetIndex(path, closest_idx, current_pose, default_stopline_idx);
 
+  traceValue(decision_trace_, "over_default_stopline", is_over_default_stopline);
+  traceValue(decision_trace_, "previous_was_safe", was_safe);
   const bool over_default_stopline_for_pass_judge =
     is_over_default_stopline || planner_param_.common.enable_pass_judge_before_default_stopline;
   if (

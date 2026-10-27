@@ -340,7 +340,7 @@ roundabout:
       object_time_margin_to_collision_point: 4.0
   debug:
     ttc:
-    - 0
+    - -1
   enable_rtc:
     roundabout: false
 speed_bump:
