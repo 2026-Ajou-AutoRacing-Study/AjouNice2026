@@ -61,6 +61,24 @@ TEST(LaneChangeNativeParameterEvents, ApprovedReplacementToggleLoadsAndUpdates) 
   EXPECT_FALSE(manager.parameters().always_update_approved);
 }
 
+TEST(LaneChangeNativeParameterEvents, DeceleratingLaneChangePolicyDefaultsOffAndUpdates) {
+  ros::NodeHandle node("/lane_change_native_events");
+  const std::string key = "lane_change/trajectory/allow_decelerating_lane_change";
+  node.deleteParam(key);
+  ParameterEventManager defaults;ASSERT_TRUE(defaults.initialize(&node));
+  EXPECT_FALSE(defaults.parameters().trajectory.allow_decelerating_lane_change);
+  node.setParam(key, true);
+  ParameterEventManager enabled;ASSERT_TRUE(enabled.initialize(&node));
+  EXPECT_TRUE(enabled.parameters().trajectory.allow_decelerating_lane_change);
+  enabled.updateModuleParams({rclcpp::Parameter(
+    "lane_change.trajectory.allow_decelerating_lane_change", false)});
+  EXPECT_FALSE(enabled.parameters().trajectory.allow_decelerating_lane_change);
+  enabled.updateModuleParams({rclcpp::Parameter(
+    "lane_change.trajectory.allow_decelerating_lane_change", true)});
+  EXPECT_TRUE(enabled.parameters().trajectory.allow_decelerating_lane_change);
+  node.setParam(key, false);
+}
+
 }
 int main(int argc,char ** argv) {
   ros::init(argc,argv,"lane_change_native_events");

@@ -469,6 +469,12 @@ std::pair<bool, bool> NormalLaneChange::getSafePath(LaneChangePath & safe_path) 
     return {false, false};
   }
 
+  // A cached terminal path may have been generated before a policy update.
+  if (!lane_change_parameters_->trajectory.allow_decelerating_lane_change &&
+      safe_path.info.longitudinal_acceleration.lane_changing < -1e-6) {
+    return {false, false};
+  }
+
   if (found_safe_path) {
     // Validate the same extended, overlap-processed geometry before approval,
     // rather than discovering a missing maneuver after switching to RUNNING.
@@ -1490,7 +1496,11 @@ bool NormalLaneChange::get_lane_change_paths(LaneChangePaths & candidate_paths) 
       lane_change_parameters_->trajectory.max_longitudinal_acc,
       std::max(-2.0, lane_change_parameters_->trajectory.min_longitudinal_acc));
     std::vector<double> execution_samples;
-    for (const auto & metric : representatives) execution_samples.push_back(metric.sampled_lon_accel);
+    for (const auto & metric : representatives) {
+      if (!lane_change_parameters_->trajectory.allow_decelerating_lane_change &&
+          metric.sampled_lon_accel < -1e-6) continue;
+      execution_samples.push_back(metric.sampled_lon_accel);
+    }
     prepare_phase_metrics = utils::lane_change::independent_execution_metrics(
       prepare_phase_metrics, execution_samples);
   }

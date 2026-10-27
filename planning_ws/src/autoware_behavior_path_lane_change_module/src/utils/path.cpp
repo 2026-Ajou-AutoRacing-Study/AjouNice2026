@@ -236,6 +236,9 @@ std::optional<SamplingParameters> init_sampling_parameters(
   });
 
   // A zero lateral shift must not produce a zero-duration polynomial or 0/0.
+  if (!trajectory.allow_decelerating_lane_change && lon_accel < -1e-6) {
+    return std::nullopt;
+  }
   if (!std::isfinite(duration) || duration <= 1e-6 || !std::isfinite(lc_length) ||
       !std::isfinite(lon_accel) || !std::isfinite(final_velocity)) {
     return std::nullopt;
@@ -740,6 +743,13 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
 
     trajectory_groups.reserve(trajectory_groups.size() + frenet_trajectories.size());
     for (const auto & traj : frenet_trajectories) {
+      // Check the entire polynomial, not only its initial/terminal sample.
+      if (!trajectory.allow_decelerating_lane_change && std::any_of(
+            traj.longitudinal_accelerations.begin(), traj.longitudinal_accelerations.end(),
+            [](const double a) { return a < -1e-6; })) {
+        ++rejected_sampling;
+        continue;
+      }
       // A Frenet polynomial can overshoot its sampled terminal acceleration.
       // Do not pass an unreachable prediction to the collision checker.
       bool exceeds_propulsion = false;

@@ -2,6 +2,18 @@
 
 이 문서는 LC의 공간 오차 검사와 optimization-base 정적 장애물 수명 관리의 소스 계약을 설명한다. 설치·운영 적용 여부는 별도 확인한다.
 
+## 감속 LC 후보 토글
+
+`lane_change.trajectory.allow_decelerating_lane_change`의 기본값은 `false`다.
+`true`이면 LC 실행 중 감속하는 후보를 포함하고, `false`이면 일반·Frenet·terminal
+LC 후보에서 제외한다. 준비 단계의 감속과 장애물 대응·검증 실패에 따른 안전 감속은
+이 토글의 대상이 아니다. 이미 승인되어 실행 중인 LC를 토글 변경만으로 취소하지 않는다.
+후보 검색 진단의 `allow_decelerating_lane_change`에서 적용값을 확인할 수 있다.
+
+운영 설정은 `autoware_launch/config/ros1/planning/behavior_path_modules.yaml`의
+`lane_change.trajectory` 아래에 둔다. ROS 상대 파라미터 경로는
+`lane_change/trajectory/allow_decelerating_lane_change`이며 BPP namespace 아래에서 로드한다.
+
 ## 정적 객체의 이동 전환
 
 `optimization_base`에서 최신 planner 입력의 유한한 속력이 해당 클래스의 기존 `moving_speed_threshold`를 넘으면 그 cycle부터 moving으로 분류한다. `moving_time_threshold`를 추가로 기다리지 않는다.
