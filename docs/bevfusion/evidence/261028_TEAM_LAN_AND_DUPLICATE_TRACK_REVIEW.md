@@ -203,6 +203,8 @@ cap90을 새 프로세스에서 반복해380/380 cycle의 ego·BPP·SOA·MPT 점
 그 구간 처리 p95도64.12/62.45/66.73ms였다. 인지 출력 소실 이후50개 cycle의 solve401회도 같았다.
 구간별 처리시간의 시점 정렬은 동일 순서 publication을 가정하며, header가 있는 search/solver trace와 함께 읽는다.
 최신v99·다중 장애물·새 폐루프를 더 확인하기 전에는 production cap60을 변경하지 않는다.
+후속 상태: [v99 로컬 폐루프 4회 대조](261028_V99_WINDOW60_90_LIVE_REVIEW.md)에서는 모두 완주했지만
+90m의 우위를 확인하지 못했고 측위·시뮬레이션 시간축 교란도 있었다. 따라서 cap60 유지 결정은 그대로다.
 추가 확인할 소스 설정은 `planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml`의
 `obstacle_optimization/max_forward_length`다. `return_length:15`·탐색100ms·마진 등은 이번 대조에서 유지했다.
 

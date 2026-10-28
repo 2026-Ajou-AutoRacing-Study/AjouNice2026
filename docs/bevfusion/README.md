@@ -26,6 +26,7 @@
 | 주제 | 필요한 근거 |
 |---|---|
 | 팀 v99 LAN 지연·실제 제동·중복 장애물과 후보 부작용 | [2026-10-28 검토](evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md) |
+| v99 실제 주행의 최적화 60m/90m 비교·측위 시간축 교란·승격 보류 | [폐루프 4회 대조](evidence/261028_V99_WINDOW60_90_LIVE_REVIEW.md) |
 | E12 완료·저장·백업 미완료 주의 | [56절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-completion-261023) |
 | E12/E24 동일 bag·80~100m·0점·1점 이상 보조 평가 | [57절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023), [58절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-zero-lidar-threshold-research-261023), [59절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-positive-lidar-evaluation-261023) |
 | E12 TRT·head AP·연속 tracker·production 기동 | [60절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023), [61절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#continuous-trt-competition-startup-261023), [62절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#head-native-ap-runtime-261023), [63절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-production-ros1-deployment-261023), [배포 검토](evidence/261009_CUDA_BEVFUSION_AND_BEVPOOL_DEPLOYMENT_REVIEW.md#e12-orin-scope-safe-startup-261023) |

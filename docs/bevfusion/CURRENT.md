@@ -74,6 +74,7 @@
 - E12/E24 bag 비교는 14장면·5,986입력/5,822평가다. 동일 native 512장 전방 80~100m AP는 34.41→62.06%였으나 실제 bag 0점 차량은 threshold만 낮춰 해결하지 못했다. 전체 val·subset·실제 bag을 혼용하지 않는다. [57~59절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023)을 따른다.
 - [64~65절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)은 cached eager E12 코어의 coasting·속도·3/5/6초·CV/CTRV 당시 비교다. 새 TRT ROS 30Hz·LAN·planner 폐루프 인증이 아니며 현재 길이는 후단 CURRENT를 따른다.
 - [팀 v99 LAN·중복 장애물 검토](evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md): 실제 입력/검출은 모두10.92Hz, callback→발행 평균49.83ms였다. 새 bag에서도 중복 track이 재현됐지만 NMS/score/모델 원복은 근접 객체 손실을 만들므로 유지한다. UNKNOWN 정지 prior는 이동 차량 오분류/누락 음성 대조 때문에 기본 OFF인 시험 후보다.
+- [v99 로컬 폐루프 4회](evidence/261028_V99_WINDOW60_90_LIVE_REVIEW.md): 실제 E12·측위·판단·제어에서 60m/90m 모두 완주했으나 상자 주행의 90m 우위는 확인되지 않았다. 측위·시뮬레이션 시간축 교란도 있어 최적화 cap90과 추적 후보를 승격하지 않는다.
 - 비용용 빈 출력·query 고정·48GB GPU의 20GiB 제한 시험을 완성 모델의 정확도나 실제 대회 24GB 풀스택 근거로 사용하지 않는다.
 
 <a id="next"></a>
