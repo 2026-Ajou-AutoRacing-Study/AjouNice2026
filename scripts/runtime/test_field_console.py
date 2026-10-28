@@ -525,6 +525,27 @@ class FieldConsoleClassification(unittest.TestCase):
         self.assertEqual(event.level, 'ERROR')
         self.assertEqual(event.code, 'corridor_failed')
 
+    def test_recorded_mpt_failure_signatures_distinguish_braking_and_overlap(self):
+        rows = [
+            ('[WARN] [MPT] Optimization failed; braking on previous path (clear=59.20 stop=58.20)',
+             'mpt_braking', 'WARN', '59.20m'),
+            ('[WARN] [MPT] Measured footprint already overlaps static obstacle clearance; stopping',
+             'mpt_overlap', 'ERROR', '실제 충돌 확정 아님'),
+            ('[WARN] [MPT] Optimization failed; emergency brake, previous path clear distance 0.00 < 1.06',
+             'mpt_emergency', 'ERROR', '0.00m'),
+        ]
+        for line, code, level, detail in rows:
+            with self.subTest(code=code):
+                event = self.module.classify(line, 'planning')
+                self.assertEqual((event.code, event.level), (code, level))
+                self.assertIn(detail, self.module.event_text(event))
+
+    def test_real_error_severity_is_not_demoted_by_mpt_braking_rule(self):
+        event = self.module.classify(
+            '[ERROR] [MPT] Optimization failed; braking on previous path (clear=2.0 stop=1.0)',
+            'planning')
+        self.assertEqual(event.level, 'ERROR')
+
 
 class FieldTerminalAliasCLI(unittest.TestCase):
     def setUp(self):

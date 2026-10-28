@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import unittest
 
-from replay_tracker_shape_guard_ros import fingerprint, grid, stats
+from replay_tracker_shape_guard_ros import fingerprint, grid, stats, valid_three_second_path
 
 
 class DeterministicClockTests(unittest.TestCase):
@@ -31,6 +31,14 @@ class DeterministicClockTests(unittest.TestCase):
     def test_nonfinite_measurement_rejected(self):
         with self.assertRaises(ValueError):
             stats([float('nan')])
+
+    def test_road_end_truncation_is_explicit_and_keeps_three_second_cap(self):
+        self.assertTrue(valid_three_second_path(dict(count=31, time_step=.1)))
+        self.assertFalse(valid_three_second_path(dict(count=12, time_step=.1)))
+        self.assertTrue(valid_three_second_path(dict(count=12, time_step=.1), True))
+        for count in (0, 32):
+            self.assertFalse(valid_three_second_path(dict(count=count, time_step=.1), True))
+        self.assertFalse(valid_three_second_path(dict(count=12, time_step=.2), True))
 
 
 if __name__ == '__main__':

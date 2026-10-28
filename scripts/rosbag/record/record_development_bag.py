@@ -30,6 +30,8 @@ TOPICS = [
     r'^/(map_based_prediction|tracked_object_motion_policy)/diagnostics(/.*)?$',
     r'^/perception/object_recognition/tracking/diagnostics(/.*)?$',
     r'^/planning/mission_planning/route$', r'^/planning/route_state$',
+    r'^/map/vector_map$', r'^/system/operation_mode/state$',
+    r'^/vehicle/status/(velocity_status|steering_status)$',
     r'^/planning/scenario_planning/.*(path|path_with_lane_id|trajectory|velocity_limit|clear_velocity_limit)$',
     r'^/planning/trajectory$', r'^/planning/validation_status$',
     r'^/planning/planning_factors/.*$',
@@ -54,12 +56,15 @@ REQUIRED = [
 PARAMETERS = (
     '/use_sim_time', '/configure', '/topic_name', '/ekf_multi_object_tracking',
     '/lanelet2_map_loader', '/map_based_prediction',
-    '/tracked_object_motion_policy', '/purepursuit_autoware', '/localization',
+    '/tracked_object_motion_policy', '/purepursuit_autoware', '/longi_pi_autoware', '/localization',
     '/lidar/lidar_driver', '/lidar/lidar_transform', '/bevfusion_ros_bridge',
     '/base5_trial/bevfusion_ros_bridge', '/traffic_light_node', '/traffic_light_map_roi',
     '/traffic_light_route_group_id',
     '/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner',
+    '/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner',
     '/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner',
+    '/planning/scenario_planning/lane_driving/motion_planning/path_optimizer',
+    '/planning/scenario_planning/velocity_smoother',
 )
 
 

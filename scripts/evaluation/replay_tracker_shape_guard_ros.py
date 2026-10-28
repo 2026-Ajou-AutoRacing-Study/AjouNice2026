@@ -66,6 +66,12 @@ def stats(values):
                 p99=float(np.percentile(a, 99)), maximum=float(a.max()))
 
 
+def valid_three_second_path(path, allow_shorter=False):
+    count = path['count']
+    return ((1 <= count <= 31 if allow_shorter else count == 31) and
+            abs(path['time_step'] - .1) <= 1.e-7)
+
+
 def load_frames(path, limit=None):
     start, topics, excluded = pickle.loads(Path(path).read_bytes())
     source = topics['/perception/object_recognition/detection/objects']
@@ -228,6 +234,11 @@ def worker(args):
             pedestrian_gaussian_association_ranking=True,
             shape_consistent_association_ranking=args.policy == 'shape_on',
             guard_inconsistent_class_transitions=False)
+        if getattr(args, 'hold_unknown_output_pose', False):
+            configuration['configure']['hold_unknown_output_pose'] = True
+        if getattr(args, 'stationary_unknown_prediction', False):
+            configuration['configure']['stationary_unknown_prediction'] = True
+        map_file = getattr(args, 'map_file', None) or ROOT/'kcity_map/lanelet_map/lanelet2_map_v85.osm'
         for key, value in configuration.items():
             rospy.set_param('/'+key, value)
         start, frames, excluded = load_frames(args.world_cache, args.limit)
@@ -281,7 +292,7 @@ def worker(args):
         spawn('map_cv', ['/usr/bin/python3', str(PACKAGE/'scripts/map_based_prediction_node.py'),
             '__name:=shape_map_cv', '_prediction_horizon:=3.0', '_prediction_time_step:=0.1',
             '_mixed_horizon_enabled:=false',
-            '_map_file:='+str(ROOT/'kcity_map/lanelet_map/lanelet2_map_v85.osm'),
+            '_map_file:='+str(map_file),
             '_projector_file:='+str(ROOT/'kcity_map/lanelet_map/map_projector_info_v1.yaml'),
             '~input/objects:='+TOPICS['policy'], '~output/objects:='+TOPICS['predicted']])
         wait(lambda: publisher.get_num_connections() > 0 and
@@ -380,7 +391,8 @@ def worker(args):
                     raise ValueError('Output coverage mismatch '+key)
             for row in rows['predicted']:
                 for obj in row['objects']:
-                    if any(p['count'] != 31 or abs(p['time_step']-.1) > 1.e-7 for p in obj['paths']):
+                    if any(not valid_three_second_path(p, getattr(args, 'allow_shorter_map_paths', False))
+                           for p in obj['paths']):
                         raise ValueError('3 second prediction contract changed')
             with gzip.open(output/'rows.json.gz', 'xt') as handle:
                 json.dump(rows, handle, allow_nan=False)
@@ -397,11 +409,13 @@ def worker(args):
                             since_birth_sec=update['measurement_stamp_sec']-row['initialization_stamp_sec'])
             save(output/'summary.json', dict(policy=args.policy, master_uri=env['ROS_MASTER_URI'],
                 binary_sha256=digest(args.binary), input_cache_sha256=digest(args.world_cache),
+                map_file=str(map_file.resolve()), map_sha256=digest(map_file),
+                allow_shorter_map_paths=getattr(args, 'allow_shorter_map_paths', False),
                 source_sha256={str(p):digest(p) for p in [Path(__file__).resolve(),
                     PACKAGE/'scripts/map_based_prediction_node.py',
                     PACKAGE/'scripts/tracked_object_motion_policy_node.py',
                     *sorted((PACKAGE/'src/perception_object_pipeline').glob('*.py')),
-                    ROOT/'kcity_map/lanelet_map/lanelet2_map_v85.osm',
+                    map_file,
                     ROOT/'kcity_map/lanelet_map/map_projector_info_v1.yaml']},
                 input_state_fingerprint=fingerprint(frames), schedule_fingerprint=fingerprint(schedule),
                 clock_mode=args.clock_mode,
@@ -450,6 +464,14 @@ def main():
     parser.add_argument('--world-cache', type=Path, default=DEFAULT_CACHE)
     parser.add_argument('--binary', type=Path)
     parser.add_argument('--config', type=Path)
+    parser.add_argument('--map-file', type=Path,
+                        help='Explicit map for a new replay; historical default remains v85')
+    parser.add_argument('--hold-unknown-output-pose', action='store_true',
+                        help='Opt-in stationary UNKNOWN output-copy candidate; no internal EKF changes')
+    parser.add_argument('--stationary-unknown-prediction', action='store_true',
+                        help='Opt-in stationary UNKNOWN internal transition candidate')
+    parser.add_argument('--allow-shorter-map-paths', action='store_true',
+                        help='Accept current road-end truncation within the same 3 second cap')
     parser.add_argument('--limit', type=int)
     parser.add_argument('--worker', action='store_true')
     parser.add_argument('--policy', choices=('off_a','off_b','shape_on'))
@@ -476,6 +498,14 @@ def main():
             command += ['--limit', str(args.limit)]
         if args.config:
             command += ['--config', str(args.config.resolve())]
+        if args.map_file:
+            command += ['--map-file', str(args.map_file.resolve())]
+        if args.hold_unknown_output_pose:
+            command += ['--hold-unknown-output-pose']
+        if args.stationary_unknown_prediction:
+            command += ['--stationary-unknown-prediction']
+        if args.allow_shorter_map_paths:
+            command += ['--allow-shorter-map-paths']
         if args.stop_relative:
             command += ['--stop-relative', str(args.stop_relative)]
         subprocess.run(command, check=True)

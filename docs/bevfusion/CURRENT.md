@@ -1,6 +1,6 @@
 # BEVFusion 현재 모델과 실행 기준
 
-상태: CURRENT. 문서·실행 계약 대조: 2026-10-24.
+상태: CURRENT. 문서·실행 계약 대조: 2026-10-28.
 사용자 승인 production은 **전체 30,750장 E12 + camera TRT + head SDPA·좌표 cache**다.
 현재 결정만 이 문서에서 관리한다. 날짜별 실측은 [근거 인덱스](README.md#evaluation)의 관련 절만 읽는다.
 
@@ -30,7 +30,7 @@
 - single-frame 7D, vehicle / pedestrian / obstacle이다. Animal은 학습 라벨만 Pedestrian에 통합하며 native 의미·asset·BBox는 보존한다. temporal·OD velocity supervision은 OFF다.
 - 의미 ROI X±100/Y±30m, LiDAR XY voxel 5cm·camera BEV 20cm, depth 1–100m/bin 0.25m다. padding·depth bin과 실제 정확도를 구분한다.
 - 현재 E12/E24 detection pose는 tagged bottom→geometric/gravity center다. 원점을 hot-switch하지 않고 detector·tracker·planner를 정지한 뒤 fresh stack으로 시작한다.
-- 후단은 [Tracking CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)를 따른다. **로터리/일반 최대 3초·고주로 최대 8초**이며 지도 종단에서 가용 시간만 Map-CV로 출력한다. moving coast 0.5초, CTRV 8초는 사용하지 않는다. native6초 전역 적용·장기 coasting·최근 연결 후보는 미승격이다.
+- 후단의 지도·horizon은 [Tracking CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md)의 단일 설정을 따른다. 지도 종단에서 가용 시간만 Map-CV로 출력하며 moving coast는0.5초다. 긴 CTRV 연장·장기 coasting·최근 연결 후보는 미승격이다.
 - 평가 raw Ego GT와 운영 localization/TF는 별도다. [GT 좌표 계약](GT_EVALUATION_COORDINATE_CONTRACT.md)을 따르며 MR −1.347°를 중복 적용하지 않는다.
 
 <a id="model"></a>
@@ -72,14 +72,15 @@
 - E12 camera TRT의 native val 4,614장 동일 AMP mAP는 94.0545→94.0661%, head SDPA/cache 추가는 94.0661→94.0656%였다. 원본 연속 입력·실제 EKF 코어 비교를 별도 수행했다. [60~63절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)의 표본·raw yaw 예외·코어 범위를 따른다.
 - compile은 연속 tracker 예외 때문에 추론 기본 OFF다. topk/CPU 스레드 증가는 채택하지 않았다. 구조 축소·INT8·새 sparse backend·재학습은 완료 범위가 아니다.
 - E12/E24 bag 비교는 14장면·5,986입력/5,822평가다. 동일 native 512장 전방 80~100m AP는 34.41→62.06%였으나 실제 bag 0점 차량은 threshold만 낮춰 해결하지 못했다. 전체 val·subset·실제 bag을 혼용하지 않는다. [57~59절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023)을 따른다.
-- [64~65절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)은 cached eager E12 코어의 coasting·속도·3/5/6초·CV/CTRV 당시 비교다. 새 TRT ROS 30Hz·LAN·planner 폐루프 인증이 아니다. 현재 길이는 위 runtime의 3/8초 계약을 따른다.
+- [64~65절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023)은 cached eager E12 코어의 coasting·속도·3/5/6초·CV/CTRV 당시 비교다. 새 TRT ROS 30Hz·LAN·planner 폐루프 인증이 아니며 현재 길이는 후단 CURRENT를 따른다.
+- [팀 v99 LAN·중복 장애물 검토](evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md): 실제 입력/검출은 모두10.92Hz, callback→발행 평균49.83ms였다. 새 bag에서도 중복 track이 재현됐지만 NMS/score/모델 원복은 근접 객체 손실을 만들므로 유지한다. UNKNOWN 정지 prior는 이동 차량 오분류/누락 음성 대조 때문에 기본 OFF인 시험 후보다.
 - 비용용 빈 출력·query 고정·48GB GPU의 20GiB 제한 시험을 완성 모델의 정확도나 실제 대회 24GB 풀스택 근거로 사용하지 않는다.
 
 <a id="next"></a>
 
 ## 남은 작업
 
-1. [활성 우선순위](../ACTIVE_PRIORITIES.md#perception-latency)에 따라 새 계측 bag이 오면 단계별 지연·실제 consumed path·YOLO 동시 부하를 먼저 분석한다. 추가 live 시험은 자동 재개하지 않는다.
+1. [새 LAN 계측 결과](evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)를 기준으로 Windows MORAI 송신률·움직이는 UNKNOWN/중복 ID의 독립 폐루프를 후속 확인한다. Linux 부하·header age를 물리 센서 지연으로 단정하지 않으며 추가 live 시험은 자동 재개하지 않는다.
 2. E12 최종 backup의 COMPLETE·metadata·전체 readback 상태와 팀 PC 가속기 준비·실제 LAN 실행은 각각 확인할 후속이다.
 3. 초기/재취득 차량 종속도·로터리 Top-K 분기와 원거리 최초 취득 실패를 구분해 검토한다. threshold 하향·긴 기억·라벨 삭제·강제 Vehicle 변환을 자동 적용하지 않는다.
 4. 낮은 score EKF 갱신·lane history·shape/class 후보·mixed/native 6초는 시험용으로 보존한다. 판단 정책 안정화와 명시적 승격 전에는 운영값을 바꾸지 않는다.

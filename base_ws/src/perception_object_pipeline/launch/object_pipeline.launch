@@ -17,6 +17,10 @@
        default="/perception/object_recognition/objects"/>
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
+  <!-- Candidate: stop extrapolating UNKNOWN output copies only when the
+       downstream stationary policy is selected. Actual measurements still update. -->
+  <arg name="hold_unknown_output_pose" default="false"/>
+  <arg name="stationary_unknown_prediction" default="false"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default=""/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
@@ -234,6 +238,10 @@
          value="$(arg orientation_flip_exit_error_deg)"/>
     <arg name="compensate_output_to_current_time"
          value="$(arg compensate_tracking_output_to_current_time)"/>
+    <arg name="hold_unknown_output_pose"
+         value="$(eval arg('hold_unknown_output_pose') and arg('force_unknown_stationary'))"/>
+    <arg name="stationary_unknown_prediction"
+         value="$(eval arg('stationary_unknown_prediction') and arg('force_unknown_stationary'))"/>
     <arg name="maximum_output_compensation_sec"
          value="$(arg maximum_tracking_output_compensation_sec)"/>
     <arg name="fixed_output_rate_hz"

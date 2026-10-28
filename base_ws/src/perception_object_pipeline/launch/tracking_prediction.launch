@@ -30,6 +30,8 @@
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
   <arg name="tracker_shape_consistent_association_ranking" default="false"/>
+  <arg name="tracker_hold_unknown_output_pose" default="false"/>
+  <arg name="tracker_stationary_unknown_prediction" default="false"/>
   <arg name="tracker_guard_inconsistent_class_transitions" default="false"/>
   <arg name="tracker_vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="tracker_system_noise_std_vx_vy_ms" default="1.0"/>
@@ -82,6 +84,10 @@
          value="$(arg tracker_pedestrian_gaussian_association_ranking)"/>
     <arg name="shape_consistent_association_ranking"
          value="$(arg tracker_shape_consistent_association_ranking)"/>
+    <arg name="hold_unknown_output_pose"
+         value="$(arg tracker_hold_unknown_output_pose)"/>
+    <arg name="stationary_unknown_prediction"
+         value="$(arg tracker_stationary_unknown_prediction)"/>
     <arg name="guard_inconsistent_class_transitions"
          value="$(arg tracker_guard_inconsistent_class_transitions)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>

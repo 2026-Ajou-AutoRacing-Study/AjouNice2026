@@ -24,7 +24,10 @@ class RecordingTests(unittest.TestCase):
                 '/planning/planning_factors/roundabout', '/control/command/control_cmd',
                 '/perception/traffic_light_recognition/map_rois',
                 '/traffic_light_node/debug_selection', '/traffic_light_node/debug_classifier',
-                '/traffic_light_node/debug_runtime']:
+                '/traffic_light_node/debug_runtime',
+                '/perception/traffic_light_recognition/planner_decision_debug',
+                '/map/vector_map', '/system/operation_mode/state',
+                '/vehicle/status/velocity_status', '/vehicle/status/steering_status']:
             with self.subTest(topic=topic):
                 self.assertTrue(any(re.match(p, topic) for p in recorder.TOPICS))
 
@@ -34,6 +37,24 @@ class RecordingTests(unittest.TestCase):
 
     def test_placeholder_cruise_output_is_not_required(self):
         self.assertFalse(any(n.endswith('/obstacle_cruise/trajectory') for n in recorder.DIAGNOSTICS))
+
+    def test_added_planner_context_is_recorded_without_new_mandatory_startup_gates(self):
+        for topic in ('/map/vector_map', '/system/operation_mode/state',
+                      '/vehicle/status/velocity_status', '/vehicle/status/steering_status'):
+            with self.subTest(topic=topic):
+                self.assertTrue(any(re.match(p, topic) for p in recorder.TOPICS))
+                self.assertNotIn(topic, recorder.REQUIRED)
+
+    def test_snapshot_covers_actual_signal_braking_and_stop_pipeline_namespaces(self):
+        # The 261028 team LAN archive had signal messages but none of these
+        # parameters, so current defaults could not prove the active brake model.
+        for name in (
+                '/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner',
+                '/planning/scenario_planning/lane_driving/motion_planning/path_optimizer',
+                '/planning/scenario_planning/velocity_smoother', '/longi_pi_autoware'):
+            with self.subTest(namespace=name):
+                self.assertIn(name, recorder.PARAMETERS)
+        self.assertEqual(len(recorder.PARAMETERS), len(set(recorder.PARAMETERS)))
 
     def test_list_needs_neither_ros_nor_files(self):
         with patch.object(sys, 'argv', ['recorder', '--list']), contextlib.redirect_stdout(io.StringIO()) as output:

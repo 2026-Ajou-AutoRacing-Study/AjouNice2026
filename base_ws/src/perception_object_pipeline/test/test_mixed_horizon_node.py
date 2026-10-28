@@ -620,7 +620,7 @@ class MixedHorizonStartupTest(unittest.TestCase):
 
     def test_invalid_optional_highway_horizon_still_starts_baseline(self):
         for value in (None, 'invalid', True, float('nan'), float('inf'), -1., 0.,
-                      2.9, 3., 8.05, 10., 1.e308):
+                      2.9, 3., 8.05, 10.05, 10.1, 1.e308):
             with self.subTest(value=value):
                 node, publisher, subscriber, warning, loader = self.start(
                     {'~highway_prediction_horizon': value})
@@ -630,6 +630,19 @@ class MixedHorizonStartupTest(unittest.TestCase):
                 publisher.assert_called_once()
                 subscriber.assert_called_once()
                 warning.assert_called_once()
+
+    def test_ten_second_highway_horizon_fits_current_ros1_pose_capacity(self):
+        node, publisher, subscriber, warning, _ = self.start(
+            {'~highway_prediction_horizon': 10., '~highway_prediction_mode': 'native'})
+        self.assertEqual(node.mixed_extension.extended_horizons[-1], 10.)
+        track = MixedHorizonNodeTest.track(self, 1)
+        message = MixedHorizonNodeTest.message(self, [track])
+        output = make_map_based_predicted_objects(
+            message, node.horizons, node.network, node.mixed_extension)[0]
+        self.assertEqual(len(output.objects[0].kinematics.predicted_paths[0].path), 101)
+        self.assertEqual(publisher.call_count, 1)
+        subscriber.assert_called_once()
+        warning.assert_not_called()
 
     def test_invalid_optional_horizon_is_not_read_when_feature_is_off(self):
         node, publisher, subscriber, warning, _ = self.start(

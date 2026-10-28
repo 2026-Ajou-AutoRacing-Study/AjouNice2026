@@ -35,6 +35,23 @@ class AuditTests(unittest.TestCase):
         self.assertTrue(all(not n.endswith('/obstacle_cruise/trajectory')
                             for g in audit.GROUPS.values() for names in g.values() for n in names))
 
+    def test_signal_observation_is_not_proof_of_recorded_planner_decision(self):
+        names = audit.GROUPS['traffic_signal_causality']['all']
+        topics = {name: {'messages': 1} for name in names}
+        self.assertTrue(audit.capabilities(topics)['traffic_signal_causality']['recorded'])
+        self.assertFalse(audit.capabilities(topics)['traffic_planner_decision']['recorded'])
+        topics['/perception/traffic_light_recognition/planner_decision_debug'] = {'messages': 2}
+        self.assertTrue(audit.capabilities(topics)['traffic_planner_decision']['recorded'])
+
+    def test_planner_context_needs_actual_map_not_just_a_route(self):
+        topics = {name: {'messages': 1}
+                  for name in audit.GROUPS['planner_map_route_context']['all']}
+        self.assertTrue(audit.capabilities(topics)['planner_map_route_context']['recorded'])
+        topics['/map/vector_map']['messages'] = 0
+        result = audit.capabilities(topics)['planner_map_route_context']
+        self.assertFalse(result['recorded'])
+        self.assertEqual(result['missing_all_required'], ['/map/vector_map'])
+
     def test_raw_header_and_both_rosbag_layouts(self):
         data = struct.pack('<IIII', 7, 12, 345, 3) + b'cam'
         self.assertEqual(audit.header(data), (7, 12000000345, 19))

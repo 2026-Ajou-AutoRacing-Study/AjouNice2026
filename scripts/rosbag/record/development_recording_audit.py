@@ -30,6 +30,12 @@ GROUPS = {
         '/traffic_light_node/debug_selection',
         '/traffic_light_node/debug_classifier',
         '/traffic_light_node/debug_runtime']},
+    'traffic_planner_decision': {'all': [
+        '/perception/traffic_light_recognition/planner_decision_debug']},
+    'planner_map_route_context': {'all': [
+        '/map/vector_map', '/planning/mission_planning/route',
+        '/system/operation_mode/state', '/vehicle/status/velocity_status',
+        '/vehicle/status/steering_status']},
     'lane_change_reason': {'any': [
         '/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/'
         'debug/lane_change_' + side + '/safety_checks' for side in ('left', 'right')]},

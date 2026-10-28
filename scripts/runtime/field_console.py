@@ -75,6 +75,9 @@ RULES = [
     ('map', 'ERROR', '지도 파일/버전 오류', r'map.*(?:does not exist|not found|mismatch|v99.only)|SHA.*mismatch'),
     ('network', 'ERROR', '네트워크 송수신 오류', r'Ctrl Cmd UDP send failed|UDP poll failed|Connection refused|Network is unreachable'),
     ('stale', 'WARN', '입력 오래됨·수신/부하 확인', r'local odom.*stale|stale local state|stale or unavailable trajectory/state|Waiting for fresh local odometry'),
+    ('mpt_overlap', 'ERROR', '장애물 여유영역과 차체 겹침·정지', r'\[MPT\] Measured footprint already overlaps static obstacle clearance'),
+    ('mpt_emergency', 'ERROR', '궤적 최적화 실패·긴급제동 출력', r'\[MPT\] Optimization failed; emergency brake'),
+    ('mpt_braking', 'WARN', '궤적 최적화 실패·기존 경로로 제동', r'\[MPT\] Optimization failed; braking on previous path'),
     ('no_path', 'WARN', '판단 경로 없음·경로/측위 확인', r'BPP suppressed output|BPP has no reference output|behavior path output is empty'),
     ('signal_bypass', 'WARN', '신호 미수신·기존 GO 우회 중', r'missing/stale signal: competition fail.open GO'),
     ('velocity_wait', 'INFO', '속도 판단 입력 대기', r'motion_velocity_planner waits for required'),
@@ -127,6 +130,11 @@ def event_text(event):
         return event.title + '·원거리/통과후/경로 준비 여부 확인'
     if event.code == 'no_path':
         return event.title
+    if event.code in ('mpt_overlap', 'mpt_emergency', 'mpt_braking'):
+        if event.code == 'mpt_overlap':
+            return event.title + '·실제 충돌 확정 아님·검출/추적 확인'
+        clearance = re.search(r'(?:clear distance\s+|clear=)([\d.+-]+)', text)
+        return event.title + (' | 기존 경로 여유=' + clearance[1] + 'm' if clearance else '')
     if event.code == 'setup':
         return '기동 설정 출력·오류 아님'
     if event.code == 'info':
@@ -431,6 +439,8 @@ def demo(args):
         ('bevfusion', '[WARN] BEVFusion sync rejected: front differs by 0.137 sec'),
         ('traffic', '[INFO] [Traffic] B | gc | GO'),
         ('planning', '[INFO] waiting for route'),
+        ('planning', '[WARN] [MPT] Optimization failed; braking on previous path (clear=59.20 stop=58.20)'),
+        ('planning', '[WARN] [MPT] Measured footprint already overlaps static obstacle clearance; stopping'),
         ('control', '[WARN] stale or unavailable trajectory/state'),
         ('bevfusion', '[WARN] BEVFusion request failed: Connection refused'),
         ('bevfusion', '[INFO] next callback received'),

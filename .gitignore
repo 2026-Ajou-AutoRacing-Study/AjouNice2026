@@ -68,6 +68,8 @@ base_ws/.catkin_workspace
 /rosbags/datasets/base4_temporal/
 /rosbags/datasets/base5/
 /rosbags/eval/perception/
+/rosbags/eval/full_stack/
+/rosbags/eval/development/
 /planner_logs/
 
 # Rosbag analysis reports belong under planner_logs/analysis/, never source docs.

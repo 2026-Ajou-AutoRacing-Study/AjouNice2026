@@ -74,6 +74,28 @@ def test_observation_consistency_candidates_are_explicit_and_default_off():
         assert params["configure/" + name] == "$(arg " + name + ")"
 
 
+def test_unknown_pose_hold_is_opt_in_and_requires_stationary_motion_policy():
+    wrapper = ET.parse(PACKAGE_ROOT / 'launch/tracking_prediction.launch').getroot()
+    pipeline = ET.parse(PACKAGE_ROOT / 'launch/object_pipeline.launch').getroot()
+    standalone = ET.parse(PACKAGE_ROOT.parent / 'ekf-multi-object-tracking' /
+                          'launch/ekf_multi_class_object_tracking.launch').getroot()
+    assert wrapper.find("arg[@name='tracker_hold_unknown_output_pose']").attrib['default'] == 'false'
+    assert pipeline.find("arg[@name='hold_unknown_output_pose']").attrib['default'] == 'false'
+    assert standalone.find("arg[@name='hold_unknown_output_pose']").attrib['default'] == 'false'
+    assert _included_arguments()['hold_unknown_output_pose'] == '$(arg tracker_hold_unknown_output_pose)'
+    tracker = next(i for i in pipeline.findall('include') if 'ekf_multi' in i.attrib['file'])
+    value = tracker.find("arg[@name='hold_unknown_output_pose']").attrib['value']
+    assert value == "$(eval arg('hold_unknown_output_pose') and arg('force_unknown_stationary'))"
+    assert standalone.find("param[@name='configure/hold_unknown_output_pose']").attrib['value'] == '$(arg hold_unknown_output_pose)'
+    name = 'stationary_unknown_prediction'
+    assert wrapper.find("arg[@name='tracker_" + name + "']").attrib['default'] == 'false'
+    assert pipeline.find("arg[@name='" + name + "']").attrib['default'] == 'false'
+    assert standalone.find("arg[@name='" + name + "']").attrib['default'] == 'false'
+    assert _included_arguments()[name] == '$(arg tracker_' + name + ')'
+    assert tracker.find("arg[@name='" + name + "']").attrib['value'] == "$(eval arg('stationary_unknown_prediction') and arg('force_unknown_stationary'))"
+    assert standalone.find("param[@name='configure/" + name + "']").attrib['value'] == '$(arg ' + name + ')'
+
+
 def _included_arguments():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     include = root.find("include")
@@ -138,7 +160,7 @@ def test_tracker_ablation_defaults_preserve_production_contract():
     )
 
 
-def test_production_topics_and_v87_map_are_explicit():
+def test_production_topics_and_current_v99_map_are_explicit():
     root = ET.parse(PACKAGE_ROOT / "launch" / "tracking_prediction.launch").getroot()
     top_level = {item.attrib["name"]: item.attrib for item in root.findall("arg")}
     arguments = _included_arguments()
@@ -146,7 +168,7 @@ def test_production_topics_and_v87_map_are_explicit():
     assert arguments["measurement_tracked_objects"] == "/perception/object_recognition/tracking/measurement_objects"
     assert arguments["tracked_objects"] == "/perception/object_recognition/tracking/objects"
     assert arguments["predicted_objects"] == "/perception/object_recognition/objects"
-    assert top_level["map_version"]["default"] == "88"
+    assert top_level["map_version"]["default"] == "99"
     assert top_level["map_file"]["default"].endswith("/lanelet2_map_v$(arg map_version).osm")
     assert top_level["projector_file"]["default"].endswith("/map_projector_info_v1.yaml")
     assert arguments["map_file"] == "$(arg map_file)"

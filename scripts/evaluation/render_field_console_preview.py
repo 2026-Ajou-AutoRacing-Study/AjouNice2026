@@ -60,6 +60,12 @@ def collect_examples(output_dir, width=150):
             'note': '다음 콜백 수신 ≠ 추론 복구 확인. 자세한 원인은 원문 로그에서 확인.',
         },
         {
+            'command': '$ field planning',
+            'title': '판단 · 기존 경로 제동 / 차체 여유영역 겹침을 구분',
+            'lines': [line for line in lines if '[판단]' in line],
+            'note': '실제 bag의 경고 문구를 재현한 모의 예시. 겹침 경고 ≠ 실제 충돌 확정.',
+        },
+        {
             'command': '$ field traffic',
             'title': '신호등 · 노드의 신호 원문과 미션 선택 경고를 구분',
             'lines': [line for line in lines if '[신호등]' in line],
@@ -81,7 +87,7 @@ def collect_examples(output_dir, width=150):
             '[INFO] Fresh GNSS z resumed',
         ],
     }
-    for panel, component in zip(panels[1:], ('traffic', 'localization')):
+    for panel, component in zip(panels[2:], ('traffic', 'localization')):
         summary = console.Summary(component, width)
         for raw in extra_inputs[component]:
             immediate = summary.ingest(raw)

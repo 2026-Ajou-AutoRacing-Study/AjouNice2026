@@ -20,6 +20,11 @@ from perception_object_pipeline.time_conversion import duration_to_seconds
 
 class StandardPipelineTest(unittest.TestCase):
     def setUp(self):
+        # This integration fixture requires the nodes from standard_pipeline.test.
+        # Plain pytest must not contact an arbitrary existing ROS master or
+        # wait for subscribers that the unit-test invocation never launched.
+        if not rospy.core.is_initialized():
+            self.skipTest('Run with rostest perception_object_pipeline standard_pipeline.test')
         self.tracked = []
         self.predicted = []
         self.detection_markers = []

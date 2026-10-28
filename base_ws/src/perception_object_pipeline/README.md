@@ -15,7 +15,7 @@ BEVFusion DetectedObjects
 
 운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector·localization·planning은 별도다.
 실제 alias override와 launch 기본을 모두 확인하며 같은 canonical topic에 중복 publisher를 시작하지 않는다.
-Map-CV는 **로터리/일반 최대 3초·고주로 최대 8초**다. 지도 종단이 먼저면 남은 시간만 출력한다.
+Map-CV의 현재 horizon은 [CURRENT](docs/TRACKING_PREDICTION_CURRENT.md)를 따른다. 지도 종단이 먼저면 남은 시간만 출력한다.
 시간은 `config/map_based_prediction.yaml` 한 곳에서 바꾼다. [설정·적용 안내](docs/HIGHWAY_EIGHT_SECOND_HANDOFF.md)를 따른다.
 
 | 작업 | 진입점 |
@@ -24,7 +24,7 @@ Map-CV는 **로터리/일반 최대 3초·고주로 최대 8초**다. 지도 종
 | Detector 없이 후단 실행 | `launch/tracking_prediction.launch` (`start_detector=false`) |
 | 후단 구성·실제 인자 | `launch/object_pipeline.launch`, `launch/object_tracking.launch`, `launch/object_prediction.launch` |
 | 관측 일관성 후보 | [오프라인 검토](docs/OBSERVATION_CONSISTENCY_REVIEW.md), [ROS 후속](docs/OBSERVATION_CONSISTENCY_ROS_VALIDATION.md); shape/class 후보 기본 OFF |
-| 고주로8초 운영·복귀 | [배포 안내](docs/HIGHWAY_EIGHT_SECOND_HANDOFF.md), [기존 mixed/native 비교](docs/MIXED_PREDICTION_HORIZON.md) |
+| 길이 설정·이전8초 검증 근거 | [배포 안내](docs/HIGHWAY_EIGHT_SECOND_HANDOFF.md), [기존 mixed/native 비교](docs/MIXED_PREDICTION_HORIZON.md) |
 | LAN·단계별 진단 | [기록 절차](../../../scripts/README.md#lan-두-pc를-함께-계측하기) |
 | 통제 실험 GT 대체 | `tracking_prediction.launch use_morai_gt_detection:=true`; `/Object_topic` 없는 대회에서는 fallback 아님 |
 
