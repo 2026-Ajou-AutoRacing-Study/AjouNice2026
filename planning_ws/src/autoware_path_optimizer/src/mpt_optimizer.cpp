@@ -14,6 +14,7 @@
 
 #include "autoware/path_optimizer/obstacle_interval.hpp"
 #include "autoware/path_optimizer/obstacle_collision.hpp"
+#include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 
@@ -608,12 +609,17 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     return std::nullopt;
   };
 
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
+  if (candidate_trial_ && !initial_overlaps) return reject_candidate("invalid obstacle geometry");
+  const bool allow_initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint;
   // Reject a disconnected side before spline, road bounds and QP assembly.
   // Evaluate against this seed's reference frame; no previous-side latch is used.
   if (candidate_trial_ && !traj_points.empty()) {
     const auto idx = trajectory_utils::findEgoIndex(traj_points, p.ego_pose, ego_nearest_param_);
     const double yaw = tf2::getYaw(traj_points[idx].pose.orientation);
     for (size_t o = 0; o < p.obstacles.size(); ++o) {
+      if (allow_initial_overlap && initial_overlaps->at(o)) continue;
       if (oppositeSideAtMeasuredState(
             p.obstacles[o].polygon, p.ego_pose, yaw, p.pass_left.at(o),
             mpt_param_.delta_arc_length)) {
@@ -633,7 +639,7 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   if (candidate_trial_) {
     TrajectoryPoint measured;
     measured.pose = p.ego_pose;
-    if (firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
+    if (!allow_initial_overlap && firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
       return reject_candidate("measured footprint overlaps obstacle");
     }
     if (!measuredFootprintInsideRoad(
@@ -1289,6 +1295,8 @@ MPTOptimizer::calcReferencePoints(
   // gaps between circles uncovered. Obstacle constraints must cover the whole
   // rectangle; otherwise relinearization cannot remove those corner collisions.
   const auto obstacle_radii = obstacleCoveringRadii(vehicle_info_, vehicle_circle_longitudinal_offsets_);
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
   for (size_t ref_idx = obstacle_ego_idx; ref_idx < ref_points.size(); ++ref_idx) {
     auto & ref = ref_points.at(ref_idx);
     for (size_t c = 0; c < vehicle_circle_radiuses_.size(); ++c) {
@@ -1306,7 +1314,12 @@ MPTOptimizer::calcReferencePoints(
           if (p.pass_left.at(o)) bounds.lower_bound = std::max(bounds.lower_bound, interval.second + offset);
           else bounds.upper_bound = std::min(bounds.upper_bound, interval.first - offset);
         };
-        if (hard) tighten(ref.bounds_on_constraints.at(c), *hard);
+        // A measured hard-margin violation is an initial condition, not a
+        // contradictory hard inequality. Keep the existing soft clearance cost
+        // so steering is optimized away from this obstacle. Others stay hard.
+        const bool initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint &&
+          initial_overlaps && initial_overlaps->at(o);
+        if (hard && !initial_overlap) tighten(ref.bounds_on_constraints.at(c), *hard);
         if (soft) tighten(ref.soft_bounds_on_constraints.at(c), *soft);
       }
     }

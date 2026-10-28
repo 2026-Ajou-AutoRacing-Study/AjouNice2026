@@ -39,6 +39,9 @@ struct PlannerData
 
   std::vector<autoware_planning_msgs::StaticObstacle> obstacles;
   std::vector<bool> pass_left;
+  // Permit slack only for obstacles whose hard margin already contains ego.
+  // Vehicle dynamics, steering and all other obstacle constraints stay hard.
+  bool allow_initial_obstacle_overlap{false};
   // Required coverage measured forward from ego, independent of backward history points.
   double optimization_forward_length{0.0};
 

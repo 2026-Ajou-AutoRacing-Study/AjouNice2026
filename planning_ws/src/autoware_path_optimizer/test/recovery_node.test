@@ -1,0 +1,7 @@
+<launch>
+  <test test-name="recovery_node" pkg="autoware_path_optimizer" type="test_recovery_node" time-limit="90">
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/configs/planning/vehicle_info.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/common/nearest_search.param.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml"/>
+  </test>
+</launch>
