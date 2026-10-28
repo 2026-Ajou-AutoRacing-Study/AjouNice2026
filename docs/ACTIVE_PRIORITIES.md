@@ -1,6 +1,6 @@
 # 활성 작업 우선순위
 
-갱신: 2026-10-26. 미완료 작업과 착수 조건만 적는다. 운영값은 각 CURRENT가 권위다.
+갱신: 2026-10-28. 미완료 작업과 착수 조건만 적는다. 운영값은 각 CURRENT가 권위다.
 완료된 5K 수집·30,750장 학습·LiDAR 전환·이전 최적화를 다시 할 일로 쌓지 않는다.
 
 ## 현재 기준
@@ -19,9 +19,9 @@
 
 | 우선 작업 | 착수·완료 기준 |
 | --- | --- |
-| 팀 4090 LAN 단계별 지연 분석 | Windows MORAI + Linux 알고리즘 동시 기록 수령 후, 입력 주기·큐·전처리·GPU·발행·후단 비용과 누락을 같은 frame/clock 기준으로 분리. 기존 bag에 없는 단계는 미측정으로 남김 |
-| 중복·분류 일관성 후보의 운영 판단 | 오프라인/native/ROS 대조 결과를 판단 팀과 확인. shape/class 후보 기본 OFF 유지. 새 입력과 폐루프 손익 확인 전 자동 승격하지 않음 |
-| 신호등 v5 팀 폐루프 확인 | 준수 가드·직접 관측·route 진행 보호를 새 실행 기본으로 승격. 합성 정책 시험·자연 주행을 구분하고, 팀 LAN/4090·BEVFusion 동시 부하의 관측 age·재출발·신호 준수는 [승격 검증 기록](perception/traffic_light/261025_DEPARTURE_AND_SIGNAL_LOSS_PROPOSAL.md#production-261026)을 따라 확인 |
+| 팀 4090 LAN 송신률 원인 확인 | [Linux 단계별 분석](bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)은 완료했다. Windows MORAI의 동시 계측을 받아 송신률·네트워크 경계를 확인하며, 기존 bag에 없는 물리 발생 시각은 추정으로 채우지 않음 |
+| 중복·분류·회피 후보의 운영 판단 | UNKNOWN 정지 prior는 독립 입력의 퇴행으로 기본 OFF를 유지한다. [v99 대조](bevfusion/evidence/261028_V99_WINDOW60_90_LIVE_REVIEW.md)의 90m 새 실패와 시간 예산에 따른 경로 변동을 구분하고, cap60·기존 안전 검사를 유지한 채 후보를 검토 |
+| 신호등 수정 후 팀 LAN 확인 | [최신 v99 기록](bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)의 A/B/C 정차·재출발 분석은 완료했다. D 미관측 음수속도 결함의 로컬 수정·설치 후 새 LAN 재주행과 이동 중 G→Y 경계 확인이 남음. 계산6/10·응답지연0은 유지하며 설정 권위는 신호등 CURRENT |
 | 측위 현장 재검증 | 현재 Smooth/음영 계약을 유지하고, 운영측 CP14 환경 갱신 후 해당 복귀와 실제 LAN 기록을 재검증. 세부 순서는 측위 CURRENT |
 | 팀 배포 후 프로필 확인 | 현장 원본 + LAN adapter + Ego 수신 OFF + 공식 START 초기화 명시 기준. 팀 PC의 실제 NIC·로드본·설치본과 초기 pose 발행을 확인하며 새 LAN 기동 검증은 별도로 기록 |
 

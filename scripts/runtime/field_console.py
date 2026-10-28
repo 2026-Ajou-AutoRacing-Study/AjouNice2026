@@ -78,6 +78,10 @@ RULES = [
     ('mpt_overlap', 'ERROR', '장애물 여유영역과 차체 겹침·정지', r'\[MPT\] Measured footprint already overlaps static obstacle clearance'),
     ('mpt_emergency', 'ERROR', '궤적 최적화 실패·긴급제동 출력', r'\[MPT\] Optimization failed; emergency brake'),
     ('mpt_braking', 'WARN', '궤적 최적화 실패·기존 경로로 제동', r'\[MPT\] Optimization failed; braking on previous path'),
+    ('mpt_holding', 'WARN', '새 계산 실패·검증된 기존 경로 유지', r'\[MPT\] Optimization failed; holding validated previous path'),
+    ('mpt_scene_timeout', 'ERROR', '장애물 장면 동기화 시간초과·정지', r'\[MPT\] Missing synchronized static obstacle scene; stopping'),
+    ('mpt_budget', 'WARN', '회피 후보 탐색 예산 소진', r'\[MPT\] Candidate search budget \([\d.]+ms\) defers remaining sides to next cycle'),
+    ('mpt_ego_wait', 'INFO', '차량 위치·속도 입력 대기', r'Waiting for ego pose and twist\.'),
     ('no_path', 'WARN', '판단 경로 없음·경로/측위 확인', r'BPP suppressed output|BPP has no reference output|behavior path output is empty'),
     ('signal_bypass', 'WARN', '신호 미수신·기존 GO 우회 중', r'missing/stale signal: competition fail.open GO'),
     ('velocity_wait', 'INFO', '속도 판단 입력 대기', r'motion_velocity_planner waits for required'),
@@ -130,6 +134,15 @@ def event_text(event):
         return event.title + '·원거리/통과후/경로 준비 여부 확인'
     if event.code == 'no_path':
         return event.title
+    if event.code == 'mpt_holding':
+        return event.title + '·주행/정지는 속도계획 기준'
+    if event.code == 'mpt_scene_timeout':
+        return event.title + '·동일 시각 경로/장애물 입력 확인'
+    if event.code == 'mpt_budget':
+        budget = re.search(r'budget \(([\d.]+)ms\)', text)
+        return event.title + (' | ' + budget[1] + 'ms' if budget else '') + '·남은 방향은 다음 회차'
+    if event.code == 'mpt_ego_wait':
+        return event.title + '·최적화 미시작·측위 발행 확인'
     if event.code in ('mpt_overlap', 'mpt_emergency', 'mpt_braking'):
         if event.code == 'mpt_overlap':
             return event.title + '·실제 충돌 확정 아님·검출/추적 확인'

@@ -80,6 +80,19 @@ class FieldConsoleCLI(unittest.TestCase):
         self.assertEqual(self.raw_logs()[0].read_bytes(), payload)
         self.assertRegex(self.screen(result), ERROR)
 
+    def test_new_mpt_summaries_keep_all_original_messages_losslessly(self):
+        payload = (
+            b'[WARN] [MPT] Optimization failed; holding validated previous path\n'
+            b'[WARN] [MPT] Missing synchronized static obstacle scene; stopping\n'
+            b'[WARN] [MPT] Candidate search budget (70ms) defers remaining sides to next cycle\n'
+            b'[INFO] Waiting for ego pose and twist.\n')
+        result = subprocess.run(self.command('filter'), input=payload,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                timeout=5)
+        self.assertEqual(result.returncode, 0, self.screen(result))
+        self.assertEqual(self.raw_logs()[0].read_bytes(), payload)
+        self.assertIn('장애물 장면 동기화 시간초과·정지', self.screen(result))
+
     def test_invalid_utf8_and_a_trailing_fragment_remain_lossless(self):
         payload = b'[WARN] vendor byte: \xff\xfe\nlast fragment without newline'
         result = subprocess.run(self.command('filter'), input=payload,
@@ -545,6 +558,36 @@ class FieldConsoleClassification(unittest.TestCase):
             '[ERROR] [MPT] Optimization failed; braking on previous path (clear=2.0 stop=1.0)',
             'planning')
         self.assertEqual(event.level, 'ERROR')
+
+    def test_mpt_continuation_and_input_signatures_have_exact_korean_meanings(self):
+        rows = [
+            ('Optimization failed; holding validated previous path',
+             'mpt_holding', 'WARN', '새 계산 실패·검증된 기존 경로 유지·주행/정지는 속도계획 기준'),
+            ('Missing synchronized static obstacle scene; stopping',
+             'mpt_scene_timeout', 'ERROR',
+             '장애물 장면 동기화 시간초과·정지·동일 시각 경로/장애물 입력 확인'),
+            ('Candidate search budget (70ms) defers remaining sides to next cycle',
+             'mpt_budget', 'WARN', '회피 후보 탐색 예산 소진 | 70ms·남은 방향은 다음 회차'),
+        ]
+        for signature, code, level, explanation in rows:
+            with self.subTest(code=code):
+                event = self.module.classify('[WARN] [MPT] ' + signature, 'planning')
+                self.assertEqual((event.code, event.level), (code, level))
+                self.assertEqual(self.module.event_text(event), explanation)
+        event = self.module.classify('[INFO] Waiting for ego pose and twist.', 'planning')
+        self.assertEqual((event.code, event.level), ('mpt_ego_wait', 'INFO'))
+        self.assertEqual(self.module.event_text(event),
+                         '차량 위치·속도 입력 대기·최적화 미시작·측위 발행 확인')
+
+    def test_real_error_is_not_demoted_by_new_mpt_summary_rules(self):
+        for signature in (
+                '[MPT] Optimization failed; holding validated previous path',
+                '[MPT] Candidate search budget (100ms) defers remaining sides to next cycle',
+                'Waiting for ego pose and twist.'):
+            for severity in ('ERROR', 'FATAL'):
+                with self.subTest(signature=signature, severity=severity):
+                    event = self.module.classify('[{}] {}'.format(severity, signature), 'planning')
+                    self.assertEqual(event.level, 'ERROR')
 
 
 class FieldTerminalAliasCLI(unittest.TestCase):
