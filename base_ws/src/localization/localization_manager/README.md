@@ -22,6 +22,8 @@ Local-only state를 map trajectory 소비자에 직접 remap하지 않는다.
 
 `gnss_imu_gt_ctra.launch`와 현재 config는 보존한다. relocation guard는 OFF/monitor-only,
 quantized control candidate는 OFF, GNSS motion compensation은0초다.
+선택적 `localization gnss_delay_ms:=20`은 기존 map XY 전진 보상을20ms로 선택한다.
+UDP/header 시각과 대기시간은 바꾸지 않으며, 환경별 후보·한계는 위 CURRENT를 따른다.
 실험 node·test가 설치돼 있다는 사실은 production 승격 근거가 아니다.
 
 Compatibility-only 경로도 유지한다: `fast_lio.launch`, `fast_lio_gnss.launch`,

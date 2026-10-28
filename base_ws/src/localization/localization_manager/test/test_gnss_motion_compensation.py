@@ -101,6 +101,26 @@ class MotionDeltaTest(unittest.TestCase):
         self.assertEqual(before,(serialized(m),serialized(q)))
 
 
+class DelaySelectionTest(unittest.TestCase):
+    def test_omitted_ms_preserves_existing_seconds_and_default(self):
+        self.assertEqual(M.resolve_motion_compensation_sec('', 0), 0)
+        self.assertEqual(M.resolve_motion_compensation_sec('', .02), .02)
+
+    def test_ms_accepts_launch_strings_and_numeric_ros_parameters(self):
+        for value in [0, '0', 10, '10', 20., '20', '22.5', 100]:
+            self.assertEqual(M.resolve_motion_compensation_sec(value, 0), float(value)/1000.)
+
+    def test_ms_and_nonzero_seconds_never_silently_override_or_add(self):
+        for value in [0, 20, '20']:
+            with self.assertRaisesRegex(ValueError, 'not both'):
+                M.resolve_motion_compensation_sec(value, .02)
+
+    def test_invalid_ms_rejected(self):
+        for value in [-1, 100.01, True, False, 'true', ' ', None, float('nan'), float('inf')]:
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
+                M.resolve_motion_compensation_sec(value, 0)
+
+
 class ConverterCompensationTest(unittest.TestCase):
     def converter(self,parameters=None):
         values={M.DEFAULT_NOISE_NS+'/gnss/horizontal_stddev_m':.1,
@@ -153,6 +173,28 @@ class ConverterCompensationTest(unittest.TestCase):
         self.assertEqual(candidate.pose.covariance,baseline.pose.covariance)
         self.assertEqual(candidate.twist,baseline.twist)
         self.assertEqual(candidate.header,baseline.header)
+
+    def test_ms_matches_seconds_byte_for_byte_without_mutating_input(self):
+        for milliseconds in [0, 5, 10, 20, 30]:
+            with self.subTest(milliseconds=milliseconds):
+                legacy,_=self.converter({'~motion_compensation_sec':milliseconds/1000.})
+                selected,_=self.converter({'~gnss_delay_ms':str(milliseconds)})
+                m,q=auxiliary();fix=self.fix()
+                before=serialized(fix),serialized(m),serialized(q)
+                for converter in [legacy,selected]:
+                    converter.motion_callback(m);converter.orientation_callback(q)
+                    converter.gps_callback(fix)
+                self.assertEqual(serialized(legacy.publisher.publish.call_args[0][0]),
+                                 serialized(selected.publisher.publish.call_args[0][0]))
+                self.assertEqual(before,(serialized(fix),serialized(m),serialized(q)))
+                self.assertEqual(selected.motion_compensation_sec,milliseconds/1000.)
+
+    def test_bad_ms_or_conflicting_units_rejected_at_startup(self):
+        for values in [{'~gnss_delay_ms':'bad'}, {'~gnss_delay_ms':'-1'},
+                       {'~gnss_delay_ms':'100.1'}, {'~gnss_delay_ms':'nan'},
+                       {'~gnss_delay_ms':'20','~motion_compensation_sec':.02}]:
+            with self.subTest(values=values), self.assertRaises(M.rospy.ROSInitException):
+                self.converter(values)
 
     def test_missing_invalid_stale_auxiliary_still_publishes_original_gps(self):
         for style in ['missing','stale','invalid']:
