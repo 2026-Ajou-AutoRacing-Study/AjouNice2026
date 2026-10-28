@@ -11,6 +11,7 @@ from std_msgs.msg import String
 
 from perception_object_pipeline.object_motion_policy import apply_object_motion_policy
 from perception_object_pipeline.node_processing_timing import NodeProcessingTiming
+from perception_object_pipeline.stationary_uuid_continuity import StationaryUuidContinuity
 
 
 class TrackedObjectMotionPolicyNode:
@@ -18,6 +19,9 @@ class TrackedObjectMotionPolicyNode:
         self.force_unknown_stationary = bool(
             rospy.get_param("~force_unknown_stationary", True)
         )
+        self.stationary_uuid_continuity = StationaryUuidContinuity(enabled=(
+            self.force_unknown_stationary and bool(
+                rospy.get_param("~stationary_unknown_uuid_continuity", False))))
         self.publisher = rospy.Publisher(
             "~output/objects", TrackedObjects, queue_size=10
         )
@@ -66,8 +70,12 @@ class TrackedObjectMotionPolicyNode:
         diagnostics = self._processing_diagnostics_for_callback()
         token = self.processing_timing.start(message, rospy.Time.now().to_nsec()) if diagnostics else None
         make_start = time.perf_counter() if diagnostics else None
+        # Identity support must see the raw native velocity/pose, before this
+        # node zeros UNKNOWN motion. The opt-in helper never alters geometry.
+        continuity = getattr(self, "stationary_uuid_continuity", None)
+        identity_input = continuity.apply(message) if continuity is not None else message
         output, constrained_count = apply_object_motion_policy(
-            message,
+            identity_input,
             force_unknown_stationary=self.force_unknown_stationary,
         )
         make_end = time.perf_counter() if diagnostics else None

@@ -1,6 +1,6 @@
 # Tracking·Prediction production 현재 상태
 
-상태: CURRENT. 문서·launch 대조: 2026-10-27.
+상태: CURRENT. 문서·launch 대조: 2026-10-29.
 Detector는 [BEVFusion CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)의 E12이며 E24/E25는 명시적 복귀다.
 현재 E12/E24 detection은 geometric/gravity center다. bottom center와 섞지 않고 fresh stack으로 전환한다.
 과거 bag 실측·긴 설명은 [정리 전 원문](legacy/context_261024/TRACKING_PREDICTION_CURRENT.md)에 보존했다.
@@ -38,6 +38,7 @@ MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통�
 | Confirmed coasting | moving/pedestrian 0.50s, UNKNOWN 및 2m/s 이하 CAR/TRUCK 1.00s. stamp 경과시간 기준. tentative는 strict 유지 |
 | 중복 입력 | ROS bridge의 same-class rotated BEV IoU 0.50 NMS |
 | Duplicate birth guard | association된 mature track 중심 0.75m 이내 유사한 큰 unmatched box 억제. 전역 gate 5m 확장이 아니며 작은 pedestrian에 확대하지 않음 |
+| 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=false` 기본 OFF. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승하는 별도 후보. EKF state·박스·수명은 불변 |
 | 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
 | 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
 | UNKNOWN motion policy | `force_unknown_stationary=true`: 관측 pose/box는 갱신하고 가짜 속도·가속도·yaw rate를 prediction 전에 0으로 함 |
@@ -67,6 +68,18 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
 
 ## 승격 범위와 기본 OFF 후보
+
+### 정지 UNKNOWN UUID 연속성 후보
+
+`tracking stationary_unknown_uuid_continuity:=true` 또는 통합 `morai_planning_stack.launch`의 같은 인자로 새 스택을 실행한다. 기본은 OFF이며 `force_unknown_stationary=false`이면 사용하지 않는다. 동시 존재하는 두 객체를 합치거나 검출·track을 삭제하지 않는다.
+이전 UNKNOWN의 0.6초 이상 위치·속도 안정성과, 재검출의 공백 2초 이하·중심 0.5m 이하·형상/높이/footprint 중첩을 요구한다. 다른 현재 객체나 복수 이전 후보가 가까우면 계승하지 않는다. stamp 역행·긴 callback 공백·동일 stamp의 변경된 입력은 이력을 초기화한다.
+신규 선별 34개 bag의 raw 41,206개에서 Woodbox4/7만 계승했고, 별도 LAN 풀주행 raw 11,153개에서는 전체 출력이 동일했다. 위치·크기·class·공분산·속도·stamp·출력 수명은 변경하지 않았으며 detector AP 개선을 뜻하지 않는다.
+실제 격리 ROS 1,086틱의 measurement는 같고 정책/Map-CV의 순차 ID는 3→1이었다. 고정 ego의 실제 BPP/SOA/MPT 대조에서 Woodbox7 후반 전부-0속도 출력은 두 번 모두 38→0틱, 성공 대조군은 0→0이었다. 초기 1틱은 남고, 동일 v99 지도 fixture와 기록 odom에서 계산한 acceleration을 사용했으므로 실제 MORAI 완주 인증이 아니다.
+같은 위치·형상에 다른 UNKNOWN이 처음 나타나는 경우와 짧은 공백 안의 tracker-only 재시작은 입력만으로 완전 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
+재현과 원문은 로컬 `planner_logs/analysis/261029_duplicate_cases/`의 `uuid_continuity_v2/summary.json`, `uuid_raw_regression/summary.json`, `actual_ros/comparison.json`, `case_audit/planner_replay_REPORT.md`에 보존했다. 재학습은 필요 없으며 새 패키지 설치 후 tracker/policy를 새로 실행해야 한다.
+
+
+### 기존 후보와 지도 예측 계약
 
 - 현재 source 기본 10초는 팀 planning `3e598eb5` 통합으로 넘어온 `config/map_based_prediction.yaml`의 고주로 설정이다. 일반 3초는 유지하며 설치·tracking 재시작 전 live 값은 별도로 확인한다. 이전 8초 시험을 새 10초 폐루프 인증으로 전용하지 않는다.
 - 이전 승인·검증 기록(2026-10-24): 사용자·판단팀은 고주로 최대 8초·로터리 최대 3초를 승인했고 NPC 소멸 종단이 먼저면 5.6초·1.8초처럼 가용 Map-CV만 출력했다. CTRV 8초·직선 연장·끝점 padding은 쓰지 않았다. [당시 설정·근거](HIGHWAY_EIGHT_SECOND_HANDOFF.md)는 그 revision의 기록이며 현재 10초 기본값의 근거로 대체하지 않는다.

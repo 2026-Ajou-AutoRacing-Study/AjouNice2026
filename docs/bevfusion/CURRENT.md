@@ -69,6 +69,7 @@
 
 ## 최적화·평가의 현재 결론
 
+- 새 중복 선별 34사례에서는 동시 두 박스와 재검출 UUID/회피 기억 중복을 분리했다. UUID 연속성 후보는 [후단 CURRENT](../../base_ws/src/perception_object_pipeline/docs/TRACKING_PREDICTION_CURRENT.md#정지-unknown-uuid-연속성-후보)의 기본 OFF·고정 입력 검증 범위를 따른다. detector weights·threshold·NMS나 planner 마진을 변경하지 않았다.
 - E12 camera TRT의 native val 4,614장 동일 AMP mAP는 94.0545→94.0661%, head SDPA/cache 추가는 94.0661→94.0656%였다. 원본 연속 입력·실제 EKF 코어 비교를 별도 수행했다. [60~63절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-partial-trt-cuda-experiment-261023)의 표본·raw yaw 예외·코어 범위를 따른다.
 - compile은 연속 tracker 예외 때문에 추론 기본 OFF다. topk/CPU 스레드 증가는 채택하지 않았다. 구조 축소·INT8·새 sparse backend·재학습은 완료 범위가 아니다.
 - E12/E24 bag 비교는 14장면·5,986입력/5,822평가다. 동일 native 512장 전방 80~100m AP는 34.41→62.06%였으나 실제 bag 0점 차량은 threshold만 낮춰 해결하지 못했다. 전체 val·subset·실제 bag을 혼용하지 않는다. [57~59절](evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#full30750-e12-bags-far-front-261023)을 따른다.

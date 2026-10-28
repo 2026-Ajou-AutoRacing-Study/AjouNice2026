@@ -17,6 +17,8 @@
        default="/perception/object_recognition/objects"/>
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
+  <!-- Opt-in identity-only recovery; no object deletion or extended coasting. -->
+  <arg name="stationary_unknown_uuid_continuity" default="false"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default=""/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
@@ -319,6 +321,8 @@
            to="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('motion_policy_objects'))"/>
     <param name="force_unknown_stationary"
            value="$(arg force_unknown_stationary)"/>
+    <param name="stationary_unknown_uuid_continuity"
+           value="$(arg stationary_unknown_uuid_continuity)"/>
     <param name="publish_processing_diagnostics"
            value="$(arg publish_processing_diagnostics)"/>
     <param name="diagnostics_auto_on_subscribe"
