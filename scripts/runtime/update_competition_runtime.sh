@@ -2,7 +2,7 @@
 # Update an existing workspace only; never launch nodes or change shell defaults.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MAP_VERSION=99
+MAP_VERSION=101
 MAP_REMOTE=()
 INSTALL_ARGS=()
 # Rebuild shared lane-change interface consumers together, not just its plugin.
@@ -10,8 +10,8 @@ PLANNING=(autoware_route_handler autoware_behavior_path_lane_change_module autow
 ASSET_PATHS=(bringup competition/competition_rule_monitor lanelet_map_visualizer localization/localization_manager tracking_prediction_evaluation control/trajectory_batch_runner control/trajectory_generator)
 ASSETS=()
 usage() {
-  echo 'Usage: bash scripts/runtime/update_competition_runtime.sh [--map-version 99] [installer options]'
-  echo 'Requires an existing AW149 workspace. Default map is 99 and is verified before building.'
+  echo 'Usage: bash scripts/runtime/update_competition_runtime.sh [--map-version 101] [installer options]'
+  echo 'Requires an existing AW149 workspace. Default map is 101 and is verified before building.'
   echo 'Installer options: --existing-python PATH --archive TAR --device cpu|N --models-dir DIR --env-prefix DIR --remote NAME'
   echo '--check, --models-only and --skip-build are rejected; use the underlying installer for partial/check-only work.'
   echo 'Build/install only: no ROS nodes, controller, shell-profile edits or closed-loop approval.'
@@ -24,7 +24,7 @@ while (($#)); do
     --map-version|--map-remote|--existing-python|--archive|--device|--models-dir|--env-prefix|--remote)
       [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || die "Missing value for $1"
       case "$1" in
-        --map-version) [[ "$2" == 99 ]] || die 'Only map version 99 is supported'; MAP_VERSION="$2" ;;
+        --map-version) [[ "$2" == 101 ]] || die 'Only map version 101 is supported'; MAP_VERSION="$2" ;;
         --map-remote) [[ "$2" =~ ^[A-Za-z0-9_.-]+$ ]] || die 'Invalid map remote name'; MAP_REMOTE=(--remote "$2") ;;
         --device) [[ "$2" == cpu || "$2" =~ ^[0-9]+$ ]] || die 'Device must be cpu or a GPU number'; INSTALL_ARGS+=("$1" "$2") ;;
         *) INSTALL_ARGS+=("$1" "$2") ;;
@@ -33,7 +33,7 @@ while (($#)); do
     *) die "Unknown option: $1 (see --help)" ;;
   esac
 done
-[[ ${#MAP_REMOTE[@]} == 0 ]] || die 'v99 is supplied through team Drive; --map-remote is unsupported'
+[[ ${#MAP_REMOTE[@]} == 0 ]] || die 'v101 is supplied through team Drive; --map-remote is unsupported'
 for setup in planning_ws/install_isolated/setup.bash base_ws/install_aw149/setup.bash; do
   [[ -f "$ROOT/$setup" ]] || die "Existing workspace required: missing $setup; use scripts/workspace/setup_ws.sh first"
 done
@@ -70,7 +70,7 @@ for relative in perception/traffic_light_detection planning_addons/planning_scen
   cache="$ROOT/base_ws/build_aw149/$package/CMakeCache.txt"
   if [[ -f "$cache" ]]; then check_cache "$cache" "$ROOT/base_ws/src/$relative" "$ROOT/base_ws/install_aw149"; fi
 done
-/usr/bin/python3 "$ROOT/scripts/map/prepare_kcity_v99.py" --check
+/usr/bin/python3 "$ROOT/scripts/map/prepare_kcity_v101.py" --check
 bash "$ROOT/planning_ws/tools/build.sh" --pkg "${PLANNING[@]}" --make-args -j2 -l2
 export AJOUNICE_ROOT="$ROOT"
 set +u

@@ -13,7 +13,7 @@
   <arg name="lanelet_frame" default="lanelet_ground"/>
   <arg name="lanelet_z_offset" default="-0.3705"/>
   <arg name="lanelet_map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v99.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v101.osm"/>
   <arg name="lanelet_projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="sensor_config"

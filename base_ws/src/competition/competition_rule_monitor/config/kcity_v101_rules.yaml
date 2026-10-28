@@ -1,0 +1,126 @@
+# K-City v101: GIS shadow-road shoulders; v99 route and competition policy retained.
+rule_revision: 2026-v1.1-ajounice-monitor
+map_version: 101
+map_sha256: 574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29
+checkpoint_radius_m: 3.0
+speed_limit_kph: 60.0
+speed_penalty_interval_sec: 3.0
+speed_penalty_sec: 15
+lane_penalty_interval_sec: 3.0
+lane_penalty_sec: 5
+collision_penalty_sec: 15
+start_finish:
+  xyz:
+  - -131.68979755061446
+  - -428.3310229377821
+  - 28.543960281954277
+  yaw_deg: 61.298126221
+checkpoints:
+- number: 1
+  xyz:
+  - -96.34194502758328
+  - -364.8851077128202
+  - 28.53881740888334
+  yaw_deg: 64.052734375
+- number: 2
+  xyz:
+  - -104.71588468790287
+  - -275.14425209118053
+  - 28.48829083410744
+  yaw_deg: 60.959838867
+- number: 3
+  xyz:
+  - -79.9685367429629
+  - -230.3942881319672
+  - 28.401036010337744
+  yaw_deg: 61.097732543
+- number: 4
+  xyz:
+  - -59.88466601172695
+  - -124.55752767482772
+  - 28.380910298729233
+  yaw_deg: 90.095718383
+- number: 5
+  xyz:
+  - -60.34860723745078
+  - -0.21668933285400271
+  - 28.383039161118077
+  yaw_deg: 90.321304321
+- number: 6
+  xyz:
+  - -41.70069433480967
+  - 98.73265545303002
+  - 28.358756220677893
+  yaw_deg: 0.456359863
+- number: 7
+  xyz:
+  - 2.9027890474535525
+  - 114.94218392064795
+  - 28.430466193056173
+  yaw_deg: 91.440628051
+- number: 8
+  xyz:
+  - -99.44168814341538
+  - 291.20583281712607
+  - 28.379763120717023
+  yaw_deg: 90.260665893
+- number: 9
+  xyz:
+  - -65.32824593910482
+  - 342.2530235303566
+  - 28.484
+  yaw_deg: 3.828613281
+- number: 10
+  xyz:
+  - 62.073913682601415
+  - 256.4949275725521
+  - 28.268789437406806
+  yaw_deg: -89.012939453
+- number: 11
+  xyz:
+  - 66.88496106746607
+  - 89.19790052389726
+  - 28.29935643790693
+  yaw_deg: -89.312222534
+- number: 12
+  xyz:
+  - 75.41420370276319
+  - -217.855053961277
+  - 28.382283640697267
+  yaw_deg: -94.612335205
+- number: 13
+  xyz:
+  - 70.21414883446414
+  - -365.74847655789927
+  - 28.301585314776467
+  yaw_deg: -90.049835205
+- number: 14
+  xyz:
+  - 43.761510782991536
+  - -476.41094469698146
+  - 28.294397987369784
+  yaw_deg: -137.400207519
+- number: 15
+  xyz:
+  - -74.86074459552765
+  - -544.5780326710083
+  - 28.429146234972457
+  yaw_deg: -153.528732299
+gps_blackout_lanelet_ids:
+- 200471
+- 200374
+high_speed_exception:
+  source_start_link: A2256W000411
+  source_end_link: A2256W000153
+  lanelet_speed_limit_above_kph: 60.0
+  expected_lanelet_count: 32
+forbidden_line_types:
+- type: line_thin
+  subtype: solid
+- type: line_thin
+  subtype: solid_dashed
+vehicle:
+  wheelbase_m: 3.0
+  front_track_m: 1.641
+  rear_track_m: 1.651
+  tire_width_m: 0.235
