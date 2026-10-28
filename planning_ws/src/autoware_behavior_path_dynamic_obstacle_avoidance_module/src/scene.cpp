@@ -372,27 +372,6 @@ void DynamicObstacleAvoidanceModule::updateData()
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
 
-  if (planner_data_->avoidance_object_ownership) {
-    info_marker_.markers.clear();
-    debug_marker_.markers.clear();
-    target_objects_.clear();
-    const auto & path = getPreviousModuleOutput().path;
-    for (auto object : planner_data_->dynamic_object->objects) {
-      if (!planner_data_->avoidance_object_ownership->isDynamic(object.object_id).value_or(false)) {
-        continue;
-      }
-      // Ownership replaces legacy speed/class/admission gates. Keep prediction
-      // geometry unchanged; do not extrapolate detected position jitter.
-      if (object.classification.empty()) object.classification.emplace_back();
-      target_objects_.emplace_back(object, 0.0, 0.0, false, std::nullopt);
-      if (path.points.size() >= 2) {
-        target_objects_.back().is_collision_left = autoware::motion_utils::calcLateralOffset(
-          toGeometryPoints(path.points), object.kinematics.initial_pose_with_covariance.pose.position) > 0.0;
-      }
-    }
-    return;
-  }
-
   info_marker_.markers.clear();
   debug_marker_.markers.clear();
 
@@ -404,7 +383,8 @@ void DynamicObstacleAvoidanceModule::updateData()
   registerUnregulatedObjects(prev_objects);
 
   const auto & ego_lat_feasible_paths = generateLateralFeasiblePaths(getEgoPose(), getEgoSpeed());
-  target_objects_manager_.finalize(ego_lat_feasible_paths);
+  target_objects_manager_.finalize(
+    ego_lat_feasible_paths, static_cast<bool>(planner_data_->avoidance_object_ownership));
 
   // 2. Precise filtering of target objects and check if they should be avoided
   determineWhetherToAvoidAgainstRegulatedObjects(prev_objects);
@@ -460,7 +440,7 @@ BehaviorModuleOutput DynamicObstacleAvoidanceModule::plan()
     const auto obstacle_poly = [&]() -> std::optional<Polygon2d> {
       // Preserve the regulated-object export gate, but do not export its padded
       // policy shape as part of the physical collision polygon.
-      if (!shared_ownership && getObjectType(object.label) == ObjectType::REGULATED) {
+      if (getObjectType(object.label) == ObjectType::REGULATED) {
         std::optional<Polygon2d> policy_polygon;
         if (parameters_->polygon_generation_method == PolygonGenerationMethod::EGO_PATH_BASE) {
           policy_polygon = calcEgoPathBasedDynamicObstaclePolygon(object);
@@ -572,16 +552,20 @@ void DynamicObstacleAvoidanceModule::registerRegulatedObjects(
   const auto & predicted_objects = planner_data_->dynamic_object->objects;
 
   for (const auto & predicted_object : predicted_objects) {
+    if (
+      planner_data_->avoidance_object_ownership &&
+      !planner_data_->avoidance_object_ownership->isDynamic(predicted_object.object_id).value_or(false)) {
+      continue;
+    }
+    if (predicted_object.classification.empty()) {
+      continue;
+    }
     const auto obj_uuid = autoware_utils::to_hex_string(predicted_object.object_id);
     const auto & obj_pose = predicted_object.kinematics.initial_pose_with_covariance.pose;
     const double obj_vel_norm = std::hypot(
       predicted_object.kinematics.initial_twist_with_covariance.twist.linear.x,
       predicted_object.kinematics.initial_twist_with_covariance.twist.linear.y);
     const auto prev_object = getObstacleFromUuid(prev_objects, obj_uuid);
-    const auto obj_path = *std::max_element(
-      predicted_object.kinematics.predicted_paths.begin(),
-      predicted_object.kinematics.predicted_paths.end(),
-      [](const PredictedPath & a, const PredictedPath & b) { return a.confidence < b.confidence; });
     const size_t obj_seg_idx =
       autoware::motion_utils::findNearestSegmentIndex(input_points, obj_pose.position);
     const size_t obj_idx =
@@ -667,16 +651,20 @@ void DynamicObstacleAvoidanceModule::registerUnregulatedObjects(
   const auto & predicted_objects = planner_data_->dynamic_object->objects;
 
   for (const auto & predicted_object : predicted_objects) {
+    if (
+      planner_data_->avoidance_object_ownership &&
+      !planner_data_->avoidance_object_ownership->isDynamic(predicted_object.object_id).value_or(false)) {
+      continue;
+    }
+    if (predicted_object.classification.empty()) {
+      continue;
+    }
     const auto obj_uuid = autoware_utils::to_hex_string(predicted_object.object_id);
     const auto & obj_pose = predicted_object.kinematics.initial_pose_with_covariance.pose;
     const double obj_vel_norm = std::hypot(
       predicted_object.kinematics.initial_twist_with_covariance.twist.linear.x,
       predicted_object.kinematics.initial_twist_with_covariance.twist.linear.y);
     const auto prev_object = getObstacleFromUuid(prev_objects, obj_uuid);
-    const auto obj_path = *std::max_element(
-      predicted_object.kinematics.predicted_paths.begin(),
-      predicted_object.kinematics.predicted_paths.end(),
-      [](const PredictedPath & a, const PredictedPath & b) { return a.confidence < b.confidence; });
     const size_t obj_seg_idx =
       autoware::motion_utils::findNearestSegmentIndex(input_points, obj_pose.position);
     const size_t obj_idx =
@@ -753,9 +741,19 @@ void DynamicObstacleAvoidanceModule::determineWhetherToAvoidAgainstRegulatedObje
 
     const auto obj_uuid = object.uuid;
     const auto prev_object = getObstacleFromUuid(prev_objects, obj_uuid);
-    const auto obj_path = *std::max_element(
-      object.predicted_paths.begin(), object.predicted_paths.end(),
-      [](const PredictedPath & a, const PredictedPath & b) { return a.confidence < b.confidence; });
+    const auto obj_path = [&]() {
+      if (!object.predicted_paths.empty()) {
+        const auto & path = *std::max_element(
+          object.predicted_paths.begin(), object.predicted_paths.end(),
+          [](const PredictedPath & a, const PredictedPath & b) { return a.confidence < b.confidence; });
+        if (!path.path.empty()) return path;
+      }
+      PredictedPath current;
+      current.path.push_back(object.pose);
+      current.time_step.nanosec = 100000000;
+      current.confidence = 1.0;
+      return current;
+    }();
     const size_t obj_seg_idx =
       autoware::motion_utils::findNearestSegmentIndex(input_points, object.pose.position);
     const size_t obj_idx =
@@ -1834,9 +1832,15 @@ std::optional<autoware_utils::Polygon2d>
 DynamicObstacleAvoidanceModule::calcObjectPathBasedDynamicObstaclePolygon(
   const DynamicAvoidanceObject & object) const
 {
+  if (object.predicted_paths.empty()) {
+    return autoware_utils::to_polygon2d(object.pose, object.shape);
+  }
   const auto obj_path = *std::max_element(
     object.predicted_paths.begin(), object.predicted_paths.end(),
     [](const PredictedPath & a, const PredictedPath & b) { return a.confidence < b.confidence; });
+  if (obj_path.path.empty()) {
+    return autoware_utils::to_polygon2d(object.pose, object.shape);
+  }
 
   // calculate left and right bound
   std::vector<geometry_msgs::msg::Point> obj_left_bound_points;

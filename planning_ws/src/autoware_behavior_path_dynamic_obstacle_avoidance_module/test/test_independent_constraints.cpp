@@ -58,6 +58,8 @@ protected:
     parameters->lat_offset_from_obstacle = 0.3;
     parameters->end_time_to_consider = 1.0;
     parameters->polygon_generation_method = PolygonGenerationMethod::OBJECT_PATH_BASE;
+    parameters->successive_num_to_entry_dynamic_avoidance_condition = 5;
+    parameters->successive_num_to_exit_dynamic_avoidance_condition = 1;
     module = std::make_unique<DynamicObstacleAvoidanceModule>(
       "dynamic_obstacle_avoidance", *node, parameters, SceneModuleInterface::RTCInterfaceMap{},
       markers, nullptr);
@@ -194,16 +196,50 @@ protected:
     data->avoidance_object_ownership = std::make_shared<AvoidanceObjectOwnership>();
     nav_msgs::Odometry odom;
     odom.pose.pose.orientation.w = 1.0;
+    data->parameters.vehicle_width = 2.0;
+    data->parameters.wheel_base = 2.7;
+    data->parameters.front_overhang = 1.0;
+    data->parameters.rear_overhang = 1.0;
+    odom.twist.twist.linear.x = 5.0;
     data->self_odometry = boost::make_shared<nav_msgs::Odometry>(odom);
+    parameters->polygon_generation_method = PolygonGenerationMethod::EGO_PATH_BASE;
+    parameters->max_obstacle_vel = 100.0;
+    parameters->max_obj_lat_offset_to_ego_path = 1.0;
+    parameters->max_front_object_angle = 0.785;
+    parameters->min_front_object_vel = -0.5;
+    parameters->max_front_object_ego_path_lat_cover_ratio = 0.3;
+    parameters->min_overtaking_crossing_object_vel = 1.0;
+    parameters->max_overtaking_crossing_object_angle = 1.05;
+    parameters->min_oncoming_crossing_object_vel = 1.0;
+    parameters->max_oncoming_crossing_object_angle = 0.523;
+    parameters->max_pedestrian_crossing_vel = 0.8;
+    parameters->min_cut_in_object_vel = 0.5;
+    parameters->min_time_to_start_cut_in = 1.0;
+    parameters->max_time_from_outside_ego_path_for_cut_out = 2.0;
+    parameters->min_cut_out_object_lat_vel = 0.3;
+    parameters->min_cut_out_object_vel = 0.5;
+    parameters->max_time_to_collision_overtaking_object = 40.0;
+    parameters->max_time_to_collision_oncoming_object = 40.0;
+    parameters->duration_to_hold_avoidance_overtaking_object = 3.0;
+    parameters->max_stopped_object_vel = 0.5;
+    parameters->max_lat_offset_to_avoid = 0.5;
+    parameters->max_ego_lat_acc = 0.3;
+    parameters->max_ego_lat_jerk = 3.0;
+    parameters->delay_time_ego_shift = 1.0;
     module->setData(data);
   }
-  BehaviorModuleOutput step(double speed, uint8_t label = autoware_perception_msgs::ObjectClassification::UNKNOWN)
+  BehaviorModuleOutput step(
+    double speed, uint8_t label = autoware_perception_msgs::ObjectClassification::UNKNOWN)
   {
-    autoware_perception_msgs::PredictedObjects message;
-    message.header.stamp = ros::Time(++stamp);
     auto o = object();
     o.classification.front().label = label;
     o.kinematics.initial_twist_with_covariance.twist.linear.x = speed;
+    return observe(o);
+  }
+  BehaviorModuleOutput observe(const PredictedObject & o)
+  {
+    autoware_perception_msgs::PredictedObjects message;
+    message.header.stamp = ros::Time(++stamp);
     message.objects.push_back(o);
     data->dynamic_object = boost::make_shared<autoware_perception_msgs::PredictedObjects>(message);
     data->avoidance_object_ownership->update(message);
@@ -226,7 +262,7 @@ TEST_F(SpeedOwnership, ImmediateEntryAndExitBypassLegacyAdmissionCounter)
   EXPECT_TRUE(step(0.3).drivable_area_info.obstacles.empty());
 }
 
-TEST_F(SpeedOwnership, MovingCarExportsPhysicalOccupancyWithoutLegacyPolicyGate)
+TEST_F(SpeedOwnership, EligibleSideCarStillExportsOccupancyImmediately)
 {
   const auto output = step(0.5, autoware_perception_msgs::ObjectClassification::CAR);
   ASSERT_EQ(output.drivable_area_info.obstacles.size(), 1U);
@@ -234,6 +270,79 @@ TEST_F(SpeedOwnership, MovingCarExportsPhysicalOccupancyWithoutLegacyPolicyGate)
   EXPECT_EQ(output.path.right_bound, input.path.right_bound);
   EXPECT_FALSE(boost::geometry::covered_by(
     autoware_utils::Point2d(11.7, 2.0), output.drivable_area_info.obstacles.front().poly));
+}
+
+TEST_F(SpeedOwnership, HighwayLeadCarRemainsAFollowingTarget)
+{
+  auto o = object(10.0, 0.0);
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 2.0;
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
+  EXPECT_EQ(data->avoidance_object_ownership->isDynamic(o.object_id), true);
+}
+
+TEST_F(SpeedOwnership, RoundaboutCrossingCarDoesNotBecomeASpatialDetour)
+{
+  auto o = object(10.0, 2.0);
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_pose_with_covariance.pose.orientation.z = std::sin(M_PI / 4.0);
+  o.kinematics.initial_pose_with_covariance.pose.orientation.w = std::cos(M_PI / 4.0);
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 3.0;
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
+  EXPECT_EQ(data->avoidance_object_ownership->isDynamic(o.object_id), true);
+}
+
+TEST_F(SpeedOwnership, DistantAdjacentAndPassedCarsAreFiltered)
+{
+  auto o = object(10.0, 15.0);
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 2.0;
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
+  o.kinematics.initial_pose_with_covariance.pose = pose(-10.0, 2.0);
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
+}
+
+TEST_F(SpeedOwnership, PredictedCutInIsNotAnUnconditionalSpatialDetour)
+{
+  auto o = object(20.0, 2.0);
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 2.0;
+  PredictedPath prediction;
+  prediction.confidence = 1.0;
+  prediction.time_step.sec = 1;
+  prediction.path = {pose(20.0, 2.0), pose(25.0, 0.0)};
+  o.kinematics.predicted_paths.push_back(prediction);
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
+}
+
+TEST_F(SpeedOwnership, MissingPredictionKeepsEligibleCurrentFootprint)
+{
+  const auto output = step(2.0, autoware_perception_msgs::ObjectClassification::CAR);
+  ASSERT_EQ(output.drivable_area_info.obstacles.size(), 1U);
+  EXPECT_TRUE(boost::geometry::covered_by(
+    autoware_utils::Point2d(10.0, 2.0), output.drivable_area_info.obstacles.front().poly));
+}
+
+TEST_F(SpeedOwnership, EmptyPredictionKeepsEligibleCurrentFootprint)
+{
+  auto o = object();
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 2.0;
+  o.kinematics.predicted_paths.emplace_back();
+  const auto output = observe(o);
+  ASSERT_EQ(output.drivable_area_info.obstacles.size(), 1U);
+  EXPECT_TRUE(boost::geometry::covered_by(
+    autoware_utils::Point2d(10.0, 2.0), output.drivable_area_info.obstacles.front().poly));
+}
+
+TEST_F(SpeedOwnership, ExcludedObservationCannotRetainPreviousAvoidanceEligibility)
+{
+  const auto side = step(2.0, autoware_perception_msgs::ObjectClassification::CAR);
+  ASSERT_EQ(side.drivable_area_info.obstacles.size(), 1U);
+  auto o = object(10.0, 0.0);
+  o.classification.front().label = autoware_perception_msgs::ObjectClassification::CAR;
+  o.kinematics.initial_twist_with_covariance.twist.linear.x = 2.0;
+  EXPECT_TRUE(observe(o).drivable_area_info.obstacles.empty());
 }
 
 TEST_F(SpeedOwnership, DynamicHandoffReplacesStaleStaticConstraintOnce)

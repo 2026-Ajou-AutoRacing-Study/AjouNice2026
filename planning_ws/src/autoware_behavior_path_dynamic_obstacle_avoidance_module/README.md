@@ -9,15 +9,18 @@ In `optimization_base`, BPP assigns each perception UUID to one owner using
 enters DOA immediately; speed <= 0.2 m/s enters SOA immediately; the open interval
 retains the previous owner. A new UUID below 0.5 m/s starts with SOA. Speed is the
 planar magnitude of perception velocity, including reverse/crossing motion.
-There is no dwell timer, consecutive-update requirement, position-motion gate,
-or position-based forecast. SOA releases both static memories on a dynamic
-handoff; DOA replaces cached upstream constraints for that UUID. DOA's legacy
-class/crossing/regulated-policy and admission-counter gates are bypassed in this
-mode so a dynamic-owned object cannot disappear between owners. Existing supplied
-predictions remain spatial swept constraints. Missing detections retain only the
-owner decision, without inventing occupancy; a new route or clock rewind clears
-ownership. Invalid velocity is conservatively assigned to DOA. SOA's existing
-geometry/margins are unchanged; matching SOA and DOA margins is a separate change.
+There is no ownership/admission dwell timer, consecutive-update requirement,
+position-motion gate, or position-based forecast. Shared ownership is an ingress
+filter, not permission to create a lateral detour. Existing regulated/unregulated
+selection still rejects crossing traffic, distant objects, following vehicles,
+cut-in/cut-out cases, passed objects, out-of-range TTC and unsuitable lateral
+coverage. Supplied objects remain available unchanged to longitudinal/roundabout
+planners. Shared-mode eligibility is refreshed immediately on each planning update;
+legacy non-shared admission counters are unchanged. SOA releases both static
+memories on a dynamic handoff; DOA replaces cached upstream constraints for that
+UUID. Missing detections retain only the owner decision, without inventing
+occupancy; a new route or clock rewind clears ownership. Invalid velocity is
+conservatively assigned to DOA. SOA's existing geometry/margins are unchanged.
 
 Selected objects are exported as independent `direct_constraint` obstacles,
 alongside SOA obstacles in the BPP path's stamped obstacle scene. DOA does not

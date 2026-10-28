@@ -264,8 +264,26 @@ public:
       current_uuids_.push_back(uuid);
     }
 
-    void finalize(const LatFeasiblePaths & ego_lat_feasible_paths)
+    void finalize(const LatFeasiblePaths & ego_lat_feasible_paths, const bool immediate = false)
     {
+      if (immediate) {
+        // Shared speed ownership has no admission/exit dwell. Preserve the
+        // spatial/behavioral filters and history, but only for this observation.
+        const auto previous_valid_uuids = valid_object_uuids_;
+        valid_object_uuids_ = current_uuids_;
+        for (auto it = object_map_.begin(); it != object_map_.end();) {
+          if (!isInVector(it->first, current_uuids_)) {
+            counter_map_.erase(it->first);
+            it = object_map_.erase(it);
+          } else {
+            if (!isInVector(it->first, previous_valid_uuids)) {
+              it->second.ego_lat_feasible_paths = ego_lat_feasible_paths;
+            }
+            ++it;
+          }
+        }
+        return;
+      }
       // decrease counter for not updated uuids
       std::vector<std::string> not_updated_uuids;
       for (const auto & object : object_map_) {
