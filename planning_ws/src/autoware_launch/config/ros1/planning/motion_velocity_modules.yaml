@@ -151,7 +151,7 @@ obstacle_cruise/option/planning_algorithm: pid_base
 obstacle_cruise/cruise_planning/idling_time: 2.0
 obstacle_cruise/cruise_planning/min_ego_accel_for_rss: -6.0
 obstacle_cruise/cruise_planning/min_object_accel_for_rss: -3.0
-obstacle_cruise/cruise_planning/safe_distance_margin: 3.0
+obstacle_cruise/cruise_planning/safe_distance_margin: 0.5
 obstacle_cruise/cruise_planning/pid_based_planner/target_distance_scale: 0.4
 obstacle_cruise/cruise_planning/pid_based_planner/use_velocity_limit_based_planner: true
 obstacle_cruise/cruise_planning/pid_based_planner/error_function_type: quadratic
