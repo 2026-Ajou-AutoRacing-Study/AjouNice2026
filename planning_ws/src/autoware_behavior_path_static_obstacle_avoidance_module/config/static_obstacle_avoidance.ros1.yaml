@@ -163,7 +163,7 @@ avoidance:
     max_compensation_time: 5.0
     merging_vehicle:
       th_overhang_distance: 0.0
-    object_check_goal_distance: 20.0
+    object_check_goal_distance: 0.0
     object_check_return_pose_distance: 20.0
     parked_vehicle:
       min_road_shoulder_width: 0.5

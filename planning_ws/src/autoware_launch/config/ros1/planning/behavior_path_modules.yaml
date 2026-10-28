@@ -182,7 +182,7 @@ avoidance:
       bicycle: true
       motorcycle: true
       pedestrian: true
-    object_check_goal_distance: 20.0
+    object_check_goal_distance: 0.0
     object_check_return_pose_distance: 20.0
     max_compensation_time: 5.0
     detection_area:
