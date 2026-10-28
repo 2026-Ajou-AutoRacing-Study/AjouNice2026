@@ -79,6 +79,68 @@ class PredictionCandidateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ConfigError, 'prediction_highway_horizon'):
                     validate_campaign_document(self.document)
 
+    def test_native_highway_ten_seconds_is_explicit_and_does_not_mutate_document(self):
+        self.document['stack'].update(prediction_highway_mode='native',
+                                      prediction_highway_horizon=10.0,
+                                      prediction_mixed_horizon_enabled=True)
+        before = copy.deepcopy(self.document)
+        validate_campaign_document(self.document)
+        self.assertEqual(prediction_highway_horizon(self.document['stack']), 10.0)
+        self.assertEqual(self.document, before)
+        for mode in ('append', None):
+            with self.subTest(mode=mode):
+                stack = dict(self.document['stack'])
+                if mode is None:
+                    stack.pop('prediction_highway_mode')
+                else:
+                    stack['prediction_highway_mode'] = mode
+                with self.assertRaisesRegex(ConfigError, 'prediction_highway_horizon'):
+                    prediction_highway_horizon(stack)
+
+    def test_native_highway_horizon_preserves_numeric_and_grid_validation(self):
+        for value in (3.1, 8.0, 9.9, 10, 10.0):
+            with self.subTest(value=value):
+                self.assertEqual(prediction_highway_horizon(dict(
+                    prediction_highway_mode='native', prediction_highway_horizon=value)), value)
+        for value in (None, True, False, '10', [], {}, 3.0, 9.95, 10.1,
+                      float('nan'), float('inf'), -float('inf'), 10 ** 1000):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ConfigError, 'prediction_highway_horizon'):
+                    prediction_highway_horizon(dict(
+                        prediction_highway_mode='native', prediction_highway_horizon=value))
+
+    def test_native_ten_second_choice_reaches_launch_and_survives_snapshot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'candidate.yaml'
+            self.document['stack'].update(prediction_mixed_horizon_enabled=True,
+                                           prediction_highway_horizon=10.0,
+                                           prediction_highway_mode='native')
+            self.document['scenarios']['include'] = ['high_baseline_01.json']
+            self.document['output_root'] = str(Path(temporary) / 'results')
+            path.write_text(yaml.safe_dump(self.document))
+            original = path.read_bytes()
+            from planning_scenario_validator import gui
+            opened = gui.load_document(path)
+            edited = gui.build_document(opened, gui.form_values(opened))
+            self.assertEqual(prediction_highway_horizon(edited['stack']), 10.0)
+            self.assertEqual(prediction_highway_mode(edited['stack']), 'native')
+            cfg = load_campaign(path, check_install=False)
+            processes, monitor = Mock(), Mock()
+            runner._start_case_stack(cfg, processes, monitor)
+            command = next(c.args[1] for c in processes.start.call_args_list if c.args[0] == 'tracking')
+            self.assertIn('prediction_mixed_horizon_enabled:=true', command)
+            self.assertIn('prediction_highway_horizon:=10.0', command)
+            self.assertIn('prediction_highway_mode:=native', command)
+            self.assertIn('prediction_horizon:=3.0', command)
+            prepared = executions.prepare_execution(path, check_install=False)
+            self.assertEqual(path.read_bytes(), original)
+            self.document['stack'].update(prediction_highway_horizon=8.0,
+                                           prediction_highway_mode='append')
+            path.write_text(yaml.safe_dump(self.document))
+            resumed = executions.load_execution(prepared['output'], check_install=False)
+            self.assertEqual(prediction_highway_horizon(resumed['stack']), 10.0)
+            self.assertEqual(prediction_highway_mode(resumed['stack']), 'native')
+
     def test_mixed_eight_second_choice_reaches_launch_and_survives_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'candidate.yaml'

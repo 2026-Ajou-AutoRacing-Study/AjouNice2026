@@ -65,6 +65,7 @@ Cruise `debug/obstacle_cruise/trajectory`는 필수 토픽으로 취급하지 �
 
 시작/종료 `ros_state_*.json`의 `loaded_binary_receipts`에는 같은 PC에서 실행 중인
 MPT와 behavior-velocity planner의 실행 파일 및 지정된 MPT·신호등 라이브러리만 조회한다.
+Behavior-velocity planner의 정식 normal/experimental 두 실행파일을 정확한 이름으로 허용한다.
 시작 결과는 `metadata.json`에도 담는다. 노드의 로컬 주소·PID 시작 시각·실행 파일과
 라이브러리 매핑의 device/inode를 확인한 경우에만 backing disk 파일의 SHA256을 보관한다.
 이는 Git/source와 실제 설치본의 불일치를 추적하기 위한 자료이지, 메모리 내용·활성 분기·

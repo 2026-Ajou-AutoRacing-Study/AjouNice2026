@@ -15,9 +15,10 @@ import xmlrpc.client
 
 TARGETS = (
     ('mpt', '/planning/scenario_planning/lane_driving/motion_planning/path_optimizer',
-     'path_optimizer_node', 'libautoware_path_optimizer.so'),
+     ('path_optimizer_node',), 'libautoware_path_optimizer.so'),
     ('traffic', '/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner',
-     'behavior_velocity_planner_full_node', 'libautoware_behavior_velocity_traffic_light_module.so'),
+     ('behavior_velocity_planner_full_node', 'behavior_velocity_planner_full_experimental_node'),
+     'libautoware_behavior_velocity_traffic_light_module.so'),
 )
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_MAP_BYTES = 2 * 1024 * 1024
@@ -134,7 +135,7 @@ def disk_receipt(path, device=None, inode=None):
                 sha256_kind='backing_disk_file_not_process_memory')
 
 
-def target_receipt(master, node, executable, library, proc_root, proxy_factory):
+def target_receipt(master, node, executables, library, proc_root, proxy_factory):
     node_uri = rpc_result(master.lookupNode(CALLER, node))
     parsed = valid_uri(node_uri)
     if not local_host(parsed.hostname):
@@ -148,7 +149,7 @@ def target_receipt(master, node, executable, library, proc_root, proxy_factory):
     base = {'pid': pid, 'start_ticks': initial_ticks, 'local_host_verified': True}
     if exe_link.endswith(' (deleted)'):
         return dict(base, status='deleted_executable')
-    if Path(exe_link).name != executable:
+    if Path(exe_link).name not in executables:
         return dict(base, status='unexpected_executable')
     exe_stat = (proc / 'exe').stat()
     exe = disk_receipt(Path(exe_link), exe_stat.st_dev, exe_stat.st_ino)
@@ -196,9 +197,9 @@ def collect(master_uri, proc_root=Path('/proc'), proxy_factory=proxy):
         master = proxy_factory(master_uri)
     except Exception as error:
         return dict(result, status='master_unavailable', error_type=type(error).__name__)
-    for key, node, executable, library in TARGETS:
+    for key, node, executables, library in TARGETS:
         try:
-            entry = target_receipt(master, node, executable, library, proc_root, proxy_factory)
+            entry = target_receipt(master, node, executables, library, proc_root, proxy_factory)
         except PermissionError:
             entry = {'status': 'permission_denied'}
         except (TimeoutError, socket.timeout):

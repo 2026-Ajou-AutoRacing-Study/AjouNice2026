@@ -27,7 +27,7 @@ roslaunch traffic_light_detection traffic_light_node.launch \
 - 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
 - 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
 - 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
-- 최신 planning 통합 소스의 map 기본은 v96이다. 과거 v88 실험과 구분하고 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
+- 현재 planning 통합 소스의 map 기본은 v99다. 과거 실험과 구분하고 부모 launch 및 실제 설치본의 map/projector도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
 
 ## Competition signal policy
 

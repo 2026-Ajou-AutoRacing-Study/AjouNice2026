@@ -44,6 +44,22 @@ cd ~/AjouNice2026
 
 GUI의 **장면 선택**은 검색·일괄 체크를 지원한다. 파일 패턴을 직접 바꾸면 기존 `include` 목록을 해제하고 패턴으로 실행한다. 반복은 GUI에서 수정·저장하며 랜덤 seed/범위는 YAML에서만 바꾼다. 목적지 등 회색 필드를 프로그램으로 조작해도 GUI 저장 대상에는 포함되지 않는다. VSCode의 다른 항목 변경은 보존하고 같은 항목의 충돌은 재불러오도록 거절한다.
 
+현재 팀 production의 일반3초·고주로native10초를 검증기에서도 대조하려면 새 개인 YAML에
+다음을 명시한다. 검증기에서 생략한 값은 과거 호환 기본3초·mixed OFF·append8초를 유지하며,
+기존 실행 snapshot을 자동 변경하지 않는다. 명시적 native는10.0초까지, append는기존9.9초까지
+허용한다. ROS1 predictor의101-pose 지원이며 ROS2 bounded-array 호환 인증은 아니다.
+
+```yaml
+stack:
+  prediction_horizon: 3.0
+  prediction_mixed_horizon_enabled: true
+  prediction_highway_horizon: 10.0
+  prediction_highway_mode: native
+```
+
+설정 검증기 업데이트 뒤 기존 GUI는 다시 열어야 한다. 이 선택은 예측 정확도·LC 안전성 인증이
+아니며, 실제 전달값은 실행의 tracking 명령과 `/map_based_prediction` 파라미터를 확인한다.
+
 ### planning 빠른 테스트
 
 개인 YAML의 JSON 폴더에서 1–2개를 선택하고 GT/BEVFusion·GT/측위·신호등을 대조한다. **선택한 JSON 빠른 실행**은 원본을 바꾸지 않고 별도 임시 YAML/입력 사본으로 1회씩 실행한다. 랜덤 파라미터·Drive 업로드는 off, 목적지·시간·네트워크·녹화는 현재 저장된 YAML을 사용한다. 검색·Ctrl/Shift 선택·환경 검사·ROS 수신 검사·연결 JSON 경로 복사만 이 탭에 둔다.

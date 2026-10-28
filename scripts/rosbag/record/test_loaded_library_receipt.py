@@ -26,11 +26,11 @@ class LoadedReceiptTests(unittest.TestCase):
         self.proc = self.root / 'proc'
         self.nodes = {}
         self.pids = {}
-        for index, (key, node, exe, library) in enumerate(receipt.TARGETS):
+        for index, (key, node, executables, library) in enumerate(receipt.TARGETS):
             pid = 41 + index
             directory = self.proc / str(pid)
             directory.mkdir(parents=True)
-            binary = self.root / exe
+            binary = self.root / executables[0]
             binary.write_bytes(b'\x7fELF' + key.encode())
             (directory / 'exe').symlink_to(binary)
             # Fields3..21 precede starttime field22.
@@ -82,6 +82,40 @@ class LoadedReceiptTests(unittest.TestCase):
                 patch.object(receipt, 'start_ticks', side_effect=AssertionError('must not read proc')):
             result = self.collect()
         self.assertEqual(result['targets']['mpt']['status'], 'remote_or_unverified_host')
+
+    def test_both_official_traffic_executables_keep_exact_library_verification(self):
+        executable_names = receipt.TARGETS[1][2]
+        self.assertEqual(executable_names, (
+            'behavior_velocity_planner_full_node',
+            'behavior_velocity_planner_full_experimental_node'))
+        for name in executable_names:
+            with self.subTest(executable=name):
+                binary = self.root / name
+                binary.write_bytes(b'\x7fELF' + name.encode())
+                link = self.proc / '42' / 'exe'
+                link.unlink()
+                link.symlink_to(binary)
+                target = self.collect()['targets']['traffic']
+                self.assertEqual(target['status'], 'recorded')
+                self.assertEqual(target['executable']['path'], str(binary))
+                self.assertEqual(target['executable']['status'], 'identity_verified_disk_file')
+                self.assertEqual(target['library']['status'], 'identity_verified_disk_file')
+
+    def test_traffic_names_are_exact_and_mpt_still_has_one_allowed_name(self):
+        self.assertEqual(receipt.TARGETS[0][2], ('path_optimizer_node',))
+        for name in ('behavior_velocity_planner_full_other_node',
+                     'behavior_velocity_planner_full_experimental_node.bak',
+                     'prefix_behavior_velocity_planner_full_experimental_node'):
+            with self.subTest(executable=name):
+                binary = self.root / name
+                binary.write_bytes(b'\x7fELFnot-allowlisted')
+                link = self.proc / '42' / 'exe'
+                link.unlink()
+                link.symlink_to(binary)
+                target = self.collect()['targets']['traffic']
+                self.assertEqual(target['status'], 'unexpected_executable')
+                self.assertNotIn('executable', target)
+                self.assertNotIn('library', target)
 
     def test_deleted_mapping_is_not_given_a_current_disk_hash(self):
         self.write_maps(self.proc / '41', self.root / receipt.TARGETS[0][3], suffix=' (deleted)')

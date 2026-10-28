@@ -171,18 +171,21 @@ def prediction_horizon(stack):
 
 
 def prediction_highway_horizon(stack):
-    """Explicit mixed-mode suffix, bounded to the 100-pose wire budget."""
+    """Keep append's suffix cap; explicit native mode supports production 10 s."""
+    mode = prediction_highway_mode(stack)
+    maximum = 10.0 if mode == 'native' else 9.9
+    bounds = '3.1~{}초'.format(maximum)
     value = stack.get('prediction_highway_horizon', 8.0)
     label = 'stack.prediction_highway_horizon'
     if type(value) not in (int, float):
-        raise ConfigError('{}은 3.1~9.9초의 숫자여야 합니다'.format(label))
+        raise ConfigError('{}은 {}의 숫자여야 합니다'.format(label, bounds))
     try:
         horizon = float(value)
     except OverflowError as error:
         raise ConfigError('{}은 유한한 숫자여야 합니다'.format(label)) from error
-    if (not math.isfinite(horizon) or not 3.1 <= horizon <= 9.9 or
+    if (not math.isfinite(horizon) or not 3.1 <= horizon <= maximum or
             not math.isclose(horizon * 10.0, round(horizon * 10.0), rel_tol=0.0, abs_tol=1e-8)):
-        raise ConfigError('{}은 3.1~9.9초, 0.1초 단위여야 합니다'.format(label))
+        raise ConfigError('{}은 {}, 0.1초 단위여야 합니다'.format(label, bounds))
     return horizon
 
 

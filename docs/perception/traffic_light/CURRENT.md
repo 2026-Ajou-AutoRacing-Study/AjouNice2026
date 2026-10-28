@@ -90,7 +90,7 @@ R+좌화살표 및 R+Y와 구분해야 한다. 이전 phase만으로 Y의 의미
 - 개발용 투영은 raw Ego heading에서 −1.347°를 한 번 적용한 MGeo 좌표 기준이다.
   이미 보정된 운영 localization/TF에 이 보정을 다시 적용하면 안 된다.
 - 새 팀 LAN 기록은 A/B/C/D 정상 색 관측 구간 내부 누락0·A/B/C의6/10 제동 근거를 추가했지만 이동 중 G→Y나 공식 신호 준수100% 인증은 아니다.
-  첫 색 이전 UNKNOWN에 순간 음수 속도로 새 STOP 이력이 생기던 결함을 수정했다([조건·182 native/445 Python](../../bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)). 기존 STOP/R/Y 보호는 유지한다. 수정본은 커밋434083b4와 로컬 정상 증분 설치에 반영됐고, 실제 plugin SHA는 `fe849829e3e23794f689c8667274cd2cb2c06c31222c3ebcdc1e4ca3c4999833`이다. 후속 장애물 대조 주행4회는 traffic OFF였으므로 이 수정의 새 LAN 폐루프 검증으로 세지 않는다. 현재 제동계수6/10·응답지연0은 유지한다.
+  첫 색 이전 UNKNOWN에 순간 음수 속도로 새 STOP 이력이 생기던 결함을 수정했다([조건·182 native/445 Python](../../bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)). 기존 STOP/R/Y 보호는 유지한다. 수정본은 커밋434083b4와 로컬 정상 증분 설치에 반영됐고, 실제 plugin SHA는 `fe849829e3e23794f689c8667274cd2cb2c06c31222c3ebcdc1e4ca3c4999833`이다. 이후 로컬 E12·traffic ON 전체경로 2회는 정지/P까지 완료했고 관측된 허가 후 재STOP은0, 원본선 통과8회는 native 허가와 일치했다. A의 먼 황색 오판은 거리gate에서 차단됐으며 이동 중 허가G→Y·새 팀LAN은 미검증이다. 로컬 속도×wall시간 적분과 native 위치 이동의 불일치가 있어 이 적분으로 제동계수를 튜닝하지 않는다. 상세는 로컬 `planner_logs/analysis/261028_final_e12_traffic/`에 보존하며 현재6/10·응답지연0은 유지한다.
 - 신호를 처음 본 시점은 점등 시작 시점이 아니다. 고정 2.5초 카운트로 황색 잔여 시간을
   보장하지 않으며, 팀 대화의 대회 주기 단축 예상도 운영 상수로 쓰지 않는다.
 
