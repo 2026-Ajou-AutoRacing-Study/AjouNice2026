@@ -81,6 +81,13 @@ public:
     private_nh_.param("safety/lateral_valid_timeout_s", lateral_valid_timeout_s_, 0.2);
     private_nh_.param("safety/min_points", min_points_, 3);
     private_nh_.param("safety/stop_brake_cmd", stop_brake_cmd_, 1.0);
+    private_nh_.param("safety/pose_jump/enabled", pose_jump_enabled_, true);
+    private_nh_.param<std::string>("safety/pose_jump/state_topic", pose_jump_topic_,
+      "/localization/kinematic_state");
+    private_nh_.param("safety/pose_jump/distance_m", pose_jump_distance_m_, 7.0);
+    private_nh_.param("safety/pose_jump/brake_duration_s", pose_jump_brake_duration_s_, 1.0);
+    private_nh_.param("safety/pose_jump/motion_tolerance_m", pose_jump_motion_tolerance_m_, 1.0);
+    private_nh_.param("safety/pose_jump/max_acceleration_mps2", pose_jump_max_acceleration_mps2_, 10.0);
     private_nh_.param("kp", kp_, 0.6);
     private_nh_.param("ki", ki_, 0.05);
     private_nh_.param("integral_limit", integral_limit_, 3.0);
@@ -160,6 +167,10 @@ public:
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowareLongitudinalPi::trajectoryCallback, this);
     state_subscriber_ = nh_.subscribe(state_topic_, 10, &AutowareLongitudinalPi::stateCallback, this);
+    if (pose_jump_enabled_) {
+      pose_jump_subscriber_ = nh_.subscribe(pose_jump_topic_, 10,
+        &AutowareLongitudinalPi::poseJumpCallback, this);
+    }
     steering_subscriber_ = nh_.subscribe(steering_topic_, 10, &AutowareLongitudinalPi::steeringCallback, this);
     validity_subscriber_ = nh_.subscribe(valid_topic_, 10, &AutowareLongitudinalPi::validityCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_),
@@ -169,7 +180,12 @@ public:
 private:
   void validateParameters() const
   {
-    const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
+    const bool valid = !pose_jump_topic_.empty() &&
+      std::isfinite(pose_jump_distance_m_) && pose_jump_distance_m_ > 0.0 &&
+      std::isfinite(pose_jump_brake_duration_s_) && pose_jump_brake_duration_s_ > 0.0 &&
+      std::isfinite(pose_jump_motion_tolerance_m_) && pose_jump_motion_tolerance_m_ >= 0.0 &&
+      std::isfinite(pose_jump_max_acceleration_mps2_) && pose_jump_max_acceleration_mps2_ >= 0.0 &&
+      std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
       std::isfinite(velocity_scale_) && velocity_scale_ > 0.0 && std::isfinite(max_steer_rad_) &&
       max_steer_rad_ > 0.0 && std::isfinite(max_accel_cmd_) && max_accel_cmd_ > 0.0 &&
       max_accel_cmd_ <= 1.0 && std::isfinite(max_brake_cmd_) && max_brake_cmd_ > 0.0 &&
@@ -258,6 +274,46 @@ private:
       state_ = *message;
       state_received_ = ros::Time::now();
     }
+  }
+
+  void poseJumpCallback(const nav_msgs::Odometry::ConstPtr & message)
+  {
+    const ros::Time now = ros::Time::now();
+    if (!finiteState(*message) || !sourceStampFresh(
+        message->header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_)) {
+      return;
+    }
+    const bool same_frame = pose_jump_initialized_ &&
+      normalizedFrame(message->header.frame_id) == normalizedFrame(pose_jump_previous_.header.frame_id);
+    // Duplicate/out-of-order packets must not turn an old pose into a new jump.
+    if (same_frame && message->header.stamp <= pose_jump_previous_.header.stamp) {
+      return;
+    }
+    if (same_frame && sourceStampFresh(
+        pose_jump_previous_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_)) {
+      const double distance = std::hypot(
+        message->pose.pose.position.x - pose_jump_previous_.pose.pose.position.x,
+        message->pose.pose.position.y - pose_jump_previous_.pose.pose.position.y);
+      const double dt = (message->header.stamp - pose_jump_previous_.header.stamp).toSec();
+      const auto speed = [](const nav_msgs::Odometry & state) {
+          const auto & v = state.twist.twist.linear;
+          return std::hypot(std::hypot(v.x, v.y), v.z);
+        };
+      // Global planning odometry is in m/s. A brief receive gap can span >7 m
+      // during ordinary driving, so distance alone is not a teleport detector.
+      const double normal_motion_bound =
+        std::max(speed(*message), speed(pose_jump_previous_)) * dt +
+        0.5 * pose_jump_max_acceleration_mps2_ * dt * dt + pose_jump_motion_tolerance_m_;
+      if (distance >= pose_jump_distance_m_ && distance > normal_motion_bound) {
+        // Use monotonic elapsed time; a ROS clock adjustment cannot shorten the hold.
+        pose_jump_brake_until_ = ros::SteadyTime::now() + ros::WallDuration(pose_jump_brake_duration_s_);
+        ROS_WARN("Pose jump %.3f m in %.3f s (normal bound %.3f m) on %s: braking for %.3f s",
+          distance, dt, normal_motion_bound, pose_jump_topic_.c_str(), pose_jump_brake_duration_s_);
+        publishStop();
+      }
+    }
+    pose_jump_previous_ = *message;
+    pose_jump_initialized_ = true;
   }
 
   void steeringCallback(const std_msgs::Float64::ConstPtr & message)
@@ -419,6 +475,10 @@ private:
 
   void timerCallback(const ros::TimerEvent & event)
   {
+    if (pose_jump_enabled_ && ros::SteadyTime::now() < pose_jump_brake_until_) {
+      publishStop();
+      return;
+    }
     const ros::Time now = ros::Time::now();
     const bool fresh = trajectory_valid_ && state_valid_ && steering_valid_ && lateral_valid_ &&
       (now - trajectory_received_).toSec() <= trajectory_timeout_s_ &&
@@ -595,6 +655,7 @@ private:
   ros::NodeHandle private_nh_;
   ros::Subscriber trajectory_subscriber_;
   ros::Subscriber state_subscriber_;
+  ros::Subscriber pose_jump_subscriber_;
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
   ros::Publisher command_publisher_;
@@ -626,6 +687,15 @@ private:
   double steering_timeout_s_{0.5};
   double lateral_valid_timeout_s_{0.2};
   double stop_brake_cmd_{1.0};
+  bool pose_jump_enabled_{true};
+  std::string pose_jump_topic_;
+  double pose_jump_distance_m_{7.0};
+  double pose_jump_brake_duration_s_{1.0};
+  double pose_jump_motion_tolerance_m_{1.0};
+  double pose_jump_max_acceleration_mps2_{10.0};
+  bool pose_jump_initialized_{false};
+  nav_msgs::Odometry pose_jump_previous_;
+  ros::SteadyTime pose_jump_brake_until_;
   int min_points_{3};
   double kp_{0.6};
   double ki_{0.05};

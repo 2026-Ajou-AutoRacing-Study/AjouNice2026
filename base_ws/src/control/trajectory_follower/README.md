@@ -108,6 +108,27 @@ rostopic info /ctrl_cmd
 
 ## 기능과 역할
 
+### Spawn 위치 점프 시 1초 제동
+
+Autoware 종방향 제어기는 플래너의 전역 측위 토픽
+`/localization/kinematic_state`를 별도로 감시한다. 같은 좌표계의 연속된 최신
+메시지 사이 XY 거리가 7 m 이상이고 정상 이동 상한도 초과하면 즉시 기존 safety stop 명령
+(`accel=0`, 기본 `brake=1`, `steering=0`)을 내고 실제 경과 시간 1초 동안 유지한다.
+브레이크 증가율 제한보다 우선하며 PI 적분·가속 FF·가속도 추정 상태를 초기화한다.
+유지 중 다시 점프하면 마지막 점프부터 1초로 연장한다. 첫 위치, 오래된 메시지,
+중복·역순 메시지, 좌표계 변경은 위치 점프로 처리하지 않는다.
+이는 Spawn 여부를 직접 확인하지 않는 위치 불연속 감지이므로 측위 리셋에도 적용된다.
+1초 후 기존 입력 유효성 검사를 통과하면 정상 제어로 돌아오며, 정지 완료 자체를
+보장하는 조건은 아니다. 제어기가 Smooth 측위를 써도 감지는 전역 측위로 한다.
+설정은 `longi_pi_autoware.yaml`의 `safety.pose_jump`
+(`enabled`, `state_topic`, `distance_m`, `brake_duration_s`)이며 제어기 재시작 후 적용된다.
+
+정상 이동 상한은 `max(이전 속력, 현재 속력) × 메시지 시각 차이 +
+0.5 × max_acceleration_mps2 × 시각 차이² + motion_tolerance_m`다.
+기본 가속도 여유는 10 m/s², 위치 여유는 1 m다. 이 값은 차량 제어의 가속도
+한계를 바꾸지 않는다. 예를 들어 80 km/h에서 0.35초 수신 공백 뒤의 약 7.8 m
+이동은 정상 범위로 통과한다. 장시간 입력 공백은 기존 freshness watchdog이 처리한다.
+
 - `purepursuit`: trajectory와 공통 kinematic state로 조향각을 계산해
   `/control/command/steering`으로 publish한다.
 - `longi_pi`: 목표 속도와 kinematic state 속도로 accel/brake를 계산하고 조향 명령을 결합해
