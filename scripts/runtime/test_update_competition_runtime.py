@@ -39,7 +39,7 @@ def workspace(tmp_path):
     for path, stage in [('planning_ws/tools/build.sh', 'planning'),
                         ('scripts/runtime/install_traffic_light_candidate.sh', 'installer')]:
         write(path, f'exec /usr/bin/python3 "$MOCK_LOGGER" {stage} "$@"\n')
-    write('scripts/map/prepare_kcity_v99.py', LOGGER.replace('sys.argv[1:]',
+    write('scripts/map/prepare_kcity_v101.py', LOGGER.replace('sys.argv[1:]',
           "['prepare'] + sys.argv[1:]").replace("sys.argv[1] else 0", "'prepare' else 0"))
     write('scripts/map/prepare_kcity_v98.py', LOGGER.replace('sys.argv[1:]',
           "['prepare'] + sys.argv[1:]").replace("sys.argv[1] else 0", "'prepare' else 0"))
@@ -76,7 +76,7 @@ def workspace(tmp_path):
     return tmp_path, run
 
 
-def test_default_builds_all_scoped_packages_then_installer_after_verifying_v99_map(workspace):
+def test_default_builds_all_scoped_packages_then_installer_after_verifying_v101_map(workspace):
     root, run = workspace
     result, calls = run('--device', 'cpu', '--models-dir', str(root / 'models with spaces'))
     assert result.returncode == 0, result.stderr
@@ -88,21 +88,21 @@ def test_default_builds_all_scoped_packages_then_installer_after_verifying_v99_m
         assert call[1:] == ['--build', str(root / 'base_ws/build_aw149' / relative.rsplit('/', 1)[-1]),
                             '--target', 'install', '--', '-j2']
     for name in ('planning', 'traffic', 'tracking'):
-        assert f'{name} map_version:=99' in result.stdout
+        assert f'{name} map_version:=101' in result.stdout
 
 
-@pytest.mark.parametrize('version', ['87', '88', '94', '95', '96', '97', '98', '100'])
-def test_non_v99_versions_are_rejected_before_any_action(workspace, version):
+@pytest.mark.parametrize('version', ['87', '88', '94', '95', '96', '97', '98', '99', '100'])
+def test_non_v101_versions_are_rejected_before_any_action(workspace, version):
     _, run = workspace
     result, calls = run('--map-version', version)
     assert result.returncode != 0
-    assert 'Only map version 99 is supported' in result.stderr
+    assert 'Only map version 101 is supported' in result.stderr
     assert calls == []
 
 
-def test_v99_accepts_model_remote_but_rejects_map_remote_before_any_action(workspace):
+def test_v101_accepts_model_remote_but_rejects_map_remote_before_any_action(workspace):
     _, run = workspace
-    result, calls = run('--map-version', '99', '--remote', 'model_private')
+    result, calls = run('--map-version', '101', '--remote', 'model_private')
     assert result.returncode == 0, result.stderr
     assert calls[0] == ['prepare', '--check']
     assert calls[-1] == ['installer', '--remote', 'model_private']
@@ -141,7 +141,7 @@ def test_invalid_or_partial_options_fail_before_any_action(workspace, arguments)
 @pytest.mark.parametrize('stage', ['prepare', 'planning', 'cmake', 'installer'])
 def test_failed_stage_never_claims_install_complete(workspace, stage):
     _, run = workspace
-    result, calls = run('--map-version', '99', fail=stage)
+    result, calls = run('--map-version', '101', fail=stage)
     assert result.returncode != 0
     assert calls[-1][0] == stage
     assert '[INSTALLED]' not in result.stdout
@@ -155,7 +155,7 @@ def test_foreign_cache_fails_before_preparation_even_if_another_cache_is_missing
     cache = root / 'base_ws/build_aw149/competition_rule_monitor/CMakeCache.txt'
     cache.write_text('\n'.join(f'{key}:PATH=/foreign/workspace' if line.startswith(key + ':') else line
                                for line in cache.read_text().splitlines()))
-    result, calls = run('--map-version', '99')
+    result, calls = run('--map-version', '101')
     assert result.returncode != 0
     assert 'Refusing foreign/moved CMake cache' in result.stderr
     assert not calls
@@ -185,7 +185,7 @@ def test_downstream_installer_cache_is_checked_before_provisioning(workspace, wo
     cache = root / workspace_name / build / relative.rsplit('/', 1)[-1] / 'CMakeCache.txt'
     cache.parent.mkdir(parents=True)
     cache.write_text('CMAKE_HOME_DIRECTORY:INTERNAL=/foreign/installer\n')
-    result, calls = run('--map-version', '99')
+    result, calls = run('--map-version', '101')
     assert result.returncode != 0
     assert 'Refusing foreign/moved CMake cache' in result.stderr
     assert not calls

@@ -21,15 +21,15 @@ def included(path, suffix):
     return {arg.get('name'): arg.get('value') for arg in include.findall('arg')}
 
 
-def test_planning_defaults_use_v99_and_version_selects_route_and_map_together():
+def test_planning_defaults_use_v101_and_version_selects_route_and_map_together():
     path = LAUNCH / 'planning.launch'
     args = arguments(path)
-    assert args['map_version'] == '99'
+    assert args['map_version'] == '101'
     assert args['map_file'].endswith('/lanelet2_map_v$(arg map_version).osm')
     assert args['route_requester_config_file'].endswith('/competition_route_requester_v$(arg map_version).param.yaml')
     assert args['map_sha256'].startswith('$(eval {')
     assert "[str(arg('map_version'))]" in args['map_sha256']
-    for version, checksum in ((94, '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'), (95, 'a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e'), (96, '98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd'), (97, 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9'), (98, '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0'), (99, 'e9d28ebad8b5c1ed7b876c18702923e44b75a53d7f3db4e856eafe6ef756db30')):
+    for version, checksum in ((94, '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf'), (95, 'a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e'), (96, '98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd'), (97, 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9'), (98, '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0'), (101, '574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29')):
         assert "'%s': '%s'" % (version, checksum) in args['map_sha256']
     requester = included(path, '/competition_route_requester.launch')
     assert requester['config_file'] == '$(arg route_requester_config_file)'
@@ -39,16 +39,16 @@ def test_planning_defaults_use_v99_and_version_selects_route_and_map_together():
 
 def test_competition_entrypoints_preserve_the_explicit_version():
     ordinary = LAUNCH / 'competition_planning.launch'
-    assert arguments(ordinary)['map_version'] == '99'
+    assert arguments(ordinary)['map_version'] == '101'
     assert included(ordinary, '/planning.launch')['map_version'] == '$(arg map_version)'
-    for version in (87, 94, 95, 96, 97, 98, 99):
+    for version in (87, 94, 95, 96, 97, 98, 101):
         assert included(LAUNCH / ('competition_planning_v%d.launch' % version),
                         '/planning.launch')['map_version'] == str(version)
 
 
 def test_fullstack_uses_one_selected_map_for_planning_prediction_and_signal():
     path = LAUNCH / 'morai_planning_stack.launch'
-    assert arguments(path)['map_version'] == '99'
+    assert arguments(path)['map_version'] == '101'
     for suffix, key in (('/planning.launch', 'map_file'),
                         ('/object_pipeline.launch', 'map_file'),
                         ('/traffic_light_node.launch', 'lanelet2_map_file')):
@@ -66,11 +66,11 @@ def test_separate_terminal_consumers_accept_the_same_version_argument():
                       (pipeline/'tracking_prediction.launch', 'map_file'),
                       (pipeline/'object_prediction.launch', 'map_file')):
         args = arguments(path)
-        assert args['map_version'] == '99'
+        assert args['map_version'] == '101'
         assert args[key].endswith('/lanelet2_map_v$(arg map_version).osm')
 
 
-def test_current_version_selectors_reject_non_v99_before_nodes_start():
+def test_current_version_selectors_reject_non_v101_before_nodes_start():
     signal = ROOT / 'base_ws/src/perception/traffic_light_detection/launch'
     pipeline = ROOT / 'base_ws/src/perception_object_pipeline/launch'
     paths = [LAUNCH / name for name in ('competition_planning.launch', 'planning.launch',
@@ -80,6 +80,6 @@ def test_current_version_selectors_reject_non_v99_before_nodes_start():
                                          'object_prediction.launch')]
     for path in paths:
         guard = next(arg for arg in parsed(path).findall('arg')
-                     if arg.get('name') == '_require_v99_map_version')
-        assert guard.get('value') == "$(eval {'99': 'v99-only'}[str(arg('map_version'))])"
+                     if arg.get('name') == '_require_v101_map_version')
+        assert guard.get('value') == "$(eval {'101': 'v101-only'}[str(arg('map_version'))])"
         assert guard.get('default') is None  # A fixed value cannot be overridden by CLI args.

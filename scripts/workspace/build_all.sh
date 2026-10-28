@@ -14,8 +14,8 @@ if (( $# != 0 )); then
   exit 2
 fi
 
-# Verify the team-Drive v99 asset before cleaning any installed workspace.
-/usr/bin/python3 "$REPO_ROOT/scripts/map/prepare_kcity_v99.py" --check
+# Verify the team-Drive v101 asset before cleaning any installed workspace.
+/usr/bin/python3 "$REPO_ROOT/scripts/map/prepare_kcity_v101.py" --check
 
 # ROS-generated hooks read unset ROS_DISTRO/ROS_MASTER_URI in a fresh shell.
 # Keep error checking, but suspend nounset while sourcing ROS setup scripts.
