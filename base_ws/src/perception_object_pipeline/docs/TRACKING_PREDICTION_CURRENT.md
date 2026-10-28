@@ -38,6 +38,7 @@ MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통�
 | Confirmed coasting | moving/pedestrian 0.50s, UNKNOWN 및 2m/s 이하 CAR/TRUCK 1.00s. stamp 경과시간 기준. tentative는 strict 유지 |
 | 중복 입력 | ROS bridge의 same-class rotated BEV IoU 0.50 NMS |
 | Duplicate birth guard | association된 mature track 중심 0.75m 이내 유사한 큰 unmatched box 억제. 전역 gate 5m 확장이 아니며 작은 pedestrian에 확대하지 않음 |
+| 소형 UNKNOWN birth 후보 | `suppress_small_unknown_duplicate_birth=false` 기본 OFF. 양쪽 current raw 박스가 1m 미만이고 유일한 mature 대응·중심 0.25m·IoU≥0.45 등을 만족할 때만 신규 중복 birth를 억제 |
 | 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=false` 기본 OFF. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승하는 별도 후보. EKF state·박스·수명은 불변 |
 | 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
 | 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
@@ -72,12 +73,18 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 ### 정지 UNKNOWN UUID 연속성 후보
 
 `tracking stationary_unknown_uuid_continuity:=true` 또는 통합 `morai_planning_stack.launch`의 같은 인자로 새 스택을 실행한다. 기본은 OFF이며 `force_unknown_stationary=false`이면 사용하지 않는다. 동시 존재하는 두 객체를 합치거나 검출·track을 삭제하지 않는다.
-이전 UNKNOWN의 0.6초 이상 위치·속도 안정성과, 재검출의 공백 2초 이하·중심 0.5m 이하·형상/높이/footprint 중첩을 요구한다. 다른 현재 객체나 복수 이전 후보가 가까우면 계승하지 않는다. stamp 역행·긴 callback 공백·동일 stamp의 변경된 입력은 이력을 초기화한다.
+이전 UNKNOWN의 0.6초 이상 위치·속도 안정성과, 재검출의 공백 2초 이하·중심 0.35m 이하·footprint IoU≥0.35·형상/높이 일치를 요구한다. 현재 또는 과거 같은 raw track 생애에 1m 이내 다른 raw ID를 봤으면 계승 근거에서 제외한다. 잘못된 이웃 형상·class도 근접 이력에서 지우지 않는다. stamp/단조 publisher seq 역행·긴 callback 공백·동일 stamp의 변경된 입력은 이력을 초기화한다. 정상 uint32 seq wrap은 허용한다.
 신규 선별 34개 bag의 raw 41,206개에서 Woodbox4/7만 계승했고, 별도 LAN 풀주행 raw 11,153개에서는 전체 출력이 동일했다. 위치·크기·class·공분산·속도·stamp·출력 수명은 변경하지 않았으며 detector AP 개선을 뜻하지 않는다.
 실제 격리 ROS 1,086틱의 measurement는 같고 정책/Map-CV의 순차 ID는 3→1이었다. 고정 ego의 실제 BPP/SOA/MPT 대조에서 Woodbox7 후반 전부-0속도 출력은 두 번 모두 38→0틱, 성공 대조군은 0→0이었다. 초기 1틱은 남고, 동일 v99 지도 fixture와 기록 odom에서 계산한 acceleration을 사용했으므로 실제 MORAI 완주 인증이 아니다.
-같은 위치·형상에 다른 UNKNOWN이 처음 나타나는 경우와 짧은 공백 안의 tracker-only 재시작은 입력만으로 완전 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
+한 번도 함께 보이지 않은 별개 UNKNOWN이 위치 오차로 같은 형상·위치처럼 보이는 경우는 입력만으로 완전 식별할 수 없다. seq가 항상 0인 publisher의 짧은 tracker-only 재시작도 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
 재현과 원문은 로컬 `planner_logs/analysis/261029_duplicate_cases/`의 `uuid_continuity_v2/summary.json`, `uuid_raw_regression/summary.json`, `actual_ros/comparison.json`, `case_audit/planner_replay_REPORT.md`에 보존했다. 재학습은 필요 없으며 새 패키지 설치 후 tracker/policy를 새로 실행해야 한다.
+2026-10-29 후속 강화·반례·최종 source hash는 로컬 `planner_logs/analysis/261029_duplicate_followup/helper_review/`에 보존했다. `processing_time_ms` 기존 선택적 진단 JSON의 `uuid_continuity`에 계승·거절·초기화와 변경 객체 수를 남긴다. 콘솔 출력·새 topic·GT 입력은 추가하지 않는다.
 
+### 소형 UNKNOWN 중복 birth 후보
+
+`tracking suppress_small_unknown_duplicate_birth:=true`로 새 스택을 실행한다. 기존 `suppress_duplicate_track_birth=true`도 필요하며 두 후보는 독립적으로 비교한다. 이미 존재하는 두 track을 합치지 않는다. 같은 프레임에 실제 검출을 받은 유일한 mature UNKNOWN과, 새 unmatched UNKNOWN의 raw XY 크기가 모두 1m 미만·XYZ≥0.15m·중심≤0.25m·높이 차≤0.3m·정렬 치수비≤1.5·회전 IoU≥0.45일 때만 새 birth를 막는다. known-class 이력이나 복수 대응이 있으면 적용하지 않는다.
+신규 34bag의 기록 검출 코어 재생에서 UNKNOWN birth 146→145, 중복 GT 대응 frame 863→797이며 0.5/1/2m coverage는 동일했다. 영향은 PE_Drum 한 사례이고 나머지 33개는 동일하다. 추가 21사례 10,082입력의 state·공분산과 14장면 catalog AP는 동일했다. 더 넓은 후보는 보조 객체의 0.5m coverage를 떨어뜨려 제외했다. `planner_logs/analysis/261029_duplicate_followup/native_small_final_summary.json`이 비교·한계·고정 source 근거다.
+native 121개 시험을 통과했지만, 가까운 별개 실제 객체의 관측 박스가 크게 겹치는 본질적 모호성은 남는다. 34bag 실제 GT 간격은 최소 10m이므로 근접 두 실제 UNKNOWN의 대회 안전성이나 폐루프 완주로 확대하지 않는다. 배포 시 tracker submodule 갱신·증분 빌드·fresh stack이 필요하다. 기본은 OFF다.
 
 ### 기존 후보와 지도 예측 계약
 

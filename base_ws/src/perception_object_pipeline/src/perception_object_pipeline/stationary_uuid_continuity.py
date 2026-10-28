@@ -24,10 +24,10 @@ class ContinuityConfig:
     support_window_sec: float = 1.
     maximum_raw_speed_mps: float = .5
     maximum_position_spread_m: float = .4
-    maximum_center_distance_m: float = .5
+    maximum_center_distance_m: float = .35
     maximum_vertical_distance_m: float = .6
     maximum_dimension_ratio: float = 1.6
-    minimum_footprint_iou: float = .2
+    minimum_footprint_iou: float = .35
     maximum_gap_sec: float = 2.
     ambiguity_distance_m: float = 1.
 
@@ -57,6 +57,10 @@ class _Record:
     last_seen: float
     observation: _Observation
     known_class_seen: bool = False
+    # A close, distinct current raw UUID makes later re-identification
+    # ambiguous even after that neighbour leaves the short retired pool.
+    # This latch follows only this raw track's lifetime; output is unchanged.
+    nearby_other_uuid_seen: bool = False
     samples: deque = field(default_factory=lambda: deque(maxlen=128))
 
 
@@ -78,7 +82,11 @@ def _footprint(observation):
 def _area(polygon):
     if len(polygon) < 3:
         return 0.
-    return abs(sum(a[0] * b[1] - a[1] * b[0]
+    # Relative coordinates avoid cancellation for small footprints located
+    # at large map/UTM coordinates; polygon area is translation invariant.
+    origin = polygon[0]
+    return abs(sum((a[0] - origin[0]) * (b[1] - origin[1]) -
+                   (a[1] - origin[1]) * (b[0] - origin[0])
                    for a, b in zip(polygon, polygon[1:] + polygon[:1]))) / 2.
 
 
@@ -140,6 +148,7 @@ class StationaryUuidContinuity:
         self.retired = {}
         self.last_stamp = None
         self.last_payload = None
+        self.last_sequence = None
         self.last_events = []
         self.last_rejections = []
 
@@ -148,11 +157,13 @@ class StationaryUuidContinuity:
         self.retired.clear()
         self.last_stamp = None
         self.last_payload = None
+        self.last_sequence = None
 
     def _stable(self, record):
         samples = list(record.samples)
         config = self.config
-        if (record.known_class_seen or record.observation.label != 0 or
+        if (record.known_class_seen or record.nearby_other_uuid_seen or
+                record.observation.label != 0 or
                 len(samples) < config.minimum_samples or
                 samples[-1][0] - samples[0][0] + 1.e-6 < config.minimum_support_sec):
             return False
@@ -211,6 +222,9 @@ class StationaryUuidContinuity:
             return message
         try:
             raw_keys = [bytes(obj.object_id.uuid) for obj in message.objects]
+            sequence = int(message.header.seq)
+            if not 0 <= sequence <= 0xffffffff:
+                raise ValueError('Invalid uint32 publisher sequence')
             normalised = copy.copy(message)
             normalised.header = copy.copy(message.header)
             normalised.header.seq = 0
@@ -225,6 +239,13 @@ class StationaryUuidContinuity:
             self.reset()
             self.last_events.append(dict(kind='reset', reason='duplicate_input_uuid'))
             return message
+        if (self.last_sequence is not None and sequence < self.last_sequence and
+                not (self.last_sequence >= 0xfffffff0 and sequence <= 0xf)):
+            # Native ROS publisher restart normally restarts header.seq even
+            # when ROS time continues forward and raw numeric IDs are reused.
+            # A producer that always sends seq=0 cannot expose such an epoch.
+            self.reset()
+            self.last_events.append(dict(kind='reset', reason='publisher_sequence_regression'))
         if self.last_stamp is not None and stamp < self.last_stamp:
             self.reset()
             self.last_events.append(dict(kind='reset', reason='backward_time'))
@@ -234,6 +255,7 @@ class StationaryUuidContinuity:
         if self.last_stamp is not None and stamp == self.last_stamp:
             # A repeated scheduler packet is not new stability support.
             if payload == self.last_payload:
+                self.last_sequence = sequence
                 return self._output(message)
             # Same time but new class/geometry must not bypass known-class or
             # slot-reuse protection. Discard old support, then seed only this
@@ -242,8 +264,29 @@ class StationaryUuidContinuity:
             self.last_events.append(dict(kind='reset', reason='changed_payload_same_stamp'))
         self.last_stamp = stamp
         self.last_payload = payload
+        self.last_sequence = sequence
         observations = {observation.raw_uuid: observation for obj in message.objects
                         for observation in [_observe(obj)] if observation is not None}
+        # Crowding is about another *present raw ID*, not whether that
+        # neighbour is itself valid for identity reuse. A malformed shape,
+        # class or velocity must not erase evidence of a nearby second actor.
+        positions, unlocated = {}, set()
+        for obj, raw in zip(message.objects, raw_keys):
+            try:
+                point = obj.kinematics.pose_with_covariance.pose.position
+                xy = (float(point.x), float(point.y))
+                if not all(math.isfinite(value) for value in xy):
+                    raise ValueError('Unlocated current raw object')
+                positions[raw] = xy
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                unlocated.add(raw)
+        crowded = {raw for raw, observation in observations.items()
+                   if any(other != raw for other in unlocated) or
+                   any(other != raw and math.dist(observation.center[:2], xy) <=
+                          self.config.ambiguity_distance_m
+                          for other, xy in positions.items())}
+        for raw in crowded.intersection(self.active):
+            self.active[raw].nearby_other_uuid_seen = True
         for raw in list(self.active):
             if raw not in raw_keys:
                 record = self.active.pop(raw)
@@ -307,6 +350,7 @@ class StationaryUuidContinuity:
                 self.active[raw] = record
             record.last_seen, record.observation = stamp, observation
             record.known_class_seen |= observation.label != 0
+            record.nearby_other_uuid_seen |= raw in crowded
             record.samples.append((stamp, observation.center, observation.raw_speed))
             while len(record.samples) > 1 and record.samples[0][0] < stamp - self.config.support_window_sec - 1.e-6:
                 record.samples.popleft()

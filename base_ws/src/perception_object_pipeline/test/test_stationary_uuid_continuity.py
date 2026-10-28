@@ -8,7 +8,8 @@ import unittest
 import rospy
 from autoware_perception_msgs.msg import ObjectClassification, TrackedObject, TrackedObjects
 
-from perception_object_pipeline.stationary_uuid_continuity import ContinuityConfig, StationaryUuidContinuity
+from perception_object_pipeline.stationary_uuid_continuity import (
+    ContinuityConfig, StationaryUuidContinuity, _observe, _footprint_iou)
 
 
 def identity(number):
@@ -159,10 +160,84 @@ class StationaryUuidContinuityTest(unittest.TestCase):
         self.assertEqual(self.helper.last_rejections[0]['reason'], 'nearby_current_object')
 
     def test_two_retired_neighbours_are_ambiguous(self):
-        self.retired(actor(1), actor(2, x=.6))
-        source = message(2.2, actor(3, x=.2))
+        # They were not simultaneously visible (otherwise the lifetime
+        # crowding latch already makes them ineligible sources).
+        self.retired(actor(1))
+        for index in range(9):
+            self.helper.apply(message(2. + index * .1, actor(2, x=.6)))
+        self.helper.apply(message(2.9))
+        source = message(3., actor(3, x=.2))
         self.assertEqual(wire(self.helper.apply(source)), wire(source))
         self.assertEqual(self.helper.last_rejections[0]['reason'], 'ambiguous_retired_objects')
+
+    def test_crowding_history_survives_neighbour_retired_pool_expiry(self):
+        # Deliberately retain the old loose geometry gates to isolate this
+        # lifetime-history protection from the new default tighter geometry.
+        self.helper = StationaryUuidContinuity(True, ContinuityConfig(
+            maximum_center_distance_m=.5, minimum_footprint_iou=.2))
+        for index in range(9):
+            self.helper.apply(message(1. + index * .1, actor(1, x=.1, size=(.6, .6, .4)),
+                                      actor(2, x=.5, size=(.6, .6, .4))))
+        self.assertTrue(self.helper.active[identity(1)].nearby_other_uuid_seen)
+        for index in range(30):
+            self.helper.apply(message(1.9 + index * .1, actor(1, x=.1, size=(.6, .6, .4))))
+        self.assertNotIn(identity(2), self.helper.retired)
+        self.helper.apply(message(4.9))
+        source = message(5.3, actor(3, x=.5, size=(.6, .6, .4)))
+        self.assertEqual(wire(self.helper.apply(source)), wire(source))
+
+    def test_distant_other_uuid_does_not_disable_unique_continuity(self):
+        self.support(actor(1), actor(9, x=2.))
+        self.assertFalse(self.helper.active[identity(1)].nearby_other_uuid_seen)
+        self.helper.apply(message(1.9, actor(9, x=2.)))
+        source = message(2.2, actor(2, x=.1), actor(9, x=2.))
+        output = self.helper.apply(source)
+        self.assertEqual(bytes(output.objects[0].object_id.uuid), identity(1))
+        self.assertEqual(len(output.objects), 2)
+
+    def test_tighter_overlap_gate_rejects_biased_neighbour_counterexample(self):
+        self.retired(actor(1, x=.1, size=(.6, .6, .4)))
+        source = message(2.2, actor(2, x=.5, size=(.6, .6, .4)))
+        self.assertEqual(wire(self.helper.apply(source)), wire(source))
+        self.assertEqual(self.helper.config.maximum_center_distance_m, .35)
+        self.assertEqual(self.helper.config.minimum_footprint_iou, .35)
+
+    def test_crowding_flag_is_per_track_lifetime_not_per_raw_uuid_forever(self):
+        self.support(actor(1), actor(2, x=.6))
+        self.helper.apply(message(1.9))
+        self.support(actor(1, x=20.), start=2.)
+        self.assertFalse(self.helper.active[identity(1)].nearby_other_uuid_seen)
+        self.helper.apply(message(2.9))
+        output = self.helper.apply(message(3., actor(3, x=20.1)))
+        self.assertEqual(bytes(output.objects[0].object_id.uuid), identity(1))
+
+    def test_invalid_nearby_shape_class_or_speed_still_latches_crowding(self):
+        neighbours = [actor(2, x=.8, size=(float('nan'), 1.2, 1.2)),
+                      actor(2, x=.8, speed=float('nan')), actor(2, x=.8)]
+        neighbours[-1].classification = []
+        for neighbour in neighbours:
+            with self.subTest(neighbour=neighbour):
+                self.setUp()
+                self.support(actor(1))
+                self.helper.apply(message(1.9, actor(1), neighbour))
+                self.assertTrue(self.helper.active[identity(1)].nearby_other_uuid_seen)
+                self.helper.apply(message(2., actor(1)))
+                self.helper.apply(message(2.1))
+                source = message(2.2, actor(3))
+                self.assertEqual(wire(self.helper.apply(source)), wire(source))
+
+    def test_unlocated_other_raw_id_conservatively_disqualifies_source_history(self):
+        self.support(actor(1))
+        self.helper.apply(message(1.9, actor(1), actor(2, x=float('nan'))))
+        self.assertTrue(self.helper.active[identity(1)].nearby_other_uuid_seen)
+        self.helper.apply(message(2.))
+        source = message(2.2, actor(3))
+        self.assertEqual(wire(self.helper.apply(source)), wire(source))
+
+    def test_invalid_but_located_far_neighbour_does_not_latch_nearby_history(self):
+        self.support(actor(1))
+        self.helper.apply(message(1.9, actor(1), actor(2, x=20., speed=float('nan'))))
+        self.assertFalse(self.helper.active[identity(1)].nearby_other_uuid_seen)
 
     def test_two_newborns_cannot_reuse_one_old_uuid(self):
         self.retired()
@@ -239,6 +314,55 @@ class StationaryUuidContinuityTest(unittest.TestCase):
         self.assertEqual(bytes(second.objects[0].object_id.uuid), bytes(first.objects[0].object_id.uuid))
         self.assertEqual(len(self.helper.active[identity(2)].samples), 1)
         self.assertEqual(self.helper.last_events, [])
+
+    def test_monotonic_sequence_does_not_change_continuity(self):
+        self.retired()
+        source = message(2.2, actor(2))
+        source.header.seq = 20
+        self.helper.apply(source)
+        for sequence in (21, 22, 100):
+            source = message(2.2 + sequence * .01, actor(2))
+            source.header.seq = sequence
+            output = self.helper.apply(source)
+            self.assertEqual(bytes(output.objects[0].object_id.uuid), identity(1))
+            self.assertEqual(self.helper.last_events, [])
+
+    def test_sequence_regression_discards_old_mapping_even_with_forward_clock(self):
+        self.retired()
+        source = message(2.2, actor(2))
+        source.header.seq = 20
+        self.helper.apply(source)
+        source = message(2.3, actor(2, x=50.))
+        source.header.seq = 19
+        self.assertEqual(wire(self.helper.apply(source)), wire(source))
+        self.assertEqual(self.helper.last_events[0]['reason'], 'publisher_sequence_regression')
+
+    def test_uint32_sequence_wrap_is_not_a_publisher_restart(self):
+        self.retired()
+        source = message(2.2, actor(2))
+        source.header.seq = 0xffffffff
+        self.helper.apply(source)
+        source = message(2.3, actor(2))
+        output = self.helper.apply(source)
+        self.assertEqual(bytes(output.objects[0].object_id.uuid), identity(1))
+        self.assertEqual(self.helper.last_events, [])
+
+    def test_fixed_zero_sequence_cannot_identify_silent_publisher_restart(self):
+        # Explicit observability limit: an always-zero seq provides no epoch
+        # evidence while time and raw UUID continue, unlike native publisher.
+        self.retired()
+        self.helper.apply(message(2.2, actor(2)))
+        output = self.helper.apply(message(2.3, actor(2, x=50.)))
+        self.assertEqual(bytes(output.objects[0].object_id.uuid), identity(1))
+
+    def test_footprint_iou_is_numerically_stable_at_utm_coordinates(self):
+        local = (_observe(actor(1, x=.1, y=.2, yaw=.7)),
+                 _observe(actor(2, x=.25, y=.1, yaw=-.3)))
+        expected = _footprint_iou(*local)
+        for origin_x, origin_y in ((302000., 4120000.), (10000000., 30000000.)):
+            translated = (_observe(actor(1, x=origin_x + .1, y=origin_y + .2, yaw=.7)),
+                          _observe(actor(2, x=origin_x + .25, y=origin_y + .1, yaw=-.3)))
+            self.assertAlmostEqual(_footprint_iou(*translated), expected, places=7)
 
     def test_large_forward_callback_gap_invalidates_active_mapping(self):
         self.retired()

@@ -46,6 +46,7 @@
   <arg name="confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
   <arg name="lifecycle_stationary_speed_threshold_mps" default="2.0"/>
   <arg name="suppress_duplicate_track_birth" default="true"/>
+  <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
   <arg name="pedestrian_gaussian_association_ranking" default="true"/>
   <arg name="shape_consistent_association_ranking" default="false"/>
@@ -252,6 +253,8 @@
          value="$(arg lifecycle_stationary_speed_threshold_mps)"/>
     <arg name="suppress_duplicate_track_birth"
          value="$(arg suppress_duplicate_track_birth)"/>
+    <arg name="suppress_small_unknown_duplicate_birth"
+         value="$(arg suppress_small_unknown_duplicate_birth)"/>
     <arg name="fast_confirmed_vehicle_promotion"
          value="$(arg fast_confirmed_vehicle_promotion)"/>
     <arg name="vehicle_promotion_min_confidence"
