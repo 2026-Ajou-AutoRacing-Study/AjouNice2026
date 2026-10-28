@@ -2,8 +2,10 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <autoware_planning_msgs/Trajectory.h>
 #include <morai_msgs/CtrlCmd.h>
@@ -12,11 +14,16 @@
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/String.h>
 #include <trajectory_follower/distance_speed_limit.hpp>
 #include <trajectory_follower/longitudinal_pi_utils.hpp>
 
 namespace
 {
+constexpr const char * kAnsiYellow = "\033[1;33m";
+constexpr const char * kAnsiRed = "\033[1;31m";
+constexpr const char * kAnsiReset = "\033[0m";
+
 std::string normalizedFrame(const std::string & frame)
 {
   const std::size_t first = frame.find_first_not_of('/');
@@ -58,8 +65,11 @@ public:
     private_nh_.param<std::string>("topics/steering_cmd", steering_topic_, "/control/command/steering");
     private_nh_.param<std::string>("topics/controller_valid", valid_topic_,
                                    "/control/autoware/controller_valid");
+    private_nh_.param<std::string>("topics/failure_reason", failure_topic_,
+                                   "/control/autoware/failure_reason");
     private_nh_.param<std::string>("topics/ctrl_cmd", ctrl_cmd_topic_, "/ctrl_cmd");
     private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
+    private_nh_.param("logging/status_period_s", status_period_s_, 1.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
     if (!private_nh_.getParam("vehicle/max_steer_rad", max_steer_rad_)) {
       double max_wheel_angle_deg = 40.0;
@@ -173,8 +183,14 @@ public:
     }
     steering_subscriber_ = nh_.subscribe(steering_topic_, 10, &AutowareLongitudinalPi::steeringCallback, this);
     validity_subscriber_ = nh_.subscribe(valid_topic_, 10, &AutowareLongitudinalPi::validityCallback, this);
+    failure_subscriber_ = nh_.subscribe(failure_topic_, 10,
+      &AutowareLongitudinalPi::failureCallback, this);
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_),
       &AutowareLongitudinalPi::timerCallback, this);
+    ROS_INFO_STREAM(
+      "[CTRL][LONG][START] trajectory=" << trajectory_topic_ << " | state=" << state_topic_
+      << " | command=" << ctrl_cmd_topic_ << " | rate=" << control_rate_hz_ << "Hz | status="
+      << status_period_s_ << "s");
   }
 
 private:
@@ -186,6 +202,7 @@ private:
       std::isfinite(pose_jump_motion_tolerance_m_) && pose_jump_motion_tolerance_m_ >= 0.0 &&
       std::isfinite(pose_jump_max_acceleration_mps2_) && pose_jump_max_acceleration_mps2_ >= 0.0 &&
       std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
+      std::isfinite(status_period_s_) && status_period_s_ > 0.0 &&
       std::isfinite(velocity_scale_) && velocity_scale_ > 0.0 && std::isfinite(max_steer_rad_) &&
       max_steer_rad_ > 0.0 && std::isfinite(max_accel_cmd_) && max_accel_cmd_ > 0.0 &&
       max_accel_cmd_ <= 1.0 && std::isfinite(max_brake_cmd_) && max_brake_cmd_ > 0.0 &&
@@ -329,6 +346,77 @@ private:
   {
     lateral_valid_ = message->data;
     lateral_valid_received_ = ros::Time::now();
+  }
+
+  void failureCallback(const std_msgs::String::ConstPtr & message)
+  {
+    lateral_failure_reason_ = message->data;
+  }
+
+  static void appendReason(std::vector<std::string> & reasons, const std::string & reason)
+  {
+    if (!reason.empty()) {
+      reasons.push_back(reason);
+    }
+  }
+
+  std::string inputFailureReason(const ros::Time & now) const
+  {
+    std::vector<std::string> reasons;
+    const auto receipt_reason = [&](const bool valid, const ros::Time & received,
+                                    const double timeout, const char * name) {
+      if (!valid || received.isZero()) {
+        appendReason(reasons, std::string(name) + " unavailable");
+        return;
+      }
+      const double age = (now - received).toSec();
+      if (!std::isfinite(age) || age > timeout) {
+        std::ostringstream text;
+        text.setf(std::ios::fixed);
+        text.precision(2);
+        text << name << " rx stale " << age << "s";
+        appendReason(reasons, text.str());
+      }
+    };
+    receipt_reason(trajectory_valid_, trajectory_received_, trajectory_timeout_s_, "trajectory");
+    receipt_reason(state_valid_, state_received_, state_timeout_s_, "state");
+    receipt_reason(steering_valid_, steering_received_, steering_timeout_s_, "steering");
+    receipt_reason(lateral_valid_, lateral_valid_received_, lateral_valid_timeout_s_, "lateral");
+    if (trajectory_valid_ && !sourceStampFresh(
+          trajectory_.header.stamp, now, trajectory_source_timeout_s_, future_stamp_tolerance_s_)) {
+      appendReason(reasons, "trajectory source stamp stale/zero/future");
+    }
+    if (state_valid_ && !sourceStampFresh(
+          state_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_)) {
+      appendReason(reasons, "state source stamp stale/zero/future");
+    }
+    if (!lateral_valid_ && !lateral_failure_reason_.empty()) {
+      appendReason(reasons, "lateral: " + lateral_failure_reason_);
+    }
+    if (reasons.empty()) {
+      return "controller input not ready";
+    }
+    std::ostringstream joined;
+    for (std::size_t i = 0; i < reasons.size(); ++i) {
+      if (i != 0U) {
+        joined << "; ";
+      }
+      joined << reasons[i];
+    }
+    return joined.str();
+  }
+
+  void logSafetyStop(const std::string & reason, const bool force_error = false) const
+  {
+    if (force_error || ever_ready_) {
+      ROS_ERROR_THROTTLE(
+        status_period_s_, "%s[CTRL][LONG][SAFE_STOP] %s | accel=0.00 brake=%.2f steer=0deg%s",
+        kAnsiRed, reason.c_str(), stop_brake_cmd_, kAnsiReset);
+    } else {
+      ROS_WARN_THROTTLE(
+        status_period_s_, "%s[CTRL][LONG][WAIT] %s | accel=0.00 brake=%.2f steer=0deg%s",
+        kAnsiYellow, reason.c_str(), stop_brake_cmd_, kAnsiReset);
+    }
   }
 
   std::size_t nearestIndex() const
@@ -489,19 +577,36 @@ private:
         trajectory_.header.stamp, now, trajectory_source_timeout_s_, future_stamp_tolerance_s_) &&
       sourceStampFresh(state_.header.stamp, now, state_source_timeout_s_, future_stamp_tolerance_s_);
     if (!fresh || normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id)) {
+      const bool frame_mismatch = fresh &&
+        normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id);
+      logSafetyStop(frame_mismatch ? "trajectory/state frame mismatch" : inputFailureReason(now),
+                    frame_mismatch);
       publishStop();
       return;
     }
+    ever_ready_ = true;
     const std::size_t nearest = nearestIndex();
+    const double current_velocity = state_.twist.twist.linear.x * velocity_scale_;
     if (nearest + 1U >= trajectory_.points.size()) {
+      ROS_INFO_THROTTLE(
+        status_period_s_,
+        "[CTRL][LONG][PATH_END] v=%.2fm/s (%.1fkm/h) | accel=0.00 brake=%.2f | path=%zu/%zu",
+        current_velocity, current_velocity * 3.6, stop_brake_cmd_, nearest + 1U,
+        trajectory_.points.size());
       publishStop();
       return;
     }
-    const double current_velocity = state_.twist.twist.linear.x * velocity_scale_;
     const double target_velocity = accelerationTargetVelocity(
       nearest, previewTargetVelocity(nearest, current_velocity));
     if (target_velocity <= stop_velocity_threshold_mps_ &&
         std::abs(current_velocity) <= stop_velocity_threshold_mps_) {
+      ROS_INFO_THROTTLE(
+        status_period_s_,
+        "[CTRL][LONG][HOLD] v=%.2f->%.2fm/s (%.1f->%.1fkm/h) | accel=0.00 brake=%.2f | "
+        "steer=%+.2fdeg | path=%zu/%zu | age(T/S)=%.2f/%.2fs",
+        current_velocity, target_velocity, current_velocity * 3.6, target_velocity * 3.6,
+        hold_brake_cmd_, steering_ * 180.0 / M_PI, nearest + 1U, trajectory_.points.size(),
+        (now - trajectory_received_).toSec(), (now - state_received_).toSec());
       publishHold(steering_);
       return;
     }
@@ -639,6 +744,18 @@ private:
       acceleration_command > command_deadband_
       ? std::min(max_accel_cmd_, acceleration_command) : 0.0;
     command_publisher_.publish(command);
+    const char * mode = smooth_stop_active ? "SMOOTH_STOP" :
+      deceleration_feedback_active ? "DECEL" :
+      (braking_mode_ || command.brake > command_deadband_) ? "BRAKE" :
+      command.accel > command_deadband_ ? "ACCEL" : "COAST";
+    ROS_INFO_THROTTLE(
+      status_period_s_,
+      "[CTRL][LONG][%s] v=%.2f->%.2fm/s (%.1f->%.1fkm/h) | accel=%.2f brake=%.2f | "
+      "steer=%+.2fdeg | a(plan/meas)=%+.2f/%+.2fm/s2 | path=%zu/%zu | age(T/S)=%.2f/%.2fs",
+      mode, current_velocity, target_velocity, current_velocity * 3.6, target_velocity * 3.6,
+      command.accel, command.brake, command.steering * 180.0 / M_PI, planned_acceleration,
+      filtered_acceleration_mps2_, nearest + 1U, trajectory_.points.size(),
+      (now - trajectory_received_).toSec(), (now - state_received_).toSec());
     std_msgs::Float64MultiArray debug;
     debug.layout.dim.resize(1);
     debug.layout.dim[0].label =
@@ -658,6 +775,7 @@ private:
   ros::Subscriber pose_jump_subscriber_;
   ros::Subscriber steering_subscriber_;
   ros::Subscriber validity_subscriber_;
+  ros::Subscriber failure_subscriber_;
   ros::Publisher command_publisher_;
   ros::Publisher debug_publisher_;
   bool acceleration_feedforward_enabled_{false};
@@ -671,8 +789,10 @@ private:
   std::string state_topic_;
   std::string steering_topic_;
   std::string valid_topic_;
+  std::string failure_topic_;
   std::string ctrl_cmd_topic_;
   double control_rate_hz_{50.0};
+  double status_period_s_{1.0};
   double velocity_scale_{1.0};
   double max_steer_rad_{0.698};
   double max_accel_cmd_{1.0};
@@ -745,6 +865,8 @@ private:
   bool state_valid_{false};
   bool steering_valid_{false};
   bool lateral_valid_{false};
+  bool ever_ready_{false};
+  std::string lateral_failure_reason_;
   ros::Time trajectory_received_;
   ros::Time state_received_;
   ros::Time steering_received_;
@@ -760,7 +882,7 @@ int main(int argc, char ** argv)
     AutowareLongitudinalPi node;
     ros::spin();
   } catch (const std::exception & error) {
-    ROS_FATAL("longi_pi_autoware: %s", error.what());
+    ROS_FATAL("%s[CTRL][LONG][FATAL] %s%s", kAnsiRed, error.what(), kAnsiReset);
     return 1;
   }
   return 0;
