@@ -79,12 +79,14 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 한 번도 함께 보이지 않은 별개 UNKNOWN이 위치 오차로 같은 형상·위치처럼 보이는 경우는 입력만으로 완전 식별할 수 없다. seq가 항상 0인 publisher의 짧은 tracker-only 재시작도 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
 재현과 원문은 로컬 `planner_logs/analysis/261029_duplicate_cases/`의 `uuid_continuity_v2/summary.json`, `uuid_raw_regression/summary.json`, `actual_ros/comparison.json`, `case_audit/planner_replay_REPORT.md`에 보존했다. 재학습은 필요 없으며 새 패키지 설치 후 tracker/policy를 새로 실행해야 한다.
 2026-10-29 후속 강화·반례·최종 source hash는 로컬 `planner_logs/analysis/261029_duplicate_followup/helper_review/`에 보존했다. `processing_time_ms` 기존 선택적 진단 JSON의 `uuid_continuity`에 계승·거절·초기화와 변경 객체 수를 남긴다. 콘솔 출력·새 topic·GT 입력은 추가하지 않는다.
+추가 실제 MORAI 대조는 E12/TRT·측위·실제 판단/제어와 로컬 v100에서 4장면×OFF/ON 8회 모두 완주·충돌 0이었다. Woodbox4는 raw ID 2개→전달 ID 1개·SOA 기억 2→1개, Woodbox7은 raw 3개→전달 2개·기억 3→2개로 실제 계승됐다. UUID 이외 출력 내용은 동일했다. Woodbox7의 남은 재검출은 XY 1.063m·IoU 0.0565로 달라 계승을 거절했으며 gate를 넓히지 않았다. OFF도 모두 완주했고 목표 5m 밖 전부-0 궤적은 양쪽 모두 0이므로 역사적 중도 정지의 완치나 v101·전체 코스 인증이 아니다. 원형·목표·지도·모델·판단 설정을 맞춘 실제 기록과 영상은 로컬 `planner_logs/validation/duplicate_live_paired_261029_083146/`, 독립 감사는 `planner_logs/analysis/261029_duplicate_live/audit_paired/`에 보존했다. 기본 OFF·Draft 유지다.
 
 ### 소형 UNKNOWN 중복 birth 후보
 
 `tracking suppress_small_unknown_duplicate_birth:=true`로 새 스택을 실행한다. 기존 `suppress_duplicate_track_birth=true`도 필요하며 두 후보는 독립적으로 비교한다. 이미 존재하는 두 track을 합치지 않는다. 같은 프레임에 실제 검출을 받은 유일한 mature UNKNOWN과, 새 unmatched UNKNOWN의 raw XY 크기가 모두 1m 미만·XYZ≥0.15m·중심≤0.25m·높이 차≤0.3m·정렬 치수비≤1.5·회전 IoU≥0.45일 때만 새 birth를 막는다. known-class 이력이나 복수 대응이 있으면 적용하지 않는다.
 신규 34bag의 기록 검출 코어 재생에서 UNKNOWN birth 146→145, 중복 GT 대응 frame 863→797이며 0.5/1/2m coverage는 동일했다. 영향은 PE_Drum 한 사례이고 나머지 33개는 동일하다. 추가 21사례 10,082입력의 state·공분산과 14장면 catalog AP는 동일했다. 더 넓은 후보는 보조 객체의 0.5m coverage를 떨어뜨려 제외했다. `planner_logs/analysis/261029_duplicate_followup/native_small_final_summary.json`이 비교·한계·고정 source 근거다.
 native 121개 시험을 통과했지만, 가까운 별개 실제 객체의 관측 박스가 크게 겹치는 본질적 모호성은 남는다. 34bag 실제 GT 간격은 최소 10m이므로 근접 두 실제 UNKNOWN의 대회 안전성이나 폐루프 완주로 확대하지 않는다. 배포 시 tracker submodule 갱신·증분 빌드·fresh stack이 필요하다. 기본은 OFF다.
+위 실제 MORAI 8회 중 소형 birth 후보는 ON에서도 발동 0회였다. Drum의 동시 중복은 남았고 서로 다른 입력·주행이므로 프레임 수 차이를 후보 효과로 해석하지 않는다. 이 후보의 효과 근거는 동일 입력 재생이며 실제 주행의 중복 제거 효과는 아직 인증하지 않았다.
 
 ### 기존 후보와 지도 예측 계약
 
