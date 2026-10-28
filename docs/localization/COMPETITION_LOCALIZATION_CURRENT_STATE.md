@@ -71,6 +71,10 @@ field localization initial_position_source:=official_start gnss_delay_ms:=20
 공통 기본값은0ms이고 사용자별 후보를 alias에 몰래 고정하지 않는다.
 
 Validator의 개인 YAML에서도 `stack.localization_args.gnss_delay_ms: 20`을 선택할 수 있다.
+일반 validator GUI의 **실행 탭 → 측위 옆 `GNSS 보상(ms)`**에서도 같은 값을 입력한다(0~100, 기본 0).
+YAML 저장 후 새 실행부터 적용되며 실행 중에는 잠긴다. GT 측위에서는 비활성화되고 GNSS 보상을 적용하지 않는다.
+기존 초 단위 값은 ms로 표시하되, 숫자를 바꾸지 않고 저장하면 원본 단위를 유지한다.
+빠른 GT 대조는 임시 실행 사본에서만 미사용 측위 인자를 제외하며 원본의 GNSS 설정은 보존한다.
 기존 실행 snapshot·resume 인벤토리는 바꾸지 않는다. 보정값이 다른 시험은 새 실행으로 시작한다.
 
 ## 원큐 측정: 녹화와 validator
