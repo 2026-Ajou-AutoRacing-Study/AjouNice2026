@@ -20,7 +20,7 @@
 | 우선 작업 | 착수·완료 기준 |
 | --- | --- |
 | 팀 4090 LAN 송신률 원인 확인 | [Linux 단계별 분석](bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)은 완료했다. Windows MORAI의 동시 계측을 받아 송신률·네트워크 경계를 확인하며, 기존 bag에 없는 물리 발생 시각은 추정으로 채우지 않음 |
-| 중복·분류·회피 후보의 운영 판단 | UNKNOWN 정지 prior는 독립 입력의 퇴행으로 기본 OFF를 유지한다. [v99 대조](bevfusion/evidence/261028_V99_WINDOW60_90_LIVE_REVIEW.md)의 90m 새 실패와 시간 예산에 따른 경로 변동을 구분하고, cap60·기존 안전 검사를 유지한 채 후보를 검토 |
+| 중복·분류·회피 후보의 운영 판단 | UNKNOWN 정지 prior는 독립 입력의 퇴행으로 기본 OFF를 유지한다. [v99 대조](bevfusion/evidence/261028_V99_WINDOW60_90_LIVE_REVIEW.md) 후속 격리 시험에서 경로 유지 비용 경쟁·seed별 예산 후보도 실패 증가로 기각했다. cap60·기존 안전 검사를 유지하며, 추가 연구는 QP 계산 맥락과 후속 경로 이력을 먼저 구분 |
 | 신호등 수정 후 팀 LAN 확인 | [최신 v99 기록](bevfusion/evidence/261028_TEAM_LAN_AND_DUPLICATE_TRACK_REVIEW.md)의 A/B/C 정차·재출발 분석은 완료했다. D 미관측 음수속도 결함의 로컬 수정·설치 후 새 LAN 재주행과 이동 중 G→Y 경계 확인이 남음. 계산6/10·응답지연0은 유지하며 설정 권위는 신호등 CURRENT |
 | 측위 현장 재검증 | 현재 Smooth/음영 계약을 유지하고, 운영측 CP14 환경 갱신 후 해당 복귀와 실제 LAN 기록을 재검증. 세부 순서는 측위 CURRENT |
 | 팀 배포 후 프로필 확인 | 현장 원본 + LAN adapter + Ego 수신 OFF + 공식 START 초기화 명시 기준. 팀 PC의 실제 NIC·로드본·설치본과 초기 pose 발행을 확인하며 새 LAN 기동 검증은 별도로 기록 |

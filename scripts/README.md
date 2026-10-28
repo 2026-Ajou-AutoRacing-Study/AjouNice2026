@@ -29,6 +29,8 @@ Windows MORAI PC는 전달받은 `start_morai_recording.ps1` 한 파일을 실�
 
 개발 녹화는 시작/종료 시 실제 behavior-velocity planner, path optimizer,
 velocity smoother와 종제어(`longi_pi_autoware`)의 ROS 파라미터도 읽어 보관한다.
+같은 PC의 MPT·신호등 실행 파일/라이브러리 식별 정보도 선택적으로 보관한다.
+조회 실패는 녹화를 막지 않으며, 이는 메모리·GPU 백엔드 검증이 아니다.
 신호 관측 자료와 실제 `planner_decision_debug` 녹화 완전성은 따로 표시한다.
 실제 vector map·route·운행 모드·차량 속도/조향 상태도 저용량 재생 문맥으로 기록하고
 `planner_map_route_context`에서 유무를 구분한다. 이것만으로 전체 planner 재생 가능성을 인증하지 않는다.

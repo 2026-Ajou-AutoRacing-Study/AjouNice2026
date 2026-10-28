@@ -109,6 +109,7 @@ def bounded_ros_readers(master_uri):
     proxy = xmlrpc.client.ServerProxy(master_uri, transport=SnapshotTransport(), allow_none=True)
     caller = '/development_bag_recorder'
     class Reader:
+        master_uri = ''
         def call(self, method, *args):
             code, _, value = getattr(proxy, method)(caller, *args)
             if code != 1:
@@ -127,7 +128,9 @@ def bounded_ros_readers(master_uri):
             if code != 1:
                 raise RuntimeError('ROS parameter snapshot failed')
             return value
-    return Reader()
+    reader = Reader()
+    reader.master_uri = master_uri
+    return reader
 
 
 def audit(path, patterns):
@@ -138,6 +141,13 @@ def snapshot(master, rospy):
     """Only read ROS state. Never change a parameter, publisher, or node."""
     result = dict(captured_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   wall_ns=time.time_ns(), monotonic_ns=time.monotonic_ns(), parameters={}, errors={})
+    # Optional, isolated and hard-bounded. Failure never gates bag or driving.
+    try:
+        result['loaded_binary_receipts'] = local_module('loaded_library_receipt').collect_bounded(
+            getattr(master, 'master_uri', None))
+    except Exception as error:
+        result['loaded_binary_receipts'] = dict(status='collector_unavailable',
+                                                targets={}, error_type=type(error).__name__)
     for name in PARAMETERS:
         try:
             result['parameters'][name] = scrub(rospy.get_param(name))
@@ -292,6 +302,7 @@ def main():
     write_json(directory/'ros_state_start.json', state)
     provenance = {}
     for file in (Path(__file__), Path(__file__).with_name('development_recording_audit.py'),
+                 Path(__file__).with_name('loaded_library_receipt.py'),
                  Path(__file__).with_name('record_host_telemetry.py'), ROOT/'docs/common_alias.txt',
                  ROOT/'configs/perception/bevfusion_base5_production.yaml',
                  ROOT/'base_ws/src/sensor_interface/launch/lidar.launch'):
@@ -299,13 +310,16 @@ def main():
     host_command = None if args.no_host_telemetry else telemetry_command(directory, session_id, args)
     write_json(directory/'metadata.json', dict(command=cmd, session_id=session_id, git_commit=git('rev-parse', 'HEAD'),
         git_status=git('status', '--short'), source_sha256=provenance,
+        loaded_binary_receipts=state.get('loaded_binary_receipts'),
         advertised_topics=state.get('advertised_topics'), parameters=state['parameters'],
         diagnostic_advertisement_readiness=readiness,
         host_telemetry_command=host_command,
         raw_images='Original CompressedImage bytes; no re-encoding. Decoded images opt-in.',
         started_at=datetime.datetime.now().astimezone().isoformat(),
-        limits='Start/end ROS parameters and local source hashes are not proof of installed binary '
-               'or GPU backend identity. Clock alignment and source physical timestamps are unverified.'))
+        limits='ROS parameters and source hashes alone do not identify installed binaries. Optional '
+               'loaded_binary_receipts identify allowlisted local backing disk files only, not memory '
+               'bytes, active branches or GPU backend. Clock alignment and source physical timestamps '
+               'are unverified.'))
     print('개발용 녹화 폴더: '+str(directory), flush=True)
     print('양쪽 PC 공통 session-id: ' + session_id, flush=True)
     print('원본 압축 카메라·LiDAR PointCloud/패킷·GPS/IMU 포함. recorder.log의 Recording을 확인한 뒤 주행하세요.', flush=True)

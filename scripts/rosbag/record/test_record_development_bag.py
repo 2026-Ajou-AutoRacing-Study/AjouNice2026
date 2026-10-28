@@ -57,7 +57,9 @@ class RecordingTests(unittest.TestCase):
         self.assertEqual(len(recorder.PARAMETERS), len(set(recorder.PARAMETERS)))
 
     def test_list_needs_neither_ros_nor_files(self):
-        with patch.object(sys, 'argv', ['recorder', '--list']), contextlib.redirect_stdout(io.StringIO()) as output:
+        with patch.object(sys, 'argv', ['recorder', '--list']), \
+                patch.object(recorder, 'local_module', side_effect=AssertionError('no collector allowed')), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(recorder.main(), 0)
         self.assertIn('obstacle_cruise', output.getvalue())
 
@@ -80,6 +82,7 @@ class RecordingTests(unittest.TestCase):
     def test_audit_only_does_not_contact_master_or_write(self):
         with patch.object(sys, 'argv', ['recorder', '--audit-only', '/tmp/closed.bag']), \
                 patch.object(recorder, 'audit', return_value={'offline': True}) as audit, \
+                patch.object(recorder, 'local_module', side_effect=AssertionError('no collector allowed')), \
                 contextlib.redirect_stdout(io.StringIO()) as stream:
             self.assertEqual(recorder.main(), 0)
         self.assertEqual(json.loads(stream.getvalue()), {'offline': True})
@@ -112,6 +115,21 @@ class RecordingTests(unittest.TestCase):
         self.assertFalse(state['parameters']['/use_sim_time'])
         self.assertEqual(state['parameters']['/bevfusion_ros_bridge']['token'], '[REDACTED]')
         self.assertIsNone(state['parameters']['/traffic_light_node'])
+        self.assertEqual(state['loaded_binary_receipts']['status'], 'master_uri_unavailable')
+
+    def test_optional_binary_receipt_failure_does_not_abort_snapshot(self):
+        class Master:
+            master_uri = 'http://fake-only.invalid:11311'
+            def getPublishedTopics(self, namespace):
+                return []
+            def getSystemState(self):
+                return [[], [], []]
+            def get_param(self, name):
+                raise KeyError(name)
+        with patch.object(recorder, 'local_module', side_effect=RuntimeError('collector failed')):
+            state = recorder.snapshot(Master(), Master())
+        self.assertEqual(state['loaded_binary_receipts']['status'], 'collector_unavailable')
+        self.assertEqual(state['advertised_topics'], [])
 
     def test_only_own_host_child_is_terminated(self):
         class Process:

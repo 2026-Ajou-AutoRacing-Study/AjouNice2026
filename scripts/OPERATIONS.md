@@ -63,6 +63,16 @@ GT·인지·측위·TF·단계별 계획 경로·제어·LC 안전 검사·Cruis
 구버전 노드·미활성 기능의 진단은 없을 수 있다. 최신 빌드가 필요하며, advertise만 있고 발행하지 않는
 Cruise `debug/obstacle_cruise/trajectory`는 필수 토픽으로 취급하지 않는다.
 
+시작/종료 `ros_state_*.json`의 `loaded_binary_receipts`에는 같은 PC에서 실행 중인
+MPT와 behavior-velocity planner의 실행 파일 및 지정된 MPT·신호등 라이브러리만 조회한다.
+시작 결과는 `metadata.json`에도 담는다. 노드의 로컬 주소·PID 시작 시각·실행 파일과
+라이브러리 매핑의 device/inode를 확인한 경우에만 backing disk 파일의 SHA256을 보관한다.
+이는 Git/source와 실제 설치본의 불일치를 추적하기 위한 자료이지, 메모리 내용·활성 분기·
+지도/모델·GPU 백엔드의 증명이 아니다. 삭제된 매핑·원격 노드·권한 부족·파일 변경은
+해당 상태만 남기며 정상 hash로 위장하지 않는다. 별도 단발 수집기는 스냅샷당 최대 3초로
+제한되고, 실패해도 녹화와 주행을 차단하지 않는다. `--list`·`--audit-only`에서는 실행하지 않는다.
+추가 패키지 설치나 C++ 재빌드는 필요 없고 기존 녹화 명령을 그대로 사용한다.
+
 ### LAN 두 PC를 함께 계측하기
 
 2026-10-24 사용자가 전달한 구성은 **Windows MORAI 송신 `10.42.0.252` → Linux 알고리즘 수신
