@@ -34,6 +34,7 @@ COMMENTS = {
     "default_case.timeout_sec": "제어기 준비 후 주행 제한(초). 로드/스택 준비 대기와 별개. 늦게 도착하면 FAIL.",
     "default_case.arrival_mode": "stop: 목적지에서 정지까지 확인. pass_through: 목적지 통과 확인.",
     "stack.pose_source": "localization: 실제 측위, maptf_morai: Ego GT 위치 대조. 빠른 대조는 planning 탭.",
+    'stack.localization_args.gnss_delay_ms': 'GNSS 지연 보상(ms), 0=OFF, 0~100. 추가 대기 없이 위치를 전진 보상. GUI 측위 옆에서 선택. 기존 초 단위 보상과 중복 지정하지 마세요.',
     "stack.detector": "bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.",
     'stack.bevfusion_model': 'base5_e12=production(기본, TRT+SDPA/cache) 0.40/0.10/0.10, base5_e24/e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.',
     'recording.analysis_mode': 'true=인지 분석. 센서 원본+영상 필수, 마감 후 실제 bag 메시지 수 검사. 기본 basic 모드는 유지.',
@@ -203,6 +204,9 @@ def quick_test_document(template, names, *, detector, pose_source, traffic_light
         result["scenarios"]["randomization"]["enabled"] = False
     result["stack"].update(detector=detector, pose_source=pose_source,
                            traffic_light=bool(traffic_light))
+    # This is a temporary provider comparison, never a mutation of the authoring
+    # YAML. Inactive provider arguments must not block the other provider.
+    result['stack'].pop('localization_args' if pose_source == 'maptf_morai' else 'gt_pose_args', None)
     for key, value in (('traffic_light_yellow_passthrough', traffic_light_yellow_passthrough),
                        ('traffic_light_debug_view', traffic_light_debug_view)):
         if value is not None:

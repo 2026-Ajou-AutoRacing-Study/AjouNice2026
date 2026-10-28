@@ -57,6 +57,7 @@ UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.item
 EDITABLE_FIELDS = {
     'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
+    'gnss_delay_ms': ('stack', 'localization_args', 'gnss_delay_ms'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
     'traffic_light_yellow_passthrough': ('stack', 'traffic_light_yellow_passthrough'),
     'traffic_light_debug_view': ('stack', 'traffic_light_debug_view'),
@@ -179,6 +180,7 @@ def form_values(document):
         "repeat": scene.get("repeat", 1),
         "timeout_sec": case.get("timeout_sec", 180),
         "pose_source": stack.get("pose_source", "localization"),
+        "gnss_delay_ms": gnss_delay_form_value(stack),
         "detector": stack.get("detector", "od_gt"),
         'bevfusion_model': PRESETS[stack.get('bevfusion_model', DEFAULT_MODEL)]['label'],
         'recording_mode': bag_options.mode_label(recording),
@@ -222,6 +224,39 @@ def finite_number(value, label, *, positive=False):
     return number
 
 
+def gnss_delay_form_value(stack):
+    arguments = stack.get('localization_args', {})
+    return (arguments['gnss_delay_ms'] if 'gnss_delay_ms' in arguments else
+            float(arguments.get('gnss_motion_compensation_sec', 0.)) * 1000.)
+
+
+def apply_gnss_delay_edit(document, template, requested):
+    """Edit only GUI-owned timing keys, preserving untouched legacy YAMLs."""
+    if isinstance(requested, bool):
+        raise ValueError('GNSS 지연 보상은 0~100ms 숫자여야 합니다')
+    value = finite_number(requested, 'GNSS 지연 보상(ms)')
+    if not 0. <= value <= 100.:
+        raise ValueError('GNSS 지연 보상은 0~100ms 범위여야 합니다')
+    stack = document['stack']
+    if stack.get('pose_source') == 'maptf_morai':
+        arguments = stack.get('localization_args', {})
+        if arguments:
+            if set(arguments) - {'gnss_delay_ms', 'gnss_motion_compensation_sec'}:
+                raise ValueError('GT 측위에는 localization_args를 적용할 수 없습니다. '
+                                 '고급 측위 설정을 보존했으니 YAML에서 별도 대조 설정을 만드세요.')
+            stack.pop('localization_args')
+            return [('stack', 'localization_args')]
+        return []
+    if value == float(gnss_delay_form_value(template.get('stack', {}))):
+        return []  # Opening/saving old seconds-only YAML is not a migration.
+    arguments = stack.setdefault('localization_args', {})
+    arguments['gnss_delay_ms'] = value
+    arguments.pop('gnss_motion_compensation_sec', None)
+    # Both units participate in 3-way conflict checks, never silently add/override.
+    return [('stack', 'localization_args', key)
+            for key in ('gnss_delay_ms', 'gnss_motion_compensation_sec')]
+
+
 def build_document(template, values):
     """Transform form values into a validated personal YAML document."""
     result = copy.deepcopy(template)
@@ -242,6 +277,7 @@ def build_document(template, values):
     stack = result.setdefault("stack", {})
     for key in ("pose_source", "detector"):
         stack[key] = str(values[key])
+    apply_gnss_delay_edit(result, template, values.get('gnss_delay_ms', gnss_delay_form_value(template.get('stack', {}))))
     stack["traffic_light"] = bool(values["traffic_light"])
     model = LABEL_PRESETS.get(values.get('bevfusion_model', PRESETS[DEFAULT_MODEL]['label']))
     if model is None:
@@ -337,6 +373,8 @@ def operator_document(template, latest, values, include):
     baseline = form_values(template)
     proposed = copy.deepcopy(template)
     for key, path in EDITABLE_FIELDS.items():
+        if key == 'gnss_delay_ms':
+            continue  # Numeric equality and legacy-unit migration are handled below.
         if str(values[key]) == str(baseline[key]):
             continue
         value = values[key]
@@ -378,6 +416,7 @@ def operator_document(template, latest, values, include):
     else:
         proposed['scenarios']['include'] = list(include)
     paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
+    paths += apply_gnss_delay_edit(proposed, template, values.get('gnss_delay_ms', baseline['gnss_delay_ms']))
     # An explicit opt-in can select the managed interpreter, but merely
     # opening/saving old YAMLs must not migrate their runtime or resume hash.
     if (values['traffic_light_profile'] != baseline['traffic_light_profile']
@@ -886,6 +925,22 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         add_field(advanced, row - 3, "goal_" + key, label)
     add_field(advanced, 4, "timeout_sec", "공통 주행 제한 (초)")
     add_field(basic, 4, "pose_source", "측위", choices=["localization", "maptf_morai"])
+    gnss_bar = ttk.Frame(basic)
+    gnss_bar.grid(row=4, column=2, sticky='w', padx=6)
+    ttk.Label(gnss_bar, text='GNSS 보상(ms)').pack(side='left')
+    vars_['gnss_delay_ms'] = tk.StringVar()
+    field_widgets['gnss_delay_ms'] = ttk.Spinbox(
+        gnss_bar, textvariable=vars_['gnss_delay_ms'], from_=0, to=100, increment=1, width=6)
+    field_widgets['gnss_delay_ms'].pack(side='left', padx=4)
+    ttk.Label(gnss_bar, text='0=끄기').pack(side='left')
+
+    def update_gnss_widget(*_):
+        running = active.get('ui_running', False) or any(
+            active.get(key) and active[key].poll() is None for key in ('process', 'check_process'))
+        field_widgets['gnss_delay_ms'].configure(
+            state='normal' if vars_['pose_source'].get() == 'localization' and not running else 'disabled')
+
+    vars_['pose_source'].trace_add('write', update_gnss_widget)
     add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
     add_field(basic, 6, 'bevfusion_model', 'BEVFusion 모델', choices=[v['label'] for v in PRESETS.values()])
     vars_['selected_topics'] = tk.StringVar()
@@ -1684,6 +1739,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             widget = field_widgets[key]
             widget.configure(state='disabled' if running else ('readonly' if isinstance(widget, ttk.Combobox) else 'normal'))
         update_recording_widgets()
+        update_gnss_widget()
         for label in ('YAML 저장', '불러오기/새로고침', "새 실험 시작"):
             control_buttons[label].configure(state="disabled" if running else "normal")
         for index in (0, 1):

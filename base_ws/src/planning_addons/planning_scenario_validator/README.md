@@ -19,6 +19,10 @@ localization/od_gt/planner/controller 주행·소형 bag 녹화·stop/P 검증·
 설정에 자동 적용하지 않는다. 네트워크·원본 보존·분석 조건과 OFF/ON 대조는
 [localization CURRENT](../../../../docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#원큐-측정-녹화와-validator)를 따른다.
 
+일반 GUI에서도 **실행 탭 → 측위 오른쪽 `GNSS 보상(ms)`**에 0~100을 입력할 수 있다.
+0은 OFF, 예를 들어 15는 `stack.localization_args.gnss_delay_ms: 15`로 저장돼 다음 새 실행에 적용된다.
+GT 측위에서는 입력이 비활성화된다. 실행 중에는 변경할 수 없고, 기존 초 단위 설정은 무수정 저장 시 보존한다.
+
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
 설치 후에는 [실제 작업 순서](../../../../docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)를 따른다. [자주 쓰는 곳을 표시한 화면 5장](../../../../docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)과 [자세한 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)도 제공한다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
