@@ -70,6 +70,9 @@ bool keep_input_points(const std::vector<std::shared_ptr<SceneModuleStatus>> & s
 
 BehaviorModuleOutput SourcePlannerPipeline::run(const std::shared_ptr<PlannerData> & data)
 {
+  if (data->avoidance_object_ownership && data->dynamic_object) {
+    data->avoidance_object_ownership->update(*data->dynamic_object);
+  }
   resetProcessingTime();
   StopWatch<std::chrono::milliseconds> stop_watch;
   stop_watch.tic("total_time");

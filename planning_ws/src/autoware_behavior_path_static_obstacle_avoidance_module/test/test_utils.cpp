@@ -1791,4 +1791,29 @@ TEST(StaticMotionHandoff, OtherGenerationModesRetainTheirExistingMovingConfirmat
   object.move_time=.6;
   EXPECT_TRUE(filtering_utils::isMovingObject(object,params));
 }
+
+TEST(StaticMotionHandoff, SharedSpeedOwnerOverridesClassThresholdAndReleasesBothMemories)
+{
+  auto params = std::make_shared<AvoidanceParameters>();
+  params->path_generation_method = "optimization_base";
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold = 2.0;
+  Pose pose;
+  Shape shape;
+  auto object = create_test_object(
+    pose, create_vector3(0.5, 0, 0), shape, ObjectClassification::CAR);
+  ObjectDataArray stored{object}, clip{object};
+  object.dynamic_avoidance_owner = true;
+  EXPECT_TRUE(filtering_utils::isMovingObject(object, params));
+  AvoidancePlanningData fresh;
+  fresh.other_objects.push_back(object);
+  releaseMovingClipObjects(fresh, stored, clip, params);
+  EXPECT_TRUE(stored.empty());
+  EXPECT_TRUE(clip.empty());
+
+  // A stopped/held-static owner is eligible immediately, regardless of old class policy.
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold = 0.1;
+  object.dynamic_avoidance_owner = false;
+  object.move_time = 100.0;
+  EXPECT_FALSE(filtering_utils::isMovingObject(object, params));
+}
 }

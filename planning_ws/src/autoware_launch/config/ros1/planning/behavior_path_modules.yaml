@@ -1,3 +1,7 @@
+avoidance_object_ownership:
+  # Speed-only hysteresis, applied immediately without timers or admission counts.
+  dynamic_enter_speed: 0.5
+  static_enter_speed: 0.2
 bidirectional_traffic:
   time_to_prepare_pull_over: 1.0
   min_distance_from_roadside: 0.2

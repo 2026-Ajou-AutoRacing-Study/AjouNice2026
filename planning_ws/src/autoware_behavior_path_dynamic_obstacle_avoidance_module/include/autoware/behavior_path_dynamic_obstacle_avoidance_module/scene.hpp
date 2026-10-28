@@ -181,7 +181,8 @@ public:
       const PredictedObject & predicted_object, const double arg_vel, const double arg_lat_vel,
       const bool arg_is_object_on_ego_path,
       const std::optional<rclcpp::Time> & arg_latest_time_inside_ego_path)
-    : uuid(autoware_utils::to_hex_string(predicted_object.object_id)),
+    : id(predicted_object.object_id),
+      uuid(autoware_utils::to_hex_string(predicted_object.object_id)),
       label(predicted_object.classification.front().label),
       pose(predicted_object.kinematics.initial_pose_with_covariance.pose),
       shape(predicted_object.shape),
@@ -195,6 +196,7 @@ public:
       }
     }
 
+    unique_identifier_msgs::UUID id;
     std::string uuid{};
     uint8_t label{};
     geometry_msgs::msg::Pose pose{};
@@ -370,6 +372,7 @@ public:
   }
 
 private:
+  friend struct DynamicObstacleAvoidanceTestAccess;
   struct LatLonOffset
   {
     const size_t nearest_idx;
@@ -443,7 +446,7 @@ private:
   std::optional<autoware_utils::Polygon2d> calcObjectPathBasedDynamicObstaclePolygon(
     const DynamicAvoidanceObject & object) const;
   std::optional<autoware_utils::Polygon2d> calcPredictedPathBasedDynamicObstaclePolygon(
-    const DynamicAvoidanceObject & object, const EgoPathReservePoly & ego_path_poly) const;
+    const DynamicAvoidanceObject & object, const double margin) const;
   EgoPathReservePoly calcEgoPathReservePoly(const PathWithLaneId & ego_path) const;
   lanelet::ConstLanelets getCurrentLanesFromPath(
     const PathWithLaneId & path, const std::shared_ptr<const PlannerData> & planner_data);

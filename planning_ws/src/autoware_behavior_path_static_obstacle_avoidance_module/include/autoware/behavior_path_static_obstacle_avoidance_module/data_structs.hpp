@@ -405,6 +405,9 @@ struct ObjectData  // avoidance target
 
   PredictedObject object;
 
+  // Shared SOA/DOA decision, populated only in optimization-base mode.
+  std::optional<bool> dynamic_avoidance_owner;
+
   // object behavior.
   enum class Behavior {
     NONE = 0,
