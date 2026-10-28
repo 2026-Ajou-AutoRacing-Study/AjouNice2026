@@ -609,6 +609,12 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     return std::nullopt;
   };
 
+  if (p.relax_road_bounds &&
+      (p.obstacles.empty() || !mpt_param_.hard_constraint || !mpt_param_.soft_constraint ||
+       mpt_param_.use_acados)) {
+    return reject_candidate("soft road retry requires OSQP with hard obstacles and soft constraints");
+  }
+
   const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
     p.ego_pose, p.obstacles, vehicle_info_);
   if (candidate_trial_ && !initial_overlaps) return reject_candidate("invalid obstacle geometry");
@@ -642,7 +648,7 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     if (!allow_initial_overlap && firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
       return reject_candidate("measured footprint overlaps obstacle");
     }
-    if (!measuredFootprintInsideRoad(
+    if (!p.relax_road_bounds && !measuredFootprintInsideRoad(
           p.ego_pose, p.left_bound, p.right_bound, vehicle_info_, mpt_param_.hard_clearance_from_road)) {
       return reject_candidate("measured footprint outside current road");
     }
@@ -1288,6 +1294,17 @@ MPTOptimizer::calcReferencePoints(
   updateBounds(ref_points, p.left_bound, p.right_bound, p.ego_pose, p.ego_vel);
   updateVehicleBounds(ref_points, ref_points_spline, p.left_bound, p.right_bound);
   for (auto & ref : ref_points) ref.soft_bounds_on_constraints = ref.bounds_on_constraints;
+  if (p.relax_road_bounds) {
+    // Save the actual road limits above for the slack objective. Remove ONLY
+    // their hard inequalities; the obstacle loop below then builds hard
+    // separating bounds independently of the road, rather than disabling the
+    // combined hard_constraint switch (which would also release obstacles).
+    for (auto & ref : ref_points) {
+      for (auto & bounds : ref.bounds_on_constraints) {
+        bounds = Bounds{-autoware::osqp_interface::INF, autoware::osqp_interface::INF};
+      }
+    }
+  }
   // Independent obstacle constraints: roads remain unchanged. Each candidate chooses a
   // separating side per polygon; the vehicle circle must lie beyond its support plane.
   const size_t obstacle_ego_idx = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);

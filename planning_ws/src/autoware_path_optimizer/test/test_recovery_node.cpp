@@ -1,6 +1,7 @@
 // Copyright 2026 AjouNice2026
 // Licensed under the Apache License, Version 2.0.
 #include <autoware/path_optimizer/node.hpp>
+#include <autoware/path_optimizer/obstacle_collision.hpp>
 #include <gtest/gtest.h>
 
 namespace autoware::path_optimizer
@@ -25,6 +26,19 @@ PlannerData scene(bool touching)
   }
   o.hard_margin=0.1; o.soft_margin=0.55; d.obstacles.push_back(o); return d;
 }
+PlannerData narrowScene()
+{
+  auto d=scene(false);
+  for(auto & p:d.left_bound)p.y=1.55;
+  for(auto & p:d.right_bound)p.y=-1.55;
+  d.obstacles.front().polygon.points.clear();
+  for(const auto & xy:std::vector<std::pair<double,double>>{
+      {22.0,-0.4},{24.0,-0.4},{24.0,0.4},{22.0,0.4}}) {
+    geometry_msgs::Point32 p;p.x=xy.first;p.y=xy.second;
+    d.obstacles.front().polygon.points.push_back(p);
+  }
+  return d;
+}
 class Harness:public PathOptimizer
 {
 public:
@@ -37,6 +51,10 @@ public:
   bool failed() const {return is_optimization_failed_;}
   void disable() {enable_obstacle_fallback_=false;}
   bool blockedByFinalCheck(const PlannerData & d,std::vector<TrajectoryPoint> & p) {return stopBeforeObstacle(d,p);}
+  bool hitsObstacle(const PlannerData & d,const std::vector<TrajectoryPoint> & p) {
+    const size_t ego=autoware::motion_utils::findNearestIndex(p,d.ego_pose.position);
+    return firstObstacleCollision(p,ego,d.obstacles,vehicle_info_).has_value();
+  }
 
 };
 bool moving(const std::vector<TrajectoryPoint> & p) {
@@ -63,6 +81,35 @@ TEST(RecoveryNode, DisableRestoresOriginalOverlapStop)
 TEST(RecoveryNode, UpstreamStopIsNotReleasedByContactRecovery)
 {
   Harness node;auto d=scene(true);for (auto & p:d.traj_points)p.longitudinal_velocity_mps=0.0;
+  EXPECT_FALSE(moving(node.run(d)));EXPECT_FALSE(node.recovering());
+}
+TEST(RecoveryNode, FailedHardRoadSolveRetriesWithSoftRoadAndHardObstacle)
+{
+  auto d=narrowScene();
+  Harness strict;strict.disable();
+  EXPECT_FALSE(moving(strict.run(d)));
+  Harness retry;auto p=retry.run(d);
+  ASSERT_FALSE(p.empty());
+  EXPECT_TRUE(moving(p));EXPECT_FALSE(retry.failed());EXPECT_TRUE(retry.recovering());
+  EXPECT_FALSE(retry.hitsObstacle(d,p));
+  EXPECT_FALSE(retry.blockedByFinalCheck(d,p));
+  const size_t ego=autoware::motion_utils::findNearestIndex(p,d.ego_pose.position);
+  EXPECT_NEAR(p[ego].pose.position.y,0.0,0.05);
+  // The only available escape crosses the narrow planning corridor.
+  EXPECT_TRUE(std::any_of(p.begin(),p.end(),[](const auto & q) {
+    return std::abs(q.pose.position.y)>1.55;
+  }));
+}
+TEST(RecoveryNode, RoadRetryDoesNotReleaseUpstreamStop)
+{
+  Harness node;auto d=narrowScene();
+  for(auto & p:d.traj_points)p.longitudinal_velocity_mps=0.0;
+  EXPECT_FALSE(moving(node.run(d)));EXPECT_FALSE(node.recovering());
+}
+TEST(RecoveryNode, RoadRetryDoesNotReleaseObstacleConstraints)
+{
+  Harness node;auto d=narrowScene();
+  for(auto & p:d.obstacles.front().polygon.points)p.y=p.y<0?-20.0:20.0;
   EXPECT_FALSE(moving(node.run(d)));EXPECT_FALSE(node.recovering());
 }
 

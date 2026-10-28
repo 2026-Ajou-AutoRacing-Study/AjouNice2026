@@ -123,11 +123,13 @@ protected:  // for the static_centerline_generator package
   double obstacle_return_length_{15.0};
   ObstacleClusteringParameters obstacle_clustering_param_;
   size_t obstacle_search_cursor_{0};
+  size_t relaxed_obstacle_search_cursor_{0};
   std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
   PathConstPtr pending_path_;
   ros::WallTime pending_path_since_;
   rclcpp::Publisher<Odometry>::SharedPtr planning_odometry_pub_;
-  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(const PlannerData & data);
+  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(
+    const PlannerData & data, double search_budget_ms);
   bool stopBeforeObstacle(const PlannerData & data, std::vector<TrajectoryPoint> & points) const;
   autoware_utils_rclcpp::InterProcessPollingSubscriber<Odometry> ego_odom_sub_{
     private_node_handle_ptr(), "input/odometry"};

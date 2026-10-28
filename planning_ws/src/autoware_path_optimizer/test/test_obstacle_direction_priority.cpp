@@ -78,7 +78,7 @@ public:
     obstacle_search_time_budget_ms_ = 1000.0;
     debug_data_ptr_->ego_pose = data.ego_pose;
     mpt_optimizer_ptr_->restoreHistory({});
-    const auto output = optimizeObstacleCandidates(data);
+    const auto output = optimizeObstacleCandidates(data, obstacle_search_time_budget_ms_);
     auto trace = nlohmann::json::parse(obstacle_candidate_trace_);
     trace["output_present"] = output.has_value();
     if (output && !output->empty()) trace["output_end_x"] = output->back().pose.position.x;

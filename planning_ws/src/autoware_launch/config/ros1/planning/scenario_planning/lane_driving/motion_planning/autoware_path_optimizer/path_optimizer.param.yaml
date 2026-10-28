@@ -17,7 +17,9 @@ output_resampling/gaussian_sigma_m: 0.25
 obstacle_search_time_budget_ms: 100.0
 # Positive magnitude for braking on a still-aligned path when obstacle optimization fails.
 obstacle_fallback_deceleration: 7.0
-# Keep ordinary candidates first; reuse road-only rejected candidates if none pass.
+# Keep ordinary candidates first. If they fail, retry with soft road bounds and
+# hard obstacle/vehicle constraints, sharing the configured search-time budget.
+# Road-only rejected candidates can also be reused after every side was tried.
 # Existing obstacle-margin overlap is optimized with slack, without a new speed cap.
 recovery/enabled: true
 # Extend the base horizon to cover observed obstacle margins, the vehicle and return.

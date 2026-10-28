@@ -48,6 +48,10 @@ struct PlannerData
   // ego
   geometry_msgs::Pose ego_pose;
   double ego_vel{};
+
+  // Second-pass optimization: retain road limits as slack costs, while
+  // obstacle separation, measured state and vehicle dynamics remain hard.
+  bool relax_road_bounds{false};
 };
 
 struct DebugData
