@@ -198,15 +198,13 @@ def test_kcity_route_marker_uses_the_curated_drivable_lanelet_sets():
     config = yaml.safe_load(config_path.read_text())
     assert config["route_section_primitive_overrides"] == {
         "201439": [201439, 201441, 201446],
-        "200360": [200360, 200185],
-        "200185": [200360, 200185],
-        "201479": [201479, 201448],
-        "201448": [201479, 201448],
+        "200360": [200360],
+        "201479": [201479],
         "201401": [201401],
         "201465": [201465, 201466, 201467, 201468],
     }
     assert set(config["route_section_excluded_lanelet_ids"]) == {
-        201440, 201445, 200141, 200186, 201463, 201464,
+        201440, 201445, 200141, 200186, 201463, 201464, 200185, 201448,
     }
 
     integration_launch = ET.parse(PACKAGE_ROOT / "launch/planning.launch").getroot()

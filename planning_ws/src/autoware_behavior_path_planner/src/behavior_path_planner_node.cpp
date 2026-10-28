@@ -429,6 +429,9 @@ void BehaviorPathPlannerNode::run()
       planner_manager_->reset();
       planner_manager_->resetCurrentRouteLanelet(planner_data_);
       planner_data_->prev_modified_goal.reset();
+      if (planner_data_->avoidance_object_ownership) {
+        planner_data_->avoidance_object_ownership->clear();
+      }
     }
   }
   const auto controlled_by_autoware_autonomously =

@@ -40,8 +40,10 @@
 #include <string>
 #include <stdexcept>
 #include <utility>
+#include <tuple>
 #include <vector>
 #include <tf2/utils.h>
+#include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
 
 namespace autoware::path_optimizer
 {
@@ -134,6 +136,7 @@ PathOptimizer::PathOptimizer(
   }
   private_node.param(
     "obstacle_fallback_deceleration", obstacle_fallback_deceleration_, 7.0);
+  private_node.param("recovery/enabled", enable_obstacle_fallback_, true);
   if (!std::isfinite(obstacle_fallback_deceleration_) ||
       obstacle_fallback_deceleration_ <= 0.0) {
     throw std::invalid_argument("obstacle_fallback_deceleration must be finite and positive");
@@ -328,6 +331,7 @@ void PathOptimizer::resetPreviousData()
   last_validated_output_.reset();
   using_final_geometry_ = false;
   obstacle_search_cursor_ = 0;
+  relaxed_obstacle_search_cursor_ = 0;
   retained_optimization_forward_length_ = 0.0;
 }
 
@@ -399,7 +403,7 @@ void PathOptimizer::onPath(const PathConstPtr path_ptr)
   // Road and obstacle checks must see the same geometry that is published.
   // Extension reconstructs yaw; checking the raw MPT states can insert a stop
   // even though the final vehicle footprint is inside the road (or vice versa).
-  insertZeroVelocityOutsideDrivableArea(planner_data, full_traj_points);
+  if (!using_recovery_geometry_) insertZeroVelocityOutsideDrivableArea(planner_data, full_traj_points);
 
   // Validate after extension/resampling too: the optimized prefix alone is insufficient.
   if (stopBeforeObstacle(planner_data, full_traj_points)) is_optimization_failed_ = true;
@@ -471,6 +475,11 @@ bool PathOptimizer::checkInputPath(const Path & path, rclcpp::Clock clock) const
 
 void PathOptimizer::onCheckPathOptimizationValid(diagnostic_updater::DiagnosticStatusWrapper & stat)
 {
+  if (using_recovery_geometry_) {
+    stat.summary(diagnostic_msgs::DiagnosticStatus::WARN,
+      "[Path Optimizer]: road-bound fallback trajectory in use");
+    return;
+  }
   if (is_optimization_failed_) {
     const std::string error_msg =
       "[Path Optimizer]: MPT failed; using checked previous path or stopping";
@@ -492,6 +501,7 @@ PlannerData PathOptimizer::createPlannerData(
   planner_data.traj_points = trajectory_utils::convertToTrajectoryPoints(path.points);
   planner_data.left_bound = path.left_bound;
   planner_data.right_bound = path.right_bound;
+  planner_data.allow_initial_obstacle_overlap = enable_obstacle_fallback_;
   const auto scene = obstacle_scenes_.find(path.header.stamp.toNSec());
   if (scene != obstacle_scenes_.end() && scene->second.header.frame_id == path.header.frame_id) {
     planner_data.obstacles = scene->second.obstacles;
@@ -544,12 +554,15 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
   const auto & p = planner_data;
   using_final_geometry_ = false;
+  using_recovery_geometry_ = false;
+  normal_obstacle_search_complete_ = false;
   obstacle_candidate_trace_.clear();
   optimization_reset_reason_.clear();
 
   TrajectoryPoint measured;
   measured.pose = p.ego_pose;
-  if (firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
+  if (!p.allow_initial_obstacle_overlap &&
+      firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
     is_optimization_failed_ = true;
     auto stopped = p.traj_points;
     for (auto & point : stopped) point.longitudinal_velocity_mps = 0.0;
@@ -590,9 +603,44 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   //    with model predictive trajectory
   const auto history_before_optimization = mpt_optimizer_ptr_->history();
   const auto optimization_started = std::chrono::steady_clock::now();
+  const size_t input_ego = trajectory_utils::findEgoIndex(
+    p.traj_points, p.ego_pose, ego_nearest_param_);
+  const bool can_retry_road = enable_obstacle_fallback_ && !p.obstacles.empty() &&
+    p.traj_points[input_ego].longitudinal_velocity_mps > 0.1;
+  // Reserve part of the existing callback search budget for a real second
+  // solve. Each pass has its own side cursor, so deferred work cannot starve
+  // the other pass. As before, a single solver invocation can overrun a budget.
+  const double normal_budget = can_retry_road
+    ? obstacle_search_time_budget_ms_ * 0.5 : obstacle_search_time_budget_ms_;
   auto mpt_traj = p.obstacles.empty()
     ? mpt_optimizer_ptr_->optimizeTrajectory(planner_data)
-    : optimizeObstacleCandidates(planner_data);
+    : optimizeObstacleCandidates(planner_data, normal_budget);
+  if (!mpt_traj && can_retry_road) {
+    const double elapsed_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - optimization_started).count();
+    const double retry_budget = obstacle_search_time_budget_ms_ - elapsed_ms;
+    if (retry_budget > 0.0) {
+      const std::string normal_trace = obstacle_candidate_trace_;
+      auto relaxed = planner_data;
+      relaxed.relax_road_bounds = true;
+      relaxed.allow_initial_obstacle_overlap = false;
+      // A retry must cover CURRENT ego and the obstacle/return horizon. Do not
+      // prepend old fixed points from the failed ordinary optimization.
+      mpt_optimizer_ptr_->restoreHistory(MPTOptimizer::History{});
+      mpt_traj = optimizeObstacleCandidates(relaxed, retry_budget);
+      if (obstacle_candidate_trace_enabled_ && !normal_trace.empty() &&
+          !obstacle_candidate_trace_.empty()) {
+        auto retry_trace = nlohmann::json::parse(obstacle_candidate_trace_);
+        retry_trace["normal_search"] = nlohmann::json::parse(normal_trace);
+        obstacle_candidate_trace_ = retry_trace.dump();
+      }
+      if (mpt_traj) {
+        using_recovery_geometry_ = true;
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+          "[MPT] Reoptimized with soft road bounds; obstacle constraints retained");
+      }
+    }
+  }
   const double base_length =
     mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength();
   if (!p.obstacles.empty()) retained_optimization_forward_length_ = 0.0;
@@ -662,7 +710,10 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
           }
         }
         if (const auto collision = firstObstacleCollision(fallback, ego_idx, p.obstacles, vehicle_info_)) {
-          if (!first_outside_idx || *collision < *first_outside_idx) first_outside_idx = collision;
+          const bool escaping = p.allow_initial_obstacle_overlap &&
+            autoware::motion_utils::checkStaticObstacleEscape(
+              fallback, p.ego_pose, p.obstacles, vehicle_info_).valid;
+          if (!escaping && (!first_outside_idx || *collision < *first_outside_idx)) first_outside_idx = collision;
         }
         const bool inside_current_corridor = !first_outside_idx;
         const double age = last_successful_optimization_time_
@@ -1080,7 +1131,7 @@ void PathOptimizer::publishDebugData(const Header & header) const
   debug_extended_traj_pub_->publish(debug_extended_traj);
 }
 std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandidates(
-  const PlannerData & input_data)
+  const PlannerData & input_data, const double search_budget_ms)
 {
   PlannerData data = input_data;
   data.obstacles = clusterStaticObstacles(
@@ -1107,6 +1158,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       {"stamp", data.header.stamp.toSec()}, {"weight", obstacle_continuity_weight_},
       {"reset_reason", optimization_reset_reason_}, {"objects", data.obstacles.size()},
       {"history_present", static_cast<bool>(original.trajectory)},
+      {"road_bounds_relaxed", data.relax_road_bounds},
       {"previous_present", static_cast<bool>(last_validated_output_)},
       {"candidates", nlohmann::json::array()}, {"attempts", nlohmann::json::array()}};
   }
@@ -1116,11 +1168,20 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
   };
   auto winner_history = original;
   std::optional<std::vector<TrajectoryPoint>> winner;
+  std::optional<std::vector<TrajectoryPoint>> road_only_candidate;
+  double road_only_cost = std::numeric_limits<double>::infinity();
+  double road_only_contact_cost = std::numeric_limits<double>::infinity();
+  size_t road_only_outside_count = std::numeric_limits<size_t>::max();
+  const bool recovery_input_moving = !data.traj_points.empty() &&
+    data.traj_points[trajectory_utils::findEgoIndex(
+      data.traj_points, data.ego_pose, ego_nearest_param_)].longitudinal_velocity_mps > 0.1;
   double best_cost = std::numeric_limits<double>::infinity();
+  double best_contact_cost = std::numeric_limits<double>::infinity();
   bool winner_is_previous = false;
   long winner_mask = -1;
   const geometry_utils::CircleFootprintRoadChecker road(data.left_bound, data.right_bound);
-  const auto evaluate_cost = [&](const std::vector<TrajectoryPoint> & points, size_t ego)
+  const auto evaluate_cost = [&](const std::vector<TrajectoryPoint> & points, size_t ego,
+                                 bool allow_road_violation = false)
     -> std::optional<double> {
     double cost = 0.0;
     double reference_cost = 0.0, obstacle_cost = 0.0, continuity_cost = 0.0;
@@ -1137,9 +1198,11 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         reference_cost += deviation * deviation;
         obstacle_cost += clearance_cost;
       }
-      if (i + 5 < score_end && road.isOutside(
+      if (!allow_road_violation && !data.relax_road_bounds && i + 5 < score_end && road.isOutside(
             pose, mpt_optimizer_ptr_->getVehicleCircleRadii(),
-            mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets())) return std::nullopt;
+            mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets())) {
+        return std::nullopt;
+      }
       if (original.trajectory && !original.trajectory->empty()) {
         const size_t prev = autoware::motion_utils::findNearestIndex(*original.trajectory, pose.position);
         const double change = autoware_utils::calc_distance2d(pose, original.trajectory->at(prev).pose);
@@ -1174,7 +1237,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       {"required", remaining(data.traj_points, input_ego)}};
     if (trace_check("covers_horizon", covers_horizon) &&
         trace_check("aligned", isAlignedWithEgoPose(previous[ego].pose, data.ego_pose)) &&
-        trace_check("measured_inside_road", measuredFootprintInsideRoad(data.ego_pose, data.left_bound, data.right_bound,
+        trace_check("measured_inside_road", data.relax_road_bounds || measuredFootprintInsideRoad(data.ego_pose, data.left_bound, data.right_bound,
           vehicle_info_, mpt_optimizer_ptr_->hardRoadClearance())) &&
         trace_check("collision_free", !firstObstacleCollision(previous, ego, input_data.obstacles, vehicle_info_)) &&
         trace_check("curvature_valid", !firstCurvatureViolation(previous, ego, std::min(previous.size(), ego + size_t{250}),
@@ -1182,13 +1245,15 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       if (const auto cost = evaluate_cost(previous, ego)) {
         winner = previous;
         best_cost = *cost;
+        best_contact_cost = 0.0;
         winner_is_previous = true;
         if (tracing) trace["previous_score"] = last_score;
       }
     }
   }
   // Prepare the previous spatial seed once per callback, not for every mask.
-  const bool has_previous_seed = last_validated_output_ && last_validated_output_->size() >= 2;
+  const bool has_previous_seed = !data.relax_road_bounds &&
+    last_validated_output_ && last_validated_output_->size() >= 2;
   const auto previous_seed = has_previous_seed
     ? *last_validated_output_ : std::vector<TrajectoryPoint>{};
   bool prefer_previous_seed = false;
@@ -1207,11 +1272,14 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
   // Reserve 30 ms of the 100 ms publication period for postprocessing/scheduling.
   // This bounds retries, not the duration of an individual solver invocation.
   const double retry_budget_ms = have_validated_incumbent
-    ? std::min(70.0, obstacle_search_time_budget_ms_) : obstacle_search_time_budget_ms_;
+    ? std::min(70.0, search_budget_ms) : search_budget_ms;
   double last_attempt_ms = 0.0;
   bool retry_budget_exhausted = false;
   const size_t mask_count = size_t{1} << data.obstacles.size();
-  size_t preferred_mask = obstacle_search_cursor_ % mask_count;
+  std::vector<bool> attempted_masks(mask_count, false);
+  auto & search_cursor = data.relax_road_bounds
+    ? relaxed_obstacle_search_cursor_ : obstacle_search_cursor_;
+  size_t preferred_mask = search_cursor % mask_count;
   // A previous curve can still describe the intended pass side when its length
   // or current validity prevents direct reuse. Use that side only to order new
   // solves; every new candidate must satisfy the current measured-state, road,
@@ -1260,7 +1328,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       }
       previous_candidate_began = candidate_began;
       const size_t mask = (first_mask + order) % mask_count;
-      obstacle_search_cursor_ = (mask + 1) % mask_count;
+      search_cursor = (mask + 1) % mask_count;
       ++examined;
       PlannerData candidate = data;
       for (size_t o = 0; o < data.obstacles.size(); ++o) candidate.pass_left.push_back(mask & (size_t{1} << o));
@@ -1269,6 +1337,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       size_t ego = 0;
       bool collision_free = false;
       std::optional<double> checked_cost;
+      double checked_contact_cost = 0.0;
       // Start from the previous spatial solution during an ongoing turn. Retry
       // the route reference only when needed; validate against the complete scene.
       const size_t seeds = has_previous_seed ? 2 : 1;
@@ -1286,6 +1355,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         mpt_optimizer_ptr_->restoreHistory(
           !use_previous_seed && iteration == 0 ? original : MPTOptimizer::History{});
         ++attempts;
+        attempted_masks[mask] = true;
         trajectory = mpt_optimizer_ptr_->optimizeTrajectory(candidate);
         last_attempt_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now()-attempt_began).count();
@@ -1309,11 +1379,17 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
           checked_trajectory, trajectory->back().pose.position);
         const auto collision = firstObstacleCollision(
           checked_trajectory, ego, input_data.obstacles, vehicle_info_);
+        const auto escape = collision && data.allow_initial_obstacle_overlap
+          ? autoware::motion_utils::checkStaticObstacleEscape(
+              checked_trajectory, data.ego_pose, input_data.obstacles, vehicle_info_)
+          : autoware::motion_utils::StaticObstacleEscapeResult{};
+        const bool obstacle_valid = !collision || escape.valid;
+        checked_contact_cost = escape.contact_cost;
         // The spatial resampling can rotate the tangent away from the QP's
         // fixed initial yaw. A newly accepted curve must meet the same measured
         // state contract as a retained curve; otherwise relinearize it first.
         if (isAlignedWithEgoPose(checked_trajectory.at(ego).pose, data.ego_pose) &&
-            !collision &&
+            obstacle_valid &&
             !firstCurvatureViolation(checked_trajectory, ego, prefix_end,
               mpt_optimizer_ptr_->maximumCurvature()) &&
             (checked_cost = evaluate_cost(checked_trajectory, ego))) {
@@ -1321,12 +1397,35 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
           if (tracing) trace["attempts"].back()["postcheck"] = "accepted";
           break;
         }
+        // Preserve a candidate rejected ONLY by the road check. It cannot win
+        // over any ordinary solution, and is released only after every side
+        // assignment actually received a solve in the current scene.
+        if (enable_obstacle_fallback_ && recovery_input_moving && !checked_cost && obstacle_valid &&
+            isAlignedWithEgoPose(checked_trajectory.at(ego).pose, data.ego_pose) &&
+            !firstCurvatureViolation(checked_trajectory, ego, checked_trajectory.size(),
+              mpt_optimizer_ptr_->maximumCurvature())) {
+          const auto relaxed_cost = evaluate_cost(checked_trajectory, ego, true);
+          size_t outside_count = 0;
+          for (size_t i = ego; i + 5 < std::min(checked_trajectory.size(), ego+size_t{250}); ++i) {
+            outside_count += road.isOutside(checked_trajectory[i].pose,
+              mpt_optimizer_ptr_->getVehicleCircleRadii(),
+              mpt_optimizer_ptr_->getVehicleCircleLongitudinalOffsets());
+          }
+          if (relaxed_cost && std::tie(checked_contact_cost, outside_count, *relaxed_cost) <
+              std::tie(road_only_contact_cost, road_only_outside_count, road_only_cost)) {
+            road_only_candidate = checked_trajectory;
+            road_only_cost = *relaxed_cost;
+            road_only_contact_cost = checked_contact_cost;
+            road_only_outside_count = outside_count;
+          }
+        }
         if (tracing) {
           const auto bend = firstCurvatureViolation(checked_trajectory, ego, prefix_end,
             mpt_optimizer_ptr_->maximumCurvature());
           trace["attempts"].back()["postcheck"] = {
             {"aligned", isAlignedWithEgoPose(checked_trajectory.at(ego).pose, data.ego_pose)},
             {"collision_index", collision ? static_cast<long>(*collision) : -1L},
+            {"initial_overlap_escape", escape.valid},
             {"curvature_index", bend ? static_cast<long>(*bend) : -1L},
             {"score_valid", checked_cost.has_value()}};
         }
@@ -1359,8 +1458,9 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         {"replace", winner_is_previous || *cost < best_cost}});
       // The retained path is a fallback, not a competing new solution. Prefer
       // a freshly optimized, fully validated trajectory anchored to current ego.
-      if (winner_is_previous || *cost < best_cost) {
+      if (winner_is_previous || std::tie(checked_contact_cost, *cost) < std::tie(best_contact_cost, best_cost)) {
         best_cost = *cost; winner = checked_trajectory; winner_history = mpt_optimizer_ptr_->history();
+        best_contact_cost = checked_contact_cost;
         winner_is_previous = false;
         winner_mask = static_cast<long>(mask);
       }
@@ -1372,6 +1472,17 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         break;
       }
     }
+  normal_obstacle_search_complete_ = std::all_of(
+    attempted_masks.begin(), attempted_masks.end(), [](bool tried) { return tried; });
+  if (normal_obstacle_search_complete_ && road_only_candidate &&
+      (!winner || road_only_contact_cost < best_contact_cost)) {
+    winner = std::move(road_only_candidate);
+    winner_history = original;
+    best_cost = road_only_cost;
+    using_recovery_geometry_ = true;
+    if (tracing) trace["recovery"] = {{"contact_escape", false},
+      {"outside_road", true}, {"source", "road_only_rejected_candidate"}};
+  }
   mpt_optimizer_ptr_->restoreHistory(winner ? winner_history : original);
   // Return exactly the postprocessed geometry that passed candidate checks.
   // Re-extending/resampling it later would invalidate that validation contract.
@@ -1387,7 +1498,10 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       std::chrono::steady_clock::now()-began).count();
     obstacle_candidate_trace_ = trace.dump();
   }
-  if (winner_is_previous) applyInputVelocity(*winner, data.traj_points, data.ego_pose);
+  if (winner_is_previous) {
+    applyInputVelocity(*winner, data.traj_points, data.ego_pose);
+
+  }
   mpt_optimizer_ptr_->publishAcceptedDebug(data.header);
   if (std::getenv("AJOUNICE_OBSTACLE_DIAG")) {
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
@@ -1409,6 +1523,9 @@ bool PathOptimizer::stopBeforeObstacle(
   if (points.size() < 2 || data.obstacles.empty()) return false;
   const size_t ego = trajectory_utils::findEgoIndex(points, data.ego_pose, ego_nearest_param_);
   auto collision = firstObstacleCollision(points, ego, data.obstacles, vehicle_info_);
+  if (collision && data.allow_initial_obstacle_overlap &&
+      autoware::motion_utils::checkStaticObstacleEscape(
+        points, data.ego_pose, data.obstacles, vehicle_info_).valid) collision.reset();
   const size_t horizon = static_cast<size_t>(
     mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength() /
     traj_param_.output_delta_arc_length);

@@ -296,6 +296,9 @@ route_a:
   - 200361
   - 200181
   preferred_lanelet_overrides:
+    # Keep the bottleneck exit on the direct successor 201439 -> 200360.
+    201441: 201439
+    201446: 201439
     200185: 200360
     201448: 201479
 route_b:
@@ -430,6 +433,9 @@ route_b:
   - 200249
   - 200210
   preferred_lanelet_overrides:
+    # Route B may retain another upstream branch; normalize both exit sections.
+    201441: 201439
+    201446: 201439
     200185: 200360
     201448: 201479
 fallback_route:

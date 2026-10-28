@@ -2,6 +2,7 @@
 #define AUTOWARE_BEHAVIOR_PATH_PLANNER_COMMON__PLANNER_DATA_HPP_
 
 #include <autoware/behavior_path_planner_common/parameters.hpp>
+#include <autoware/behavior_path_planner_common/avoidance_object_ownership.hpp>
 #include <autoware/behavior_path_planner_common/turn_signal_decider.hpp>
 #include <autoware/behavior_path_planner_common/utils/drivable_area_expansion/parameters.hpp>
 #include <autoware/motion_utils/trajectory/trajectory.hpp>
@@ -62,11 +63,21 @@ struct PlannerData
   mutable std::vector<geometry_msgs::Pose> drivable_area_expansion_prev_path_poses;
   mutable std::vector<double> drivable_area_expansion_prev_curvatures;
   autoware_internal_planning_msgs::VelocityLimitConstPtr external_limit_max_velocity;
+  std::shared_ptr<AvoidanceObjectOwnership> avoidance_object_ownership;
 
   // ROS1 equivalent of the upstream rclcpp parameter initialization. Required
   // values fail closed, so callers must load the original parameter documents.
   void init_parameters(const ros::NodeHandle & node)
   {
+    std::string avoidance_method;
+    node.param<std::string>("avoidance/path_generation_method", avoidance_method, "");
+    if (avoidance_method == "optimization_base") {
+      double dynamic_speed, static_speed;
+      node.param("avoidance_object_ownership/dynamic_enter_speed", dynamic_speed, 0.5);
+      node.param("avoidance_object_ownership/static_enter_speed", static_speed, 0.2);
+      avoidance_object_ownership =
+        std::make_shared<AvoidanceObjectOwnership>(dynamic_speed, static_speed);
+    }
     const auto number = [&node](const std::string & key) {
       double value{};
       auto slash = key; std::replace(slash.begin(), slash.end(), '.', '/');

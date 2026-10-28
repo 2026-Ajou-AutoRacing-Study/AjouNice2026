@@ -21,6 +21,7 @@
 #include <angles/angles.h>
 
 #include <autoware/motion_utils/trajectory/static_obstacle_collision.hpp>
+#include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
 
 #include <memory>
 #include <boost/crc.hpp>
@@ -305,6 +306,11 @@ bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
   const auto & vehicle = context_->vehicle_info;
   const bool measured_overlap = autoware::motion_utils::firstObstacleCollision(
     {measured}, 0, static_scene_->obstacles, vehicle).has_value();
+  // Accept an optimized escape from the measured overlap. This does not add
+  // a speed policy; existing velocity planning and validation remain in charge.
+  if (!frame_mismatch && measured_overlap &&
+      autoware::motion_utils::checkStaticObstacleEscape(
+        points, measured.pose, static_scene_->obstacles, vehicle).valid) return false;
   const auto collision = autoware::motion_utils::firstObstacleCollision(
     points, ego, static_scene_->obstacles, vehicle);
   if (!frame_mismatch && !measured_overlap && !collision) return false;
