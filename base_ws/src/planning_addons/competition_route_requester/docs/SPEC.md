@@ -139,8 +139,8 @@ UUID, waypoint pose와 전체 lanelet 순서는 YAML에서 읽는다. `waypoint_
 ### 5.1 초기 경로와 재경로 조건
 
 초기 Route A/B 선택은 `startup_route_b_trigger`와 현재 odometry로 판단한다.
-Route A에서 B로의 재경로 trigger는 `200258`의 s
-8 m이고, deadline은
+현재 v101의 초기 선택·Route A→B 재경로 trigger는 Spawn 5번에서 주행 방향 뒤쪽 5 m인
+`200310`의 s=3.149898 m (map x=71.238562, y=540.694727)이고, deadline은
 `200315` 진입 전이다. 감지 anchor의 pose와 차로 진입 경계를
 혼동하지 않는다. 요청 start pose는 Mission Planner가 현재 odometry에서 취득한다.
 

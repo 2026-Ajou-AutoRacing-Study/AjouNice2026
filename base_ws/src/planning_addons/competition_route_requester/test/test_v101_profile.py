@@ -1,4 +1,4 @@
-"""v101 map identity and the direct 201439 -> 200360 route contract."""
+"""v101 direct bottleneck route contract and Spawn 5 transition geometry."""
 from pathlib import Path
 import copy
 import hashlib
@@ -17,13 +17,16 @@ def load(path):
     return yaml.safe_load(path.read_text())
 
 
-def test_v101_route_preserves_v99_except_map_and_bottleneck_preferences():
+def test_v101_route_preserves_corridor_with_spawn5_transition():
     old = load(PACKAGE / 'config/kcity_v99_competition_route.yaml')
     new = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
     expected = copy.deepcopy(old)
     expected['map'].update(version=101, file='kcity_map/lanelet_map/lanelet2_map_v101.osm', sha256=SHA)
     for key in ('route_a', 'route_b'):
         expected[key]['preferred_lanelet_overrides'].update({201441: 201439, 201446: 201439})
+    expected['poses']['spawn5_minus_5m'] = new['poses']['spawn5_minus_5m']
+    for key in ('startup_route_b_trigger', 'reroute_trigger'):
+        expected[key].update(pose_ref='spawn5_minus_5m', minimum_lanelet_s_m=3.149898)
     assert new == expected
     params = load(PACKAGE / 'config/competition_route_requester_v101.param.yaml')
     assert params['route_definition_file'] == 'kcity_v101_competition_route.yaml'
@@ -141,3 +144,27 @@ def test_v101_adds_shared_boundary_shoulders_without_changing_road_relations():
             return (e.tag, sorted(e.attrib.items()), tuple(semantic(c) for c in e))
         for relation in old.findall('relation'):
             assert semantic(relation) == semantic(relations[relation.get('id')])
+
+
+def test_spawn5_transition_geometry_and_policy():
+    import math
+    from competition_route_requester import policy
+    from competition_route_requester.geometry import Geometry
+    route = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
+    geometry = Geometry(ROOT, route)
+    heading = math.radians(90.321304321)
+    spawn = (-60.34860724 + 131.559130220, -0.21668933 + 545.911338186)
+    target = (spawn[0] - 5 * math.cos(heading), spawn[1] - 5 * math.sin(heading))
+    ref = route['poses']['spawn5_minus_5m']
+    assert math.hypot(target[0] - ref['x'], target[1] - ref['y']) < 1e-6
+    lane, arc = geometry.locate(*target, heading)
+    assert lane == ref['lanelet_id'] == 200310
+    assert abs(arc - ref['lanelet_s_m']) < 1e-6
+    for initial in (True, False):
+        assert not policy.in_window(route, 'route_b', lane, arc - 0.01, initial=initial)
+        assert policy.in_window(route, 'route_b', lane, arc + 0.01, initial=initial)
+    assert policy.next_normal('route_a_to_b', None, lane, arc - 0.01, route) == 'route_a'
+    assert policy.next_normal('route_a_to_b', None, lane, arc + 0.01, route) == 'route_b'
+    assert policy.next_normal('route_a_to_b', 'route_a', lane, arc + 0.01, route) == 'route_b'
+    spawn_lane, spawn_arc = geometry.locate(*spawn, heading)
+    assert policy.next_normal('route_a_to_b', None, spawn_lane, spawn_arc, route) == 'route_b'
