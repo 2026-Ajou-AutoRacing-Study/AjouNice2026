@@ -83,6 +83,9 @@ protected:  // for the static_centerline_generator package
   std::optional<rclcpp::Time> last_successful_optimization_time_;
   std::optional<std::vector<TrajectoryPoint>> last_validated_output_;
   bool using_final_geometry_{false};
+  bool using_recovery_geometry_{false};
+  bool normal_obstacle_search_complete_{false};
+  bool enable_obstacle_fallback_{true};
   double retained_optimization_forward_length_{0.0};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
   std::string outside_drivable_area_check_footprint_;
@@ -120,11 +123,13 @@ protected:  // for the static_centerline_generator package
   double obstacle_return_length_{15.0};
   ObstacleClusteringParameters obstacle_clustering_param_;
   size_t obstacle_search_cursor_{0};
+  size_t relaxed_obstacle_search_cursor_{0};
   std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
   PathConstPtr pending_path_;
   ros::WallTime pending_path_since_;
   rclcpp::Publisher<Odometry>::SharedPtr planning_odometry_pub_;
-  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(const PlannerData & data);
+  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(
+    const PlannerData & data, double search_budget_ms);
   bool stopBeforeObstacle(const PlannerData & data, std::vector<TrajectoryPoint> & points) const;
   autoware_utils_rclcpp::InterProcessPollingSubscriber<Odometry> ego_odom_sub_{
     private_node_handle_ptr(), "input/odometry"};

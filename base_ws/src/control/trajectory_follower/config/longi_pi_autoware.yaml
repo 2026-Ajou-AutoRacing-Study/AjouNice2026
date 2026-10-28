@@ -3,6 +3,16 @@ kp: 1.0
 ki: 0.05
 integral_limit: 3.0
 command_deadband: 0.05
+# Observe the planner's global pose even when the controller uses Smooth odometry.
+# Require >=7 m AND displacement beyond a speed/time-based normal-motion bound.
+safety:
+  pose_jump:
+    enabled: true
+    state_topic: /localization/kinematic_state
+    distance_m: 7.0
+    brake_duration_s: 1.0
+    motion_tolerance_m: 1.0
+    max_acceleration_mps2: 10.0
 # Positive planned acceleration -> pedal FF, added to the existing PI.
 # MORAI-tuned with continuous profiles. Planned deceleration, brake-entry
 # thresholds and stop logic are unchanged. In the existing brake-entry

@@ -250,6 +250,10 @@ bool isVehicleTypeObject(const ObjectData & object)
 bool isMovingObject(
   const ObjectData & object, const std::shared_ptr<AvoidanceParameters> & parameters)
 {
+  if (parameters->path_generation_method == "optimization_base" &&
+      object.dynamic_avoidance_owner.has_value()) {
+    return *object.dynamic_avoidance_owner;
+  }
   const auto object_type = autoware::object_recognition_utils::getHighestProbLabel(object.object.classification);
   const auto object_parameter = parameters->object_parameters.at(object_type);
   if (parameters->path_generation_method == "optimization_base") {

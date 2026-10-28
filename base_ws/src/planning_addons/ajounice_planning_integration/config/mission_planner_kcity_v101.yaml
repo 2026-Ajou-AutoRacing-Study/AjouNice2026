@@ -1,4 +1,4 @@
-# K-City v101: preserve both branches while preferring the requested corridor.
+# K-City v101: use the direct bottleneck exit without the parallel LC branch.
 map_frame: map
 arrival_check_angle_deg: 45.0
 arrival_check_lateral_distance: 1.0
@@ -27,17 +27,11 @@ route_section_primitive_overrides:
   - 201401
   '200360':
   - 200360
-  - 200185
   '201479':
   - 201479
-  - 201448
-  '200185':
-  - 200360
-  - 200185
-  '201448':
-  - 201479
-  - 201448
 route_section_excluded_lanelet_ids:
+- 200185
+- 201448
 - 201440
 - 201445
 - 200141

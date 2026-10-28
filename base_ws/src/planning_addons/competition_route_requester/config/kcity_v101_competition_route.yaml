@@ -1,4 +1,4 @@
-# K-City v101: GIS shadow-road shoulders; v99 route and competition policy retained.
+# K-City v101: Route A/B trigger is 5 m behind Spawn point 5 along its heading.
 schema_version: 1
 frame_id: map
 map:
@@ -27,6 +27,13 @@ start:
   - 200889
   expected_pose_tolerance_m: 6.0
 poses:
+  spawn5_minus_5m:
+    lanelet_id: 200310
+    lanelet_s_m: 3.149898
+    x: 71.238561925
+    y: 540.694727475
+    z: 28.38303916
+    yaw_deg: 90.321304321
   wp_200178:
     lanelet_id: 200178
     lanelet_s_m: 8.0
@@ -296,6 +303,9 @@ route_a:
   - 200361
   - 200181
   preferred_lanelet_overrides:
+    # Keep the bottleneck exit on the direct successor 201439 -> 200360.
+    201441: 201439
+    201446: 201439
     200185: 200360
     201448: 201479
 route_b:
@@ -430,6 +440,9 @@ route_b:
   - 200249
   - 200210
   preferred_lanelet_overrides:
+    # Route B may retain another upstream branch; normalize both exit sections.
+    201441: 201439
+    201446: 201439
     200185: 200360
     201448: 201479
 fallback_route:
@@ -465,13 +478,15 @@ fallback_route:
   - 200207
   - 200249
   - 200210
+# Spawn 5 MORAI pose (-60.34860724, -0.21668933), yaw 90.321304321 deg.
+# Subtract 5 m along heading, then apply map<-morai_map translation.
 startup_route_b_trigger:
-  pose_ref: wp_200258
-  minimum_lanelet_s_m: 0.0
+  pose_ref: spawn5_minus_5m
+  minimum_lanelet_s_m: 3.149898
   end_lanelet_id: 200892
 reroute_trigger:
-  pose_ref: wp_200258
-  minimum_lanelet_s_m: 8.0
+  pose_ref: spawn5_minus_5m
+  minimum_lanelet_s_m: 3.149898
   deadline_pose_ref: wp_200315
 validation:
   checkpoint_radius_m: 3.0

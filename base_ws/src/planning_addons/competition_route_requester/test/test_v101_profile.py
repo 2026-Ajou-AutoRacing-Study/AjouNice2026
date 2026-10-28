@@ -1,4 +1,4 @@
-"""v101 route profile changes only map identity; route and mission policies remain v99-compatible."""
+"""v101 direct bottleneck route contract and Spawn 5 transition geometry."""
 from pathlib import Path
 import copy
 import hashlib
@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 
 import unittest
 import yaml
+from competition_route_requester import policy
 
 PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[3]
@@ -16,11 +17,16 @@ def load(path):
     return yaml.safe_load(path.read_text())
 
 
-def test_v101_route_changes_map_identity_only():
+def test_v101_route_preserves_corridor_with_spawn5_transition():
     old = load(PACKAGE / 'config/kcity_v99_competition_route.yaml')
     new = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
     expected = copy.deepcopy(old)
     expected['map'].update(version=101, file='kcity_map/lanelet_map/lanelet2_map_v101.osm', sha256=SHA)
+    for key in ('route_a', 'route_b'):
+        expected[key]['preferred_lanelet_overrides'].update({201441: 201439, 201446: 201439})
+    expected['poses']['spawn5_minus_5m'] = new['poses']['spawn5_minus_5m']
+    for key in ('startup_route_b_trigger', 'reroute_trigger'):
+        expected[key].update(pose_ref='spawn5_minus_5m', minimum_lanelet_s_m=3.149898)
     assert new == expected
     params = load(PACKAGE / 'config/competition_route_requester_v101.param.yaml')
     assert params['route_definition_file'] == 'kcity_v101_competition_route.yaml'
@@ -28,6 +34,38 @@ def test_v101_route_changes_map_identity_only():
     old_params = load(PACKAGE / 'config/competition_route_requester_v99.param.yaml')
     old_params['route_definition_file'] = params['route_definition_file']
     assert params == old_params
+
+
+def test_alternative_bottleneck_branches_use_201439_then_200360():
+    routes = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
+    definition = routes['route_b']
+    goal = routes['poses'][definition['goal_ref']]
+    for branch in (201441, 201446):
+        # A noncanonical upstream branch exercises the RouteSelector fallback,
+        # rather than the exact frozen sequence mapping.
+        observed = [201456, 201438, 201468, 200138, 201444,
+                    201470, branch, 200185, 201448, 201451, 200088]
+        expected = observed[:6] + [201439, 200360, 201479] + observed[9:]
+        assert policy.preferred_sequence(routes, 'route_b', observed) == expected
+        for sequence, accepted in ((observed, False), (expected, True),
+                                   (observed[:7] + expected[7:], False)):
+            assert policy.route_matches(
+                routes, 'route_b', definition['uuid'], sequence,
+                (goal['x'], goal['y']), .5) is accepted
+
+
+def test_all_routes_and_waypoints_keep_direct_bottleneck_exit():
+    routes = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
+    for key in ('route_a', 'route_b', 'fallback_route'):
+        definition = routes[key]
+        sequence = definition['expected_path_lanelet_ids']
+        index = sequence.index(201439)
+        assert sequence[index:index + 2] == [201439, 200360]
+        if key != 'fallback_route':
+            refs = definition['waypoint_refs']
+            index = refs.index('wp_201473')
+            assert routes['poses'][refs[index]]['lanelet_id'] == 201439
+            assert routes['poses'][refs[index + 1]]['lanelet_id'] == 200360
 
 
 def test_manifest_and_map_sha_match_without_publishing_map():
@@ -46,10 +84,22 @@ def test_manifest_and_map_sha_match_without_publishing_map():
     assert metadata.get('map_version') == '101'
 
 
-def test_v101_mission_and_rule_policy_preserves_v99():
+def test_v101_mission_excludes_parallel_exit_and_preserves_other_v99_rules():
     integration = PACKAGE.parent / 'ajounice_planning_integration'
-    assert load(integration / 'config/mission_planner_kcity_v101.yaml') == load(
-        integration / 'config/mission_planner_kcity_v99.yaml')
+    expected_mission = load(integration / 'config/mission_planner_kcity_v99.yaml')
+    overrides = expected_mission['route_section_primitive_overrides']
+    overrides['200360'] = [200360]
+    overrides['201479'] = [201479]
+    del overrides['200185'], overrides['201448']
+    expected_mission['route_section_excluded_lanelet_ids'][:0] = [200185, 201448]
+    mission = load(integration / 'config/mission_planner_kcity_v101.yaml')
+    assert mission == expected_mission
+    excluded = set(mission['route_section_excluded_lanelet_ids'])
+    for candidates in mission['route_section_primitive_overrides'].values():
+        assert not excluded.intersection(candidates)
+    routes = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
+    for key in ('route_a', 'route_b', 'fallback_route'):
+        assert not excluded.intersection(routes[key]['expected_path_lanelet_ids'])
     rule_dir = ROOT / 'base_ws/src/competition/competition_rule_monitor/config'
     old = load(rule_dir / 'kcity_v99_rules.yaml')
     expected = dict(old, map_version=101, map_sha256=SHA)
@@ -94,3 +144,27 @@ def test_v101_adds_shared_boundary_shoulders_without_changing_road_relations():
             return (e.tag, sorted(e.attrib.items()), tuple(semantic(c) for c in e))
         for relation in old.findall('relation'):
             assert semantic(relation) == semantic(relations[relation.get('id')])
+
+
+def test_spawn5_transition_geometry_and_policy():
+    import math
+    from competition_route_requester import policy
+    from competition_route_requester.geometry import Geometry
+    route = load(PACKAGE / 'config/kcity_v101_competition_route.yaml')
+    geometry = Geometry(ROOT, route)
+    heading = math.radians(90.321304321)
+    spawn = (-60.34860724 + 131.559130220, -0.21668933 + 545.911338186)
+    target = (spawn[0] - 5 * math.cos(heading), spawn[1] - 5 * math.sin(heading))
+    ref = route['poses']['spawn5_minus_5m']
+    assert math.hypot(target[0] - ref['x'], target[1] - ref['y']) < 1e-6
+    lane, arc = geometry.locate(*target, heading)
+    assert lane == ref['lanelet_id'] == 200310
+    assert abs(arc - ref['lanelet_s_m']) < 1e-6
+    for initial in (True, False):
+        assert not policy.in_window(route, 'route_b', lane, arc - 0.01, initial=initial)
+        assert policy.in_window(route, 'route_b', lane, arc + 0.01, initial=initial)
+    assert policy.next_normal('route_a_to_b', None, lane, arc - 0.01, route) == 'route_a'
+    assert policy.next_normal('route_a_to_b', None, lane, arc + 0.01, route) == 'route_b'
+    assert policy.next_normal('route_a_to_b', 'route_a', lane, arc + 0.01, route) == 'route_b'
+    spawn_lane, spawn_arc = geometry.locate(*spawn, heading)
+    assert policy.next_normal('route_a_to_b', None, spawn_lane, spawn_arc, route) == 'route_b'

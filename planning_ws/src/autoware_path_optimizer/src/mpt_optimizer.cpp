@@ -14,6 +14,7 @@
 
 #include "autoware/path_optimizer/obstacle_interval.hpp"
 #include "autoware/path_optimizer/obstacle_collision.hpp"
+#include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 
@@ -608,12 +609,23 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
     return std::nullopt;
   };
 
+  if (p.relax_road_bounds &&
+      (p.obstacles.empty() || !mpt_param_.hard_constraint || !mpt_param_.soft_constraint ||
+       mpt_param_.use_acados)) {
+    return reject_candidate("soft road retry requires OSQP with hard obstacles and soft constraints");
+  }
+
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
+  if (candidate_trial_ && !initial_overlaps) return reject_candidate("invalid obstacle geometry");
+  const bool allow_initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint;
   // Reject a disconnected side before spline, road bounds and QP assembly.
   // Evaluate against this seed's reference frame; no previous-side latch is used.
   if (candidate_trial_ && !traj_points.empty()) {
     const auto idx = trajectory_utils::findEgoIndex(traj_points, p.ego_pose, ego_nearest_param_);
     const double yaw = tf2::getYaw(traj_points[idx].pose.orientation);
     for (size_t o = 0; o < p.obstacles.size(); ++o) {
+      if (allow_initial_overlap && initial_overlaps->at(o)) continue;
       if (oppositeSideAtMeasuredState(
             p.obstacles[o].polygon, p.ego_pose, yaw, p.pass_left.at(o),
             mpt_param_.delta_arc_length)) {
@@ -633,10 +645,10 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   if (candidate_trial_) {
     TrajectoryPoint measured;
     measured.pose = p.ego_pose;
-    if (firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
+    if (!allow_initial_overlap && firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
       return reject_candidate("measured footprint overlaps obstacle");
     }
-    if (!measuredFootprintInsideRoad(
+    if (!p.relax_road_bounds && !measuredFootprintInsideRoad(
           p.ego_pose, p.left_bound, p.right_bound, vehicle_info_, mpt_param_.hard_clearance_from_road)) {
       return reject_candidate("measured footprint outside current road");
     }
@@ -1282,6 +1294,17 @@ MPTOptimizer::calcReferencePoints(
   updateBounds(ref_points, p.left_bound, p.right_bound, p.ego_pose, p.ego_vel);
   updateVehicleBounds(ref_points, ref_points_spline, p.left_bound, p.right_bound);
   for (auto & ref : ref_points) ref.soft_bounds_on_constraints = ref.bounds_on_constraints;
+  if (p.relax_road_bounds) {
+    // Save the actual road limits above for the slack objective. Remove ONLY
+    // their hard inequalities; the obstacle loop below then builds hard
+    // separating bounds independently of the road, rather than disabling the
+    // combined hard_constraint switch (which would also release obstacles).
+    for (auto & ref : ref_points) {
+      for (auto & bounds : ref.bounds_on_constraints) {
+        bounds = Bounds{-autoware::osqp_interface::INF, autoware::osqp_interface::INF};
+      }
+    }
+  }
   // Independent obstacle constraints: roads remain unchanged. Each candidate chooses a
   // separating side per polygon; the vehicle circle must lie beyond its support plane.
   const size_t obstacle_ego_idx = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);
@@ -1289,6 +1312,8 @@ MPTOptimizer::calcReferencePoints(
   // gaps between circles uncovered. Obstacle constraints must cover the whole
   // rectangle; otherwise relinearization cannot remove those corner collisions.
   const auto obstacle_radii = obstacleCoveringRadii(vehicle_info_, vehicle_circle_longitudinal_offsets_);
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
   for (size_t ref_idx = obstacle_ego_idx; ref_idx < ref_points.size(); ++ref_idx) {
     auto & ref = ref_points.at(ref_idx);
     for (size_t c = 0; c < vehicle_circle_radiuses_.size(); ++c) {
@@ -1306,7 +1331,12 @@ MPTOptimizer::calcReferencePoints(
           if (p.pass_left.at(o)) bounds.lower_bound = std::max(bounds.lower_bound, interval.second + offset);
           else bounds.upper_bound = std::min(bounds.upper_bound, interval.first - offset);
         };
-        if (hard) tighten(ref.bounds_on_constraints.at(c), *hard);
+        // A measured hard-margin violation is an initial condition, not a
+        // contradictory hard inequality. Keep the existing soft clearance cost
+        // so steering is optimized away from this obstacle. Others stay hard.
+        const bool initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint &&
+          initial_overlaps && initial_overlaps->at(o);
+        if (hard && !initial_overlap) tighten(ref.bounds_on_constraints.at(c), *hard);
         if (soft) tighten(ref.soft_bounds_on_constraints.at(c), *soft);
       }
     }
