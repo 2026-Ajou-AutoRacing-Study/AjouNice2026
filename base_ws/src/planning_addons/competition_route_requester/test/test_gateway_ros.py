@@ -259,9 +259,10 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_b')
 
-    def test_startup_route_b_before_a_to_b_reroute_threshold_is_verified(self):
-        target_arc = 6.0
-        points = self.gateway.geometry.lanes[200258][0]
+    def test_startup_route_b_after_spawn5_trigger_is_verified(self):
+        trigger = self.routes['poses'][self.routes['startup_route_b_trigger']['pose_ref']]
+        target_arc = self.routes['startup_route_b_trigger']['minimum_lanelet_s_m'] + 0.1
+        points = self.gateway.geometry.lanes[trigger['lanelet_id']][0]
         traversed = 0.0
         for first, second in zip(points, points[1:]):
             dx, dy = second[0] - first[0], second[1] - first[1]
@@ -274,12 +275,12 @@ class GatewayROS(unittest.TestCase):
                 break
             traversed += segment_length
         else:
-            self.fail('lanelet 200258 centerline is shorter than the test arc')
+            self.fail('trigger lanelet centerline is shorter than the test arc')
         self.wait(lambda: self.gateway.progress() is not None and
-                  self.gateway.progress()[0] == 200258)
+                  self.gateway.progress()[0] == trigger['lanelet_id'])
         lane, arc = self.gateway.progress()
-        self.assertEqual(lane, 200258)
-        self.assertLess(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
+        self.assertEqual(lane, trigger['lanelet_id'])
+        self.assertGreater(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
         self.assertTrue(self.gateway.guard('route_b')[0])
 
         response = self.client('route_b')
@@ -390,7 +391,7 @@ class GatewayROS(unittest.TestCase):
 
     def test_b_trigger_transport(self):
         # Pose advances to trigger. This checks policy/transport, not Mission safety.
-        self.transition('route_b', 'wp_200258')
+        self.transition('route_b', self.routes['reroute_trigger']['pose_ref'])
 
     def test_fallback_transport(self):
         self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])

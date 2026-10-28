@@ -38,6 +38,13 @@ RViz의 `Route Status`는 `verified_active`를 기준으로 Route A/B를 표시�
 이전 버전 route 설정, 설명 그림과 일회성 생성 도구는 배포에서 제외한다.
 작업 중 생성한 그림과 검증 기록은 Git 제외 경로인 `planner_logs/analysis/`에 둔다.
 
+## v101 Route A/B 전환 위치
+
+초기 Route B 선택과 Route A→B 재경로 기준은 Spawn 5번에서 주행 방향
+뒤쪽 5 m다. 지도 좌표 `(71.238562, 540.694727)`, lanelet `200310`의
+`s=3.149898 m`이며 `poses.spawn5_minus_5m`에 기록한다. 실행 중인 세 노드는
+설정 변경 후 함께 재시작해야 한다. 전환 요청에는 기존 availability 조건도 적용된다.
+
 ## v101 선호 차선
 
 Route A/B와 fallback 모두 `201439 → 200360 → 201479 → 201451`을 사용한다.
