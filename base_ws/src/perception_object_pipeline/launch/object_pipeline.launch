@@ -17,8 +17,9 @@
        default="/perception/object_recognition/objects"/>
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
-  <!-- Opt-in identity-only recovery; no object deletion or extended coasting. -->
-  <arg name="stationary_unknown_uuid_continuity" default="false"/>
+  <!-- Qualified identity-only recovery; false restores legacy output IDs.
+       No object deletion, geometry change or extended coasting. -->
+  <arg name="stationary_unknown_uuid_continuity" default="true"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default=""/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>

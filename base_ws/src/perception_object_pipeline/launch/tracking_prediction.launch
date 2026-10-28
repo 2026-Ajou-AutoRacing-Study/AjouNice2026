@@ -27,7 +27,7 @@
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
-  <arg name="stationary_unknown_uuid_continuity" default="false"/>
+  <arg name="stationary_unknown_uuid_continuity" default="true"/>
   <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>

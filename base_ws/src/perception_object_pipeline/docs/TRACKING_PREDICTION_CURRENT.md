@@ -39,7 +39,7 @@ MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통�
 | 중복 입력 | ROS bridge의 same-class rotated BEV IoU 0.50 NMS |
 | Duplicate birth guard | association된 mature track 중심 0.75m 이내 유사한 큰 unmatched box 억제. 전역 gate 5m 확장이 아니며 작은 pedestrian에 확대하지 않음 |
 | 소형 UNKNOWN birth 후보 | `suppress_small_unknown_duplicate_birth=false` 기본 OFF. 양쪽 current raw 박스가 1m 미만이고 유일한 mature 대응·중심 0.25m·IoU≥0.45 등을 만족할 때만 신규 중복 birth를 억제 |
-| 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=false` 기본 OFF. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승하는 별도 후보. EKF state·박스·수명은 불변 |
+| 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=true` 운영 launch 기본 ON. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승. `false`로 기존 ID 정책 복귀. EKF state·박스·수명은 불변 |
 | 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
 | 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
 | UNKNOWN motion policy | `force_unknown_stationary=true`: 관측 pose/box는 갱신하고 가짜 속도·가속도·yaw rate를 prediction 전에 0으로 함 |
@@ -53,7 +53,7 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 
 | 항목 | 현재 계약 |
 |---|---|
-| Map | `kcity_map/lanelet_map/lanelet2_map_v94.osm` 소스 기본. planning·공용 리퀘스터도 v94이며 실제 `map_file` override·설치본도 확인 |
+| Map | 팀 production 소스는 `kcity_map/lanelet_map/lanelet2_map_v101.osm`로 고정. 실제 설치본·기존 프로세스의 `map_file`도 별도 확인. 아래 v100 실험은 그 당시 로컬 설정의 기록 |
 | Horizon | **로터리/일반 최대 3초·고주로 최대 10초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
 | Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
 | 경로 | start lanelet 최대 3개, 최종 path 최대 6개, centerline lateral convergence 1.5s |
@@ -68,18 +68,18 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다.
 실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
 
-## 승격 범위와 기본 OFF 후보
+## 승격 범위와 선택적 후보
 
 ### 정지 UNKNOWN UUID 연속성 후보
 
-`tracking stationary_unknown_uuid_continuity:=true` 또는 통합 `morai_planning_stack.launch`의 같은 인자로 새 스택을 실행한다. 기본은 OFF이며 `force_unknown_stationary=false`이면 사용하지 않는다. 동시 존재하는 두 객체를 합치거나 검출·track을 삭제하지 않는다.
+사용자 승인으로 운영 `tracking`·`tracking_prediction.launch`·통합 `morai_planning_stack.launch`는 UUID 계승 기본 ON이다. `tracking stationary_unknown_uuid_continuity:=false` 또는 통합 launch의 같은 인자로 기존 ID 정책에 복귀할 수 있다. node 직접 실행의 기본값은 OFF이며 `force_unknown_stationary=false`이면 사용하지 않는다. 동시 존재하는 두 객체를 합치거나 검출·track을 삭제하지 않는다.
 이전 UNKNOWN의 0.6초 이상 위치·속도 안정성과, 재검출의 공백 2초 이하·중심 0.35m 이하·footprint IoU≥0.35·형상/높이 일치를 요구한다. 현재 또는 과거 같은 raw track 생애에 1m 이내 다른 raw ID를 봤으면 계승 근거에서 제외한다. 잘못된 이웃 형상·class도 근접 이력에서 지우지 않는다. stamp/단조 publisher seq 역행·긴 callback 공백·동일 stamp의 변경된 입력은 이력을 초기화한다. 정상 uint32 seq wrap은 허용한다.
 신규 선별 34개 bag의 raw 41,206개에서 Woodbox4/7만 계승했고, 별도 LAN 풀주행 raw 11,153개에서는 전체 출력이 동일했다. 위치·크기·class·공분산·속도·stamp·출력 수명은 변경하지 않았으며 detector AP 개선을 뜻하지 않는다.
 실제 격리 ROS 1,086틱의 measurement는 같고 정책/Map-CV의 순차 ID는 3→1이었다. 고정 ego의 실제 BPP/SOA/MPT 대조에서 Woodbox7 후반 전부-0속도 출력은 두 번 모두 38→0틱, 성공 대조군은 0→0이었다. 초기 1틱은 남고, 동일 v99 지도 fixture와 기록 odom에서 계산한 acceleration을 사용했으므로 실제 MORAI 완주 인증이 아니다.
 한 번도 함께 보이지 않은 별개 UNKNOWN이 위치 오차로 같은 형상·위치처럼 보이는 경우는 입력만으로 완전 식별할 수 없다. seq가 항상 0인 publisher의 짧은 tracker-only 재시작도 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
 재현과 원문은 로컬 `planner_logs/analysis/261029_duplicate_cases/`의 `uuid_continuity_v2/summary.json`, `uuid_raw_regression/summary.json`, `actual_ros/comparison.json`, `case_audit/planner_replay_REPORT.md`에 보존했다. 재학습은 필요 없으며 새 패키지 설치 후 tracker/policy를 새로 실행해야 한다.
 2026-10-29 후속 강화·반례·최종 source hash는 로컬 `planner_logs/analysis/261029_duplicate_followup/helper_review/`에 보존했다. `processing_time_ms` 기존 선택적 진단 JSON의 `uuid_continuity`에 계승·거절·초기화와 변경 객체 수를 남긴다. 콘솔 출력·새 topic·GT 입력은 추가하지 않는다.
-추가 실제 MORAI 대조는 E12/TRT·측위·실제 판단/제어와 로컬 v100에서 4장면×OFF/ON 8회 모두 완주·충돌 0이었다. Woodbox4는 raw ID 2개→전달 ID 1개·SOA 기억 2→1개, Woodbox7은 raw 3개→전달 2개·기억 3→2개로 실제 계승됐다. UUID 이외 출력 내용은 동일했다. Woodbox7의 남은 재검출은 XY 1.063m·IoU 0.0565로 달라 계승을 거절했으며 gate를 넓히지 않았다. OFF도 모두 완주했고 목표 5m 밖 전부-0 궤적은 양쪽 모두 0이므로 역사적 중도 정지의 완치나 v101·전체 코스 인증이 아니다. 원형·목표·지도·모델·판단 설정을 맞춘 실제 기록과 영상은 로컬 `planner_logs/validation/duplicate_live_paired_261029_083146/`, 독립 감사는 `planner_logs/analysis/261029_duplicate_live/audit_paired/`에 보존했다. 기본 OFF·Draft 유지다.
+추가 실제 MORAI 대조는 E12/TRT·측위·실제 판단/제어와 로컬 v100에서 4장면×OFF/ON 8회 모두 완주·충돌 0이었다. Woodbox4는 raw ID 2개→전달 ID 1개·SOA 기억 2→1개, Woodbox7은 raw 3개→전달 2개·기억 3→2개로 실제 계승됐다. 같은 주행의 기존 motion policy 대비 UUID 계승 이외 변경은 없었다. Woodbox7의 남은 재검출은 XY 1.063m·IoU 0.0565로 달라 계승을 거절했으며 gate를 넓히지 않았다. OFF도 모두 완주했고 목표 5m 밖 전부-0 궤적은 양쪽 모두 0이므로 역사적 중도 정지의 완치나 v101·전체 코스 인증이 아니다. 원형·목표·지도·모델·판단 설정을 맞춘 실제 기록과 영상은 로컬 `planner_logs/validation/duplicate_live_paired_261029_083146/`, 독립 감사는 `planner_logs/analysis/261029_duplicate_live/audit_paired/`에 보존했다. 사용자 승인 범위는 UUID 계승만 기본 ON이며 소형 birth 후보는 OFF다.
 
 ### 소형 UNKNOWN 중복 birth 후보
 
