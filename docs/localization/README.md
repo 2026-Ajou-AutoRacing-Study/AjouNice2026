@@ -14,12 +14,15 @@
 ```bash
 localization       # MR / competition: Competition heading/vx, heading -1.347 deg
 localization_mrp   # MRP replay: Ego heading/vx, heading 0 deg
+localization gnss_delay_ms:=20  # 선택적 위치 전진 보상; 생략하면 기존0ms
 ```
 
 현재 체계는 GPS + IMU yaw-rate/ax + 선택한 status heading/vx의 Local/Global
 `robot_localization` EKF다. Global-only soft `vy≈0` prior와 vehicle-pivot Smooth를
 사용한다. Planning/TF는 `/localization/kinematic_state`, controller-facing 출력은
 `/localization/control_kinematic_state`다. Q/R·heading·시간 정책을 문서 정리로 바꾸지 않는다.
+ms 인자의 의미·환경별 시험값·원본 유지 fallback은
+[CURRENT 실행 인자](COMPETITION_LOCALIZATION_CURRENT_STATE.md#gnss-지연-보상-선택-ms-실행-인자)를 따른다.
 
 실제 진입 코드:
 
@@ -27,6 +30,8 @@ localization_mrp   # MRP replay: Ego heading/vx, heading 0 deg
 - [provider launch](../../base_ws/src/localization/localization_manager/launch/gnss_imu_gt_ctra.launch)
 - [현재 config 구분](../../configs/localization/README.md)
 - [현재 평가 도구](../../scripts/evaluation/localization/README.md)
+- [원큐 GNSS 지연 측정](COMPETITION_LOCALIZATION_CURRENT_STATE.md#원큐-측정-녹화와-validator):
+  수동 스택 옆 `gnss_delay_record`, 또는 rc/MORAI만 연결한 `gnss_delay_validator`.
 
 [legacy/](legacy/)는 완료된 실험·기각/보류 후보·옛 provider·원본 snapshot 보관소다.
 현재 근거가 역사적 문서를 인용해도 그 문서의 옛 기본값·명령 전체를 복원하지 않는다.

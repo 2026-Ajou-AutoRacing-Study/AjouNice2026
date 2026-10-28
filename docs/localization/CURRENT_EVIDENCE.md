@@ -1,6 +1,6 @@
 # 현재 Localization 근거와 제한
 
-상태: CURRENT 근거 요약. 2026-10-24 문서 정리이며 새 runtime 검증은 없다.
+상태: CURRENT 근거 요약. 문서 정리 기준은2026-10-24이며, 후속2026-10-29 검증은 아래에 조건별로 기록한다.
 아래는 현재 기본값과 연결되는 결과만 선별했다. 원본·수치·부정 결과·실행명은
 [원본 bag catalog](legacy/evidence/260924_LOCALIZATION_EVALUATION_BAG_CATALOG.md)와
 [누적 실험 기록](legacy/evidence/261015_GPS_SHADOW_CLOSED_LOOP_IMPROVEMENT.md)에 보존한다.
@@ -53,6 +53,34 @@ archive의 이전 HOLD/기본값을 현재 기본값으로 읽지 않는다.
   lever-arm 가속도는 robot_localization에서 보정하므로 adapter에서 중복 보정하지 않는다.
 
 ## Checkpoint·운영 대기
+
+2026-10-29 후속 [LAN·로컬 부하 대조](../../planner_logs/analysis/261029_gnss_clock_lan/REPORT.txt)는
+추가 GNSS 보상0초를 유지했다. 새 팀 LAN9.7GB의 GNSS/Global 상대 epoch는 약12/10ms였고,
+물리적 네트워크 지연 측정은 아니다. 동일 음영 장면의 실제 validator4회는 모두 stop/P까지
+PASS했다. E12의 RViz OFF→ON→OFF에서 native 속도 적분 대 Ego 이동량 차이는
+0.53→1.68→0.08m로 달랐다. 로컬 고부하 시간축 문제와 수십ms 상대 epoch를 구분하며,
+이 결과를 7.3m 점프의 완전 재현·새 LAN 공식 START/실대회 인증으로 승격하지 않는다.
+
+[추가 대조](../../planner_logs/analysis/261029_gnss_clock_followup/REPORT.txt)에서 BEVFusion OFF·RViz ON
+음영 주행도 PASS/P였고 종p95는0.472m였다. 새로 받은54.94초 LAN bag은 원시GPS/Global의
+상대epoch 약22ms를 지지하지만 GPS zero가0개여서 음영 복귀 근거는 아니다.
+실패 입력의 Smooth 재구성은7.423m 보정이0.5m hard-reset을 넘은 것을 확인했다.
+reset만 없앤 오프라인 후보는 Smooth/Global 차이가약9.92m여서 운영에 적용하지 않았다.
+
+후속 [ms 인자와 환경별 시험값](../../planner_logs/analysis/261029_gnss_delay_profiles/REPORT.txt)은
+기존 GNSS 위치 전진 보상을 `gnss_delay_ms`로 선택하도록 연결했다. 기본은0ms 유지다.
+입력단 종 MAE는 팀장님LAN10ms에서16.75→8.40cm, 희중님LAN20ms에서20.32→5.25cm,
+luv 로컬E12/RViz OFF30ms에서약36→8cm였다. 같은 bag 입력 수치 비교이며 새 EKF 출력·
+실주행·LAN 인증이 아니다. 인터페이스/회귀 오프라인253개 통과와 nonzero 주행 gate를 구분한다.
+
+2026-10-29 [실제 보상 OFF/ON 대조](../../planner_logs/analysis/261029_gnss_delay_live_compare/REPORT.txt)는
+로컬v100·MR/Competition·od_gt·RViz OFF에서0→15ms를 비교했다. 정상 GNSS 주행의
+최종 Global 종 MAE11.99→4.97cm, p95 23.50→11.83cm; Smooth 종 MAE11.72→5.15cm였다.
+음영 유지 별도 pair도 완주/P였고 Global 음영 종p95 16.84→11.03cm, 복귀후22.36→16.35cm였다.
+복귀첫1초p95는9.95→13.14cm로 일부 악화해 모든 지표 개선이라고 쓰지 않는다.
+4회 실제 주행/P 확인이며 조건별1pair다. 새 LAN/E12부하·v101 실주행 인증은 아니고 기본값0ms를 유지한다.
+최초OFF 자동화의 공유본 receipt 중복 집계 오류는 원본 보존·canonical 재검사로 확인/수정했다.
+원큐 `gnss_delay_validator`/`gnss_delay_record`는 raw GPS 기준 절대 추천값을 출력하며 자동 적용하지 않는다.
 
 변경 전 제공 툴0–13은 유효 GNSS로 자연 복구했으나 Smooth 정합까지 약2.78–7.03초가
 걸렸다. 툴14(현행CP14)의 raw NMEA zero는 로컬 변경 전 관측이며 운영측 음영 범위 조정

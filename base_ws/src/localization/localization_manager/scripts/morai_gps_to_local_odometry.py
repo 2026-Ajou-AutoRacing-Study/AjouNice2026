@@ -39,6 +39,30 @@ def should_publish_quantized_fix(mode, cell, last_published_cell):
     return mode == "off" or cell != last_published_cell
 
 
+def resolve_motion_compensation_sec(delay_ms, legacy_sec):
+    """Select one unit without adding the same compensation twice.
+
+    An empty ms argument preserves old launch/campaign files. Positive values
+    advance the GNSS position using motion; they never delay a callback or
+    rewrite a receipt-time header. Both interfaces share the existing 100ms cap.
+    """
+    if isinstance(legacy_sec, bool):
+        raise ValueError("motion_compensation_sec must be a number, not bool")
+    seconds = float(legacy_sec)
+    if not math.isfinite(seconds) or not 0.0 <= seconds <= 0.1:
+        raise ValueError("motion_compensation_sec must be finite and in [0, 0.1] seconds")
+    if delay_ms == "":
+        return seconds
+    if isinstance(delay_ms, bool):
+        raise ValueError("gnss_delay_ms must be a number, not bool")
+    milliseconds = float(delay_ms)
+    if not math.isfinite(milliseconds) or not 0.0 <= milliseconds <= 100.0:
+        raise ValueError("gnss_delay_ms must be finite and in [0, 100] milliseconds")
+    if seconds != 0.0:
+        raise ValueError("select gnss_delay_ms OR nonzero motion_compensation_sec, not both")
+    return milliseconds / 1000.0
+
+
 def motion_compensation_delta(
     compensation_sec, gps_stamp_sec, motion, orientation, max_age_sec, base_frame
 ):
@@ -235,16 +259,13 @@ class MoraiGpsToLocalOdometry:
         self.noise_ns = rospy.get_param(
             "~noise_namespace", DEFAULT_NOISE_NS
         )
-        self.motion_compensation_sec = float(
-            rospy.get_param("~motion_compensation_sec", 0.0)
-        )
-        if (
-            not math.isfinite(self.motion_compensation_sec)
-            or not 0.0 <= self.motion_compensation_sec <= 0.1
-        ):
-            raise rospy.ROSInitException(
-                "~motion_compensation_sec must be finite and in [0, 0.1] seconds"
+        try:
+            self.motion_compensation_sec = resolve_motion_compensation_sec(
+                rospy.get_param("~gnss_delay_ms", ""),
+                rospy.get_param("~motion_compensation_sec", 0.0),
             )
+        except (TypeError, ValueError, OverflowError) as error:
+            raise rospy.ROSInitException(str(error)) from error
         self.max_motion_age_sec = float(
             rospy.get_param("~max_motion_age_sec", 0.1)
         )
@@ -313,6 +334,10 @@ class MoraiGpsToLocalOdometry:
             horizontal_stddev,
             self.quantization_input_mode,
             self.motion_compensation_sec,
+        )
+        rospy.loginfo(
+            "GNSS advance %.1fms; receipt stamps unchanged; no added wait",
+            self.motion_compensation_sec * 1000.0,
         )
 
     def motion_callback(self, message):

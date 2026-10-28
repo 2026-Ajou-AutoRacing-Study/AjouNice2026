@@ -45,6 +45,7 @@
   <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <!-- Opt-in observation epoch experiment; raw UDP/header policy is unchanged. -->
   <arg name="gnss_motion_compensation_sec" default="0.0"/>
+  <arg name="gnss_delay_ms" default=""/>
   <arg name="gnss_motion_max_age_sec" default="0.1"/>
   <arg name="local_odom_topic" default="/localization/odometry/local"/>
   <arg name="global_odom_topic" default="/localization/odom"/>
@@ -147,6 +148,7 @@
     <param name="quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
     <param name="quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <param name="motion_compensation_sec" value="$(arg gnss_motion_compensation_sec)"/>
+    <param name="gnss_delay_ms" type="str" value="$(arg gnss_delay_ms)"/>
     <param name="max_motion_age_sec" value="$(arg gnss_motion_max_age_sec)"/>
     <param name="motion_topic" value="$(arg gt_twist_topic)"/>
     <param name="orientation_topic" value="$(arg gt_orientation_topic)"/>

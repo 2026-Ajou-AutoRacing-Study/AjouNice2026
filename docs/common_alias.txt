@@ -84,7 +84,12 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 
 # MR (2025 competition launcher) and field competition localization.
 # The competition contract does not provide /Ego_topic.
+# Optional: localization gnss_delay_ms:=20 (position advance, not an added wait).
+# Keep per-PC candidates explicit; bare localization remains compensation OFF.
 alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
+# Read-only manual recorder, or the real validator's complete calibration mode.
+alias gnss_delay_record='bash "$AJOUNICE_ROOT/scripts/evaluation/localization/record_gnss_delay.sh"'
+alias gnss_delay_validator='bash "$AJOUNICE_ROOT/planning_validator" --gnss-delay-calibration'
 # Rejected Q/R experiment aliases are preserved in the context archive, not active.
 # MRP (2026 personal launcher) only. Estimator is shared; heading convention is already aligned.
 alias localization_mrp='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego use_heading_correction:=false heading_yaw_offset_deg:=0.0 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
@@ -183,6 +188,16 @@ field_log_list() {
   base="$(basename -- "$prefix")"
   echo "Current field log prefix: $prefix"
   find "$log_dir" -maxdepth 1 -type f -name "${base}_*" -exec ls -lh -- {} +
+  if [[ -d "${prefix}_console" ]]; then
+    find "${prefix}_console" -maxdepth 1 -type f -exec ls -lh -- {} +
+  fi
+}
+
+# English compact view for sensing/localization/perception, one-second aggregation.
+# Other teams' planning/control/RViz/roscore commands keep their original output.
+# The original aliases/field_log_tee remain unchanged for raw terminal output.
+field() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" "$@"
 }
 
 # planning-----------------------------------------------

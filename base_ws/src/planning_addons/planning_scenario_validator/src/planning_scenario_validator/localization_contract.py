@@ -32,7 +32,7 @@ NONNEGATIVE_ARGS = {'control_translation_tau_sec', 'control_yaw_tau_sec',
                     'control_state_reset_translation_error_m',
                     'control_state_reset_yaw_error_deg', 'relocation_guard_cooldown_sec'}
 NONNEGATIVE_ARGS |= {'control_lateral_tau_sec', 'control_max_lateral_correction_rate_mps'}
-NONNEGATIVE_ARGS |= {'gnss_motion_compensation_sec',
+NONNEGATIVE_ARGS |= {'gnss_motion_compensation_sec', 'gnss_delay_ms',
                     'relocation_guard_stationary_speed_max_mps',
                     'relocation_guard_future_tolerance_sec',
                     'relocation_guard_reacquisition_grace_sec'}
@@ -155,6 +155,14 @@ def normalize_localization_launch_args(stack, resolve_path=None, *, check_paths=
                 raise ValueError('{}는 180도 이하여야 합니다'.format(label))
             if key == 'gnss_motion_compensation_sec' and result[key] > 0.1:
                 raise ValueError('{}는 0.1초 이하여야 합니다'.format(label))
+            if key == 'gnss_delay_ms' and result[key] > 100:
+                raise ValueError('{}는 100ms 이하여야 합니다'.format(label))
+    # Keep the optional millisecond interface out of defaults so existing
+    # snapshots/resume contracts retain their argument shape when it is absent.
+    # The legacy zero is harmless, but two compensation settings are ambiguous
+    # even when the explicitly supplied millisecond value itself is zero.
+    if 'gnss_delay_ms' in result and result.get('gnss_motion_compensation_sec', 0.0) != 0.0:
+        raise ValueError('gnss_delay_ms 사용 시 gnss_motion_compensation_sec는 0이어야 합니다')
     return result
 
 

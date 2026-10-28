@@ -22,6 +22,28 @@ The stability analyzer defaults to MR oracle heading offset `-1.347deg`.
 MRP and uncorrected direct Ego GT require `--heading-offset-deg 0`.
 Recover alias/gt_source/runtime parameters; never infer heading from a filename or PC,
 and never apply correction a second time to the estimator state.
+
+## One-shot GNSS delay calibration
+
+After `ajou`, run `gnss_delay_record --duration 90` beside an already-running
+manual localization/od_gt/planning/controller stack. Only small raw/reference
+topics are recorded; Ctrl-C finalizes this recorder and analyzes, **not** the car.
+
+For the complete real-validator workflow, keep only roscore and connected MORAI,
+then run `./planning_validator --gnss-delay-calibration` (`gnss_delay_validator`
+alias). It owns actual localization/od_gt/planner/controller driving, recording,
+stop/P audit, then calls the same `analyze_gnss_delay.py`. Existing manual stacks
+are refused, never killed. Default two empty-route runs use a fresh derived scene
+without GPS shadows; original scenarios, sensors and mission actors are unchanged.
+`--keep-gps-shadow` is for separate recovery trials. `--check`/`--dry-run` do not
+contact ROS, create files or move the car.
+
+The analyzer reads raw `/sensor/gps`, offline `/Ego_topic`, recorded map/morai_map
+TF and motion context. It reports `result.json`/`report.txt` with an **absolute**
+`recommendation_ms`, not an increment to current compensation. Fixed-position bias,
+moving sample count/time, speed variation, interpolation gaps and fit stability
+are checked; insufficient evidence produces no guessed number. No parameter is
+automatically changed. [Current contract and usage](../../../docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#원큐-측정-녹화와-validator).
 For the RViz evaluator, `--alignment-yaw-mode none` preserves absolute estimator yaw;
 historical `estimate` alignment can hide a constant yaw bias.
 

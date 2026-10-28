@@ -42,6 +42,16 @@ Spawn 툴 관측은 CP14 음영 조정 전 환경이며 원본 CP13/15 구번호
 
 ## 새 실험 필수 provenance·토픽
 
+2026-10-29 추가 입력·결과는 [실험 대조 보고서](../../planner_logs/analysis/261029_gnss_clock_lan/REPORT.txt)에 묶었다.
+`rosbags/eval/full_stack/team_261028_drive_1ONsfQ/development.bag`는 raw GNSS·Competition·Ego를
+포함한 LAN 기록이며, `clock_audit_gt_261029_261029_015244`,
+`clock_audit_bev_261029_261029_015442`, `clock_audit_bev_rviz_261029_261029_015939`,
+`clock_audit_bev_261029_261029_020430`은 `planner_logs/validation/`의 새 로컬 폐루프다.
+단일 조건별 소량 부하 대조이며 새 제동·시간보상 채택이나 공식 START/LAN 인증 근거가 아니다.
+후속 `rosbags/eval/localization/team_lan_261028_180117/planbag_rb_100_T4_S0_V24_O100_F_20261028_180117.bag`과
+`planner_logs/validation/clock_audit_gt_rviz_261029_261029_021338`의 raw·출력/실제 주행 대조는
+[추가 보고서](../../planner_logs/analysis/261029_gnss_clock_followup/REPORT.txt)를 따른다. 제공 PNG는 다른 주행으로 확인돼 수치 근거에서 제외했다.
+
 bag path, acquisition(MR/MRP/LAN_FIELD/OFFLINE_REPLAY), alias, `gt_source`,
 estimator heading correction, evaluator heading offset, time policy, real-time factor,
 localization/controller revision, 바꾼 변수·고정 변수, sensor/scenario hash를 기록한다.

@@ -12,6 +12,13 @@ GUI 기본값과 모델 없는 새 YAML은 E12이며 명시적인 `e24`/`e25`는
 
 팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오의 실시간 판정 결과를 저장하며, bag과 화면 영상은 선택한 녹화 설정에 따라 별도로 남긴다.
 
+GNSS 지연 측정 전용 모드는 `./planning_validator --gnss-delay-calibration`
+(`ajou` 뒤에는 `gnss_delay_validator`)이다. **rc + MORAI만 연결**해 두면 실제
+localization/od_gt/planner/controller 주행·소형 bag 녹화·stop/P 검증·지연 추정을 이어서 수행한다.
+기존 수동 스택은 강제 종료하지 않고 중복이면 거부한다. 결과가 충분할 때만 ms 후보를 내며
+설정에 자동 적용하지 않는다. 네트워크·원본 보존·분석 조건과 OFF/ON 대조는
+[localization CURRENT](../../../../docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#원큐-측정-녹화와-validator)를 따른다.
+
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
 설치 후에는 [실제 작업 순서](../../../../docs/planning/SCENARIO_VALIDATOR_WORKFLOW.md)를 따른다. [자주 쓰는 곳을 표시한 화면 5장](../../../../docs/planning/SCENARIO_VALIDATOR_GUI_HIGHLIGHTS.md)과 [자세한 사용법](../../../../docs/planning/SCENARIO_VALIDATOR_RUNBOOK.md)도 제공한다. **YAML 하나는 공통 실행 조건 하나**, 여러 YAML은 GUI `실행 목록 / 배치`에 추가해 순서대로 실행한다. 미션별 사용자 진입점은 `config/missions/<미션>/base/`와 Git 제외 `workspace/`이며, 토픽·생성 Network는 `config/internal/`에 분리했다.
