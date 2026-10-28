@@ -357,7 +357,8 @@ public:
   DecisionLineDecision update(
     Observation observation, bool fresh, bool guard_requires_stop,
     double velocity_mps, bool vehicle_stopped, double target_distance_m,
-    double stopping_distance_m, double source_sec, double now_sec)
+    double stopping_distance_m, double source_sec, double now_sec,
+    bool defer_initial_unseen_unknown = false)
   {
     const auto finish = [&](bool require_stop, const char * reason) {
       last_decision_ = {require_stop, state_, reason, stopping_distance_m,
@@ -383,6 +384,17 @@ public:
     const bool usable_source = fresh && valid_source && source_sec <= now_sec;
     if (usable_source) last_source_sec_ = source_sec;
     if (!std::isfinite(velocity_mps) || velocity_mps < -moving_threshold_mps) {
+      // The caller may explicitly retain the competition's existing pre-first-
+      // lamp UNKNOWN policy. A finite negative signed-speed sample is not a
+      // red/yellow observation and must not create permanent color-STOP history
+      // for an unseen future signal. Do not fabricate a braking distance or a
+      // directional grant, broaden the standstill clamp, release an existing
+      // STOP, or preserve an already committed GO through this exception.
+      if (std::isfinite(velocity_mps) && defer_initial_unseen_unknown && usable_source &&
+          observation == Observation::Unknown && !guard_requires_stop &&
+          state_ == DecisionLineState::Approach) {
+        return finish(false, "defer_unseen_negative_velocity");
+      }
       state_ = DecisionLineState::Stop;
       return finish(true, "invalid_velocity");
     }

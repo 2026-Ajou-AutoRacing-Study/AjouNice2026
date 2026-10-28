@@ -588,6 +588,30 @@ TEST_F(TrafficLightComplianceModuleTest, DefaultYellowOnAndExplicitOffDoNotBlock
   }
 }
 
+TEST_F(TrafficLightComplianceModuleTest, FirstUnseenNegativeSpeedDoesNotCreatePersistentSignalStop)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,true,20.,true,.3,1);
+    setUnseenUntilObserved(true);
+    tick(); pose(-20.,.2); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    // Recorded D sequence: another module stops the ego while D is still
+    // unseen, then signed localization velocity briefly goes below -.1m/s.
+    tick(); pose(-20.,-.236); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    EXPECT_FALSE(pendingDecisionStop());
+    tick(); pose(-20.,.275); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    EXPECT_FALSE(pendingDecisionStop());
+    // First real R/Y still stops; UNKNOWN or another negative sample must not
+    // erase that established STOP history even after the shifted map line.
+    tick(); pose(6.,.1); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(); pose(7.1,-.236); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+    EXPECT_TRUE(pendingDecisionStop());
+    tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+    tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
+    tick(); put(green()); EXPECT_FALSE(modifiesToStop());
+  }
+}
+
 TEST_F(TrafficLightComplianceModuleTest, YellowOffPendingStopSurvivesFrontAxleOvershoot)
 {
   for(const auto group:{201351,201365,201290,201326}) {

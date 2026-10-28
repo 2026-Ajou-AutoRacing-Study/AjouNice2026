@@ -55,7 +55,8 @@ protected:
     node_.deleteParam("/traffic_yellow_experimental_test");
   }
 
-  void configure(int64_t group, bool yellow_enabled, bool fail_open=true)
+  void configure(int64_t group, bool yellow_enabled, bool fail_open=true,
+                 bool defer_unseen_until_observed=false)
   {
     module_.reset(); group_ = group;
     lanelet::LineString3d line(lanelet::utils::getId(), {
@@ -70,6 +71,7 @@ protected:
     params.enable_pass_judge = true; params.yellow_light_is_go = true;
     params.competition_fail_open = fail_open; params.enable_signal_compliance_guard = true;
     params.enable_yellow_passthrough = yellow_enabled;
+    params.defer_unseen_until_observed = defer_unseen_until_observed;
     params.signal_compliance_front_axle_offset_m = 3.;
     params.use_official_judging_lines = true;
     params.signal_judging_lines = {{group,{{10.,-3.},{10.,3.}},{1.,0.}}};
@@ -148,10 +150,10 @@ protected:
     });
   }
 
-  void confirmGreen(double speed=1.5)
+  void confirmGreen(double speed=1.5, double x=6.)
   {
     for (int index=0;index<3;++index) {
-      tick(); pose(6.,speed); put(green());
+      tick(); pose(x,speed); put(green());
       EXPECT_EQ(modifiesToStop(),index<2);
     }
   }
@@ -186,14 +188,16 @@ TEST_F(TrafficYellowSwitchExperimentalTest, ABCDStoppedYellowCannotRestartEvenWi
   }
 }
 
-TEST_F(TrafficYellowSwitchExperimentalTest, ABCDRedAndSignalLossStillStopWithOptionOn)
+TEST_F(TrafficYellowSwitchExperimentalTest, ABCDUncommittedRedAndSignalLossStopWithOptionOn)
 {
   for (const auto group : {201351,201365,201290,201326}) {
     SCOPED_TRACE(group);
-    configure(group,true,false); confirmGreen();
-    tick(); pose(6.,1.5); put(red()); EXPECT_TRUE(modifiesToStop());
-    configure(group,true,false); confirmGreen();
-    data_->traffic_light_id_map_raw_.clear(); tick(); pose(6.,1.5);
+    // Remain outside the decision boundary: the v2 one-shot GO policy
+    // deliberately does not revoke a previously committed moving decision.
+    configure(group,true,false); confirmGreen(1.5,0.);
+    tick(); pose(0.,1.5); put(red()); EXPECT_TRUE(modifiesToStop());
+    configure(group,true,false); confirmGreen(1.5,0.);
+    data_->traffic_light_id_map_raw_.clear(); tick(); pose(0.,1.5);
     EXPECT_TRUE(modifiesToStop());
   }
 }
@@ -214,19 +218,45 @@ TEST_F(TrafficYellowSwitchExperimentalTest, CompetitionDefaultNoTrafficAndTimeou
   }
 }
 
-TEST_F(TrafficYellowSwitchExperimentalTest, ABCDAlreadyCrossedStationaryAndFreshModuleClearWithOptionOff)
+TEST_F(TrafficYellowSwitchExperimentalTest, ABCDOffPendingStopSurvivesOvershootButFreshCrossedModuleClears)
 {
-  EXPECT_FALSE(TrafficLightModule::PlannerParam{}.enable_yellow_passthrough);
+  EXPECT_TRUE(TrafficLightModule::PlannerParam{}.enable_yellow_passthrough);
   for (const auto group : {201351,201365,201290,201326}) {
     SCOPED_TRACE(group);
     configure(group,false); tick(); pose(6.3,0.); put(red());
     EXPECT_TRUE(modifiesToStop()); // Bumper crossed, front axle still 0.7m before line.
     tick(); pose(7.1,0.); put(red());
-    EXPECT_FALSE(modifiesToStop());
-    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
+    EXPECT_TRUE(modifiesToStop()); // Existing color STOP survives overshooting the shifted line.
+    EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::APPROACH);
     configure(group,false); tick(); pose(7.1,0.); // Fresh module, no signal.
     EXPECT_FALSE(modifiesToStop());
     EXPECT_EQ(module_->getTrafficLightModuleState(),TrafficLightModule::State::GO_OUT);
+  }
+}
+
+TEST_F(TrafficYellowSwitchExperimentalTest, ABCDCommittedMovingGoSurvivesRedButActualStopRearms)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,false); confirmGreen();
+    tick(); pose(6.,1.5); put(red()); EXPECT_FALSE(modifiesToStop());
+    tick(); pose(6.1,1.5); put(yellow()); EXPECT_FALSE(modifiesToStop());
+    tick(); pose(6.1,0.); put(red()); EXPECT_TRUE(modifiesToStop());
+  }
+}
+
+TEST_F(TrafficYellowSwitchExperimentalTest, FirstUnseenNegativeSpeedDoesNotCreatePersistentSignalStop)
+{
+  for (const auto group : {201351,201365,201290,201326}) {
+    SCOPED_TRACE(group);
+    configure(group,true,true,true);
+    tick(); pose(-20.,.2); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    tick(); pose(-20.,-.236); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    tick(); pose(-20.,.275); put(Signal{}); EXPECT_FALSE(modifiesToStop());
+    tick(); pose(6.,.1); put(red()); EXPECT_TRUE(modifiesToStop());
+    tick(); pose(7.1,-.236); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+    tick(); pose(7.1,0.); put(Signal{}); EXPECT_TRUE(modifiesToStop());
+    tick(); put(yellow()); EXPECT_TRUE(modifiesToStop());
   }
 }
 }  // namespace autoware::behavior_velocity_planner::experimental

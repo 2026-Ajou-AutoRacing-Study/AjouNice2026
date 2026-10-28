@@ -250,3 +250,55 @@ TEST(SignalDecisionLineLatch, ParkedNoiseDoesNotInventInitialUnknownStop)
   EXPECT_TRUE(invalid.require_stop);
   EXPECT_STREQ(invalid.reason, "invalid_velocity");
 }
+
+TEST(SignalDecisionLineLatch, ExplicitFirstUnseenPolicyDoesNotLatchNegativeSignedSpeedAsColorStop)
+{
+  DecisionLineLatch latch;
+  const auto initial = latch.update(Observation::Unknown, true, false, -.236, true,
+    142., std::numeric_limits<double>::quiet_NaN(), 10., 10., true);
+  EXPECT_FALSE(initial.require_stop);
+  EXPECT_FALSE(initial.committed_go);
+  EXPECT_EQ(initial.state, DecisionLineState::Approach);
+  EXPECT_STREQ(initial.reason, "defer_unseen_negative_velocity");
+  EXPECT_FALSE(latch.pendingStop());
+  const auto recovered = latch.update(Observation::Unknown, true, false, .275, false,
+    142., *compliance::jerkStoppingDistance(.275,6.,10.,0.), 10.1, 10.1, true);
+  EXPECT_FALSE(recovered.require_stop);
+  EXPECT_FALSE(recovered.committed_go);
+  EXPECT_EQ(recovered.state, DecisionLineState::Approach);
+}
+
+TEST(SignalDecisionLineLatch, FirstUnseenExceptionCannotReleaseStopGrantGreenOrAcceptNonfiniteSpeed)
+{
+  for (const auto observation : {Observation::Stop, Observation::Yellow, Observation::AuthorizedGreen}) {
+    DecisionLineLatch latch;
+    const auto result = latch.update(observation, true, observation!=Observation::AuthorizedGreen,
+      -.236, true, 142., std::numeric_limits<double>::quiet_NaN(), 10., 10., true);
+    EXPECT_TRUE(result.require_stop);
+    EXPECT_FALSE(result.committed_go);
+    EXPECT_TRUE(latch.pendingStop());
+  }
+  for (const bool fresh : {false,true}) {
+    DecisionLineLatch latch;
+    ASSERT_TRUE(update(latch,Observation::Stop,true).require_stop);
+    const auto result = latch.update(Observation::Unknown, fresh, false, -.236, true,
+      142., std::numeric_limits<double>::quiet_NaN(), 10.1, 10.1, true);
+    EXPECT_TRUE(result.require_stop);
+    EXPECT_TRUE(latch.pendingStop());
+  }
+  for (const double velocity : {std::numeric_limits<double>::quiet_NaN(),
+                                std::numeric_limits<double>::infinity()}) {
+    DecisionLineLatch latch;
+    const auto result = latch.update(Observation::Unknown, true, false, velocity, true,
+      142., std::numeric_limits<double>::quiet_NaN(), 10., 10., true);
+    EXPECT_TRUE(result.require_stop);
+    EXPECT_FALSE(result.committed_go);
+  }
+  DecisionLineLatch stale;
+  EXPECT_TRUE(stale.update(Observation::Unknown,false,false,-.236,true,
+    142.,std::numeric_limits<double>::quiet_NaN(),10.,10.,true).require_stop);
+  DecisionLineLatch committed;
+  ASSERT_TRUE(update(committed,Observation::AuthorizedGreen,false).committed_go);
+  EXPECT_TRUE(committed.update(Observation::Unknown,true,false,-.236,true,
+    142.,std::numeric_limits<double>::quiet_NaN(),10.1,10.1,true).require_stop);
+}

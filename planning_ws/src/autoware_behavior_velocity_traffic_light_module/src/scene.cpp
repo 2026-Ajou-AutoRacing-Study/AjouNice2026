@@ -359,7 +359,7 @@ bool TrafficLightModule::isStopSignal(
       observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
       clock_->now().toSec(), planner_param_.tl_state_timeout, has_color_evidence);
     const bool pending_stop = stop_requested_on_approach_ || decision_line_latch_.pendingStop();
-    const auto apply_decision_line = [&](bool guarded_stop) {
+    const auto apply_decision_line = [&](bool guarded_stop, bool defer_initial_unseen = false) {
       const double target_distance = genuine_path_stop_point ? distance_to_stop_point :
         virtual_front_distance ? *virtual_front_distance -
           (planner_data_->vehicle_info_.max_longitudinal_offset_m -
@@ -383,7 +383,8 @@ bool TrafficLightModule::isStopSignal(
         observation, age >= 0.0 && age <= planner_param_.tl_state_timeout,
         guarded_stop, velocity, planner_data_->isVehicleStopped(), target_distance,
         braking.value_or(std::numeric_limits<double>::quiet_NaN()),
-        traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0, clock_->now().toSec());
+        traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0, clock_->now().toSec(),
+        defer_initial_unseen);
       signal_compliance::publishVideoDecision(
         traffic_light_reg_elem_.id(), clock_->now(), decision.require_stop,
         decision.committed_go, velocity, target_distance,
@@ -413,7 +414,7 @@ bool TrafficLightModule::isStopSignal(
       RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
         "[signal_compliance] reg=%ld unreadable before first lamp: defer stop point",
         traffic_light_reg_elem_.id());
-      return apply_decision_line(false);
+      return apply_decision_line(false, true);
     }
     if (observation == Observation::Unknown && traffic_signal_stamp_ &&
         !planner_data_->current_acceleration) {
