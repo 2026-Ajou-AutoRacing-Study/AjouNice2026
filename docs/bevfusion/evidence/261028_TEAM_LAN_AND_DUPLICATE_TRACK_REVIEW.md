@@ -197,6 +197,11 @@ soft 여유 .55m를 후검사에서 잘못 hard로 적용한 증거는 없다. �
 
 초기 잘림 문제의 유력한 보완이다. 반복 재시도가 줄어 총 처리시간은 이 표본에서 늘지 않았지만,
 큰 QP 한 번의 비용은 증가했다. 재생 harness의 대기 시간과 shared CPU까지 섞인 wall time을 실제 주행 Hz로 환산하지 않는다.
+cap90을 새 프로세스에서 반복해380/380 cycle의 ego·BPP·SOA·MPT 점·진단 등급 일치를 확인했다.
+초기6회 실패는 반복에서도0회였고 전체 처리 p95/max는46.24/82.27ms였다.
+두 객체의 겹침 이후61개 cycle은 cap60/90/90반복 모두 추가 실패0·solve420회로 같았으며,
+그 구간 처리 p95도64.12/62.45/66.73ms였다. 인지 출력 소실 이후50개 cycle의 solve401회도 같았다.
+구간별 처리시간의 시점 정렬은 동일 순서 publication을 가정하며, header가 있는 search/solver trace와 함께 읽는다.
 최신v99·다중 장애물·새 폐루프를 더 확인하기 전에는 production cap60을 변경하지 않는다.
 추가 확인할 소스 설정은 `planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml`의
 `obstacle_optimization/max_forward_length`다. `return_length:15`·탐색100ms·마진 등은 이번 대조에서 유지했다.
@@ -220,3 +225,5 @@ soft 여유 .55m를 후검사에서 잘못 hard로 적용한 증거는 없다. �
 
 MORAI·메인 ROS master·실행 중인 제어 스택을 재시작하지 않았다. 시험은 소유한 격리 master/프로세스만 사용했다.
 모델·threshold·NMS·제동계수·지도·SOA 마진/수명은 유지한다.
+마감 준비상태 조회에서는 MORAI/validator GUI만 실행 중이고 실제 센서·측위·계획·제어 publisher와9090 bridge는 없었다.
+이것을 네트워크 단절이나 현재v97 실행으로 단정하지 않는다. 종료된 시험의 ROS 파라미터와 실제 실행 노드를 구분하며 새 폐루프 시험을 완료했다고 보고하지 않는다.
