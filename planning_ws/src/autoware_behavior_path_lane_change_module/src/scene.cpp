@@ -2070,6 +2070,14 @@ PathSafetyStatus NormalLaneChange::isApprovedPathSafe() const
     static_cast<size_t>(lane_change_parameters_->cancel.deceleration_sampling_num);
   auto ego_predicted_paths = utils::lane_change::convert_to_predicted_paths(
     common_data_ptr_, path, decel_sampling_num, true);
+  // Final-output feedback supplements mandatory candidate/actual-motion
+  // predictions. It must never rescue an unavailable prediction set.
+  if (ego_predicted_paths.empty() || std::any_of(
+      ego_predicted_paths.begin(), ego_predicted_paths.end(),
+      [](const auto & prediction) { return prediction.empty(); })) {
+    publishApprovedSafetyDiagnostics(false, false);
+    return {false, false};
+  }
   {
     const auto feedback = finalVelocityPrediction(path);
     const bool awaiting_reentry_feedback = abort_reentry_committed_ &&
@@ -2421,10 +2429,7 @@ PathSafetyStatus NormalLaneChange::isLaneChangePathSafe(
   constexpr auto is_safe = true;
   constexpr auto is_moving_object_behind_ego = true;
   if (ego_predicted_paths.empty()) {
-    if (lane_change_path.type == lane_change::PathType::SpatialSpeedProfile) {
-      return {!is_safe, !is_moving_object_behind_ego};
-    }
-    return {is_safe, !is_moving_object_behind_ego};
+    return {!is_safe, !is_moving_object_behind_ego};
   }
 
   const auto check_for_colliding_objects =

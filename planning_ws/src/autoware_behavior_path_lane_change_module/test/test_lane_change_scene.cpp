@@ -567,3 +567,28 @@ TEST(AbortReentryMotion, ConstantCurvaturePhysicalAccelerationKeepsZeroLateralDr
   EXPECT_NEAR(m->d_velocity,0,1e-9); EXPECT_NEAR(m->d_acceleration,0,1e-9);
   EXPECT_NEAR(m->slip_rate,0,1e-9);
 }
+
+TEST_F(TestNormalLaneChange, EmptyMandatoryPredictionsAreUnsafeForEveryCandidateType)
+{
+  class PredictionSafetyProbe : public NormalLaneChange
+  {
+  public:
+    using NormalLaneChange::NormalLaneChange;
+    using NormalLaneChange::isLaneChangePathSafe;
+  };
+  PredictionSafetyProbe probe(lc_param_ptr_, lc_type_, lc_direction_);
+  probe.setData(planner_data_);
+  autoware::behavior_path_planner::LaneChangePath path;
+  autoware::behavior_path_planner::CollisionCheckDebugMap debug;
+  const autoware::behavior_path_planner::lane_change::TargetObjects objects({}, {});
+  for (const auto type : {
+      autoware::behavior_path_planner::lane_change::PathType::ConstantJerk,
+      autoware::behavior_path_planner::lane_change::PathType::FrenetPlanner,
+      autoware::behavior_path_planner::lane_change::PathType::SpatialSpeedProfile}) {
+    path.type = type;
+    EXPECT_FALSE(probe.isLaneChangePathSafe(path, {}, objects,
+      lc_param_ptr_->safety.rss_params, debug).is_safe);
+    EXPECT_FALSE(probe.isLaneChangePathSafe(path, {{}}, objects,
+      lc_param_ptr_->safety.rss_params, debug).is_safe);
+  }
+}

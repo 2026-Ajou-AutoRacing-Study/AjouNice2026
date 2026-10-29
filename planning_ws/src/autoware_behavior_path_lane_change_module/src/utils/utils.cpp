@@ -1422,54 +1422,118 @@ std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
       common_data_ptr, remaining, deceleration_sampling_num, is_approved, stationary_horizon);
   }
   if (lane_change_path.type == PathType::SpatialSpeedProfile) {
-    const auto & points = lane_change_path.path.points;
-    if (points.size() < 2) return {};
-    const auto & bpp = *common_data_ptr->bpp_param_ptr;
-    const double start = calc_arc_length(points, common_data_ptr->get_ego_pose(), bpp);
-    const double end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
-    std::vector<double> s, v;
-    double arc = 0.0;
-    for (size_t i = 1; i < points.size(); ++i) {
-      const double next = arc + autoware_utils::calc_distance2d(points[i - 1], points[i]);
-      if (next > start && arc < end && next - arc > 1e-8) {
-        const double v0 = points[i - 1].point.longitudinal_velocity_mps;
-        const double v1 = points[i].point.longitudinal_velocity_mps;
-        const auto add = [&](double at) {
-          const double ratio = std::clamp((at - arc) / (next - arc), 0.0, 1.0);
-          s.push_back(at);
-          v.push_back(std::sqrt(std::max(0.0, v0 * v0 + ratio * (v1 * v1 - v0 * v0))));
-        };
-        if (s.empty()) add(std::max(start, arc));
-        add(std::min(end, next));
+    try {
+      const auto & points = lane_change_path.path.points;
+      if (points.size() < 2) return {};
+      const auto & bpp = *common_data_ptr->bpp_param_ptr;
+      const double start = calc_arc_length(points, common_data_ptr->get_ego_pose(), bpp);
+      const double end = calc_arc_length(points, lane_change_path.info.lane_changing_end, bpp);
+      std::vector<double> s, v;
+      double arc = 0.0;
+      for (size_t i = 1; i < points.size(); ++i) {
+        const double next = arc + autoware_utils::calc_distance2d(points[i - 1], points[i]);
+        if (next > start && arc < end && next - arc > 1e-8) {
+          const double v0 = points[i - 1].point.longitudinal_velocity_mps;
+          const double v1 = points[i].point.longitudinal_velocity_mps;
+          if (!std::isfinite(v0) || !std::isfinite(v1) || v0 < 0.0 || v1 < 0.0) {
+            throw std::logic_error("Invalid LC path velocity");
+          }
+          const auto add = [&](double at) {
+            const double ratio = std::clamp((at - arc) / (next - arc), 0.0, 1.0);
+            s.push_back(at);
+            v.push_back(std::sqrt(std::max(0.0, v0 * v0 + ratio * (v1 * v1 - v0 * v0))));
+          };
+          if (s.empty()) add(std::max(start, arc));
+          add(std::min(end, next));
+        }
+        arc = next;
       }
-      arc = next;
+      if (s.size() < 2) return {};
+      if (stationary_horizon <= 0.0) {
+        const double ego_speed = common_data_ptr->get_ego_speed();
+        const double lc_start = calc_arc_length(
+          points, lane_change_path.info.lane_changing_start, bpp);
+        if (reanchor_speed_profile(s, v, ego_speed,
+            lane_change_path.info.longitudinal_acceleration.prepare, lc_start)) {
+          const auto road_limit = [&](const auto & reference, const auto & pose) {
+            if (reference.points.size() < 2) return bpp.max_vel;
+            const auto i = autoware::motion_utils::findNearestSegmentIndex(
+              reference.points, pose.position);
+            return std::min<double>(reference.points.at(i).point.longitudinal_velocity_mps,
+              reference.points.at(i + 1).point.longitudinal_velocity_mps);
+          };
+          for (size_t i = 1; i < s.size(); ++i) {
+            const auto pose = autoware::motion_utils::calcInterpolatedPose(points, s[i]);
+            double limit = std::min(bpp.max_vel,
+              road_limit(common_data_ptr->current_lanes_path, pose));
+            if (s[i] >= lc_start) {
+              limit = std::min(limit, road_limit(common_data_ptr->target_lanes_path, pose));
+            }
+            v[i] = std::min(v[i], limit);
+          }
+          const auto begin = std::lower_bound(s.begin(), s.end(), std::max(s.front(), lc_start));
+          const size_t offset = std::distance(s.begin(), begin);
+          if (offset >= s.size() - 1) return {};
+          const std::vector<double> execution_s(begin, s.end());
+          std::vector<double> execution_v(v.begin() + offset, v.end());
+          const double initial_execution_speed = execution_v.front();
+          const auto & params = common_data_ptr->lc_param_ptr->trajectory;
+          double max_acceleration = std::min(bpp.max_acc, params.max_longitudinal_acc);
+          if (lane_change_path.info.longitudinal_acceleration.lane_changing > 1e-6) {
+            max_acceleration = std::min(max_acceleration,
+              lane_change_path.info.longitudinal_acceleration.lane_changing);
+          }
+          execution_v = make_speed_profile(execution_s, execution_v, initial_execution_speed,
+            max_acceleration, -std::max(bpp.min_acc, params.min_longitudinal_acc),
+            common_data_ptr->acceleration_limits);
+          if (std::abs(execution_v.front() - initial_execution_speed) > 1e-6) {
+            throw std::logic_error("Remaining LC limits require an instantaneous speed change");
+          }
+          static const double max_jerk = [] {
+            double value = 0.0;
+            ros::param::get("/planning/scenario_planning/velocity_smoother/normal/max_jerk", value);
+            return value;
+          }();
+          static const double min_jerk = [] {
+            double value = 0.0;
+            ros::param::get("/planning/scenario_planning/velocity_smoother/normal/min_jerk", value);
+            return value;
+          }();
+          execution_v = limit_speed_profile_jerk(execution_s, execution_v,
+            common_data_ptr->get_current_accel(), max_jerk, min_jerk, max_acceleration,
+            common_data_ptr->acceleration_limits);
+          std::copy(execution_v.begin(), execution_v.end(), v.begin() + offset);
+        }
+      }
+      const double duration = stationary_horizon > 0.0
+        ? observed_speed_profile_duration(s, v, stationary_horizon)
+        : speed_profile_duration(s, v);
+      const double resolution = common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution;
+      std::vector<PoseWithVelocityStamped> prediction;
+      for (double t = 0; t < duration; t += resolution) {
+        const auto state = sample_speed_profile(s, v, t);
+        prediction.emplace_back(t, autoware::motion_utils::calcInterpolatedPose(points, state.first), state.second);
+      }
+      const auto terminal_state = sample_speed_profile(s, v, duration);
+      prediction.emplace_back(duration,
+        autoware::motion_utils::calcInterpolatedPose(points, terminal_state.first),
+        terminal_state.second);
+      std::vector<std::vector<PoseWithVelocityStamped>> result{prediction};
+      {
+        // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
+        // a lagging controller must not silently replace the planned hypothesis.
+        // Use the remaining spatial maneuver horizon, not the original full
+        // prepare+LC duration after ego has already advanced through preparation.
+        auto remaining = lane_change_path;
+        remaining.info.duration.prepare = std::min(remaining.info.duration.prepare, duration);
+        remaining.info.duration.lane_changing = duration - remaining.info.duration.prepare;
+        result.push_back(convert_to_predicted_path(common_data_ptr, remaining));
+      }
+      return result;
+    } catch (const std::logic_error & error) {
+      RCLCPP_DEBUG(get_logger(), "Cannot predict remaining LC motion: %s", error.what());
+      return {};
     }
-    if (s.size() < 2) return {};
-    const double duration = stationary_horizon > 0.0
-      ? observed_speed_profile_duration(s, v, stationary_horizon)
-      : speed_profile_duration(s, v);
-    const double resolution = common_data_ptr->lc_param_ptr->safety.collision_check.prediction_time_resolution;
-    std::vector<PoseWithVelocityStamped> prediction;
-    for (double t = 0; t < duration; t += resolution) {
-      const auto state = sample_speed_profile(s, v, t);
-      prediction.emplace_back(t, autoware::motion_utils::calcInterpolatedPose(points, state.first), state.second);
-    }
-    const auto terminal_state = sample_speed_profile(s, v, duration);
-    prediction.emplace_back(duration,
-      autoware::motion_utils::calcInterpolatedPose(points, terminal_state.first),
-      terminal_state.second);
-    std::vector<std::vector<PoseWithVelocityStamped>> result{prediction};
-    {
-      // Before AND after approval, check actual-motion extrapolation as well as the planned acceleration;
-      // a lagging controller must not silently replace the planned hypothesis.
-      // Use the remaining spatial maneuver horizon, not the original full
-      // prepare+LC duration after ego has already advanced through preparation.
-      auto remaining = lane_change_path;
-      remaining.info.duration.prepare = std::min(remaining.info.duration.prepare, duration);
-      remaining.info.duration.lane_changing = duration - remaining.info.duration.prepare;
-      result.push_back(convert_to_predicted_path(common_data_ptr, remaining));
-    }
-    return result;
   }
   static constexpr double floating_err_th{1e-3};
   const auto bpp_param = *common_data_ptr->bpp_param_ptr;
