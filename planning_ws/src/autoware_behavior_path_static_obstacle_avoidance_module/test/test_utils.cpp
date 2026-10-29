@@ -94,6 +94,53 @@ auto get_planner_data() -> std::shared_ptr<PlannerData>
   return std::make_shared<PlannerData>(planner_data);
 }
 
+TEST(StaticObstacleAvoidanceUtils, ExtraDetectionWidthIncludesBothSideObjectsWithoutInflatingThem)
+{
+  auto data = get_planner_data();
+  data->parameters.vehicle_info.vehicle_width_m = 1.892;
+  data->parameters.vehicle_info.max_longitudinal_offset_m = 3.845;
+  data->parameters.vehicle_info.rear_overhang_m = 0.790;
+  PathWithLaneId path;
+  for (int i = 0; i <= 30; ++i) {
+    autoware_internal_planning_msgs::PathPointWithLaneId point;
+    point.point.pose.position.x = i;
+    point.point.pose.orientation.w = 1.0;
+    path.points.push_back(point);
+  }
+  auto input = boost::make_shared<PredictedObjects>();
+  for (const double lateral : {-2.8, -2.2, 2.2, 2.8}) {
+    PredictedObject object;
+    object.kinematics.initial_pose_with_covariance.pose.position.x = 10.0;
+    object.kinematics.initial_pose_with_covariance.pose.position.y = lateral;
+    object.kinematics.initial_pose_with_covariance.pose.orientation.w = 1.0;
+    object.shape.type = autoware_perception_msgs::Shape::BOUNDING_BOX;
+    object.shape.dimensions = create_vector3(0.75, 0.75, 0.43);
+    input->objects.push_back(object);
+  }
+  data->dynamic_object = input;
+  auto parameters = std::make_shared<AvoidanceParameters>();
+  parameters->resample_interval_for_output = 4.0;
+  ObjectParameter object_parameters;
+  object_parameters.envelope_buffer_margin = 0.05;
+  object_parameters.lateral_hard_margin = 0.05;
+  object_parameters.lateral_hard_margin_for_parked_vehicle = 0.05;
+  object_parameters.lateral_soft_margin = 0.55;
+  parameters->object_parameters[ObjectClassification::UNKNOWN] = object_parameters;
+  AvoidancePlanningData planning;
+  DebugData debug;
+  auto baseline = separateObjectsByPath(path, path, data, planning, parameters, 30.0, debug);
+  EXPECT_TRUE(baseline.first.objects.empty());
+  parameters->detection_area_lateral_extra_margin = 0.3;
+  auto expanded = separateObjectsByPath(path, path, data, planning, parameters, 30.0, debug);
+  ASSERT_EQ(expanded.first.objects.size(), 2U);
+  EXPECT_EQ(expanded.second.objects.size(), 2U);
+  for (const auto & object : expanded.first.objects) {
+    EXPECT_DOUBLE_EQ(std::abs(object.kinematics.initial_pose_with_covariance.pose.position.y), 2.2);
+    EXPECT_DOUBLE_EQ(object.shape.dimensions.x, 0.75);
+    EXPECT_DOUBLE_EQ(object.shape.dimensions.y, 0.75);
+  }
+}
+
 auto get_parameters() -> std::shared_ptr<AvoidanceParameters>
 {
   AvoidanceParameters parameters;

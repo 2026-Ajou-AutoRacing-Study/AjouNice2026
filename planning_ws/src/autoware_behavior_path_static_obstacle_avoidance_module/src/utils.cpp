@@ -2798,7 +2798,9 @@ std::pair<PredictedObjects, PredictedObjects> separateObjectsByPath(
   }
 
   const auto detection_area =
-    createVehiclePolygon(planner_data->parameters.vehicle_info, max_offset);
+    createVehiclePolygon(
+      planner_data->parameters.vehicle_info,
+      max_offset + std::max(0.0, parameters->detection_area_lateral_extra_margin));
   const auto ego_idx = planner_data->findEgoIndex(reference_path.points);
   const auto arc_length_array =
     utils::calcPathArcLengthArray(reference_path, 0L, reference_path.points.size(), 0.0);

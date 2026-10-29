@@ -196,6 +196,8 @@ struct AvoidanceParameters
 
   // distance to avoid object detection
   bool use_static_detection_area{true};
+  // Extra lateral search width per side; does not inflate obstacle envelopes.
+  double detection_area_lateral_extra_margin{0.0};
   double object_check_min_forward_distance{0.0};
   double object_check_max_forward_distance{0.0};
   double object_check_backward_distance{0.0};
