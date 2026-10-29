@@ -16,7 +16,8 @@ source·과거 수집용 profile은 [legacy](legacy/README.md)로 분리했다.
 Collision/Competition은 Client 판정프로그램이 중계한다. 9월 현장점검 원본으로
 본선 시나리오 네트워크를 덮어쓰지 않는다. 현장점검 원본은 과거 재현 자료다.
 [로컬 수신 차단과 환경별 실행](../../docs/competition/FINAL_RUNTIME_HANDOFF.md):
-`udp`/`udp_lan`은 Ego·Object OFF, 개발용 원래 수신은 `udp_dev`/`udp_lan_dev`다.
+`udp`/`udp_lan`은 기존 개발용 Ego·Object ON을 유지한다.
+명시적인 `udp_competition`/`udp_lan_competition`만 Ego·Object OFF다.
 JSON 값은 유지하며 runtime에서 선택한다. 실제 MORAI 무GT 수신·공식 START 초기화는 통과했고,
 전체 주행·본선 판정프로그램 중계 시험은 대기다.
 

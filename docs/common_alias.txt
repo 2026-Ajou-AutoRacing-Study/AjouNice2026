@@ -48,14 +48,16 @@ alias rosbag_cam_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_cam_raw.
 #-----------------------------------------------------
 # Personal-PC loopback profile. Ports match the competition profile; only IP differs.
 alias udp_dev='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
-alias udp='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile local'
+alias udp='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
+alias udp_competition='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile local'
 # Local MR/MRP localization load test: GPS+IMU only. MORAI must load the same
 # lightweight sensor JSON; Ego/Competition/Object/control stay on Ego Network.
 alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
 # Algorithm-PC LAN adapter. Finals MORAI loads the organizer's scenario network;
 # do not overwrite it with the historical field-reference JSON.
 alias udp_lan_dev='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
-alias udp_lan='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile lan'
+alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
+alias udp_lan_competition='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile lan'
 alias sensing="roslaunch bringup sensing.launch"
 alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
@@ -220,6 +222,8 @@ alias kroute='roslaunch bringup kcity_competition_route.launch'
 if [[ "${AJOUNICE_ORIGINAL_COMMANDS:-0}" != 1 ]]; then
   alias udp='field udp'
   alias udp_lan='field udp_lan'
+  alias udp_competition='field udp_competition'
+  alias udp_lan_competition='field udp_lan_competition'
   alias sensing='field sensing'
   alias sensing_lan='field sensing_lan'
   alias localization='field localization'

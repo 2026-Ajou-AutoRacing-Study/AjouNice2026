@@ -24,6 +24,8 @@ shift
 case "$entry" in
   rc|planning|traj_fol|traj_fol_a|traj_fol_global) component= ;;
   udp|udp_lan) component="$entry" ;;
+  udp_competition) component=udp ;;
+  udp_lan_competition) component=udp_lan ;;
   sensing|sensing_lan) component=sensing ;;
   localization|localization_mrp) component=localization ;;
   bevfusion|tracking|traffic|planviz) component="$entry" ;;
