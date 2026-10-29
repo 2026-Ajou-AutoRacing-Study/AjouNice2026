@@ -27,6 +27,8 @@
   <arg name="morai_gt_objects" default="/Object_topic"/>
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
+  <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
   <arg name="tracker_shape_consistent_association_ranking" default="false"/>
@@ -75,6 +77,10 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="stationary_unknown_uuid_continuity"
+         value="$(arg stationary_unknown_uuid_continuity)"/>
+    <arg name="suppress_small_unknown_duplicate_birth"
+         value="$(arg suppress_small_unknown_duplicate_birth)"/>
     <arg name="map_version" value="$(arg map_version)"/>
     <arg name="publish_association_diagnostics" value="$(arg tracker_publish_association_diagnostics)"/>
     <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
