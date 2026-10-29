@@ -20,6 +20,9 @@
   <!-- Qualified identity-only recovery; false restores legacy output IDs.
        No object deletion, geometry change or extended coasting. -->
   <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <!-- Hold only output pose between observations; do not modify the EKF state. -->
+  <arg name="hold_stationary_output_pose" default="true"/>
+  <arg name="planning_ownership_config" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml"/>
   <arg name="prediction_time_step" default="0.1"/>
   <arg name="prediction_horizon" default=""/>
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
@@ -215,6 +218,9 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="hold_stationary_output_pose" value="$(arg hold_stationary_output_pose)"/>
+    <arg name="hold_unknown_coasting_pose" value="$(eval arg('hold_stationary_output_pose') and arg('force_unknown_stationary'))"/>
+    <arg name="planning_ownership_config" value="$(arg planning_ownership_config)"/>
     <arg name="publish_association_diagnostics" value="$(arg publish_association_diagnostics)"/>
     <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
