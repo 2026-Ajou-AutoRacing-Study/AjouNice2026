@@ -52,6 +52,11 @@ RoundaboutModuleManager::RoundaboutModuleManager(ros::NodeHandle & node)
       require_parameter<double>(node, ns + ".common.path_interpolation_ds");
     rp.common.enable_pass_judge_before_default_stopline = require_parameter<bool>(
       node, ns + ".common.enable_pass_judge_before_default_stopline");
+    // Optional for existing profiles; disabled unless explicitly requested.
+    const auto latch_name = ns + ".common.latch_go_after_stop";
+    if (node.hasParam(autoware_utils_rclcpp::to_ros1_parameter_name(latch_name))) {
+      rp.common.latch_go_after_stop = require_parameter<bool>(node, latch_name);
+    }
   }
 
   // collision_detection

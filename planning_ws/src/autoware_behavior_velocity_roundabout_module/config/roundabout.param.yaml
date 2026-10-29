@@ -7,6 +7,8 @@
         default_stopline_margin: 1.5
         path_interpolation_ds: 0.1
         enable_pass_judge_before_default_stopline: false
+        # Experimental: retain the first safe GO after measured speed <= 0.01 m/s.
+        latch_go_after_stop: false
 
 
       collision_detection:

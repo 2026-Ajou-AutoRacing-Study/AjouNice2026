@@ -16,6 +16,7 @@
 #define EXPERIMENTAL__SCENE_ROUNDABOUT_HPP_
 
 #include "../decision_result.hpp"
+#include "../go_after_stop_latch.hpp"
 #include "../object_manager.hpp"
 #include "../roundabout_lanelets.hpp"
 #include "../roundabout_stoplines.hpp"
@@ -52,6 +53,7 @@ public:
       double max_jerk;
       double delay_response_time;
       bool enable_pass_judge_before_default_stopline;
+      bool latch_go_after_stop{false};
     } common;
 
     struct TargetType
@@ -244,8 +246,10 @@ private:
    * following variables are state variables that depends on how the vehicle passed the roundabout
    * @{
    */
-  //! if true, this module never commands to STOP anymore
+  //! Geometric pass commitment; collision STOP may still be requested.
   bool is_permanent_go_{false};
+
+  GoAfterStopLatch go_after_stop_latch_;
 
   //! for checking if ego is over the pass judge lines because previously the situation was SAFE
   RoundaboutDecisionResult prev_decision_result_{RoundaboutInternalError{""}};

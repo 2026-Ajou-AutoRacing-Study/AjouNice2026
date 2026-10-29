@@ -211,6 +211,15 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(PathWithLane
   const std::string safety_diag =
     generateDetectionBlameDiagnosis(too_late_detect_objects, misjudge_objects);
 
+  const auto & ego_position = planner_data_->current_odometry->pose.position;
+  if (go_after_stop_latch_.update(
+        planner_param_.common.latch_go_after_stop,
+        planner_data_->current_velocity->twist.linear.x,
+        !has_collision && !has_collision_with_margin, ego_position.x, ego_position.y,
+        clock_->now().toSec())) {
+    return RoundaboutGoAfterStop{has_collision};
+  }
+
   if (is_permanent_go_) {
     if (has_collision_with_margin) {
       if (can_smoothly_stop_at(roundabout_stoplines.first_attention_stopline.value())) {
@@ -273,6 +282,15 @@ void prepareRTCByDecisionResult(
   [[maybe_unused]] bool * default_safety, [[maybe_unused]] double * default_distance)
 {
   return;
+}
+
+template <>
+void prepareRTCByDecisionResult(
+  [[maybe_unused]] const RoundaboutGoAfterStop & result,
+  [[maybe_unused]] const autoware_internal_planning_msgs::PathWithLaneId & path,
+  [[maybe_unused]] bool * default_safety, [[maybe_unused]] double * default_distance)
+{
+  // Committed GO, not a claim that the latest collision check is safe.
 }
 
 template <>
@@ -358,6 +376,20 @@ void reactRTCApprovalByDecisionResult(
   [[maybe_unused]] RoundaboutModule::DebugData * debug_data)
 {
   return;
+}
+
+template <>
+void reactRTCApprovalByDecisionResult(
+  [[maybe_unused]] const bool rtc_default_approved,
+  [[maybe_unused]] const RoundaboutGoAfterStop & decision_result,
+  [[maybe_unused]] const RoundaboutModule::PlannerParam & planner_param,
+  [[maybe_unused]] const double baselink2front,
+  [[maybe_unused]] autoware_internal_planning_msgs::PathWithLaneId * path,
+  [[maybe_unused]] autoware_internal_planning_msgs::SafetyFactorArray & safety_factor_array,
+  [[maybe_unused]] planning_factor_interface::PlanningFactorInterface * planning_factor_interface,
+  [[maybe_unused]] RoundaboutModule::DebugData * debug_data)
+{
+  // Preserve the input velocities, including stops from other modules.
 }
 
 template <>
