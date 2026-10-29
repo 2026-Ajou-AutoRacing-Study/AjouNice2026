@@ -19,6 +19,10 @@
 
 namespace
 {
+constexpr const char * kAnsiYellow = "\033[1;33m";
+constexpr const char * kAnsiRed = "\033[1;31m";
+constexpr const char * kAnsiReset = "\033[0m";
+
 std::string normalizedFrame(const std::string & frame)
 {
   const std::size_t first = frame.find_first_not_of('/');
@@ -66,6 +70,7 @@ public:
     private_nh_.param<std::string>("topics/target_point", target_point_topic_,
                                    "/control/autoware/target_point");
     private_nh_.param("control_rate_hz", control_rate_hz_, 50.0);
+    private_nh_.param("logging/status_period_s", status_period_s_, 1.0);
     private_nh_.param("kinematic_velocity_scale_to_mps", velocity_scale_, 1.0);
     private_nh_.param("safety/trajectory_timeout_s", trajectory_timeout_s_, 0.5);
     private_nh_.param("safety/state_timeout_s", state_timeout_s_, 0.5);
@@ -134,10 +139,10 @@ public:
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_rate_hz_),
       &AutowarePurePursuitNode::timerCallback, this);
     ROS_INFO_STREAM(
-      "purepursuit_autoware: " << trajectory_topic_ << " + " << state_topic_ << " -> "
-                                << steering_topic_ << ", steering rate limit="
-                                << max_steering_rate_deg_s_ << " deg/s, steering deadband="
-                                << steering_deadband_deg_ << " deg");
+      "[CTRL][LAT][START] trajectory=" << trajectory_topic_ << " | state=" << state_topic_
+      << " | steering=" << steering_topic_ << " | rate_limit=" << max_steering_rate_deg_s_
+      << "deg/s | deadband=" << steering_deadband_deg_ << "deg | status="
+      << status_period_s_ << "s");
   }
 
 private:
@@ -145,6 +150,7 @@ private:
   {
     std::string reason;
     const bool valid = std::isfinite(control_rate_hz_) && control_rate_hz_ > 0.0 &&
+      std::isfinite(status_period_s_) && status_period_s_ > 0.0 &&
       std::isfinite(velocity_scale_) && velocity_scale_ > 0.0 &&
       std::isfinite(trajectory_timeout_s_) && trajectory_timeout_s_ > 0.0 &&
       std::isfinite(state_timeout_s_) && state_timeout_s_ > 0.0 &&
@@ -170,7 +176,6 @@ private:
     }
     if (!valid) {
       trajectory_valid_ = false;
-      ROS_WARN_THROTTLE(1.0, "purepursuit_autoware rejected invalid trajectory");
       return;
     }
     trajectory_ = *message;
@@ -185,7 +190,6 @@ private:
       std::isfinite(linear.x) && std::isfinite(linear.y) && std::isfinite(linear.z);
     if (!valid) {
       state_valid_ = false;
-      ROS_WARN_THROTTLE(1.0, "purepursuit_autoware rejected invalid kinematic state");
       return;
     }
     state_ = *message;
@@ -255,6 +259,7 @@ private:
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "stale or unavailable trajectory/state";
       previous_steering_command_ = 0.0;
+      logInvalidStatus(output.failure_reason);
       publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
@@ -262,6 +267,7 @@ private:
       trajectory_follower::PurePursuitOutput output;
       output.failure_reason = "trajectory and state frame mismatch";
       previous_steering_command_ = 0.0;
+      logInvalidStatus(output.failure_reason, true);
       publishResult(output, trajectory_.header.frame_id, now);
       return;
     }
@@ -293,10 +299,33 @@ private:
       output.steering_tire_angle_rad = trajectory_follower::limitSteeringRate(
         deadbanded_steering, previous_steering_command_, max_steering_rate_rad_s_, dt);
       previous_steering_command_ = output.steering_tire_angle_rad;
+      ever_valid_output_ = true;
+      ROS_INFO_THROTTLE(
+        status_period_s_,
+        "[CTRL][LAT][TRACK] v=%.2fm/s (%.1fkm/h) | steer=%+.2fdeg | lateral=%+.2fm | "
+        "lookahead=%.2fm | curvature=%+.4f/m | age(T/S)=%.2f/%.2fs",
+        vehicle.velocity_mps, vehicle.velocity_mps * 3.6,
+        output.steering_tire_angle_rad * 180.0 / M_PI, output.lateral_error,
+        output.lookahead_distance, output.path_curvature,
+        (now - trajectory_received_).toSec(), (now - state_received_).toSec());
     } else {
       previous_steering_command_ = 0.0;
+      logInvalidStatus(output.failure_reason.empty() ? "pure pursuit target unavailable" : output.failure_reason);
     }
     publishResult(output, trajectory_.header.frame_id, now);
+  }
+
+  void logInvalidStatus(const std::string & reason, const bool force_error = false) const
+  {
+    if (force_error || ever_valid_output_) {
+      ROS_ERROR_THROTTLE(
+        status_period_s_, "%s[CTRL][LAT][SAFE_STOP] %s | steering=0deg%s",
+        kAnsiRed, reason.c_str(), kAnsiReset);
+    } else {
+      ROS_WARN_THROTTLE(
+        status_period_s_, "%s[CTRL][LAT][WAIT] %s | steering=0deg%s",
+        kAnsiYellow, reason.c_str(), kAnsiReset);
+    }
   }
 
   ros::NodeHandle nh_;
@@ -321,6 +350,7 @@ private:
   std::string failure_topic_;
   std::string target_point_topic_;
   double control_rate_hz_{50.0};
+  double status_period_s_{1.0};
   double velocity_scale_{1.0};
   double trajectory_timeout_s_{0.5};
   double state_timeout_s_{0.5};
@@ -338,6 +368,7 @@ private:
   uint32_t debug_sequence_{0U};
   bool trajectory_valid_{false};
   bool state_valid_{false};
+  bool ever_valid_output_{false};
   ros::Time trajectory_received_;
   ros::Time state_received_;
   autoware_planning_msgs::Trajectory trajectory_;
@@ -351,7 +382,7 @@ int main(int argc, char ** argv)
     AutowarePurePursuitNode node;
     ros::spin();
   } catch (const std::exception & error) {
-    ROS_FATAL("purepursuit_autoware: %s", error.what());
+    ROS_FATAL("%s[CTRL][LAT][FATAL] %s%s", kAnsiRed, error.what(), kAnsiReset);
     return 1;
   }
   return 0;

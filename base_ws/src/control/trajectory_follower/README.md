@@ -106,6 +106,25 @@ rostopic info /ctrl_cmd
 정상 출력은 `longlCmdType: 1`이며 `accel`, `brake`, `steering`을 사용한다.
 `/ctrl_cmd` publisher는 `longi_pi` 하나만 있어야 한다.
 
+### 터미널 상태 로그
+
+Autoware용 controller는 1초에 한 번씩 횡·종제어 상태를 각각 한 줄로 출력한다.
+현재 구현·검증·후속 확인 범위는
+[`TERMINAL_LOG_CURRENT.md`](TERMINAL_LOG_CURRENT.md)에 정리한다.
+
+- `[CTRL][LAT]`: 조향각, 횡오차, lookahead, 곡률, trajectory/state age
+- `[CTRL][LONG]`: 현재→목표 속도, accel/brake, 조향, 계획·측정 가속도, 경로 위치
+- `INFO`: 정상 추종·제동·정지 유지
+- `WARN`(노랑): 기동 중 입력을 기다리는 안전 정지
+- `ERROR`(빨강): 정상 제어 시작 후 입력 단절·frame 불일치로 인한 안전 정지
+
+주기는 `config/trajectory_follower_autoware.yaml`의 `logging/status_period_s`로 조절한다.
+ROS console은 severity 문구를 색칠하지 않으므로 `WARN`·`ERROR`·`FATAL` 상태 문구에만
+ANSI 색을 적용한다. 저장 로그를 순수 텍스트로 변환할 때는 ANSI escape를 제거한다.
+비정상 상황별 안전 출력, 색상, 실제 예시와 색상 확인 명령은
+[`TERMINAL_LOG_CURRENT.md`의 비정상 상황과 색상](TERMINAL_LOG_CURRENT.md#비정상-상황과-색상)을
+참고한다. `HOLD`와 `PATH_END`는 의도된 정지이므로 빨강이 아닌 `INFO`다.
+
 ## 기능과 역할
 
 ### Spawn 위치 점프 시 1초 제동

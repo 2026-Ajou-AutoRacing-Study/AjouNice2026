@@ -9,6 +9,10 @@ topics:
 
 control_rate_hz: 50.0
 
+# Human-readable terminal status. WARN is yellow and ERROR/FATAL is red.
+logging:
+  status_period_s: 1.0
+
 # /localization/kinematic_state already provides signed base_link velocity in m/s.
 kinematic_velocity_scale_to_mps: 1.0
 
