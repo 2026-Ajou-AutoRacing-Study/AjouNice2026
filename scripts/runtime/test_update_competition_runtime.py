@@ -8,19 +8,42 @@ import pytest
 
 
 SCRIPT = Path(__file__).with_name('update_competition_runtime.sh')
-PLANNING = ['autoware_route_handler', 'autoware_behavior_path_lane_change_module',
+PLANNING = ['autoware_motion_utils', 'autoware_route_handler', 'autoware_behavior_path_planner_common',
+            'autoware_behavior_path_lane_change_module',
+            'autoware_behavior_path_side_shift_module',
+            'autoware_behavior_path_goal_planner_module',
+            'autoware_behavior_path_dynamic_obstacle_avoidance_module',
+            'autoware_behavior_path_bidirectional_traffic_module',
+            'autoware_behavior_path_sampling_planner_module',
+            'autoware_behavior_path_static_obstacle_avoidance_module',
+            'autoware_behavior_path_external_request_lane_change_module',
+            'autoware_behavior_path_start_planner_module',
             'autoware_behavior_path_avoidance_by_lane_change_module',
-            'autoware_behavior_path_external_request_lane_change_module', 'autoware_behavior_path_planner',
+            'autoware_behavior_path_planner',
+            'autoware_behavior_velocity_intersection_module',
+            'autoware_behavior_velocity_roundabout_module',
+            'autoware_planning_validator_intersection_collision_checker',
+            'autoware_planning_validator_rear_collision_checker',
             'autoware_motion_velocity_obstacle_cruise_module', 'autoware_path_optimizer',
-            'autoware_launch']
+            'tier4_planning_launch', 'autoware_launch']
 ASSETS = ['bringup', 'competition/competition_rule_monitor', 'lanelet_map_visualizer',
           'localization/localization_manager', 'tracking_prediction_evaluation',
-          'control/trajectory_batch_runner', 'control/trajectory_generator']
+          'control/trajectory_batch_runner', 'control/trajectory_generator',
+          'ekf-multi-object-tracking', 'perception_object_pipeline']
+PACKAGE_NAMES = {'ekf-multi-object-tracking': 'ekf_multi_object_tracking'}
 LOGGER = '''import json, os, sys
 with open(os.environ['MOCK_LOG'], 'a') as stream:
     stream.write(json.dumps(sys.argv[1:]) + '\\n')
+package = os.environ.get('MOCK_FAIL_BUILD_PACKAGE')
+if package and sys.argv[1] == 'cmake' and any(
+        value.endswith('/build_aw149/' + package) for value in sys.argv[2:]):
+    sys.exit(17)
 sys.exit(17 if os.environ.get('MOCK_FAIL_STAGE') == sys.argv[1] else 0)
 '''
+
+
+def package_name(relative):
+    return PACKAGE_NAMES.get(relative, relative.rsplit('/', 1)[-1])
 
 
 @pytest.fixture
@@ -56,7 +79,7 @@ def workspace(tmp_path):
                      f'#!/bin/bash\nexec /usr/bin/python3 "$MOCK_LOGGER" {command} "$@"\n')
         path.chmod(0o755)
     for relative in ASSETS:
-        package = relative.rsplit('/', 1)[-1]
+        package = package_name(relative)
         write(f'base_ws/build_aw149/{package}/CMakeCache.txt',
               f'CMAKE_HOME_DIRECTORY:INTERNAL={tmp_path}/base_ws/src/{relative}\n'
               f'CMAKE_INSTALL_PREFIX:PATH={tmp_path}/base_ws/install_aw149\n')
@@ -64,10 +87,12 @@ def workspace(tmp_path):
                MOCK_LOGGER=str(tmp_path / 'mock_logger.py'),
                PATH=str(tmp_path / 'mock_bin') + ':' + os.environ['PATH'])
 
-    def run(*arguments, fail=None):
+    def run(*arguments, fail=None, fail_package=None):
         current = dict(env)
         if fail:
             current['MOCK_FAIL_STAGE'] = fail
+        if fail_package:
+            current['MOCK_FAIL_BUILD_PACKAGE'] = fail_package
         result = subprocess.run(['bash', str(wrapper), *arguments], env=current,
                                 capture_output=True, text=True)
         log = Path(env['MOCK_LOG'])
@@ -80,12 +105,12 @@ def test_default_builds_all_scoped_packages_then_installer_after_verifying_v101_
     root, run = workspace
     result, calls = run('--device', 'cpu', '--models-dir', str(root / 'models with spaces'))
     assert result.returncode == 0, result.stderr
-    assert [call[0] for call in calls] == ['prepare', 'planning'] + ['cmake'] * 7 + ['installer']
+    assert [call[0] for call in calls] == ['prepare', 'planning'] + ['cmake'] * 9 + ['installer']
     assert calls[0] == ['prepare', '--check']
     assert calls[1][1:] == ['--pkg', *PLANNING, '--make-args', '-j2', '-l2']
     assert calls[-1][1:] == ['--device', 'cpu', '--models-dir', str(root / 'models with spaces')]
     for call, relative in zip(calls[2:-1], ASSETS):
-        assert call[1:] == ['--build', str(root / 'base_ws/build_aw149' / relative.rsplit('/', 1)[-1]),
+        assert call[1:] == ['--build', str(root / 'base_ws/build_aw149' / package_name(relative)),
                             '--target', 'install', '--', '-j2']
     for name in ('planning', 'traffic', 'tracking'):
         assert f'{name} map_version:=101' in result.stdout
@@ -113,15 +138,17 @@ def test_v101_accepts_model_remote_but_rejects_map_remote_before_any_action(work
     assert '--map-remote is unsupported' in result.stderr
 
 
-def test_missing_any_asset_cache_uses_one_scoped_catkin_fallback(workspace):
+@pytest.mark.parametrize('missing_package', ['bringup', 'ekf_multi_object_tracking', 'perception_object_pipeline'])
+def test_missing_any_asset_cache_uses_one_scoped_catkin_fallback(workspace, missing_package):
     root, run = workspace
-    (root / 'base_ws/build_aw149/bringup/CMakeCache.txt').unlink()
+    (root / 'base_ws/build_aw149' / missing_package / 'CMakeCache.txt').unlink()
     result, calls = run()
     assert result.returncode == 0, result.stderr
     assert [call[0] for call in calls] == ['prepare', 'planning', 'catkin_make_isolated', 'installer']
     fallback = calls[2]
     start = fallback.index('--pkg') + 1
-    assert fallback[start:start + 7] == [relative.rsplit('/', 1)[-1] for relative in ASSETS]
+    assert fallback[start:start + len(ASSETS)] == [package_name(relative) for relative in ASSETS]
+    assert 'ekf-multi-object-tracking' not in fallback[start:start + len(ASSETS)]
     assert fallback[-3:] == ['--make-args', '-j2', '-l2']
 
 
@@ -148,17 +175,52 @@ def test_failed_stage_never_claims_install_complete(workspace, stage):
     assert 'planning map_version:=' not in result.stdout
 
 
+@pytest.mark.parametrize('package', ['ekf_multi_object_tracking', 'perception_object_pipeline'])
+def test_tracker_or_pipeline_install_failure_stops_before_installer_and_never_claims_complete(workspace, package):
+    root, run = workspace
+    result, calls = run(fail_package=package)
+    assert result.returncode != 0
+    assert calls[-1] == ['cmake', '--build', str(root / 'base_ws/build_aw149' / package),
+                         '--target', 'install', '--', '-j2']
+    assert not any(call[0] == 'installer' for call in calls)
+    assert '[INSTALLED]' not in result.stdout
+    assert 'tracking map_version:=' not in result.stdout
+
+
+def test_failed_scoped_catkin_install_never_runs_installer_or_claims_complete(workspace):
+    root, run = workspace
+    (root / 'base_ws/build_aw149/ekf_multi_object_tracking/CMakeCache.txt').unlink()
+    result, calls = run(fail='catkin_make_isolated')
+    assert result.returncode != 0
+    assert calls[-1][0] == 'catkin_make_isolated'
+    assert not any(call[0] == 'installer' for call in calls)
+    assert '[INSTALLED]' not in result.stdout
+    assert 'tracking map_version:=' not in result.stdout
+
+
 @pytest.mark.parametrize('key', ['CMAKE_HOME_DIRECTORY', 'CMAKE_INSTALL_PREFIX'])
-def test_foreign_cache_fails_before_preparation_even_if_another_cache_is_missing(workspace, key):
+@pytest.mark.parametrize('package', ['competition_rule_monitor', 'ekf_multi_object_tracking',
+                                    'perception_object_pipeline'])
+def test_foreign_cache_fails_before_preparation_even_if_another_cache_is_missing(workspace, key, package):
     root, run = workspace
     (root / 'base_ws/build_aw149/bringup/CMakeCache.txt').unlink()
-    cache = root / 'base_ws/build_aw149/competition_rule_monitor/CMakeCache.txt'
+    cache = root / 'base_ws/build_aw149' / package / 'CMakeCache.txt'
     cache.write_text('\n'.join(f'{key}:PATH=/foreign/workspace' if line.startswith(key + ':') else line
                                for line in cache.read_text().splitlines()))
     result, calls = run('--map-version', '101')
     assert result.returncode != 0
     assert 'Refusing foreign/moved CMake cache' in result.stderr
     assert not calls
+
+
+def test_ekf_source_directory_and_catkin_cache_name_are_not_confused(workspace):
+    root, run = workspace
+    cache = root / 'base_ws/build_aw149/ekf_multi_object_tracking/CMakeCache.txt'
+    assert f'CMAKE_HOME_DIRECTORY:INTERNAL={root}/base_ws/src/ekf-multi-object-tracking' in cache.read_text()
+    assert not (root / 'base_ws/build_aw149/ekf-multi-object-tracking').exists()
+    result, calls = run()
+    assert result.returncode == 0, result.stderr
+    assert ['cmake', '--build', str(cache.parent), '--target', 'install', '--', '-j2'] in calls
 
 
 def test_existing_planning_cache_is_validated_before_any_action(workspace):
@@ -177,7 +239,6 @@ def test_existing_planning_cache_is_validated_before_any_action(workspace):
     ('base_ws', 'planning_addons/planning_scenario_validator'),
     ('base_ws', 'planning_addons/ajounice_planning_integration'),
     ('base_ws', 'planning_addons/competition_route_requester'),
-    ('base_ws', 'perception_object_pipeline'),
 ])
 def test_downstream_installer_cache_is_checked_before_provisioning(workspace, workspace_name, relative):
     root, run = workspace

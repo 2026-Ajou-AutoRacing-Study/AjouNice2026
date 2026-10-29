@@ -5,13 +5,34 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MAP_VERSION=101
 MAP_REMOTE=()
 INSTALL_ARGS=()
-# Rebuild shared lane-change interface consumers together, not just its plugin.
-PLANNING=(autoware_route_handler autoware_behavior_path_lane_change_module autoware_behavior_path_avoidance_by_lane_change_module autoware_behavior_path_external_request_lane_change_module autoware_behavior_path_planner autoware_motion_velocity_obstacle_cruise_module autoware_path_optimizer autoware_launch)
-ASSET_PATHS=(bringup competition/competition_rule_monitor lanelet_map_visualizer localization/localization_manager tracking_prediction_evaluation control/trajectory_batch_runner control/trajectory_generator)
+# PlannerData and inline ownership are shared ABI: rebuild the complete consumer
+# closure, including registered providers, before starting a new planner process.
+PLANNING=(
+  autoware_motion_utils autoware_route_handler autoware_behavior_path_planner_common
+  autoware_behavior_path_lane_change_module autoware_behavior_path_side_shift_module
+  autoware_behavior_path_goal_planner_module autoware_behavior_path_dynamic_obstacle_avoidance_module
+  autoware_behavior_path_bidirectional_traffic_module autoware_behavior_path_sampling_planner_module
+  autoware_behavior_path_static_obstacle_avoidance_module autoware_behavior_path_external_request_lane_change_module
+  autoware_behavior_path_start_planner_module autoware_behavior_path_avoidance_by_lane_change_module
+  autoware_behavior_path_planner autoware_behavior_velocity_intersection_module
+  autoware_behavior_velocity_roundabout_module autoware_planning_validator_intersection_collision_checker
+  autoware_planning_validator_rear_collision_checker autoware_motion_velocity_obstacle_cruise_module
+  autoware_path_optimizer tier4_planning_launch autoware_launch
+)
+ASSET_PATHS=(bringup competition/competition_rule_monitor lanelet_map_visualizer localization/localization_manager tracking_prediction_evaluation control/trajectory_batch_runner control/trajectory_generator ekf-multi-object-tracking perception_object_pipeline)
 ASSETS=()
+asset_package_name() {
+  # The source directory can differ from its catkin package/build-cache name.
+  case "$1" in
+    ekf-multi-object-tracking) echo ekf_multi_object_tracking ;;
+    *) echo "${1##*/}" ;;
+  esac
+}
 usage() {
   echo 'Usage: bash scripts/runtime/update_competition_runtime.sh [--map-version 101] [installer options]'
   echo 'Requires an existing AW149 workspace. Default map is 101 and is verified before building.'
+  echo 'Includes the EKF tracker C++ build and object-pipeline source/launch installation.'
+  echo 'Rebuilds shared pedestrian ownership consumers; perception velocity remains unfiltered by default.'
   echo 'Installer options: --existing-python PATH --archive TAR --device cpu|N --models-dir DIR --env-prefix DIR --remote NAME'
   echo '--check, --models-only and --skip-build are rejected; use the underlying installer for partial/check-only work.'
   echo 'Build/install only: no ROS nodes, controller, shell-profile edits or closed-loop approval.'
@@ -57,7 +78,7 @@ for package in "${PLANNING[@]}" autoware_behavior_velocity_traffic_light_module;
 done
 ALL_CACHED=true
 for relative in "${ASSET_PATHS[@]}"; do
-  package="${relative##*/}"; ASSETS+=("$package")
+  package="$(asset_package_name "$relative")"; ASSETS+=("$package")
   cache="$ROOT/base_ws/build_aw149/$package/CMakeCache.txt"
   if [[ -f "$cache" ]]; then
     check_cache "$cache" "$ROOT/base_ws/src/$relative" "$ROOT/base_ws/install_aw149"
@@ -65,7 +86,7 @@ for relative in "${ASSET_PATHS[@]}"; do
     ALL_CACHED=false
   fi
 done
-for relative in perception/traffic_light_detection planning_addons/planning_scenario_validator planning_addons/ajounice_planning_integration planning_addons/competition_route_requester perception_object_pipeline; do
+for relative in perception/traffic_light_detection planning_addons/planning_scenario_validator planning_addons/ajounice_planning_integration planning_addons/competition_route_requester; do
   package="${relative##*/}"
   cache="$ROOT/base_ws/build_aw149/$package/CMakeCache.txt"
   if [[ -f "$cache" ]]; then check_cache "$cache" "$ROOT/base_ws/src/$relative" "$ROOT/base_ws/install_aw149"; fi

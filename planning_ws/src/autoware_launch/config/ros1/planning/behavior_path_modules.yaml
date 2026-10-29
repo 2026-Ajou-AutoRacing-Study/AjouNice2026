@@ -1,4 +1,7 @@
 avoidance_object_ownership:
+  # Instant speed hysteresis only; these values do not modify object velocity or prediction.
+  pedestrian_dynamic_enter_speed: 0.7
+  pedestrian_static_enter_speed: 0.2
   # Speed-only hysteresis, applied immediately without timers or admission counts.
   dynamic_enter_speed: 0.5
   static_enter_speed: 0.2
