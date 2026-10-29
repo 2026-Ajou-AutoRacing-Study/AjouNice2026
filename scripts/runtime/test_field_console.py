@@ -745,7 +745,7 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         # workspace or loading a teammate's active ROS installation. Only the
         # environment loader is a no-op fixture; roslaunch is always mocked.
         for relative in ('docs/common_alias.txt', 'scripts/runtime/field_terminal.sh',
-                         'scripts/runtime/field_console.py'):
+                         'scripts/runtime/field_console.py', 'scripts/runtime/run_competition_udp.sh'):
             target = self.repo / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((source_repo / relative).read_bytes())

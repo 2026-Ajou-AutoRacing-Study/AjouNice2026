@@ -10,7 +10,12 @@
 
 ## 합의한 대회 실행 기준
 
-MORAI PC에는 위 현장점검 원본을 로드한다. 이 PC의 보관 경로는 각각
+**2026-10-29 본선 계약으로 대체:** [최신 통신 메뉴얼과 운영측 답변](../../docs/competition/FINAL_NETWORK_CURRENT.md)에
+따라 본선 네트워크는 운영측 시나리오 Load 시 자동 설정된다. 위 9월 원본으로
+본선 네트워크를 덮어쓰지 않는다. 이하 Load 절차는 현장점검 재현 기준이며
+본선 중계 경로 검증 완료를 뜻하지 않는다. Ego 미사용·공식 START 초기화 원칙은 유지한다.
+
+현장점검을 재현할 때 MORAI PC에는 위 원본을 로드한다. 이 PC의 보관 경로는 각각
 `~/AjouNice2026/configs/morai_field_reference/AjouNice_sensor.json`과
 `~/AjouNice2026/configs/morai_field_reference/2026_molit_comp_network.json`이다.
 알고리즘 PC는 아래 명령을 **각각 별도 터미널**에서 사용한다. 기존 alias를 준비한 뒤
