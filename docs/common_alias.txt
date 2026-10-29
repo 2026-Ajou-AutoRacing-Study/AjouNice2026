@@ -216,6 +216,13 @@ alias planviz_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149
 alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
 alias pvgui='"$AJOUNICE_ROOT/planning_validator_gui"'
 alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
+# Step 4 read-only input checks. No planner/controller startup or configuration writes.
+sensor_check() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/check_sensor_inputs.sh" "$@"
+}
+sensor_check_raw() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/check_sensor_inputs_raw.sh" "$@"
+}
 alias judge='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch competition_rule_monitor competition_rule_monitor.launch'
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
 alias kroute='roslaunch bringup kcity_competition_route.launch'

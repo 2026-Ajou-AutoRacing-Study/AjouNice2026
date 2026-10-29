@@ -118,11 +118,36 @@ check_server_identity() {
 }
 
 wait_for_selected_server() {
-  for _ in $(seq 1 60); do
-    if check_server_identity >/dev/null 2>&1; then ready=true; return 0; fi
+  local timeout="${BEVFUSION_READY_TIMEOUT_SEC:-300}"
+  local started=$SECONDS elapsed=0 next_log=0
+  # Readiness is still mandatory. Zero removes only the startup deadline;
+  # it never accepts a wrong model or starts an unready bridge.
+  if [[ ! "$timeout" =~ ^[0-9]{1,6}$ ]]; then
+    echo '[WARNING] Invalid BEVFUSION_READY_TIMEOUT_SEC; using 300 seconds.' >&2
+    timeout=300
+  fi
+  timeout=$((10#$timeout))
+  while true; do
+    if check_server_identity >/dev/null 2>&1; then
+      ready=true
+      echo "[BEVFusion] Model ready after $((SECONDS - started))s; starting bridge"
+      return 0
+    fi
+    elapsed=$((SECONDS - started))
+    if (( elapsed >= next_log )); then
+      if (( timeout == 0 )); then
+        echo "[BEVFusion] Model waiting ${elapsed}s; no deadline; Ctrl-C cancels"
+      else
+        echo "[BEVFusion] Model waiting ${elapsed}/${timeout}s; loading or identity check pending"
+      fi
+      next_log=$((elapsed + 5))
+    fi
+    if (( timeout > 0 && elapsed >= timeout )); then
+      echo "[ERROR] Model readiness timed out after ${elapsed}s; inspect inference logs. BEVFUSION_READY_TIMEOUT_SEC=0 disables the deadline." >&2
+      return 1
+    fi
     sleep 2
   done
-  return 1
 }
 
 cleanup() {

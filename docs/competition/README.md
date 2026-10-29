@@ -42,6 +42,9 @@ v1.2에 없는 참가자격·보고서·행정 조항은 누락만으로 폐기�
 
 ## 현장 운영과 공식 문의
 
+- [맨 앞면 풀스택 터미널 입력표](OPERATOR_START.md)
+- [오퍼레이터 Network·Sensor와 IP·포트 위치](OPERATOR_NETWORK.md)
+- [오퍼레이터 터미널 출력·오류 대응](OPERATOR_TERMINALS.md)
 - [현장점검 체크리스트](260915_field_inspection_checklist.md): 과거 준비·점검 기록.
 - [Heading 기준 문의](morai_heading_reference_clarification.md): 시나리오 yaw와
   ROS heading 정합의 문의 자료. 공식 규정의 heading 단위·변환식을 대신하지 않는다.
