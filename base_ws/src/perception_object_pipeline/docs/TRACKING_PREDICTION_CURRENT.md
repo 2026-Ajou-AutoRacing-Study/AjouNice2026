@@ -81,6 +81,12 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 2026-10-29 후속 강화·반례·최종 source hash는 로컬 `planner_logs/analysis/261029_duplicate_followup/helper_review/`에 보존했다. `processing_time_ms` 기존 선택적 진단 JSON의 `uuid_continuity`에 계승·거절·초기화와 변경 객체 수를 남긴다. 콘솔 출력·새 topic·GT 입력은 추가하지 않는다.
 추가 실제 MORAI 대조는 E12/TRT·측위·실제 판단/제어와 로컬 v100에서 4장면×OFF/ON 8회 모두 완주·충돌 0이었다. Woodbox4는 raw ID 2개→전달 ID 1개·SOA 기억 2→1개, Woodbox7은 raw 3개→전달 2개·기억 3→2개로 실제 계승됐다. 같은 주행의 기존 motion policy 대비 UUID 계승 이외 변경은 없었다. Woodbox7의 남은 재검출은 XY 1.063m·IoU 0.0565로 달라 계승을 거절했으며 gate를 넓히지 않았다. OFF도 모두 완주했고 목표 5m 밖 전부-0 궤적은 양쪽 모두 0이므로 역사적 중도 정지의 완치나 v101·전체 코스 인증이 아니다. 원형·목표·지도·모델·판단 설정을 맞춘 실제 기록과 영상은 로컬 `planner_logs/validation/duplicate_live_paired_261029_083146/`, 독립 감사는 `planner_logs/analysis/261029_duplicate_live/audit_paired/`에 보존했다. 사용자 승인 범위는 UUID 계승만 기본 ON이며 소형 birth 후보는 OFF다.
 
+설치된 세 진입점의 기본 ON/명시 OFF 복귀 6개 roslaunch expansion도 확인했다. 강제 ON 인자 없이 설치 launch 기본값을 사용한 Woodbox4 추가 실제 주행은 완주·충돌 0·최종 P 확인, raw ID 3→전달 2개와 실제 계승 1회를 기록했다. 소형 후보는 OFF·거리 0.75m였다. 로컬 v100 단일 장면의 배포 경로 확인이지 전체 production 옵션·v101 풀주행 인증은 아니다. `planner_logs/analysis/261029_duplicate_distance_sweep/default_release_independent/`가 독립 근거다.
+
+### 기존 0.75m birth 억제 거리
+
+같은 C++ 코어·34사례·18,039입력을 0.75/1.0/1.25m로 비교했으며 **확정 track 전체 출력은 모두 동일**했다. 늘어난 거리에서는 미확정 UNKNOWN birth 2개만 줄었고 기존 실패 5개·객체 포착 범위·확정 중복은 개선되지 않았다. 반면 74조건×3거리 합성 대조에서는 mature 객체 옆에 늦게 등장한 별개 비겹침 장애물의 새 track을 지속 억제했다. 1.0m는 중심 간격 0.8/1.0m, 1.25m는 1.2m에서도 누락이 생겼으므로 전역 거리는 **0.75m 유지**다. 실제 발생률이나 모든 근접 장면의 보장은 아니다. 근거는 로컬 `planner_logs/analysis/261029_duplicate_distance_sweep/native/REPORT.txt`와 `adjacent_controls/report.json`이다.
+
 ### 소형 UNKNOWN 중복 birth 후보
 
 `tracking suppress_small_unknown_duplicate_birth:=true`로 새 스택을 실행한다. 기존 `suppress_duplicate_track_birth=true`도 필요하며 두 후보는 독립적으로 비교한다. 이미 존재하는 두 track을 합치지 않는다. 같은 프레임에 실제 검출을 받은 유일한 mature UNKNOWN과, 새 unmatched UNKNOWN의 raw XY 크기가 모두 1m 미만·XYZ≥0.15m·중심≤0.25m·높이 차≤0.3m·정렬 치수비≤1.5·회전 IoU≥0.45일 때만 새 birth를 막는다. known-class 이력이나 복수 대응이 있으면 적용하지 않는다.
