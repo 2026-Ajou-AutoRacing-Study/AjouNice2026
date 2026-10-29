@@ -837,7 +837,7 @@ class FieldTerminalAliasCLI(unittest.TestCase):
                               stderr=subprocess.PIPE, timeout=10)
 
     def test_bare_commands_default_to_compact_view_without_recursion(self):
-        for entry in ('udp', 'udp_lan', 'sensing', 'sensing_lan', 'localization',
+        for entry in ('udp', 'udp_lan', 'udp_competition', 'udp_lan_competition', 'sensing', 'sensing_lan', 'localization',
                       'localization_mrp', 'bevfusion', 'tracking', 'traffic', 'planviz'):
             with self.subTest(entry=entry):
                 before = len(list(self.log_dir.glob('*_console/*_raw.log')))
@@ -877,6 +877,32 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         result = self.invoke('not-a-supported-command')
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.argv.exists())
+
+    def test_development_udp_preserves_gt_defaults_and_overrides_in_both_views(self):
+        for entry in ('udp', 'udp_lan'):
+            for original in (False, True):
+                with self.subTest(entry=entry, original=original):
+                    result = self.invoke_shell(entry, original=original)
+                    self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+                    argv = json.loads(self.argv.read_text())
+                    self.assertFalse(any(a.startswith(('enable_ego_vehicle_status:=', 'enable_object_info:=')) for a in argv))
+                    result = self.invoke_shell(entry, 'enable_object_info:=true', original=original)
+                    self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+                    self.assertIn('enable_object_info:=true', json.loads(self.argv.read_text()))
+
+    def test_competition_aliases_disable_gt_and_select_team_profile_in_both_views(self):
+        for entry, args, suffix in (
+                ('udp_competition', [], 'local'),
+                ('udp_lan_competition', [], 'lan'),
+                ('udp_lan_competition', ['profile:=teamlead'], 'lan_jihun')):
+            for original in (False, True):
+                with self.subTest(entry=entry, args=args, original=original):
+                    result = self.invoke_shell(entry, *args, original=original)
+                    self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+                    argv = json.loads(self.argv.read_text())
+                    self.assertIn('enable_ego_vehicle_status:=false', argv)
+                    self.assertIn('enable_object_info:=false', argv)
+                    self.assertIn('network_config:=' + str(self.repo / ('configs/network/ego_network_competition_' + suffix + '.json')), argv)
 
 
 if __name__ == '__main__':

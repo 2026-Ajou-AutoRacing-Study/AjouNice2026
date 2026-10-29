@@ -7,16 +7,18 @@
 
 ## 변경 범위와 복구 경로
 
-`udp` / `udp_lan`은 `scripts/runtime/run_competition_udp.sh`를 거쳐
+`udp_competition` / `udp_lan_competition`만 `scripts/runtime/run_competition_udp.sh`를 거쳐
 `enable_ego_vehicle_status:=false enable_object_info:=false`로 실행한다.
 금지 항목은 JSON에 남아 있어도 소켓·ROS publisher를 만들지 않는다.
 Competition·Collision 수신과 제어 송신, 센서 드라이버 설정은 유지한다.
 ScenarioLoad 등 다른 항목은 이 수신기가 원래 사용하지 않는다.
 
-원문 화면인 `origin udp`도 같은 수신 차단을 유지한다. `origin`은 GT 복구 명령이 아니다.
-개발용 GT가 꼭 필요할 때만 **`udp_dev` / `udp_lan_dev`**를 명시한다.
-기존 직접 `roslaunch sensor_interface morai_udp_interface.launch`와 validator는
-개발 호환을 위해 Ego·Object 기본 ON을 유지한다. 본선 실행에 validator를 쓰지 않는다.
+기존 **`udp` / `udp_lan`은 개발·최종 튜닝용 Ego·Object 기본 ON을 유지한다.**
+`udp_dev` / `udp_lan_dev`도 같은 개발 동작으로 호환 유지한다.
+`origin udp`는 개발용, `origin udp_competition`은 무GT 대회용이며
+`origin` 자체는 로그 표시만 바꾼다.
+기존 직접 `roslaunch sensor_interface morai_udp_interface.launch`와 validator도
+Ego·Object 기본 ON을 유지한다. 본선 실행에 validator를 쓰지 않는다.
 동시에 두 UDP 실행을 켜지 않는다.
 
 ## 환경별 실행
@@ -25,9 +27,9 @@ ScenarioLoad 등 다른 항목은 이 수신기가 원래 사용하지 않는다
 
 | 환경 | UDP 명령 | Sensor TF |
 |---|---|---|
-| luv 로컬 | `udp` | `sensing` |
-| 팀장님 개발 LAN | `udp_lan profile:=teamlead` | `sensing_lan` |
-| 본선 LAN | `udp_lan` | `sensing_lan` |
+| luv 로컬 무GT 시험 | `udp_competition` | `sensing` |
+| 팀장님 LAN 무GT 시험 | `udp_lan_competition profile:=teamlead` | `sensing_lan` |
+| 본선 LAN | `udp_lan_competition` | `sensing_lan` |
 
 팀장님 주소는 `10.42.0.252 → 10.42.0.1`, 본선은 `192.168.0.1 → 192.168.0.10`이다.
 팀장님 프로필은 기존 `*_lan_jihun.json` Network·Sensor를 읽는다.

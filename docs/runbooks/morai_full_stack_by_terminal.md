@@ -71,7 +71,7 @@ keyboard/P 초기 준비와 네트워크 확인 뒤 출발 절차를 따른다.
 
 | 구성요소 | 대회 LAN 명령 |
 |---|---|
-| UDP 센서·상태 수신 | `udp_lan` |
+| UDP 센서·상태 수신 | `udp_lan_competition` |
 | 센서 좌표계 TF | `sensing_lan` |
 | 공식 START 측위 | `localization initial_position_source:=official_start` |
 | E12 객체 검출 | `bevfusion` |
@@ -79,9 +79,12 @@ keyboard/P 초기 준비와 네트워크 확인 뒤 출발 절차를 따른다.
 | 신호등 | `traffic` |
 | 공용 RViz | `planviz show_morai_gt:=false` |
 
-로컬 MORAI는 앞의 두 개를 `udp`·`sensing`으로 바꾼다.
-`udp`/`udp_lan`은 Ego·Object 수신을 모두 차단한다. 팀장님 개발 LAN에서는
-`udp_lan profile:=teamlead`를 사용한다. C++ 재설치와 개발용 복귀 명령은
+로컬 무GT 시험은 앞의 두 개를 `udp_competition`·`sensing`으로 바꾼다.
+`udp_competition`/`udp_lan_competition`만 Ego·Object 수신을 모두 차단한다.
+팀장님 LAN 무GT 시험에서는 `udp_lan_competition profile:=teamlead`를 사용한다.
+기존 `udp`/`udp_lan`은 개발용 Ego·Object ON 그대로이며,
+기존 팀장님 개발망의 명시적 JSON 경로 인자도 그대로 유지한다.
+C++ 재설치와 상세 실행은
 [UDP 인계 문서](../competition/FINAL_RUNTIME_HANDOFF.md)를 따른다.
 roscore는 `rc`, 판단은 `planning`, 화면은 `planviz`, 제어는 `traj_fol_a`로 기존 순서대로 실행한다.
 공식 START 초기화를 중간 checkpoint에 적용하지 않는다.
