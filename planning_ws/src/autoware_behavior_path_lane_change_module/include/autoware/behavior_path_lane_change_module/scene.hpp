@@ -21,6 +21,7 @@
 #include <autoware_planning_msgs/Trajectory.h>
 #include "autoware/behavior_path_lane_change_module/utils/execution_progress.hpp"
 
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -145,6 +146,11 @@ protected:
   mutable std::mutex final_trajectory_mutex_;
   autoware_planning_msgs::TrajectoryConstPtr final_trajectory_;
   ros::Time final_trajectory_received_;
+  std::optional<ros::Time> abort_reentry_committed_;
+  mutable bool searching_abort_reentry_{false};
+  mutable std::map<std::string, size_t> abort_reentry_rejections_;
+  void refreshAbortReentry();
+  bool getAbortReentryPaths(LaneChangePaths & paths) const;
   mutable std::string overtake_feedback_reason_{"unavailable"};
   mutable bool hard_collision_detected_{false};
   void receiveFinalTrajectory(const autoware_planning_msgs::TrajectoryConstPtr & message);

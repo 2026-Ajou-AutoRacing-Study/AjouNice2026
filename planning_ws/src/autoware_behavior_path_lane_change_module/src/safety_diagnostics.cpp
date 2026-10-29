@@ -109,6 +109,7 @@ void NormalLaneChange::publishSafetyDiagnostics(
     {"generated",search_generated_}, {"safety_checked",search_checked_},
     {"safe",search_safe_}, {"budget_exhausted",search_budget_exhausted_},
     {"compact_sampling",params.trajectory.compact_sampling},
+    {"abort_reentry_rejections",abort_reentry_rejections_},
     {"rolling_plan",rolling_plan_reason_}, {"replan_requested",execution_replan_requested_},
     {"recovery_timeout_is_failure",false}};
   document["overtake"] = {{"enabled", params.overtake.enable},
