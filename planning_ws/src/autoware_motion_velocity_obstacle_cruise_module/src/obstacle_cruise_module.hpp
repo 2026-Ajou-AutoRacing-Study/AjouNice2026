@@ -21,8 +21,8 @@
 #include "autoware_utils/system/time_keeper.hpp"
 #include "cruise_planner_interface.hpp"
 #include "lateral_collision_check.hpp"
-#include "lane_change_ownership.hpp"
 #include <mutex>
+#include <std_msgs/Bool.h>
 #include <ros/subscriber.h>
 #include "optimization_based_planner/optimization_based_planner.hpp"
 #include "parameters.hpp"
@@ -68,10 +68,9 @@ public:
 private:
   friend class LaneChangeHandoffTestPeer;
   std::string module_name_;
-  ros::Subscriber lc_commitment_sub_;
-  std::mutex lc_commitment_mutex_;
-  autoware_internal_planning_msgs::PathWithLaneId lc_commitment_;
-  ros::Time lc_commitment_received_;
+  ros::Subscriber lc_execution_sub_;
+  std::mutex lc_execution_mutex_;
+  bool lc_executing_{false};
   bool lc_owns_longitudinal_{false};
 
   // ros parameters
