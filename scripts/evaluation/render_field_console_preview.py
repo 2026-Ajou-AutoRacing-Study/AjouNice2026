@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render six compact field consoles using the actual formatter and synthetic logs."""
+"""Render default compact consoles using the actual formatter and synthetic logs."""
 import argparse
 import importlib.util
 import json
@@ -39,6 +39,9 @@ def collect_examples(output_dir, width=48):
             '[INFO] update', '[WARN] vehicle-only corridor FAIL-OPEN: state missing']),
         ('traffic', ('D RC+GLA 6.7Hz 45ms', 'INFO'), [
             '[INFO] [Traffic] D-2 | GLA+RC', '[WARN] TF lookup failed']),
+        ('planviz', ('map ready pose 50Hz path 10.0Hz', 'INFO'), [
+            '[INFO] visualization inputs received',
+            'qt.qpa.xcb: could not connect to display']),
     ]
     panels = []
     for component, health, messages in examples:
@@ -49,7 +52,7 @@ def collect_examples(output_dir, width=48):
             line = summary.render()
             lines.append({'text': str(line), 'level': line.level})
         entry = 'sensing_lan' if component == 'sensing' else component
-        panels.append({'command': '$ field ' + entry, 'lines': lines, 'raw': messages})
+        panels.append({'command': '$ ' + entry, 'lines': lines, 'raw': messages})
     (output_dir / 'preview_examples.json').write_text(
         json.dumps({'notice': 'SIMULATED LOGS / NO LIVE STACK', 'panels': panels}, indent=2) + '\n')
     return panels
@@ -59,9 +62,11 @@ def render(output_dir, panels):
     font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf'
     mono = ImageFont.truetype(font_path, 18)
     title = ImageFont.truetype(font_path, 23)
-    image = Image.new('RGB', (1260, 790), '#11151c')
+    rows = (len(panels) + 1) // 2
+    footer = 112 + rows * 194 + 18
+    image = Image.new('RGB', (1260, footer + 90), '#11151c')
     draw = ImageDraw.Draw(image)
-    draw.text((28, 24), 'FIELD CONSOLES / 48 COLUMNS / 1 SECOND', font=title, fill='#e7edf5')
+    draw.text((28, 24), 'DEFAULT CONSOLES / origin COMMAND: RAW VIEW', font=title, fill='#e7edf5')
     draw.text((28, 64), 'SIMULATED / V:vehicle P:pedestrian O:obstacle / ms:source age', font=mono, fill='#ffd077')
     colors = {'INFO': '#8bdf9e', 'WARN': '#ffd077', 'ERROR': '#ff8585'}
     for i, panel in enumerate(panels):
@@ -70,8 +75,8 @@ def render(output_dir, panels):
         draw.text((x + 16, y + 14), panel['command'], font=mono, fill='#a4cef1')
         for j, line in enumerate(panel['lines']):
             draw.text((x + 16, y + 54 + 31 * j), line['text'], font=mono, fill=colors[line['level']])
-    draw.text((28, 712), 'Green: received state  Yellow: attention  Red: missing/failure', font=mono, fill='#cbd2dc')
-    draw.text((28, 742), 'Seconds only; raw + full-time status saved. TL lamps != planner GO.', font=mono, fill='#cbd2dc')
+    draw.text((28, footer), 'Green: received state  Yellow: attention  Red: missing/failure', font=mono, fill='#cbd2dc')
+    draw.text((28, footer+30), 'Narrow panes do not block launch. CTRL keeps its existing display.', font=mono, fill='#cbd2dc')
     destination = output_dir / 'console_preview.png'
     image.save(destination)
     return destination

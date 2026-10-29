@@ -220,6 +220,51 @@ class TopicHealthTests(unittest.TestCase):
         self.assertEqual(calls, ['unregister'])
         self.assertIsNone(health.snapshot(20., 120.))
 
+    def path(self, stamp, count=100):
+        frame = b'map'
+        secs = int(stamp)
+        return N(_buff=struct.pack('<IIII', 1, secs, round((stamp-secs)*1e9), len(frame))
+                 + frame + struct.pack('<I', count))
+
+    def test_planviz_waiting_inputs_and_map_is_latched(self):
+        health = self.health('planviz')
+        self.assertEqual(health.snapshot(1., 100.), ('waiting pose', 'WARN'))
+        self.assertEqual(health.snapshot(6., 100.), ('waiting pose', 'ERROR'))
+        health.observe('global', N(header=header(100.)), 0.)
+        self.assertIn('map wait', health.snapshot(.1, 100.1)[0])
+        health.observe('viz_map', N(_buff=struct.pack('<I', 3000)), 0.)
+        self.assertIn('path wait', health.snapshot(.1, 100.1)[0])
+        for index in range(11):
+            health.observe('global', N(header=header(200+index/10)), 100+index/10)
+            health.observe('viz_path', self.path(200+index/10), 100+index/10)
+        self.assertEqual(health.snapshot(101.,201.05), ('map ready pose 10Hz path 10.0Hz', 'INFO'))
+
+    def test_planviz_path_empty_stale_and_clock_mismatch_are_distinct(self):
+        health = self.health('planviz')
+        health.observe('viz_map', N(_buff=struct.pack('<I', 3)), 0.)
+        health.observe('global', N(header=header(100.)), 0.)
+        health.observe('viz_path', self.path(100.,0), 0.)
+        self.assertEqual(health.snapshot(0.,100.), ('map ready path empty','WARN'))
+        health.observe('global', N(header=header(102.)), 2.)
+        self.assertEqual(health.snapshot(2.,102.), ('path stale 2.0s','ERROR'))
+        health.observe('viz_path', self.path(110.),2.)
+        self.assertEqual(health.snapshot(2.,102.), ('path clock differs','WARN'))
+
+    def test_planviz_malformed_header_does_not_escape_or_create_fresh_status(self):
+        health = self.health('planviz')
+        for key, buffer in [('viz_map',b''),('viz_path',b'broken'),
+                            ('viz_path',struct.pack('<IIII',1,100,0,9999999))]:
+            health.observe(key, N(_buff=buffer),0.)
+        self.assertEqual(health.parse_errors,3)
+        self.assertNotIn('viz_map',health.samples)
+        self.assertNotIn('viz_path',health.samples)
+
+    def test_planviz_reads_path_count_without_deserializing_point_array(self):
+        health = self.health('planviz')
+        health.observe('viz_path', self.path(100.,1000000),0.)
+        self.assertTrue(health.samples['viz_path'].valid)
+        self.assertEqual(health.samples['viz_path'].detail,'1000000')
+
 
 if __name__ == '__main__':
     unittest.main()

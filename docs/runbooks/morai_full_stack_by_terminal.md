@@ -55,35 +55,39 @@ MORAI에서는 다음을 확인한다.
 로드할 현장점검 원본의 정확한 경로와 IP·Ego 미사용 기준은
 [현장 파일 안내](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)를 따른다.
 
-## 마지막 대비 브랜치: 영어·48칸 요약 화면
+## 기본 터미널: 영어·짧은 요약 화면
 
-인지·측위·센싱의 아래 여섯 명령만 `field`를 붙여 요약한다.
-원래 alias·ROS 로그 레벨·주행 정책은 그대로이며 원문 stdout/stderr는 파일에 저장한다.
-planning·control·planviz·roscore는 다른 팀원의 기존 출력으로 실행한다.
-이들에 `field`를 붙여도 원문을 그대로 통과시킨다.
+인지·측위·센싱과 planviz는 기존 명령만 실행해도 요약 화면이 기본이다.
+기존 `field <명령>`도 호환되며 중복 wrapper나 노드를 만들지 않는다.
+원래 명령 인자·ROS 로그 레벨·주행 정책은 유지하고 stdout/stderr는 원문 파일에 저장한다.
+원문 화면은 `origin <명령> [인자]`로 실행한다. planning·roscore 출력과 팀에서 만든
+제어기 CTRL 화면은 그대로 유지한다. 제어기 알고리즘·launch·표시 형식은 여기서 바꾸지 않는다.
 
 각 터미널에서 `ajou` 후 해당 한 줄을 실행한다.
 
 | 구성요소 | 대회 LAN 명령 |
 |---|---|
-| UDP 센서·상태 수신 | `field udp_lan enable_ego_vehicle_status:=false` |
-| 센서 좌표계 TF | `field sensing_lan` |
-| 공식 START 측위 | `field localization initial_position_source:=official_start` |
-| E12 객체 검출 | `field bevfusion` |
-| 추적·지도 예측 | `field tracking` |
-| 신호등 | `field traffic` |
+| UDP 센서·상태 수신 | `udp_lan enable_ego_vehicle_status:=false` |
+| 센서 좌표계 TF | `sensing_lan` |
+| 공식 START 측위 | `localization initial_position_source:=official_start` |
+| E12 객체 검출 | `bevfusion` |
+| 추적·지도 예측 | `tracking` |
+| 신호등 | `traffic` |
+| 공용 RViz | `planviz show_morai_gt:=false` |
 
-로컬 MORAI는 앞의 두 개를 `field udp`·`field sensing`으로 바꾼다.
+로컬 MORAI는 앞의 두 개를 `udp`·`sensing`으로 바꾼다.
 roscore는 `rc`, 판단은 `planning`, 화면은 `planviz`, 제어는 `traj_fol_a`로 기존 순서대로 실행한다.
 공식 START 초기화를 중간 checkpoint에 적용하지 않는다.
-GNSS 지연 보상은 해당 환경에서 검증할 때만 `field localization
+GNSS 지연 보상은 해당 환경에서 검증할 때만 `localization
 initial_position_source:=official_start gnss_delay_ms:=20`처럼 선택한다(기본0ms).
 팀장님 LAN10ms·희중님 LAN20ms·luv 로컬E12/RViz OFF30ms는 서로 다른 bag의 **시험 후보**다.
 실제 운동 보상 의미·기존 초 인자 충돌·검증 한계는
 [localization CURRENT](../localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#gnss-지연-보상-선택-ms-실행-인자)를 따른다.
 이미 실행 중인 프로세스는 바뀌지 않는다. 새로 실행한 터미널에서 표시가 적용된다.
 
-기본1초에 한 줄, 최대48칸이며 터미널이 더 좁으면 그 폭에 맞춘다.
+기본1초에 한 줄, 보통 최대48칸이며 터미널이 더 좁으면 표시 폭을 줄인다.
+가로 폭은 화면 표시만의 옵션이다. 24칸 미만 터미널이나 잘못된 폭 인자로 실행을
+거부하지 않는다. 매우 좁은 폭은 최소12칸으로 보정하고 0·음수·문자열은 자동 폭으로 복귀한다.
 시각은 `00`~`59`의 초만 표시한다(파일에는 전체 시각 보존).
 `WARN/ERROR` 접두어는 없고 **초록=수신 상태, 노랑=주의, 빨강=누락·실패, 회색=감시 미연결/새 로그 없음**이다.
 새 오류 종류는 즉시 최대3종까지 추가 표시한다. 같은 문제 반복은 `xN`으로 합친다.
@@ -112,8 +116,14 @@ initial_position_source:=official_start gnss_delay_ms:=20`처럼 선택한다(�
 | `TL B no-box` / `route/pose?` / `TF unavailable` | 활성 미션의 선택 미확인 / route·pose 확인 / 좌표변환 실패. 원인 확인 필요 |
 | `TL route selector stale` | 별도 미션 선택 토픽 단절. 현재 이미지가 계속 와도 정상 `no mission`으로 숨기지 않음 |
 | `OD output stale 1.2s` | 수신 또는 원본 시각이 오래됨. 프로세스 사망과 동일한 뜻은 아님 |
+| `RVZ map ready pose 50Hz path 10.0Hz` | 지도 MarkerArray·측위·최종 경로 입력 수신. 실제 GUI 렌더링 정상이나 주행 안전 인증은 아님 |
+| `RVZ waiting pose` / `map wait` / `path wait` | 해당 화면 입력 대기. planning·route 시작 전 `path wait`는 가능하며 자동 실행/복구하지 않음 |
+| `RVZ path empty` / `path stale 1.2s` | 빈 경로 / 경로 입력 시각 또는 수신이 오래됨 |
+| `RVZ display unavailable` / `rendering issue` | DISPLAY·Qt 또는 렌더링 오류. 원문 파일에서 상세 확인 |
 
-감시기는 이미지·PointCloud·대용량 예측경로를 구독하지 않고, 기존 객체/신호 debug·상태/packet Header만 읽는다.
+감시기는 이미지·PointCloud·객체 예측경로를 구독하지 않는다. 기존 객체/신호 debug·상태와
+packet Header를 읽고, planviz는 latched 지도 MarkerArray의 개수와 최종 Path의 Header·점 개수만 읽는다.
+지도 polygon·경로 점 배열은 역직렬화하지 않는다. planviz의 지도 수신 상태는 latched 데이터라 stale로 표시하지 않는다.
 새 publisher·제어·ROS parameter 변경은 없다. 표시용 수신률 한계는 주행 안전 임계값을 바꾸지 않는다.
 `V/P/O`의 O는 기타 분류를 포함하며, 검출이 0개인 정상 출력도 `V0 P0 O0`으로 구분한다.
 
@@ -121,16 +131,17 @@ initial_position_source:=official_start gnss_delay_ms:=20`처럼 선택한다(�
 이번 변경 이후에는 같은 이름의 `*_status.jsonl`에 표시 문구·색 등급·전체 시각도 저장한다.
 이 sidecar 기록 실패는 별도 주의만 표시하고 알고리즘을 중단하지 않는다. 기존 녹화에 이 파일이 소급 생성되지는 않는다.
 첫 요약 명령에서 세션이 없으면 만든다. 새 공유 세션은 `field_log_new`, 원문 경로는 `field_log_list`로 확인한다.
-기존 `명령 | field_log_tee 이름`과 동시에 쓰지 않는다.
+원문을 수동 tee로 저장하려면 `origin <명령> 2>&1 | field_log_tee 이름`을 사용한다.
+기본 요약 명령을 다시 `field_log_tee`에 연결하지 않는다.
 원문 파일을 처음 열 수 없으면 시작하지 않는다. 실행 도중 기록이 실패하면 빨간 `raw write failed`를 유지하고 스택은 계속 실행한다.
 Ctrl-C/TERM/SIGHUP은 이번 실행의 자식 프로세스 그룹으로 전달한다. 기본20초 후 미종료 그룹만 강제 종료한다.
 이 기능은 읽기 전용 표시·토픽 관측이며 차량 정지·P 장치가 아니다.
 
-폭은 `AJOUNICE_FIELD_LOG_WIDTH`(최소24), 주기는 `AJOUNICE_FIELD_LOG_INTERVAL`로 바꿀 수 있다.
+폭은 `AJOUNICE_FIELD_LOG_WIDTH`(안전하게 자동 보정), 주기는 `AJOUNICE_FIELD_LOG_INTERVAL`로 바꿀 수 있다.
 재빌드·가상환경 없이 시스템 Python3로 실행한다.
 선택적 관측을 끄려면 wrapper 실행 전에 `export AJOUNICE_FIELD_TOPIC_STATUS=0`을 설정한다.
 `python3 scripts/runtime/field_console.py demo`는 ROS 없이 모의 출력을 보여 준다.
-`python3 scripts/evaluation/render_field_console_preview.py`는 Pillow로 여섯 터미널의 모의 PNG를 만든다.
+`python3 scripts/evaluation/render_field_console_preview.py`는 Pillow로 요약 터미널의 모의 PNG를 만든다.
 
 현장에서 구별할 대표 사례:
 
@@ -149,8 +160,10 @@ Ctrl-C/TERM/SIGHUP은 이번 실행의 자식 프로세스 그룹으로 전달�
 [`shadow_stop_audit.md`](../../artifacts/evaluation/field_run_261029/shadow_stop_audit.md)에 기록했다.
 이 저속 LiDAR/시간축 불일치 기록만으로 운영 제동·측위·주행 파라미터를 튜닝하지 않는다.
 
-## 대회 현장 권장: alias + `tee` 로그 세션
+## 원문 화면·수동 `tee` 기록이 필요할 때
 
+기본 요약 화면도 원문 로그를 자동 저장한다. 아래는 원문을 화면에도 보여주는
+선택적 대안이며, 위 실행과 중복해서 스택을 켜는 절차가 아니다.
 `tee`를 사용하면 화면 출력과 파일 저장이 동시에 이루어진다. 모든 터미널은 같은
 로그 세션을 사용해야 하므로 Terminal 1에서 반드시 `field_log_new`를 먼저 실행한다.
 그 외 터미널에서 세션이 없거나 다른 로그 경로가 잡히면 `field_log_tee`가 오류를 내고
@@ -203,7 +216,7 @@ host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적�
 ajou
 set -o pipefail
 
-udp_lan enable_ego_vehicle_status:=false 2>&1 | field_log_tee udp_lan
+origin udp_lan enable_ego_vehicle_status:=false 2>&1 | field_log_tee udp_lan
 ```
 
 camera/IMU/GPS 수신, Velodyne LiDAR 변환, Competition 상태 수신과 `/ctrl_cmd` UDP
@@ -215,7 +228,7 @@ camera/IMU/GPS 수신, Velodyne LiDAR 변환, Competition 상태 수신과 `/ctr
 ajou
 set -o pipefail
 
-sensing_lan 2>&1 | field_log_tee sensing
+origin sensing_lan 2>&1 | field_log_tee sensing
 ```
 
 `udp_lan`에는 sensor static TF가 포함되지 않으므로 생략하면 안 된다. 이 launch의
@@ -228,7 +241,7 @@ sensing_lan 2>&1 | field_log_tee sensing
 ajou
 set -o pipefail
 
-localization initial_position_source:=official_start 2>&1 | field_log_tee localization
+origin localization initial_position_source:=official_start 2>&1 | field_log_tee localization
 ```
 
 이 alias는 `localization_gnss_imu_gt_ctra.launch`를 실행한다. `sensing_lan`이 sensor
@@ -242,7 +255,7 @@ static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `f
 ajou
 set -o pipefail
 
-bevfusion 2>&1 | field_log_tee bevfusion
+origin bevfusion 2>&1 | field_log_tee bevfusion
 ```
 
 이 alias는 Docker inference server와 ROS bridge의 생명주기를 함께 관리한다. canonical
@@ -264,7 +277,7 @@ docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inferen
 ajou
 set -o pipefail
 
-tracking 2>&1 | field_log_tee tracking
+origin tracking 2>&1 | field_log_tee tracking
 ```
 
 ### Terminal 7: traffic-light recognition
@@ -273,7 +286,7 @@ tracking 2>&1 | field_log_tee tracking
 ajou
 set -o pipefail
 
-traffic 2>&1 | field_log_tee traffic
+origin traffic 2>&1 | field_log_tee traffic
 ```
 
 ### Terminal 8: planning
@@ -294,7 +307,7 @@ follower/control은 포함하지 않는다.
 ajou
 set -o pipefail
 
-planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
+origin planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
 ```
 
 실대회 production에서는 GT overlay를 끈다. MORAI 개발 중 `/Object_topic` 비교가

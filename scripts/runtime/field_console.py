@@ -27,6 +27,7 @@ import unicodedata
 LABELS = {
     'udp': 'UDP', 'udp_lan': 'UDP', 'sensing': 'TF',
     'localization': 'LOC', 'bevfusion': 'OD', 'tracking': 'TRK', 'traffic': 'TL',
+    'planviz': 'RVZ',
 }
 ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)')
 
@@ -45,6 +46,16 @@ def clipped(text, width):
         result.append(char)
         used += size
     return ''.join(result)
+
+
+def display_width(value=None):
+    """A narrow pane or stale width override must never reject a launch."""
+    automatic = max(12, min(48, shutil.get_terminal_size((48, 24)).columns))
+    try:
+        width = int(value) if value is not None else automatic
+    except (ValueError, TypeError, OverflowError):
+        return automatic
+    return max(12, min(width, 4096)) if width > 0 else automatic
 
 
 @dataclass(frozen=True)
@@ -83,6 +94,8 @@ RULES = [
     ('lidar_timeout', 'WARN', 'LiDAR timeout', r'(?:(?:velodyne|lidar).*(?:poll.*timeout|no packets)|poll\(\) timeout)'),
     ('stale', 'WARN', 'input stale', r'local odom.*stale|stale local state|Waiting for fresh local odometry'),
     ('tf', 'WARN', 'TF unavailable', r'LookupException|ExtrapolationException|Could not.*transform|TF_REPEATED_DATA|TF_OLD_DATA|TF lookup failed'),
+    ('display', 'ERROR', 'display unavailable', r'could not connect to display|could not load the Qt platform plugin|no Qt platform plugin could be initialized'),
+    ('render', 'WARN', 'rendering issue', r'OGRE EXCEPTION|libGL error|failed to create.*render'),
     ('roi', 'WARN', 'roi missing', r'\[Traffic map ROI\] missing|route_missing_or_stale|no_visible_route_head'),
     ('traceback', 'ERROR', 'exception', r'Traceback \(most recent call last\)|(?:^|[\s.])(?-i:(?:[A-Z][A-Za-z0-9]*)?(?:Error|Exception)):'),
     ('died', 'ERROR', 'node exited', r'process has died|process.*died|Segmentation fault|terminate called|RLException'),
@@ -594,7 +607,8 @@ def main():
         command.add_argument('--component', default='stack', type=component_name)
         command.add_argument('--log-dir', default=str(Path(__file__).resolve().parents[2] / 'artifacts/field_logs'))
         command.add_argument('--interval', type=float, default=1.)
-        command.add_argument('--width', type=int, default=min(48, shutil.get_terminal_size((48, 24)).columns))
+        command.add_argument('--width', type=display_width, default=display_width(),
+                             help='display columns only; narrow/invalid values fall back safely')
         command.add_argument('--stop-timeout', type=float, default=20.)
         command.add_argument('--no-topic-status', action='store_true',
                              help='disable optional read-only topic observation')
@@ -605,8 +619,6 @@ def main():
         parser.error('--interval must be finite and >= 0.05 seconds')
     if not math.isfinite(args.stop_timeout) or args.stop_timeout <= 0:
         parser.error('--stop-timeout must be finite and positive')
-    if args.width < 24:
-        parser.error('--width must be >= 24 columns')
     try:
         return demo(args) if args.mode == 'demo' else run(args)
     except (OSError, ValueError) as error:

@@ -21,6 +21,7 @@ COMPONENTS = {
     'udp': 'udp', 'udp_lan': 'udp', 'sensing': 'sensing',
     'sensing_lan': 'sensing', 'localization': 'localization',
     'bevfusion': 'bevfusion', 'tracking': 'tracking', 'traffic': 'traffic',
+    'planviz': 'planviz',
 }
 GROUPS = {201351: 'A', 201365: 'B', 201290: 'C', 201326: 'D', 201397: 'D1'}
 STATIC_CHILDREN = frozenset((
@@ -142,6 +143,22 @@ class TopicHealth:
                     self._record(key, receipt, source, valid=valid)
                 elif key in ('comp', 'imu', 'global', 'smooth'):
                     self._record(key, receipt, source)
+                elif key == 'viz_map':
+                    # MarkerArray starts with uint32 marker count. The map is
+                    # latched: do not deserialize its polygons or expire it.
+                    buffer = getattr(message, '_buff', b'')
+                    count, = struct.unpack_from('<I', buffer, 0)
+                    self._record(key, receipt, detail=str(count), valid=count > 0)
+                elif key == 'viz_path':
+                    # nav_msgs/Path is Header + PoseStamped[]. Read only the
+                    # Header and array length, not the trajectory point array.
+                    buffer = getattr(message, '_buff', b'')
+                    secs, nsecs, frame_size = struct.unpack_from('<III', buffer, 4)
+                    if frame_size > 1024:
+                        raise ValueError('invalid path frame')
+                    count, = struct.unpack_from('<I', buffer, 16 + frame_size)
+                    source = _stamp_seconds(secs + nsecs / 1e9)
+                    self._record(key, receipt, source, str(count), valid=count > 0)
                 elif key == 'route':
                     self.route_group_id = int(message.data)
                     self._record(key, receipt, detail=str(self.route_group_id))
@@ -230,6 +247,31 @@ class TopicHealth:
                 count = len(self.static_children & STATIC_CHILDREN)
                 return ('static %d/%d' % (count, len(STATIC_CHILDREN)),
                         'INFO' if count == len(STATIC_CHILDREN) else 'WARN')
+            if self.component == 'planviz':
+                # Input health only: never claim successful GUI rendering or
+                # route acceptance from the presence of visualization inputs.
+                if 'global' not in self.samples:
+                    return 'waiting pose', 'WARN' if now - self.started < 5. else 'ERROR'
+                receipt_age, source_age = self._age('global', now, ros_now)
+                if source_age is not None and source_age < -.5:
+                    return 'pose clock differs', 'WARN'
+                if max(receipt_age, source_age or 0.) > 1.:
+                    return 'pose stale %.1fs' % max(receipt_age, source_age or 0.), 'ERROR'
+                map_sample = self.samples.get('viz_map')
+                if map_sample is None or not map_sample.valid:
+                    return 'pose %.0fHz map wait' % self._rate('global', now), 'WARN'
+                path = self.samples.get('viz_path')
+                if path is None:
+                    return 'map ready pose %.0fHz path wait' % self._rate('global', now), 'WARN'
+                receipt_age, source_age = self._age('viz_path', now, ros_now)
+                if source_age is not None and source_age < -.5:
+                    return 'path clock differs', 'WARN'
+                if max(receipt_age, source_age or 0.) > 1.:
+                    return 'path stale %.1fs' % max(receipt_age, source_age or 0.), 'ERROR'
+                if not path.valid:
+                    return 'map ready path empty', 'WARN'
+                return ('map ready pose %.0fHz path %.1fHz' %
+                        (self._rate('global', now), self._rate('viz_path', now)), 'INFO')
             required = {
                 'udp': ('comp', 'gps', 'imu'),
                 'localization': ('global', 'smooth', 'gps', 'comp'),
@@ -369,6 +411,11 @@ def create_topic_health(component):
         elif normalized == 'sensing':
             from tf2_msgs.msg import TFMessage
             specs.append(('tf', '/tf_static', TFMessage))
+        elif normalized == 'planviz':
+            from nav_msgs.msg import Odometry
+            specs.extend((('global', '/localization/kinematic_state', Odometry),
+                          ('viz_map', '/map/lanelet_map', rospy.AnyMsg),
+                          ('viz_path', '/planning/debug/final_trajectory/path', rospy.AnyMsg)))
         if not rospy.core.is_initialized():
             rospy.init_node('field_topic_health_' + normalized, anonymous=True,
                             disable_signals=True, disable_rosout=True)

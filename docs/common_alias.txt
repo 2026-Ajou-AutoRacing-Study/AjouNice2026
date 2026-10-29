@@ -193,11 +193,14 @@ field_log_list() {
   fi
 }
 
-# English compact view for sensing/localization/perception, one-second aggregation.
-# Other teams' planning/control/RViz/roscore commands keep their original output.
-# The original aliases/field_log_tee remain unchanged for raw terminal output.
+# Compact view is the default for sensing/localization/perception and planviz.
+# The wrapper resolves the original aliases in a child shell; never wrap twice.
 field() {
   bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" "$@"
+}
+
+origin() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" --origin "$@"
 }
 
 # planning-----------------------------------------------
@@ -209,3 +212,18 @@ alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
 alias judge='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch competition_rule_monitor competition_rule_monitor.launch'
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
 alias kroute='roslaunch bringup kcity_competition_route.launch'
+
+# Leave planning/roscore and the team's existing CTRL terminal unchanged.
+# Internal wrapper shells use the raw definitions above to avoid recursion.
+if [[ "${AJOUNICE_ORIGINAL_COMMANDS:-0}" != 1 ]]; then
+  alias udp='field udp'
+  alias udp_lan='field udp_lan'
+  alias sensing='field sensing'
+  alias sensing_lan='field sensing_lan'
+  alias localization='field localization'
+  alias localization_mrp='field localization_mrp'
+  alias bevfusion='field bevfusion'
+  alias tracking='field tracking'
+  alias traffic='field traffic'
+  alias planviz='field planviz'
+fi

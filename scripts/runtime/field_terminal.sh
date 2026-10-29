@@ -3,26 +3,34 @@
 set -uo pipefail
 
 export AJOUNICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Resolve the original commands, not their default compact-view aliases.
+export AJOUNICE_ORIGINAL_COMMANDS=1
 source "$AJOUNICE_ROOT/docs/common_alias.txt"
 
+original=false
+if [[ "${1:-}" == --origin ]]; then
+  original=true
+  shift
+fi
 if [[ $# -eq 0 ]]; then
-  echo 'field udp_lan|sensing_lan|localization|bevfusion|tracking|traffic [args]' >&2
-  echo 'rc/planning/planviz/control: original output' >&2
+  echo 'udp_lan|sensing_lan|localization|bevfusion|tracking|traffic|planviz [args]' >&2
+  echo 'origin COMMAND [args]: original output; field COMMAND remains compatible' >&2
+  echo 'rc/planning/control: existing output' >&2
   exit 2
 fi
 
 entry="$1"
 shift
 case "$entry" in
-  rc|planning|planviz|traj_fol_a|traj_fol_global) component= ;;
+  rc|planning|traj_fol|traj_fol_a|traj_fol_global) component= ;;
   udp|udp_lan) component="$entry" ;;
   sensing|sensing_lan) component=sensing ;;
   localization|localization_mrp) component=localization ;;
-  bevfusion|tracking|traffic) component="$entry" ;;
+  bevfusion|tracking|traffic|planviz) component="$entry" ;;
   *) echo "unsupported command: $entry" >&2; exit 2 ;;
 esac
 
-if [[ -z "$component" ]]; then
+if $original || [[ -z "$component" ]]; then
   # Other teams own these consoles: use the exact original alias and output.
   exec /bin/bash --noprofile --norc -O expand_aliases -c '
     source "$AJOUNICE_ROOT/docs/common_alias.txt"
