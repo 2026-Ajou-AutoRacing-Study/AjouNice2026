@@ -201,21 +201,28 @@ done
                 self.assertIn("<bevfusion_ros> <base5_production.launch>", log)
                 self.assertNotIn("score_threshold", log)
 
-    def test_invalid_values_fail_before_any_docker_or_ros_command(self):
+    def test_invalid_optional_telemetry_never_prevents_detector_start(self):
         for value in ("TRUE", "1", "yes", "", "true false"):
             with self.subTest(value=value):
                 result, log = self.run_fixture(value)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn("must be true or false", result.stderr)
-                self.assertEqual(log, "")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("optional frame timing is disabled", result.stderr)
+                self.assertIn("<publish_frame_timing:=false>", log)
+                self.assertEqual(log.count("roslaunch"), 1)
 
     def test_local_environment_config_is_loaded_then_validated(self):
         result, log = self.run_fixture(defined=False, local_value="true")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("<publish_frame_timing:=true>", log)
         result, log = self.run_fixture(defined=False, local_value="invalid")
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(log, "")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("optional frame timing is disabled", result.stderr)
+        self.assertIn("<publish_frame_timing:=false>", log)
+
+    def test_explicit_timing_flag_overrides_invalid_optional_environment(self):
+        result, log = self.run_fixture("invalid", extra_args=("--publish-frame-timing",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("<publish_frame_timing:=true>", log)
 
     def test_explicit_e25_rollback_keeps_timing_arg(self):
         result, log = self.run_fixture("true", model="e25")

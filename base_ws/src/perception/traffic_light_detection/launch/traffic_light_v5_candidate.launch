@@ -8,10 +8,7 @@
   <arg name="image_topic" default="/sensor/camera/front/compressed" />
   <arg name="sensor_config" default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json" />
   <arg name="map_version" default="101" />
-  <!-- Released runtime accepts only v101; reject old explicit overrides at parse time. -->
-  <arg name="_require_v101_map_version" value="$(eval {'101': 'v101-only'}[str(arg('map_version'))])"/>
   <arg name="lanelet2_map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm" />
-  <arg name="_require_v101_map_file" value="$(eval {True: 'v101-only'}[arg('lanelet2_map_file') == arg('repo_root') + '/kcity_map/lanelet_map/lanelet2_map_v101.osm'])"/>
   <arg name="lanelet2_projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
   <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
   <arg name="route_topic" default="/planning/mission_planning/route" />

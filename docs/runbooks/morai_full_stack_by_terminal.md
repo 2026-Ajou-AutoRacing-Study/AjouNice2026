@@ -79,9 +79,14 @@ keyboard/P 초기 준비와 네트워크 확인 뒤 출발 절차를 따른다.
 | 신호등 | `traffic` |
 | 공용 RViz | `planviz show_morai_gt:=false` |
 
+무GT 전용 별도 alias는 `localization_competition`과 `planviz_competition`이며
+각각 위 official_start·GT OFF 인자를 기본으로 넣는다. 개발용 기존 명령은 유지한다.
+HUD 속도는 Competition이며 GT OFF에서는 녹화 대상의 Ego/Object도 제외한다.
+GT 기반 `od_gt`·`localization_mrp`·개발용 `judge`는 본선에서 실행하지 않는다.
+
 로컬 무GT 시험은 앞의 두 개를 `udp_competition`·`sensing`으로 바꾼다.
 `udp_competition`/`udp_lan_competition`만 Ego·Object 수신을 모두 차단한다.
-팀장님 LAN 무GT 시험에서는 `udp_lan_competition profile:=teamlead`를 사용한다.
+팀장님 LAN 무GT 시험에서는 `udp_lan_competition_teamlead`를 사용한다.
 기존 `udp`/`udp_lan`은 개발용 Ego·Object ON 그대로이며,
 기존 팀장님 개발망의 명시적 JSON 경로 인자도 그대로 유지한다.
 C++ 재설치와 상세 실행은
@@ -143,11 +148,14 @@ packet Header를 읽고, planviz는 latched 지도 MarkerArray의 개수와 최�
 첫 요약 명령에서 세션이 없으면 만든다. 새 공유 세션은 `field_log_new`, 원문 경로는 `field_log_list`로 확인한다.
 원문을 수동 tee로 저장하려면 `origin <명령> 2>&1 | field_log_tee 이름`을 사용한다.
 기본 요약 명령을 다시 `field_log_tee`에 연결하지 않는다.
-원문 파일을 처음 열 수 없으면 시작하지 않는다. 실행 도중 기록이 실패하면 빨간 `raw write failed`를 유지하고 스택은 계속 실행한다.
+원문 파일을 처음 열 수 없어도 빨간 `raw write failed`를 표시하며 알고리즘은 시작한다.
+공유 세션 pointer 생성 실패도 독립 세션으로 계속하며, 실행 도중 기록 실패도 스택을 중단하지 않는다.
+원문 증거가 없는 상태이므로 기록 복구가 필요하다. 자식 종료 후 기록 실패 코드2는 별도로 반환할 수 있다.
 Ctrl-C/TERM/SIGHUP은 이번 실행의 자식 프로세스 그룹으로 전달한다. 기본20초 후 미종료 그룹만 강제 종료한다.
 이 기능은 읽기 전용 표시·토픽 관측이며 차량 정지·P 장치가 아니다.
 
 폭은 `AJOUNICE_FIELD_LOG_WIDTH`(안전하게 자동 보정), 주기는 `AJOUNICE_FIELD_LOG_INTERVAL`로 바꿀 수 있다.
+잘못된 주기·종료 대기시간은 각각1초·20초로 복귀하며 주행 실행을 거부하지 않는다.
 재빌드·가상환경 없이 시스템 Python3로 실행한다.
 선택적 관측을 끄려면 wrapper 실행 전에 `export AJOUNICE_FIELD_TOPIC_STATUS=0`을 설정한다.
 `python3 scripts/runtime/field_console.py demo`는 ROS 없이 모의 출력을 보여 준다.

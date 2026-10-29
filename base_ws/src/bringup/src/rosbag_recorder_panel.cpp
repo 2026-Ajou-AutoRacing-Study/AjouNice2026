@@ -28,7 +28,7 @@ namespace bringup
 namespace
 {
 constexpr const char * kDefaultTopics =
-  "/tf /tf_static /clock /Ego_topic "
+  "/tf /tf_static /clock /Competition_topic "
   "/sensor/lidar1 "
   "/sensor/camera/front/compressed "
   "/sensor/camera/front_left/compressed "

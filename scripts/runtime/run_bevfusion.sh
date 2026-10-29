@@ -9,14 +9,14 @@ if [[ -f "$ROOT/.env.bevfusion.local" ]]; then
   set +a
 fi
 # Optional sidecar diagnostics do not alter the frozen inference contract.
-# Validate before any Docker operation, including readiness/image checks.
+# Invalid optional telemetry must never block the actual detector.
 PUBLISH_FRAME_TIMING="${BEVFUSION_PUBLISH_FRAME_TIMING-false}"
 SAFE_MODE="${BEVFUSION_SAFE_MODE:-false}"
 case "$PUBLISH_FRAME_TIMING" in
   true|false) ;;
   *)
-    echo "[ERROR] BEVFUSION_PUBLISH_FRAME_TIMING must be true or false." >&2
-    exit 2
+    echo "[WARNING] Invalid BEVFUSION_PUBLISH_FRAME_TIMING; optional frame timing is disabled." >&2
+    PUBLISH_FRAME_TIMING=false
     ;;
 esac
 COMPOSE_FILE="$ROOT/docker/bevfusion/compose.yaml"

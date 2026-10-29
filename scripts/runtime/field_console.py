@@ -344,6 +344,8 @@ class StatusScreen(Screen):
         super().__init__()
         self.handle = None
         self.failed = False
+        if raw_path is None:
+            return
         try:
             self.handle = raw_path.with_name(raw_path.name.replace('_raw.log', '_status.jsonl')).open('x')
         except OSError:
@@ -375,7 +377,7 @@ class StatusScreen(Screen):
 
 
 class RawSink:
-    """Keep the stack running on mid-run disk failure; visibly retain that fact."""
+    """Log storage failure never prevents or stops the algorithm."""
     def __init__(self, handle, summary, emit):
         self.handle, self.summary, self.emit = handle, summary, emit
         self.failed = False
@@ -405,6 +407,9 @@ class RawSink:
 
     def close(self):
         if self.closed:
+            return
+        if self.handle is None:
+            self.closed = True
             return
         self.flush()
         try:
@@ -505,11 +510,19 @@ def stop_group(child, sig):
 def run(args):
     if args.mode == 'run' and not args.command:
         raise ValueError('command missing')
-    path, handle = new_log(args.log_dir, args.component)
+    log_error = None
+    try:
+        path, handle = new_log(args.log_dir, args.component)
+    except OSError as error:
+        path = handle = None
+        log_error = error
     emit = StatusScreen(path)
     summary = Summary(args.component, args.width)
-    emit(summary.line('raw saved'))
     raw = RawSink(handle, summary, emit)
+    if log_error is not None:
+        raw._failure(log_error)
+    else:
+        emit(summary.line('raw saved'))
     child = None
     old_handlers = {}
     signal_time = [None]
@@ -606,19 +619,25 @@ def main():
         command = sub.add_parser(mode)
         command.add_argument('--component', default='stack', type=component_name)
         command.add_argument('--log-dir', default=str(Path(__file__).resolve().parents[2] / 'artifacts/field_logs'))
-        command.add_argument('--interval', type=float, default=1.)
+        command.add_argument('--interval', default=1.)
         command.add_argument('--width', type=display_width, default=display_width(),
                              help='display columns only; narrow/invalid values fall back safely')
-        command.add_argument('--stop-timeout', type=float, default=20.)
+        command.add_argument('--stop-timeout', default=20.)
         command.add_argument('--no-topic-status', action='store_true',
                              help='disable optional read-only topic observation')
         if mode == 'run':
             command.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    if not math.isfinite(args.interval) or args.interval < .05:
-        parser.error('--interval must be finite and >= 0.05 seconds')
-    if not math.isfinite(args.stop_timeout) or args.stop_timeout <= 0:
-        parser.error('--stop-timeout must be finite and positive')
+    for name, default in (('interval', 1.), ('stop_timeout', 20.)):
+        try:
+            value = float(getattr(args, name))
+            valid = math.isfinite(value) and (value >= .05 if name == 'interval' else value > 0)
+        except (ValueError, TypeError):
+            valid = False
+        if not valid:
+            print('Console %s invalid; using %ss' % (name, default), file=sys.stderr)
+            value = default
+        setattr(args, name, value)
     try:
         return demo(args) if args.mode == 'demo' else run(args)
     except (OSError, ValueError) as error:

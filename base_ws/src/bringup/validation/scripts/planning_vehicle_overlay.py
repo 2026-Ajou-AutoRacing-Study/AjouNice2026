@@ -16,11 +16,12 @@ class VehicleOverlay:
         self.speed = self.steer = self.throttle = self.brake = None
         self.speed_at = self.command_at = 0.0
         self.pub = rospy.Publisher('/planning/debug/vehicle_overlay', OverlayText, queue_size=1)
-        self.ego_sub = rospy.Subscriber('/Ego_topic', EgoVehicleStatus, self.on_ego, queue_size=1)
+        status_topic = rospy.get_param('~vehicle_status_topic', '/Competition_topic')
+        self.status_sub = rospy.Subscriber(status_topic, EgoVehicleStatus, self.on_status, queue_size=1)
         self.cmd_sub = rospy.Subscriber('/ctrl_cmd', CtrlCmd, self.on_command, queue_size=1)
         self.timer = rospy.Timer(rospy.Duration(0.1), self.publish)
 
-    def on_ego(self, msg):
+    def on_status(self, msg):
         with self.lock:
             self.speed = math.hypot(msg.velocity.x, msg.velocity.y) * 3.6
             self.speed_at = time.monotonic()
