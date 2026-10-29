@@ -9,6 +9,7 @@ from autoware_planning_msgs.msg import Trajectory, TrajectoryPoint
 from morai_msgs.msg import CtrlCmd
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, String
+from trajectory_follower.msg import TerminalState
 
 
 class AutowareFreshnessTest(unittest.TestCase):
@@ -16,6 +17,7 @@ class AutowareFreshnessTest(unittest.TestCase):
         self.commands = []
         self.lateral_valid = None
         self.failure_reason = ""
+        self.terminal_state = None
         self.trajectory_pub = rospy.Publisher(
             "/planning/trajectory", Trajectory, queue_size=1
         )
@@ -29,6 +31,11 @@ class AutowareFreshnessTest(unittest.TestCase):
         self.failure_sub = rospy.Subscriber(
             "/control/autoware/failure_reason", String, self._on_failure
         )
+        self.terminal_sub = rospy.Subscriber(
+            "/control/terminal_state", TerminalState, self._on_terminal)
+
+    def _on_terminal(self, message):
+        self.terminal_state = message
 
     def _on_command(self, message):
         self.commands.append((time.monotonic(), message))
@@ -160,6 +167,10 @@ class AutowareFreshnessTest(unittest.TestCase):
         self._assert_full_brake_since(stale_phase + 0.4, "stale trajectory replay")
         self.assertFalse(self.lateral_valid)
         self.assertEqual(self.failure_reason, "stale or unavailable trajectory/state")
+        self.assertIsNotNone(self.terminal_state)
+        self.assertEqual(self.terminal_state.level, "ERROR")
+        self.assertEqual(self.terminal_state.steering_rad, 0.0)
+        self.assertIn("trajectory", self.terminal_state.reason)
 
         future_stamp = rospy.Time.now() + rospy.Duration(5.0)
         future_phase = time.monotonic()
@@ -178,6 +189,10 @@ class AutowareFreshnessTest(unittest.TestCase):
             "controller did not recover after fresh source stamps returned",
         )
         self.assertTrue(self.lateral_valid)
+
+        self.assertIsNotNone(self.terminal_state)
+        self.assertEqual(self.terminal_state.level, "OK")
+        self.assertAlmostEqual(self.terminal_state.steering_rad, recovered_commands[-1].steering)
 
 
 if __name__ == "__main__":
