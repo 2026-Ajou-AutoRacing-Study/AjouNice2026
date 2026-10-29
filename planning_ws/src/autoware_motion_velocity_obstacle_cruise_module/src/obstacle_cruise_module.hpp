@@ -68,9 +68,9 @@ public:
 private:
   friend class LaneChangeHandoffTestPeer;
   std::string module_name_;
-  ros::Subscriber lc_execution_sub_;
-  std::mutex lc_execution_mutex_;
-  bool lc_executing_{false};
+  ros::Subscriber lc_cruise_suppression_sub_;
+  std::mutex lc_cruise_suppression_mutex_;
+  bool lc_cruise_suppressed_{false};
   bool lc_owns_longitudinal_{false};
 
   // ros parameters

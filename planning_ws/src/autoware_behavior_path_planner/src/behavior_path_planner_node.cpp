@@ -16,6 +16,9 @@
 // limitations under the License.
 
 #include "autoware/behavior_path_planner/behavior_path_planner_node.hpp"
+#ifdef AW149_ENABLE_LANE_CHANGE
+#include "autoware/behavior_path_lane_change_module/interface.hpp"
+#endif
 
 #include "autoware/motion_utils/trajectory/conversion.hpp"
 
@@ -58,6 +61,9 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
   lc_execution_publisher_ = create_publisher<std_msgs::Bool>(
     "/planning/lane_change/executing", 1, true);
   lc_execution_publisher_->publish(std_msgs::Bool{});
+  lc_cruise_suppression_publisher_ = create_publisher<std_msgs::Bool>(
+    "/planning/lane_change/cruise_suppressed", 1, true);
+  lc_cruise_suppression_publisher_->publish(std_msgs::Bool{});
   obstacle_scene_publisher_ = create_publisher<autoware_planning_msgs::StaticObstacleScene>(
     "/planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene", 10);
   turn_signal_publisher_ =
@@ -459,6 +465,23 @@ void BehaviorPathPlannerNode::run()
   std_msgs::Bool lc_execution;
   lc_execution.data = lc_executing;
   lc_execution_publisher_->publish(lc_execution);
+
+  // Keep lifecycle independent: only release Cruise after the approved LC's
+  // base_link enters its own target polygon. All other RUNNING LC states retain
+  // the previous suppression, including preparation and an executing return.
+  std_msgs::Bool cruise_suppressed;
+  cruise_suppressed.data = std::any_of(
+    approved_lc_modules.begin(), approved_lc_modules.end(), [](const auto & module) {
+      if ((module->name() != "lane_change_left" && module->name() != "lane_change_right") ||
+          module->getCurrentStatus() != ModuleStatus::RUNNING) return false;
+#ifdef AW149_ENABLE_LANE_CHANGE
+      const auto lc = std::dynamic_pointer_cast<LaneChangeInterface>(module);
+      return !lc || !lc->isObstacleCruiseAllowed();
+#else
+      return true;
+#endif
+    });
+  lc_cruise_suppression_publisher_->publish(cruise_suppressed);
 
   // path handling
   const auto path = getPath(output, planner_data_);

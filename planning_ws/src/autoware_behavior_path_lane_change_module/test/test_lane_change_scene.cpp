@@ -707,6 +707,46 @@ TEST_F(TestNormalLaneChange, NoSafeReturnKeepsExecutingInsteadOfStoppingOrRestar
   EXPECT_EQ(interface.check_transit_failure().second,"Aborted");
 }
 
+TEST_F(TestNormalLaneChange, CruisePermissionDoesNotChangeApprovedExecutionPolicy)
+{
+  using namespace autoware::behavior_path_planner;
+  auto module = std::make_unique<ExecutionPolicyProbe>(lc_param_ptr_, lc_type_, lc_direction_);
+  auto * probe = module.get();
+  probe->seed();
+  ros::NodeHandle node("/cruise_entry_policy_test");
+  SceneModuleInterface::MarkerInterfaceMap markers;
+  ExecutionInterfaceProbe interface(
+    "cruise_entry_policy_test", node, lc_param_ptr_, {}, markers, nullptr, std::move(module));
+  normal_lane_change_->update_lanes(false);
+  interface.setData(planner_data_);
+  probe->useCommon(get_common_data_ptr());
+  probe->seed();
+  auto & target = get_common_data_ptr()->lanes_polygon_ptr->target;
+  target.clear();
+  for (const auto & xy : std::vector<std::pair<double, double>>{
+      {-1000, -1000}, {1000, -1000}, {1000, 1000}, {-1000, 1000}, {-1000, -1000}}) {
+    target.emplace_back(xy.first, xy.second);
+  }
+  EXPECT_FALSE(interface.isObstacleCruiseAllowed());
+  interface.updateCurrentState();
+  ASSERT_EQ(interface.getCurrentStatus(), ModuleStatus::RUNNING);
+  ASSERT_TRUE(probe->hasEgoBaseLinkEnteredTargetLane());
+  interface.unsafe();
+  EXPECT_TRUE(interface.isObstacleCruiseAllowed());
+  EXPECT_EQ(interface.check_transit_failure().second, "UnsafeButTargetLaneEntered");
+  EXPECT_FALSE(interface.canTransitFailureState());
+  EXPECT_EQ(interface.getCurrentStatus(), ModuleStatus::RUNNING);
+  EXPECT_EQ(probe->return_checks, 0U);
+  probe->preparing = true;
+  EXPECT_FALSE(interface.isObstacleCruiseAllowed());
+  probe->preparing = false;
+  probe->returning = true;
+  EXPECT_FALSE(interface.isObstacleCruiseAllowed());
+  probe->returning = false;
+  target.clear();
+  EXPECT_FALSE(interface.isObstacleCruiseAllowed());
+}
+
 TEST_F(TestNormalLaneChange, ReturnAndReentryStartAtMeasuredStateAndEndInOppositeLanes)
 {
   namespace lc=autoware::behavior_path_planner::utils::lane_change;
@@ -805,4 +845,31 @@ TEST_F(TestNormalLaneChange, TargetEntryUsesCurrentBodyOverlapRatherThanCenterOr
   pose.position.x=-front-0.1;
   planner_data_->self_odometry=set_odometry(pose);
   EXPECT_FALSE(normal_lane_change_->hasEgoEnteredTargetLane());
+}
+
+TEST_F(TestNormalLaneChange, CruiseEntryRequiresBaseLinkInsideSelectedTarget)
+{
+  auto & target = get_common_data_ptr()->lanes_polygon_ptr->target;
+  target.clear();
+  for (const auto & xy : std::vector<std::pair<double, double>>{
+      {0.0, -100.0}, {100.0, -100.0}, {100.0, 100.0}, {0.0, 100.0}, {0.0, -100.0}}) {
+    target.emplace_back(xy.first, xy.second);
+  }
+  // Nose entry must still retain the existing LC, without releasing Cruise.
+  auto pose = autoware::test_utils::createPose(-0.1, 0.0, 0.0, 0.0, 0.0, 0.0);
+  planner_data_->self_odometry = set_odometry(pose);
+  EXPECT_TRUE(normal_lane_change_->hasEgoEnteredTargetLane());
+  EXPECT_FALSE(normal_lane_change_->hasEgoBaseLinkEnteredTargetLane());
+  pose.position.x = 0.0;
+  planner_data_->self_odometry = set_odometry(pose);
+  EXPECT_FALSE(normal_lane_change_->hasEgoBaseLinkEnteredTargetLane());
+  pose.position.x = 0.1;
+  planner_data_->self_odometry = set_odometry(pose);
+  EXPECT_TRUE(normal_lane_change_->hasEgoBaseLinkEnteredTargetLane());
+  // There is no new latch: outside/unknown target retains old suppression.
+  pose.position.x = -0.1;
+  planner_data_->self_odometry = set_odometry(pose);
+  EXPECT_FALSE(normal_lane_change_->hasEgoBaseLinkEnteredTargetLane());
+  target.clear();
+  EXPECT_FALSE(normal_lane_change_->hasEgoBaseLinkEnteredTargetLane());
 }

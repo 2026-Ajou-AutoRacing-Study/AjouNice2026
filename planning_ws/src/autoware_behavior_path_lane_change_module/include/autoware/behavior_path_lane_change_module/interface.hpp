@@ -76,6 +76,9 @@ public:
 
   bool isExecutionReady() const override;
 
+  // This releases only Cruise suppression; the approved LC remains RUNNING.
+  bool isObstacleCruiseAllowed() const;
+
   bool isCurrentRouteLaneletToBeReset() const
   {
     return getCurrentStatus() == ModuleStatus::SUCCESS;

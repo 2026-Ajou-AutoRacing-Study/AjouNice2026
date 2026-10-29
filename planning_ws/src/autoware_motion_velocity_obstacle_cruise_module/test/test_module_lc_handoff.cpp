@@ -5,10 +5,10 @@ namespace autoware::motion_velocity_planner {
 class LaneChangeHandoffTestPeer {
 public:
  static void approve(ObstacleCruiseModule & module,const std::vector<TrajectoryPoint> & raw,bool old_limit) {
-  module.lc_executing_=true;
+  module.lc_cruise_suppressed_=true;
   module.need_to_clear_velocity_limit_=old_limit;
  }
- static void executing(ObstacleCruiseModule & module,bool value) {module.lc_executing_=value;}
+ static void suppressCruise(ObstacleCruiseModule & module,bool value) {module.lc_cruise_suppressed_=value;}
  static bool owns(const ObstacleCruiseModule & module) {return module.lc_owns_longitudinal_;}
  static bool hasOldLimit(const ObstacleCruiseModule & module) {return module.need_to_clear_velocity_limit_;}
 };
@@ -79,14 +79,14 @@ protected:
   data->process_predicted_objects(message);
  }
 };
-TEST_F(LaneChangeFrontProtection, ExecutingLcSuppressesEvenAlignedLeaderAndRestoresCruiseOnCompletion) {
+TEST_F(LaneChangeFrontProtection, SuppressionBlocksAlignedLeaderAndReleaseRestoresCruise) {
  object(20,0,10);
  const auto result=module.plan(raw,raw,data);
  EXPECT_FALSE(result.velocity_limit);
  ASSERT_TRUE(result.velocity_limit_clear_command);
  EXPECT_EQ(result.velocity_limit_clear_command->sender,"obstacle_cruise");
  EXPECT_TRUE(LaneChangeHandoffTestPeer::owns(module));
- LaneChangeHandoffTestPeer::executing(module,false);
+ LaneChangeHandoffTestPeer::suppressCruise(module,false);
  const auto restored=module.plan(raw,raw,data);
  ASSERT_TRUE(restored.velocity_limit);
  EXPECT_LT(restored.velocity_limit->max_velocity,25);
@@ -98,14 +98,28 @@ TEST_F(LaneChangeFrontProtection, AdjacentRearTrafficDoesNotReinstateOrdinaryFol
  EXPECT_FALSE(result.velocity_limit);
  EXPECT_TRUE(LaneChangeHandoffTestPeer::owns(module));
 }
+TEST_F(LaneChangeFrontProtection, ReleaseWithoutLeaderDoesNotLimitLaneChangeAcceleration) {
+ LaneChangeHandoffTestPeer::suppressCruise(module,false);
+ const auto result=module.plan(raw,raw,data);
+ EXPECT_FALSE(result.velocity_limit);
+ EXPECT_FALSE(LaneChangeHandoffTestPeer::owns(module));
+ for(const auto & point:raw) EXPECT_DOUBLE_EQ(point.longitudinal_velocity_mps,25);
+}
+TEST_F(LaneChangeFrontProtection, ReleaseAfterCutInDoesNotFollowVehicleFullyBehindEgo) {
+ object(-10,0,28);
+ LaneChangeHandoffTestPeer::suppressCruise(module,false);
+ const auto result=module.plan(raw,raw,data);
+ EXPECT_FALSE(result.velocity_limit);
+ EXPECT_FALSE(LaneChangeHandoffTestPeer::owns(module));
+}
 TEST_F(LaneChangeFrontProtection, ExecutingLcClearsPreviousCruiseLimitDespiteMissingOrDifferentTrajectory) {
  object(20,0,10);
- LaneChangeHandoffTestPeer::executing(module,false);
+ LaneChangeHandoffTestPeer::suppressCruise(module,false);
  const auto guarded=module.plan(raw,raw,data);
  ASSERT_TRUE(guarded.velocity_limit);
- LaneChangeHandoffTestPeer::executing(module,true);
+ LaneChangeHandoffTestPeer::suppressCruise(module,true);
  ros::Time::setNow(ros::Time(102));
- // No geometry/freshness lease may re-enable Cruise while execution is true.
+ // Only the BPP suppression decision may release Cruise; trajectory changes do not.
  const auto blocked=module.plan({}, {}, data);
  EXPECT_FALSE(blocked.velocity_limit);
  ASSERT_TRUE(blocked.velocity_limit_clear_command);
@@ -117,11 +131,14 @@ TEST_F(LaneChangeFrontProtection, ExecutingLcClearsPreviousCruiseLimitDespiteMis
 
 }
 
-TEST_F(LaneChangeFrontProtection, ExecutionTopicBlocksAndReleasesCruiseWithoutPathFeedback)
+TEST_F(LaneChangeFrontProtection, SuppressionTopicBlocksAndReleasesCruiseWithoutChangingLifecycle)
 {
  object(20,0,10);
- LaneChangeHandoffTestPeer::executing(module,false);
- auto publisher=node.advertise<std_msgs::Bool>("/planning/lane_change/executing",1,true);
+ LaneChangeHandoffTestPeer::suppressCruise(module,false);
+ // LC lifecycle stays true even when the new suppression signal releases Cruise.
+ auto execution=node.advertise<std_msgs::Bool>("/planning/lane_change/executing",1,true);
+ std_msgs::Bool active; active.data=true; execution.publish(active);
+ auto publisher=node.advertise<std_msgs::Bool>("/planning/lane_change/cruise_suppressed",1,true);
  const auto deadline=ros::WallTime::now()+ros::WallDuration(3.0);
  while(publisher.getNumSubscribers()==0 && ros::WallTime::now()<deadline) {
   ros::spinOnce(); ros::WallDuration(.01).sleep();

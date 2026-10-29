@@ -133,11 +133,11 @@ void ObstacleCruiseModule::init(ros::NodeHandle & node, const std::string & modu
 
   // cruise planner
   cruise_planner_ = create_cruise_planner(node);
-  lc_execution_sub_ = node.subscribe<std_msgs::Bool>(
-    "/planning/lane_change/executing", 1,
+  lc_cruise_suppression_sub_ = node.subscribe<std_msgs::Bool>(
+    "/planning/lane_change/cruise_suppressed", 1,
     [this](const std_msgs::Bool::ConstPtr & message) {
-      std::lock_guard<std::mutex> lock(lc_execution_mutex_);
-      lc_executing_ = message->data;
+      std::lock_guard<std::mutex> lock(lc_cruise_suppression_mutex_);
+      lc_cruise_suppressed_ = message->data;
     });
 }
 
@@ -167,8 +167,8 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
 
   bool lc_owns = false;
   {
-    std::lock_guard<std::mutex> lock(lc_execution_mutex_);
-    lc_owns = lc_executing_;
+    std::lock_guard<std::mutex> lock(lc_cruise_suppression_mutex_);
+    lc_owns = lc_cruise_suppressed_;
   }
   if (lc_owns != lc_owns_longitudinal_) {
     cruise_planner_->resetForLongitudinalHandoff();
@@ -191,7 +191,7 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
     return result;
   }
   lc_owns_longitudinal_ = false;
-  const std::string ownership_rejection = "lc_not_executing";
+  const std::string ownership_rejection = "lc_not_suppressing";
   const lateral_collision::LongitudinalMotion ego_motion{
     planner_data->current_acceleration.accel.accel.linear.x,
     common_param_.min_accel, common_param_.max_accel,

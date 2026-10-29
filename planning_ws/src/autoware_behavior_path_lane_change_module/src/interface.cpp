@@ -97,6 +97,13 @@ bool LaneChangeInterface::isExecutionReady() const
   return module_type_->isSafe() && !module_type_->isAbortState();
 }
 
+bool LaneChangeInterface::isObstacleCruiseAllowed() const
+{
+  return getCurrentStatus() == ModuleStatus::RUNNING && !isWaitingApproval() &&
+    !module_type_->isAbortState() && !module_type_->isEgoOnPreparePhase() &&
+    module_type_->hasEgoBaseLinkEnteredTargetLane();
+}
+
 void LaneChangeInterface::updateData()
 {
   autoware_utils::ScopedTimeTrack st(__func__, *getTimeKeeper());

@@ -121,6 +121,7 @@ public:
 
   // Non-virtual: preserve the provider ABI used by other LC specializations.
   bool hasEgoEnteredTargetLane() const;
+  bool hasEgoBaseLinkEnteredTargetLane() const;
 
   virtual bool isRequiredStop(const bool is_trailing_object) = 0;
 

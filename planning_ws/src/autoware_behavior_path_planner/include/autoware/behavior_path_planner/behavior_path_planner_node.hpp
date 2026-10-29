@@ -125,6 +125,7 @@ private:
   bpp_full_native::Publisher<PathWithLaneId> path_publisher_;
   bpp_full_native::Publisher<PathWithLaneId> longitudinal_commitment_publisher_;
   bpp_full_native::Publisher<std_msgs::Bool> lc_execution_publisher_;
+  bpp_full_native::Publisher<std_msgs::Bool> lc_cruise_suppression_publisher_;
   bpp_full_native::Publisher<autoware_planning_msgs::StaticObstacleScene> obstacle_scene_publisher_;
   bpp_full_native::Publisher<TurnIndicatorsCommand> turn_signal_publisher_;
   bpp_full_native::Publisher<HazardLightsCommand> hazard_signal_publisher_;

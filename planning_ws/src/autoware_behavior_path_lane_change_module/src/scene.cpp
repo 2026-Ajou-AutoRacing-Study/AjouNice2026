@@ -44,6 +44,7 @@
 #include <range/v3/view.hpp>
 
 #include <boost/geometry/algorithms/buffer.hpp>
+#include <boost/geometry/algorithms/within.hpp>
 
 #include <lanelet2_core/geometry/Point.h>
 #include <lanelet2_core/geometry/Lanelet.h>
@@ -2050,6 +2051,20 @@ std::optional<PathWithLaneId> NormalLaneChange::compute_terminal_lane_change_pat
   }
 
   return std::nullopt;
+}
+
+bool LaneChangeBase::hasEgoBaseLinkEnteredTargetLane() const
+{
+  if (!common_data_ptr_->lanes_polygon_ptr ||
+      common_data_ptr_->lanes_polygon_ptr->target.size() < 3) return false;
+  autoware_utils_geometry::Polygon2d target;
+  for (const auto & point : common_data_ptr_->lanes_polygon_ptr->target) {
+    target.outer().emplace_back(point.x(), point.y());
+  }
+  boost::geometry::correct(target);
+  const auto & position = getEgoPosition();
+  return boost::geometry::within(
+    autoware_utils_geometry::Point2d{position.x, position.y}, target);
 }
 
 bool LaneChangeBase::hasEgoEnteredTargetLane() const
