@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
+from .scenario_order import ordered_sources
 from .layout import normalize_bar_setting
 from .traffic_light import (runtime_settings, profile_name, timed_policy_options,
                             launch_options as traffic_launch_options)
@@ -285,7 +286,10 @@ def scenario_sources(scenarios):
             raise ConfigError("시나리오가 선택한 폴더 밖을 가리킵니다")
     if not sources:
         raise ConfigError("시나리오 JSON이 없습니다: {} ({})".format(directory, scenarios.get("glob")))
-    return sources
+    try:
+        return ordered_sources(sources, scenarios.get("order"))
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
 
 
 def install_directory(value):
