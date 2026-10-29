@@ -610,7 +610,7 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   };
 
   if (p.relax_road_bounds &&
-      (p.obstacles.empty() || !mpt_param_.hard_constraint || !mpt_param_.soft_constraint ||
+      (!mpt_param_.hard_constraint || !mpt_param_.soft_constraint ||
        mpt_param_.use_acados)) {
     return reject_candidate("soft road retry requires OSQP with hard obstacles and soft constraints");
   }

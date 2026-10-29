@@ -44,6 +44,7 @@
 #include <vector>
 #include <tf2/utils.h>
 #include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
+#include <autoware/motion_utils/trajectory/recovery_collision.hpp>
 
 namespace autoware::path_optimizer
 {
@@ -137,6 +138,49 @@ PathOptimizer::PathOptimizer(
   private_node.param(
     "obstacle_fallback_deceleration", obstacle_fallback_deceleration_, 7.0);
   private_node.param("recovery/enabled", enable_obstacle_fallback_, true);
+  RecoveryState::Parameters gate;
+  double stopped_speed_kph = 1.0;
+  int minimum_cycles = 5;
+  private_node.param("recovery/stopped_speed_kph", stopped_speed_kph, 1.0);
+  private_node.param("recovery/stopped_duration", gate.stopped_duration, 2.0);
+  private_node.param("recovery/failed_duration", gate.failed_duration, 2.0);
+  private_node.param("recovery/maximum_sample_gap", gate.maximum_sample_gap, 0.5);
+  private_node.param("recovery/minimum_failed_cycles", minimum_cycles, 5);
+  private_node.param("recovery/input_max_age", recovery_input_max_age_, 0.5);
+  gate.stopped_speed = stopped_speed_kph / 3.6;
+  gate.minimum_failed_cycles = minimum_cycles > 0 ? minimum_cycles : 0;
+  recovery_state_ = RecoveryState(gate);
+  if (!std::isfinite(recovery_input_max_age_) || recovery_input_max_age_ <= 0)
+    throw std::invalid_argument("invalid recovery input age");
+  ros::NodeHandle recovery_node(node_handle);
+  recovery_objects_sub_ = recovery_node.subscribe<autoware_perception_msgs::PredictedObjects>(
+    "/perception/object_recognition/objects", 1,
+    [this](const autoware_perception_msgs::PredictedObjects::ConstPtr & m) {recovery_objects_ = m;});
+  recovery_operation_sub_ = recovery_node.subscribe<autoware_adapi_v1_msgs::OperationModeState>(
+    "/system/operation_mode/state", 1,
+    [this](const autoware_adapi_v1_msgs::OperationModeState::ConstPtr & m) {
+      autonomous_ = m->mode == m->AUTONOMOUS && m->is_autoware_control_enabled && !m->is_in_transition;
+      operation_mode_received_ = ros::Time::now();
+    });
+  control_mode_sub_ = recovery_node.subscribe<std_msgs::Int8>(
+    "/vehicle/status/control_mode", 1, [this](const std_msgs::Int8::ConstPtr & m) {
+      external_control_ = m->data == 2;  // MORAI AV-ExternalCtrl, same contract as Validator.
+      control_mode_received_ = ros::Time::now();
+    });
+  gear_sub_ = recovery_node.subscribe<std_msgs::Int8>(
+    "/vehicle/status/gear", 1, [this](const std_msgs::Int8::ConstPtr & m) {
+      drive_gear_ = m->data == 4;  // MORAI D. Parking/preparation is not active driving.
+      gear_received_ = ros::Time::now();
+    });
+  behavior_stop_sub_ = recovery_node.subscribe<std_msgs::Bool>(
+    "/planning/recovery/behavior_stop", 1, [this](const std_msgs::Bool::ConstPtr & m) {
+      behavior_stop_ = m->data; behavior_stop_received_ = ros::Time::now();
+    });
+  external_stop_sub_ = recovery_node.subscribe<std_msgs::Bool>(
+    "/planning/recovery/external_stop", 1, [this](const std_msgs::Bool::ConstPtr & m) {
+      external_stop_ = m->data; external_stop_received_ = ros::Time::now();
+    });
+  recovery_status_pub_ = recovery_node.advertise<std_msgs::String>("/planning/recovery/status", 10);
   if (!std::isfinite(obstacle_fallback_deceleration_) ||
       obstacle_fallback_deceleration_ <= 0.0) {
     throw std::invalid_argument("obstacle_fallback_deceleration must be finite and positive");
@@ -333,6 +377,7 @@ void PathOptimizer::resetPreviousData()
   obstacle_search_cursor_ = 0;
   relaxed_obstacle_search_cursor_ = 0;
   retained_optimization_forward_length_ = 0.0;
+  // Recovery evidence and latch belong to observed planning results, not seed history.
 }
 
 void PathOptimizer::onPath(const PathConstPtr path_ptr)
@@ -389,6 +434,27 @@ void PathOptimizer::onPath(const PathConstPtr path_ptr)
 
   // 1. create planner data
   const auto planner_data = createPlannerData(*path_ptr, ego_odom_ptr);
+  const auto fresh = [&](const ros::Time & stamp) {
+    const double age = (ros::Time::now() - stamp).toSec();
+    return !stamp.isZero() && age >= -0.05 && age <= recovery_input_max_age_;
+  };
+  const size_t recovery_ego = trajectory_utils::findEgoIndex(
+    planner_data.traj_points, planner_data.ego_pose, ego_nearest_param_);
+  const auto recovery_scene = obstacle_scenes_.find(path_ptr->header.stamp.toNSec());
+  recovery_permitted_ = enable_obstacle_fallback_ &&
+    recovery_scene != obstacle_scenes_.end() &&
+    recovery_scene->second.header.frame_id == path_ptr->header.frame_id &&
+    planner_data.traj_points[recovery_ego].longitudinal_velocity_mps > 0.1 &&
+    autonomous_ && fresh(operation_mode_received_) && external_control_ && fresh(control_mode_received_) &&
+    drive_gear_ && fresh(gear_received_) &&
+    fresh(external_stop_received_) && !external_stop_ &&
+    fresh(behavior_stop_received_) && !behavior_stop_ &&
+    recovery_objects_ && recovery_objects_->header.frame_id == path_ptr->header.frame_id &&
+    fresh(recovery_objects_->header.stamp) && fresh(ego_odom_ptr->header.stamp) &&
+    fresh(path_ptr->header.stamp);
+  recovery_cycle_time_ = now().toSec();
+  recovery_state_.observe(recovery_cycle_time_, planner_data.ego_vel,
+    fresh(ego_odom_ptr->header.stamp) && fresh(path_ptr->header.stamp), recovery_permitted_);
   auto planning_odometry = *ego_odom_ptr;
   planning_odometry.header = path_ptr->header;  // Key debug input to the output trajectory.
   planning_odometry_pub_->publish(planning_odometry);
@@ -407,9 +473,20 @@ void PathOptimizer::onPath(const PathConstPtr path_ptr)
 
   // Validate after extension/resampling too: the optimized prefix alone is insufficient.
   if (stopBeforeObstacle(planner_data, full_traj_points)) is_optimization_failed_ = true;
+  if (using_recovery_geometry_ &&
+      (!recovery_permitted_ || !validateRecovery(planner_data, full_traj_points))) {
+    for (auto & point : full_traj_points) point.longitudinal_velocity_mps = 0.0;
+    using_recovery_geometry_ = false;
+    is_optimization_failed_ = true;
+    selected_stop_ = true;
+  }
 
   // 4. set zero velocity after stop point
   setZeroVelocityAfterStopPoint(full_traj_points);
+  recovery_state_.normalResult(recovery_cycle_time_,
+    normal_fresh_solution_ && !is_optimization_failed_ && validateNormal(planner_data, full_traj_points),
+    selected_stop_, recovery_permitted_);
+  publishRecoveryStatus(planner_data);
   if (!is_optimization_failed_) {
     last_validated_output_ = full_traj_points;
     last_successful_optimization_time_ = now();
@@ -426,7 +503,9 @@ void PathOptimizer::onPath(const PathConstPtr path_ptr)
 
   const auto output_traj_msg =
     autoware::motion_utils::convertToTrajectory(full_traj_points, path_ptr->header);
-  publishTrajectory(output_traj_msg);
+  auto recovery_output = output_traj_msg;
+  recovery_output.boundary_recovery = using_recovery_geometry_ && recovery_state_.active();
+  publishTrajectory(recovery_output);
   if (obstacle_candidate_trace_enabled_ && !obstacle_candidate_trace_.empty()) {
     obstacle_candidate_trace_pub_->publish(
       createStringStamped(path_ptr->header.stamp, obstacle_candidate_trace_));
@@ -455,6 +534,57 @@ void PathOptimizer::publishTrajectory(Trajectory trajectory)
   evidence.stamp = rclcpp::to_builtin_time(trajectory.header.stamp);
   evidence.data = values.str();
   publication_evidence_pub_->publish(evidence);
+}
+
+bool PathOptimizer::validateNormal(
+  const PlannerData & data, const std::vector<TrajectoryPoint> & points) const
+{
+  if (points.size()<3) return false;
+  const size_t ego=trajectory_utils::findEgoIndex(points,data.ego_pose,ego_nearest_param_);
+  if (!isAlignedWithEgoPose(points[ego].pose,data.ego_pose)) return false;
+  FullFootprintRoadChecker road(data.left_bound,data.right_bound);
+  if (!road.contains(data.ego_pose,vehicle_info_)) return false;
+  const size_t count=static_cast<size_t>(mpt_optimizer_ptr_->getNumberOfPoints()*
+    mpt_optimizer_ptr_->getDeltaArcLength()/traj_param_.output_delta_arc_length);
+  const size_t end=std::min(points.size()>5?points.size()-5:points.size(),ego+count);
+  if(end<=ego+1)return false;
+  for(size_t i=ego;i<end;++i) if(!road.contains(points[i].pose,vehicle_info_))return false;
+  if(firstObstacleCollision(points,ego,data.obstacles,vehicle_info_) ||
+     firstCurvatureViolation(points,ego,end,mpt_optimizer_ptr_->maximumCurvature()))return false;
+  return !recovery_state_.active() || validateRecovery(data,points);
+}
+
+bool PathOptimizer::validateRecovery(
+  const PlannerData & data, const std::vector<TrajectoryPoint> & points) const
+{
+  if(points.size()<3)return false;
+  const size_t ego=trajectory_utils::findEgoIndex(points,data.ego_pose,ego_nearest_param_);
+  if(!isAlignedWithEgoPose(points[ego].pose,data.ego_pose) ||
+     firstObstacleCollision(points,ego,data.obstacles,vehicle_info_) ||
+     firstCurvatureViolation(points,ego,points.size(),mpt_optimizer_ptr_->maximumCurvature()))return false;
+  if(!recovery_objects_)return false;
+  const double age=(ros::Time::now()-recovery_objects_->header.stamp).toSec();
+  if(age < -0.05 || age > recovery_input_max_age_ ||
+      recovery_objects_->header.frame_id!=data.header.frame_id)return false;
+  return autoware::motion_utils::recoveryCollisionFree(
+    points,data.ego_pose,data.ego_vel,*recovery_objects_,vehicle_info_,std::max(0.0,age));
+}
+
+void PathOptimizer::publishRecoveryStatus(const PlannerData & data)
+{
+  std_msgs::String status;
+  status.data=nlohmann::json{{"stamp",data.header.stamp.toSec()},
+    {"active",recovery_state_.active()}, {"permitted",recovery_permitted_},
+    {"using_recovery_trajectory",using_recovery_geometry_},
+    {"normal_fresh_success",normal_fresh_solution_ && !is_optimization_failed_},
+    {"previous_reused",selected_previous_}, {"optimizer_stop",selected_stop_},
+    {"normal_optimization_failed",normal_optimization_failed_},
+    {"autonomous",autonomous_}, {"external_control",external_control_}, {"drive_gear",drive_gear_},
+    {"behavior_stop",behavior_stop_}, {"object_stop",external_stop_},
+    {"failed_cycles",recovery_state_.failedCycles()},
+    {"stopped_seconds",recovery_state_.stoppedSeconds(recovery_cycle_time_)},
+    {"failed_seconds",recovery_state_.failedSeconds(recovery_cycle_time_)}}.dump();
+  recovery_status_pub_.publish(status);
 }
 
 bool PathOptimizer::checkInputPath(const Path & path, rclcpp::Clock clock) const
@@ -501,7 +631,7 @@ PlannerData PathOptimizer::createPlannerData(
   planner_data.traj_points = trajectory_utils::convertToTrajectoryPoints(path.points);
   planner_data.left_bound = path.left_bound;
   planner_data.right_bound = path.right_bound;
-  planner_data.allow_initial_obstacle_overlap = enable_obstacle_fallback_;
+  planner_data.allow_initial_obstacle_overlap = false;
   const auto scene = obstacle_scenes_.find(path.header.stamp.toNSec());
   if (scene != obstacle_scenes_.end() && scene->second.header.frame_id == path.header.frame_id) {
     planner_data.obstacles = scene->second.obstacles;
@@ -555,6 +685,10 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
   const auto & p = planner_data;
   using_final_geometry_ = false;
   using_recovery_geometry_ = false;
+  normal_fresh_solution_ = false;
+  normal_optimization_failed_ = false;
+  selected_previous_ = false;
+  selected_stop_ = false;
   normal_obstacle_search_complete_ = false;
   obstacle_candidate_trace_.clear();
   optimization_reset_reason_.clear();
@@ -583,7 +717,7 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
     }
     // check replan when not resetting previous optimization
     // Retry after fallback; do not resurrect an older optimized path on the next cycle.
-    return !p.obstacles.empty() || is_optimization_failed_ || replan_checker_ptr_->isReplanRequired(planner_data, now());
+    return recovery_state_.active() || !p.obstacles.empty() || is_optimization_failed_ || replan_checker_ptr_->isReplanRequired(planner_data, now());
   }();
   replan_checker_ptr_->updateData(planner_data, is_replan_required, now());
   if (!is_replan_required) {
@@ -594,53 +728,23 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
     return reused;
   }
 
-  if (enable_skip_optimization_ && p.obstacles.empty()) {
+  if (enable_skip_optimization_ && p.obstacles.empty() && !recovery_state_.active()) {
     is_optimization_failed_ = false;
     return p.traj_points;
   }
 
   // 2. make trajectory kinematically-feasible and collision-free (= inside the drivable area)
   //    with model predictive trajectory
+  if (recovery_state_.active()) mpt_optimizer_ptr_->restoreHistory(MPTOptimizer::History{});
   const auto history_before_optimization = mpt_optimizer_ptr_->history();
   const auto optimization_started = std::chrono::steady_clock::now();
-  const size_t input_ego = trajectory_utils::findEgoIndex(
-    p.traj_points, p.ego_pose, ego_nearest_param_);
-  const bool can_retry_road = enable_obstacle_fallback_ && !p.obstacles.empty() &&
-    p.traj_points[input_ego].longitudinal_velocity_mps > 0.1;
-  // Reserve part of the existing callback search budget for a real second
-  // solve. Each pass has its own side cursor, so deferred work cannot starve
-  // the other pass. As before, a single solver invocation can overrun a budget.
-  const double normal_budget = can_retry_road
-    ? obstacle_search_time_budget_ms_ * 0.5 : obstacle_search_time_budget_ms_;
+  // Normal optimization never consumes a boundary-relaxed candidate. Recovery
+  // is a persistent authorization, while output provenance is per trajectory.
+  const double normal_budget = obstacle_search_time_budget_ms_ *
+    (recovery_state_.active() ? 0.5 : 1.0);
   auto mpt_traj = p.obstacles.empty()
     ? mpt_optimizer_ptr_->optimizeTrajectory(planner_data)
     : optimizeObstacleCandidates(planner_data, normal_budget);
-  if (!mpt_traj && can_retry_road) {
-    const double elapsed_ms = std::chrono::duration<double, std::milli>(
-      std::chrono::steady_clock::now() - optimization_started).count();
-    const double retry_budget = obstacle_search_time_budget_ms_ - elapsed_ms;
-    if (retry_budget > 0.0) {
-      const std::string normal_trace = obstacle_candidate_trace_;
-      auto relaxed = planner_data;
-      relaxed.relax_road_bounds = true;
-      relaxed.allow_initial_obstacle_overlap = false;
-      // A retry must cover CURRENT ego and the obstacle/return horizon. Do not
-      // prepend old fixed points from the failed ordinary optimization.
-      mpt_optimizer_ptr_->restoreHistory(MPTOptimizer::History{});
-      mpt_traj = optimizeObstacleCandidates(relaxed, retry_budget);
-      if (obstacle_candidate_trace_enabled_ && !normal_trace.empty() &&
-          !obstacle_candidate_trace_.empty()) {
-        auto retry_trace = nlohmann::json::parse(obstacle_candidate_trace_);
-        retry_trace["normal_search"] = nlohmann::json::parse(normal_trace);
-        obstacle_candidate_trace_ = retry_trace.dump();
-      }
-      if (mpt_traj) {
-        using_recovery_geometry_ = true;
-        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
-          "[MPT] Reoptimized with soft road bounds; obstacle constraints retained");
-      }
-    }
-  }
   const double base_length =
     mpt_optimizer_ptr_->getNumberOfPoints() * mpt_optimizer_ptr_->getDeltaArcLength();
   if (!p.obstacles.empty()) retained_optimization_forward_length_ = 0.0;
@@ -666,7 +770,7 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
          forward <= obstacle_max_forward_length_ + 1e-6; forward += 10.0) {
       const double elapsed_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - optimization_started).count();
-      if (elapsed_ms >= obstacle_search_time_budget_ms_) break;
+      if (elapsed_ms >= normal_budget) break;
       auto longer = planner_data;
       longer.optimization_forward_length = forward;
       mpt_optimizer_ptr_->restoreHistory(history_before_optimization);
@@ -678,6 +782,49 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
     }
   }
 
+  if (mpt_traj) {
+    auto checked = *mpt_traj;
+    if (!using_final_geometry_) {
+      applyInputVelocity(checked, p.traj_points, p.ego_pose);
+      checked = extendTrajectory(p.traj_points, checked);
+    }
+    if (recovery_state_.active() && !validateNormal(p, checked)) mpt_traj.reset();
+    else {mpt_traj = std::move(checked); using_final_geometry_ = true;}
+  }
+  normal_fresh_solution_ = mpt_traj.has_value() && !selected_previous_;
+  normal_optimization_failed_ = !mpt_traj;
+  const auto normal_history = mpt_traj ? mpt_optimizer_ptr_->history() : history_before_optimization;
+  if (!mpt_traj && recovery_state_.active() && recovery_permitted_) {
+    const double spent = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - optimization_started).count();
+    const double budget = std::max(0.0, obstacle_search_time_budget_ms_ - spent);
+    { // Guarantee one relaxed solve even when the normal solver overruns its budget.
+      // Candidate search already limits subsequent attempts against this budget.
+      auto relaxed = p;
+      relaxed.relax_road_bounds = true;
+      relaxed.allow_initial_obstacle_overlap = false;
+      mpt_optimizer_ptr_->restoreHistory(MPTOptimizer::History{});
+      using_final_geometry_ = false;
+      mpt_traj = p.obstacles.empty()
+        ? mpt_optimizer_ptr_->optimizeTrajectory(relaxed)
+        : optimizeObstacleCandidates(relaxed, budget);
+      if (mpt_traj) {
+        auto checked = *mpt_traj;
+        if (!using_final_geometry_) {
+          applyInputVelocity(checked, p.traj_points, p.ego_pose);
+          checked = extendTrajectory(p.traj_points, checked);
+        }
+        if (!validateRecovery(p, checked)) mpt_traj.reset();
+        else {
+          mpt_traj = std::move(checked);
+          using_final_geometry_ = true;
+          using_recovery_geometry_ = true;
+        }
+      }
+    }
+  }
+  // A relaxed solve must never become the next normal solve's fixed prefix.
+  mpt_optimizer_ptr_->restoreHistory(normal_history);
   is_optimization_failed_ = !static_cast<bool>(mpt_traj);
   if (mpt_traj) {
     auto optimized_traj_points = *mpt_traj;
@@ -767,10 +914,12 @@ std::vector<TrajectoryPoint> PathOptimizer::optimizeTrajectory(const PlannerData
             safe_distance, required_distance);
         }
         using_final_geometry_ = true;
+        selected_stop_ = true;
         return fallback;
       }
     }
   }
+  selected_stop_ = true;
   auto stop_on_input = p.traj_points;
   RCLCPP_WARN_THROTTLE(
     get_logger(), *get_clock(), 1000,
@@ -1221,7 +1370,8 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
   // feasible sides alternate merely because only one was explored this cycle.
   // Use the same initial-state contract as the validated fallback. Still run
   // optimization each cycle; the incumbent permits bounded continuation work.
-  if (last_validated_output_ && last_validated_output_->size() >= 3) {
+  if (last_validated_output_ && last_validated_output_->size() >= 3 &&
+      !(recovery_state_.active() && !data.relax_road_bounds)) {
     const auto & previous = *last_validated_output_;
     const size_t ego = trajectory_utils::findEgoIndex(previous, data.ego_pose, ego_nearest_param_);
     const auto remaining = [&](const std::vector<TrajectoryPoint> & points, size_t start) {
@@ -1400,7 +1550,8 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
         // Preserve a candidate rejected ONLY by the road check. It cannot win
         // over any ordinary solution, and is released only after every side
         // assignment actually received a solve in the current scene.
-        if (enable_obstacle_fallback_ && recovery_input_moving && !checked_cost && obstacle_valid &&
+        if (recovery_state_.active() && recovery_permitted_ && data.relax_road_bounds &&
+            enable_obstacle_fallback_ && recovery_input_moving && !checked_cost && obstacle_valid &&
             isAlignedWithEgoPose(checked_trajectory.at(ego).pose, data.ego_pose) &&
             !firstCurvatureViolation(checked_trajectory, ego, checked_trajectory.size(),
               mpt_optimizer_ptr_->maximumCurvature())) {
@@ -1474,7 +1625,8 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
     }
   normal_obstacle_search_complete_ = std::all_of(
     attempted_masks.begin(), attempted_masks.end(), [](bool tried) { return tried; });
-  if (normal_obstacle_search_complete_ && road_only_candidate &&
+  if (recovery_state_.active() && recovery_permitted_ && data.relax_road_bounds &&
+      normal_obstacle_search_complete_ && road_only_candidate &&
       (!winner || road_only_contact_cost < best_contact_cost)) {
     winner = std::move(road_only_candidate);
     winner_history = original;
@@ -1487,6 +1639,7 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
   // Return exactly the postprocessed geometry that passed candidate checks.
   // Re-extending/resampling it later would invalidate that validation contract.
   using_final_geometry_ = winner.has_value();
+  selected_previous_ = winner.has_value() && winner_is_previous;
   if (tracing) {
     trace["winner_mask"] = winner_mask;
     trace["winner_previous"] = winner_is_previous;

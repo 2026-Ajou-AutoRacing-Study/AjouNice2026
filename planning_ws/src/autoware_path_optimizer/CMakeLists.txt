@@ -4,7 +4,7 @@ project(autoware_path_optimizer)
 find_package(catkin REQUIRED COMPONENTS
   roscpp geometry_msgs nav_msgs std_msgs visualization_msgs diagnostic_updater tf2 tf2_geometry_msgs
   autoware_internal_debug_msgs autoware_interpolation autoware_motion_utils autoware_osqp_interface
-  autoware_planning_msgs autoware_utils autoware_utils_debug autoware_utils_geometry
+  autoware_planning_msgs autoware_perception_msgs autoware_adapi_v1_msgs autoware_utils autoware_utils_debug autoware_utils_geometry
   autoware_utils_math autoware_utils_rclcpp autoware_utils_system autoware_vehicle_info_utils)
 find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -34,7 +34,7 @@ target_link_libraries(acados_interface PUBLIC ${ACADOS_ROOT}/lib/libacados.so)
 catkin_package(INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} acados_interface
   CATKIN_DEPENDS roscpp geometry_msgs nav_msgs std_msgs visualization_msgs diagnostic_updater
     autoware_internal_debug_msgs autoware_interpolation autoware_motion_utils autoware_osqp_interface
-    autoware_planning_msgs autoware_utils autoware_utils_debug autoware_utils_geometry autoware_utils_math
+    autoware_planning_msgs autoware_perception_msgs autoware_adapi_v1_msgs autoware_utils autoware_utils_debug autoware_utils_geometry autoware_utils_math
     autoware_utils_rclcpp autoware_utils_system autoware_vehicle_info_utils)
 add_library(${PROJECT_NAME} SHARED
   src/node.cpp src/replan_checker.cpp src/mpt_optimizer.cpp src/obstacle_clustering.cpp src/state_equation_generator.cpp
@@ -52,6 +52,10 @@ target_compile_features(path_optimizer_node PRIVATE cxx_std_17)
 target_link_libraries(path_optimizer_node PRIVATE ${PROJECT_NAME})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_recovery_contract test/test_recovery_contract.cpp)
+  if(TARGET test_recovery_contract)
+    target_link_libraries(test_recovery_contract ${PROJECT_NAME})
+  endif()
   catkin_add_gtest(test_recovery test/test_recovery.cpp)
   if(TARGET test_recovery)
     target_link_libraries(test_recovery ${PROJECT_NAME})

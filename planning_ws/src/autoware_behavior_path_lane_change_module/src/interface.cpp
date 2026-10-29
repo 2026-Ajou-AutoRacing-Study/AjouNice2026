@@ -257,7 +257,7 @@ bool LaneChangeInterface::canTransitSuccessState()
     return false;
   }
 
-  if (module_type_->hasFinishedLaneChange()) {
+  if (!module_type_->isAbortState() && module_type_->hasFinishedLaneChange()) {
     module_type_->resetParameters();
     log_debug_throttled("Lane change process has completed.");
     return true;
@@ -333,10 +333,12 @@ bool LaneChangeInterface::canTransitFailureState()
     return false;
   }
 
-  // Note: Ideally, if it is unsafe, but for some reason, we can't abort or cancel, then we should
-  // stop. Note: This feature is not working properly for now.
+  // An executing LC with no safe return keeps its current geometry. Obstacle
+  // velocity planning remains independent; LC must not insert its own stop
+  // merely because cancellation/return is unavailable.
   const auto [is_safe, unsafe_trailing_obj] = post_process_safety_status_;
-  if (!is_safe && module_type_->isRequiredStop(unsafe_trailing_obj)) {
+  if (module_type_->isEgoOnPreparePhase() && !is_safe &&
+      module_type_->isRequiredStop(unsafe_trailing_obj)) {
     module_type_->toStopState();
     return false;
   }
@@ -402,7 +404,13 @@ std::pair<LaneChangeStates, std::string_view> LaneChangeInterface::check_transit
     return {LaneChangeStates::Normal, "SafeToLaneChange"};
   }
 
-  if (!module_type_->isCancelEnabled()) {
+  // Decide from the current footprint, never a past-entry latch. Once the
+  // target lane is occupied, an unsafe verdict must not initiate a return.
+  if (!is_preparing && module_type_->hasEgoEnteredTargetLane()) {
+    return {LaneChangeStates::Normal, "UnsafeButTargetLaneEntered"};
+  }
+
+  if (is_preparing && !module_type_->isCancelEnabled()) {
     return {LaneChangeStates::Warning, "CancelDisabled"};
   }
 
@@ -416,12 +424,8 @@ std::pair<LaneChangeStates, std::string_view> LaneChangeInterface::check_transit
     return {LaneChangeStates::Warning, "AbortDisabled"};
   }
 
-  // To prevent the lane module from having to check rear objects in the current lane, we limit the
-  // abort maneuver to cases where the ego vehicle is still in the current lane.
-  if (!can_return_to_current) {
-    return {LaneChangeStates::Warning, "TooLateToAbort"};
-  }
-
+  // Partial departure from the original lane is not proof that a return is
+  // impossible. The measured-state candidate checks both lanes and rear traffic.
   const auto found_abort_path = module_type_->calcAbortPath();
   if (!found_abort_path) {
     return {LaneChangeStates::Warning, "AbortPathNotFound"};

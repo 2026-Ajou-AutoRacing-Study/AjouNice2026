@@ -5,16 +5,10 @@ namespace autoware::motion_velocity_planner {
 class LaneChangeHandoffTestPeer {
 public:
  static void approve(ObstacleCruiseModule & module,const std::vector<TrajectoryPoint> & raw,bool old_limit) {
-  module.lc_commitment_.header.frame_id="map";
-  module.lc_commitment_.header.stamp=ros::Time::now();
-  module.lc_commitment_received_=ros::Time::now();
-  for(const auto & p:raw) {
-   autoware_internal_planning_msgs::PathPointWithLaneId point;
-   point.point.pose=p.pose;point.point.longitudinal_velocity_mps=p.longitudinal_velocity_mps;
-   module.lc_commitment_.points.push_back(point);
-  }
+  module.lc_executing_=true;
   module.need_to_clear_velocity_limit_=old_limit;
  }
+ static void executing(ObstacleCruiseModule & module,bool value) {module.lc_executing_=value;}
  static bool owns(const ObstacleCruiseModule & module) {return module.lc_owns_longitudinal_;}
  static bool hasOldLimit(const ObstacleCruiseModule & module) {return module.need_to_clear_velocity_limit_;}
 };
@@ -85,13 +79,18 @@ protected:
   data->process_predicted_objects(message);
  }
 };
-TEST_F(LaneChangeFrontProtection, ApprovedLcStillBoundsSpeedForAnAlreadyAlignedSlowerLeader) {
+TEST_F(LaneChangeFrontProtection, ExecutingLcSuppressesEvenAlignedLeaderAndRestoresCruiseOnCompletion) {
  object(20,0,10);
  const auto result=module.plan(raw,raw,data);
- ASSERT_TRUE(result.velocity_limit);
- EXPECT_LT(result.velocity_limit->max_velocity,25);
- EXPECT_EQ(result.velocity_limit->sender,"obstacle_cruise");
+ EXPECT_FALSE(result.velocity_limit);
+ ASSERT_TRUE(result.velocity_limit_clear_command);
+ EXPECT_EQ(result.velocity_limit_clear_command->sender,"obstacle_cruise");
  EXPECT_TRUE(LaneChangeHandoffTestPeer::owns(module));
+ LaneChangeHandoffTestPeer::executing(module,false);
+ const auto restored=module.plan(raw,raw,data);
+ ASSERT_TRUE(restored.velocity_limit);
+ EXPECT_LT(restored.velocity_limit->max_velocity,25);
+ EXPECT_FALSE(LaneChangeHandoffTestPeer::owns(module));
 }
 TEST_F(LaneChangeFrontProtection, AdjacentRearTrafficDoesNotReinstateOrdinaryFollowing) {
  object(-10,3.5,28);
@@ -99,16 +98,57 @@ TEST_F(LaneChangeFrontProtection, AdjacentRearTrafficDoesNotReinstateOrdinaryFol
  EXPECT_FALSE(result.velocity_limit);
  EXPECT_TRUE(LaneChangeHandoffTestPeer::owns(module));
 }
-TEST_F(LaneChangeFrontProtection, FrontProtectionLimitClearsAfterTheFrontBodyCorridorIsFree) {
+TEST_F(LaneChangeFrontProtection, ExecutingLcClearsPreviousCruiseLimitDespiteMissingOrDifferentTrajectory) {
  object(20,0,10);
+ LaneChangeHandoffTestPeer::executing(module,false);
  const auto guarded=module.plan(raw,raw,data);
  ASSERT_TRUE(guarded.velocity_limit);
- data->objects.clear();
- const auto clear=module.plan(raw,raw,data);
- EXPECT_FALSE(clear.velocity_limit);
- ASSERT_TRUE(clear.velocity_limit_clear_command);
- EXPECT_EQ(clear.velocity_limit_clear_command->sender,"obstacle_cruise");
- EXPECT_TRUE(clear.velocity_limit_clear_command->command);
+ LaneChangeHandoffTestPeer::executing(module,true);
+ ros::Time::setNow(ros::Time(102));
+ // No geometry/freshness lease may re-enable Cruise while execution is true.
+ const auto blocked=module.plan({}, {}, data);
+ EXPECT_FALSE(blocked.velocity_limit);
+ ASSERT_TRUE(blocked.velocity_limit_clear_command);
+ EXPECT_EQ(blocked.velocity_limit_clear_command->sender,"obstacle_cruise");
+ for(auto & point:raw) point.pose.position.y=10;
+ const auto maintained=module.plan(raw,raw,data);
+ EXPECT_FALSE(maintained.velocity_limit);
+ EXPECT_FALSE(maintained.velocity_limit_clear_command);
+
+}
+
+TEST_F(LaneChangeFrontProtection, ExecutionTopicBlocksAndReleasesCruiseWithoutPathFeedback)
+{
+ object(20,0,10);
+ LaneChangeHandoffTestPeer::executing(module,false);
+ auto publisher=node.advertise<std_msgs::Bool>("/planning/lane_change/executing",1,true);
+ const auto deadline=ros::WallTime::now()+ros::WallDuration(3.0);
+ while(publisher.getNumSubscribers()==0 && ros::WallTime::now()<deadline) {
+  ros::spinOnce(); ros::WallDuration(.01).sleep();
+ }
+ ASSERT_GT(publisher.getNumSubscribers(),0U);
+ std_msgs::Bool message; message.data=true; publisher.publish(message);
+ bool received=false;
+ for(int i=0;i<100;++i) {
+  ros::spinOnce();
+  const auto result=module.plan(raw,raw,data);
+  if(LaneChangeHandoffTestPeer::owns(module)) {
+   EXPECT_FALSE(result.velocity_limit); received=true; break;
+  }
+  ros::WallDuration(.01).sleep();
+ }
+ ASSERT_TRUE(received);
+ message.data=false; publisher.publish(message);
+ bool released=false;
+ for(int i=0;i<100;++i) {
+  ros::spinOnce();
+  const auto result=module.plan(raw,raw,data);
+  if(!LaneChangeHandoffTestPeer::owns(module)) {
+   ASSERT_TRUE(result.velocity_limit); released=true; break;
+  }
+  ros::WallDuration(.01).sleep();
+ }
+ EXPECT_TRUE(released);
 }
 
 }

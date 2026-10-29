@@ -133,12 +133,11 @@ void ObstacleCruiseModule::init(ros::NodeHandle & node, const std::string & modu
 
   // cruise planner
   cruise_planner_ = create_cruise_planner(node);
-  lc_commitment_sub_ = node.subscribe<autoware_internal_planning_msgs::PathWithLaneId>(
-    "/planning/lane_change/longitudinal_commitment", 1,
-    [this](const autoware_internal_planning_msgs::PathWithLaneId::ConstPtr & message) {
-      std::lock_guard<std::mutex> lock(lc_commitment_mutex_);
-      lc_commitment_ = *message;
-      lc_commitment_received_ = ros::Time::now();
+  lc_execution_sub_ = node.subscribe<std_msgs::Bool>(
+    "/planning/lane_change/executing", 1,
+    [this](const std_msgs::Bool::ConstPtr & message) {
+      std::lock_guard<std::mutex> lock(lc_execution_mutex_);
+      lc_executing_ = message->data;
     });
 }
 
@@ -166,76 +165,42 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
     debug_input_trajectory_pub_.publish(input);
   }
 
-  std::string ownership_rejection;
+  bool lc_owns = false;
   {
-    std::lock_guard<std::mutex> lock(lc_commitment_mutex_);
-    ownership_rejection = lane_change_ownership_rejection(
-      lc_commitment_, lc_commitment_received_, ros::Time::now(), raw_trajectory_points,
-      planner_data->current_odometry.pose.pose);
+    std::lock_guard<std::mutex> lock(lc_execution_mutex_);
+    lc_owns = lc_executing_;
   }
-  const bool lc_owns = ownership_rejection.empty() && planning_algorithm_ == "pid_base";
   if (lc_owns != lc_owns_longitudinal_) {
     cruise_planner_->resetForLongitudinalHandoff();
     prev_cruise_object_obstacles_.clear();
   }
-  // LC owns its maneuver speed, but an already aligned leader must retain
-  // front-following protection. Adjacent/rear merge traffic remains LC-owned.
+  if (lc_owns) {
+    VelocityPlanningResult result;
+    // Revoke only Cruise's own old limit. Other modules retain their limits.
+    if (!lc_owns_longitudinal_ || need_to_clear_velocity_limit_) {
+      result.velocity_limit_clear_command =
+        create_velocity_limit_clear_command(ros::Time::now(), module_name_);
+    }
+    need_to_clear_velocity_limit_ = false;
+    lc_owns_longitudinal_ = true;
+    std_msgs::String state;
+    state.data = "{\"longitudinal_owner\":\"lane_change\",\"normal_cruise_suppressed\":true,"
+      "\"front_protection_active\":false,\"sender_cleared\":\"obstacle_cruise\"}";
+    debug_selection_pub_.publish(state);
+    publish_debug_info();
+    return result;
+  }
+  lc_owns_longitudinal_ = false;
+  const std::string ownership_rejection = "lc_not_executing";
   const lateral_collision::LongitudinalMotion ego_motion{
     planner_data->current_acceleration.accel.accel.linear.x,
     common_param_.min_accel, common_param_.max_accel,
     common_param_.min_jerk, common_param_.max_jerk};
-  auto cruise_obstacles = lc_owns && planner_data->objects.empty()
-    ? std::vector<CruiseObstacle>{}
-    : filter_cruise_obstacle_for_predicted_object(
-        planner_data->current_odometry, ego_motion, planner_data->ego_nearest_dist_threshold,
-        planner_data->ego_nearest_yaw_threshold, raw_trajectory_points, planner_data->objects,
-        ros::Time(planner_data->predicted_objects_header.stamp), planner_data->is_driving_forward,
-        planner_data->vehicle_info_, planner_data->trajectory_polygon_collision_check);
-  if (lc_owns) {
-    const auto & ego = planner_data->current_odometry;
-    const double yaw = tf2::getYaw(ego.pose.pose.orientation);
-    const auto now = ros::Time::now();
-    cruise_obstacles.erase(std::remove_if(
-      cruise_obstacles.begin(), cruise_obstacles.end(), [&](const auto & obstacle) {
-        const auto object = std::find_if(
-          planner_data->objects.begin(), planner_data->objects.end(), [&](const auto & input) {
-            return input->predicted_object.object_id.uuid == obstacle.uuid.uuid;
-          });
-        if (object == planner_data->objects.end()) return true;
-        const auto pose = (*object)->get_predicted_current_pose(
-          now, ros::Time(planner_data->predicted_objects_header.stamp));
-        const double dx = pose.position.x - ego.pose.pose.position.x;
-        const double dy = pose.position.y - ego.pose.pose.position.y;
-        const auto motion = lateral_collision::relative_motion(
-          ego, (*object)->predicted_object, pose, planner_data->vehicle_info_, yaw);
-        const bool aligned_leader = dx * std::cos(yaw) + dy * std::sin(yaw) >= 0.0 &&
-          std::isfinite(motion.clearance_m) && motion.clearance_m <= 1e-3;
-        if (!aligned_leader) {
-          filter_trace_[autoware_utils::to_hex_string(obstacle.uuid)].reason =
-            "lc_nonfront_following_suppressed";
-        }
-        return !aligned_leader;
-      }), cruise_obstacles.end());
-    if (cruise_obstacles.empty()) {
-      VelocityPlanningResult result;
-      // Clear only this sender, including a previous front-protection limit.
-      if (!lc_owns_longitudinal_ || need_to_clear_velocity_limit_) {
-        result.velocity_limit_clear_command =
-          create_velocity_limit_clear_command(ros::Time::now(), module_name_);
-      }
-      need_to_clear_velocity_limit_ = false;
-      lc_owns_longitudinal_ = true;
-      cruise_planner_->resetForLongitudinalHandoff();
-      prev_cruise_object_obstacles_.clear();
-      std_msgs::String state;
-      state.data = "{\"longitudinal_owner\":\"lane_change\",\"normal_cruise_suppressed\":true,"
-        "\"front_protection_active\":false,\"sender_cleared\":\"obstacle_cruise\"}";
-      debug_selection_pub_.publish(state);
-      publish_debug_info();
-      return result;
-    }
-  }
-  lc_owns_longitudinal_ = lc_owns;
+  auto cruise_obstacles = filter_cruise_obstacle_for_predicted_object(
+    planner_data->current_odometry, ego_motion, planner_data->ego_nearest_dist_threshold,
+    planner_data->ego_nearest_yaw_threshold, raw_trajectory_points, planner_data->objects,
+    ros::Time(planner_data->predicted_objects_header.stamp), planner_data->is_driving_forward,
+    planner_data->vehicle_info_, planner_data->trajectory_polygon_collision_check);
 
   // plan cruise
   VelocityPlanningResult result;

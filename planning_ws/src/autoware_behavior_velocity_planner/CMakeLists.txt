@@ -99,6 +99,12 @@ target_link_libraries(behavior_velocity_planner_experimental_node
   autoware_behavior_velocity_planner_node ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_recovery_stop_context test/test_recovery_stop_context.cpp)
+  if(TARGET test_recovery_stop_context)
+    target_include_directories(test_recovery_stop_context PRIVATE include ${catkin_INCLUDE_DIRS})
+    target_link_libraries(test_recovery_stop_context ${catkin_LIBRARIES})
+    target_compile_features(test_recovery_stop_context PRIVATE cxx_std_17)
+  endif()
   catkin_add_gtest(test_behavior_velocity_planner_manager test/test_planner_manager.cpp)
   if(TARGET test_behavior_velocity_planner_manager)
     target_compile_definitions(test_behavior_velocity_planner_manager PRIVATE
@@ -211,6 +217,7 @@ target_link_libraries(behavior_velocity_planner_full_experimental_node autoware_
 install(TARGETS autoware_behavior_velocity_planner_full_source behavior_velocity_planner_full_node behavior_velocity_planner_full_experimental_node
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION} RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(FILES include/autoware/behavior_velocity_planner/full_node.hpp
+  include/autoware/behavior_velocity_planner/recovery_stop_context.hpp
   include/autoware/behavior_velocity_planner/full_native_support.hpp
   include/autoware/behavior_velocity_planner/test_utils.hpp
   DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/autoware/behavior_velocity_planner)

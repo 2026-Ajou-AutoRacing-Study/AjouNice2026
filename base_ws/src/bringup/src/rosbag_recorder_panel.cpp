@@ -3,6 +3,7 @@
 
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
+#include <ros/master.h>
 
 #include <QDateTime>
 #include <QDir>
@@ -27,70 +28,36 @@ namespace bringup
 {
 namespace
 {
-constexpr const char * kDefaultTopics =
-  "/tf /tf_static /clock /Competition_topic "
-  "/sensor/lidar1 "
-  "/sensor/camera/front/compressed "
-  "/sensor/camera/front_left/compressed "
-  "/sensor/camera/front_right/compressed "
-  "/sensor/camera/back/compressed "
-  "/localization/kinematic_state "
-  "/localization/acceleration "
-  "/perception/object_recognition/detection/objects "
-  "/perception/object_recognition/tracking/objects "
-  "/perception/object_recognition/objects "
-  "/map/vector_map "
-  "/planning/mission_planning/route /planning/mission_planning/route_marker "
-  "/planning/route_state "
-  "/planning/scenario_planning/lane_driving/behavior_planning/path "
-  "/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id "
-  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout/decision_state "
-  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/debug/roundabout "
-  "/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/virtual_wall/roundabout "
-  "/planning/planning_factors/roundabout "
-  "/planning/cooperate_status/roundabout "
-  "/planning/scenario_planning/lane_driving/motion_planning/path_optimizer/trajectory "
-  "/planning/scenario_planning/lane_driving/trajectory "
-  "/planning/scenario_planning/scenario_selector/trajectory "
-  "/planning/scenario_planning/velocity_smoother/trajectory "
-  "/planning/scenario_planning/velocity_smoother/debug/trajectory_raw "
-  "/planning/scenario_planning/velocity_smoother/debug/trajectory_external_velocity_limited "
-  "/planning/scenario_planning/velocity_smoother/debug/trajectory_lateral_acc_filtered "
-  "/planning/scenario_planning/velocity_smoother/debug/trajectory_steering_rate_limited "
-  "/planning/scenario_planning/velocity_smoother/debug/trajectory_time_resampled "
-  "/planning/scenario_planning/velocity_smoother/debug/forward_filtered_trajectory "
-  "/planning/scenario_planning/velocity_smoother/debug/backward_filtered_trajectory "
-  "/planning/scenario_planning/velocity_smoother/debug/merged_filtered_trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/obstacle_cruise/trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/out_of_lane/trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/dynamic_obstacle_stop/trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/run_out/trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/boundary_departure_prevention/trajectory "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/debug/road_user_stop/trajectory "
-  "/planning/planning_factors/obstacle_cruise "
-  "/planning/planning_factors/out_of_lane "
-  "/planning/planning_factors/dynamic_obstacle_stop "
-  "/planning/planning_factors/run_out "
-  "/planning/planning_factors/boundary_departure_prevention "
-  "/planning/planning_factors/road_user_stop "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/debug_markers "
-  "/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/road_user_stop/virtual_walls "
-  "/planning/scenario_planning/max_velocity_candidates "
-  "/planning/scenario_planning/clear_velocity_limit "
-  "/planning/scenario_planning/max_velocity "
-  "/planning/scenario_planning/current_max_velocity "
-  "/planning/trajectory /planning/validation_status "
-  "/ctrl_cmd /control/command/control_cmd /control/command/steering "
-  "/control/autoware/controller_valid /control/autoware/failure_reason "
-  "/control/autoware/target_point "
-  "/control/trajectory_follower/lateral/predicted_trajectory "
-  "/purepursuit_autoware/debug/controller_state "
-  "/purepursuit_autoware/debug/lookahead_distance "
-  "/purepursuit_autoware/debug/lateral_error "
-  "/purepursuit_autoware/debug/path_curvature "
-  "/purepursuit_autoware/debug/target_curvature "
-  "/purepursuit_autoware/debug/limited_steering_angle "
-  "/vehicle/status/steering_status";
+// Cover conventional payload/display topic names that appear after START.
+// Keep semantic perception/planning data and raw LiDAR packets eligible.
+constexpr const char * kExcludedTopicPattern =
+  ".*/(image|image_raw|image_rect|image_rect_color|image_color|image_mono|"
+  "compressed|compressedDepth|theora)(/.*)?|"
+  "/sensor/lidar1|.*/(points|points_raw|points_filtered|pointcloud|pointcloud_raw)|"
+  ".*/(visualization|markers|marker|virtual_wall|virtual_walls)(/.*)?|"
+  "/app/perc/(vis_[^/]+|jsk_all_track)|/planning/debug/final_trajectory/path";
+
+QString recordingExclusionPattern(
+  const ros::master::V_TopicInfo & topics, const bool record_morai_gt)
+{
+  QStringList patterns{QString::fromLatin1(kExcludedTopicPattern)};
+  if (!record_morai_gt) patterns.append("/Ego_topic|/Object_topic");
+  for (const auto & topic : topics) {
+    // Type discovery also covers nonstandard names at START. PointCloud types
+    // are derived point sets; velodyne_msgs/VelodyneScan packets stay recorded.
+    if (topic.datatype == "sensor_msgs/Image" ||
+        topic.datatype == "sensor_msgs/CompressedImage" ||
+        topic.datatype == "theora_image_transport/Packet" ||
+        topic.datatype == "sensor_msgs/PointCloud" ||
+        topic.datatype == "sensor_msgs/PointCloud2" ||
+        topic.datatype.find("visualization_msgs/") == 0 ||
+        topic.datatype.find("rviz_2d_overlay_msgs/") == 0 ||
+        topic.datatype.find("jsk_rviz_plugins/") == 0) {
+      patterns.append(QRegExp::escape(QString::fromStdString(topic.name)));
+    }
+  }
+  return "(" + patterns.join("|") + ")";
+}
 
 QString defaultOutputDirectory()
 {
@@ -107,15 +74,12 @@ RosbagRecorderPanel::RosbagRecorderPanel(QWidget * parent)
 {
   ros::NodeHandle private_nh("~");
   std::string output_directory = defaultOutputDirectory().toStdString();
-  std::string topics = kDefaultTopics;
   private_nh.param("rosbag_output_directory", output_directory, output_directory);
-  private_nh.param("rosbag_topics", topics, topics);
-  topics_ = QString::fromStdString(topics);
 
   auto * main_layout = new QVBoxLayout;
   main_layout->setContentsMargins(6, 6, 6, 6);
 
-  auto * title = new QLabel("Planning + Perception Rosbag", this);
+  auto * title = new QLabel("Rosbag (no images / clouds / visuals)", this);
   QFont title_font = title->font();
   title_font.setBold(true);
   title->setFont(title_font);
@@ -189,10 +153,21 @@ void RosbagRecorderPanel::startRecording()
     return;
   }
 
+  ros::master::V_TopicInfo published_topics;
+  if (!ros::master::getTopics(published_topics)) {
+    status_label_->setText("ERROR: cannot query ROS topics for recording exclusions");
+    return;
+  }
+
+  ros::NodeHandle private_nh("~");
+  bool record_morai_gt = true;
+  private_nh.param("record_morai_gt", record_morai_gt, true);
+
   recording_stamp_ = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
   active_output_path_ = makeOutputPath();
-  QStringList arguments{"record", "--lz4", "--buffsize=1024", "-O", active_output_path_};
-  arguments.append(topics_.split(QRegExp("\\s+"), QString::SkipEmptyParts));
+  QStringList arguments{
+    "record", "--lz4", "--buffsize=1024", "--all",
+    "--exclude", recordingExclusionPattern(published_topics, record_morai_gt), "-O", active_output_path_};
 
   stop_requested_ = false;
   recorder_->start("rosbag", arguments);

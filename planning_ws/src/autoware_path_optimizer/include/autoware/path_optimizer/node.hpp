@@ -20,6 +20,12 @@
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 #include "autoware/path_optimizer/obstacle_clustering.hpp"
 #include "autoware/path_optimizer/replan_checker.hpp"
+#include "autoware/path_optimizer/recovery_state.hpp"
+#include <autoware_perception_msgs/PredictedObjects.h>
+#include <std_msgs/Bool.h>
+#include <std_msgs/Int8.h>
+#include <std_msgs/String.h>
+#include <autoware_adapi_v1_msgs/OperationModeState.h>
 #include "autoware/path_optimizer/type_alias.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
 #include "autoware_utils/ros/polling_subscriber.hpp"
@@ -86,6 +92,34 @@ protected:  // for the static_centerline_generator package
   bool using_recovery_geometry_{false};
   bool normal_obstacle_search_complete_{false};
   bool enable_obstacle_fallback_{true};
+  RecoveryState recovery_state_;
+  double recovery_cycle_time_{0.0};
+  bool recovery_permitted_{false};
+  bool normal_fresh_solution_{false};
+  bool normal_optimization_failed_{false};
+  bool selected_previous_{false};
+  bool selected_stop_{false};
+  double recovery_input_max_age_{0.5};
+  bool external_stop_{true};
+  bool behavior_stop_{true};
+  ros::Time behavior_stop_received_;
+  ros::Subscriber behavior_stop_sub_;
+  bool autonomous_{false};
+  ros::Time operation_mode_received_;
+  bool external_control_{false};
+  bool drive_gear_{false};
+  ros::Time gear_received_;
+  ros::Subscriber gear_sub_;
+  ros::Time control_mode_received_;
+  ros::Subscriber control_mode_sub_;
+  ros::Time external_stop_received_;
+  ros::Subscriber external_stop_sub_, recovery_objects_sub_;
+  ros::Subscriber recovery_operation_sub_;
+  autoware_perception_msgs::PredictedObjects::ConstPtr recovery_objects_;
+  ros::Publisher recovery_status_pub_;
+  bool validateNormal(const PlannerData &, const std::vector<TrajectoryPoint> &) const;
+  bool validateRecovery(const PlannerData &, const std::vector<TrajectoryPoint> &) const;
+  void publishRecoveryStatus(const PlannerData &);
   double retained_optimization_forward_length_{0.0};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
   std::string outside_drivable_area_check_footprint_;

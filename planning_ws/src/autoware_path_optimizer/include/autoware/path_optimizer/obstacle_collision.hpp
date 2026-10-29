@@ -10,6 +10,33 @@
 
 namespace autoware::path_optimizer
 {
+class FullFootprintRoadChecker
+{
+  using Point = boost::geometry::model::d2::point_xy<double>;
+  using Polygon = boost::geometry::model::polygon<Point>;
+  Polygon road_;
+  bool valid_{false};
+public:
+  FullFootprintRoadChecker(const std::vector<geometry_msgs::Point> & left,
+                          const std::vector<geometry_msgs::Point> & right) {
+    for (const auto & p:left) road_.outer().emplace_back(p.x,p.y);
+    for (auto i=right.rbegin();i!=right.rend();++i) road_.outer().emplace_back(i->x,i->y);
+    boost::geometry::correct(road_);
+    valid_=left.size()>1 && right.size()>1 && boost::geometry::is_valid(road_);
+  }
+  bool contains(const geometry_msgs::Pose & pose,
+                const autoware::vehicle_info_utils::VehicleInfo & v) const {
+    if(!valid_)return false;
+    Polygon footprint;
+    const double yaw=tf2::getYaw(pose.orientation),c=std::cos(yaw),s=std::sin(yaw);
+    for(const auto & p:std::vector<Point>{{v.wheel_base_m+v.front_overhang_m,v.vehicle_width_m/2},
+        {v.wheel_base_m+v.front_overhang_m,-v.vehicle_width_m/2},
+        {-v.rear_overhang_m,-v.vehicle_width_m/2},{-v.rear_overhang_m,v.vehicle_width_m/2}})
+      footprint.outer().emplace_back(pose.position.x+c*p.x()-s*p.y(),pose.position.y+s*p.x()+c*p.y());
+    boost::geometry::correct(footprint);
+    return boost::geometry::covered_by(footprint,road_);
+  }
+};
 inline bool isAlignedWithEgoPose(
   const geometry_msgs::Pose & planned, const geometry_msgs::Pose & measured)
 {

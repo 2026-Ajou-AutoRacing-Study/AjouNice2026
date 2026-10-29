@@ -108,6 +108,8 @@ public:
     private_nh_.param("adaptive/min_lookahead_distance", params_.min_lookahead_distance, 4.35);
     private_nh_.param("adaptive/max_lookahead_distance", params_.max_lookahead_distance, 15.0);
     private_nh_.param(
+      "adaptive/enable_steering_rate_limit", enable_steering_rate_limit_, true);
+    private_nh_.param(
       "adaptive/max_steering_rate_deg_s", max_steering_rate_deg_s_, 60.0);
     max_steering_rate_rad_s_ = max_steering_rate_deg_s_ * M_PI / 180.0;
     private_nh_.param(
@@ -140,7 +142,9 @@ public:
       &AutowarePurePursuitNode::timerCallback, this);
     ROS_INFO_STREAM(
       "[CTRL][LAT][START] trajectory=" << trajectory_topic_ << " | state=" << state_topic_
-      << " | steering=" << steering_topic_ << " | rate_limit=" << max_steering_rate_deg_s_
+      << " | steering=" << steering_topic_ << " | rate_limit_enabled="
+      << (enable_steering_rate_limit_ ? "true" : "false")
+      << " | configured_rate_limit=" << max_steering_rate_deg_s_
       << "deg/s | deadband=" << steering_deadband_deg_ << "deg | status="
       << status_period_s_ << "s");
   }
@@ -296,8 +300,10 @@ private:
       }
       const double deadbanded_steering = trajectory_follower::applySteeringDeadband(
         output.steering_tire_angle_rad, previous_steering_command_, steering_deadband_rad_);
-      output.steering_tire_angle_rad = trajectory_follower::limitSteeringRate(
-        deadbanded_steering, previous_steering_command_, max_steering_rate_rad_s_, dt);
+      output.steering_tire_angle_rad = enable_steering_rate_limit_
+        ? trajectory_follower::limitSteeringRate(
+            deadbanded_steering, previous_steering_command_, max_steering_rate_rad_s_, dt)
+        : deadbanded_steering;
       previous_steering_command_ = output.steering_tire_angle_rad;
       ever_valid_output_ = true;
       ROS_INFO_THROTTLE(
@@ -357,6 +363,7 @@ private:
   double trajectory_source_timeout_s_{0.5};
   double state_source_timeout_s_{0.5};
   double future_stamp_tolerance_s_{0.1};
+  bool enable_steering_rate_limit_{true};
   double max_steering_rate_deg_s_{60.0};
   double max_steering_rate_rad_s_{M_PI / 3.0};
   double steering_deadband_deg_{0.3};

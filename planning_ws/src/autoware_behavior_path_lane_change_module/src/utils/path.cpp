@@ -36,6 +36,11 @@
 
 #include <fmt/format.h>
 #include <std_msgs/String.h>
+#include <autoware_utils/geometry/boost_polygon_utils.hpp>
+#include <boost/geometry/algorithms/covered_by.hpp>
+#include <boost/geometry/algorithms/correct.hpp>
+#include <boost/geometry/algorithms/is_valid.hpp>
+#include <boost/geometry/algorithms/union.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -1052,8 +1057,11 @@ void append_target_ref_to_candidate(
   candidate_path.push_back(target_lane_ref_path.back());
 }
 
-std::optional<LaneChangePath> make_abort_reentry_candidate(
-  const CommonDataPtr & common, const double duration, const double desired_acceleration, std::string * rejection_reason)
+namespace
+{
+std::optional<LaneChangePath> make_current_state_transition(
+  const CommonDataPtr & common, const double duration, const double desired_acceleration,
+  const bool returning, std::string * rejection_reason)
 {
   const auto reject = [&](const char * reason) -> std::optional<LaneChangePath> {
     if (rejection_reason) *rejection_reason=reason;
@@ -1065,7 +1073,7 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
   }
   const auto & params=*common->lc_param_ptr;
   const auto & bpp=*common->bpp_param_ptr;
-  if (!params.trajectory.allow_decelerating_lane_change && desired_acceleration < -1e-6) {
+  if (!returning && !params.trajectory.allow_decelerating_lane_change && desired_acceleration < -1e-6) {
     return reject("decelerating_lc_disabled");
   }
   static const auto jerk_limits=[] {
@@ -1076,7 +1084,17 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
   }();
   if (jerk_limits.first<=0.0 || jerk_limits.second>=0.0) return reject("jerk_configuration");
   const auto ego=common->get_ego_pose();
-  const auto ref=get_reference_path_from_target_lane(common,ego,0.0,0.5);
+  const auto ref = [&]() {
+    if (!returning) return get_reference_path_from_target_lane(common,ego,0.0,0.5);
+    const auto & lanes = common->lanes_ptr->current;
+    const auto start = autoware::experimental::lanelet2_utils::get_arc_coordinates(lanes,ego).length;
+    const auto end = std::min(start+bpp.forward_path_length,
+      lanelet::geometry::length3d(lanelet::LaneletSequence(lanes)) -
+      common->transient_data.current_dist_buffer.min);
+    if (end <= start) return PathWithLaneId{};
+    return autoware::behavior_path_planner::utils::resamplePathWithSpline(
+      common->route_handler_ptr->getCenterLinePath(lanes,start,end),0.5,true,{0.0,0.0});
+  }();
   if (ref.points.size()<3 || common->current_lanes_path.points.size()<2) return reject("reference_unavailable");
   const auto spline=init_reference_spline(ref.points);
   const auto initial=spline.frenet({ego.position.x,ego.position.y});
@@ -1094,6 +1112,21 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
   const auto lateral=ReentryQuintic::to_zero(initial.d,motion->d_velocity,motion->d_acceleration,duration);
   const auto slip=ReentryQuintic::to_zero(motion->slip,motion->slip_rate,0.0,duration);
   if (!lateral || !slip) return reject("initial_polynomial_invalid");
+  using Polygon = autoware_utils::Polygon2d;
+  using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
+  MultiPolygon corridor;
+  for (const auto * lane : {&common->lanes_polygon_ptr->current,
+                           &common->lanes_polygon_ptr->target}) {
+    if (lane->size() < 3) continue;
+    Polygon polygon;
+    for (const auto & point : *lane) polygon.outer().emplace_back(point.x(),point.y());
+    boost::geometry::correct(polygon);
+    if (!boost::geometry::is_valid(polygon)) return reject("corridor_invalid");
+    MultiPolygon merged;
+    if (corridor.empty()) corridor.push_back(polygon);
+    else { boost::geometry::union_(corridor,polygon,merged); corridor=std::move(merged); }
+  }
+  if (corridor.empty()) return reject("corridor_missing");
   LaneChangePath candidate;
   candidate.type=behavior_path_planner::lane_change::PathType::SpatialSpeedProfile;
   candidate.path.header=ref.header;
@@ -1120,7 +1153,8 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
     }
     if (s<spline.firstS() || s>spline.lastS() || sv<0.0) return reject("longitudinal_reference_or_reverse");
     const double d=lateral->at(t), dv=lateral->at(t,1);
-    if (std::abs(lateral->at(t,3))>params.trajectory.lateral_jerk+1e-3) return reject("lateral_polynomial_jerk");
+    const double lateral_jerk_limit = returning ? params.cancel.max_lateral_jerk : params.trajectory.lateral_jerk;
+    if (std::abs(lateral->at(t,3))>lateral_jerk_limit+1e-3) return reject("lateral_polynomial_jerk");
     const double scale=1.0-spline.curvature(s)*d;
     if (scale<=0.0) return reject("frenet_scale");
     const auto xy=spline.cartesian(autoware::sampler_common::FrenetPoint{s,d});
@@ -1144,6 +1178,8 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
       xy.x(),xy.y(),ref.points[ref_idx].point.pose.position.z);
     point.point.pose.orientation=autoware_utils::create_quaternion_from_yaw(yaw);
     if (!i) point.point.pose=ego;
+    if (!boost::geometry::covered_by(get_ego_footprint(point.point.pose,bpp.vehicle_info),corridor))
+      return reject("body_outside_corridor");
     point.point.longitudinal_velocity_mps=vx;
     point.point.lateral_velocity_mps=world_speed*std::sin(beta);
     const double k=spline.curvature(s);
@@ -1158,7 +1194,7 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
       (wdot+k*sv*u)*std::cos(relative);
     const double max_lat=params.trajectory.lat_acc_map.find(vx).second;
     if (std::abs(lat_acc)>max_lat+1e-3 ||
-        (i && std::abs(lat_acc-previous_lat_acc)/dt>params.trajectory.lateral_jerk+1e-3)) {
+        (i && std::abs(lat_acc-previous_lat_acc)/dt>lateral_jerk_limit+1e-3)) {
       return reject("lateral_acceleration_or_jerk");
     }
     peak_lat_acc=std::max(peak_lat_acc,std::abs(lat_acc));
@@ -1173,17 +1209,18 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
     candidate.shifted_path.shift_length.push_back(d);
     const bool braking=sa < -1e-6;
     const bool speed_ready=vx>=params.trajectory.min_lane_changing_velocity-1e-6;
-    if (!ready && speed_ready && (params.trajectory.allow_decelerating_lane_change || !braking)) {
+    if (!ready && (returning || (speed_ready && (params.trajectory.allow_decelerating_lane_change || !braking)))) {
       ready=i;ready_time=t;ready_arc=arc;
     }
-    if ((!speed_ready || (!params.trajectory.allow_decelerating_lane_change && braking)) &&
+    if (!returning && (!speed_ready || (!params.trajectory.allow_decelerating_lane_change && braking)) &&
         !utils::isEgoWithinOriginalLane(common->lanes_polygon_ptr->current,point.point.pose,bpp)) {
       return reject("prepare_motion_outside_original_lane");
     }
     previous_t=t;previous_lat_acc=lat_acc;
   }
   if (!ready || *ready+1>=candidate.path.points.size()) return reject("minimum_lc_velocity");
-  if (arc+common->transient_data.next_dist_buffer.min>common->transient_data.dist_to_terminal_end+1e-3)
+  const double terminal_buffer = returning ? common->transient_data.current_dist_buffer.min : common->transient_data.next_dist_buffer.min;
+  if (arc+terminal_buffer>common->transient_data.dist_to_terminal_end+1e-3)
     return reject("terminal_distance");
   const auto end=candidate.path.points.back().point.pose;
   candidate.info.duration={ready_time,duration-ready_time};
@@ -1207,6 +1244,19 @@ std::optional<LaneChangePath> make_abort_reentry_candidate(
   const auto end_index=autoware::motion_utils::findNearestIndex(ref.points,end.position);
   for (size_t i=end_index+1;i<ref.points.size();++i) candidate.path.points.push_back(ref.points[i]);
   return candidate;
+}
+}  // namespace
+
+std::optional<LaneChangePath> make_abort_reentry_candidate(
+  const CommonDataPtr & common, const double duration, const double acceleration, std::string * rejection)
+{
+  return make_current_state_transition(common,duration,acceleration,false,rejection);
+}
+
+std::optional<LaneChangePath> make_abort_return_candidate(
+  const CommonDataPtr & common, const double duration, const double acceleration, std::string * rejection)
+{
+  return make_current_state_transition(common,duration,acceleration,true,rejection);
 }
 
 }  // namespace autoware::behavior_path_planner::utils::lane_change

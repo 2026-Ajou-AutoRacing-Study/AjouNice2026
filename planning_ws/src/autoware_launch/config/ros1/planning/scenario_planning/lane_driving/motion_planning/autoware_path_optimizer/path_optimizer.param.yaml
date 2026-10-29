@@ -17,11 +17,17 @@ output_resampling/gaussian_sigma_m: 0.25
 obstacle_search_time_budget_ms: 100.0
 # Positive magnitude for braking on a still-aligned path when obstacle optimization fails.
 obstacle_fallback_deceleration: 7.0
-# Keep ordinary candidates first. If they fail, retry with soft road bounds and
-# hard obstacle/vehicle constraints, sharing the configured search-time budget.
-# Road-only rejected candidates can also be reused after every side was tried.
-# Existing obstacle-margin overlap is optimized with slack, without a new speed cap.
+# Enter only on sustained stopped optimizer failure with fresh autonomous and
+# behavior/object-stop context. Active recovery retries indefinitely; every cycle
+# tries normal hard road bounds first. Only road bounds may relax: collision and
+# vehicle constraints remain, with no recovery-specific velocity cap.
 recovery/enabled: true
+recovery/stopped_speed_kph: 1.0
+recovery/stopped_duration: 2.0
+recovery/failed_duration: 2.0
+recovery/minimum_failed_cycles: 5
+recovery/maximum_sample_gap: 0.5
+recovery/input_max_age: 0.5
 # Extend the base horizon to cover observed obstacle margins, the vehicle and return.
 obstacle_optimization/max_forward_length: 90.0
 obstacle_optimization/return_length: 15.0

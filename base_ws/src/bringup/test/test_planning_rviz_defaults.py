@@ -61,17 +61,14 @@ class PlanningRvizDefaultsTest(unittest.TestCase):
         overlay = launch.find("node[@name='planning_vehicle_overlay']")
         self.assertEqual(overlay.find("param[@name='vehicle_status_topic']").get('value'), '$(arg vehicle_status_topic)')
 
-    def test_no_gt_recording_excludes_ego_object_and_keeps_competition(self):
+    def test_no_gt_recording_gate_is_forwarded_to_all_topic_recorder(self):
         launch = ET.parse(PACKAGE_ROOT / "launch" / "aw149_planning_rviz.launch")
-        expression = launch.find("arg[@name='rosbag_gt_topics']").get('default')
-        self.assertTrue(expression.startswith('$(eval ') and expression.endswith(')'))
-        for enabled in (True, False):
-            gt = eval(expression[7:-1], {'__builtins__': {}}, {'arg': lambda name: enabled})
-            topics = launch.find("node[@name='aw149_planning_rviz']/param[@name='rosbag_topics']").get('value')
-            topics = topics.replace('$(arg rosbag_gt_topics)', gt).split()
-            self.assertIn('/Competition_topic', topics)
-            self.assertEqual('/Ego_topic' in topics, enabled)
-            self.assertEqual('/Object_topic' in topics, enabled)
+        recorder = launch.find("node[@name='aw149_planning_rviz']")
+        self.assertEqual(
+            recorder.find("param[@name='record_morai_gt']").get('value'),
+            '$(arg show_morai_gt)',
+        )
+        self.assertIsNone(recorder.find("param[@name='rosbag_topics']"))
 
 
 if __name__ == "__main__":

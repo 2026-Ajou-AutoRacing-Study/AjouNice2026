@@ -39,7 +39,6 @@ private:
   QPushButton * stop_button_;
   QPushButton * rename_button_;
   QProcess * recorder_;
-  QString topics_;
   QString active_output_path_;
   QString recording_stamp_;
   QString completed_output_path_;
