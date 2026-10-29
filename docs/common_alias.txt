@@ -211,6 +211,12 @@ origin() {
 
 # planning-----------------------------------------------
 alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
+# Shared binaries and launch graph; only the three smoother limits differ [m/s^2].
+alias planning6.0='planning max_lateral_acceleration:=6.0'
+alias planning6.5='planning max_lateral_acceleration:=6.5'
+alias planning5.8='planning max_lateral_acceleration:=5.8'
+alias planning5.5='planning max_lateral_acceleration:=5.5'
+alias planning5.3='planning max_lateral_acceleration:=5.3'
 alias planviz='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch'
 alias planviz_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch show_morai_gt:=false'
 alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
