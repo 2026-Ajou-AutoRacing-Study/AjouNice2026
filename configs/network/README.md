@@ -1,6 +1,6 @@
 # 현재 Network profile
 
-Production용 canonical JSON은 두 개다. mirror·옛 포트·ScenarioLoad
+Local/LAN 개발·기존 production용 canonical JSON은 두 개다. mirror·옛 포트·ScenarioLoad
 source·과거 수집용 profile은 [legacy](legacy/README.md)로 분리했다.
 
 최신 planning이 배포한 `ego_network_competition_lan_jihun.json`은 팀장님 개발망 전용 예외다.
@@ -10,9 +10,15 @@ source·과거 수집용 profile은 [legacy](legacy/README.md)로 분리했다.
 | --- | --- | --- |
 | 로컬 동시 개발 | [competition_local](ego_network_competition_local.json) | 같은 파일, `udp` |
 | LAN 개발 | 양쪽 IP를 맞춘 LAN wire 설정 | [competition_lan](ego_network_competition_lan.json), `udp_lan` |
-| 대회 | [현장 MORAI 원본](../morai_field_reference/2026_molit_comp_network.json) | 위 LAN adapter |
+| 본선 | 운영측 시나리오 Load 시 네트워크 자동 설정 | 기존 LAN adapter의 본선 중계 경로 적합성 점검 필요 |
 
-대회는 [원본 경로·Ego 미사용 실행 기준](../morai_field_reference/README.md#합의한-대회-실행-기준)을 따른다.
+본선은 [10월26일 통신 메뉴얼·운영측 답변](../../docs/competition/FINAL_NETWORK_CURRENT.md)을 우선한다.
+Collision/Competition은 Client 판정프로그램이 중계한다. 9월 현장점검 원본으로
+본선 시나리오 네트워크를 덮어쓰지 않는다. 현장점검 원본은 과거 재현 자료다.
+[로컬 수신 차단과 환경별 실행](../../docs/competition/FINAL_RUNTIME_HANDOFF.md):
+`udp`/`udp_lan`은 Ego·Object OFF, 개발용 원래 수신은 `udp_dev`/`udp_lan_dev`다.
+JSON 값은 유지하며 runtime에서 선택한다. 실제 MORAI 무GT 수신·공식 START 초기화는 통과했고,
+전체 주행·본선 판정프로그램 중계 시험은 대기다.
 
 Sensor는 [센서 역할표](../sensors/README.md)를 따른다. LAN 보관 IP는
 `192.168.0.1 → 192.168.0.10`이며 실제 NIC와 다르면 그대로 연결된다고 판단하지 않는다.

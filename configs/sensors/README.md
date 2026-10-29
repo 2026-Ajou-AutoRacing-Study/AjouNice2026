@@ -10,9 +10,11 @@ Production용 canonical JSON은 두 개다. 번호별 원본·mirror·과거 시
 | --- | --- |
 | 로컬 MORAI + ROS | [Sensor_competition_local.json](Sensor_competition_local.json), `udp` + `sensing` |
 | LAN 개발 | [Sensor_competition_lan.json](Sensor_competition_lan.json), `udp_lan` + `sensing_lan` |
-| 대회 | MORAI: [현장 원본](../morai_field_reference/AjouNice_sensor.json), 알고리즘: 위 LAN canonical |
+| 대회 | 제출·검수한 센서 설정과 알고리즘 LAN 수신·TF 설정을 대조. 9월 원본은 재현 참고 |
 
-대회는 [원본 경로·Ego 미사용 실행 기준](../morai_field_reference/README.md#합의한-대회-실행-기준)을 따른다.
+본선 네트워크는 [최신 통신 계약](../../docs/competition/FINAL_NETWORK_CURRENT.md)을 따른다.
+고정 카메라3대는 센서 파일에서 삭제하지 않는다. 미사용 네트워크 Disconnect는 가능하다.
+시나리오 네트워크 자동 설정과 센서 파일 Load·Connect는 구분한다.
 
 E12/E24 production은 LAN canonical을 사용한다. 로컬 실행·E25 복귀·공통 bringup의
 옛 `Sensor.json`·`Sensor_6.json` 참조는 바이트가 동일한 local canonical로 통일했다.

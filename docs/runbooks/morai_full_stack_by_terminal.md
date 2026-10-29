@@ -19,7 +19,10 @@ MORAI sensors/Competition (production: no Ego GT)
   -> MORAI /ctrl_cmd UDP
 ```
 
-실제 대회 client PC 연결 전 점검 순서와 Go/No-Go 기준은
+본선 연결은 [최신 통신 계약](../competition/FINAL_NETWORK_CURRENT.md)을 우선한다.
+시나리오 Load 시 운영측 네트워크가 자동 설정되고 Collision/Competition은
+판정프로그램이 중계한다. 이하 alias 표는 기존 실행 진입점이며 새 본선 중계 경로의
+검증 완료를 뜻하지 않는다. 실제 대회 client PC 연결 전 과거 점검 참고는
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
@@ -52,8 +55,9 @@ MORAI에서는 다음을 확인한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
 
-로드할 현장점검 원본의 정확한 경로와 IP·Ego 미사용 기준은
-[현장 파일 안내](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)를 따른다.
+9월 현장점검 원본 경로는 [현장 파일 안내](../../configs/morai_field_reference/README.md)에 있다.
+이 원본으로 본선 시나리오 네트워크를 덮어쓰지 않는다. 본선에서는 운영측의
+keyboard/P 초기 준비와 네트워크 확인 뒤 출발 절차를 따른다.
 
 ## 기본 터미널: 영어·짧은 요약 화면
 
@@ -67,7 +71,7 @@ MORAI에서는 다음을 확인한다.
 
 | 구성요소 | 대회 LAN 명령 |
 |---|---|
-| UDP 센서·상태 수신 | `udp_lan enable_ego_vehicle_status:=false` |
+| UDP 센서·상태 수신 | `udp_lan` |
 | 센서 좌표계 TF | `sensing_lan` |
 | 공식 START 측위 | `localization initial_position_source:=official_start` |
 | E12 객체 검출 | `bevfusion` |
@@ -76,6 +80,9 @@ MORAI에서는 다음을 확인한다.
 | 공용 RViz | `planviz show_morai_gt:=false` |
 
 로컬 MORAI는 앞의 두 개를 `udp`·`sensing`으로 바꾼다.
+`udp`/`udp_lan`은 Ego·Object 수신을 모두 차단한다. 팀장님 개발 LAN에서는
+`udp_lan profile:=teamlead`를 사용한다. C++ 재설치와 개발용 복귀 명령은
+[UDP 인계 문서](../competition/FINAL_RUNTIME_HANDOFF.md)를 따른다.
 roscore는 `rc`, 판단은 `planning`, 화면은 `planviz`, 제어는 `traj_fol_a`로 기존 순서대로 실행한다.
 공식 START 초기화를 중간 checkpoint에 적용하지 않는다.
 GNSS 지연 보상은 해당 환경에서 검증할 때만 `localization

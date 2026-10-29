@@ -191,6 +191,7 @@ class MoraiEgoUdpReceiver {
     private_nh_.param<std::string>("network_config", network_config_, std::string());
     private_nh_.param<std::string>("frame_id", frame_id_, "morai_map");
     private_nh_.param<bool>("enable_ego_vehicle_status", enable_ego_vehicle_status_, true);
+    private_nh_.param<bool>("enable_object_info", enable_object_info_, true);
     private_nh_.param<std::string>("gear_topic", gear_topic_, "/vehicle/status/gear");
     private_nh_.param<std::string>("control_mode_topic", control_mode_topic_,
                                    "/vehicle/status/control_mode");
@@ -207,6 +208,10 @@ class MoraiEgoUdpReceiver {
       if (type != 770 && type != 772 && type != 261 && type != 295) continue;
       if (type == 770 && !enable_ego_vehicle_status_) {
         ROS_WARN("Skipping Ego Vehicle Status UDP receiver (type 770) by configuration");
+        continue;
+      }
+      if (type == 772 && !enable_object_info_) {
+        ROS_WARN("Skipping Object Info UDP receiver (type 772) by configuration");
         continue;
       }
       const auto& config = entry.get_child("config");
@@ -228,11 +233,11 @@ class MoraiEgoUdpReceiver {
       ROS_INFO("Ego network type %d UDP %s:%d -> %s", type, endpoint.ip.c_str(),
                endpoint.port, topic.c_str());
     }
-    const std::size_t expected_channels = enable_ego_vehicle_status_ ? 4U : 3U;
+    const std::size_t expected_channels = 2U + enable_ego_vehicle_status_ + enable_object_info_;
     if (channels_.size() != expected_channels) {
-      const std::string expected = enable_ego_vehicle_status_
-                                       ? "770, 772, 261 and 295"
-                                       : "772, 261 and 295";
+      std::string expected = "261 and 295";
+      if (enable_ego_vehicle_status_) expected += ", 770";
+      if (enable_object_info_) expected += ", 772";
       throw std::runtime_error("expected UDP entries " + expected + " in " + network_config_);
     }
     gear_publisher_ = nh_.advertise<std_msgs::Int8>(gear_topic_, 20);
@@ -409,6 +414,7 @@ class MoraiEgoUdpReceiver {
   std::string competition_twist_topic_;
   std::string base_frame_;
   bool enable_ego_vehicle_status_ = true;
+  bool enable_object_info_ = true;
   std::vector<NetworkChannel> channels_;
   ros::Publisher ego_publisher_;
   ros::Publisher competition_publisher_;
