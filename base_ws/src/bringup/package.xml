@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>bringup</name>
+  <depend>image_transport</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
   <version>0.0.0</version>
   <description>The bringup package</description>
 
@@ -125,7 +128,6 @@
   <exec_depend>morai_ros_bridge</exec_depend>
   <exec_depend>sensor_interface</exec_depend>
   <exec_depend>tf_pub</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>bevfusion_ros</exec_depend>
   <test_depend>autoware_internal_planning_msgs</test_depend>
   <test_depend>autoware_planning_msgs</test_depend>

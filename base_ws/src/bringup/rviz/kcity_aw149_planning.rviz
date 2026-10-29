@@ -302,7 +302,7 @@ Visualization Manager:
             {}
       Update Interval: 0
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front
       Max Value: 1
@@ -314,7 +314,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front_left
       Max Value: 1
@@ -326,7 +326,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front_right
       Max Value: 1
@@ -338,7 +338,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/back
       Max Value: 1

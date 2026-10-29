@@ -27,6 +27,16 @@ class PlanningRvizDefaultsTest(unittest.TestCase):
             "$(arg repo_root)/base_ws/src/bringup/rviz/kcity_aw149_planning.rviz",
         )
 
+    def test_four_cameras_keep_compressed_inputs_with_scoped_parameters(self):
+        images = [d for d in self.manager['Displays'] if d.get('Class') == 'bringup/ScopedImage']
+        self.assertEqual(len(images), 4)
+        self.assertEqual({d['Image Topic'] for d in images}, {
+            '/sensor/camera/front', '/sensor/camera/front_left',
+            '/sensor/camera/front_right', '/sensor/camera/back'})
+        self.assertTrue(all(d['Transport Hint'] == 'compressed' and d['Enabled'] for d in images))
+        plugins = ET.parse(PACKAGE_ROOT / 'plugin_description.xml')
+        self.assertIsNotNone(plugins.find("class[@name='bringup/ScopedImage']"))
+
     def test_wide_view_preserves_vehicle_following_and_top_down_orientation(self):
         view = self.manager["Views"]["Current"]
         self.assertEqual(view["Class"], "rviz/ThirdPersonFollower")

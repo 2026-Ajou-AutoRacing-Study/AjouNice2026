@@ -270,7 +270,7 @@ class TopicHealth:
                     return 'path stale %.1fs' % max(receipt_age, source_age or 0.), 'ERROR'
                 if not path.valid:
                     return 'map ready path empty', 'WARN'
-                return ('map ready pose %.0fHz path %.1fHz' %
+                return ('map P%.0f T%.0fHz' %
                         (self._rate('global', now), self._rate('viz_path', now)), 'INFO')
             required = {
                 'udp': ('comp', 'gps', 'imu'),

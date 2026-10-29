@@ -247,7 +247,11 @@ class Summary:
                 detail += ' x%d' % repetitions
         if self.total_errors and level != 'ERROR':
             detail += ' | past%d' % self.total_errors
-            level = 'WARN'
+            # RViz's fresh input status is not made permanently yellow by
+            # historical startup errors. Keep their count and raw evidence.
+            if not (self.component == 'RVZ' and health is not None and
+                    health[1] == 'INFO' and level == 'INFO'):
+                level = 'WARN'
         result = self.line('', detail, level)
         self.counts.clear()
         self.code_counts.clear()

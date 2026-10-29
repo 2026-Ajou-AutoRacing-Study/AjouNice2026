@@ -1,5 +1,28 @@
 # MORAI full stack 터미널별 실행법
 
+## RViz camera / compact log update (2026-10-30)
+
+`planviz`와 `planviz_competition`의 4카메라는 같은 compressed JPEG 토픽·RViz decoder를
+유지하고, `bringup/ScopedImage`가 카메라 표시마다 설정 서비스 namespace만 분리한다.
+기존 `/aw149_planning_rviz/compressed/set_parameters` 중복 등록 3회를 원인에서 제거한다.
+이 업데이트는 새 C++ display를 포함하므로 **pull만 하지 말고 bringup을 재빌드**한 뒤
+RViz를 다시 실행한다. 실행 중인 RViz/주행 스택을 둔 채 라이브러리를 교체하지 않는다.
+기존 정상 설치가 있는 PC의 증분 빌드 예시(클린 빌드 불필요):
+
+```bash
+cd ~/AjouNice2026
+source scripts/workspace/source_aw149.sh
+catkin_make_isolated --install --pkg bringup --source "$PWD/base_ws/src" --build "$PWD/base_ws/build_aw149" --devel "$PWD/base_ws/devel_aw149" --install-space "$PWD/base_ws/install_aw149" -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3 --make-args -j2 -l2
+```
+
+요약 `RVZ map P50 T10Hz`는 지도 입력·측위 50Hz·표시용 궤적 10Hz다.
+32열에서도 핵심 값과 `past3`가 함께 보이도록 줄였다. `past3`는 이번 실행 중 원문에서
+오류로 분류한 누적 3줄이며 원문/상태 파일에 보존된다. RViz 입력 상태가 현재 INFO로
+회복됐으면 과거 이력만으로 노란색을 강제하지 않는다. 새 오류는 즉시 빨강, 입력 대기·stale
+또는 현재 상태를 확인할 수 없으면 기존 주의/오류 표시를 유지한다. **입력 정상은 GUI 전체
+기능 정상 인증이 아니다.** 다른 인지·측위 터미널의 오류 이력 정책은 변경하지 않는다.
+이 변경은 지도·주행 궤적·제어·인지 입력·가중치를 바꾸지 않는다.
+
 ## 범위
 
 이 문서는 하나의 shell wrapper가 아니다. 각 구성요소를 별도 터미널에서 실행해
