@@ -109,7 +109,17 @@ void LaneChangeInterface::updateData()
   if (isWaitingApproval()) {
     module_type_->updateLaneChangeStatus();
   } else if (getCurrentStatus() == ModuleStatus::RUNNING) {
-    module_type_->refreshApprovedPlan();
+    const bool returning = module_type_->isAbortState();
+    if (!(returning && planner_data_ && planner_data_->operation_mode &&
+          planner_data_->operation_mode->mode != OperationModeState::AUTONOMOUS)) {
+      module_type_->refreshApprovedPlan();
+    }
+    if (returning && !module_type_->isAbortState()) {
+      // Cached safety describes the old return, not the newly adopted LC.
+      post_process_safety_status_ = {};
+      is_abort_path_approved_ = false;
+      is_abort_approval_requested_ = false;
+    }
   }
 
   module_type_->resetStopPose();

@@ -105,6 +105,7 @@ public:
   using NormalLaneChange::prev_module_output_;
   using NormalLaneChange::receiveFinalTrajectory;
   using NormalLaneChange::finalVelocityPrediction;
+  using NormalLaneChange::abort_reentry_committed_;
   using NormalLaneChange::executionProfile;
   using NormalLaneChange::execution_replan_requested_;
   using NormalLaneChange::candidateRank;
@@ -1135,4 +1136,30 @@ int main(int argc, char ** argv)
   ros::Time::init();
   testing::InitGoogleTest(&argc,argv);
   return RUN_ALL_TESTS();
+}
+
+TEST_F(Scene, AbortReentryAwaitsNewFeedbackOnlyUntilExistingTimeout)
+{
+  feedback(); ros::Time::setNow(ros::Time(100.01));
+  module->abort_reentry_committed_=ros::Time::now();
+  EXPECT_FALSE(module->finalVelocityPrediction(candidate()));
+  EXPECT_EQ(module->overtake_feedback_reason_,"abort_reentry_awaiting_feedback");
+  // A new final output in the adoption cycle is accepted immediately.
+  feedback();
+  EXPECT_TRUE(module->finalVelocityPrediction(candidate()));
+  EXPECT_NE(module->overtake_feedback_reason_,"abort_reentry_awaiting_feedback");
+  ros::Time::setNow(ros::Time(101.1));
+  EXPECT_FALSE(module->finalVelocityPrediction(candidate()));
+  EXPECT_EQ(module->overtake_feedback_reason_,"final_trajectory_stale");
+}
+TEST_F(Scene, AbortReturnAndOrdinaryLCNeverUseReentryFeedbackWait)
+{
+  EXPECT_FALSE(module->finalVelocityPrediction(candidate()));
+  EXPECT_EQ(module->overtake_feedback_reason_,"final_trajectory_missing");
+  module->abort_reentry_committed_=ros::Time::now();
+  module->toAbortState();
+  module->abort_path_=std::make_shared<bpp::LaneChangePath>(candidate());
+  ASSERT_TRUE(module->isAbortState());
+  EXPECT_FALSE(module->finalVelocityPrediction(candidate()));
+  EXPECT_EQ(module->overtake_feedback_reason_,"final_trajectory_missing");
 }

@@ -27,6 +27,10 @@ using behavior_path_planner::LaneChangePath;
 using behavior_path_planner::lane_change::CommonDataPtr;
 using behavior_path_planner::lane_change::TrajectoryGroup;
 
+// Only used while an unfinished ABORT is executing. Normal LC generation is unchanged.
+std::optional<LaneChangePath> make_abort_reentry_candidate(
+  const CommonDataPtr & common, double duration, double longitudinal_acceleration, std::string * rejection_reason = nullptr);
+
 /**
  * @brief Generates a prepare segment for a lane change maneuver.
  *

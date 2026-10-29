@@ -389,6 +389,15 @@ std::optional<std::vector<PoseWithVelocityStamped>> NormalLaneChange::finalVeloc
     return std::nullopt;
   };
   const auto now = ros::Time::now();
+  // Only the abort-to-LC handoff may await a new output. The old return output
+  // cannot describe an unpublished LC. Planned and measured-motion checks remain active.
+  if (abort_reentry_committed_ && !isAbortState() &&
+      now >= *abort_reentry_committed_ &&
+      (now-*abort_reentry_committed_).toSec() <= lane_change_parameters_->overtake.feedback_timeout &&
+      (!feedback || received < *abort_reentry_committed_ ||
+       feedback->header.stamp < *abort_reentry_committed_)) {
+    return reject("abort_reentry_awaiting_feedback");
+  }
   feedback_candidate_frame_ = candidate.path.header.frame_id;
   feedback_trajectory_frame_ = feedback ? feedback->header.frame_id : "";
   if (!feedback || feedback->points.size() < 2) return reject("final_trajectory_missing");
