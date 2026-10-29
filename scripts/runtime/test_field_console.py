@@ -537,6 +537,16 @@ class FieldConsoleFailureIsolation(unittest.TestCase):
 
 
 class FieldConsoleClassification(unittest.TestCase):
+    def test_model_startup_progress_remains_readable(self):
+        for line, title, level in (
+            ('[BEVFusion] Model waiting 15/300s; loading or identity check pending', 'model loading 15/300s', 'INFO'),
+            ('[BEVFusion] Model ready after 21s; starting bridge', 'model ready 21s', 'INFO'),
+            ('[ERROR] Model readiness timed out after 300s', 'model timeout', 'ERROR'),
+        ):
+            event = self.module.classify(line, 'bevfusion')
+            self.assertEqual(self.module.event_text(event), title)
+            self.assertEqual(event.level, level)
+
     @classmethod
     def setUpClass(cls):
         spec = importlib.util.spec_from_file_location('field_console_classification_tests', SCRIPT)

@@ -128,6 +128,7 @@ done
                 if name.startswith("BEVFUSION_"):
                     environment.pop(name)
             environment.update(PATH=f"{binaries}:{os.environ['PATH']}", HOME=str(root),
+                               BEVFUSION_READY_TIMEOUT_SEC="1",
                                AJOUNICE_FIXTURE_PYTHON=__import__('sys').executable,
                                AJOUNICE_FIXTURE_ROOT=str(root), AJOUNICE_FIXTURE_LOG=str(log),
                                AJOUNICE_FIXTURE_SERVER_RUNNING=str(server_running).lower(),
@@ -274,9 +275,8 @@ done
         self.assertNotIn("<up>", log)
         self.assertNotIn("<stop>", log)
         self.assertNotIn("roslaunch", log)
-        # 60 bounded readiness attempts plus one visible diagnostic check.
-        self.assertEqual(len([line for line in log.splitlines() if line.startswith("healthcheck")]), 61)
-        self.assertEqual(log.splitlines().count("sleep <2>"), 60)
+        self.assertIn("Model readiness timed out", result.stderr)
+        self.assertIn("Model waiting", result.stdout)
 
     def test_existing_cold_server_finishes_warmup_then_reuses_without_ownership(self):
         result, log = self.run_fixture(server_running=True, health_fail_first=3)

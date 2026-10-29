@@ -68,6 +68,9 @@ class Event:
 
 # Display only: these rules never change a ROS logger or a vehicle decision.
 RULES = [
+    ('model_wait', 'INFO', 'model loading', r'\[BEVFusion\] Model waiting'),
+    ('model_ready', 'INFO', 'model ready', r'\[BEVFusion\] Model ready'),
+    ('model_timeout', 'ERROR', 'model timeout', r'Model readiness timed out'),
     ('raw_lost', 'ERROR', 'raw write failed', r'raw log write failed'),
     ('ego_off', 'INFO', 'Ego off', r'Skipping Ego Vehicle Status UDP receiver'),
     ('gnss_hold', 'WARN', 'gps-z hold', r'Holding last valid GNSS z'),
@@ -163,6 +166,9 @@ def event_text(event):
     if event.code == 'start_refused':
         distance = re.search(r'([\d.]+)\s*m\s+away', text)
         return 'start refused' + (' %sm' % distance[1] if distance else '')
+    if event.code in ('model_wait', 'model_ready'):
+        elapsed = re.search(r'(\d+(?:/\d+)?s)\b', text)
+        return event.title + (' ' + elapsed[1] if elapsed else '')
     if event.code == 'traffic_state':
         return event.title
     if event.code == 'info':
