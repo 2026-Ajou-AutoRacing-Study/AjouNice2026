@@ -22,6 +22,7 @@
 
 #include <autoware/motion_utils/trajectory/static_obstacle_collision.hpp>
 #include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
+#include <autoware/motion_utils/trajectory/recovery_collision.hpp>
 
 #include <memory>
 #include <boost/crc.hpp>
@@ -44,6 +45,12 @@ PlanningValidatorNode::PlanningValidatorNode(const ros::NodeHandle & options)
   sub_trajectory_ = subscribe<Trajectory>(
     "input/trajectory", 1,
     &PlanningValidatorNode::onTrajectory, this);
+
+  recovery_objects_sub_ = subscribe<autoware_perception_msgs::PredictedObjects>(
+    "/perception/object_recognition/objects", 1,
+    [this](const autoware_perception_msgs::PredictedObjects::ConstPtr & objects) {
+      recovery_objects_ = objects;
+    });
 
   ros::NodeHandle scene_node(*this);
   scene_node.setCallbackQueue(&static_scene_queue_);
@@ -292,7 +299,7 @@ void PlanningValidatorNode::onStaticScene(
 
 bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
 {
-  if (!enable_static_scene_guard_) return false;
+  if (!enable_static_scene_guard_ && !trajectory.boundary_recovery) return false;
   scene_check_odometry_ = sub_kinematics_.take_data();
   if (!static_scene_ || static_scene_->obstacles.empty() || trajectory.points.empty()) return false;
   const auto odometry = scene_check_odometry_;
@@ -308,7 +315,7 @@ bool PlanningValidatorNode::guardStaticScene(Trajectory & trajectory)
     {measured}, 0, static_scene_->obstacles, vehicle).has_value();
   // Accept an optimized escape from the measured overlap. This does not add
   // a speed policy; existing velocity planning and validation remain in charge.
-  if (!frame_mismatch && measured_overlap &&
+  if (!trajectory.boundary_recovery && !frame_mismatch && measured_overlap &&
       autoware::motion_utils::checkStaticObstacleEscape(
         points, measured.pose, static_scene_->obstacles, vehicle).valid) return false;
   const auto collision = autoware::motion_utils::firstObstacleCollision(
@@ -367,6 +374,28 @@ void PlanningValidatorNode::publishSceneCheckedTrajectory(Trajectory trajectory)
     guardStaticScene(trajectory);
     static_scene_queue_.callAvailable();
   } while (checked_scene != static_scene_);
+
+  if (trajectory.boundary_recovery) {
+    const auto odometry = sub_kinematics_.take_data();
+    const double age = recovery_objects_ ? (ros::Time::now()-recovery_objects_->header.stamp).toSec() : 1e9;
+    const double scene_age = static_scene_ ? (ros::Time::now()-static_scene_->header.stamp).toSec() : 1e9;
+    const double trajectory_age = (ros::Time::now()-trajectory.header.stamp).toSec();
+    const double odom_age = odometry ? (ros::Time::now()-odometry->header.stamp).toSec() : 1e9;
+    if (!odometry || !recovery_objects_ || !static_scene_ ||
+        static_scene_->header.frame_id != trajectory.header.frame_id ||
+        scene_age < -0.05 || scene_age > 0.5 || trajectory_age < -0.05 || trajectory_age > 0.5 ||
+        age < -0.05 || age > 0.5 ||
+        odom_age < -0.05 || odom_age > 0.5 ||
+        recovery_objects_->header.frame_id != trajectory.header.frame_id ||
+        !autoware::motion_utils::recoveryCollisionFree(trajectory.points,
+          odometry->pose.pose,odometry->twist.twist.linear.x,
+          *recovery_objects_,context_->vehicle_info,std::max(0.0,age))) {
+      for (auto & point:trajectory.points) {
+        point.longitudinal_velocity_mps=0.0;
+        point.acceleration_mps2=0.0;
+      }
+    }
+  }
 
   // Record the exact scene and ego used for this command. An independent recorder
   // can receive two topics in a different order and cannot infer this snapshot.

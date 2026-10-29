@@ -103,6 +103,7 @@ private:
 
   // publisher
   bvp_full_native::Publisher<autoware_planning_msgs::Path> path_pub_;
+  ros::Publisher recovery_stop_pub_;
   bvp_full_native::Publisher<visualization_msgs::MarkerArray> debug_viz_pub_;
   bvp_full_native::Publisher<Float64Stamped> processing_time_publisher_;
 

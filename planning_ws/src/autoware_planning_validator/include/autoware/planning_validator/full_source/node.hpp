@@ -38,6 +38,7 @@
 #include <diagnostic_msgs/DiagnosticArray.h>
 #include <geometry_msgs/AccelWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
+#include <autoware_perception_msgs/PredictedObjects.h>
 #include <sensor_msgs/PointCloud2.h>
 
 #include <ros/callback_queue.h>
@@ -83,6 +84,8 @@ private:
 
   // subscriber
   ros::Subscriber sub_trajectory_;
+  ros::Subscriber recovery_objects_sub_;
+  autoware_perception_msgs::PredictedObjects::ConstPtr recovery_objects_;
   ros::CallbackQueue static_scene_queue_;
   ros::WallTimer static_scene_timer_;
   ros::Subscriber sub_static_scene_;

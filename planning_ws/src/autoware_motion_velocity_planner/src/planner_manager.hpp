@@ -52,6 +52,7 @@ public:
     std::shared_ptr<autoware_utils_debug::DebugPublisher> & processing_time_publisher);
 
   size_t size() const { return loaded_plugins_.size(); }
+  bool externalStop() const { return external_stop_; }
   bool has_module(const std::string & name) const {
     return std::any_of(loaded_plugins_.begin(),loaded_plugins_.end(),
       [&](const auto & plugin){return plugin->getModuleName()==name;});
@@ -59,6 +60,7 @@ public:
   RequiredSubscriptionInfo getRequiredSubscriptions() const { return required_subscriptions_; }
 
 private:
+  bool external_stop_{false};
   pluginlib::ClassLoader<PluginModuleInterface> plugin_loader_;
   std::vector<std::shared_ptr<PluginModuleInterface>> loaded_plugins_;
   RequiredSubscriptionInfo required_subscriptions_;
