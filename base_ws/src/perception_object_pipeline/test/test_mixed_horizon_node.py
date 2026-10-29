@@ -620,7 +620,7 @@ class MixedHorizonStartupTest(unittest.TestCase):
 
     def test_invalid_optional_highway_horizon_still_starts_baseline(self):
         for value in (None, 'invalid', True, float('nan'), float('inf'), -1., 0.,
-                      2.9, 3., 8.05, 10., 1.e308):
+                      2.9, 3., 8.05, 10.1, 1.e308):
             with self.subTest(value=value):
                 node, publisher, subscriber, warning, loader = self.start(
                     {'~highway_prediction_horizon': value})

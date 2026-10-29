@@ -56,16 +56,17 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 | Map | 팀 production 소스는 `kcity_map/lanelet_map/lanelet2_map_v101.osm`로 고정. 실제 설치본·기존 프로세스의 `map_file`도 별도 확인. 아래 v100 실험은 그 당시 로컬 설정의 기록 |
 | Horizon | **로터리/일반 최대 3초·고주로 최대 10초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
 | Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
-| 경로 | start lanelet 최대 3개, 최종 path 최대 6개, centerline lateral convergence 1.5s |
+| 경로 | 일반/로터리는 start lanelet 최대 3개·최종 path 최대 6개 유지. 고주로 native는 `highway_current_lane_only=true`: 현재 중심이 속한 차로의 후속 경로 1개. centerline lateral convergence 1.5s |
 | 중복 hypothesis | 같은 downstream lanelet·전체 horizon 0.75m 이내 경로를 하나로 묶음 |
 | Confidence | heuristic route score 정규화. calibrated probability가 아님 |
 | Fallback | map 경로 없는 차량은 signed 속도 CTRV, 비차량은 Cartesian CV |
 
-현재 위치·yaw로 start lanelet을 순위화하고 routing graph successor를 열거한다. CTRV 곡률로 lane rank를 고르지 않는다. Centerline Map-CV와 road-Z 수렴을 유지하며 gravity-center 높이 offset의 미래 보존을 인증하지 않는다.
+일반/로터리는 현재 위치·yaw로 start lanelet을 순위화하고 routing graph successor를 열거한다. 고주로 단일 경로는 현재 중심의 실제 차로 경계·UUID별 이력으로 선택하고, 전방 후속 중 현재 차로 방향을 가장 잘 잇는 하나만 따른다. 실제 새 차로 진입 후 전환하며 `highway_lane_switch_margin_m=0.2`의 공간 여유로 경계 흔들림을 완충한다. 지도 차로 polygon이 겹치면 현재 중심선 정합이 이 여유 이상 우세해진 차로로 전환한다. 미래 분기를 미리 맞히는 정책이 아니며 출력 confidence 1은 단일 후보 정규화이지 정답 확률이 아니다. `tracking prediction_highway_current_lane_only:=false`로 기존 복수 경로 복귀 후 재시작한다.
+단일 경로 적용 지역은 현재 주변의 명시적 고주로(`speed_limit=150`) 차로로 제한하고, 짧은 지도 연결부에서 복수 경로가 깜박이지 않도록 UUID별 지역 이탈에 최대0.3초 여유를 둔다. 기존 10/3초 지역 판단은 유지하므로 이웃 후속 차로의 메타데이터가 다르면 단일 3초 경로일 수 있다. CTRV 곡률·GT·NPC goal·ego 경로·lanelet ID별 보정은 쓰지 않으며 지도·판단 코드는 변경하지 않는다. Centerline Map-CV와 road-Z 수렴을 유지하며 gravity-center 높이 offset의 미래 보존을 인증하지 않는다.
+사용자는 2026-10-29에 이 고주로 정책의 기본 ON·PR 병합을 승인했다. 단위/메시지 보존 검사와 실제 ROS 입력에서 단일 경로 출력을 확인했지만, 로컬 v100 폐루프 시험은 검출 약3.8Hz·이동 중 native Ego와 측위 위치의 큰 불일치가 섞여 최신 팀 v101/LAN 완주 인증으로 사용하지 않는다. 실제 정차·충돌 이력은 보존하며 CPU가 유일 원인이라고 단정하지 않는다. 중심이 새 차로에 진입하기 전 분기 의도를 미리 맞히지 못하고, 현재 차로 정합 불가·정책 예외에는 기존 예측으로 복귀하므로 모든 경계 프레임에서 한 경로를 보장하지 않는다. 원본 입력·실제 영상·시각 정합 감사는 로컬 `planner_logs/analysis/261029_highway_live/`에 보존했고, 별도 시험용 seam-v3·측위/시간 보정은 이 배포에 포함하지 않는다.
 geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 동등성을 검증한 계산 최적화다.
 [오프라인 CPU 근거](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
-현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다.
-실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
+현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다. 실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
 
 ## 승격 범위와 선택적 후보
 

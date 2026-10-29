@@ -45,6 +45,8 @@
   <arg name="prediction_mixed_horizon_enabled" default="true"/>
   <arg name="prediction_highway_horizon" default=""/>
   <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="stationary_unknown_uuid_continuity" default="true"/>
@@ -156,6 +158,8 @@
       <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
       <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
       <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
+      <arg name="prediction_highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+      <arg name="prediction_highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
       <arg name="map_file"
            value="$(arg map_file)"/>
       <arg name="projector_file"

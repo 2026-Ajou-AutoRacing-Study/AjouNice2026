@@ -41,6 +41,7 @@ from perception_object_pipeline.message_copy import (
 from perception_object_pipeline.time_conversion import builtin_duration_from_seconds
 from perception_object_pipeline.node_processing_timing import NodeProcessingTiming
 from perception_object_pipeline.vehicle_only_corridor import VehicleOnlyCorridor
+from perception_object_pipeline.mixed_horizon import _track_key
 
 
 def _copy_common_fields(tracked) -> PredictedObject:
@@ -72,6 +73,18 @@ def _kinematic_path(tracked, horizons) -> PredictedPath:
     return path
 
 
+def _highway_lane_margin(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("highway_lane_switch_margin_m must be a finite number in [0,1]")
+    try:
+        value = float(value)
+    except OverflowError as error:
+        raise ValueError("highway_lane_switch_margin_m must be a finite number in [0,1]") from error
+    if not math.isfinite(value) or not 0. <= value <= 1.:
+        raise ValueError("highway_lane_switch_margin_m must be a finite number in [0,1]")
+    return value
+
+
 class MixedHorizonExtension:
     """Select native highway coverage or the legacy append-only experiment.
 
@@ -84,7 +97,8 @@ class MixedHorizonExtension:
     """
 
     def __init__(self, network, horizons, extended_horizons, selector, mode='append',
-                 highway_direction_recovery=False):
+                 highway_direction_recovery=False, highway_current_lane_only=False,
+                 highway_lane_switch_margin_m=.2):
         if mode not in ('append', 'native'):
             raise ValueError("highway prediction mode must be append or native")
         self.network = network
@@ -93,6 +107,17 @@ class MixedHorizonExtension:
         self.selector = selector
         self.mode = mode
         self.highway_direction_recovery = highway_direction_recovery
+        if not isinstance(highway_current_lane_only, bool):
+            raise ValueError("highway_current_lane_only must be a boolean")
+        self.highway_current_lane_only = highway_current_lane_only and mode == 'native'
+        self.highway_lane_switch_margin_m = _highway_lane_margin(highway_lane_switch_margin_m)
+        self.lane_policy = None
+        if self.highway_current_lane_only:
+            from perception_object_pipeline.highway_lane_policy import HighwayCurrentLanePolicy
+            self.lane_policy = HighwayCurrentLanePolicy(
+                network, boundary_hysteresis_m=self.highway_lane_switch_margin_m)
+        self._highway_neighborhood_seen = {}
+        self._lane_region_stamp = None
         self.recovered_yaw = None
         self.lock = threading.RLock()
         self.extended_objects = 0
@@ -103,6 +128,8 @@ class MixedHorizonExtension:
         self.direction_recovered_objects = 0
         self.native_short_objects = 0
         self.native_kinematic_objects = 0
+        self.current_lane_objects = 0
+        self.current_lane_errors = 0
 
     def begin(self, message):
         self.frame_available = True
@@ -114,9 +141,23 @@ class MixedHorizonExtension:
         self.direction_recovered_objects = 0
         self.native_short_objects = 0
         self.native_kinematic_objects = 0
+        self.current_lane_objects = 0
+        self.current_lane_errors = 0
         try:
             self.selector.prune(message.header.stamp.to_sec(),
                                 [tracked.object_id.uuid for tracked in message.objects])
+            if self.lane_policy is not None:
+                stamp = message.header.stamp.to_sec()
+                self.lane_policy.prune(stamp,
+                                       [tracked.object_id.uuid for tracked in message.objects])
+                if (not math.isfinite(stamp) or self._lane_region_stamp is not None
+                        and stamp < self._lane_region_stamp):
+                    self._highway_neighborhood_seen.clear()
+                self._lane_region_stamp = stamp
+                active = {_track_key(tracked.object_id.uuid) for tracked in message.objects}
+                self._highway_neighborhood_seen = {
+                    key: seen for key, seen in self._highway_neighborhood_seen.items()
+                    if key in active and 0. <= stamp - seen <= .3}
         except Exception as error:
             self.frame_available = False
             self._error(error)
@@ -196,7 +237,68 @@ class MixedHorizonExtension:
     def _complete_native_routes(self, tracked, trajectories):
         return self._complete_map_routes(tracked, trajectories, self.extended_horizons)
 
-    def _native_prediction(self, tracked, baseline_trajectories):
+    def _current_lane(self, tracked, stamp):
+        """Geographic highway policy, not a confidence-based Top1 filter.
+
+        A nearby highway lane defines the local region. The selected current
+        lane may be its non-150 successor, e.g. the physically opening lane.
+        This does not broaden the separate 10-second eligibility contract.
+        """
+        if self.lane_policy is None:
+            return None
+        identity = tracked.object_id.uuid
+        key = _track_key(identity)
+        if dominant_label(tracked) not in VEHICLE_LABELS:
+            self.lane_policy.forget(identity)
+            self._highway_neighborhood_seen.pop(key, None)
+            return None
+        pose = tracked.kinematics.pose_with_covariance.pose
+        yaw = (quaternion_to_yaw(pose.orientation) if self.recovered_yaw is None
+               else self.recovered_yaw)
+        candidates = self.network.lane_candidates(pose.position.x, pose.position.y, yaw)
+        nearby_highway = any(candidate.lanelet_id in self.selector.highway_lanelet_ids
+                             for candidate in candidates)
+        stamp_sec = stamp.to_sec()
+        if nearby_highway and key is not None:
+            self._highway_neighborhood_seen[key] = stamp_sec
+            while len(self._highway_neighborhood_seen) > 512:
+                self._highway_neighborhood_seen.pop(next(iter(self._highway_neighborhood_seen)))
+        last_nearby = self._highway_neighborhood_seen.get(key)
+        # The map has short seams between 150-tagged and ordinary successor
+        # lanelets. Do not flash back to Top-K for a few callbacks at a seam.
+        # This grace affects ONLY single-path selection, never 10s eligibility.
+        region_grace = (last_nearby is not None and math.isfinite(stamp_sec)
+                        and 0. <= stamp_sec - last_nearby <= .3)
+        if not nearby_highway and not region_grace:
+            self.lane_policy.forget(identity)
+            self._highway_neighborhood_seen.pop(key, None)
+            return None
+        if not nearby_highway:
+            self._reason('current_lane_region_seam_grace')
+        speed = tracked.kinematics.twist_with_covariance.twist.linear.x
+        if abs(speed) < self.network.config.minimum_speed_mps:
+            speed = max(0., speed)
+        decision = self.lane_policy.select(
+            identity, stamp.to_sec(), pose.position.x, pose.position.y, yaw,
+            speed)
+        self._reason('current_lane_' + decision.reason)
+        if decision.lanelet_id is not None:
+            self.current_lane_objects += 1
+        return decision.lanelet_id
+
+    def _lane_prediction(self, tracked, horizons, lanelet_id):
+        pose = tracked.kinematics.pose_with_covariance.pose
+        speed = tracked.kinematics.twist_with_covariance.twist.linear.x
+        if abs(speed) < self.network.config.minimum_speed_mps:
+            speed = max(0., speed)
+        return self.network.predict(
+            x=pose.position.x, y=pose.position.y, z=pose.position.z,
+            yaw=(quaternion_to_yaw(pose.orientation) if self.recovered_yaw is None
+                 else self.recovered_yaw), speed=speed, horizons=horizons,
+            truncate_at_route_end=True, allow_low_speed=True,
+            start_lanelet_ids=(lanelet_id,), single_route=True)
+
+    def _native_prediction(self, tracked, baseline_trajectories, lanelet_id=None):
         """Use the available map-only prefix up to the requested highway cap."""
         pose = tracked.kinematics.pose_with_covariance.pose
         speed = tracked.kinematics.twist_with_covariance.twist.linear.x
@@ -205,17 +307,21 @@ class MixedHorizonExtension:
         yaw = (quaternion_to_yaw(pose.orientation) if self.recovered_yaw is None
                else self.recovered_yaw)
         try:
-            if self.recovered_yaw is not None:
+            if lanelet_id is not None:
+                baseline_trajectories = self._lane_prediction(tracked, self.horizons, lanelet_id)
+                native = self._lane_prediction(tracked, self.extended_horizons, lanelet_id)
+            elif self.recovered_yaw is not None:
                 self.direction_recovered_objects += 1
                 self._reason('highway_direction_recovered')
                 baseline_trajectories = self.network.predict(
                     x=pose.position.x, y=pose.position.y, z=pose.position.z,
                     yaw=yaw, speed=speed, horizons=self.horizons, truncate_at_route_end=True,
                     allow_low_speed=True)
-            native = self.network.predict(
-                x=pose.position.x, y=pose.position.y, z=pose.position.z,
-                yaw=yaw, speed=speed,
-                horizons=self.extended_horizons, truncate_at_route_end=True, allow_low_speed=True)
+            if lanelet_id is None:
+                native = self.network.predict(
+                    x=pose.position.x, y=pose.position.y, z=pose.position.z,
+                    yaw=yaw, speed=speed,
+                    horizons=self.extended_horizons, truncate_at_route_end=True, allow_low_speed=True)
             if self._complete_native_routes(tracked, native):
                 self.output_horizons = self.extended_horizons
                 self.extended_objects += 1
@@ -228,7 +334,7 @@ class MixedHorizonExtension:
             failure = 'exception'
         self.native_short_objects += 1
         self._reason('native_short_' + failure)
-        # Preserve valid short Map-CV including all hypotheses/confidences.
+        # Preserve the selected current-lane short Map-CV, including real ends.
         # If it is empty, the ordinary converter produces baseline CTRV.
         # Never replace a good map prefix with long CTRV or invented road.
         return baseline_trajectories
@@ -250,16 +356,30 @@ class MixedHorizonExtension:
                 # removal and its bounded per-ID cache.
                 self.selector.decide(tracked.object_id.uuid, stamp.to_sec(),
                                      float('nan'), current.position.y, speed, ())
+                if self.lane_policy is not None:
+                    self.lane_policy.forget(tracked.object_id.uuid)
+                    self._highway_neighborhood_seen.pop(_track_key(tracked.object_id.uuid), None)
                 self._reason('invalid_native_motion')
                 return trajectories
             decision = self.selector.decide(tracked.object_id.uuid, stamp.to_sec(),
                                             current.position.x, current.position.y,
                                             speed, self._eligibility_paths(tracked, trajectories))
             self._reason(decision.reason)
+            lanelet_id = None
+            try:
+                lanelet_id = self._current_lane(tracked, stamp)
+            except Exception as error:
+                self.current_lane_errors += 1
+                self._reason('current_lane_unavailable')
+                self._error(error)
             if not decision.extend:
+                if lanelet_id is not None:
+                    selected = self._lane_prediction(tracked, self.horizons, lanelet_id)
+                    if self._complete_map_routes(tracked, selected, self.horizons):
+                        return selected
                 return trajectories
             if self.mode == 'native':
-                return self._native_prediction(tracked, trajectories)
+                return self._native_prediction(tracked, trajectories, lanelet_id)
             if not trajectories:
                 return trajectories
             extended = self.network.extend_trajectories(
@@ -454,12 +574,25 @@ class MapBasedPredictionNode:
                     entry_confirm_sec=0. if mode == 'native' else .5)
                 if not selector.highway_lanelet_ids:
                     raise ValueError("no explicit highway lanelet metadata; using baseline")
+                current_lane_only = rospy.get_param('~highway_current_lane_only', False)
+                try:
+                    if not isinstance(current_lane_only, bool):
+                        raise ValueError('highway_current_lane_only must be a boolean')
+                    switch_margin = _highway_lane_margin(
+                        rospy.get_param('~highway_lane_switch_margin_m', .2))
+                except ValueError as error:
+                    current_lane_only, switch_margin = False, .2
+                    rospy.logwarn('[map_based_prediction] current-lane policy disabled: %s', error)
                 self.mixed_extension = MixedHorizonExtension(
                     self.network, self.horizons, extended_horizons, selector, mode=mode,
-                    highway_direction_recovery=bool(rospy.get_param('~highway_direction_recovery', True)))
+                    highway_direction_recovery=bool(rospy.get_param('~highway_direction_recovery', True)),
+                    highway_current_lane_only=current_lane_only,
+                    highway_lane_switch_margin_m=switch_margin)
                 rospy.loginfo("[map_based_prediction] optional mixed horizon ON: "
-                              "mode=%s baseline=%.1fs highway=%.1fs, highway_lanelets=%d",
-                              mode, self.prediction_horizon, extended_horizons[-1], len(selector.highway_lanelet_ids))
+                              "mode=%s baseline=%.1fs highway=%.1fs, highway_lanelets=%d current_lane_only=%s switch_margin=%.2fm",
+                              mode, self.prediction_horizon, extended_horizons[-1], len(selector.highway_lanelet_ids),
+                              self.mixed_extension.highway_current_lane_only,
+                              self.mixed_extension.highway_lane_switch_margin_m)
             except Exception as error:
                 rospy.logwarn("[map_based_prediction] optional mixed horizon disabled: %s; "
                               "continuing ordinary predictor", str(error))
@@ -590,7 +723,11 @@ class MapBasedPredictionNode:
                               mixed_native_map_objects=mixed_extension.native_map_objects,
                               mixed_direction_recovered_objects=mixed_extension.direction_recovered_objects,
                               mixed_native_short_objects=mixed_extension.native_short_objects,
-                              mixed_native_kinematic_objects=mixed_extension.native_kinematic_objects)
+                              mixed_native_kinematic_objects=mixed_extension.native_kinematic_objects,
+                              mixed_highway_current_lane_only=mixed_extension.highway_current_lane_only,
+                              mixed_highway_lane_switch_margin_m=mixed_extension.highway_lane_switch_margin_m,
+                              mixed_current_lane_objects=mixed_extension.current_lane_objects,
+                              mixed_current_lane_errors=mixed_extension.current_lane_errors)
             diagnostics.publish(String(data=json.dumps(sample, allow_nan=False, separators=(",", ":"))))
 
 
