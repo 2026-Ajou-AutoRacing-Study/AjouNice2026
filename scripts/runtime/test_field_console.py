@@ -633,6 +633,26 @@ class FieldConsoleClassification(unittest.TestCase):
         self.assertEqual(summary.render().level, 'QUIET')
         self.assertNotIn('idle', summary.render())
 
+    def test_rviz_recovered_input_health_keeps_history_without_permanent_yellow(self):
+        health = SimpleNamespace(snapshot=lambda: ('map P50 T10Hz', 'INFO'))
+        summary = self.module.Summary('planviz', width=32, health=health)
+        for _ in range(3):
+            summary.ingest('[ERROR] Tried to advertise a service that is already advertised')
+        self.assertEqual(summary.render().level, 'ERROR')
+        recovered = summary.render()
+        self.assertEqual(recovered.level, 'INFO')
+        self.assertIn('T10Hz', recovered)
+        self.assertIn('past3', recovered)
+        self.assertNotIn('~', recovered)
+        health.snapshot = lambda: ('path stale 2.0s', 'ERROR')
+        self.assertEqual(summary.render().level, 'ERROR')
+
+    def test_rviz_history_without_current_health_is_not_green(self):
+        summary = self.module.Summary('planviz', width=48)
+        summary.ingest('[ERROR] genuine failure')
+        summary.render()
+        self.assertEqual(summary.render().level, 'WARN')
+
     def test_topic_state_does_not_hide_transient_raw_error(self):
         health = SimpleNamespace(snapshot=lambda: ('V2 P1 O3 7.0Hz 100ms', 'INFO'))
         summary = self.module.Summary('bevfusion', health=health)

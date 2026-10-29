@@ -237,7 +237,7 @@ class TopicHealthTests(unittest.TestCase):
         for index in range(11):
             health.observe('global', N(header=header(200+index/10)), 100+index/10)
             health.observe('viz_path', self.path(200+index/10), 100+index/10)
-        self.assertEqual(health.snapshot(101.,201.05), ('map ready pose 10Hz path 10.0Hz', 'INFO'))
+        self.assertEqual(health.snapshot(101.,201.05), ('map P10 T10Hz', 'INFO'))
 
     def test_planviz_path_empty_stale_and_clock_mismatch_are_distinct(self):
         health = self.health('planviz')

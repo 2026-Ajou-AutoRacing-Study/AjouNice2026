@@ -1,4 +1,7 @@
 <library path="lib/libbringup_rviz_plugins">
+  <class name="bringup/ScopedImage" type="bringup::ScopedImageDisplay" base_class_type="rviz::Display">
+    <description>RViz Image with per-display compressed transport parameter services.</description>
+  </class>
   <class name="bringup/RosbagRecorder"
          type="bringup::RosbagRecorderPanel"
          base_class_type="rviz::Panel">

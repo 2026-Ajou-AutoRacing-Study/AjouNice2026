@@ -15,7 +15,10 @@ find_package(catkin REQUIRED COMPONENTS
   autoware_planning_msgs
   competition_route_requester
   geometry_msgs
+  image_transport
   nav_msgs
+  sensor_msgs
+  tf2_ros
   pluginlib
   roscpp
   rospy
@@ -128,7 +131,10 @@ catkin_package(
   autoware_planning_msgs
   competition_route_requester
   geometry_msgs
+  image_transport
   nav_msgs
+  sensor_msgs
+  tf2_ros
   pluginlib
   roscpp
   rospy
@@ -151,6 +157,8 @@ include_directories(
 )
 
 add_library(bringup_rviz_plugins SHARED
+  src/scoped_image_display.cpp
+  include/bringup/scoped_image_display.hpp
   src/rosbag_recorder_panel.cpp
   src/route_control_panel.cpp
   src/route_editor_panel.cpp
