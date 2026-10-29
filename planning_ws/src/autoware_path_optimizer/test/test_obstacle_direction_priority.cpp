@@ -19,7 +19,7 @@ TrajectoryPoint point(double x, double y = 0.0)
   return p;
 }
 
-PlannerData scene(double upper = 6.0)
+PlannerData scene(double upper = 6.0, double lower = -6.0)
 {
   PlannerData data;
   data.header.frame_id = "map";
@@ -30,7 +30,7 @@ PlannerData scene(double upper = 6.0)
   for (int i = 0; i <= 160; ++i) {
     data.traj_points.push_back(point(0.5 * i));
     data.left_bound.push_back(point(0.5 * i, upper).pose.position);
-    data.right_bound.push_back(point(0.5 * i, -6.0).pose.position);
+    data.right_bound.push_back(point(0.5 * i, lower).pose.position);
   }
   autoware_planning_msgs::StaticObstacle obstacle;
   for (const auto & xy : std::vector<std::pair<double, double>>{
@@ -137,11 +137,34 @@ TEST(ObstacleDirectionPriority, InfeasiblePreviousSideCanFallBackToOtherSide)
   EXPECT_EQ(trace["examined"], 2);
 }
 
-TEST(ObstacleDirectionPriority, NoHistoryKeepsCursorSearchOrder)
+TEST(ObstacleDirectionPriority, NoHistoryStartsOnWiderLeftSide)
 {
   DirectionHarness node;
-  const auto trace = node.run(scene(), {}, 1);
+  const auto trace = node.run(scene(6.0, -3.0), {}, 0);
   EXPECT_FALSE(trace.value("prefer_previous_direction", false));
+  EXPECT_EQ(trace["first_mask"], 1);
+  ASSERT_FALSE(trace["attempts"].empty());
+  EXPECT_EQ(trace["attempts"][0]["mask"], 1);
+  EXPECT_TRUE(trace["side_room"][0]["pass_left"].get<bool>());
+  EXPECT_NEAR(trace["side_room"][0]["left_gap"].get<double>(), 5.5, 1e-6);
+  EXPECT_NEAR(trace["side_room"][0]["right_gap"].get<double>(), 2.5, 1e-6);
+}
+
+TEST(ObstacleDirectionPriority, NoHistoryStartsOnWiderRightSide)
+{
+  DirectionHarness node;
+  const auto trace = node.run(scene(3.0, -6.0), {}, 1);
+  EXPECT_EQ(trace["first_mask"], 0);
+  EXPECT_FALSE(trace["side_room"][0]["pass_left"].get<bool>());
+}
+
+TEST(ObstacleDirectionPriority, NoHistoryEqualRoomUsesObstacleCenterNotCursor)
+{
+  DirectionHarness node;
+  auto data = scene();
+  for (auto & vertex : data.obstacles.front().polygon.points) vertex.y -= 0.03;
+  const auto trace = node.run(data, {}, 0);
+  // Room differs by 0.06 m (within tolerance); the center is right of the path.
   EXPECT_EQ(trace["first_mask"], 1);
 }
 }  // namespace
