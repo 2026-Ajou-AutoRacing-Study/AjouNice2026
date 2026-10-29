@@ -49,7 +49,7 @@ providers:
       max_pose_heading_stamp_delta_sec: 0.2
       max_official_gnss_heading_stamp_delta_sec: 0.5
       max_official_start_distance_m: 3.0
-      # Fail closed on the observed 1.347-degree missing/double-correction error.
+      # Diagnostic warning only; preserve the selected measured heading.
       max_official_yaw_error_deg: 1.0
       position_stddev_m: 0.1
       yaw_stddev_rad: 0.017453292519943295

@@ -127,17 +127,17 @@ class FieldConsoleCLI(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertRegex(self.screen(result), ERROR)
 
-    def test_log_path_failure_prevents_starting_child(self):
+    def test_log_path_failure_warns_but_still_starts_child(self):
         invalid = self.root / 'not-a-directory'
         invalid.write_text('occupied', encoding='utf-8')
-        marker = self.root / 'must-not-be-created'
+        marker = self.root / 'must-be-created'
         code = 'from pathlib import Path; Path({!r}).touch()'.format(str(marker))
         result = subprocess.run(self.command('run', invalid, '--', sys.executable,
                                              '-c', code),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 timeout=5)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(marker.exists(), 'child ran without raw-log evidence')
+        self.assertEqual(result.returncode, 2)  # Evidence failure, not a refused launch.
+        self.assertTrue(marker.exists(), 'log storage failure blocked the algorithm')
         self.assertRegex(self.screen(result), ERROR)
 
     def test_run_names_do_not_overwrite_previous_raw_evidence(self):
@@ -192,17 +192,19 @@ class FieldConsoleCLI(unittest.TestCase):
         self.assertTrue(self.raw_logs(), 'demo must also demonstrate where evidence is retained')
         self.assertTrue(any(path.stat().st_size for path in self.raw_logs()))
 
-    def test_nonfinite_or_zero_interval_cannot_start_a_child(self):
+    def test_invalid_display_timings_fall_back_without_blocking_child(self):
         marker = self.root / 'invalid-config-child'
         code = 'from pathlib import Path; Path({!r}).touch()'.format(str(marker))
-        for value in ('nan', 'inf', '0'):
-            with self.subTest(interval=value):
+        for option in ('--interval', '--stop-timeout'):
+          for value in ('nan', 'inf', '0', 'bad'):
+            with self.subTest(option=option, value=value):
                 result = subprocess.run(
-                    self.command('run', None, '--interval', value, '--',
+                    self.command('run', None, option, value, '--',
                                  sys.executable, '-c', code),
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertFalse(marker.exists())
+                self.assertEqual(result.returncode, 0, self.screen(result))
+                self.assertTrue(marker.exists())
+                marker.unlink()
 
     def test_narrow_or_invalid_display_width_never_rejects_child(self):
         for width in ('1', '12', '23', '0', '-1', 'nan', 'bad', '999999'):
@@ -837,8 +839,8 @@ class FieldTerminalAliasCLI(unittest.TestCase):
                               stderr=subprocess.PIPE, timeout=10)
 
     def test_bare_commands_default_to_compact_view_without_recursion(self):
-        for entry in ('udp', 'udp_lan', 'udp_competition', 'udp_lan_competition', 'sensing', 'sensing_lan', 'localization',
-                      'localization_mrp', 'bevfusion', 'tracking', 'traffic', 'planviz'):
+        for entry in ('udp', 'udp_lan', 'udp_competition', 'udp_lan_competition', 'udp_lan_competition_teamlead', 'sensing', 'sensing_lan', 'localization',
+                      'localization_mrp', 'localization_competition', 'bevfusion', 'tracking', 'traffic', 'planviz', 'planviz_competition'):
             with self.subTest(entry=entry):
                 before = len(list(self.log_dir.glob('*_console/*_raw.log')))
                 result = self.invoke_shell(entry, 'text:=a b', source_twice=True)
@@ -860,6 +862,32 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         result = self.invoke_shell('traffic')
         self.assertEqual(result.returncode, 0, (result.stdout+result.stderr).decode())
         self.assertTrue(self.argv.exists())
+
+    def test_session_pointer_failure_does_not_prevent_starting_algorithm(self):
+        self.environment['AJOUNICE_FIELD_LOG_POINTER'] = str(self.root / 'missing-parent' / 'pointer')
+        result = self.invoke_shell('traffic')
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+        self.assertTrue(self.argv.exists())
+
+    def test_unwritable_log_path_still_starts_algorithm(self):
+        invalid = self.root / 'not-a-directory'
+        invalid.write_text('occupied')
+        self.environment['AJOUNICE_FIELD_LOG_DIR'] = str(invalid)
+        result = self.invoke_shell('traffic')
+        self.assertEqual(result.returncode, 2, (result.stdout + result.stderr).decode())
+        self.assertTrue(self.argv.exists())
+        self.assertIn(b'raw write failed', result.stdout + result.stderr)
+
+    def test_competition_view_and_localization_aliases_do_not_change_developer_defaults(self):
+        for original in (False, True):
+            for entry, flag in (('localization_competition', 'initial_position_source:=official_start'),
+                                ('planviz_competition', 'show_morai_gt:=false')):
+                result = self.invoke_shell(entry, original=original)
+                self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+                self.assertIn(flag, json.loads(self.argv.read_text()))
+            result = self.invoke_shell('localization', original=original)
+            self.assertEqual(result.returncode, 0)
+            self.assertFalse(any(a.startswith('initial_position_source:=') for a in json.loads(self.argv.read_text())))
 
     def test_lan_profile_overrides_and_metacharacters_are_literal_for_both_views(self):
         injection = self.root / 'injection-must-not-run'
@@ -894,6 +922,7 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         for entry, args, suffix in (
                 ('udp_competition', [], 'local'),
                 ('udp_lan_competition', [], 'lan'),
+                ('udp_lan_competition_teamlead', [], 'lan_jihun'),
                 ('udp_lan_competition', ['profile:=teamlead'], 'lan_jihun')):
             for original in (False, True):
                 with self.subTest(entry=entry, args=args, original=original):
@@ -902,6 +931,7 @@ class FieldTerminalAliasCLI(unittest.TestCase):
                     argv = json.loads(self.argv.read_text())
                     self.assertIn('enable_ego_vehicle_status:=false', argv)
                     self.assertIn('enable_object_info:=false', argv)
+                    self.assertIn('sensor_config:=' + str(self.repo / ('configs/sensors/Sensor_competition_' + suffix + '.json')), argv)
                     self.assertIn('network_config:=' + str(self.repo / ('configs/network/ego_network_competition_' + suffix + '.json')), argv)
 
 

@@ -151,9 +151,10 @@ state 약50Hz 연속성과 실제 위치 정확도는 별개다.
 localization initial_position_source:=official_start
 ```
 
-v85 규칙의 `start_finish.xyz`를 `morai_map -> map`으로 변환하고 yaw는 보정된
-Competition heading을 사용한다. 공식 yaw와 차이 `1 deg` 초과, START와 GNSS 거리
-`3 m` 초과, GNSS/heading stamp 차이 `0.5 s` 초과면 초기화를 거부한다.
+규칙의 `start_finish.xyz`를 `morai_map -> map`으로 변환하고 yaw는 보정된
+Competition heading을 사용한다. 공식 yaw와 차이 `1 deg` 초과는 경고만 남기고 관측
+heading으로 초기화한다. START와 GNSS 거리 `3 m` 초과, GNSS/heading stamp 차이
+`0.5 s` 초과면 고정 START 위치를 잘못 적용하지 않도록 초기화를 대기한다.
 이 모드는 Ego를 구독/대기하지 않는다. [현장 원본·Ego 미사용 명령](../../configs/morai_field_reference/README.md#합의한-대회-실행-기준)을 함께 따른다.
 MR 로컬 출발 정합은 통과했으나 새 LAN 검증 완료는 아니다. `Published GNSS+IMU initial pose from official_start` 로그와
 `/localization/initialpose`를 확인한다. EKF는 센서만으로도 출력할 수 있어 odom 발행만으로

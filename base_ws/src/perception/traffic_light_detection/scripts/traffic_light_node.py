@@ -223,10 +223,13 @@ class TrafficLightNode:
         self.debug_save_crop_dir = rospy.get_param("~debug_save_crop_dir", "")
         self._save_crop_count = 0
         if self.debug_save_crop_dir:
-            os.makedirs(self.debug_save_crop_dir, exist_ok=True)
-            rospy.loginfo(
-                f"[Traffic] 충돌 크롭 저장: {self.debug_save_crop_dir}"
-            )
+            try:
+                os.makedirs(self.debug_save_crop_dir, exist_ok=True)
+            except (OSError, ValueError, TypeError) as error:
+                rospy.logwarn("[Traffic] optional crop saving disabled: %s", error)
+                self.debug_save_crop_dir = ""
+            else:
+                rospy.loginfo(f"[Traffic] 충돌 크롭 저장: {self.debug_save_crop_dir}")
 
         self.status = _StatusLog(float(rospy.get_param("~log_interval_sec", 1.0)))
 
@@ -460,11 +463,16 @@ class TrafficLightNode:
     def _maybe_save_conflict_crop(self, crop, raw_color_results):
         if not self.debug_save_crop_dir:
             return
-        self._save_crop_count += 1
-        summary = "+".join(f"{c}_{s}" for c, s, _l in raw_color_results).replace("/", "-")
-        fname = f"conflict_{int(_time_module.time() * 1000)}_{self._save_crop_count:04d}_{summary}.png"
-        fpath = os.path.join(self.debug_save_crop_dir, fname)
-        cv2.imwrite(fpath, crop)
+        try:
+            self._save_crop_count += 1
+            summary = "+".join(f"{c}_{s}" for c, s, _l in raw_color_results).replace("/", "-")
+            fname = f"conflict_{int(_time_module.time() * 1000)}_{self._save_crop_count:04d}_{summary}.png"
+            fpath = os.path.join(self.debug_save_crop_dir, fname)
+            if not cv2.imwrite(fpath, crop):
+                raise OSError("OpenCV could not write the debug crop")
+        except (OSError, cv2.error, ValueError, TypeError) as error:
+            rospy.logwarn("[Traffic] optional crop saving disabled: %s", error)
+            self.debug_save_crop_dir = ""
 
     def image_callback(self, msg):
         now = rospy.Time.now()

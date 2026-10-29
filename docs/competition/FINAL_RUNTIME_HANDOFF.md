@@ -28,20 +28,45 @@ Ego·Object 기본 ON을 유지한다. 본선 실행에 validator를 쓰지 않�
 | 환경 | UDP 명령 | Sensor TF |
 |---|---|---|
 | luv 로컬 무GT 시험 | `udp_competition` | `sensing` |
-| 팀장님 LAN 무GT 시험 | `udp_lan_competition profile:=teamlead` | `sensing_lan` |
+| 팀장님 LAN 무GT 시험 | `udp_lan_competition_teamlead` | `sensing_lan` |
 | 본선 LAN | `udp_lan_competition` | `sensing_lan` |
 
 팀장님 주소는 `10.42.0.252 → 10.42.0.1`, 본선은 `192.168.0.1 → 192.168.0.10`이다.
 팀장님 프로필은 기존 `*_lan_jihun.json` Network·Sensor를 읽는다.
+이전 `udp_lan_competition profile:=teamlead` 명령도 같은 동작으로 호환 유지한다.
 두 LAN 프로필의 차이는 IP뿐이며 포트·센서 배치는 동일함을 대조했다.
 TF 생성은 센서 IP를 쓰지 않으므로 기존 `sensing_lan`을 유지한다.
 기존 명시적 `network_config:=... sensor_config:=...` 경로 인자도 그대로 전달한다.
 Ego·Object를 true로 덮어쓰는 인자는 대회 진입점에서 거부하고 개발용 명령을 안내한다.
 
 **측위는 반드시 `localization initial_position_source:=official_start`로 실행한다.**
+같은 인자를 고정한 `localization_competition`도 제공한다.
 bare `localization`의 개발 기본은 첫 Ego 위치를 기다리므로 무GT 입력에서는 사용하지 않는다.
 checkpoint 복귀 시 START 초기화를 반복 적용하지 않는다.
 기존 인지·판단·제어 실행 순서와 파라미터는 이번 변경 대상이 아니다.
+
+대회 화면은 `planviz_competition` 또는 `planviz show_morai_gt:=false`다.
+속도 HUD는 개발/대회 모두 Competition을 읽는다. GT OFF이면 박스 표시뿐 아니라
+RViz 녹화 대상에서도 Ego/Object를 제외하고 Competition은 항상 기록한다.
+기본 `planviz`의 개발용 GT 표시는 유지한다. `od_gt`, `localization_mrp`,
+개발용 `judge`, validator·GNSS 지연 측정은 GT 의존성이 있어 본선 실행에서 제외한다.
+
+## 실행 제한 점검: 소스 변경, 실주행 미검증
+
+- 특정 v101 버전 문자열·절대 경로만 허용하던 launch gate를 제거했다.
+  기본 지도는 v101 그대로이며 실제 파일·좌표계·명시한 SHA 일치 검사는 유지한다.
+  다른 지도를 명시할 때는 planning·tracking·traffic의 지도와 경로 정의도 함께 맞춘다.
+- 요약 로그 세션/원문 파일 생성 실패는 경고하고 알고리즘을 시작한다.
+  잘못된 표시 주기·종료 대기시간은 기본값으로 복귀하며 주행 인자를 바꾸지 않는다.
+  기록 실패 시 원문 증거가 없고, 자식이 종료된 뒤 wrapper가 기록 실패 코드2를 반환할 수 있다.
+- 공식 START의 yaw 차이1도는 초기화를 막지 않고 경고만 한다. 실제 보정된
+  Competition yaw를 사용하며 공식 yaw로 덮어쓰지 않는다. 다른 위치를 START로
+  강제 초기화하지 않도록 GNSS 거리3m·freshness·TF 보호는 유지한다.
+- 필수 모델/센서/지도 파일 누락·잘못된 형식·중복 제어/검출·금지 GT 활성화 방지는 유지한다.
+  본선 실행 제한을 푼다는 이유로 잘못된 입력을 정상 데이터처럼 사용하지 않는다.
+
+위 변경은 MORAI·실행 노드·설치본을 건드리지 않고 오프라인 검사한다.
+HUD/launch/초기화기 설치본 반영은 별도 패키지 설치 후 새 실행부터 적용된다.
 
 ## 빌드와 전달
 
@@ -58,6 +83,20 @@ source scripts/workspace/source_aw149.sh
 cache가 없거나 다른 checkout을 가리키면 위 명령을 억지로 실행하지 않고 해당 PC의
 기존 AW149 빌드 절차로 패키지를 구성한다. 소스·설치 launch의 `enable_object_info`를
 확인한다. 새 PR·머지 전에는 팀장님에게 적용 완료로 안내하지 않는다.
+
+후속 HUD·초기화·launch 제한 완화까지 받는 PC는 `sensor_interface`만 설치해서는
+부족하다. 스택을 종료한 뒤 아래 패키지의 설치본도 갱신한다(동일 checkout의 기존
+AW149 build cache 기준). 설치 후 각 터미널에서 `source ~/AjouNice2026/docs/common_alias.txt`를
+실행한다. 저장소 경로가 다르면 그 checkout 경로를 사용한다.
+
+```bash
+for pkg in bringup localization_manager traffic_light_detection perception_object_pipeline ajounice_planning_integration; do
+  cmake --build "base_ws/build_aw149/$pkg" --target install -- -j2 || break
+done
+```
+
+모든 패키지 설치가 성공한 뒤 실행한다. 이 변경은 tracker 서브모듈·지도·가중치나
+planning/control 알고리즘을 변경하지 않으며, 다른 작업 중인 로컬 설치본에는 자동 적용하지 않는다.
 
 ## 검증 범위
 

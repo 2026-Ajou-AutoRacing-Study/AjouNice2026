@@ -25,9 +25,10 @@ case "$entry" in
   rc|planning|traj_fol|traj_fol_a|traj_fol_global) component= ;;
   udp|udp_lan) component="$entry" ;;
   udp_competition) component=udp ;;
-  udp_lan_competition) component=udp_lan ;;
+  udp_lan_competition|udp_lan_competition_teamlead) component=udp_lan ;;
   sensing|sensing_lan) component=sensing ;;
-  localization|localization_mrp) component=localization ;;
+  localization|localization_mrp|localization_competition) component=localization ;;
+  planviz_competition) component=planviz ;;
   bevfusion|tracking|traffic|planviz) component="$entry" ;;
   *) echo "unsupported command: $entry" >&2; exit 2 ;;
 esac
@@ -41,10 +42,13 @@ if $original || [[ -z "$component" ]]; then
     eval "$entry \"\$@\""
   ' field-original "$entry" "$@"
 fi
-prefix="$(field_log_prefix 2>/dev/null)" || {
-  field_log_new >/dev/null || exit
-  prefix="$(field_log_prefix)" || exit
-}
+if ! prefix="$(field_log_prefix 2>/dev/null)"; then
+  field_log_new >/dev/null || true
+  if ! prefix="$(field_log_prefix 2>/dev/null)"; then
+    echo 'Console session unavailable; continuing with independent logging' >&2
+    prefix="${AJOUNICE_FIELD_LOG_DIR:-$AJOUNICE_ROOT/artifacts/field_logs}/unshared_$$"
+  fi
+fi
 
 # Expand only a fixed, validated alias name, never user-provided shell text.
 # "$@" remains positional argv even with spaces, quotes or shell metacharacters.

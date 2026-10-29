@@ -282,6 +282,7 @@ install(
 ## Add folders to be run by python nosetests
 if(CATKIN_ENABLE_TESTING)
   catkin_add_nosetests(test/test_planning_rviz_defaults.py)
+  catkin_add_nosetests(test/test_planning_vehicle_overlay.py)
   catkin_add_nosetests(test/test_planning_route_editor.py)
   catkin_add_nosetests(test/test_planning_trajectory_visualizer.py)
   catkin_add_nosetests(test/test_kcity_dynamic_ego_validator.py)

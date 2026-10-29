@@ -58,6 +58,7 @@ alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.lau
 alias udp_lan_dev='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias udp_lan_competition='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile lan'
+alias udp_lan_competition_teamlead='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile teamlead'
 alias sensing="roslaunch bringup sensing.launch"
 alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
@@ -91,6 +92,7 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 # Optional: localization gnss_delay_ms:=20 (position advance, not an added wait).
 # Keep per-PC candidates explicit; bare localization remains compensation OFF.
 alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
+alias localization_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition initial_position_source:=official_start use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
 # Read-only manual recorder, or the real validator's complete calibration mode.
 alias gnss_delay_record='bash "$AJOUNICE_ROOT/scripts/evaluation/localization/record_gnss_delay.sh"'
 alias gnss_delay_validator='bash "$AJOUNICE_ROOT/planning_validator" --gnss-delay-calibration'
@@ -210,6 +212,7 @@ origin() {
 # planning-----------------------------------------------
 alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
 alias planviz='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch'
+alias planviz_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch show_morai_gt:=false'
 alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
 alias pvgui='"$AJOUNICE_ROOT/planning_validator_gui"'
 alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
@@ -224,12 +227,15 @@ if [[ "${AJOUNICE_ORIGINAL_COMMANDS:-0}" != 1 ]]; then
   alias udp_lan='field udp_lan'
   alias udp_competition='field udp_competition'
   alias udp_lan_competition='field udp_lan_competition'
+  alias udp_lan_competition_teamlead='field udp_lan_competition_teamlead'
   alias sensing='field sensing'
   alias sensing_lan='field sensing_lan'
   alias localization='field localization'
+  alias localization_competition='field localization_competition'
   alias localization_mrp='field localization_mrp'
   alias bevfusion='field bevfusion'
   alias tracking='field tracking'
   alias traffic='field traffic'
   alias planviz='field planviz'
+  alias planviz_competition='field planviz_competition'
 fi

@@ -55,6 +55,24 @@ class PlanningRvizDefaultsTest(unittest.TestCase):
         self.assertEqual(len(maps), 1)
         self.assertTrue(maps[0]["Enabled"])
 
+    def test_speed_overlay_uses_competition_without_ego_fallback(self):
+        launch = ET.parse(PACKAGE_ROOT / "launch" / "aw149_planning_rviz.launch")
+        self.assertEqual(launch.find("arg[@name='vehicle_status_topic']").get('default'), '/Competition_topic')
+        overlay = launch.find("node[@name='planning_vehicle_overlay']")
+        self.assertEqual(overlay.find("param[@name='vehicle_status_topic']").get('value'), '$(arg vehicle_status_topic)')
+
+    def test_no_gt_recording_excludes_ego_object_and_keeps_competition(self):
+        launch = ET.parse(PACKAGE_ROOT / "launch" / "aw149_planning_rviz.launch")
+        expression = launch.find("arg[@name='rosbag_gt_topics']").get('default')
+        self.assertTrue(expression.startswith('$(eval ') and expression.endswith(')'))
+        for enabled in (True, False):
+            gt = eval(expression[7:-1], {'__builtins__': {}}, {'arg': lambda name: enabled})
+            topics = launch.find("node[@name='aw149_planning_rviz']/param[@name='rosbag_topics']").get('value')
+            topics = topics.replace('$(arg rosbag_gt_topics)', gt).split()
+            self.assertIn('/Competition_topic', topics)
+            self.assertEqual('/Ego_topic' in topics, enabled)
+            self.assertEqual('/Object_topic' in topics, enabled)
+
 
 if __name__ == "__main__":
     unittest.main()
