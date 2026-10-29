@@ -47,6 +47,8 @@
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
   <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <arg name="hold_stationary_output_pose" default="true"/>
+  <arg name="planning_ownership_config" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml"/>
   <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <!-- Preserve the planning baseline. BEVFusion hosts may explicitly override
        this to 0.5 s when measured detector age exceeds 0.25 s. -->
@@ -113,6 +115,8 @@
 
   <group if="$(arg start_object_pipeline)">
     <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+      <arg name="hold_stationary_output_pose" value="$(arg hold_stationary_output_pose)"/>
+      <arg name="planning_ownership_config" value="$(arg planning_ownership_config)"/>
       <arg name="map_version" value="$(arg map_version)"/>
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>

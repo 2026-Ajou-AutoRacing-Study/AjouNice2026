@@ -27,6 +27,8 @@
   <!-- Offline A/B overrides; production defaults match config.yaml. -->
   <arg name="tracker_prediction_model" default="1"/>
   <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <arg name="hold_stationary_output_pose" default="true"/>
+  <arg name="planning_ownership_config" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml"/>
   <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <arg name="tracker_fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="tracker_pedestrian_gaussian_association_ranking" default="true"/>
@@ -76,6 +78,8 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+    <arg name="hold_stationary_output_pose" value="$(arg hold_stationary_output_pose)"/>
+    <arg name="planning_ownership_config" value="$(arg planning_ownership_config)"/>
     <arg name="stationary_unknown_uuid_continuity"
          value="$(arg stationary_unknown_uuid_continuity)"/>
     <arg name="suppress_small_unknown_duplicate_birth"
