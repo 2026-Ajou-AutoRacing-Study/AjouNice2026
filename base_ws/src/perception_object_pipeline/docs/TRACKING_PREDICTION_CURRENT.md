@@ -61,8 +61,7 @@ association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
 | Confidence | heuristic route score 정규화. calibrated probability가 아님 |
 | Fallback | map 경로 없는 차량은 signed 속도 CTRV, 비차량은 Cartesian CV |
 
-현재 위치·yaw로 start lanelet을 순위화하고 routing graph successor를 열거한다. CTRV 곡률로 lane rank를 고르지 않는다.
-Centerline Map-CV와 road-Z 수렴을 유지하며 gravity-center 높이 offset의 미래 보존을 인증하지 않는다.
+현재 위치·yaw로 start lanelet을 순위화하고 routing graph successor를 열거한다. CTRV 곡률로 lane rank를 고르지 않는다. Centerline Map-CV와 road-Z 수렴을 유지하며 gravity-center 높이 offset의 미래 보존을 인증하지 않는다.
 geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 동등성을 검증한 계산 최적화다.
 [오프라인 CPU 근거](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
 현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다.
