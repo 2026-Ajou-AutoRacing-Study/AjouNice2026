@@ -204,6 +204,46 @@ class FieldConsoleCLI(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(marker.exists())
 
+    def test_narrow_or_invalid_display_width_never_rejects_child(self):
+        for width in ('1', '12', '23', '0', '-1', 'nan', 'bad', '999999'):
+            with self.subTest(width=width):
+                marker = self.root / ('width-' + width)
+                code = 'from pathlib import Path; Path({!r}).touch()'.format(str(marker))
+                result = subprocess.run(self.command('run', None, '--width', width, '--',
+                                        sys.executable, '-c', code),
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+                self.assertEqual(result.returncode, 0, self.screen(result))
+                self.assertTrue(marker.exists())
+                self.assertNotIn('width must', self.screen(result))
+
+    def test_very_narrow_real_terminal_environment_does_not_reject_child(self):
+        env = dict(os.environ, COLUMNS='8', LINES='24')
+        result = self.run_child('print("narrow pane child ran")', env=env)
+        self.assertEqual(result.returncode, 0, self.screen(result))
+        self.assertIn(b'narrow pane child ran', self.raw_logs()[0].read_bytes())
+
+    @unittest.skipUnless(os.name == 'posix', 'PTY geometry')
+    def test_actual_eight_column_pty_does_not_reject_launch(self):
+        import fcntl
+        import pty
+        import struct
+        import termios
+        master, slave = pty.openpty()
+        try:
+            fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,8,0,0))
+            env = dict(os.environ)
+            env.pop('COLUMNS',None)
+            env.pop('LINES',None)
+            marker = self.root / 'pty-child-ran'
+            code = 'from pathlib import Path; Path({!r}).touch()'.format(str(marker))
+            result = subprocess.run(self.command('run',None,'--',sys.executable,'-c',code),
+                                    env=env,stdout=slave,stderr=slave,timeout=5)
+            self.assertEqual(result.returncode,0)
+            self.assertTrue(marker.exists())
+        finally:
+            os.close(slave)
+            os.close(master)
+
     @unittest.skipUnless(os.name == 'posix' and Path('/proc').exists(), 'Linux shutdown escalation')
     def test_unresponsive_managed_child_is_killed_after_grace_timeout(self):
         ready = self.root / 'ignoring-signal-pid'
@@ -712,6 +752,8 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         setup = self.repo / 'scripts/workspace/source_aw149.sh'
         setup.parent.mkdir(parents=True)
         setup.write_text('#!/usr/bin/env bash\nreturn 0\n', encoding='utf-8')
+        (self.repo / 'scripts/runtime/run_bevfusion.sh').write_text(
+            '#!/bin/bash\nroslaunch mock_bevfusion "$@"\n', encoding='utf-8')
         self.script = self.repo / 'scripts/runtime/field_terminal.sh'
         self.argv = self.root / 'mock-roslaunch-argv.json'
         self.mock = self.root / 'mock-roslaunch'
@@ -766,12 +808,70 @@ class FieldTerminalAliasCLI(unittest.TestCase):
         self.assertEqual(len(list(self.log_dir.glob('*_console/*_raw.log'))), 1)
 
     def test_other_teams_aliases_keep_exact_original_output(self):
-        for entry in ('planning', 'planviz', 'traj_fol_a'):
+        for entry in ('planning', 'traj_fol_a', 'traj_fol_global'):
             with self.subTest(entry=entry):
                 result = self.invoke(entry, 'example:=value')
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, b'[INFO] mocked roslaunch, no ROS was started\n')
                 self.assertEqual(list(self.log_dir.glob('*_console/*_raw.log')), [])
+
+    def test_planviz_is_summarized_but_original_output_is_saved(self):
+        result = self.invoke('planviz', 'show_morai_gt:=false')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(b'RVZ', result.stdout)
+        logs = list(self.log_dir.glob('*_console/*_raw.log'))
+        self.assertEqual(len(logs), 1)
+        self.assertIn(b'[INFO] mocked roslaunch', logs[0].read_bytes())
+        self.assertEqual(json.loads(self.argv.read_text()),
+                         ['bringup', 'aw149_planning_rviz.launch', 'show_morai_gt:=false'])
+
+    def invoke_shell(self, entry, *arguments, original=False, source_twice=False):
+        body = 'source "$AJOUNICE_ROOT/docs/common_alias.txt"\n'
+        if source_twice:
+            body += 'source "$AJOUNICE_ROOT/docs/common_alias.txt"\n'
+        body += 'entry="$1"; shift\n'
+        body += 'origin "$entry" "$@"' if original else r'''eval "$entry \"\$@\""'''
+        return subprocess.run(['/bin/bash', '--noprofile', '--norc', '-O', 'expand_aliases',
+                               '-c', body, 'alias-test', entry, *arguments],
+                              env=self.environment, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=10)
+
+    def test_bare_commands_default_to_compact_view_without_recursion(self):
+        for entry in ('udp', 'udp_lan', 'sensing', 'sensing_lan', 'localization',
+                      'localization_mrp', 'bevfusion', 'tracking', 'traffic', 'planviz'):
+            with self.subTest(entry=entry):
+                before = len(list(self.log_dir.glob('*_console/*_raw.log')))
+                result = self.invoke_shell(entry, 'text:=a b', source_twice=True)
+                self.assertEqual(result.returncode, 0, (result.stdout+result.stderr).decode())
+                self.assertEqual(json.loads(self.argv.read_text())[-1], 'text:=a b')
+                self.assertEqual(len(list(self.log_dir.glob('*_console/*_raw.log'))), before+1)
+
+    def test_origin_commands_bypass_summary_and_preserve_arguments(self):
+        for entry in ('udp_lan', 'sensing', 'localization', 'tracking', 'traffic', 'planviz'):
+            with self.subTest(entry=entry):
+                result = self.invoke_shell(entry, 'text:=a b', original=True)
+                self.assertEqual(result.returncode, 0, (result.stdout+result.stderr).decode())
+                self.assertEqual(result.stdout, b'[INFO] mocked roslaunch, no ROS was started\n')
+                self.assertEqual(json.loads(self.argv.read_text())[-1], 'text:=a b')
+        self.assertEqual(list(self.log_dir.glob('*_console/*_raw.log')), [])
+
+    def test_width_environment_cannot_reject_default_alias(self):
+        self.environment['AJOUNICE_FIELD_LOG_WIDTH'] = '4'
+        result = self.invoke_shell('traffic')
+        self.assertEqual(result.returncode, 0, (result.stdout+result.stderr).decode())
+        self.assertTrue(self.argv.exists())
+
+    def test_lan_profile_overrides_and_metacharacters_are_literal_for_both_views(self):
+        injection = self.root / 'injection-must-not-run'
+        args = ['network_config:=/home/jihun/network profiles/team.json',
+                'sensor_config:=/home/jihun/sensor.json',
+                'literal:=$(touch {})'.format(injection), 'semi:=x;y', 'quote:=a"b\'c']
+        for original in (False, True):
+            with self.subTest(original=original):
+                result = self.invoke_shell('udp_lan', *args, original=original)
+                self.assertEqual(result.returncode, 0, (result.stdout+result.stderr).decode())
+                self.assertEqual(json.loads(self.argv.read_text())[-len(args):],args)
+                self.assertFalse(injection.exists())
 
     def test_unsupported_entry_does_not_start_the_ros_mock(self):
         result = self.invoke('not-a-supported-command')
