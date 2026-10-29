@@ -101,6 +101,66 @@ std::vector<double> calcSegmentLengthVector(const std::vector<TrajectoryPoint> &
   }
   return segment_length_vector;
 }
+
+struct SideRoom
+{
+  double center_lateral;
+  double left_gap;  // NaN when the bound does not cross the obstacle station.
+  double right_gap;
+  bool pass_left;
+};
+
+// Search-order hint for an obstacle without a previous solution. Measured in the
+// reference frame nearest to the obstacle: prefer the side with more free room
+// between the polygon and the road bound, and fall back to passing opposite the
+// polygon center when the room is unknown or nearly equal. This only orders the
+// search; every candidate is still solved and validated against the current scene.
+std::optional<SideRoom> calcSideRoom(
+  const autoware_planning_msgs::StaticObstacle & obstacle,
+  const std::vector<TrajectoryPoint> & reference,
+  const std::vector<geometry_msgs::Point> & left_bound,
+  const std::vector<geometry_msgs::Point> & right_bound)
+{
+  const auto & polygon = obstacle.polygon.points;
+  if (polygon.empty() || reference.size() < 2) return std::nullopt;
+  geometry_msgs::Point center;
+  for (const auto & vertex : polygon) { center.x += vertex.x; center.y += vertex.y; }
+  center.x /= polygon.size(); center.y /= polygon.size();
+  const auto & pose = reference[autoware::motion_utils::findNearestIndex(reference, center)].pose;
+  const double yaw = tf2::getYaw(pose.orientation);
+  const auto to_local = [&](double x, double y) {
+    const double dx = x - pose.position.x, dy = y - pose.position.y;
+    return std::make_pair(std::cos(yaw)*dx + std::sin(yaw)*dy, -std::sin(yaw)*dx + std::cos(yaw)*dy);
+  };
+  double min_lateral = std::numeric_limits<double>::infinity();
+  double max_lateral = -std::numeric_limits<double>::infinity();
+  for (const auto & vertex : polygon) {
+    const double lateral = to_local(vertex.x, vertex.y).second;
+    min_lateral = std::min(min_lateral, lateral);
+    max_lateral = std::max(max_lateral, lateral);
+  }
+  // Lateral position where the bound crosses the reference normal at this station.
+  const auto bound_lateral = [&](const std::vector<geometry_msgs::Point> & bound) {
+    double best = std::numeric_limits<double>::quiet_NaN();
+    for (size_t i = 1; i < bound.size(); ++i) {
+      const auto a = to_local(bound[i - 1].x, bound[i - 1].y);
+      const auto b = to_local(bound[i].x, bound[i].y);
+      if (a.first * b.first > 0.0 || a.first == b.first) continue;
+      const double t = a.first / (a.first - b.first);
+      const double lateral = a.second + t * (b.second - a.second);
+      if (std::isnan(best) || std::abs(lateral) < std::abs(best)) best = lateral;
+    }
+    return best;
+  };
+  const double center_lateral = to_local(center.x, center.y).second;
+  const double left_gap = bound_lateral(left_bound) - max_lateral;
+  const double right_gap = min_lateral - bound_lateral(right_bound);
+  constexpr double room_tie_tolerance = 0.1;
+  const bool room_known = std::isfinite(left_gap) && std::isfinite(right_gap);
+  const bool pass_left = room_known && std::abs(left_gap - right_gap) > room_tie_tolerance
+    ? left_gap > right_gap : center_lateral < 0.0;
+  return SideRoom{center_lateral, left_gap, right_gap, pass_left};
+}
 }  // namespace
 
 PathOptimizer::PathOptimizer(
@@ -1451,6 +1511,25 @@ std::optional<std::vector<TrajectoryPoint>> PathOptimizer::optimizeObstacleCandi
       const double lateral = -std::sin(yaw)*(center.x-pose.position.x) +
                               std::cos(yaw)*(center.y-pose.position.y);
       if (lateral < 0.0) preferred_mask |= size_t{1} << o;
+    }
+  } else {
+    // Without a previous solution, start from the scene geometry instead of a
+    // fixed cursor order: a bounded search may examine only this first mask.
+    // The cursor still decides an obstacle whose room cannot be measured.
+    const size_t cursor_mask = preferred_mask;
+    preferred_mask = 0;
+    for (size_t o = 0; o < data.obstacles.size(); ++o) {
+      const auto room = calcSideRoom(
+        data.obstacles[o], data.traj_points, data.left_bound, data.right_bound);
+      const bool pass_left = room ? room->pass_left : (cursor_mask & (size_t{1} << o)) != 0;
+      if (pass_left) preferred_mask |= size_t{1} << o;
+      if (tracing) {
+        trace["side_room"].push_back(room ? nlohmann::json{
+          {"center_lateral", room->center_lateral},
+          {"left_gap", std::isfinite(room->left_gap) ? nlohmann::json(room->left_gap) : nlohmann::json()},
+          {"right_gap", std::isfinite(room->right_gap) ? nlohmann::json(room->right_gap) : nlohmann::json()},
+          {"pass_left", pass_left}} : nlohmann::json{{"pass_left", pass_left}, {"source", "cursor"}});
+      }
     }
   }
   const size_t first_mask = preferred_mask;

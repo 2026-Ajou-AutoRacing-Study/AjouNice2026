@@ -318,6 +318,9 @@ roundabout:
     default_stopline_margin: 0.3
     path_interpolation_ds: 0.1
     enable_pass_judge_before_default_stopline: true
+    # Experiment: after a physical stop, retain GO despite subsequent collision predictions.
+    latch_go_after_stop: true
+    go_after_stop_min_stop_duration: 0.5
   collision_detection:
     collision_detection_hold_time: 0.1
     min_predicted_path_confidence: 0.05

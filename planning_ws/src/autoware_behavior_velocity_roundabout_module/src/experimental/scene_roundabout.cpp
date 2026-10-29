@@ -167,6 +167,8 @@ bool RoundaboutModule::modifyPathVelocity(
   traceValue(decision_trace_, "ego_velocity_mps", planner_data.current_velocity->twist.linear.x);
   traceValue(decision_trace_, "early_pass_judge_enabled", planner_param_.common.enable_pass_judge_before_default_stopline);
   traceValue(decision_trace_, "hold_time_s", planner_param_.collision_detection.collision_detection_hold_time);
+  traceValue(decision_trace_, "go_after_stop_enabled", planner_param_.common.latch_go_after_stop);
+  traceValue(decision_trace_, "go_after_stop_min_stop_duration_s", planner_param_.common.go_after_stop_min_stop_duration);
 
   initializeRTCStatus();
 
@@ -184,12 +186,16 @@ bool RoundaboutModule::modifyPathVelocity(
   reactRTCApproval(decision_result, &path_msg, planner_data);
 
   traceValue(decision_trace_, "permanent_go_after", is_permanent_go_);
+  traceValue(decision_trace_, "stopped_observed", go_after_stop_latch_.stoppedObserved());
+  traceValue(decision_trace_, "go_after_stop_stop_duration_s", go_after_stop_latch_.stopDurationSec());
+  traceValue(decision_trace_, "go_after_stop_latched", go_after_stop_latch_.isLatched());
   traceValue(decision_trace_, "rtc_activated", isActivated());
   traceValue(decision_trace_, "decision", formatDecisionResult(decision_result, isActivated()));
   traceValue(decision_trace_, "collision_state", StateMachine::toString(collision_state_machine_.getState()));
   decision_trace_.message = std::holds_alternative<RoundaboutCollisionStop>(decision_result) ?
     "CollisionStop" : (std::holds_alternative<RoundaboutSafe>(decision_result) ? "Safe" :
-    (std::holds_alternative<RoundaboutOverPassJudge>(decision_result) ? "OverPassJudge" : "InternalError"));
+    (std::holds_alternative<RoundaboutOverPassJudge>(decision_result) ? "OverPassJudge" :
+    (std::holds_alternative<RoundaboutGoAfterStop>(decision_result) ? "GoAfterStop" : "InternalError")));
   for (size_t i = 0; i < path_msg.points.size(); ++i) {
     if (path_msg.points[i].point.longitudinal_velocity_mps < 0.01) {
       traceValue(decision_trace_, "output_first_zero_index", i);
@@ -355,6 +361,17 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(
   const std::string safety_diag =
     generateDetectionBlameDiagnosis(too_late_detect_objects, misjudge_objects);
 
+  const auto & ego_position = planner_data.current_odometry->pose.position;
+  const bool committed_go = go_after_stop_latch_.update(
+    planner_param_.common.latch_go_after_stop,
+    planner_data.current_velocity->twist.linear.x,
+    !has_collision && !has_collision_with_margin, ego_position.x, ego_position.y,
+    clock_->now().toSec(), planner_param_.common.go_after_stop_min_stop_duration);
+  traceValue(decision_trace_, "go_after_stop_suppressed_stop", committed_go && has_collision_with_margin);
+  if (committed_go) {
+    return RoundaboutGoAfterStop{has_collision};
+  }
+
   if (is_permanent_go_) {
     if (has_collision_with_margin) {
       if (can_smoothly_stop_at(roundabout_stoplines.first_attention_stopline.value())) {
@@ -418,6 +435,15 @@ void prepareRTCByDecisionResult(
   [[maybe_unused]] bool * default_safety, [[maybe_unused]] double * default_distance)
 {
   return;
+}
+
+template <>
+void prepareRTCByDecisionResult(
+  [[maybe_unused]] const RoundaboutGoAfterStop & result,
+  [[maybe_unused]] const autoware_internal_planning_msgs::PathWithLaneId & path,
+  [[maybe_unused]] bool * default_safety, [[maybe_unused]] double * default_distance)
+{
+  // Committed GO, not a claim that the latest collision check is safe.
 }
 
 template <>
@@ -503,6 +529,20 @@ void reactRTCApprovalByDecisionResult(
   [[maybe_unused]] RoundaboutModule::DebugData * debug_data)
 {
   return;
+}
+
+template <>
+void reactRTCApprovalByDecisionResult(
+  [[maybe_unused]] const bool rtc_default_approved,
+  [[maybe_unused]] const RoundaboutGoAfterStop & decision_result,
+  [[maybe_unused]] const RoundaboutModule::PlannerParam & planner_param,
+  [[maybe_unused]] const double baselink2front,
+  [[maybe_unused]] autoware_internal_planning_msgs::PathWithLaneId * path,
+  [[maybe_unused]] autoware_internal_planning_msgs::SafetyFactorArray & safety_factor_array,
+  [[maybe_unused]] planning_factor_interface::PlanningFactorInterface * planning_factor_interface,
+  [[maybe_unused]] RoundaboutModule::DebugData * debug_data)
+{
+  // Preserve the input velocities, including stops from other modules.
 }
 
 template <>
