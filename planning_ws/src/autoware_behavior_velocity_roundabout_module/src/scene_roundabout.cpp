@@ -216,7 +216,7 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(PathWithLane
         planner_param_.common.latch_go_after_stop,
         planner_data_->current_velocity->twist.linear.x,
         !has_collision && !has_collision_with_margin, ego_position.x, ego_position.y,
-        clock_->now().toSec())) {
+        clock_->now().toSec(), planner_param_.common.go_after_stop_min_stop_duration)) {
     return RoundaboutGoAfterStop{has_collision};
   }
 

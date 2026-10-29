@@ -9,12 +9,24 @@ YAML requires restarting the behavior velocity planner.
 
 The module must first observe measured longitudinal speed with absolute value
 at most **0.01 m/s** while valid roundabout geometry is available and its
-collision state is STOP. A zero target
-speed does not count. No additional stationary hold time is imposed. The first
-subsequent collision-free GO, including the existing STOP-to-GO hold time,
+collision state is STOP. A zero target speed does not count. The measured speed
+must remain within this threshold continuously for the configured duration.
+`roundabout.common.go_after_stop_min_stop_duration` is **0.5 s in the current
+experimental ROS1 launch profile**; the package and omitted-parameter fallback
+remain `1.0` seconds.
+Movement before qualification resets this timer. An observation gap over 0.5 s
+also restarts an unfinished hold, rather than treating missing data as proof of
+continuous stopping. The first subsequent collision-free GO, including the existing STOP-to-GO hold time,
 latches the decision. A scenario that starts stationary with an already-safe
 GO does not arm the latch. This does not require crossing the pass judge line or setting
 `permanent_go`.
+
+If ordinary GO arrives before the physical stop hold completes, ordinary departure
+is not delayed. If the vehicle remains stationary, observations can finish the
+hold; if it starts moving before qualification, the latch remains unarmed.
+Once the stop has qualified, its history and committed GO retain their original
+behavior until an encounter reset. The stop-duration rule does not expire an old
+GO after a later long wait or add a stopline-distance restriction.
 
 Once latched, subsequent roundabout collision predictions do not produce
 `RoundaboutCollisionStop`, even if comfortable stopping remains possible.
@@ -22,6 +34,7 @@ They produce a separate `GoAfterStop` decision. Collision detection continues,
 and the experimental planner's `debug/roundabout/state_trace` includes:
 
 - `go_after_stop_enabled`, `stopped_observed`, `go_after_stop_latched`
+- `go_after_stop_min_stop_duration_s`, `go_after_stop_stop_duration_s`
 - `go_after_stop_suppressed_stop`
 - existing `raw_collision`, collision state, and per-object TTC observations
 

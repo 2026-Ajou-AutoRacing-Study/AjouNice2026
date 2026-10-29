@@ -16,6 +16,7 @@ template<class Interface> void plugins(
   ASSERT_EQ(std::system("rosparam load \"" AW149_BVP_MODULE_CONFIG "\" /full_roundabout_test"), 0);
   if (omit_go_latch) {
     ASSERT_TRUE(node.deleteParam("roundabout/common/latch_go_after_stop"));
+    ASSERT_TRUE(node.deleteParam("roundabout/common/go_after_stop_min_stop_duration"));
   }
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   // Hold both libraries and both plugin objects in the same process/lifetime.

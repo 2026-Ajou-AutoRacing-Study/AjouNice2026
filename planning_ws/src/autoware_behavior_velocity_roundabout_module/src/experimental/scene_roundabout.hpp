@@ -54,6 +54,7 @@ public:
       double delay_response_time;
       bool enable_pass_judge_before_default_stopline;
       bool latch_go_after_stop{false};
+      double go_after_stop_min_stop_duration{1.0};
     } common;
 
     struct TargetType

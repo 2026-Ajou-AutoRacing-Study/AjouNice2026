@@ -168,6 +168,7 @@ bool RoundaboutModule::modifyPathVelocity(
   traceValue(decision_trace_, "early_pass_judge_enabled", planner_param_.common.enable_pass_judge_before_default_stopline);
   traceValue(decision_trace_, "hold_time_s", planner_param_.collision_detection.collision_detection_hold_time);
   traceValue(decision_trace_, "go_after_stop_enabled", planner_param_.common.latch_go_after_stop);
+  traceValue(decision_trace_, "go_after_stop_min_stop_duration_s", planner_param_.common.go_after_stop_min_stop_duration);
 
   initializeRTCStatus();
 
@@ -186,6 +187,7 @@ bool RoundaboutModule::modifyPathVelocity(
 
   traceValue(decision_trace_, "permanent_go_after", is_permanent_go_);
   traceValue(decision_trace_, "stopped_observed", go_after_stop_latch_.stoppedObserved());
+  traceValue(decision_trace_, "go_after_stop_stop_duration_s", go_after_stop_latch_.stopDurationSec());
   traceValue(decision_trace_, "go_after_stop_latched", go_after_stop_latch_.isLatched());
   traceValue(decision_trace_, "rtc_activated", isActivated());
   traceValue(decision_trace_, "decision", formatDecisionResult(decision_result, isActivated()));
@@ -364,7 +366,7 @@ RoundaboutDecisionResult RoundaboutModule::modifyPathVelocityDetail(
     planner_param_.common.latch_go_after_stop,
     planner_data.current_velocity->twist.linear.x,
     !has_collision && !has_collision_with_margin, ego_position.x, ego_position.y,
-    clock_->now().toSec());
+    clock_->now().toSec(), planner_param_.common.go_after_stop_min_stop_duration);
   traceValue(decision_trace_, "go_after_stop_suppressed_stop", committed_go && has_collision_with_margin);
   if (committed_go) {
     return RoundaboutGoAfterStop{has_collision};
