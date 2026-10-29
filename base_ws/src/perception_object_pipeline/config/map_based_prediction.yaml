@@ -7,6 +7,11 @@ highway_prediction_mode: native
 ## One-way highway only: recover a noisy future heading from nearby road geometry.
 ## Current object pose/twist remain unchanged; ordinary roads are unaffected.
 highway_direction_recovery: true
+## Highway only: one CURRENT-lane continuation, not confidence Top1.
+## Follow an observed new lane only after the center crosses its boundary.
+## false restores all original highway hypotheses; rotary/general stay unchanged.
+highway_current_lane_only: true
+highway_lane_switch_margin_m: 0.2
 prediction_time_step: 0.1
 
 ## Vehicle-only planner-facing predictions on the shared Route A/B corridor.

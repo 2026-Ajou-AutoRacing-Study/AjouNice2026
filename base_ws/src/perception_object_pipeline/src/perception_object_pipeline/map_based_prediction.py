@@ -228,6 +228,11 @@ class LaneletRecord:
     centerline: Tuple[Point3, ...]
     following_ids: Tuple[int, ...] = ()
     attributes: Tuple[Tuple[str, str], ...] = ()
+    # Optional for lightweight callers constructing synthetic centerlines.
+    # Loaded maps retain the actual polygon so current-lane policies do not
+    # confuse a close parallel centerline with the lane containing the object.
+    left_boundary: Tuple[Point3, ...] = ()
+    right_boundary: Tuple[Point3, ...] = ()
 
     @property
     def length(self) -> float:
@@ -406,7 +411,18 @@ class LaneletNetwork:
                 for key in ("subtype", "speed_limit")
                 if key in lanelet.attributes
             )
-            records.append(LaneletRecord(lanelet_id, points, following, attributes))
+            left_boundary = tuple(
+                (float(point.x), float(point.y), float(point.z))
+                for point in lanelet.leftBound
+            )
+            right_boundary = tuple(
+                (float(point.x), float(point.y), float(point.z))
+                for point in lanelet.rightBound
+            )
+            records.append(LaneletRecord(
+                lanelet_id, points, following, attributes,
+                left_boundary, right_boundary,
+            ))
 
         return cls(
             records,
@@ -448,6 +464,29 @@ class LaneletNetwork:
             candidates.append(_LaneCandidate(lanelet_id, projection, score))
         candidates.sort(key=lambda candidate: candidate.score, reverse=True)
         return tuple(candidates[: max(1, int(self.config.maximum_start_lanelets))])
+
+    def project_lanelet(self, lanelet_id: int, x: float, y: float):
+        """Project onto one named road using the immutable geometry cache."""
+        if lanelet_id not in self.records:
+            return None
+        self._refresh_lane_geometry(lanelet_id)
+        return self._projection_geometry[lanelet_id].project(x, y)
+
+    def _explicit_lane_candidate(self, lanelet_id, x, y, yaw):
+        """Validate an already selected current lane without re-ranking lanes."""
+        projection = self.project_lanelet(lanelet_id, x, y)
+        if projection is None or projection.distance > self.config.maximum_lane_distance_m:
+            return None
+        yaw_error = abs(normalize_angle(yaw - projection.yaw))
+        if yaw_error > self.config.maximum_lane_yaw_error_rad:
+            return None
+        distance_sigma = max(self.config.lane_distance_sigma_m, 1.0e-3)
+        yaw_sigma = max(self.config.lane_yaw_sigma_rad, 1.0e-3)
+        score = math.exp(
+            -0.5 * (projection.distance / distance_sigma) ** 2
+            -0.5 * (yaw_error / yaw_sigma) ** 2
+        )
+        return _LaneCandidate(lanelet_id, projection, score)
 
     def recover_lane_direction(self, x, y, allowed_lanelet_ids):
         """Geometry-only direction for an explicitly allowed one-way region.
@@ -533,6 +572,63 @@ class LaneletNetwork:
                                 next_occurrences))
         completed.sort(key=lambda item: item[1], reverse=True)
         return tuple(completed[: max(1, int(self.config.maximum_paths))])
+
+    def _single_route_sequence(
+        self, start_id: int, start_arc_length: float, required_length: float
+    ):
+        """Continue the current lane geometrically, without future Top-K scores.
+
+        This is an explicitly requested highway policy. At a forward fork the
+        continuation with least lateral departure from the incoming direction
+        is retained. No lateral routing edge, NPC goal, ego route, confidence,
+        or future observation is consulted. Ordinary route enumeration is not
+        changed. A later observation may select a different current lane.
+        """
+        ids = [start_id]
+        available = max(0.0, self._lane_length(start_id) - start_arc_length)
+        occurrences = {start_id: 1}
+        while available < required_length and len(ids) < self.config.maximum_route_depth:
+            last_id = ids[-1]
+            followers = tuple(dict.fromkeys(
+                lanelet_id for lanelet_id in self.records[last_id].following_ids
+                if lanelet_id in self.records and occurrences.get(lanelet_id, 0) < 2
+            ))
+            if not followers:
+                break
+            successor = self.continuation_lanelet_id(last_id, followers)
+            ids.append(successor)
+            occurrences[successor] = occurrences.get(successor, 0) + 1
+            available += self._lane_length(successor)
+        return ((tuple(ids), 1.0),)
+
+    def continuation_lanelet_id(self, lanelet_id: int, following_ids=None):
+        """Return the geometric same-direction forward continuation, if any."""
+        if lanelet_id not in self.records:
+            return None
+        followers = tuple(
+            value for value in (
+                self.records[lanelet_id].following_ids
+                if following_ids is None else following_ids
+            ) if value in self.records
+        )
+        if not followers:
+            return None
+        first = self.records[lanelet_id].centerline
+        incoming_yaw = tangent_yaw(first, self._lane_length(lanelet_id))
+        origin = first[-1]
+
+        def continuity_key(value):
+            second = self.records[value].centerline
+            lookahead = min(20.0, self._lane_length(value))
+            point = sample_polyline(second, lookahead)
+            dx, dy = point[0] - origin[0], point[1] - origin[1]
+            lateral = abs(-math.sin(incoming_yaw) * dx + math.cos(incoming_yaw) * dy)
+            heading = abs(normalize_angle(tangent_yaw(second, lookahead) - incoming_yaw))
+            join_gap = _distance(origin, second[0])
+            # Routing graph order breaks an exact geometric tie, not score.
+            return (lateral, heading, join_gap)
+
+        return min(followers, key=continuity_key)
 
     def _stitch_route(self, lanelet_ids: Sequence[int]) -> Tuple[Point3, ...]:
         points = []
@@ -620,13 +716,27 @@ class LaneletNetwork:
         horizons: Sequence[float],
         truncate_at_route_end: bool = False,
         allow_low_speed: bool = False,
+        *,
+        start_lanelet_ids: Optional[Iterable[int]] = None,
+        single_route: bool = False,
     ) -> Tuple[PredictedTrajectory, ...]:
         if not horizons or speed < 0. or (speed < self.config.minimum_speed_mps and not allow_low_speed):
             return ()
         required_length = speed * max(horizons) + self.config.route_length_padding_m
         raw_paths = []
-        for candidate in self.lane_candidates(x, y, yaw):
-            for lanelet_ids, route_score in self._route_sequences(
+        if start_lanelet_ids is None:
+            candidates = self.lane_candidates(x, y, yaw)
+        else:
+            candidates = tuple(
+                candidate for lanelet_id in dict.fromkeys(start_lanelet_ids)
+                for candidate in (self._explicit_lane_candidate(lanelet_id, x, y, yaw),)
+                if candidate is not None
+            )
+        if single_route:
+            candidates = candidates[:1]
+        route_sequences = self._single_route_sequence if single_route else self._route_sequences
+        for candidate in candidates:
+            for lanelet_ids, route_score in route_sequences(
                 candidate.lanelet_id,
                 candidate.projection.arc_length,
                 required_length,

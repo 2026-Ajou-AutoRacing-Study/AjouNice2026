@@ -12,6 +12,8 @@
   <arg name="prediction_horizon" default=""/>
   <arg name="prediction_highway_horizon" default=""/>
   <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
   <arg name="vehicle_only_corridor_enabled" default="true"/>
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
   <arg name="map_version" default="101"/>
@@ -191,6 +193,8 @@
     <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
     <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
     <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
+    <arg name="prediction_highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+    <arg name="prediction_highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
     <arg name="vehicle_only_corridor_enabled" value="$(arg vehicle_only_corridor_enabled)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>

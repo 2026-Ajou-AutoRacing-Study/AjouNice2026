@@ -9,6 +9,8 @@
   <arg name="prediction_mixed_horizon_enabled" default="false"/>
   <arg name="prediction_highway_horizon" default=""/>
   <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="map_version" default="101"/>
   <!-- Released runtime accepts only v101; reject old explicit overrides at parse time. -->
@@ -60,6 +62,8 @@
       <param name="mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
       <param if="$(eval arg('prediction_highway_horizon') != '')" name="highway_prediction_horizon" value="$(arg prediction_highway_horizon)"/>
       <param if="$(eval arg('prediction_highway_mode') != '')" name="highway_prediction_mode" value="$(arg prediction_highway_mode)"/>
+      <param if="$(eval arg('prediction_highway_current_lane_only') != '')" name="highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+      <param if="$(eval arg('prediction_highway_lane_switch_margin_m') != '')" name="highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
       <param name="projector_file" value="$(arg projector_file)"/>
       <param name="vehicle_only_corridor_enabled" value="$(arg vehicle_only_corridor_enabled)"/>
       <param name="vehicle_only_corridor_route_file" value="$(arg vehicle_only_corridor_route_file)"/>
