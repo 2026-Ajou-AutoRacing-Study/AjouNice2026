@@ -5,9 +5,10 @@ This module is under development.
 ## AjouNice ROS1 output contract
 
 In `optimization_base`, BPP assigns each perception UUID to one owner using
-`avoidance_object_ownership` in `behavior_path_modules.yaml`: speed >= 0.5 m/s
-enters DOA immediately; speed <= 0.2 m/s enters SOA immediately; the open interval
-retains the previous owner. A new UUID below 0.5 m/s starts with SOA. Speed is the
+`avoidance_object_ownership` in `behavior_path_modules.yaml`: generic speed >= 0.5 m/s
+enters DOA immediately; an unambiguous pedestrian uses >= 0.7 m/s instead.
+Speed <= 0.2 m/s enters SOA immediately; the open interval retains the previous
+owner. A new UUID below its entry threshold starts with SOA. Speed is the
 planar magnitude of perception velocity, including reverse/crossing motion.
 There is no ownership/admission dwell timer, consecutive-update requirement,
 position-motion gate, or position-based forecast. Shared ownership is an ingress

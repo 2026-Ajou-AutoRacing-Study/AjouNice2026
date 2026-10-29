@@ -11,8 +11,7 @@ Detector는 [BEVFusion CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)�
 DetectedObjects → EKF → UNKNOWN stationary policy → Lanelet2 Map-CV → PredictedObjects
 ```
 
-운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector·localization은 별도 프로세스다.
-다른 detector/tracker를 같은 canonical topic에 동시에 발행하지 않는다.
+운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector·localization은 별도 프로세스며 다른 detector/tracker를 같은 canonical topic에 동시에 발행하지 않는다.
 
 | 출력 경계 | Topic |
 |---|---|
@@ -25,8 +24,7 @@ Production `tracking`/`tracking_prediction.launch`는 Route A/B 공통 구간에
 
 v88/v94 지도 SHA와 Route A/B 경로 일치·ego `map` pose·수신 freshness(0.5초)·주행 방향/횡거리(≤12m)가 모두 맞을 때만 필터링한다. 불명확하면 **fail-open**으로 모든 class를 전달한다. 상태는 `/map_based_prediction/diagnostics/vehicle_only_active`에 `Bool`로 나온다. 임시 복귀는 `tracking vehicle_only_corridor_enabled:=false` 후 fresh stack 재시작이다. standalone `object_prediction.launch`는 기본 OFF다. [경계·저장 bag·로컬 MORAI 대조군](../../../../docs/bevfusion/evidence/261027_VEHICLE_ONLY_PREDICTION_CORRIDOR.md)의 ON/OFF 시험을 실제 측위+실검출+LAN 풀스택 안전성 인증으로 확대 해석하지 않는다.
 
-World frame은 `map`이다. 내부 measurement state·30Hz predicted copy·마지막 detector 관측 age를 구분한다.
-MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통제 실험이지 production fallback이 아니다.
+World frame은 `map`이다. 내부 measurement state·30Hz predicted copy·마지막 detector 관측 age를 구분한다. MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통제 실험이지 production fallback이 아니다.
 
 ## Tracker 운영값
 
@@ -42,12 +40,14 @@ MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통�
 | 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=true` 운영 launch 기본 ON. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승. `false`로 기존 ID 정책 복귀. EKF state·박스·수명은 불변 |
 | 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
 | 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
+| 보행자 속도·분류 | **PR 후보**: 기존 EKF 추정 속도·방향·예측 길이를 유지하며 속도 완충 후보는 배포에 포함하지 않음. 공유 SOA/DOA 소유권만 명확한 PED에 동적 진입 ≥0.7m/s·정적 복귀 ≤0.2m/s, 중간은 이전 상태 유지. 시간/관측횟수 대기 없음. 차량·UNKNOWN은 기존 0.5/0.2 유지. 관련 로컬 설치본·기본값 일치 확인 완료, live 재시작은 하지 않음 |
 | UNKNOWN motion policy | `force_unknown_stationary=true`: 관측 pose/box는 갱신하고 가짜 속도·가속도·yaw rate를 prediction 전에 0으로 함 |
 
-보행자 복귀는 `tracking pedestrian_gaussian_association_ranking:=false`이며 fresh tracker로 비교한다.
-[보행자 근거](../../../../docs/bevfusion/evidence/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)를 따른다.
-0.50초 허용치는 새 관측 없이 정확하다는 뜻이 아니다. detector age·coasting·prediction coverage를 함께 본다.
-association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
+보행자 순위 복귀는 `tracking pedestrian_gaussian_association_ranking:=false`이며 fresh tracker로 비교한다. [보행자 근거](../../../../docs/bevfusion/evidence/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)를 따른다.
+0.50초 허용치는 새 관측 없이 정확하다는 뜻이 아니다. detector age·coasting·prediction coverage를 함께 본다. association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다.
+분류 설정은 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml`의 `avoidance_object_ownership/{pedestrian_dynamic_enter_speed,pedestrian_static_enter_speed}`다. PED 진입을 0.5로 바꾸면 기존 분류로 복귀한다. 유효한 유일 최고 확률 PED만 별도 기준을 사용하고, 빈/잘못된/동점 분류는 일반 기준을 따른다. 동적 상태의 class가 바뀌어도 중간 속도에서 임의로 정적으로 바꾸지 않는다. 기존 두 인자 C++ 생성자는 호환 유지, production PlannerData는 별도 PED 값을 전달한다. 입력 객체·예측을 수정하지 않으며 횡단보도는 이 소유권과 별도로 경로를 검사한다. 공용 헤더와 BPP·SOA·DOA 등 소비자를 함께 재빌드해야 하며 updater에 해당 설치 묶음을 포함한다. 임의 최저 속도 강제, 고정 목표속도, 추가 시간 조건은 넣지 않는다.
+
+이전 tau0.6 완충 후보는 정지 오판을 줄였으나 실제 출발 시 속도·예측 길이를 낮춰 추가 지연이 생겼으므로 채택하지 않고 로컬 시험 변경으로만 보존했다. 해당 실제 횡단은 ID3 충돌 실패였고 raw 복귀만으로 충돌 해소를 인증하지 않는다(`planner_logs/analysis/261029_pedestrian_live/`). 새 실제 C++ 분류는 기록8개·횡단 기록1개·0.8/3.89m/s 대조4개에서 확인했다: 정지 주 track의 가짜 동적 누적2.614→0.951초, 추가 박스1.839초는 남음. 기존 걷기 추가 진입 지연0~0.073초, 횡단 기록은0.116초이며 이전 완충보다0.200초 빨랐다. 비보행자9,249관측·전체 입력 직렬화·속도·경로는 불변, 보행 중 새 정적 재탈락0이었다. 이는 저장 입력 진단이지 새 실제 주행 성공이 아니다. 실제 저속 GT는 약1.1m/s까지 있고0.3~0.8m/s 지속 실측은 없다. 0.7 미만 지속 보행·큰 정지 속도 잡음·추가 박스·정지 후 속도 꼬리는 한계로 남긴다. 근거는 `planner_logs/analysis/261029_pedestrian_latency_release/`이며 새 MORAI·팀 병합은 수행하지 않았다.
 
 ## Map-CV 운영값
 

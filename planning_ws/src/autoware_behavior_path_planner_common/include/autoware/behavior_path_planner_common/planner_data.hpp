@@ -72,11 +72,14 @@ struct PlannerData
     std::string avoidance_method;
     node.param<std::string>("avoidance/path_generation_method", avoidance_method, "");
     if (avoidance_method == "optimization_base") {
-      double dynamic_speed, static_speed;
+      double dynamic_speed, static_speed, pedestrian_dynamic_speed, pedestrian_static_speed;
       node.param("avoidance_object_ownership/dynamic_enter_speed", dynamic_speed, 0.5);
       node.param("avoidance_object_ownership/static_enter_speed", static_speed, 0.2);
+      node.param("avoidance_object_ownership/pedestrian_dynamic_enter_speed", pedestrian_dynamic_speed, 0.7);
+      node.param("avoidance_object_ownership/pedestrian_static_enter_speed", pedestrian_static_speed, 0.2);
       avoidance_object_ownership =
-        std::make_shared<AvoidanceObjectOwnership>(dynamic_speed, static_speed);
+        std::make_shared<AvoidanceObjectOwnership>(
+          dynamic_speed, static_speed, pedestrian_dynamic_speed, pedestrian_static_speed);
     }
     const auto number = [&node](const std::string & key) {
       double value{};
