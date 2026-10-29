@@ -3,7 +3,7 @@
          type="bringup::RosbagRecorderPanel"
          base_class_type="rviz::Panel">
     <description>
-      Start and stop a timestamped planning/perception rosbag from RViz.
+      Record all ROS topics except images, point clouds and visualization payloads to a timestamped bag from RViz.
     </description>
   </class>
   <class name="bringup/RouteControl"
