@@ -38,7 +38,7 @@ MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통�
 | Confirmed coasting | moving/pedestrian 0.50s, UNKNOWN 및 2m/s 이하 CAR/TRUCK 1.00s. stamp 경과시간 기준. tentative는 strict 유지 |
 | 중복 입력 | ROS bridge의 same-class rotated BEV IoU 0.50 NMS |
 | Duplicate birth guard | association된 mature track 중심 0.75m 이내 유사한 큰 unmatched box 억제. 전역 gate 5m 확장이 아니며 작은 pedestrian에 확대하지 않음 |
-| 소형 UNKNOWN birth 후보 | `suppress_small_unknown_duplicate_birth=false` 기본 OFF. 양쪽 current raw 박스가 1m 미만이고 유일한 mature 대응·중심 0.25m·IoU≥0.45 등을 만족할 때만 신규 중복 birth를 억제 |
+| 소형 UNKNOWN birth 후보 | `suppress_small_unknown_duplicate_birth=false` 기본 OFF 확정. 5개 실제 ON 대조와 근접 별개 객체의 측정오차 반례를 검토해 승격하지 않음. 명시적 ON 시험 후보로 남김 |
 | 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=true` 운영 launch 기본 ON. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승. `false`로 기존 ID 정책 복귀. EKF state·박스·수명은 불변 |
 | 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
 | 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
@@ -90,8 +90,8 @@ geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 
 
 `tracking suppress_small_unknown_duplicate_birth:=true`로 새 스택을 실행한다. 기존 `suppress_duplicate_track_birth=true`도 필요하며 두 후보는 독립적으로 비교한다. 이미 존재하는 두 track을 합치지 않는다. 같은 프레임에 실제 검출을 받은 유일한 mature UNKNOWN과, 새 unmatched UNKNOWN의 raw XY 크기가 모두 1m 미만·XYZ≥0.15m·중심≤0.25m·높이 차≤0.3m·정렬 치수비≤1.5·회전 IoU≥0.45일 때만 새 birth를 막는다. known-class 이력이나 복수 대응이 있으면 적용하지 않는다.
 신규 34bag의 기록 검출 코어 재생에서 UNKNOWN birth 146→145, 중복 GT 대응 frame 863→797이며 0.5/1/2m coverage는 동일했다. 영향은 PE_Drum 한 사례이고 나머지 33개는 동일하다. 추가 21사례 10,082입력의 state·공분산과 14장면 catalog AP는 동일했다. 더 넓은 후보는 보조 객체의 0.5m coverage를 떨어뜨려 제외했다. `planner_logs/analysis/261029_duplicate_followup/native_small_final_summary.json`이 비교·한계·고정 source 근거다.
-native 121개 시험을 통과했지만, 가까운 별개 실제 객체의 관측 박스가 크게 겹치는 본질적 모호성은 남는다. 34bag 실제 GT 간격은 최소 10m이므로 근접 두 실제 UNKNOWN의 대회 안전성이나 폐루프 완주로 확대하지 않는다. 배포 시 tracker submodule 갱신·증분 빌드·fresh stack이 필요하다. 기본은 OFF다.
-위 실제 MORAI 8회 중 소형 birth 후보는 ON에서도 발동 0회였다. Drum의 동시 중복은 남았고 서로 다른 입력·주행이므로 프레임 수 차이를 후보 효과로 해석하지 않는다. 이 후보의 효과 근거는 동일 입력 재생이며 실제 주행의 중복 제거 효과는 아직 인증하지 않았다.
+native 121개·소형 가드 14개 시험은 통과했지만 측정오차가 있는 근접 실객체는 구별 불가하다. 추가 현재 코어 합성 대조에서 실제 0.4m 물체 둘의 중심 간격 0.6m에 각 +0.23/−0.23m 오차를 주어 관측 간격 0.14m·IoU 0.481로 만들면 기존 NMS 0.5는 둘을 보존하지만 소형 ON은 20회 연속 신규 생성을 막아 확정 2→1개였다. 무오차 대조는 OFF/ON 모두 2개다. 관측된 실제 발생률이 아닌 입력 모호성 반례이며, 기존 1.0/1.25m 거리 확대 반례와도 별개다. 제한된 Drum 개선만으로 이 위험을 감수해 기본 승격하지 않고 OFF를 유지한다.
+이전 8회와 추가 원실패 5개 ON 실제 주행 모두 소형 억제 발동 0회였다. 새 5개는 OFF 3PASS/2STUCK 대비 ON 2PASS/2STUCK/1COLLISION, 최종 정지/P 5/5였다. Barricade의 PASS→충돌 변화도 억제 발동이 없어 삭제 부작용이나 기능 효과로 단정하지 않는다. 원형·목적지·goal 제외거리는 같고 실제 주요 파라미터 차이는 해당 플래그 하나였다. 충돌 후 안전 중단·P 확인과 정상 재개로 나머지를 수행했으며 안전 gate·판정 이력을 우회하지 않았다. 현재 로컬 v100·독립 센서 입력 대조이고 ON 5개 완주 인증이나 최신 팀 지도/코드 인증이 아니다. 로컬 `planner_logs/analysis/261029_small_guard_on/{decision.json,comparison/summary.json,nearby_counterexample_results.xml}`에 조건·부하 혼재·원본 bag/영상 경로를 보존했다.
 
 ### 기존 후보와 지도 예측 계약
 
