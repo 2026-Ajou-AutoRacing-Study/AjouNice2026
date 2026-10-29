@@ -4,7 +4,8 @@ The caller owns geographic eligibility. This helper has no highway IDs, NPC
 goals, confidence thresholds, ego route or future/GT positions. It selects the
 lane containing the *current* center, retaining that choice through a small
 spatial boundary margin. Forward seams transfer to the geometric continuation;
-the old lane cannot remain selected after its longitudinal end.
+only a verified shared-endcap mismatch of at most 2cm may briefly retain an
+inside old polygon. Real road terminals never gain that numerical tolerance.
 """
 
 from __future__ import annotations
@@ -201,6 +202,42 @@ class HighwayCurrentLanePolicy:
             ))
         return observations
 
+    def _within_shared_forward_seam(self, observation, x, y, by_id):
+        """Retain an inside polygon through a <=2cm endcap numeric mismatch.
+
+        This does not relax any lateral polygon test or invent a successor.
+        It requires history, the old polygon itself, and a verified geometric
+        continuation whose two boundary endpoints share this exact seam.
+        """
+        tolerance = .02
+        if (observation is None or observation.boundary_distance is None
+                or observation.boundary_distance < -1.e-8
+                or not 1.e-8 < observation.longitudinal_outside <= tolerance):
+            return False
+        record = self.network.records[observation.lanelet_id]
+        following_id = self.network.continuation_lanelet_id(observation.lanelet_id)
+        following = self.network.records.get(following_id)
+        if (following_id not in record.following_ids or following_id not in by_id
+                or following is None or len(record.left_boundary) < 2
+                or len(record.right_boundary) < 2 or len(following.left_boundary) < 2
+                or len(following.right_boundary) < 2):
+            return False
+        left, right = record.left_boundary[-1], record.right_boundary[-1]
+        if (math.hypot(left[0] - following.left_boundary[0][0],
+                       left[1] - following.left_boundary[0][1]) > tolerance
+                or math.hypot(right[0] - following.right_boundary[0][0],
+                              right[1] - following.right_boundary[0][1]) > tolerance):
+            return False
+        dx, dy = right[0] - left[0], right[1] - left[1]
+        squared = dx * dx + dy * dy
+        if squared <= 1.e-18:
+            return False
+        ratio = ((x - left[0]) * dx + (y - left[1]) * dy) / squared
+        if not 0. <= ratio <= 1.:
+            return False
+        return math.hypot(x - left[0] - ratio * dx,
+                          y - left[1] - ratio * dy) <= tolerance
+
     def select(self, track_id, stamp_sec, x, y, yaw, speed_mps):
         key = _track_key(track_id)
         if key is None:
@@ -230,6 +267,8 @@ class HighwayCurrentLanePolicy:
             retained = by_id.get(previous.lanelet_id) if previous is not None else None
             choice = None
             reason = "current_polygon"
+            if retained is not None and self._within_shared_forward_seam(retained, x, y, by_id):
+                choice, reason = retained, "retained_forward_seam_numerics"
             if retained is not None and retained.longitudinal_outside <= 1.e-8:
                 if (retained.boundary_distance is not None
                         and retained.boundary_distance >= -self.boundary_hysteresis_m):
