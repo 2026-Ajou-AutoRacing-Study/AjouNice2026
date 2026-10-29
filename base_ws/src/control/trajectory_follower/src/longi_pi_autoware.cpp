@@ -15,6 +15,7 @@
 #include <std_msgs/Float64.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/String.h>
+#include <trajectory_follower/TerminalState.h>
 #include <trajectory_follower/distance_speed_limit.hpp>
 #include <trajectory_follower/longitudinal_pi_utils.hpp>
 
@@ -173,6 +174,7 @@ public:
     validateParameters();
 
     command_publisher_ = nh_.advertise<morai_msgs::CtrlCmd>(ctrl_cmd_topic_, 10);
+    terminal_publisher_ = nh_.advertise<trajectory_follower::TerminalState>("/control/terminal_state", 1);
     debug_publisher_ = private_nh_.advertise<std_msgs::Float64MultiArray>("debug/longitudinal", 10);
     trajectory_subscriber_ = nh_.subscribe(trajectory_topic_, 2,
       &AutowareLongitudinalPi::trajectoryCallback, this);
@@ -326,7 +328,7 @@ private:
         pose_jump_brake_until_ = ros::SteadyTime::now() + ros::WallDuration(pose_jump_brake_duration_s_);
         ROS_WARN("Pose jump %.3f m in %.3f s (normal bound %.3f m) on %s: braking for %.3f s",
           distance, dt, normal_motion_bound, pose_jump_topic_.c_str(), pose_jump_brake_duration_s_);
-        publishStop();
+        publishStop("WARN", "pose jump braking");
       }
     }
     pose_jump_previous_ = *message;
@@ -525,6 +527,19 @@ private:
     return target_velocity;
   }
 
+  // Observation only: mirrors the final command and existing safety branch.
+  void publishCommand(const morai_msgs::CtrlCmd & command,
+                      const std::string & level = "OK", const std::string & reason = "")
+  {
+    command_publisher_.publish(command);
+    trajectory_follower::TerminalState status;
+    status.header.stamp = ros::Time::now();
+    status.level = level;
+    status.reason = reason;
+    status.steering_rad = command.steering;
+    terminal_publisher_.publish(status);
+  }
+
   void publishHold(const double steering)
   {
     last_feedforward_ = 0.0;
@@ -540,10 +555,10 @@ private:
     command.steering = steering;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    command_publisher_.publish(command);
+    publishCommand(command);
   }
 
-  void publishStop()
+  void publishStop(const std::string & level = "OK", const std::string & reason = "")
   {
     last_feedforward_ = 0.0;
     integral_ = 0.0;
@@ -558,13 +573,13 @@ private:
     command.steering = 0.0;
     command.velocity = 0.0;
     command.acceleration = 0.0;
-    command_publisher_.publish(command);
+    publishCommand(command, level, reason);
   }
 
   void timerCallback(const ros::TimerEvent & event)
   {
     if (pose_jump_enabled_ && ros::SteadyTime::now() < pose_jump_brake_until_) {
-      publishStop();
+      publishStop("WARN", "pose jump braking");
       return;
     }
     const ros::Time now = ros::Time::now();
@@ -579,9 +594,9 @@ private:
     if (!fresh || normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id)) {
       const bool frame_mismatch = fresh &&
         normalizedFrame(trajectory_.header.frame_id) != normalizedFrame(state_.header.frame_id);
-      logSafetyStop(frame_mismatch ? "trajectory/state frame mismatch" : inputFailureReason(now),
-                    frame_mismatch);
-      publishStop();
+      const std::string reason = frame_mismatch ? "trajectory/state frame mismatch" : inputFailureReason(now);
+      logSafetyStop(reason, frame_mismatch);
+      publishStop((frame_mismatch || ever_ready_) ? "ERROR" : "WAIT", reason);
       return;
     }
     ever_ready_ = true;
@@ -743,7 +758,7 @@ private:
       command.brake <= command_deadband_ &&
       acceleration_command > command_deadband_
       ? std::min(max_accel_cmd_, acceleration_command) : 0.0;
-    command_publisher_.publish(command);
+    publishCommand(command);
     const char * mode = smooth_stop_active ? "SMOOTH_STOP" :
       deceleration_feedback_active ? "DECEL" :
       (braking_mode_ || command.brake > command_deadband_) ? "BRAKE" :
@@ -777,6 +792,7 @@ private:
   ros::Subscriber validity_subscriber_;
   ros::Subscriber failure_subscriber_;
   ros::Publisher command_publisher_;
+  ros::Publisher terminal_publisher_;
   ros::Publisher debug_publisher_;
   bool acceleration_feedforward_enabled_{false};
   double feedforward_max_acceleration_{3.7};

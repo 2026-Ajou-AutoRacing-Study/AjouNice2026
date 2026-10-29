@@ -23,7 +23,7 @@ obstacle_fallback_deceleration: 7.0
 # Existing obstacle-margin overlap is optimized with slack, without a new speed cap.
 recovery/enabled: true
 # Extend the base horizon to cover observed obstacle margins, the vehicle and return.
-obstacle_optimization/max_forward_length: 60.0
+obstacle_optimization/max_forward_length: 90.0
 obstacle_optimization/return_length: 15.0
 # Collapse only nearby, same-side duplicate footprints before enumerating pass sides.
 # Raw polygons remain authoritative for candidate and final collision checks.

@@ -1,152 +1,67 @@
 # 제어기 터미널 로그 CURRENT
 
-기준일: 2026-10-28
-대상 브랜치: `planning/autoware-universe-to-ros1`
-대상 런타임: `base_ws/install_aw149`의 Autoware PP-PI controller
-
-이 문서는 `trajectory_follower`의 사람이 읽는 터미널 상태 로그에 대한 현재 구현과
-후속 작업 경계를 기록한다. 제어 알고리즘·출력 명령·안전 임계값의 기준 문서는 아니며,
-그 값은 기존 YAML과 controller 구현을 따른다.
-
-## 현재 상태
-
-- `purepursuit_autoware`와 `longi_pi_autoware`가 각각 1초에 한 번 상태를 한 줄로 출력한다.
-- 정상 상태는 ROS `INFO`, 기동 중 입력 대기는 `WARN`, 정상 제어 이후 안전 정지는
-  `ERROR`로 구분한다.
-- `WARN` 메시지 본문은 ANSI 밝은 노랑, `ERROR`·`FATAL` 본문은 밝은 빨강이다.
-- 상태 출력 주기는 공통 설정의 `logging/status_period_s`로 조절하며 현재값은 `1.0`초다.
-- 로그 추가 과정에서 steering, accel, brake 계산과 publish 주기는 변경하지 않았다.
-- 수정된 source와 config는 `base_ws/install_aw149`에 선택 설치했다. 다음
-  `traj_fol_a` 실행부터 적용된다.
-
-대표 출력 형식은 다음과 같다.
+기준일: 2026-10-29. `traj_fol_a` / `pp_pi_autoware.launch`의 표시 계약.
 
 ```text
-[INFO]  [CTRL][LAT][TRACK] v=... | steer=... | lateral=... | lookahead=... | curvature=... | age(T/S)=...
-[INFO]  [CTRL][LONG][ACCEL] v=...->... | accel=... brake=... | steer=... | a(plan/meas)=... | path=... | age(T/S)=...
-[WARN]  [CTRL][LAT][WAIT] stale or unavailable trajectory/state | steering=0deg
-[ERROR] [CTRL][LONG][SAFE_STOP] ... | accel=0.00 brake=1.00 steer=0deg
+00.0 CTRL  23.45kph  6.55mps2 +12.3°
+01.0 CTRL 134.55kph  0.25mps2  +2.1°
+02.0 CTRL   0.00kph -6.55mps2 -40.0°
 ```
 
-## 비정상 상황과 색상
+## 입력과 단위
 
-색상은 단순 장식이 아니라 운전자가 취해야 할 행동의 긴급도를 나타낸다. 정상 제어를 한
-번도 시작하지 못한 입력 대기는 `WARN`과 **밝은 노랑**, 정상 제어 시작 후 제어를 계속할
-수 없는 상황은 `ERROR`와 **밝은 빨강**, node를 시작할 수 없는 설정 오류는 `FATAL`과
-**밝은 빨강**을 사용한다. 실제 메시지의 `[WARN]`, `[ERROR]`, `[FATAL]` 접두사는
-rosconsole 출력 형식이 붙이는 것이며 controller 메시지 본문은 `[CTRL]`부터 시작한다.
+- 첫 필드는 현지 시각의 초·소수 첫째 자리(`SS.s`)다. 매 분 `00.0`부터 반복한다.
+- 속도는 `/Competition_topic.velocity.x`만 사용한다. UDP bridge가 이미 m/s로
+  변환하므로 표시에서 3.6을 곱한다. `/Ego_topic`·localization fallback은 없다.
+- Ay는 `/sensor/imu.linear_acceleration.y`를 그대로 m/s²로 표시한다.
+  위치 미분·횡가속도 추정·중력 보정·차량 축 재변환은 추가하지 않는다.
+- 조향은 `/ctrl_cmd`로 publish하는 최종 타이어 조향 명령이다. 측정 바퀴각이 아니다.
+  `/control/terminal_state`에 동일한 명령과 기존 제어 분기의 상태를 함께 전달한다.
+- 숫자는 각각 `%6.2f`, `%5.2f`, `%+5.1f`로 오른쪽 정렬하며 항목 사이는 한 칸이다.
+  기대 범위는 속도 134.55kph까지, Ay 절댓값 6.55mps2까지, 조향 ±40도다.
+  예상 범위를 초과한 관측값을 숨기기 위한 clipping은 하지 않는다.
 
-| 상황 | 출력 상태 | Severity·색상 | 실제 안전 출력 | 운영자 확인 |
-| --- | --- | --- | --- | --- |
-| 시작 직후 trajectory/state 대기 | `LAT/WAIT` | `WARN`·밝은 노랑 | `steering=0deg` | 두 입력 topic의 publish 여부와 frame 확인 |
-| 시작 직후 trajectory/state/steering/lateral 대기 | `LONG/WAIT` | `WARN`·밝은 노랑 | `accel=0`, `brake=stop_brake_cmd`, `steer=0deg` | 누락 또는 stale로 표시된 입력 확인 |
-| 정상 추종 후 입력 수신 중단·source stamp stale | `LAT/SAFE_STOP`, `LONG/SAFE_STOP` | `ERROR`·밝은 빨강 | 횡 `steering=0deg`, 종 `accel=0`, full brake, `steer=0deg` | 실패 이유와 trajectory/state 송신 node 확인 |
-| trajectory와 state frame 불일치 | `LAT/SAFE_STOP`, `LONG/SAFE_STOP` | `ERROR`·밝은 빨강 | 위와 같은 안전 정지 | 두 메시지의 `header.frame_id` 확인 |
-| 횡제어 target 계산 실패 | `LAT/SAFE_STOP` | `ERROR`·밝은 빨강 | `steering=0deg`; 종제어도 lateral invalid로 안전 정지 | trajectory 형상·차량 pose·횡제어 실패 이유 확인 |
-| 시작 파라미터가 유효하지 않음 | `LAT/FATAL`, `LONG/FATAL` | `FATAL`·밝은 빨강 | node가 종료되어 제어 명령을 만들지 못함 | YAML 값과 launch에서 실제 로드된 파라미터 확인 |
+## 색상과 전환
 
-### 색상이 적용되는 대표 예시
+- 정상: 밝은 초록, 1초마다.
+- 최종 조향 명령 절댓값 40도 이상: 밝은 노랑, 첫 진입 즉시 이후 0.2초마다.
+  반올림 전 값으로 판정하고 1e-6도 이내 수치 변환 오차만 허용한다.
+  포화 경고에는 별도 WARN 문구를 붙이지 않는다.
+- 시작 입력 대기: 노랑 `CTRL WAIT <기존 제어기가 보고한 원인>`.
+- 정상 제어 이후 입력 단절·stamp 이상·frame 불일치·PP 실패: 빨강
+  `CTRL ERROR <기존 제어기가 보고한 원인>`.
+- node 시작 설정 오류는 기존 ROS FATAL 로그에 보존하며, 표시 노드가 수신하면
+  빨강 FATAL로 즉시 표시한다. required node 종료는 roslaunch도 보고한다.
+- 위치 점프 제동 중에는 숫자 형식을 유지하며 노랑이다.
+- Competition/IMU가 아직 없거나 수신 후 0.5초를 넘었거나 NaN/Inf면 해당 숫자를
+  고정 폭 `--`로 표시하고 노랑으로 바꾼다. 이전 정상값·0으로 대체하지 않는다.
+- 제어 상태 보고가 0.5초 이상 끊기면 빨강 `CTRL ERROR controller timeout`이다.
+  이는 MORAI 수신 실패의 판정이 아니다.
+- 경고·오류 중 반복 주기는 0.2초다. 첫 정상 복구는 1초 타이머를 기다리지 않고
+  즉시 초록으로 출력하며, 그 복구 시점부터 정상 1초 주기로 돌아간다.
+- 색상은 TTY에서 적용하고 `NO_COLOR`, `TERM=dumb`, 파일/pipe 출력에서는 생략한다.
+  주기는 wall/monotonic clock으로 관리한다. ROS simulation clock 정지와 독립적이다.
 
-아래 코드 블록은 저장 로그에서도 읽을 수 있도록 ANSI 문자를 제외한 모습이다. 실제
-터미널에서는 `WAIT` 메시지 본문이 밝은 노랑, `SAFE_STOP`과 `FATAL` 메시지 본문이
-밝은 빨강으로 보인다. 숫자는 예시이며 실제 값은 설정과 입력 상태를 따른다.
+## 구조와 경계
 
-```text
-[WARN]  [CTRL][LAT][WAIT] stale or unavailable trajectory/state | steering=0deg
-[WARN]  [CTRL][LONG][WAIT] trajectory unavailable; state unavailable; steering unavailable; lateral unavailable | accel=0.00 brake=1.00 steer=0deg
+`longi_pi_autoware`가 기존 안전/정상 분기와 최종 조향을 관측용 `TerminalState`로
+publish하고 `control_terminal.py`가 표시만 담당한다. 제어기 알고리즘·출력 명령·기존
+safety timeout은 바꾸지 않는다. alias도 바꾸지 않는다.
 
-[ERROR] [CTRL][LAT][SAFE_STOP] trajectory and state frame mismatch | steering=0deg
-[ERROR] [CTRL][LONG][SAFE_STOP] state rx stale 0.73s | accel=0.00 brake=1.00 steer=0deg
-[ERROR] [CTRL][LONG][SAFE_STOP] lateral unavailable; lateral: pure pursuit target unavailable | accel=0.00 brake=1.00 steer=0deg
+기존 `[CTRL][LAT]`, `[CTRL][LONG]` 상세 로그는 ROS 로그 파일·`/rosout`에 남긴다.
+launch의 두 제어기 출력은 `log`, 표시 노드 출력만 `screen`이다. 부팅 시 roslaunch의
+기본 프로세스 안내는 남는다. `traj_fol_global`도 같은 launch의 표시 형식을 사용한다.
+`pp_pi.launch`의 기존 제어기는 대상이 아니다.
 
-[FATAL] [CTRL][LAT][FATAL] invalid purepursuit_autoware parameter
-[FATAL] [CTRL][LONG][FATAL] invalid longi_pi_autoware parameter
-```
+MORAI UDP 송신기는 별도 프로세스다. UDP 송신 성공이 MORAI 수신·적용 성공을
+보증하지 않으므로 이 화면에서 `Ctrl connected`를 추정하지 않는다.
 
-색상만 직접 확인하려면 controller를 실행하지 않고 다음 명령을 사용할 수 있다.
+## 검증
 
-```bash
-printf '\033[1;33m%s\033[0m\n' '[WARN]  [CTRL][LAT][WAIT] input unavailable | steering=0deg'
-printf '\033[1;31m%s\033[0m\n' '[ERROR] [CTRL][LONG][SAFE_STOP] state stale | accel=0.00 brake=1.00 steer=0deg'
-printf '\033[1;31m%s\033[0m\n' '[FATAL] [CTRL][LONG][FATAL] invalid parameter'
-```
+- 고정 폭·출력 주기·포화·즉시 복구·미수신·NaN/Inf: Python 단위검사.
+- 실제 ROS subscriber와 PTY: Competition Vx와 IMU Ay, ANSI 초록/노랑/빨강,
+  포화 0.2초·정상 1초, 첫 복구 즉시 출력, Ego 미구독 검사.
+- 기존 C++ 단위검사와 freshness/pose-jump ROS transport 회귀 검사.
+- 설치된 binary·메시지·Python script·launch의 source/build parity 확인.
 
-### 색상 해석 시 주의사항
-
-- `WAIT`는 시작 전 입력 준비 상태이므로 노랑이다. 차량이 이미 움직이는 상황에서 계속
-  나타난다면 정상 상태로 간주하지 말고 입력 구성을 확인한다.
-- `SAFE_STOP`은 정상 제어를 한 번 시작한 뒤 입력이 끊기거나 계산이 실패한 상태이므로
-  빨강이다. 색상과 별개로 실제 안전 여부는 같은 줄의 `accel`, `brake`, `steer`와
-  `/ctrl_cmd`를 함께 확인한다.
-- `HOLD`와 `PATH_END`는 의도된 정지 상태라서 `INFO`이며 빨강으로 표시하지 않는다.
-- 위치 점프 감지는 현재 별도 `ROS_WARN("Pose jump ...")`를 한 번 출력하고 1초 제동을
-  수행한다. 이 메시지에는 controller가 넣는 사용자 정의 ANSI 노랑이 적용되지 않는다.
-- ANSI escape는 메시지 본문에 포함되므로 rosbag, `/rosout`, 파일 로그에도 남을 수 있다.
-  `less -R`처럼 ANSI를 해석하는 뷰어를 사용하거나 파싱 전에 escape를 제거한다.
-- `NO_COLOR` 환경 변수나 터미널 종류를 자동 감지하는 구현은 현재 없다. 색을 지원하지
-  않는 터미널에서도 severity와 `[CTRL][영역][상태]` 문자열로 같은 판단이 가능해야 한다.
-
-## 상태 이름과 판정
-
-| 구분 | 상태 | 의미 |
-| --- | --- | --- |
-| 횡제어 | `START` | node 시작과 입출력 topic·로그 주기 표시 |
-| 횡제어 | `TRACK` | 유효한 trajectory/state로 조향 계산 중 |
-| 횡제어 | `WAIT` | 아직 정상 출력을 만든 적이 없고 입력을 기다리는 중 |
-| 횡제어 | `SAFE_STOP` | 정상 제어 이후 입력 stale/invalid 또는 frame 불일치 |
-| 종제어 | `START` | node 시작과 입출력 topic·로그 주기 표시 |
-| 종제어 | `ACCEL`, `BRAKE`, `DECEL`, `SMOOTH_STOP`, `COAST` | 현재 종방향 제어 모드 |
-| 종제어 | `HOLD`, `PATH_END` | 정지 유지 또는 trajectory 끝 도달 |
-| 종제어 | `WAIT` | 아직 정상 입력 조합이 없어서 full brake 대기 중 |
-| 종제어 | `SAFE_STOP` | 정상 제어 이후 입력 freshness/frame/lateral validity 실패 |
-
-종제어는 `/control/autoware/failure_reason`을 구독한다. 따라서 lateral validity가
-false일 때 가능한 경우 횡제어 실패 이유를 `SAFE_STOP` 원인에 함께 표시한다.
-
-## 변경 파일
-
-- `config/trajectory_follower_autoware.yaml`: `logging/status_period_s: 1.0`
-- `src/purepursuit_autoware.cpp`: `[CTRL][LAT]` 상태, severity, ANSI 색상
-- `src/longi_pi_autoware.cpp`: `[CTRL][LONG]` 상태, 입력 실패 원인, ANSI 색상
-- `test/autoware_freshness.test`: stale-source 시험만 `0.5`초 override
-- `README.md`: 운영자용 로그 해석 안내
-
-시험의 `trajectory_source_timeout_s: 0.5`는 production의 cached trajectory 허용값
-`10.0`초와 독립적으로 stale-source 거부를 검증하기 위한 test-only 설정이다.
-production timeout을 바꾼 것이 아니다.
-
-## 완료된 검증
-
-- `git diff --check`: 통과
-- `catkin_make --only-pkg-with-deps trajectory_follower`: 통과
-- C++ 단위검사: 38/38 통과
-- `autoware_freshness.test` ROS transport 검사: 1/1 통과
-- 설치 대상 `base_ws/install_aw149`: source/config 반영 및 ELF dependency 누락 없음
-- 통합 검사에서 노랑 `WAIT`, 빨강 `SAFE_STOP`, 정상 `TRACK`과 종제어 모드 출력을 확인
-
-ROS integration test는 격리된 ROS master에서 수행했다. 실제 MORAI 폐루프 주행이나
-현장 터미널 가독성 승인을 의미하지 않는다.
-
-## 후속 확인
-
-실제 실행 시 다음 순서로 확인한다.
-
-```bash
-source scripts/workspace/source_aw149.sh
-traj_fol_a
-```
-
-1. controller 시작 전에 노란 `WAIT`가 약 1초 주기로 보이는지 확인한다.
-2. trajectory/state 입력 후 `LAT/TRACK`과 `LONG/<mode>`가 각각 약 1 Hz인지 확인한다.
-3. 안전한 조건에서 입력을 끊었을 때 빨간 `SAFE_STOP`과 full brake가 함께 보이는지 확인한다.
-4. `/ctrl_cmd` publisher가 `longi_pi_autoware` 하나뿐인지 확인한다.
-5. 파일로 저장한 로그를 파싱할 때는 ANSI escape를 제거한다.
-
-로그 문구나 필드를 바꿀 때는 제어 계산과 safety timeout을 함께 손대지 않는다. 상태 판정
-변경이 필요하면 startup `WAIT`와 운행 중 `SAFE_STOP`의 경계를 유지하고 freshness transport
-검사를 다시 실행한다.
-
-## 작업 트리 주의
-
-이 로그 작업과 무관한 `planning_scenario_validator`의 campaign script와 test에는 기존 사용자
-수정이 있다. 제어 로그 후속 작업에서 해당 파일을 정리하거나 되돌리지 않는다.
+위 검사는 격리 master에서 수행한다. MORAI 폐루프 주행 검증을 대신하지 않는다.
