@@ -21,7 +21,7 @@ control_limits:
   max_brake_cmd: 1.0
 
 safety:
-  trajectory_timeout_s: 0.5
+  trajectory_timeout_s: 1.0
   state_timeout_s: 0.5
   # Receipt-time checks alone cannot detect a cached trajectory/odometry message
   # that is repeatedly republished. Reject old, zero, or implausibly future source stamps too.
