@@ -133,6 +133,38 @@ class PrearmStaleContactsTest(unittest.TestCase):
         self.assertEqual(sum(n == 'COLLISION_FAR_FROM_EGO_IGNORED'
                              for n, _ in self.events), 2)
 
+    def test_preparation_far_contact_does_not_block_start(self):
+        with patch('planning_scenario_validator.runtime.time.monotonic', return_value=10.):
+            self.monitor._collision(contact(x=148.042))
+        self.assertEqual(self.monitor.preparation_contacts(after=9.), [])
+        self.assertIn(1, self.monitor.preparation_collisions)
+
+    def test_preparation_boundary_matches_driving_boundary(self):
+        for distance, blocked in ((10., False), (10.000001, False), (9.999999, True)):
+            with self.subTest(distance=distance):
+                self.monitor.preparation_collisions.clear()
+                with patch('planning_scenario_validator.runtime.time.monotonic', return_value=10.):
+                    self.monitor._collision(contact(x=distance))
+                self.assertEqual(bool(self.monitor.preparation_contacts(after=9.)), blocked)
+
+    def test_preparation_same_id_far_then_near_is_not_hidden(self):
+        with patch('planning_scenario_validator.runtime.time.monotonic', return_value=10.):
+            self.monitor._collision(contact(x=148.))
+            self.monitor._collision(contact(x=2.))
+        self.assertEqual(len(self.monitor.preparation_contacts(after=9.)), 1)
+
+    def test_preparation_unknown_distance_is_not_silently_ignored(self):
+        for distance in (None, float('nan'), float('inf')):
+            with self.subTest(distance=distance):
+                self.monitor.preparation_collisions = {
+                    1: dict(object_id=1, receipt_monotonic=10., distance_m=distance)}
+                self.assertEqual(len(self.monitor.preparation_contacts(after=9.)), 1)
+
+    def test_preparation_old_near_contact_is_not_reused_after_load(self):
+        self.monitor.preparation_collisions = {
+            1: dict(object_id=1, receipt_monotonic=8., distance_m=2.)}
+        self.assertEqual(self.monitor.preparation_contacts(after=9.), [])
+
 
 if __name__ == '__main__':
     unittest.main()
