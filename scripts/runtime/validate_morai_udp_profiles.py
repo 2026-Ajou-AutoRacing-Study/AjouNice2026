@@ -18,10 +18,16 @@ PAIRS = (
         ROOT / "configs/network/ego_network_competition_lan.json",
     ),
 )
-LEGACY_LOCAL_MIRRORS = (
-    (ROOT / "configs/sensors/Sensor.json", PAIRS[0][0]),
-    (ROOT / "configs/network/ego_network_1.json", PAIRS[1][0]),
-)
+PRODUCTION_PROFILE_FILES = {
+    "sensors": {"Sensor_competition_local.json", "Sensor_competition_lan.json"},
+    "network": {"ego_network_competition_local.json", "ego_network_competition_lan.json"},
+}
+# Latest planning explicitly ships these development-only profiles. They do
+# not replace canonical competition profiles and are never selected by name.
+DEVELOPMENT_PROFILE_FILES = {
+    "sensors": {"Sensor_competition_lan_jihun.json"},
+    "network": {"ego_network_competition_lan_jihun.json"},
+}
 FIELD_SENSOR = FIELD_REFERENCE_ROOT / "AjouNice_sensor.json"
 FIELD_NETWORK = FIELD_REFERENCE_ROOT / "2026_molit_comp_network.json"
 
@@ -75,44 +81,6 @@ def load(path):
         return json.load(stream)
 
 
-def assert_approximately_equal(left, right, path=()):
-    """Compare JSON trees while tolerating float32 serialization noise."""
-    if (
-        isinstance(left, (int, float))
-        and not isinstance(left, bool)
-        and isinstance(right, (int, float))
-        and not isinstance(right, bool)
-    ):
-        if abs(float(left) - float(right)) > 1e-7:
-            raise ValueError(
-                f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
-            )
-        return
-    if type(left) is not type(right):
-        raise ValueError(
-            f"field sensor type differs at {'/'.join(path)}: "
-            f"{type(left).__name__} != {type(right).__name__}"
-        )
-    if isinstance(left, dict):
-        if set(left) != set(right):
-            raise ValueError(f"field sensor keys differ at {'/'.join(path)}")
-        for key in left:
-            assert_approximately_equal(left[key], right[key], path + (str(key),))
-        return
-    if isinstance(left, list):
-        if len(left) != len(right):
-            raise ValueError(f"field sensor length differs at {'/'.join(path)}")
-        for index, (left_item, right_item) in enumerate(zip(left, right)):
-            assert_approximately_equal(
-                left_item, right_item, path + (str(index),)
-            )
-        return
-    if left != right:
-        raise ValueError(
-            f"field sensor differs at {'/'.join(path)}: {left!r} != {right!r}"
-        )
-
-
 def network_entries_by_type(network):
     entries = {}
     for group in network["egoNetworkData"]:
@@ -162,17 +130,24 @@ def validate_field_network_contract(field_network, adapter_network):
         )
 
 
-def main():
-    for legacy_path, canonical_path in LEGACY_LOCAL_MIRRORS:
-        if load(legacy_path) != load(canonical_path):
+def validate_production_inventory(root=ROOT):
+    for folder, expected in PRODUCTION_PROFILE_FILES.items():
+        directory = Path(root) / "configs" / folder
+        profiles = list(directory.glob("*.json"))
+        actual = {path.name for path in profiles}
+        allowed = expected | DEVELOPMENT_PROFILE_FILES.get(folder, set())
+        if not expected.issubset(actual) or not actual.issubset(allowed):
             raise ValueError(
-                f"legacy local mirror differs from canonical profile: "
-                f"{legacy_path} vs {canonical_path}"
+                f"{folder} production inventory differs: "
+                f"missing={sorted(expected - actual)}, unexpected={sorted(actual - allowed)}"
             )
-        print(
-            f"PASS: legacy local mirror {legacy_path.name} == "
-            f"{canonical_path.name}"
-        )
+        if any(not path.is_file() or path.is_symlink() for path in profiles):
+            raise ValueError(f"{folder} canonical profiles must be regular files")
+
+
+def main():
+    validate_production_inventory()
+    print("PASS: canonical local/LAN profiles and explicit team development exceptions only")
 
     for local_path, competition_path in PAIRS:
         local = normalize_and_check(load(local_path), "local")
@@ -196,8 +171,12 @@ def main():
 
     field_sensor = load(FIELD_SENSOR)
     competition_sensor = load(PAIRS[0][1])
-    assert_approximately_equal(field_sensor, competition_sensor)
-    print("PASS: field MORAI sensor <-> algorithm LAN sensor contract")
+    if field_sensor != competition_sensor:
+        raise ValueError(
+            f"field MORAI sensor differs from algorithm LAN sensor: "
+            f"{FIELD_SENSOR} vs {PAIRS[0][1]}"
+        )
+    print("PASS: field MORAI sensor == algorithm LAN sensor (exact JSON values)")
 
     validate_field_network_contract(load(FIELD_NETWORK), load(PAIRS[1][1]))
     print(

@@ -1,3 +1,4 @@
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 // Copyright 2024 TIER IV, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +14,8 @@
 // limitations under the License.
 
 #include "autoware/behavior_path_lane_change_module/utils/path.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/reentry.hpp"
+#include <tf2/utils.h>
 
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/calculation.hpp"
@@ -33,6 +36,11 @@
 
 #include <fmt/format.h>
 #include <std_msgs/String.h>
+#include <autoware_utils/geometry/boost_polygon_utils.hpp>
+#include <boost/geometry/algorithms/covered_by.hpp>
+#include <boost/geometry/algorithms/correct.hpp>
+#include <boost/geometry/algorithms/is_valid.hpp>
+#include <boost/geometry/algorithms/union.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -235,6 +243,9 @@ std::optional<SamplingParameters> init_sampling_parameters(
   });
 
   // A zero lateral shift must not produce a zero-duration polynomial or 0/0.
+  if (!trajectory.allow_decelerating_lane_change && lon_accel < -1e-6) {
+    return std::nullopt;
+  }
   if (!std::isfinite(duration) || duration <= 1e-6 || !std::isfinite(lc_length) ||
       !std::isfinite(lon_accel) || !std::isfinite(final_velocity)) {
     return std::nullopt;
@@ -503,6 +514,7 @@ LaneChangePath construct_candidate_path(
   const auto terminal_lane_changing_velocity = lane_change_info.terminal_lane_changing_velocity;
 
   auto shifted_path = get_shifted_path(target_lane_reference_path, lane_change_info);
+  shifted_path.path.header = prepare_segment.header;
 
   if (shifted_path.path.points.empty()) {
     throw std::logic_error("Failed to generate shifted path.");
@@ -601,11 +613,26 @@ LaneChangePath construct_candidate_path(
         static_cast<double>(road_limit(current_ref, point.point.pose)),
         static_cast<double>(road_limit(target_ref, point.point.pose))}));
     }
-    const auto velocities = make_speed_profile(
+    auto velocities = make_speed_profile(
       distances, limits, lane_change_info.velocity.lane_changing,
       std::min({bpp.max_acc, params.max_longitudinal_acc,
                 lane_change_info.longitudinal_acceleration.lane_changing}),
       -std::max(bpp.min_acc, params.min_longitudinal_acc), common_data_ptr->acceleration_limits);
+    static const double max_jerk = [] {
+      double value = 0.0;
+      ros::param::get("/planning/scenario_planning/velocity_smoother/normal/max_jerk", value);
+      return value;
+    }();
+    static const double min_jerk = [] {
+      double value = 0.0;
+      ros::param::get("/planning/scenario_planning/velocity_smoother/normal/min_jerk", value);
+      return value;
+    }();
+    velocities = limit_speed_profile_jerk(distances, velocities,
+      common_data_ptr->get_current_accel(), max_jerk, min_jerk,
+      std::min({bpp.max_acc, params.max_longitudinal_acc,
+                lane_change_info.longitudinal_acceleration.lane_changing}),
+      common_data_ptr->acceleration_limits);
     if (*std::min_element(velocities.begin(), velocities.end()) < params.min_lane_changing_velocity) {
       throw std::logic_error("Spatial speed profile falls below minimum LC velocity");
     }
@@ -699,13 +726,9 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
       initial_state.lateral_acceleration);
 
     const auto & trajectory = common_data_ptr->lc_param_ptr->trajectory;
-    const auto [min_lat_acc, max_lat_acc] = trajectory.lat_acc_map.find(
-      std::max(trajectory.min_lane_changing_velocity, metric.velocity));
     std::vector<frenet_planner::Trajectory> frenet_trajectories;
-    for (int i = 0; i <= trajectory.lat_acc_sampling_num; ++i) {
-      if (i > 0 && std::abs(max_lat_acc - min_lat_acc) < 1e-6) break;
-      const double lateral_acc = min_lat_acc +
-        (max_lat_acc - min_lat_acc) * i / trajectory.lat_acc_sampling_num;
+    for (const double lateral_acc : lateral_acceleration_samples(
+           trajectory, std::max(trajectory.min_lane_changing_velocity, metric.velocity))) {
       const auto sampling_parameters_opt = init_sampling_parameters(
         common_data_ptr, metric, initial_state, reference_spline, lateral_acc,
         target_lane_reference_path.points.front().point.longitudinal_velocity_mps);
@@ -727,6 +750,13 @@ std::vector<lane_change::TrajectoryGroup> generate_frenet_candidates(
 
     trajectory_groups.reserve(trajectory_groups.size() + frenet_trajectories.size());
     for (const auto & traj : frenet_trajectories) {
+      // Check the entire polynomial, not only its initial/terminal sample.
+      if (!trajectory.allow_decelerating_lane_change && std::any_of(
+            traj.longitudinal_accelerations.begin(), traj.longitudinal_accelerations.end(),
+            [](const double a) { return a < -1e-6; })) {
+        ++rejected_sampling;
+        continue;
+      }
       // A Frenet polynomial can overshoot its sampled terminal acceleration.
       // Do not pass an unreachable prediction to the collision checker.
       bool exceeds_propulsion = false;
@@ -899,6 +929,7 @@ std::optional<LaneChangePath> get_candidate_path(
   const auto & lane_changing_candidate = trajectory_group.lane_changing;
   const auto & target_lane_ref_path = trajectory_group.target_lane_ref_path;
   const auto & prepare_segment = trajectory_group.prepare;
+  shifted_path.path.header = prepare_segment.header;
   const auto & prepare_metric = trajectory_group.prepare_metric;
   const auto & initial_state = trajectory_group.initial_state;
   const auto & target_ref_sums = trajectory_group.target_lane_ref_path_dist;
@@ -1025,4 +1056,207 @@ void append_target_ref_to_candidate(
   }
   candidate_path.push_back(target_lane_ref_path.back());
 }
+
+namespace
+{
+std::optional<LaneChangePath> make_current_state_transition(
+  const CommonDataPtr & common, const double duration, const double desired_acceleration,
+  const bool returning, std::string * rejection_reason)
+{
+  const auto reject = [&](const char * reason) -> std::optional<LaneChangePath> {
+    if (rejection_reason) *rejection_reason=reason;
+    return std::nullopt;
+  };
+  if (!common || !common->current_acceleration || !common->is_data_available() || !common->is_lanes_available() ||
+      !std::isfinite(duration) || duration <= 0.0 || !std::isfinite(desired_acceleration)) {
+    return reject("input_unavailable");
+  }
+  const auto & params=*common->lc_param_ptr;
+  const auto & bpp=*common->bpp_param_ptr;
+  if (!returning && !params.trajectory.allow_decelerating_lane_change && desired_acceleration < -1e-6) {
+    return reject("decelerating_lc_disabled");
+  }
+  static const auto jerk_limits=[] {
+    std::pair<double,double> limits{0.0,0.0};
+    ros::param::get("/planning/scenario_planning/velocity_smoother/normal/max_jerk",limits.first);
+    ros::param::get("/planning/scenario_planning/velocity_smoother/normal/min_jerk",limits.second);
+    return limits;
+  }();
+  if (jerk_limits.first<=0.0 || jerk_limits.second>=0.0) return reject("jerk_configuration");
+  const auto ego=common->get_ego_pose();
+  const auto ref = [&]() {
+    if (!returning) return get_reference_path_from_target_lane(common,ego,0.0,0.5);
+    const auto & lanes = common->lanes_ptr->current;
+    const auto start = autoware::experimental::lanelet2_utils::get_arc_coordinates(lanes,ego).length;
+    const auto end = std::min(start+bpp.forward_path_length,
+      lanelet::geometry::length3d(lanelet::LaneletSequence(lanes)) -
+      common->transient_data.current_dist_buffer.min);
+    if (end <= start) return PathWithLaneId{};
+    return autoware::behavior_path_planner::utils::resamplePathWithSpline(
+      common->route_handler_ptr->getCenterLinePath(lanes,start,end),0.5,true,{0.0,0.0});
+  }();
+  if (ref.points.size()<3 || common->current_lanes_path.points.size()<2) return reject("reference_unavailable");
+  const auto spline=init_reference_spline(ref.points);
+  const auto initial=spline.frenet({ego.position.x,ego.position.y});
+  const double ref_yaw=spline.yaw(initial.s), curvature=spline.curvature(initial.s);
+  const double low=std::max(spline.firstS(),initial.s-0.1);
+  const double high=std::min(spline.lastS(),initial.s+0.1);
+  if (high<=low) return reject("curvature_reference");
+  const double curvature_derivative=(spline.curvature(high)-spline.curvature(low))/(high-low);
+  const auto twist=common->get_ego_twist();
+  const auto accel=common->current_acceleration->accel.accel.linear;
+  const auto motion=reentry_motion(tf2::getYaw(ego.orientation)-ref_yaw,
+    twist.linear.x,twist.linear.y,accel.x,accel.y,twist.angular.z,
+    initial.d,curvature,curvature_derivative);
+  if (!motion) return reject("initial_motion_invalid");
+  const auto lateral=ReentryQuintic::to_zero(initial.d,motion->d_velocity,motion->d_acceleration,duration);
+  const auto slip=ReentryQuintic::to_zero(motion->slip,motion->slip_rate,0.0,duration);
+  if (!lateral || !slip) return reject("initial_polynomial_invalid");
+  using Polygon = autoware_utils::Polygon2d;
+  using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
+  MultiPolygon corridor;
+  for (const auto * lane : {&common->lanes_polygon_ptr->current,
+                           &common->lanes_polygon_ptr->target}) {
+    if (lane->size() < 3) continue;
+    Polygon polygon;
+    for (const auto & point : *lane) polygon.outer().emplace_back(point.x(),point.y());
+    boost::geometry::correct(polygon);
+    if (!boost::geometry::is_valid(polygon)) return reject("corridor_invalid");
+    MultiPolygon merged;
+    if (corridor.empty()) corridor.push_back(polygon);
+    else { boost::geometry::union_(corridor,polygon,merged); corridor=std::move(merged); }
+  }
+  if (corridor.empty()) return reject("corridor_missing");
+  LaneChangePath candidate;
+  candidate.type=behavior_path_planner::lane_change::PathType::SpatialSpeedProfile;
+  candidate.path.header=ref.header;
+  double s=initial.s, sv=motion->s_velocity, sa=motion->s_acceleration;
+  double previous_t=0.0;
+  double previous_lat_acc=accel.y;
+  std::optional<size_t> ready;
+  double ready_time=0.0, arc=0.0, ready_arc=0.0, peak_lat_acc=0.0;
+  // Numerical sampling only; constraints and thresholds come from the existing LC configuration.
+  const double step=std::min(0.1,params.safety.collision_check.prediction_time_resolution);
+  if (!std::isfinite(step) || step<=0.0) return reject("sampling_configuration");
+  const size_t count=static_cast<size_t>(std::ceil(duration/step));
+  for (size_t i=0;i<=count;++i) {
+    const double t=std::min(duration,i*step), dt=t-previous_t;
+    if (i) {
+      const double maximum=common->acceleration_limits.limit(sv,
+        std::min(bpp.max_acc,params.trajectory.max_longitudinal_acc));
+      const double desired=std::clamp(desired_acceleration,
+        std::max(bpp.min_acc,params.trajectory.min_longitudinal_acc),maximum);
+      const double next_acc=sa+std::clamp(desired-sa,jerk_limits.second*dt,jerk_limits.first*dt);
+      s+=sv*dt+0.5*sa*dt*dt+(next_acc-sa)*dt*dt/6.0;
+      sv+=0.5*(sa+next_acc)*dt;
+      sa=next_acc;
+    }
+    if (s<spline.firstS() || s>spline.lastS() || sv<0.0) return reject("longitudinal_reference_or_reverse");
+    const double d=lateral->at(t), dv=lateral->at(t,1);
+    const double lateral_jerk_limit = returning ? params.cancel.max_lateral_jerk : params.trajectory.lateral_jerk;
+    if (std::abs(lateral->at(t,3))>lateral_jerk_limit+1e-3) return reject("lateral_polynomial_jerk");
+    const double scale=1.0-spline.curvature(s)*d;
+    if (scale<=0.0) return reject("frenet_scale");
+    const auto xy=spline.cartesian(autoware::sampler_common::FrenetPoint{s,d});
+    const double tangent=spline.yaw(s);
+    const double world_speed=std::hypot(sv*scale,dv), beta=slip->at(t);
+    const double vx=world_speed*std::cos(beta);
+    if (!std::isfinite(vx) || vx<0.0) return reject("velocity_invalid");
+    const double yaw=(i==0) ? tf2::getYaw(ego.orientation) :
+      tangent+std::atan2(dv,sv*scale)-beta;
+    PathPointWithLaneId point;
+    const auto ref_idx=autoware::motion_utils::findNearestSegmentIndex(
+      ref.points,autoware_utils::create_point(xy.x(),xy.y(),ego.position.z));
+    const auto current_idx=autoware::motion_utils::findNearestSegmentIndex(
+      common->current_lanes_path.points,autoware_utils::create_point(xy.x(),xy.y(),ego.position.z));
+    const double cap=std::min({bpp.max_vel,
+      static_cast<double>(ref.points[ref_idx].point.longitudinal_velocity_mps),
+      static_cast<double>(ref.points[ref_idx+1].point.longitudinal_velocity_mps),
+      static_cast<double>(common->current_lanes_path.points[current_idx].point.longitudinal_velocity_mps)});
+    if (vx>cap+1e-3) return reject("road_speed_limit");
+    point.point.pose.position=autoware_utils::create_point(
+      xy.x(),xy.y(),ref.points[ref_idx].point.pose.position.z);
+    point.point.pose.orientation=autoware_utils::create_quaternion_from_yaw(yaw);
+    if (!i) point.point.pose=ego;
+    if (!boost::geometry::covered_by(get_ego_footprint(point.point.pose,bpp.vehicle_info),corridor))
+      return reject("body_outside_corridor");
+    point.point.longitudinal_velocity_mps=vx;
+    point.point.lateral_velocity_mps=world_speed*std::sin(beta);
+    const double k=spline.curvature(s);
+    const double klow=std::max(spline.firstS(),s-0.1), khigh=std::min(spline.lastS(),s+0.1);
+    const double kp=(spline.curvature(khigh)-spline.curvature(klow))/(khigh-klow);
+    const double u=sv*scale, w=dv;
+    const double udot=sa*scale-(kp*sv*d+k*dv)*sv, wdot=lateral->at(t,2);
+    const double yaw_rate=i && world_speed>1e-6 ?
+      k*sv+(u*wdot-w*udot)/(world_speed*world_speed)-slip->at(t,1) : twist.angular.z;
+    const double relative=yaw-tangent;
+    const double lat_acc=-(udot-k*sv*w)*std::sin(relative)+
+      (wdot+k*sv*u)*std::cos(relative);
+    const double max_lat=params.trajectory.lat_acc_map.find(vx).second;
+    if (std::abs(lat_acc)>max_lat+1e-3 ||
+        (i && std::abs(lat_acc-previous_lat_acc)/dt>lateral_jerk_limit+1e-3)) {
+      return reject("lateral_acceleration_or_jerk");
+    }
+    peak_lat_acc=std::max(peak_lat_acc,std::abs(lat_acc));
+    point.point.heading_rate_rps=vx>1e-6 ? yaw_rate/vx : 0.0;
+    point.lane_ids=ref.points[ref_idx].lane_ids;
+    for (const auto id:common->current_lanes_path.points[current_idx].lane_ids) {
+      if (std::find(point.lane_ids.begin(),point.lane_ids.end(),id)==point.lane_ids.end())
+        point.lane_ids.push_back(id);
+    }
+    if (i) arc+=autoware_utils::calc_distance2d(candidate.path.points.back(),point);
+    candidate.path.points.push_back(point);
+    candidate.shifted_path.shift_length.push_back(d);
+    const bool braking=sa < -1e-6;
+    const bool speed_ready=vx>=params.trajectory.min_lane_changing_velocity-1e-6;
+    if (!ready && (returning || (speed_ready && (params.trajectory.allow_decelerating_lane_change || !braking)))) {
+      ready=i;ready_time=t;ready_arc=arc;
+    }
+    if (!returning && (!speed_ready || (!params.trajectory.allow_decelerating_lane_change && braking)) &&
+        !utils::isEgoWithinOriginalLane(common->lanes_polygon_ptr->current,point.point.pose,bpp)) {
+      return reject("prepare_motion_outside_original_lane");
+    }
+    previous_t=t;previous_lat_acc=lat_acc;
+  }
+  if (!ready || *ready+1>=candidate.path.points.size()) return reject("minimum_lc_velocity");
+  const double terminal_buffer = returning ? common->transient_data.current_dist_buffer.min : common->transient_data.next_dist_buffer.min;
+  if (arc+terminal_buffer>common->transient_data.dist_to_terminal_end+1e-3)
+    return reject("terminal_distance");
+  const auto end=candidate.path.points.back().point.pose;
+  candidate.info.duration={ready_time,duration-ready_time};
+  candidate.info.length={ready_arc,arc-ready_arc};
+  candidate.info.velocity={candidate.path.points[*ready].point.longitudinal_velocity_mps,
+    candidate.path.points[*ready].point.longitudinal_velocity_mps};
+  candidate.info.longitudinal_acceleration={motion->s_acceleration,desired_acceleration};
+  candidate.info.terminal_lane_changing_velocity=candidate.path.points.back().point.longitudinal_velocity_mps;
+  candidate.info.lateral_acceleration=peak_lat_acc;
+  candidate.info.lane_changing_start=candidate.path.points[*ready].point.pose;
+  candidate.info.lane_changing_end=end;
+  candidate.info.shift_line.start=candidate.info.lane_changing_start;
+  candidate.info.shift_line.end=end;
+  candidate.info.shift_line.start_idx=*ready;
+  candidate.info.shift_line.end_idx=candidate.path.points.size()-1;
+  candidate.info.shift_line.end_shift_length=initial.d;
+  if (utils::lane_change::is_intersecting_no_lane_change_lines(
+      common,candidate.info.length,candidate.path.points)) return reject("no_lane_change_line");
+  candidate.shifted_path.path=candidate.path;
+  // Keep the normal forward continuation; only the measured-state maneuver is new.
+  const auto end_index=autoware::motion_utils::findNearestIndex(ref.points,end.position);
+  for (size_t i=end_index+1;i<ref.points.size();++i) candidate.path.points.push_back(ref.points[i]);
+  return candidate;
+}
+}  // namespace
+
+std::optional<LaneChangePath> make_abort_reentry_candidate(
+  const CommonDataPtr & common, const double duration, const double acceleration, std::string * rejection)
+{
+  return make_current_state_transition(common,duration,acceleration,false,rejection);
+}
+
+std::optional<LaneChangePath> make_abort_return_candidate(
+  const CommonDataPtr & common, const double duration, const double acceleration, std::string * rejection)
+{
+  return make_current_state_transition(common,duration,acceleration,true,rejection);
+}
+
 }  // namespace autoware::behavior_path_planner::utils::lane_change

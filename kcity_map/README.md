@@ -1,140 +1,136 @@
-# K-City Map
+# K-City 지도
 
-K-City 지도 설정과 제작·검증 스크립트는 Git으로 관리하고, 대용량 지도
-자산은 팀 Google Drive로 공유합니다. Google Drive에서 파일을 내려받아도
-경로는 항상 `~/AjouNice2026/kcity_map/`으로 유지되므로 기존 ROS launch와
-도구의 경로를 바꿀 필요가 없습니다.
-
-## 관리 범위
-
-Git에서 관리하는 파일:
-
-- `README.md`, `.gitignore`
-- `2026_molit_comp_sample_scene.json`
-- `lanelet_map/map_projector_info_v1.yaml`
-- `lanelet_map/lanelet2_map_v87.osm` (명시적 Git 배포 예외, 아래 설명)
-- v87 route/requester/mission/rules 실행 설정
-- `competition_route/README.md`
-- `competition_route/How to visualize competition route.txt`
-- `scripts/kcity_map_workflow/`
-
-Google Drive에서 관리하는 파일:
-
-- `lanelet_map/*.osm`
-- `lanelet_map/*.pcd`
-- `mgeo_map/`
-- `gis_map/`
-- `example_map/`
-- `competition_route/v*/`
-
-현재 기준 자산:
-
-- Lanelet2: `lanelet_map/lanelet2_map_v87.osm` (Git checkout에 포함)
-- Pointcloud: `lanelet_map/pointcloud_map_v1.pcd`
-- Projector: `lanelet_map/map_projector_info_v1.yaml`
-- Competition route: `base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml`
-
-## v87 기본 실행
-
-`competition_planning.launch`와 명시적 `competition_planning_v87.launch`는 모두 v87을 사용합니다.
-RViz·예측·신호등·규정 모니터도 같은 지도 버전으로 맞췄습니다.
-
-공용 requester 실행 코드는 v87 전용
-[requester 설정](../base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v87.param.yaml)과
-[Route A/B 설정](../base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml)을 사용합니다.
-기본 requester 설정도 같은 v87 Route A/B를 선택합니다.
-
-지도 제작 중 생성한 SVG·PNG·검증 결과와 일회성 제작 스크립트는
-Git에서 제외된 `planner_logs/analysis/` 아래에 보관합니다.
-
-v87은 사용자 요청으로 OSM 자체도 Git에 배포합니다. 팀 Drive 업로드는
-`storageQuotaExceeded`로 거절되어, 이 버전만 `.gitignore` 예외로 추가했습니다.
-기존 지도 자산의 Drive 관리 정책과 이전 버전 파일은 보존합니다.
-
-## 최초 준비
-
-Ubuntu에서 rclone을 설치하고 자신의 Google 계정으로 `ajou_drive` remote를
-한 번 설정합니다. OAuth 설정 파일인 `~/.config/rclone/rclone.conf`는
-절대 Git에 올리거나 다른 사람과 공유하지 않습니다.
+현재 planning·인지·측위 지도·시각화의 기본 지도는 **v101**이다.
+v101은 사용자가 제공한 v100의 기존 노드·차선·중심선·속도·경로 연결을 보존하고,
+음영 직선 구간 `200374`·`200471` 바깥에 GIS 기반 `road_shoulder` Lanelet
+`234976`·`235226`을 추가한 지도다. 차선과 숄더는 기존 경계 Way를 공유하며,
+공유 경계는 흰색 실선, 실제 바깥 경계는 `road_border`로 표현한다.
+새 숄더의 제한속도는 10 km/h다. 숄더 사용 정책과 expandable 설정은 별개다.
+[현재 manifest](../configs/map/kcity_v101_shadow_shoulders.yaml)에 실제 파일 SHA를 고정한다.
+지도 파일·작업용 그림·검증 산출물은 Git에 포함하지 않는다.
+별도 제공받은 v101을 다음 명령으로 검증·배치한다.
 
 ```bash
-sudo apt update
-sudo apt install -y rclone
-rclone config
+python3 scripts/map/prepare_kcity_v101.py --source /path/to/lanelet2_map_v101.osm
+python3 scripts/map/prepare_kcity_v101.py --check
+python3 scripts/map/check_runtime_map_version.py --installed
 ```
 
-Drive remote 이름은 `ajou_drive`로 통일합니다. 스크립트는 팀 공유 폴더
-`AjouNice2026`의 폴더 ID를 루트로 사용하므로 일반 공유 폴더도 동일하게
-접근할 수 있습니다.
+클린빌드도 v101을 검사한 뒤 진행한다. 파일이 없거나 SHA가 다르면 중단하며 구버전으로 대체하지 않는다.
+일반 planning·통합 stack·인지 launch와 업데이트 도구는 v101 이외 버전·지도 경로를 거부한다.
+과거 버전별 launch는 이력 보존용이며 현재 공통 planning 진입점에서 실행이 거부된다.
+원본 v100부터 존재한 Lanelet `200289` 자기교차 1건은 보존됐다. v101의 새 숄더는
+형상·공유 경계·Lanelet2 로드·기존 routing 연결 검사를 통과했다. 폐루프 주행 검증은 별도다.
+설치 반영 후 실행 중인 노드는 재시작해야 새 지도를 로드한다.
 
-## 지도 다운로드
+이전 v99는 v98 대비 Lanelet `201096` 제한속도를 59 → 30 km/h로 변경한 지도다.
+[당시 manifest](../configs/map/kcity_v99_speed_limit.yaml)와 준비 도구는 이력으로 보존한다.
+아래 설명은 이전 자산 이력이다.
 
-저장소 루트에서 먼저 변경 내용을 확인한 후 내려받습니다.
+이전 v98은 중심선 연결을 수정한 지도다.
+v98은 v97의 Lanelet `201439` 중심선 Way `105522` 끝점 참조를
+`229565`에서 다음 Lanelet `200360`의 `233927`로 연결한 지도다.
+9.0502 cm 간격을 없애며 기존 굴절은 보존한다. 경계·속도·나머지 형상·경로 정책은 변경하지 않는다.
+[현재 manifest](../configs/map/kcity_v98_centerline_connection.yaml)에 입력·출력 SHA를 고정한다.
+지도 원본·작업용 그림·검증 산출물은 Git에 포함하지 않는다.
+기존 v97 자산이 있으면 아래 준비 도구가 검증 후 v98을 재현한다. 다른 내용의 기존 파일은 덮어쓰지 않는다.
 
 ```bash
-# 실제 변경 없이 다운로드 대상을 확인
-scripts/map/download_kcity_map_assets.sh --dry-run
-
-# 누락된 지도 자산 다운로드 및 Drive MD5 검증
-scripts/map/download_kcity_map_assets.sh
+python3 scripts/map/prepare_kcity_v98.py
+python3 scripts/map/prepare_kcity_v98.py --check
+python3 scripts/map/check_runtime_map_version.py --installed
 ```
 
-다운로드는 원격에 있고 로컬에 없는 파일을 추가합니다. 로컬에만 존재하는
-파일을 삭제하지 않으며, 같은 경로의 내용이 다르면 덮어쓰지 않고 오류로
-중단합니다. 다운로드 후 `rclone check`가 Drive에 있는 모든 지도 파일과
-로컬 파일의 크기 및 MD5를 직접 비교합니다.
+소스 변경과 설치·실행 중인 노드의 적용은 별개다. 설치 반영 후 관련 노드를 재시작해야 적용된다.
+v97 이하 명시적 프로필은 과거 버전 복귀용으로 보존한다. 아래 설명은 이전 자산 이력이다.
 
-## 새 지도 업로드
+v97 전환 당시 planning·인지·지도 시각화 launch의 소스 기본 지도는 `lanelet_map/lanelet2_map_v97.osm`이었다.
+실제 실행의 map 인자와 설치본을 먼저 확인하며, 파일명 숫자가 크다는 이유로 바꾸지 않는다.
 
-새 버전은 기존 파일을 덮어쓰지 않고 버전 번호를 올립니다. 현재 Git 배포
-지도는 v87이며, 이전 버전 지도·라우트 설정과 제작 산출물은 Git에 포함하지 않습니다.
+v97은 사용자가 제공한 지도이며 `200968`의 제한속도는 59 → 40 km/h다.
+[v97 manifest](../configs/map/kcity_v97_speed_limit.yaml)에 실제 파일 SHA를 고정한다.
+VMB 재저장에 따른 좌표 정밀도·속성·멤버 차이도 있어 v96과 바이트/형상이 동일하다고 간주하지 않는다.
+Route A/B와 Mission 정책은 v96을 계승하며 지도 로드·경로 연결은 별도 검증한다.
+`python3 scripts/map/prepare_kcity_v97.py --check`로 자산을 확인한다.
+당시 설치된 기본값은 v97이었다. 현재 기본값은 문서 상단의 v101를 따른다.
+
+2026-10-27: 로컬 v95를 기반으로 음영 직선도로 양쪽 레인렛 `200374`, `200471`의
+`speed_limit`을 59 → **40 km/h**로 변경한 `lanelet_map/lanelet2_map_v96.osm`을 생성했다.
+[v96 manifest](../configs/map/kcity_v96_shadow_speed.yaml)에 원본·산출물 SHA와 검증 범위를 기록했다.
+형상·연결·나머지 속성은 동일하다. 런치와 라우트 리쿼스터의 소스 기본값은 v96으로 전환했다.
+설치본·실행 중인 자동화는 바꾸지 않았다. 지도 파일은 Git에 포함하지 않는다.
 
 ```bash
-# 업로드 대상과 충돌 여부를 실제 변경 없이 확인
-scripts/map/upload_kcity_map_assets.sh --dry-run
-
-# 신규 지도 업로드 및 Drive MD5 검증
-scripts/map/upload_kcity_map_assets.sh
+python3 scripts/map/prepare_kcity_v96.py --source /path/to/lanelet2_map_v96.osm
+python3 scripts/map/prepare_kcity_v96.py --check
 ```
 
-업로드 후 `rclone check`가 모든 로컬 지도 파일과 Drive 파일의 크기 및
-MD5를 직접 비교합니다. 동일한 원격 경로에 내용이 다른 파일이 있으면
-`--immutable` 정책에 의해 업로드가 실패합니다. 지도 자산만 추가하거나
-다운로드한 경우에는 Git 커밋이 필요하지 않습니다. Git 커밋은 설정,
-제작·검증 스크립트 또는 문서가 변경될 때만 수행합니다.
-
-## 환경값 변경
-
-기본값은 다음과 같습니다.
-
-```text
-KCITY_MAP_RCLONE_REMOTE=ajou_drive
-KCITY_MAP_DRIVE_ROOT_FOLDER_ID=12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP
-KCITY_MAP_DRIVE_PATH=kcity_map
-```
-
-다른 remote나 테스트 폴더를 사용할 때만 실행 전에 환경변수로 덮어씁니다.
+2026-10-27: **v95 = v94 + 200311 중심선의 109.5–132.5 m 구간 보정**이다.
+47개 점만 최대 1.82 cm 이동했고 도로 경계·속도·연결은 보존했다.
+[자산 manifest](../configs/map/kcity_v95_centerline_asset.yaml)에 SHA와 수정 범위를 둔다.
+지도 파일은 Git에 포함하지 않는다. 별도로 받은 v95를 다음과 같이 검증·배치한다.
 
 ```bash
-export KCITY_MAP_RCLONE_REMOTE=my_drive
-export KCITY_MAP_DRIVE_PATH=kcity_map_test
-scripts/map/upload_kcity_map_assets.sh --dry-run
+python3 scripts/map/prepare_kcity_v95.py --source /path/to/lanelet2_map_v95.osm
+python3 scripts/map/prepare_kcity_v95.py --check
 ```
 
-## 맵 제작 스크립트
+v95 소스 전환은 실행 중인 자동화나 설치본을 바꾸지 않는다. v95 실제 주행 검증은 아직 없다.
+아래 v94 설명은 v95가 계승한 자산 이력이며, v94 준비 도구는 명시적 과거 버전용이다.
 
-맵 제작 도구는 `kcity_map/`을 작업 디렉터리로 사용합니다.
+2026-10-26: 새 통합 자산은 **v94 = 팀장님 v88-2 도로 수정 + 검증한 v93 정지선 좌표**다.
+[통합 manifest](../configs/map/kcity_v94_merged_asset.yaml)에 원본 SHA·병합 범위·Drive 검증 상태를 둔다.
+v88-2의 도로 재구성·속도 제한은 보존하고 정지선8개 node와버전표기만 바꿨다. v94는 lanelet1295개다.
+정지선 위치는 v87 대비 A+0.75/B+2.6/C+0.35/D+2.6m로 v93과 같으며 상대 이동을 중복 적용하지 않았다.
+안정 정차 차이2.34px는 [v93 계열의 실측](../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#pixel-alignment-v93)이지 통합 뒤 새 실주행 결과가 아니다.
+**당시 소스 기본은 v94**였다. 인자 없이 실행해도 지도·SHA·Route A/B를 함께 선택한다. 설치본 갱신과 v94 자산 준비는 [팀 업데이트](../docs/runbooks/261026_TRAFFIC_V94_TEAM_UPDATE.md)를 따른다. 실행 중인 노드와 개인 캠페인 snapshot은 이 소스 변경으로 전환되지 않는다.
+
+| 구분 | 경로·기준 |
+| --- | --- |
+| Lanelet2 | `lanelet_map/lanelet2_map_v101.osm` |
+| Projector | `lanelet_map/map_projector_info_v1.yaml` |
+| Pointcloud | `lanelet_map/pointcloud_map_v1.pcd` |
+| 속도 상한 | v88 OSM attributes: 대상 양쪽 차선 150 → 80 → 70 km/h. 별도 override 없음 |
+| 최신 자산 검증 근거 | `../configs/map/kcity_v101_shadow_shoulders.yaml` |
+| 과거 제작·검증·그림 | [legacy 안내](legacy/README.md) |
+
+## 자산 준비
+
+기존 v88 OSM은 Drive 용량 제한에 따른 명시적 예외로 Git checkout에 남긴다. 현재 v97 OSM은 별도 제공 자산이므로 새 PC는 위 `prepare_kcity_v97.py --source ...` 명령으로 먼저 준비한다.
+PCD·MGeo·GIS·다른 버전 OSM·버전별 route 같은 큰 자산은 팀 Drive로 공유한다.
+설정·현재 도구·이력은 Git으로 관리한다. 자산 경로는 이 저장소의 `kcity_map/`을 유지한다.
 
 ```bash
-cd ~/AjouNice2026/kcity_map
-
-python3 scripts/kcity_map_workflow/generate_drive_course_from_map.py \
-  --map lanelet_map/lanelet2_map_v87.osm \
-  --reference-csv /path/to/reference_lanelets.csv \
-  --out-dir competition_route/v87 \
-  --output-prefix drive_course_v87
+# rclone remote는 본인 계정으로 설정하고 인증파일은 공유하지 않는다.
+bash scripts/map/download_kcity_map_assets.sh --dry-run
+bash scripts/map/download_kcity_map_assets.sh
 ```
 
-일부 Autoware 연동 검증 스크립트는 선택적으로 상위 워크스페이스의
-`autoware_data/`를 사용합니다. Autoware 자체는 이 저장소에 포함하지
-않습니다.
+위 명령은 저장소 루트에서 실행한다. 기본 remote는 `ajou_drive`, Drive 경로는
+`kcity_map`이다. `KCITY_MAP_RCLONE_REMOTE`·`KCITY_MAP_DRIVE_PATH`로 변경할 수 있다.
+두 스크립트는 immutable 정책과 크기·MD5 검사를 사용한다. 기존 자산을 삭제하거나
+같은 경로의 다른 내용을 덮어쓰지 않는다. 업로드는 별도 승인 후
+`scripts/map/upload_kcity_map_assets.sh --dry-run`으로 먼저 확인한다.
+이 PC의 후속 Drive 작업은 `KCITY_MAP_RCLONE_REMOTE=ajou_drive_private`를 명시한다.
+전용 인증이 만료되면 갱신을 요청하며 공용 client인 `ajou_drive`로 우회하지 않는다.
+
+## 현재 도구와 역사 재현
+
+- 실제 실행 지도 확인: [check_runtime_map_version.py](../scripts/map/check_runtime_map_version.py).
+- 범용 지도 검사·변환: [workflow 안내](scripts/kcity_map_workflow/README.md).
+- 코스 산출물: [competition_route 안내](competition_route/README.md). 과거 v41/v44 예시를
+  현재 planning route나 대회 기본값으로 사용하지 않는다.
+- 버전 전환 전용 도구는 [legacy](legacy/README.md)에 원문 보관했다.
+
+이번 정리는 자산 다운로드·재생성·현장 지도 교체·속도 정책 변경을 수행한 것이 아니다.
+
+## v88 highway 변경
+
+- 선호 경로: `200360 → 201479 → 201451` (150 → 80 → 70 km/h).
+- 옆차선: `200185 → 201448 → 201452` (동일 속도).
+- 기존 201479의 꺾임점에서 분할하고 앞·뒤를 각각 직선으로 병합했다.
+- 201451·201452의 형상과 좌표는 v87과 동일하며 속도만 변경했다.
+- 바깥 200147·201449의 구간 경계도 정렬해 기존 200147 ↔ 200185 차선변경 연결을 유지했다.
+- 전체 형상·그래프 검사, 설치된 Mission Planner 36 경로/1,005 전이, 설치 launch 18개 해석을 통과했다.
+- 실행 중인 ROS 세션은 교체하지 않았다. v88 폐루프 주행과 VMB UI 검증은 미실행이다.
+- Drive 업로드는 사용자가 수행한다.

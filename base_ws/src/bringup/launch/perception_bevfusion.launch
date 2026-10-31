@@ -2,7 +2,7 @@
   <!-- Top-level host launch for MORAI four-camera BEVFusion visualization. -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="config"
        default="$(arg repo_root)/configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="projection_only" default="false"/>

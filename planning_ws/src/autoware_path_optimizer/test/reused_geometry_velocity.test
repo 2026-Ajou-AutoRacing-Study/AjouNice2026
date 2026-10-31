@@ -1,0 +1,9 @@
+<launch>
+  <test test-name="reused_geometry_velocity" pkg="autoware_path_optimizer"
+        type="test_reused_geometry_velocity" time-limit="60">
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/configs/planning/vehicle_info.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/common/nearest_search.param.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml"/>
+    <param name="replan/max_delta_time_sec" value="1.0"/>
+  </test>
+</launch>

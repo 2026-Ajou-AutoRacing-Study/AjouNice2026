@@ -7,12 +7,17 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 namespace bvp = autoware::behavior_velocity_planner;
-template<class Interface> void plugins(const std::string & base, const std::string & prefix)
+template<class Interface> void plugins(
+  const std::string & base, const std::string & prefix, const bool omit_go_latch = false)
 {
   ros::NodeHandle node("/full_roundabout_test");
   ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_planner)/config/ros1/behavior_velocity_planner.yaml\" /full_roundabout_test"), 0);
   ASSERT_EQ(std::system("rosparam load \"$(rospack find autoware_behavior_velocity_intersection_module)/config/ros1/intersection.yaml\" /full_roundabout_test"), 0);
   ASSERT_EQ(std::system("rosparam load \"" AW149_BVP_MODULE_CONFIG "\" /full_roundabout_test"), 0);
+  if (omit_go_latch) {
+    ASSERT_TRUE(node.deleteParam("roundabout/common/latch_go_after_stop"));
+    ASSERT_TRUE(node.deleteParam("roundabout/common/go_after_stop_min_stop_duration"));
+  }
   pluginlib::ClassLoader<Interface> loader("autoware_behavior_velocity_planner_common", base);
   // Hold both libraries and both plugin objects in the same process/lifetime.
   auto intersection = loader.createUniqueInstance(prefix + "IntersectionModulePlugin");
@@ -57,6 +62,16 @@ TEST(FullRoundabout, ExperimentalCoLoadsIntersectionAndPreservesObjectState)
   plugins<bvp::experimental::PluginInterface>("autoware::behavior_velocity_planner::experimental::PluginInterface",
     "autoware::behavior_velocity_planner::experimental::");
 }
+TEST(FullRoundabout, NormalAcceptsExistingProfilesWithoutGoLatchParameter)
+{
+  plugins<bvp::PluginInterface>("autoware::behavior_velocity_planner::PluginInterface",
+    "autoware::behavior_velocity_planner::", true);
+}
+TEST(FullRoundabout, ExperimentalAcceptsExistingProfilesWithoutGoLatchParameter)
+{
+  plugins<bvp::experimental::PluginInterface>("autoware::behavior_velocity_planner::experimental::PluginInterface",
+    "autoware::behavior_velocity_planner::experimental::", true);
+}
 TEST(FullRoundabout, OriginalGeometricPassageUsesDurationAndRejectsDistantPolygon)
 {
   autoware_perception_msgs::PredictedPath path;
@@ -82,6 +97,8 @@ TEST(FullRoundabout, OriginalDecisionDiagnosticsPreserveRtcAndError)
     "RTC: roundabout activated_ = 0\nInternalError because missing lane");
   EXPECT_EQ(bvp::formatDecisionResult(bvp::RoundaboutCollisionStop{}, true),
     "RTC: roundabout activated_ = 1\nCollisionStop:\n");
+  EXPECT_EQ(bvp::formatDecisionResult(bvp::RoundaboutGoAfterStop{true}, true),
+    "RTC: roundabout activated_ = 1\nGoAfterStop: experimental GO latch active; collision_detected=true\n");
 }
 int main(int argc, char ** argv) {
   ros::init(argc, argv, "full_roundabout_tests");

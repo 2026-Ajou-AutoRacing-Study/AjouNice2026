@@ -1,7 +1,7 @@
 # BEVFusion 팀 공용 Docker 학습·추론 handoff
 
 > **문서 상태: CURRENT.** 공용 Docker와 일반 Base3 학습 계약이다. Base4 temporal
-> 실험은 [`BASE4_TEMPORAL_TEAM_HANDOFF.md`](BASE4_TEMPORAL_TEAM_HANDOFF.md)의
+> 실험은 [`BASE4_TEMPORAL_TEAM_HANDOFF.md`](legacy/research_2609_2610/BASE4_TEMPORAL_TEAM_HANDOFF.md)의
 > 추가 dataset·checkpoint·audit 계약을 따른다.
 
 ## 목적과 기준
@@ -12,7 +12,7 @@
 
 2026-09-18 Base3 Fresh E40 corrected validation·test·mission rosbag 결과와
 checkpoint 선택 근거는
-[`260918_base3_e40_production_evaluation_results.md`](260918_base3_e40_production_evaluation_results.md)를
+[`260918_base3_e40_production_evaluation_results.md`](legacy/research_2609_2610/260918_base3_e40_production_evaluation_results.md)를
 참고한다. Offline best는 E26이다. 실제 경로 7-bag detection은 E10이 근소하게
 높지만, 최종 시스템 목표인 tracker/Map-CV의 AVE와 FDE는 E25가 우세하므로
 production 표준은 E25로 정한다. E10은 rollback baseline으로 보존한다.

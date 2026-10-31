@@ -20,6 +20,18 @@ from argparse import Namespace
 
 
 class SpatialTests(unittest.TestCase):
+    def test_fresh_rejects_reseeding_frozen_front_allocation_before_output_or_context(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'source.json';out=root/'next'
+            source.write_text(json.dumps(dict(config={'obstacle_front_support_policy':{'policy':'v151'}})))
+            before=source.read_bytes()
+            with patch.object(spatial.gen,'context') as context:
+                with self.assertRaisesRegex(ValueError,'v150 source first'):
+                    environment.generate(source,out,'foggy11',limit=1)
+            context.assert_not_called()
+            self.assertFalse(out.exists())
+            self.assertEqual(source.read_bytes(),before)
+
     def test_offline_generation_budget_is_finite_and_never_relaxes_qa(self):
         reasons=Counter();reference={'runtime_actors':[],'split':'train'}
         with patch.object(spatial,'build',side_effect=ValueError('Footprint clearance failure')) as build:

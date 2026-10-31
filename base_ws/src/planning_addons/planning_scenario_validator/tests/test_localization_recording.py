@@ -129,14 +129,14 @@ class LocalizationRecordingTests(unittest.TestCase):
 
     def test_e24_e25_only_selected_model_telemetry_is_required(self):
         self.doc['stack']['detector'] = 'bevfusion'
-        for preset in ('base5_e24', 'e25'):
+        for preset in ('base5_e12', 'base5_e24', 'e25'):
             with self.subTest(preset=preset):
                 self.doc['stack']['bevfusion_model'] = preset
                 cfg = self.cfg()
                 report = audit_bag(self.bag(self.complete_topics(cfg)), cfg, driving_started=True)
                 self.assertEqual(report['status'], 'OK', report['warnings'])
                 self.assertTrue(report['complete_for_localization_assessment'])
-                other = model_topics('e25' if preset == 'base5_e24' else 'base5_e24')['status']
+                other = model_topics('e25' if preset != 'e25' else 'base5_e12')['status']
                 self.assertEqual(report['topics'][other]['message_count'], 0)
                 self.assertNotIn(other, report['missing_required'])
 

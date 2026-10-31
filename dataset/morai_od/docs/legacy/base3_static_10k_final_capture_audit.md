@@ -191,3 +191,12 @@ Batch 008 포함 최종 이름도 별도 Dynamic add-on이 아닌 `Base3-Static 
 velocity 학습에는 유용하지만 실제 vehicle temporal 분포를 지배하면 안 되므로 Base4의
 Vehicle clips 중 10--15% tail case로 제한한다. 나머지는 이미 목표속도로 주행 중인 합류,
 본선 순항·추월, 로터리 순환 차량으로 구성한다.
+
+## 2026-10-18 보관 형식 변경 안내
+
+위 내용은 당시 수집·채택 결과이며 수정하지 않았다. 이후 사용자 승인으로 이 루트의
+RGB PNG 44,212장을 같은 해상도의 Q90 JPEG로 변환하고 전수 검증 후 RGB PNG만 삭제했다.
+LiDAR·native GT·Semantic/Instance/Depth·메타데이터는 보존했다. 이제 재학습용이 아니라
+분석용으로 보관하므로 옛 PNG 학습 경로를 그대로 실행하지 않는다.
+분석 색인은 `artifacts/datasets/base3_static_10k_jpeg90_analysis_261018/manifest.json`이며,
+최종 성공 기준은 같은 폴더의 `completion.json`이다. [정리·보존 근거](../261017_base5_unit_release_evidence.md#approved-storage-cleanup-261018)를 참고한다.

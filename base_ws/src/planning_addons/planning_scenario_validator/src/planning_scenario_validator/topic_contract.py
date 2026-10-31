@@ -4,6 +4,7 @@ MEASUREMENT = '/perception/object_recognition/tracking/measurement_objects'
 DOWNSTREAM_TIMING = ['/tracked_object_motion_policy/diagnostics/processing_time_ms',
                      '/map_based_prediction/diagnostics/processing_time_ms']
 MODEL_NAMESPACES = {'e25': '/perception/bevfusion',
+                    'base5_e12': '/perception/base5_trial',
                     'base5_e24': '/perception/base5_trial',
                     'base5_e9': '/perception/base5_trial'}
 PLANNER_TIME_PATTERNS = [

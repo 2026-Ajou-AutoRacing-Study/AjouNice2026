@@ -59,3 +59,35 @@ historical records both passed; this is not a currently runnable test or v61
 approval. In RViz, the ROS2 speed path is offset `+1.2 m`, the live
 ROS1 full-pipeline path is offset `-1.2 m`, and speed is colored red through
 yellow to cyan.
+
+## RViz Route A/B editor
+
+```bash
+export AJOUNICE_ROOT="$(pwd -P)"
+source scripts/workspace/source_aw149.sh
+roslaunch bringup aw149_route_editor.launch
+```
+
+This opens the v85 map and the complete configured Route A/B without starting
+a controller or the automatic route requester. The regular planning RViz keeps
+its original driving view; editing is available through this separate launch.
+In **Route Editor**, choose A/B and press **클릭 추가 (P)**
+or the toolbar's **Route Point** tool. Clicking a road snaps a new waypoint to
+its centerline, including elevation and travel direction, and inserts it in
+route order. Use **Interact** to drag a waypoint, or select its list row and
+press **선택 삭제**. The start is fixed; the goal can be moved but not deleted.
+**되돌리기** reverses edits and **원본 복원** restores the selected route.
+
+Original A is blue and B is green; the selected draft is orange. Edited road
+connections are a standard Lanelet2 preview, not the Autoware Mission Planner's
+verified route. Red indicates disconnected points. **Planning에 경로 적용**
+explicitly calls `/planning/set_waypoint_route` with the selected waypoints and
+goal; it needs a running planning stack and uses its current ego position.
+The current planner route remains visible in the regular RViz **Mission Route**
+display. Editing and saving alone issue no route request.
+
+**저장** writes both drafts to
+`planner_logs/route_editor/competition_routes.yaml` by default; **불러오기** opens
+another saved draft. The editor reloads the default file on the next launch.
+These are editor files with a map fingerprint: they do not overwrite or replace
+the competition requester's frozen `kcity_v87_competition_route.yaml` contract.

@@ -4,6 +4,7 @@ import csv
 import fcntl
 import hashlib
 import json
+import math
 import os
 import shutil
 import shlex
@@ -15,15 +16,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .config import ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign
+from .config import (ConfigError, EXECUTION_CONTRACT, ROOT, load_campaign, resolve_path,
+                     prediction_horizon, prediction_mixed_horizon_enabled,
+                     prediction_highway_horizon, prediction_highway_mode,
+                     traffic_temporal_options)
+from .route_profile import ProfileGeometry
 from .executions import is_snapshot, load_execution, prepare_execution
-from .traffic_light import runtime_mode, runtime_settings
-from .models import resolve_contract, verify_contract, selected_model, CANONICAL
+from .traffic_light import (runtime_mode, runtime_settings, profile_name, candidate_assets,
+                           profile_check_arguments, launch_options as traffic_launch_options)
+from .models import resolve_contract, verify_contract, selected_model, runtime_image_selection, CANONICAL
 from .recording_audit import audit_bag
 from .recording_options import diagnostics_enabled, sharing_warnings, sharing_enabled, localization_analysis_enabled
 from .localization_contract import effective_localization_args, effective_gt_pose_args, resolve_localization_contract
 from .failure_analysis import analyze_failure, compact_summary, log_offsets, scan_log_signals
 from .repetitions import sampled_scene
+from .startup_audit import mark_startup_phase, record_startup_failure, complete_startup
 from .runtime import (BrakeHold, LiveMonitor, Processes, Recording, RuntimeFailure, SafetyFailure,
                       ScenarioFailure,
                       atomic_json, check_no_conflicting_publishers,
@@ -72,17 +79,47 @@ def _check_traffic_light(cfg):
                 "--device", device, "--check-ros"]
     if runtime_mode(cfg["stack"]) == "virtualenv":
         command.append("--isolate-python")
+    command += profile_check_arguments(cfg['stack'], ROOT)
     print("신호등 실행 환경 검사: {} / device={}".format(python, device), flush=True)
+    logs = cfg['output'] / 'stack_logs'
+    logs.mkdir(parents=True, exist_ok=True)
+    receipt = {'schema_version': 1, 'command': command, 'started_at': now(),
+               'python': python, 'device': device, 'profile': profile_name(cfg['stack']), 'status': 'RUNNING'}
+    atomic_json(logs / 'traffic_light_preflight.json', receipt)
     try:
         checked = subprocess.run(command, env=_env(), stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as error:
+        output = getattr(error, 'stdout', '') or ''
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
+        (logs / 'traffic_light_preflight.log').write_text(output, encoding='utf-8')
+        receipt.update(status='ERROR', error=str(error), finished_at=now())
+        atomic_json(logs / 'traffic_light_preflight.json', receipt)
         raise RuntimeFailure("신호등 환경 검사 실행 실패: {}".format(error)) from error
-    (cfg["output"] / "stack_logs").mkdir(parents=True, exist_ok=True)
-    (cfg["output"] / "stack_logs/traffic_light_preflight.log").write_text(checked.stdout, encoding="utf-8")
+    (logs / 'traffic_light_preflight.log').write_text(checked.stdout, encoding='utf-8')
+    probe_status = None
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(checked.stdout):
+        if char != '{':
+            continue
+        try:
+            value, _ = decoder.raw_decode(checked.stdout[index:])
+        except ValueError:
+            continue
+        if isinstance(value, dict) and value.get('status') in ('PASS', 'FAIL'):
+            probe_status = value['status']
+            break
+    receipt.update(status='PASS' if checked.returncode == 0 else 'FAIL',
+        returncode=checked.returncode, probe_report_status=probe_status,
+        reported_pass_but_process_failed=probe_status == 'PASS' and checked.returncode != 0,
+        finished_at=now())
+    atomic_json(logs / 'traffic_light_preflight.json', receipt)
     print(checked.stdout, flush=True)
     if checked.returncode:
-        raise RuntimeFailure("신호등 환경 검사가 실패했습니다. 차량 주행은 시작하지 않았습니다. 환경 설치 가이드를 확인하세요")
+        raise RuntimeFailure('신호등 환경 검사 프로세스 종료코드 {} (보고서 status={}). '
+            '차량 주행은 시작하지 않았습니다. 상세: {}'.format(
+                checked.returncode, probe_status, logs / 'traffic_light_preflight.json'))
 
 
 def _start_master(processes, monitor_timeout):
@@ -143,6 +180,11 @@ def _start_persistent(cfg, processes, monitor):
 
 def _start_case_stack(cfg, processes, monitor):
     stack, network = cfg["stack"], cfg["network"]
+    traffic_options = cfg.get('traffic_light_options', traffic_launch_options(stack))
+    temporal = cfg.get('traffic_light_temporal_options')
+    if temporal is None:
+        temporal = traffic_temporal_options(stack,
+            legacy_snapshot=Path(cfg.get('path', '')).name == 'config_snapshot.yaml')
     timeout = float(cfg["document"].get("readiness_timeout_sec", 45))
     after = time.monotonic()
     if stack["pose_source"] == "localization":
@@ -160,22 +202,49 @@ def _start_case_stack(cfg, processes, monitor):
         processes.start("detector", _launch("perception_object_pipeline", "morai_gt_detection.launch"))
     processes.start("tracking", _launch("perception_object_pipeline", "object_pipeline.launch",
         start_detector=False, prediction_model="map_based",
+        prediction_horizon=prediction_horizon(stack),
+        prediction_mixed_horizon_enabled=prediction_mixed_horizon_enabled(stack),
+        prediction_highway_horizon=prediction_highway_horizon(stack),
+        prediction_highway_mode=prediction_highway_mode(stack),
         publish_processing_diagnostics=diagnostics_enabled(cfg.get('recording', {})),
         maximum_tracking_internal_prediction_age_sec=0.5))
     if stack.get("traffic_light", False):
         python, device = runtime_settings(stack, ROOT, check_exists=True)
-        processes.start("traffic_light", _launch("traffic_light_detection", "traffic_light_node.launch",
+        selected = candidate_assets(stack, ROOT, check_exists=True)
+        extra = {} if selected is None else dict(models_root=selected['root'], repo_root=ROOT,
+                                                sensor_config=cfg['network']['sensor_json'])
+        filename = 'traffic_light_legacy.launch' if selected is None else 'traffic_light_v5_candidate.launch'
+        processes.start("traffic_light", _launch("traffic_light_detection", filename,
             inference_python=shlex.quote(python), device=device,
-            isolate_python=runtime_mode(stack) == "virtualenv"))
+            isolate_python=runtime_mode(stack) == "virtualenv",
+            publish_debug_image=traffic_options['publish_debug_image'],
+            preserve_unreadable_color_evidence=temporal['preserve_unreadable_color_evidence'],
+            planner_compliance_observations=temporal['planner_compliance_observations'],
+            stamped_vote_window_size=temporal['stamped_vote_window_size'], **extra))
+        if traffic_options['debug_view']:
+            processes.start('traffic_light_debug_view', _launch('traffic_light_detection',
+                'traffic_light_debug_view.launch',
+                image_topic='/traffic_light_node/debug_image/compressed',
+                display=cfg['recording']['video']['display']))
     processes.start("planning", _launch("ajounice_planning_integration", "planning.launch",
         repo_root=ROOT, start_requester=False, is_simulation=False,
         behavior_path_forward_length=400.0, intersection_attention_area_length=100.0,
         enable_traffic_light_planner=stack.get("traffic_light", False),
+        enable_signal_compliance_guard=temporal['enable_signal_compliance_guard'],
+        signal_compliance_unknown_grace_sec=temporal['signal_compliance_unknown_grace_sec'],
+        enable_yellow_passthrough=traffic_options['yellow_passthrough'],
+        signal_compliance_yellow_deceleration_mps2=traffic_options.get('signal_compliance_yellow_deceleration_mps2', 6.0),
+        signal_compliance_yellow_jerk_mps3=traffic_options.get('signal_compliance_yellow_jerk_mps3', 10.0),
+        signal_compliance_required_green_observations=temporal['signal_compliance_required_green_observations'],
+        signal_compliance_min_yellow_sec=traffic_options.get('signal_compliance_min_yellow_sec', 2.0),
+        signal_compliance_yellow_time_margin_sec=traffic_options.get('signal_compliance_yellow_time_margin_sec', 0.2),
+        # Old timed fields remain in frozen inputs, but cannot reactivate the replaced policy.
+        signal_compliance_enable_timed_yellow=False,
         publish_fixed_autonomous_mode=True, use_ground_pointcloud=False,
         use_occupancy_grid=False))
 
 
-CASE_STACK = ["controller", "planning", "traffic_light", "tracking", "detector", "pose"]
+CASE_STACK = ["controller", "planning", "traffic_light_debug_view", "traffic_light", "tracking", "detector", "pose"]
 
 
 def _load_scene(cfg, installed, monitor, ego_xy):
@@ -187,6 +256,20 @@ def _load_scene(cfg, installed, monitor, ego_xy):
     udp = cfg["document"].get("morai", {})
     host, port = udp.get("scenario_load_host", "127.0.0.1"), int(udp.get("scenario_load_port", 9095))
     timeout = float(cfg["document"].get("scenario_ready_timeout_sec", 35))
+    if udp.get("clear_before_load", False):
+        # MORAI delete_all clears selected actor classes instead of loading
+        # their new contents. Wait for that distinct scene state before reload;
+        # sending both packets in one physics step cannot establish a clean scene.
+        clear_request = dict(request, delete_all=True, load_ego_vehicle_data=False)
+        clear_payload = build_scenario_load_payload(installed.stem, clear_request)
+        clear_after = time.monotonic()
+        monitor.event("SCENE_CLEAR_REQUESTED", installed=installed.name)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+            if connection.sendto(clear_payload, (host, port)) != len(clear_payload):
+                raise RuntimeFailure("ScenarioLoad 객체 제거 패킷 일부만 송신됨")
+        monitor.wait_empty_scene(after=clear_after, timeout=timeout)
+        monitor.event("SCENE_CLEAR_CONFIRMED")
+        time.sleep(1.0)  # Let the unpaused physics scene process actor removal.
     for attempt in range(1, 4):
         baseline_xy = None if monitor.ego is None else (
             float(monitor.ego.position.x), float(monitor.ego.position.y))
@@ -505,6 +588,7 @@ def _run_case(cfg, processes, monitor, case, state):
                     "pose_source": cfg["stack"]["pose_source"],
                     "detector": cfg["stack"]["detector"],
                     "model": cfg.get('model_contract'),
+                    "traffic_light_options": cfg.get('traffic_light_options', traffic_launch_options(cfg['stack'])),
                     "git_sha": subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(ROOT), text=True).strip(),
                     "sensor_json": str(cfg["network"]["sensor_json"]),
                     "ego_network_json": str(cfg["network"]["ego_network_json"]),
@@ -513,6 +597,9 @@ def _run_case(cfg, processes, monitor, case, state):
                     "bag_enabled": cfg['recording'].get('bag_enabled', True),
                     "recorded_topics": cfg["recording"]["topics"],
                     "recorded_topic_regex": cfg['recording'].get('topic_regex', [])}
+    if cfg.get('route'):
+        cfg_snapshot['route'] = {'name':cfg['route']['name'],
+            'definition_sha256':cfg['route']['definition_sha256'],'goal_preserved':True}
     atomic_json(folder / "input.json", cfg_snapshot)
     state["current"] = {"scenario": case.name, "phase": "SCENARIO_LOAD", "attempt": attempt,
                         "started_at": now(), "metrics": {}}
@@ -586,8 +673,43 @@ def _run_case(cfg, processes, monitor, case, state):
         state["current"]["phase"] = "ROUTE_REQUEST"
         _write_state(cfg, state)
         monitor.event("ROUTE_REQUEST")
-        route_id = request_route(case, monitor,
-            timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)), process=processes.running['planning'])
+        def _build_route_args():
+            args = {}
+            if cfg.get('route'):
+                geometry = cfg.get('_route_geometry')
+                if geometry is None:
+                    geometry = cfg['_route_geometry'] = ProfileGeometry(cfg['route'], resolve_path)
+                odom = monitor.odom
+                if odom is None or odom.header.frame_id != 'map':
+                    raise RuntimeFailure('Route B 요청에 map 좌표의 현재 위치가 필요합니다.')
+                p, q = odom.pose.pose.position, odom.pose.pose.orientation
+                yaw = math.degrees(math.atan2(
+                    2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
+                args['route_plan'] = geometry.plan(
+                    dict(x=p.x, y=p.y, z=p.z, yaw_deg=yaw), case.goal)
+            return args
+
+        # route 요청이 간헐적으로 거부된다("DefaultPlanner returned an empty route").
+        # 같은 시나리오가 통과/실패를 반복하므로 내용 문제가 아니라, localization
+        # pose가 lanelet에 올라오기 전에 요청이 나가는 레이스로 본다. 재요청으로 흡수.
+        route_id = None
+        route_tries = int(cfg["document"].get("route_request_attempts", 3))
+        for route_attempt in range(1, route_tries + 1):
+            route_args = _build_route_args()
+            if 'route_plan' in route_args:
+                atomic_json(folder / 'route_profile.json', route_args['route_plan'])
+            try:
+                route_id = request_route(case, monitor,
+                    timeout=float(cfg["document"].get("route_ready_timeout_sec", 75)),
+                    process=processes.running['planning'], **route_args)
+                break
+            except RuntimeFailure as exc:
+                if route_attempt >= route_tries:
+                    raise
+                monitor.event("ROUTE_RETRY", attempt=route_attempt, error=str(exc)[:200])
+                print("route 요청 거부: {}/{}회, 4초 후 재시도".format(
+                    route_attempt, route_tries), flush=True)
+                time.sleep(4.0)
         if safety['enabled']:
             monitor.wait_stationary(after=loaded_after, timeout=safety['startup_timeout_sec'],
                 hold_sec=safety['stationary_hold_sec'], speed_max_mps=safety['speed_max_mps'],
@@ -765,6 +887,8 @@ def _run_case(cfg, processes, monitor, case, state):
             "attempt": attempt, "started_at": started_at, "finished_at": now(),
             "status": "PASS" if code == "P" else "ERROR" if code == "E" else "FAIL",
             "reason": reason, "error": error, "route_uuid": route_id,
+            "route_profile": (json.loads((folder / 'route_profile.json').read_text())
+                              if (folder / 'route_profile.json').is_file() else None),
             "drive_reason": drive_reason, "safety": safety_receipt, "halt_campaign": halt_campaign,
             "metrics": metrics, "failure_analysis": failure_analysis,
             "model": cfg.get('model_contract'), "recording_audit": recording_audit,
@@ -875,6 +999,26 @@ def _run_campaign(cfg, resume=True, rerun_failed=False):
 
 
 def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
+    mark_startup_phase(cfg, 'CONTRACT_CHECK')
+    try:
+        code = _run_campaign_impl(cfg, resume, rerun_failed)
+        complete_startup(cfg, code)
+        return code
+    except (Exception, KeyboardInterrupt) as error:
+        try:
+            record_startup_failure(cfg, error)
+            print('실패 단계: {} · 상세 로그: {}'.format(cfg.get('_startup_phase'),
+                cfg['output'] / 'stack_logs/startup_error.log'), file=sys.stderr, flush=True)
+        except Exception as audit_error:
+            print('시작 오류 기록 실패: {}'.format(audit_error), file=sys.stderr, flush=True)
+        raise
+
+
+def _run_campaign_impl(cfg, resume=True, rerun_failed=False):
+    mark_startup_phase(cfg, 'NETWORK_CHECK')
+    if cfg.get('network_contract', {}).get('errors'):
+        raise RuntimeFailure('\n'.join(cfg['network_contract']['errors']))
+    mark_startup_phase(cfg, 'CONTRACT_CHECK')
     state = _load_state(cfg, resume)
     model = resolve_contract(cfg['stack'], cfg['network']['sensor_json'], ROOT)
     previous_model = state.get('model_contract') or cfg.get('model_contract')
@@ -894,16 +1038,23 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
     cfg['localization_contract'] = localization
     state['localization_contract'] = localization
     atomic_json(cfg['output'] / 'localization_runtime.json', localization)
+    if cfg.get('network_contract'):
+        atomic_json(cfg['output'] / 'network_contract.json', cfg['network_contract'])
     from .recording_audit import profile_contract_warnings
     state['recording_profile_warnings'] = profile_contract_warnings(cfg)
     state['recording_profile_warnings'] += sharing_warnings(cfg['recording'], cfg['upload'])
     for warning in state['recording_profile_warnings']:
         print('[WARN] ' + warning + ' · 기존 사본은 수정하지 않습니다. 새 실험으로 갱신하세요.', flush=True)
     if model['preset'] != 'od_gt':
-        image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', model['image']], text=True).strip()
+        image_selection = runtime_image_selection(model)
+        image_id = image_selection['image_id']
         if previous_model and previous_model.get('image_id') not in (None, image_id):
             raise RuntimeFailure('Docker image가 이전 모델 실행과 다릅니다. 같은 결과에 resume할 수 없습니다')
         model['image_id'] = image_id
+        atomic_json(cfg['output'] / 'model_image_selection.json', image_selection)
+        if image_selection['fallback']:
+            print('[WARN] optional TensorRT image 없음: 같은 E12 eager로 시작합니다. ' +
+                  image_selection['reason'], flush=True)
     atomic_json(cfg['output'] / 'model_runtime.json', model)
     state.update(run_status='RUNNING', runner_pid=os.getpid())
     snapshot = cfg["output"] / "campaign_config.yaml"
@@ -928,12 +1079,17 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
         return 0
     processes = Processes(cfg["output"] / "stack_logs", _env())
     try:
+        mark_startup_phase(cfg, 'DISK_CHECK')
         check_free_disk(cfg)
+        mark_startup_phase(cfg, 'TRAFFIC_LIGHT_CHECK')
         _check_traffic_light(cfg)
+        mark_startup_phase(cfg, 'ROS_MASTER_CHECK')
         _start_master(processes, float(cfg["document"].get("readiness_timeout_sec", 45)))
+        mark_startup_phase(cfg, 'ROS_NODE_INIT')
         import rospy
         rospy.init_node("planning_scenario_validator", anonymous=False, disable_signals=True)
         monitor = LiveMonitor()
+        mark_startup_phase(cfg, 'STACK_START')
         _start_persistent(cfg, processes, monitor)
         for index, case in enumerate(todo, 1):
             if is_snapshot(cfg['path']):
@@ -941,6 +1097,7 @@ def _run_campaign_locked(cfg, resume=True, rerun_failed=False):
             # Check between cases without corrupting an in-progress recorder.
             check_free_disk(cfg)
             print("[{}/{}] {}".format(index, len(todo), case.name), flush=True)
+            mark_startup_phase(cfg, 'CASE_RUN')
             result = _run_case(cfg, processes, monitor, case, state)
             print("  -> {} ({})".format(result["status"], result["reason"]), flush=True)
             if result.get('halt_campaign'):
@@ -975,6 +1132,11 @@ def main(argv=None):
             cfg = load_execution(args.config) if is_snapshot(args.config) else load_campaign(args.config)
         else:
             raise ConfigError('새 실행은 YAML, 재개는 --execution 결과폴더를 지정하세요')
+        network_contract = cfg.get('network_contract', {})
+        if network_contract.get('errors'):
+            raise ConfigError('\n'.join(network_contract['errors']))
+        for warning in network_contract.get('warnings', []):
+            print('[WARN] ' + warning, flush=True)
         if cfg["ignored_case_yamls"]:
             print("안내: 예전 .case.yaml {}개는 읽지 않습니다. 이 YAML의 공통 목적지·시간을 모든 장면에 적용합니다.".format(
                 len(cfg["ignored_case_yamls"])), file=sys.stderr)
@@ -986,6 +1148,8 @@ def main(argv=None):
             print("설정 확인: {} | JSON {}개 × 반복 {}회 = 총 {}회 | 설치 {}".format(
                 cfg["name"], len({case.source for case in cfg["cases"]}),
                 cfg['cases'][0].repeat_total, len(cfg["cases"]), cfg["install"]))
+            if cfg.get('route'):
+                print('경로 정책: {} / 기존 목적지 유지 / 선호 차선 일치 확인 후 주행'.format(cfg['route']['name']))
             if args.dry_run:
                 for index, case in enumerate(cfg["cases"], 1):
                     print("{:02d}. {} -> goal ({:.1f}, {:.1f}) / {}초".format(index, case.name,

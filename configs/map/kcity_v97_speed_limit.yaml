@@ -1,0 +1,43 @@
+schema_version: 1
+map_version: 97
+status: source_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v97.osm
+map_sha256: da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9
+map_md5: fc4dec2a44648c83084e9011d4a6d107
+size_bytes: 31517761
+source:
+  map_file: kcity_map/lanelet_map/lanelet2_map_v96.osm
+  sha256: 98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd
+  origin: user_supplied_v97
+  drive_verified: false
+speed_limit_changes_kph:
+  200968:
+    before: 59
+    after: 40
+geometry_and_topology_identical_to_source: false
+other_attributes_identical_except_map_version: false
+node_count: 151258
+way_count: 4177
+relation_count: 1373
+lanelet_count: 1295
+validation: SHA/MetaInfo; Lanelet2 load; configured route reachability; 26 installed
+  launches; requester A-to-B and fallback synthetic output probes
+receipt: planner_logs/analysis/map_v97_runtime_adoption
+runtime_defaults_changed: true
+runtime_install_or_restart_performed: true
+live_validation: isolated_installed_map_load_route_a_to_b_and_fallback_pass
+drive_uploaded: false
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+map_storage: separately_distributed_asset
+git_map_publication: excluded
+provision_command: python3 scripts/map/prepare_kcity_v97.py --source /path/to/lanelet2_map_v97.osm
+verification_command: python3 scripts/map/prepare_kcity_v97.py --check
+runtime_adoption: source_and_install_v97_existing_live_session_not_restarted
+additional_export_changes:
+  node_coordinate_precision: VMB re-export; local_x/local_y/ele rounding and lat/lon
+    regeneration
+  removed_participant_vehicle_no_tags: 78
+  crosswalk_speed_limit_10_added: 89
+  way_and_relation_member_sets_unchanged: true
+validation_scope: Synthetic output only; no MORAI closed-loop validation or live-session
+  replacement

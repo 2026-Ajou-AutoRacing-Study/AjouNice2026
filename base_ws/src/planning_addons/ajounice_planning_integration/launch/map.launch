@@ -1,7 +1,8 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
-  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
-  <arg name="map_sha256" default="70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v101.osm"/>
+  <arg name="map_sha256" default="574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29"/>
+  <!-- The projector validates the actual selected file checksum, not its filename. -->
   <node pkg="ajounice_planning_integration" type="map_projector_publisher" name="map_projector_publisher" required="true" output="screen">
     <param name="repo_root" value="$(arg repo_root)"/>
     <param name="map_file" value="$(arg map_file)"/>

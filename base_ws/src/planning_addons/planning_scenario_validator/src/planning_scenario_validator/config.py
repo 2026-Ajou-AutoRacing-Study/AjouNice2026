@@ -8,9 +8,11 @@ from pathlib import Path
 
 import yaml
 from .layout import normalize_bar_setting
-from .traffic_light import runtime_settings
+from .traffic_light import (runtime_settings, profile_name, timed_policy_options,
+                            launch_options as traffic_launch_options)
 from .repetitions import repetition_settings
 from .models import selected_model
+from .route_profile import normalize as normalize_route
 from .localization_contract import (normalize_localization_launch_args,
                                     normalize_gt_pose_launch_args,
                                     normalize_localization_safety)
@@ -21,12 +23,52 @@ CONFIG_SCHEMA_VERSION = 2
 EXECUTION_CONTRACT = "campaign-common-settings-v2"
 UPLOAD_PROFILES = ("basic", "bag", "video", "full")
 DEFAULT_UPLOAD_REMOTE = "ajou_drive:planning_validator"
+PRODUCTION_UNKNOWN_GRACE_SEC = .3
 # Same shared AjouNice2026 Drive folder used by scripts/map/*_kcity_map_assets.sh.
 AJOU_DRIVE_ROOT_FOLDER_ID = "12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP"
 
 
 class ConfigError(ValueError):
     pass
+
+
+def traffic_temporal_options(stack, *, legacy_snapshot=False, validate_pair=True):
+    """Resolve the paired v5 handoff without migrating frozen old executions.
+
+    Grace is the only independent new temporal setting. Marker/direct/vote
+    fields are frozen provenance, not a second way to select an unpaired mode.
+    Older snapshots missing grace retain zero even when their profile is v5.
+    """
+    for key in ('traffic_light', 'enable_signal_compliance_guard',
+                'preserve_unreadable_color_evidence', 'planner_compliance_observations'):
+        if key in stack and type(stack[key]) is not bool:
+            raise ConfigError('stack.{}는 true/false여야 합니다'.format(key))
+    if 'stamped_vote_window_size' in stack and (
+            type(stack['stamped_vote_window_size']) is not int or stack['stamped_vote_window_size'] != 0):
+        raise ConfigError('stack.stamped_vote_window_size는 운영 profile에서 0이어야 합니다')
+    traffic = stack.get('traffic_light', False)
+    direct = traffic and profile_name(stack) == 'v5_candidate'
+    guarded = stack.get('enable_signal_compliance_guard', True)
+    eligible = direct and guarded
+    default = PRODUCTION_UNKNOWN_GRACE_SEC if eligible and not legacy_snapshot else 0.
+    grace = stack.get('signal_compliance_unknown_grace_sec', default)
+    if (type(grace) not in (int, float) or not math.isfinite(grace) or not 0 <= grace <= .3):
+        raise ConfigError('stack.signal_compliance_unknown_grace_sec는 유한한 0~0.3초여야 합니다')
+    # A legacy/off/guard-off caller never inherits a positive launch default.
+    grace = float(grace) if eligible else 0.
+    result = dict(enable_signal_compliance_guard=guarded,
+                  signal_compliance_unknown_grace_sec=grace,
+                  preserve_unreadable_color_evidence=grace > 0.,
+                  planner_compliance_observations=direct,
+                  stamped_vote_window_size=0,
+                  signal_compliance_required_green_observations=
+                      timed_policy_options(stack)['signal_compliance_required_green_observations'])
+    old_missing = legacy_snapshot and 'signal_compliance_unknown_grace_sec' not in stack
+    if validate_pair and not old_missing:
+        for key in ('preserve_unreadable_color_evidence', 'planner_compliance_observations'):
+            if key in stack and stack[key] != result[key]:
+                raise ConfigError('stack.{}는 선택된 profile/grace와 일치해야 합니다'.format(key))
+    return result
 
 
 def resolve_path(value, *, required=True):
@@ -103,6 +145,55 @@ def _yaml(path):
     return value
 
 
+def prediction_mixed_horizon_enabled(stack):
+    """One explicit experimental switch; never enable it through truthiness."""
+    value = stack.get('prediction_mixed_horizon_enabled', False)
+    if type(value) is not bool:
+        raise ConfigError('stack.prediction_mixed_horizon_enabled는 true/false여야 합니다')
+    return value
+
+
+def prediction_horizon(stack):
+    """Bound the explicit native prediction horizon on the existing 0.1 s grid."""
+    value = stack.get('prediction_horizon', 3.0)
+    label = 'stack.prediction_horizon'
+    if type(value) not in (int, float):
+        raise ConfigError('{}은 0.1~10초의 숫자여야 합니다'.format(label))
+    try:
+        horizon = float(value)
+    except OverflowError as error:
+        raise ConfigError('{}은 0.1~10초의 유한한 숫자여야 합니다'.format(label)) from error
+    if not math.isfinite(horizon) or not 0.1 <= horizon <= 10.0:
+        raise ConfigError('{}은 0.1~10초의 유한한 숫자여야 합니다'.format(label))
+    if not math.isclose(horizon * 10.0, round(horizon * 10.0), rel_tol=0.0, abs_tol=1e-8):
+        raise ConfigError('{}은 0.1초 단위여야 합니다'.format(label))
+    return horizon
+
+
+def prediction_highway_horizon(stack):
+    """Explicit mixed-mode suffix, bounded to the 100-pose wire budget."""
+    value = stack.get('prediction_highway_horizon', 8.0)
+    label = 'stack.prediction_highway_horizon'
+    if type(value) not in (int, float):
+        raise ConfigError('{}은 3.1~9.9초의 숫자여야 합니다'.format(label))
+    try:
+        horizon = float(value)
+    except OverflowError as error:
+        raise ConfigError('{}은 유한한 숫자여야 합니다'.format(label)) from error
+    if (not math.isfinite(horizon) or not 3.1 <= horizon <= 9.9 or
+            not math.isclose(horizon * 10.0, round(horizon * 10.0), rel_tol=0.0, abs_tol=1e-8)):
+        raise ConfigError('{}은 3.1~9.9초, 0.1초 단위여야 합니다'.format(label))
+    return horizon
+
+
+def prediction_highway_mode(stack):
+    """Keep historical campaigns append-only; production native mode is explicit."""
+    value = stack.get('prediction_highway_mode', 'append')
+    if value not in ('append', 'native'):
+        raise ConfigError('stack.prediction_highway_mode는 append/native여야 합니다')
+    return value
+
+
 def validate_campaign_document(document, *, allow_legacy=False):
     """Structural checks for GUI opening too; no ROS/filesystem prerequisites."""
     if not isinstance(document, dict):
@@ -120,6 +211,10 @@ def validate_campaign_document(document, *, allow_legacy=False):
     for key in required - {"campaign_name"}:
         if not isinstance(document[key], dict):
             raise ConfigError("{}은 YAML mapping이어야 합니다".format(key))
+    prediction_mixed_horizon_enabled(document['stack'])
+    prediction_horizon(document['stack'])
+    prediction_highway_horizon(document['stack'])
+    prediction_highway_mode(document['stack'])
     try:
         selected_model(document['stack'])
         normalize_localization_launch_args(document['stack'], check_paths=False)
@@ -133,6 +228,10 @@ def validate_campaign_document(document, *, allow_legacy=False):
     validate_scenario_include(document["scenarios"])
     try:
         repetition_settings(document["scenarios"])
+        traffic_launch_options(document['stack'])
+        # GUI opening validates types/bounds without guessing whether this is
+        # an immutable snapshot. Full loading checks the resolved pair below.
+        traffic_temporal_options(document['stack'], validate_pair=False)
     except ValueError as error:
         raise ConfigError(str(error)) from error
     common = document["default_case"]
@@ -237,12 +336,16 @@ def _load_case(source, default):
                 goal, waypoints, positive(raw.get("timeout_sec"), "timeout_sec"), mode)
 
 
-def load_campaign(path, *, check_install=True):
+def load_campaign(path, *, check_install=True, legacy_traffic_defaults=False):
     path = resolve_path(path)
     if path.name.endswith(".case.yaml"):
         raise ConfigError(".case.yaml은 폐기된 보조 설정입니다. base/example.yaml 또는 본인의 캠페인 YAML을 선택하세요")
     document = _yaml(path)
     validate_campaign_document(document)
+    try:
+        route = normalize_route(document, resolve_path)
+    except (ValueError, KeyError, OSError, TypeError, yaml.YAMLError) as error:
+        raise ConfigError('route 설정: {}'.format(error)) from error
     name = str(document.get("campaign_name", ""))
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{1,59}", name):
         raise ConfigError("campaign_name은 영문/숫자로 시작하는 2~60자 ASCII 이름이어야 합니다")
@@ -296,7 +399,13 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("Ego Network에 UDP ScenarioLoad(9095)가 정확히 하나 필요합니다. 먼저 install.sh를 실행하세요")
     if sum(entry.get("PUBSUB_TYPE") == 783 for entry in entries) != 1:
         raise ConfigError("Ego Network의 PUBSUB_TYPE=783 슬롯이 중복됐습니다. install.sh를 다시 실행하세요")
-    stack = document.get("stack", {})
+    from .network_contract import inspect_network_contract
+    network_contract = inspect_network_contract(document, ego_network, sensor_config)
+    stack = dict(document.get("stack", {}))
+    if (path.name == 'config_snapshot.yaml' or legacy_traffic_defaults) and 'traffic_light_profile' not in stack:
+        # Old frozen runs used implicit legacy. Preserve their effective model
+        # in memory only; never rewrite snapshots or turn a resume into v5.
+        stack['traffic_light_profile'] = 'legacy'
     if stack.get("pose_source") not in ("localization", "maptf_morai"):
         raise ConfigError("stack.pose_source는 localization 또는 maptf_morai입니다")
     if stack.get("detector") not in ("od_gt", "bevfusion"):
@@ -310,6 +419,10 @@ def load_campaign(path, *, check_install=True):
     if not isinstance(stack.get("traffic_light", False), bool):
         raise ConfigError("stack.traffic_light는 true/false입니다")
     try:
+        traffic_options = traffic_launch_options(stack,
+            legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
+        traffic_temporal = traffic_temporal_options(stack,
+            legacy_snapshot=(path.name == 'config_snapshot.yaml' or legacy_traffic_defaults))
         runtime_settings(stack, ROOT, check_exists=stack.get("traffic_light", False))
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -318,6 +431,8 @@ def load_campaign(path, *, check_install=True):
         raise ConfigError("BEVFusion에는 카메라 4대와 LiDAR가 있는 sensor JSON이 필요합니다")
     if stack.get("traffic_light", False) and network["camera_count"] < 1:
         raise ConfigError("신호등 인지에는 전방 카메라가 있는 sensor JSON이 필요합니다")
+    if type(document.get("morai", {}).get("clear_before_load", False)) is not bool:
+        raise ConfigError("morai.clear_before_load는 true/false입니다")
     recording = document.get("recording", {})
     if recording.get('analysis_mode', False) and recording.get('bag_enabled', True) and (
             not recording.get('include_sensors', False) or not recording.get('video', {}).get('enabled', False)):
@@ -326,8 +441,9 @@ def load_campaign(path, *, check_install=True):
         positive(recording["minimum_free_disk_gib"], "recording.minimum_free_disk_gib")
     from .recording_options import effective_topics, topic_patterns, ensure_video_display
     try:
-        ensure_video_display(recording)
-        recording['topics'] = effective_topics(recording, resolve_path)
+        debug_view = stack.get('traffic_light', False) and traffic_options['debug_view']
+        ensure_video_display(recording, required=debug_view)
+        recording['topics'] = effective_topics(recording, resolve_path, traffic_light_debug=debug_view)
         recording['topic_regex'] = topic_patterns(recording)
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -352,7 +468,10 @@ def load_campaign(path, *, check_install=True):
     output = resolve_path(document.get("output_root", "planner_logs/validation")) / name
     install = install_directory(document.get("morai", {}).get("scenario_install_dir", "auto")) if check_install else None
     return {"path": path, "document": document, "name": name, "cases": cases,
-            "network": network, "stack": stack, "recording": recording,
+            "network": network, "stack": stack, "recording": recording, "route": route,
+            "traffic_light_options": traffic_options,
+            "traffic_light_temporal_options": traffic_temporal,
+            "network_contract": network_contract,
             "output": output, "install": install, "upload": upload,
             "localization_launch_args": localization_launch_args,
             "gt_pose_launch_args": gt_pose_launch_args,

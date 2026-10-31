@@ -124,6 +124,7 @@ def main():
     p.add_argument('--partial-final-batch',action='store_true',
                    help='With batch 4 use seven captures, exercising the real 5K final batch of three')
     p.add_argument('--capture',action='append',help='Explicit distinct train tokens for two smoke updates')
+    p.add_argument('--lr-schedule', choices=('cosine', 'warmup-restarts'), default='cosine')
     a=p.parse_args()
     if a.partial_final_batch and a.batch!=4:p.error('Partial final batch probe requires batch 4')
     sample_count=2*a.batch-int(a.partial_final_batch)
@@ -156,6 +157,9 @@ def main():
     args=argparse.Namespace(data=data,profile=a.profile,config=a.config,work_dir=a.output/'training',
         epochs=2,batch=a.batch,accumulate=1,workers=0,lr=1e-4,warmup_updates=1,seed=261010,
         init_checkpoint=a.init_checkpoint,allow_random_init=False,resume=None,disable_val=True,wandb=False)
+    args.lr_schedule = a.lr_schedule
+    args.restart_cycle_epochs = 1
+    args.restart_warmup_updates = 1
     cfg,manifest=prepare(args); import_modules_from_strings(**cfg.custom_imports)
     cfg.custom_hooks.append(dict(type='Base5SmokeStop'))
     cfg.custom_hooks.append(dict(type='Base5SmokeResumeProof'))
@@ -175,6 +179,7 @@ def main():
     if any(not torch.isfinite(v).all() for v in final['state_dict'].values() if v.is_floating_point()):
         raise ValueError('Nonfinite trained weights')
     report=dict(valid=True,profile=a.profile,captures=[r['token'] for r in selected],classes=list(range(class_count)),
+        lr_schedule=a.lr_schedule,
         class_names=list(info['metainfo']['classes']),
         batch=a.batch,resume_payload_proof=json.loads((args.work_dir/'resume_payload_proof.json').read_text()),
         partial_final_batch=a.partial_final_batch,

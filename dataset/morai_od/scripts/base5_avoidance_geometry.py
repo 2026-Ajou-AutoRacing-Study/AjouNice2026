@@ -32,8 +32,12 @@ def road_supported_pair(ego,target,support,surface):
     return fixed,moved,proof
 
 
-def observation(gen,ctx,route,arc,base,asset,row,rng,yaw_attempt=0):
+def observation(gen,ctx,route,arc,base,asset,row,rng,yaw_attempt=0,config=None):
     size,off,known=gen.geometry(asset,ctx)
+    close_tag=None
+    if 'close_primary_observation' in row:
+        from base5_close_primary_observation import validate
+        close_tag=validate(row,config,asset,known)
     road_yaw=base['yaw']
     actor_yaw=road_yaw
     if row['family']=='obstacle':
@@ -62,7 +66,10 @@ def observation(gen,ctx,route,arc,base,asset,row,rng,yaw_attempt=0):
         elif phase=='alongside':
             # Ego reference is rear axle, not its geometric center. Keep the
             # object genuinely sideward of that reference even for long trucks.
-            longitudinal=1.35+rng.uniform(-min(.7,projected_length*.35),min(.7,projected_length*.35))
+            if close_tag is None:
+                longitudinal=1.35+rng.uniform(-min(.7,projected_length*.35),min(.7,projected_length*.35))
+            else:
+                longitudinal=1.35-rng.uniform(*close_tag['primary_ego_x_bounds_m'])
         else: longitudinal=halfspan+rng.uniform(.2,6.)
         # Smooth lateral transition: entry/clearing are tangent views, not random yaw.
         if phase=='entry': fraction,derivative=smoothstep((longitudinal+halfspan+14.)/14.)
@@ -115,4 +122,19 @@ def observation(gen,ctx,route,arc,base,asset,row,rng,yaw_attempt=0):
             object_ground_support_verified=False)
     if road_relocation:
         reference.update(contract='stationary-road-supported-pair-v114',road_relocation=road_relocation)
+    if close_tag is not None:
+        # The explicit band must still remain sideward for the smallest
+        # envelopes. A proposal crossing the side/front boundary retries; it
+        # never changes the frozen role or relaxes native primary evidence.
+        a=math.radians(actor_yaw)
+        tx=target_pose['x']+math.cos(a)*off[0]-math.sin(a)*off[1]
+        ty=target_pose['y']+math.sin(a)*off[0]+math.cos(a)*off[1]
+        ey=math.radians(ego['yaw']);dx,dy=tx-ego['x'],ty-ego['y']
+        px=math.cos(ey)*dx+math.sin(ey)*dy
+        py=-math.sin(ey)*dx+math.cos(ey)*dy
+        if abs(px)>=abs(py) or (py>0)!=(row['role']=='left'):
+            raise ValueError('Close-primary proposal crossed frozen side/front boundary')
+        reference['close_primary_observation']=dict(close_tag,
+            placement_envelope_changed=False,native_gt_modified=False,
+            placement_gap_ego_proxy_lw_m=[4.8,2.],native_visibility_certified=False)
     return ego,target_pose,reference

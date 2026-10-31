@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Current profile normalization and legacy vote/hold contracts.
+
+A/B red fallback: a1b5c4b8. D impossible R+G correction: c40da0ff.
+D lamp-combination yellow identification (not prior phase): c650beb1.
+These tests do not authorize a departure; the planner owns that decision.
+"""
 
 import json
 import os
@@ -23,20 +29,23 @@ def _tokens(results):
     return {RESULT_TO_TOKEN[result] for result in results}
 
 
-def test_observation_guard_d2_missing_red_and_yellow_lifetime():
+def test_observation_guard_d2_missing_and_observed_red_yellow_lifetime():
     from signal_phase_policy import TOKEN_TO_RESULT
     p = SignalPhasePolicy.from_yaml(os.path.join(PACKAGE, "config", "traffic_signal_profiles.yaml"))
     smoother = SignalSmoother(window_size=1)
     def step(tokens, time, missing=False):
         lamps = [TOKEN_TO_RESULT[t] for t in tokens]
-        result, _, _ = p.process_normalized(lamps, "p:fail_open" if missing else "p:valid",
+        # process_normalized consumes profile output, not raw lone yellow.
+        normalized, reason = p.apply([] if missing else lamps, 201326)
+        result, _, _ = p.process_normalized(normalized, reason,
                                            201326, time, 1.0, smoother)
         return _tokens(result)
     left = ["RED_CIRCLE", "GREEN_LEFT_ARROW"]
+    red_yellow = ["RED_CIRCLE", "YELLOW_CIRCLE"]
     assert step(left, 0) == set(left)
-    assert step(["YELLOW_CIRCLE"], .1) == {"YELLOW_CIRCLE"}
-    assert step(["RED_CIRCLE"], .5, True) == {"YELLOW_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], .8) == {"YELLOW_CIRCLE"}
+    assert step(red_yellow, .1) == set(red_yellow)
+    assert step(["RED_CIRCLE"], .5, True) == set(red_yellow)
+    assert step(red_yellow, .8) == set(red_yellow)
     assert step(["RED_CIRCLE"], .9) == {"RED_CIRCLE"}
     assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
     step(left, 2)
@@ -44,19 +53,20 @@ def test_observation_guard_d2_missing_red_and_yellow_lifetime():
     assert step(["YELLOW_CIRCLE"], 3.7) == {"RED_CIRCLE"}
     step(left, 4)
     for t in [4.1, 5, 6, 7, 8]:
-        assert step(["YELLOW_CIRCLE"], t) == {"YELLOW_CIRCLE"}
-    assert step(["YELLOW_CIRCLE"], 8.2) == {"RED_CIRCLE"}
+        assert step(red_yellow, t) == set(red_yellow)
+    # This existing 4 s observation bound is not remaining yellow time.
+    assert step(red_yellow, 8.2) == {"RED_CIRCLE"}
     p.reset_transition()
-    assert step(["YELLOW_CIRCLE"], 9) == {"RED_CIRCLE"}
+    assert step(red_yellow, 9) == set(red_yellow)
     step(left, 10)
-    assert step(["YELLOW_CIRCLE"], 1) == {"RED_CIRCLE"}
+    assert step(["RED_CIRCLE"], 1, True) == {"RED_CIRCLE"}
 
 
 def test_guard_seven_frame_vote_abstains_on_missing_observations():
     p = SignalPhasePolicy.from_yaml(os.path.join(PACKAGE, "config", "traffic_signal_profiles.yaml"))
     sm = SignalSmoother(7, 4)
     left = [("red", "circle", None), ("green", "arrow", True)]
-    yellow = [("yellow", "circle", None)]
+    yellow = [("red", "circle", None), ("yellow", "circle", None)]
     red = [("red", "circle", None)]
     for i in range(7):
         p.process_normalized(left, "p:valid", 201326, i * .1, 1, sm)
@@ -87,11 +97,13 @@ def test_assigned_group_ids_exist_in_route_matcher_table():
     assert set(POLICY.assignments).issubset(table_ids)
 
 
-def test_ab_red_green_prefers_go():
-    observed = [("red", "circle", None), ("green", "circle", None)]
-    normalized, reason = POLICY.apply(observed, 201351)
-    assert _tokens(normalized) == {"GREEN_CIRCLE"}
-    assert reason.endswith(":corrected")
+def test_ab_impossible_red_green_and_red_yellow_prefer_observed_red():
+    red = ("red", "circle", None)
+    for group in (201351, 201365):
+        for other in (("green", "circle", None), ("yellow", "circle", None)):
+            normalized, reason = POLICY.apply([red, other], group)
+            assert _tokens(normalized) == {"RED_CIRCLE"}
+            assert reason == "simple_3color:corrected"
 
 
 def test_c_partial_green_is_completed_as_straight_left():
@@ -113,18 +125,27 @@ def test_c_impossible_red_green_prefers_red_and_missing_is_red():
         assert _tokens(normalized) == {"RED_CIRCLE"}
 
 
-def test_d2_red_green_circle_becomes_protected_left():
+def test_d2_impossible_red_green_circle_does_not_invent_protected_left():
     observed = [("red", "circle", None), ("green", "circle", None)]
-    normalized, _reason = POLICY.apply(observed, 201326)
+    normalized, reason = POLICY.apply(observed, 201326)
+    assert _tokens(normalized) == {"RED_CIRCLE"}
+    assert reason == "straight_or_protected_left:corrected"
+    # A genuinely observed arrow still has its profile-defined completion.
+    normalized, reason = POLICY.apply([("green", "arrow", True)], 201326)
     assert _tokens(normalized) == {"RED_CIRCLE", "GREEN_LEFT_ARROW"}
+    assert reason == "straight_or_protected_left:corrected"
 
 
-def test_profiles_fail_open_with_route_compatible_phase():
-    assert _tokens(POLICY.apply([], 201351)[0]) == {"GREEN_CIRCLE"}
-    assert _tokens(POLICY.apply([], 201290)[0]) == {"RED_CIRCLE"}
-    assert _tokens(POLICY.apply([], 201326)[0]) == {"RED_CIRCLE"}
+def test_mission_profile_missing_fallback_is_red_despite_legacy_fail_open_reason():
+    for group in (201351, 201365, 201290, 201326):
+        normalized, reason = POLICY.apply([], group)
+        assert _tokens(normalized) == {"RED_CIRCLE"}
+        assert reason.endswith(":fail_open")
     unsupported = [("green", "arrow", True)]
-    assert _tokens(POLICY.apply(unsupported, 201351)[0]) == {"GREEN_CIRCLE"}
+    for group in (201351, 201365):
+        normalized, reason = POLICY.apply(unsupported, group)
+        assert _tokens(normalized) == {"RED_CIRCLE"}
+        assert reason == "simple_3color:fail_open"
 
 
 def test_d1_is_passthrough_because_planner_ignores_it():
@@ -141,27 +162,24 @@ def test_unsupported_arrow_does_not_override_valid_ab_red():
     assert reason.endswith(":filtered")
 
 
-def test_d2_yellow_permission_depends_on_previous_stable_phase():
+def test_d2_two_yellow_normalizations_are_independent_of_previous_phase():
     green = [("green", "circle", None)]
     yellow = [("yellow", "circle", None)]
     protected_left = [("red", "circle", None), ("green", "arrow", True)]
 
-    POLICY.reset_transition()
-    normalized, _ = POLICY.apply_transition(green, 201326)
-    assert _tokens(normalized) == {"GREEN_CIRCLE"}
-    normalized, reason = POLICY.apply_transition(yellow, 201326)
-    assert _tokens(normalized) == {"RED_CIRCLE"}
-    assert reason.endswith(":yellow_stop_after_disallowed_phase")
-
-    POLICY.reset_transition()
-    normalized, _ = POLICY.apply_transition(protected_left, 201326)
-    assert _tokens(normalized) == {"RED_CIRCLE", "GREEN_LEFT_ARROW"}
-    normalized, reason = POLICY.apply_transition(yellow, 201326)
-    assert _tokens(normalized) == {"YELLOW_CIRCLE"}
-    assert reason.endswith(":yellow_go_after_allowed_phase")
+    red_yellow = [("red", "circle", None), ("yellow", "circle", None)]
+    for preceding in (green, protected_left, [("red", "circle", None)], []):
+        for observed, expected in ((yellow, {"RED_CIRCLE"}),
+                                   (red_yellow, {"RED_CIRCLE", "YELLOW_CIRCLE"})):
+            POLICY.reset_transition()
+            POLICY.apply_transition(preceding, 201326)
+            normalized, _ = POLICY.apply(observed, 201326)
+            output, reason = POLICY.apply_transition(normalized, 201326)
+            assert _tokens(output) == expected
+            assert reason == "straight_or_protected_left:transition_valid"
 
 
-def test_b_and_c_yellow_remain_go_phases_without_conditional_rewrite():
+def test_ab_and_c_preserve_yellow_observation_without_claiming_go_permission():
     yellow = [("yellow", "circle", None)]
     for group_id in (201351, 201365, 201290):
         POLICY.reset_transition()
@@ -169,16 +187,17 @@ def test_b_and_c_yellow_remain_go_phases_without_conditional_rewrite():
         assert _tokens(normalized) == {"YELLOW_CIRCLE"}
 
 
-def test_d2_full_sequence_with_smoothing_has_only_protected_left_yellow_as_go():
+def test_d2_full_sequence_with_smoothing_preserves_normalized_lamp_combinations():
     green = [("green", "circle", None)]
     yellow = [("yellow", "circle", None)]
     protected_left = [("red", "circle", None), ("green", "arrow", True)]
     red = [("red", "circle", None)]
+    red_yellow = red + yellow
     smoother = SignalSmoother(window_size=7, majority_count=4)
     POLICY.reset_transition()
 
     stable_outputs = []
-    for phase in (green, yellow, protected_left, yellow, red, green):
+    for phase in (green, yellow, protected_left, red_yellow, red, green):
         output = None
         for _ in range(7):
             normalized, _ = POLICY.apply(phase, 201326)
@@ -190,7 +209,7 @@ def test_d2_full_sequence_with_smoothing_has_only_protected_left_yellow_as_go():
         {"GREEN_CIRCLE"},
         {"RED_CIRCLE"},
         {"RED_CIRCLE", "GREEN_LEFT_ARROW"},
-        {"YELLOW_CIRCLE"},
+        {"RED_CIRCLE", "YELLOW_CIRCLE"},
         {"RED_CIRCLE"},
         {"GREEN_CIRCLE"},
     ]

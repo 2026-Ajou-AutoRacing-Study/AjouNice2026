@@ -123,6 +123,23 @@ def prepare(args):
     cfg.param_scheduler = [dict(type='LinearLR', start_factor=.1, by_epoch=False, begin=0, end=warmup),
         dict(type='CosineAnnealingLR', by_epoch=False, begin=warmup, end=total_iterations,
              T_max=max(1, total_iterations - warmup), eta_min=args.lr / 100)]
+    schedule = getattr(args, 'lr_schedule', 'cosine')
+    if schedule == 'warmup-restarts':
+        cycle_epochs = getattr(args, 'restart_cycle_epochs', 4)
+        restart_warmup = getattr(args, 'restart_warmup_updates', 500)
+        if args.accumulate != 1:
+            raise ValueError('Restart comparison currently requires accumulate=1')
+        if cycle_epochs < 1 or args.epochs % cycle_epochs or args.epochs // cycle_epochs < 2:
+            raise ValueError('Restart comparison needs at least two complete fixed cycles')
+        cycle_steps = iterations * cycle_epochs
+        if not 0 < restart_warmup < cycle_steps:
+            raise ValueError('Restart warmup must fit inside each cycle')
+        cfg.custom_imports.imports.append('perception.detection3d.bevfusion.plugin.morai_lr_schedule')
+        cfg.param_scheduler = [dict(type='MoraiWarmupCosineRestarts', cycle_steps=cycle_steps,
+            warmup_steps=restart_warmup, start_factor=.1, min_factor=.01,
+            by_epoch=False, begin=0, end=total_iterations)]
+    elif schedule != 'cosine':
+        raise ValueError('Unknown learning-rate schedule')
     cfg.default_hooks.checkpoint.update(interval=1, by_epoch=True, max_keep_ckpts=3,
         save_optimizer=True, save_param_scheduler=True)
     if args.disable_val:
@@ -140,7 +157,7 @@ def prepare(args):
         # hardcoded account inherited from Base3. No credentials in config.
         backends.append(dict(type='MoraiWandbVisBackend', init_kwargs=dict(
             project='morai-3d-object-detection', name=args.work_dir.name,
-            group='base5-sunny13', job_type='train', id=args.work_dir.name, resume='allow')))
+            group=getattr(args, 'wandb_group', 'base5-sunny13'), job_type='train', id=args.work_dir.name, resume='allow')))
     cfg.visualizer.vis_backends = backends
     cfg.vis_backends = backends
     cfg.custom_imports.imports.append('perception.detection3d.bevfusion.plugin.morai_remote_checkpoint')
@@ -169,6 +186,8 @@ def prepare(args):
         lr=args.lr, warmup_iterations=warmup, seed=args.seed, val_enabled=not args.disable_val,
         train_count=count, iterations_per_epoch=iterations,
         initial_checkpoint_sha256=sha256(args.init_checkpoint) if args.init_checkpoint else None)
+    identity['param_schedulers'] = [dict(item) for item in cfg.param_scheduler]
+    identity['wandb_group'] = getattr(args, 'wandb_group', 'base5-sunny13')
     if geometry_policy:
         identity['box_geometry_policy'] = geometry_policy
     if label_policy:
@@ -224,6 +243,10 @@ def main():
     p.add_argument('--workers', type=int, default=4)
     p.add_argument('--lr', type=float, default=1e-4)
     p.add_argument('--warmup-updates', type=int, default=500)
+    p.add_argument('--lr-schedule', choices=('cosine', 'warmup-restarts'), default='cosine')
+    p.add_argument('--restart-cycle-epochs', type=int, default=4)
+    p.add_argument('--restart-warmup-updates', type=int, default=500)
+    p.add_argument('--wandb-group', default='base5-sunny13')
     p.add_argument('--seed', type=int, default=261010)
     p.add_argument('--init-checkpoint', type=Path)
     p.add_argument('--allow-random-init', action='store_true')

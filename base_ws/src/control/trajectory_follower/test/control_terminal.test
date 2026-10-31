@@ -1,0 +1,4 @@
+<launch>
+  <test test-name="control_terminal_transport" pkg="trajectory_follower"
+        type="test_control_terminal_ros.py" time-limit="35"/>
+</launch>

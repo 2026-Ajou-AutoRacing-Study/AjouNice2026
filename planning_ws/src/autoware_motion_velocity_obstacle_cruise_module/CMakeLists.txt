@@ -7,7 +7,7 @@ project(autoware_motion_velocity_obstacle_cruise_module)
 find_package(catkin REQUIRED COMPONENTS
   autoware_internal_debug_msgs autoware_internal_planning_msgs
   autoware_perception_msgs autoware_planning_msgs geometry_msgs nav_msgs
-  pluginlib roscpp sensor_msgs tf2 tf2_eigen tf2_ros unique_identifier_msgs
+  pluginlib roscpp sensor_msgs std_msgs tf2 tf2_eigen tf2_ros unique_identifier_msgs
   visualization_msgs)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
@@ -59,7 +59,9 @@ include_directories(src ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${PCL_INCL
   ${PLANNING_FACTOR_INTERFACE_INCLUDE_DIR} ${OSQP_INTERFACE_INCLUDE_DIR} ${OSQP_INCLUDE_DIR} ${INTERPOLATION_INCLUDE_DIR}
   ${UNIVERSE_UTILS_INCLUDE_DIR})
 add_library(${PROJECT_NAME} SHARED
+  src/body_longitudinal_filter.cpp
   src/obstacle_cruise_module.cpp
+  src/lateral_collision_check.cpp
   src/ros1_compat.cpp
   src/optimization_based_planner/optimization_based_planner.cpp
   src/optimization_based_planner/velocity_optimizer.cpp
@@ -71,6 +73,33 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  find_package(rostest REQUIRED)
+  add_rostest_gtest(test_module_lc_handoff test/module_lc_handoff.test test/test_module_lc_handoff.cpp)
+  if(TARGET test_module_lc_handoff)
+    target_link_libraries(test_module_lc_handoff ${PROJECT_NAME} ${catkin_LIBRARIES} ${VEHICLE_INFO_LIBRARY})
+  endif()
+  catkin_add_gtest(test_lane_change_ownership test/test_lane_change_ownership.cpp)
+  if(TARGET test_lane_change_ownership)
+    target_link_libraries(test_lane_change_ownership ${catkin_LIBRARIES})
+    target_compile_features(test_lane_change_ownership PUBLIC cxx_std_17)
+  endif()
+  add_rostest_gtest(test_pid_target_switch test/pid_target_switch.test test/test_pid_target_switch.cpp)
+  if(TARGET test_pid_target_switch)
+    target_link_libraries(test_pid_target_switch ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_lateral_collision_check test/test_lateral_collision_check.cpp)
+  if(TARGET test_lateral_collision_check)
+    target_link_libraries(test_lateral_collision_check ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_trajectory_index_mapping test/test_trajectory_index_mapping.cpp)
+  if(TARGET test_trajectory_index_mapping)
+    target_link_libraries(test_trajectory_index_mapping ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
+  catkin_add_gtest(test_body_longitudinal_filter test/test_body_longitudinal_filter.cpp)
+  if(TARGET test_body_longitudinal_filter)
+    target_link_libraries(test_body_longitudinal_filter ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
   catkin_add_gtest(test_ros1_parameter_map test/test_ros1_parameter_map.cpp)
   if(TARGET test_ros1_parameter_map)
     target_link_libraries(test_ros1_parameter_map ${PROJECT_NAME} ${catkin_LIBRARIES})

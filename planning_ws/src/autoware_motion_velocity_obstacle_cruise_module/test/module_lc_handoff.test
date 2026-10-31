@@ -1,0 +1,5 @@
+<launch>
+  <rosparam ns="/lc_front_protection" command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/motion_velocity_modules.yaml"/>
+  <rosparam ns="/lc_front_protection" command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/common/common.param.yaml"/>
+  <test test-name="module_lc_handoff" pkg="autoware_motion_velocity_obstacle_cruise_module" type="test_module_lc_handoff" time-limit="60"/>
+</launch>

@@ -16,6 +16,11 @@ import sys
 import time
 
 import base5_spatial_diversity as spatial
+import base5_front_completion_adapter as front_completion
+import base5_primary_obstacle_range as primary_range
+import base5_primary_visibility_proposal as primary_visibility
+import base5_secondary_far_vehicle as secondary_far
+import base5_scale_completion_adapter as scale_completion
 import run_base5_flexible_completion as flex
 import run_base5_adaptive_completion as adaptive
 from run_base5_motion_contract_repair import motion_matches
@@ -43,13 +48,35 @@ def floor_donors(original,donors,counts,floor):
 
 
 def compatible(source,candidate,pools):
-    return flex.compatible(source,candidate,pools) and motion_matches(source,candidate)
+    frozen_scale=scale_completion.has_plan(source) or scale_completion.has_plan(candidate)
+    if frozen_scale and (not scale_completion.has_plan(source) or not scale_completion.has_plan(candidate)
+            or source['spec']!=candidate['spec']):return False
+    return flex.compatible(source,candidate,pools,allow_frozen_scale=frozen_scale) and motion_matches(source,candidate)
+
+
+def recoverable_geometry_error(source,error):
+    """The selected adapter owns exhaustion, including coexisting overlays."""
+    if not isinstance(error,ValueError):return False
+    if scale_completion.has_plan(source):
+        return isinstance(error,scale_completion.ScaleGeometryExhausted)
+    return all((
+        not secondary_far.has_plan(source) or isinstance(error,secondary_far.FarGeometryExhausted),
+        not primary_range.has_plan(source) or isinstance(error,(primary_range.RangeGeometryExhausted,
+                                                               front_completion.FrontGeometryExhausted)),
+        not front_completion.has_plan(source) or isinstance(error,(front_completion.FrontGeometryExhausted,
+                                                                  primary_range.RangeGeometryExhausted))))
 
 
 def eligible_floor_donors(source,donors,counts,floor,pools):
     # A same-asset donor from train cannot satisfy a val slot. Filter context
     # before floor protection, otherwise it masks the valid source fallback.
-    eligible=[d for d in donors if compatible(source,d,pools)]
+    # Frozen front slots regenerate their own geometry, never borrow another
+    # asset's stratum. Unplanned slots must not gain one through a donor either.
+    if (scale_completion.has_plan(source) or front_completion.has_plan(source) or primary_range.has_plan(source)
+            or secondary_far.has_plan(source)):return [source]
+    eligible=[d for d in donors if not scale_completion.has_plan(d) and not front_completion.has_plan(d)
+              and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
+              and compatible(source,d,pools)]
     return floor_donors(source,eligible,counts,floor)
 
 
@@ -69,6 +96,33 @@ def verify_parent(manifest,parent):
     misses=set(proof['deficits'])
     if misses!={r['id'] for r in read(parent/'quota.json')['cells']}:raise ValueError('Parent deficit evidence differs')
     return selected,sorted(misses,key=order.get),status['elapsed_sec']
+
+
+def far_parent_payloads(deck,parent):
+    """Collect all attempted far payloads after native parent reconstruction.
+
+    Walk only registered chunk/cell paths, not arbitrary orphan directories.
+    Accepted and rejected captures both count. No new file or ROS action occurs.
+    """
+    if not deck['config'].get('secondary_far_vehicle_policy'):return set()
+    if (parent/'imported_prefix.json').exists():
+        raise ValueError('Far nonrepeat proof requires a native non-imported fresh parent')
+    contract=read(parent/'batch_contract.json');indices=contract['indices'];size=contract['chunk_size']
+    known=set();loop=adaptive.fa.batch.campaign.loop
+    for ordinal,start in enumerate(range(0,len(indices),size)):
+        folder=parent/f'chunk_{ordinal:04d}'
+        if (folder/'capture'/'ledger.jsonl').exists():
+            known.update(loop.captured_payloads([dict(capture_root=str(folder/'capture'))]))
+        for index in indices[start:start+size]:
+            entry=deck['scenes'][index]
+            for number in range(2):
+                path=folder/'recovery'/entry['id']/entry['id']/f'round_{number}'/'report.json'
+                if not path.exists():break
+                report=read(path)
+                if report.get('stage')!='complete':raise ValueError('Far parent recovery report incomplete')
+                known.update(loop.captured_payloads(report['attempts']))
+                if report['selected']:break
+    return known
 
 
 def merged(state):
@@ -102,13 +156,79 @@ def adopted_entry(row,lookup):
     return entry
 
 
+def finalize_selected_layout(source, adopted, selected, output):
+    """Immutable, selection-addressed consolidation; cached resume is read-only."""
+    from base5_layout_split import validate_manifest_overlay
+    from finalize_base5_layout_split import finalize
+    key=sha256(selected)
+    folder=output/'layout_split_final'/key
+    result_path=folder/'result.json'
+    if result_path.exists():
+        result=read(result_path)
+        if (sha256(result['manifest'])!=result['manifest_sha256']
+                or sha256(result['split_overlay'])!=result['split_overlay_sha256']
+                or sha256(result['derived_selected_ledger'])!=result['derived_selected_ledger_sha256']):
+            raise ValueError('Finalized selected split output changed')
+        validate_manifest_overlay(read(result['manifest']))
+        return result
+    frozen_input=output/'layout_split_final_inputs'/key/'adopted_manifest.json'
+    if frozen_input.exists():
+        if read(frozen_input)!=adopted:raise ValueError('Finalization adopted input changed')
+    else:atomic_json(frozen_input,adopted)
+    return finalize(source,frozen_input,selected,folder)
+
+
+def frozen_proposal_score(meta,calibration,kind):
+    """Skip strongly predicted full blockage only in declared range recovery.
+
+    Partial occlusion remains valid and the unchanged native auditor, not this
+    estimated-geometry ranking, decides whether a scene is accepted.
+    """
+    return primary_visibility.score(meta,calibration,kind,adaptive.proposal_score)
+
+
+def preserve_native_unit_reference(original,meta,config):
+    from base5_unit_geometry_contract import KEY,load,UnitGeometryContractError
+    expected=config.get(KEY)
+    if original.get(KEY)!=expected:
+        raise UnitGeometryContractError('Recovery source/config unit reference differs')
+    if expected is not None:
+        load(expected)
+        meta[KEY]=copy.deepcopy(original[KEY])
+    elif KEY in meta:
+        raise UnitGeometryContractError('Untagged recovery cannot silently gain a unit reference')
+
+
 def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
     if folder.exists():raise FileExistsError('Never replace an existing proposal')
+    if primary_range.has_plan(original):
+        primary_range.validate_plan(original['spec'],deck['config'])
+    if secondary_far.has_plan(original):
+        secondary_far.validate_plan(original['spec'],deck['config'])
     with spatial.installed():
         if original['runtime_actors']:
-            eligible=[d for d in donors if compatible(original,d,pools)]
-            scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
+            if scale_completion.has_plan(original):
+                scene,meta=scale_completion.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            elif secondary_far.has_plan(original):
+                scene,meta=secondary_far.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            elif front_completion.has_plan(original):
+                scene,meta=front_completion.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            elif primary_range.has_plan(original):
+                scene,meta=primary_range.choose(original,deck['config'],ctx,cal,ordinal,
+                    entry['id'],known,spatial.build,frozen_proposal_score,adaptive.fa.novelty)
+            else:
+                eligible=[d for d in donors if not scale_completion.has_plan(d) and not front_completion.has_plan(d)
+                          and not primary_range.has_plan(d) and not secondary_far.has_plan(d)
+                          and compatible(original,d,pools)]
+                scene,meta=flex.choose(original,eligible,deck,ctx,cal,ordinal,entry['id'],known,pools)
             if not compatible(original,meta,pools):raise ValueError('Proposed primary gait or mover minima changed')
+            front_completion.verify_preserved(original,meta)
+            primary_range.verify_preserved(original,meta)
+            secondary_far.verify_preserved(original,meta)
+            scale_completion.verify_preserved(original,meta,deck['config'])
         else:
             spec=copy.deepcopy(original['spec']);spec['seed']=spatial.seed_for(deck['config']['environment_tag'],entry['id'],ordinal)
             for retry in range(512):
@@ -117,6 +237,7 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
                 digest=hashlib.sha256((json.dumps(scene,ensure_ascii=False,indent=2)+'\n').encode()).hexdigest()
                 if not meta['runtime_actors'] and meta['split']==original['split'] and digest not in known:break
             else:raise ValueError('No distinct background within bounded search')
+    preserve_native_unit_reference(original,meta,deck['config'])
     # Before raw capture, retain the SOURCE fresh geometry group, not the donor
     # group and not an old Sunny13 group invented from a logical slot number.
     group=original['scene_group_id'];meta['scene_group_id']=group
@@ -130,7 +251,17 @@ def prepare(entry,original,donors,deck,ctx,cal,ordinal,folder,known,pools):
     candidate=copy.deepcopy(entry);candidate.update(id=sid,source_cell_id=sid,scenario=str(sp.resolve()),
         metadata=str(mp.resolve()),scenario_sha256=sha256(sp),scene_group_id=group,
         role=meta['spec']['role'],distance_bounds=meta['spec']['distance_bounds'])
-    manifest=folder/'manifest.json';atomic_json(manifest,adaptive.fa.batch.campaign.subset_deck(deck,[candidate]))
+    child_deck=adaptive.fa.batch.campaign.subset_deck(deck,[candidate])
+    if original.get('training_split_overlay'):
+        # A new recovery geometry cannot reuse the parent's payload binding.
+        # Register its explicit mapping and preserve the effective split/group
+        # before any capture. Never alter the frozen parent overlay or RAW.
+        from base5_layout_split import register_recovery_overlay
+        reference=register_recovery_overlay(entry,original,candidate,meta,folder/'layout_split_rebind')
+        meta['training_split_overlay']=reference
+        atomic_json(mp,meta)
+        child_deck['split_overlay']=dict(reference,policy='known-map-layout-group-v156')
+    manifest=folder/'manifest.json';atomic_json(manifest,child_deck)
     delta=flex.candidate_delta(original,meta) if original['runtime_actors'] else dict(background_only=True)
     return dict(id=entry['id'],ordinal=ordinal,group=group,entry=candidate,delta=delta,
         manifest=str(manifest),manifest_sha256=sha256(manifest),moving=bool(flex.movers(meta)),
@@ -153,6 +284,10 @@ def verify(a,deck,source,pools):
             if pa(actual)!=pa(expected):raise ValueError('Captured primary changed')
     if row['status']=='accepted_candidate':
         meta=read(Path(row['capture_root'])/'metadata.json')
+        front_completion.verify_preserved(source,meta)
+        primary_range.verify_preserved(source,meta)
+        secondary_far.verify_preserved(source,meta)
+        scale_completion.verify_preserved(source,meta,deck['config'])
         if source['runtime_actors']:
             if not compatible(source,meta,pools):
                 return dict(status='review',reasons=['fresh_completion_family_motion_contract_changed'],observed_selected=row)
@@ -186,10 +321,24 @@ def execute(a):
         deck=read(a.manifest)
         if not deck['config'].get('fresh_geometry_policy'):raise ValueError('Fresh environment manifest required')
         baseline,deficits,elapsed=verify_parent(a.manifest,a.baseline)
+        completion_names=[Path(__file__).name,'base5_spatial_diversity.py','run_base5_flexible_completion.py','run_base5_adaptive_completion.py','run_base5_capture_optimized.py','run_base5_capture_campaign_spatial.py']
+        if deck.get('split_overlay'):
+            completion_names.extend(['base5_layout_split.py','finalize_base5_layout_split.py'])
+        if deck['config'].get('native_unit_geometry_reference'):
+            completion_names.append('base5_unit_geometry_contract.py')
+        if deck['config'].get('obstacle_front_support_policy'):
+            completion_names.extend(['base5_front_completion_adapter.py','base5_obstacle_front_support.py',
+                'base5_obstacle_rich_floor.py','base5_obstacle_support_policy.py'])
+        if deck['config'].get('primary_obstacle_range_policy'):
+            completion_names.extend(['base5_primary_obstacle_range.py','base5_primary_visibility_proposal.py'])
+        if deck['config'].get('secondary_far_vehicle_policy'):
+            completion_names.extend(['base5_secondary_far_vehicle.py','base5_far_vehicle_native.py',
+                'base5_far_vehicle_visibility.py','base5_primary_visibility_proposal.py'])
+        if deck['config'].get('asset_scale_policy'):
+            completion_names.extend(['base5_scale_completion_adapter.py','base5_asset_scale.py'])
         contract=dict(policy=POLICY,source_sha256=sha256(a.manifest),baseline=str(a.baseline.resolve()),
             parent_hashes={n:sha256(a.baseline/n) for n in ('selected_ledger.jsonl','quota.json','batch_contract.json','fresh_runtime_contract.json')},
-            code_hashes={name:sha256(Path(__file__).with_name(name)) for name in
-                (Path(__file__).name,'base5_spatial_diversity.py','run_base5_flexible_completion.py','run_base5_adaptive_completion.py','run_base5_capture_optimized.py','run_base5_capture_campaign_spatial.py')},
+            code_hashes={name:sha256(Path(__file__).with_name(name)) for name in completion_names},
             capture_contract=adaptive.fa.batch.campaign.contract(a.manifest,list(range(len(deck['scenes']))),2),attempts=a.attempts)
         sp=a.output/'state.json'
         if sp.exists():
@@ -217,7 +366,16 @@ def execute(a):
                 current=state['current'],attempt_cap=a.attempts,attempts=len(state['attempts']),
                 accepted_bins=dict(Counter(json.dumps([r.get('family'),r.get('distance_bounds'),r.get('role')]) for r in rows))))
             adopted=[adopted_entry(row,lookup) for row in rows]
-            atomic_json(a.output/'adopted_manifest.json',adaptive.fa.batch.campaign.subset_deck(deck,adopted))
+            adopted_deck=adaptive.fa.batch.campaign.subset_deck(deck,adopted)
+            if deck.get('split_overlay'):
+                if not missing:
+                    finalized=finalize_selected_layout(a.manifest,adopted_deck,ledger,a.output)
+                    adopted_deck=read(finalized['manifest'])
+                    state['layout_split_finalization']=finalized
+                    atomic_json(sp,state)
+                else:
+                    adopted_deck.update(layout_split_finalization_pending=True,bulk_ready=False)
+            atomic_json(a.output/'adopted_manifest.json',adopted_deck)
             atomic_json(a.output/'replacement_mapping.json',dict(policy=POLICY,raw_preserved=True,exact_original_quota_preserved=False,
                 replacements=[dict(id=v['id'],ordinal=v['ordinal'],delta=v['delta'],status=(v.get('result') or {}).get('status')) for v in state['attempts']]))
             return missing
@@ -225,23 +383,40 @@ def execute(a):
         if state['stage'] in TERMINAL:
             rows,_=merged(state)
             if rows!=load_ledger(a.output/'selected_ledger.jsonl'):raise ValueError('Final completion selection changed')
+            if deck.get('split_overlay') and not merged(state)[1]:
+                finalized=state.get('layout_split_finalization')
+                if not finalized or sha256(finalized['manifest'])!=finalized['manifest_sha256']:
+                    raise ValueError('Completed layout finalization missing/changed')
+                from base5_layout_split import validate_manifest_overlay
+                validate_manifest_overlay(read(finalized['manifest']))
             ctx=spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO)
             pools=pool_map(ctx)
             for v in state['attempts']:
                 if v.get('result') is None:raise ValueError('Terminal output has unresolved child')
                 if verify(v,deck,read(lookup[v['id']]['metadata']),pools)!=v['result']:raise ValueError('Completed raw evidence changed')
             return 0
+        originals={i:read(lookup[i]['metadata']) for i in deficits}
+        # Source/helper/assignment violations must halt even a CPU preflight;
+        # they are not ordinary failed-layout candidates or relaxed quotas.
+        for original in originals.values():
+            front_completion.verify_preserved(original,original)
+            primary_range.verify_preserved(original,original)
+            secondary_far.verify_preserved(original,original)
+            scale_completion.verify_preserved(original,original,deck['config'])
         missing=save(state['stage'])
         if not a.run:return 0
         ctx=adaptive.prewarm(spatial.gen.context(spatial.gen.geo.DEFAULT_RUNTIME_ASSET_DIR,spatial.gen.geo.DEFAULT_MGEO),deck['config'])
         pools=pool_map(ctx)
-        originals={i:read(lookup[i]['metadata']) for i in deficits};donors=[read(Path(r['capture_root'])/'metadata.json') for r in baseline]
+        donors=[read(Path(r['capture_root'])/'metadata.json') for r in baseline]
         primary_counts=Counter(d['runtime_actors'][0]['data_id'] for d in donors if d['runtime_actors'])
         floor=deck['config'].get('coverage_policy',{}).get('minimum_accepted_visible_primary_per_asset',4)
         cal=adaptive.fa.normalized_sensor_calibration(adaptive.fa.SENSOR)
-        known={e['scenario_sha256'] for e in deck['scenes']}|{r['scenario_sha256'] for r in baseline}|{v['entry']['scenario_sha256'] for v in state['attempts']}
+        known=({e['scenario_sha256'] for e in deck['scenes']}|{r['scenario_sha256'] for r in baseline}
+            |{v['entry']['scenario_sha256'] for v in state['attempts']}|far_parent_payloads(deck,a.baseline))
         for v in state['attempts']:
             if v.get('result') is not None and verify(v,deck,originals[v['id']],pools)!=v['result']:raise ValueError('Past completion evidence changed')
+            if v.get('result') is not None and secondary_far.has_plan(originals[v['id']]):
+                known.update(adaptive.fa.batch.campaign.loop.captured_payloads([dict(capture_root=v['capture'])]))
             if (v.get('result') or {}).get('status')=='accepted_candidate':
                 m=read(Path(v['result']['capture_root'])/'metadata.json')
                 if m['runtime_actors']:primary_counts[m['runtime_actors'][0]['data_id']]+=1
@@ -262,6 +437,7 @@ def execute(a):
                     options=eligible_floor_donors(originals[ident],donors,primary_counts,floor,pools)
                     try:v=prepare(lookup[ident],originals[ident],options,deck,ctx,cal,ordinal,a.output/'cells'/ident/f'attempt_{ordinal}'/'placement',known,pools)
                     except ValueError as exc:
+                        if not recoverable_geometry_error(originals[ident],exc):raise
                         state['unavailable'][ident]=str(exc);missing=save('running');continue
                     state['attempts'].append(v);known.add(v['entry']['scenario_sha256']);save('running')
                 code=run_child(v,a.output,heartbeat)

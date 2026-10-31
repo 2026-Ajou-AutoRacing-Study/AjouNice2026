@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "scene.hpp"
+#include <autoware/behavior_velocity_traffic_light_module/signal_decision_video.hpp>
 
 #include "utils.hpp"
 
@@ -27,6 +28,7 @@
 #include <boost/geometry/algorithms/intersection.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -58,6 +60,8 @@ TrafficLightModule::TrafficLightModule(
   is_prev_state_stop_(false)
 {
   planner_param_ = planner_param;
+  signal_compliance_guard_.setRequiredGreenObservations(planner_param_.signal_compliance_required_green_observations);
+  signal_compliance_guard_.setUnknownGraceSec(planner_param_.signal_compliance_unknown_grace_sec);
   prev_looking_tl_state_.traffic_light_group_id = 0;
 }
 
@@ -70,11 +74,56 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   const auto input_path = *path;
 
   const auto & self_pose = planner_data_->current_odometry;
+  const bool pending_stop = stop_requested_on_approach_ || decision_line_latch_.pendingStop();
+  if (pending_stop) state_ = State::APPROACH;
+  std::optional<double> official_crossing_distance;
+  std::optional<double> virtual_front_distance;
+  const auto * official_line = signal_compliance::findSignalJudgingLine(
+    planner_param_.signal_judging_lines, traffic_light_reg_elem_.id());
+  signal_compliance::JudgingPoint official_front;
+  if (planner_param_.enable_signal_compliance_guard && planner_param_.use_official_judging_lines && official_line) {
+    const double yaw = tf2::getYaw(self_pose->pose.orientation);
+    official_front = {
+      self_pose->pose.position.x + planner_param_.signal_compliance_front_axle_offset_m * std::cos(yaw),
+      self_pose->pose.position.y + planner_param_.signal_compliance_front_axle_offset_m * std::sin(yaw)};
+    official_crossing_distance = signal_compliance::finiteJudgingLineDistance(*official_line, official_front);
+    if (planner_param_.enable_yellow_passthrough) {
+      // The virtual map line remains real geometry even after it falls outside
+      // the cropped planner path. Orient it with the configured approach, not
+      // ego yaw, and never substitute a synthetic current-ego stopping target.
+      signal_compliance::SignalJudgingLine virtual_line;
+      virtual_line.regulatory_id = traffic_light_reg_elem_.id();
+      virtual_line.approach_direction = official_line->approach_direction;
+      for (const auto & point : stop_line_) {
+        virtual_line.points.push_back({point.x(), point.y()});
+      }
+      virtual_front_distance = signal_compliance::finiteJudgingLineDistance(virtual_line, official_front);
+    }
+    if (!pending_stop && planner_param_.enable_yellow_passthrough && official_crossing_distance && *official_crossing_distance < 0.0) {
+      state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
+      stop_signal_received_time_ptr_.reset();
+      is_prev_state_stop_ = false;
+      setSafe(true);
+      return true;
+    }
+  }
+  decision_line_official_distance_ = official_crossing_distance;
 
   // Calculate stop pose and insert index
-  const auto stop_line = calcStopPointAndInsertIndex(
+  auto stop_line = calcStopPointAndInsertIndex(
     input_path, stop_line_,
     planner_param_.stop_margin + planner_data_->vehicle_info_.max_longitudinal_offset_m);
+  const bool genuine_path_stop_point = stop_line.has_value();
+  if (!stop_line && planner_param_.enable_signal_compliance_guard &&
+      (pending_stop || (planner_param_.use_official_judging_lines &&
+       planner_param_.enable_yellow_passthrough && official_crossing_distance &&
+       *official_crossing_distance >= 0.0))) {
+    // A shifted map line may already be outside the rear path horizon. It
+    // must not clear signal compliance before crossing the original line.
+    const auto index = autoware::motion_utils::findNearestSegmentIndex(input_path.points, self_pose->pose.position);
+    stop_line = std::make_pair(index + 1, Eigen::Vector2d(self_pose->pose.position.x, self_pose->pose.position.y));
+  }
 
   if (!stop_line.has_value()) {
     RCLCPP_WARN_STREAM_ONCE(
@@ -93,21 +142,50 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     input_path.points, self_pose->pose.position, stop_line_point_msg);
   setDistance(signed_arc_length_to_stop_point);
 
+  const auto front_axle_distance = signal_compliance::frontAxleDistanceFromBumperStop(
+    signed_arc_length_to_stop_point, planner_param_.stop_margin,
+    planner_data_->vehicle_info_.max_longitudinal_offset_m,
+    planner_param_.signal_compliance_front_axle_offset_m);
+  // Original-MGeo/front-axle geometry is used only to clear a crossed signal.
+  // Yellow braking uses signed_arc_length_to_stop_point, the earlier Lanelet
+  // bumper stopping target, even if original-line geometry is unavailable.
+  // Keep the proven yellow-OFF clearing behavior. The explicit yellow
+  // candidate must retain judging-line compliance through the original line.
+  const auto crossing_distance = planner_param_.use_official_judging_lines && planner_param_.enable_yellow_passthrough ?
+    official_crossing_distance : front_axle_distance;
+  if (planner_param_.enable_signal_compliance_guard && !front_axle_distance) {
+    setSafe(false);
+    *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
+    is_prev_state_stop_ = true;
+    return true;
+  }
+
   // Check state
   if (state_ == State::APPROACH) {
     // Move to go out state if ego vehicle over deadline.
     constexpr double signed_deadline_length = -2.0;
-    if (signed_arc_length_to_stop_point < signed_deadline_length) {
+    if (!pending_stop && (planner_param_.enable_signal_compliance_guard ? (crossing_distance && *crossing_distance < 0.0) :
+        signed_arc_length_to_stop_point < signed_deadline_length)) {
       RCLCPP_DEBUG(logger_, "APPROACH -> GO_OUT");
       state_ = State::GO_OUT;
+      seen_signal_on_approach_ = false;
       stop_signal_received_time_ptr_.reset();
+      if (planner_param_.enable_signal_compliance_guard) {
+        setSafe(true);
+        is_prev_state_stop_ = false;
+        RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+          "[signal_compliance] reg=%ld state=GO_OUT front_line_m=%.3f decision=clear_crossed_line",
+          traffic_light_reg_elem_.id(), *crossing_distance);
+      }
       return true;
     }
 
     first_ref_stop_path_point_index_ = stop_line.value().first;
 
     // Check if stop is coming.
-    const bool is_stop_signal = isStopSignal();
+    const bool is_stop_signal = isStopSignal(
+      signed_arc_length_to_stop_point, virtual_front_distance, genuine_path_stop_point);
+    stop_requested_on_approach_ = is_stop_signal;
 
     // Update stop signal received time
     if (is_stop_signal) {
@@ -123,8 +201,9 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
       stop_signal_received_time_ptr_
         ? std::max((clock_->now() - *stop_signal_received_time_ptr_).toSec(), 0.0)
         : 0.0;
-    bool to_be_stopped =
-      is_stop_signal && (is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
+    bool to_be_stopped = is_stop_signal && (planner_param_.enable_signal_compliance_guard ||
+      (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) ||
+      is_prev_state_stop_ || time_diff > planner_param_.stop_time_hysteresis);
 
     debug_data_.is_remaining_time_used = false;
     if (planner_param_.v2i_use_remaining_time) {
@@ -168,7 +247,17 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
 
     // Decide whether to stop or pass even if a stop signal is received.
     if (!isPassthrough(signed_arc_length_to_stop_point)) {
-      *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
+      if (planner_param_.enable_signal_compliance_guard && signed_arc_length_to_stop_point < 0.0) {
+        // The camera-friendly stop target is behind us, but the official line
+        // is not crossed. Request braking at the current path position, never
+        // insert a zero-velocity point behind ego and silently keep driving.
+        const auto index = autoware::motion_utils::findNearestSegmentIndex(
+          input_path.points, self_pose->pose.position);
+        *path = insertStopPose(input_path, index + 1,
+          Eigen::Vector2d(self_pose->pose.position.x, self_pose->pose.position.y));
+      } else {
+        *path = insertStopPose(input_path, stop_line.value().first, stop_line.value().second);
+      }
       is_prev_state_stop_ = true;
     }
     return true;
@@ -178,9 +267,21 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
     constexpr bool use_initialization_after_start = true;
     constexpr double restart_length = 1.0;
     if (use_initialization_after_start) {
-      if (signed_arc_length_to_stop_point > restart_length) {
+      if (planner_param_.enable_signal_compliance_guard ? (crossing_distance && *crossing_distance > restart_length) :
+          signed_arc_length_to_stop_point > restart_length) {
         RCLCPP_DEBUG(logger_, "GO_OUT(RESTART) -> APPROACH");
         state_ = State::APPROACH;
+        signal_compliance_guard_.reset();
+        decision_line_latch_.reset();
+        stop_requested_on_approach_ = false;
+        seen_signal_on_approach_ = false;
+        if (planner_param_.enable_signal_compliance_guard) {
+          // The previous crossing no longer authorizes a new approach after
+          // relocation. Re-evaluate once in this callback, not one GO cycle later.
+          // Recursion is bounded: state is APPROACH and front distance is >1m.
+          stop_signal_received_time_ptr_.reset();
+          return modifyPathVelocity(path);
+        }
       }
     }
     stop_signal_received_time_ptr_.reset();
@@ -190,11 +291,163 @@ bool TrafficLightModule::modifyPathVelocity(PathWithLaneId * path)
   return false;
 }
 
-bool TrafficLightModule::isStopSignal()
+bool TrafficLightModule::isStopSignal(
+  const double distance_to_stop_point, std::optional<double> virtual_front_distance,
+  const bool genuine_path_stop_point)
 {
   // Store previous state before updating
   prev_looking_tl_state_ = looking_tl_state_;
   updateTrafficSignal();
+
+  // Preserve the team's existing competition fail-open contract even when
+  // the newer observation guard is enabled. No publisher / expired transport
+  // must not block planning-only tests. Fresh RED/UNKNOWN still reach the guard.
+  if (planner_param_.competition_fail_open &&
+      (!traffic_signal_stamp_ || isTrafficSignalTimedOut())) {
+    signal_compliance_guard_.reset();
+    signal_compliance::publishVideoDecision(
+      traffic_light_reg_elem_.id(), clock_->now(), false, false,
+      planner_data_->current_velocity->twist.linear.x,
+      genuine_path_stop_point ? distance_to_stop_point : std::numeric_limits<double>::quiet_NaN(),
+      decision_line_official_distance_.value_or(std::numeric_limits<double>::quiet_NaN()),
+      std::numeric_limits<double>::quiet_NaN(), "competition_fail_open");
+    RCLCPP_WARN_THROTTLE(
+      logger_, *clock_, 5000, "[traffic_light] missing/stale signal: competition fail-open GO");
+    return false;
+  }
+
+  if (!planner_param_.enable_yellow_passthrough && isTrafficSignalYellow()) {
+    // Do not let legacy yellow_light_is_go/arrow overrides bypass the master.
+    // The guarded branch below still records Yellow and clears green history.
+    if (!planner_param_.enable_signal_compliance_guard) {
+      return true;
+    }
+  }
+
+  if (planner_param_.enable_signal_compliance_guard) {
+    using signal_compliance::Observation;
+    auto observation = Observation::Missing;
+    if (traffic_signal_stamp_) {
+      const auto & elements = looking_tl_state_.elements;
+      const double age = (clock_->now() - *traffic_signal_stamp_).toSec();
+      if (age < 0.0 || age > planner_param_.tl_state_timeout) {
+        observation = Observation::Stale;
+      } else if (elements.empty() || std::any_of(elements.begin(), elements.end(), [](const auto & element) {
+          return element.color == TrafficSignalElement::UNKNOWN ||
+                 element.shape == TrafficSignalElement::UNKNOWN ||
+                 element.status != TrafficSignalElement::SOLID_ON;
+        })) {
+        observation = Observation::Unknown;
+      } else if (isTrafficSignalYellow()) {
+        const bool green = std::any_of(elements.begin(), elements.end(), [](const auto & element) {
+          return element.color == TrafficSignalElement::GREEN;
+        });
+        observation = green ? Observation::Unknown : Observation::Yellow;
+      } else {
+        observation = autoware::traffic_light_utils::isTrafficSignalStop(lane_, looking_tl_state_) ?
+          Observation::Stop : Observation::AuthorizedGreen;
+      }
+    }
+    const bool has_color_evidence = observation == Observation::Unknown &&
+      std::any_of(looking_tl_state_.elements.begin(), looking_tl_state_.elements.end(),
+        [](const auto & element) { return element.color != TrafficSignalElement::UNKNOWN; });
+    if (observation == Observation::Stop || observation == Observation::AuthorizedGreen ||
+        observation == Observation::Yellow || has_color_evidence) {
+      seen_signal_on_approach_ = true;
+    }
+    const bool require_stop = signal_compliance_guard_.observe(
+      observation, traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0,
+      clock_->now().toSec(), planner_param_.tl_state_timeout, has_color_evidence);
+    const bool pending_stop = stop_requested_on_approach_ || decision_line_latch_.pendingStop();
+    const auto apply_decision_line = [&](bool guarded_stop) {
+      const double target_distance = genuine_path_stop_point ? distance_to_stop_point :
+        virtual_front_distance ? *virtual_front_distance -
+          (planner_data_->vehicle_info_.max_longitudinal_offset_m -
+           planner_param_.signal_compliance_front_axle_offset_m) - planner_param_.stop_margin :
+        std::numeric_limits<double>::quiet_NaN();
+      const double velocity = planner_data_->current_velocity->twist.linear.x;
+      const auto braking = signal_compliance::jerkStoppingDistance(
+        velocity, planner_param_.signal_compliance_yellow_deceleration_mps2,
+        planner_param_.signal_compliance_yellow_jerk_mps3, planner_data_->delay_response_time);
+      const double age = traffic_signal_stamp_ ?
+        (clock_->now()-*traffic_signal_stamp_).toSec() : -1.;
+      if (!planner_param_.enable_yellow_passthrough) {
+        signal_compliance::publishVideoDecision(
+          traffic_light_reg_elem_.id(), clock_->now(), guarded_stop, false, velocity,
+          target_distance, decision_line_official_distance_.value_or(
+            std::numeric_limits<double>::quiet_NaN()),
+          braking.value_or(std::numeric_limits<double>::quiet_NaN()), "yellow_master_off");
+        return guarded_stop;
+      }
+      const auto decision = decision_line_latch_.update(
+        observation, age >= 0.0 && age <= planner_param_.tl_state_timeout,
+        guarded_stop, velocity, planner_data_->isVehicleStopped(), target_distance,
+        braking.value_or(std::numeric_limits<double>::quiet_NaN()),
+        traffic_signal_stamp_ ? traffic_signal_stamp_->toSec() : 0.0, clock_->now().toSec());
+      signal_compliance::publishVideoDecision(
+        traffic_light_reg_elem_.id(), clock_->now(), decision.require_stop,
+        decision.committed_go, velocity, target_distance,
+        decision_line_official_distance_.value_or(std::numeric_limits<double>::quiet_NaN()),
+        decision.stopping_distance_m, decision.reason);
+      return decision.require_stop;
+    };
+    const auto terminal_front_distance = virtual_front_distance ? virtual_front_distance :
+      genuine_path_stop_point ? signal_compliance::frontAxleDistanceFromBumperStop(
+        distance_to_stop_point, planner_param_.stop_margin,
+        planner_data_->vehicle_info_.max_longitudinal_offset_m,
+        planner_param_.signal_compliance_front_axle_offset_m) : std::nullopt;
+    const double terminal_age = traffic_signal_stamp_ ?
+      (clock_->now()-*traffic_signal_stamp_).toSec() : -1.;
+    if (!pending_stop && signal_compliance::deferTerminalUnknownAfterVirtualLine(
+        planner_param_.enable_yellow_passthrough && planner_param_.use_official_judging_lines,
+        seen_signal_on_approach_, observation, has_color_evidence, terminal_front_distance,
+        terminal_age >= 0.0 && terminal_age <= planner_param_.tl_state_timeout)) {
+      RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+        "[signal_lanelet_exit] reg=%ld pure_unknown_past_virtual_line keep_path_open=1 virtual_front_m=%.3f path_stop_target_m=%.3f geometry_basis=%s",
+        traffic_light_reg_elem_.id(), *terminal_front_distance, distance_to_stop_point,
+        virtual_front_distance ? "finite_lanelet_line" : "genuine_path_stop_point");
+      return apply_decision_line(false);
+    }
+    if (!pending_stop && signal_compliance::deferUnseenUntilObserved(
+          planner_param_.defer_unseen_until_observed, seen_signal_on_approach_, observation)) {
+      RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
+        "[signal_compliance] reg=%ld unreadable before first lamp: defer stop point",
+        traffic_light_reg_elem_.id());
+      return apply_decision_line(false);
+    }
+    if (observation == Observation::Unknown && traffic_signal_stamp_ &&
+        !planner_data_->current_acceleration) {
+      return apply_decision_line(require_stop);
+    }
+    if (observation == Observation::Unknown && traffic_signal_stamp_) {
+      const double speed = planner_data_->current_velocity->twist.linear.x;
+      const double stopping_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
+        speed, planner_data_->current_acceleration->accel.accel.linear.x,
+        planner_data_->max_stop_acceleration_threshold,
+        planner_data_->max_stop_jerk_threshold, planner_data_->delay_response_time);
+      if (!pending_stop && signal_compliance::deferFarUnseenUnknown(
+            planner_param_.defer_far_unseen_unknown, seen_signal_on_approach_,
+            looking_tl_state_.elements.empty(), distance_to_stop_point,
+            stopping_distance, speed, planner_param_.far_unseen_min_stop_distance_m,
+            planner_param_.far_unseen_response_margin_sec)) {
+        RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 1000,
+          "[signal_compliance] reg=%ld empty/unseen far ahead: defer stop point at %.1fm",
+          traffic_light_reg_elem_.id(), distance_to_stop_point);
+        return apply_decision_line(false);
+      }
+    }
+    RCLCPP_DEBUG_THROTTLE(logger_, *clock_, 200,
+      "[signal_compliance] reg=%ld class=%s source_age_sec=%.3f green_count=%zu require_stop=%d unknown_grace_active=%d unknown_grace_sec=%.3f last_real_green_source_age_sec=%.3f last_real_green_processing_age_sec=%.3f",
+      traffic_light_reg_elem_.id(), signal_compliance::observationName(observation),
+      traffic_signal_stamp_ ? (clock_->now()-*traffic_signal_stamp_).toSec() : -1.,
+      signal_compliance_guard_.greenConfirmationCount(), require_stop,
+      signal_compliance_guard_.unknownGraceActive(), signal_compliance_guard_.unknownGraceSec(),
+      signal_compliance_guard_.lastRealGreenSourceSec() ?
+        clock_->now().toSec()-*signal_compliance_guard_.lastRealGreenSourceSec() : -1.,
+      signal_compliance_guard_.lastRealGreenProcessedSec() ?
+        clock_->now().toSec()-*signal_compliance_guard_.lastRealGreenProcessedSec() : -1.);
+    return apply_decision_line(require_stop);
+  }
 
   // If there is no upcoming traffic signal information,
   //   SIMULATION: it will PASS to prevent stopping on the planning simulator
@@ -335,6 +588,9 @@ void TrafficLightModule::updateTrafficSignal()
 {
   TrafficSignalStamped signal;
   if (!findValidTrafficSignal(signal)) {
+    if (planner_param_.enable_signal_compliance_guard) {
+      traffic_signal_stamp_.reset();
+    }
     // Don't stop if it never receives traffic light topic.
     // Reset looking_tl_state
     looking_tl_state_.elements.clear();
@@ -350,20 +606,23 @@ void TrafficLightModule::updateTrafficSignal()
 
 bool TrafficLightModule::isPassthrough(const double & signed_arc_length) const
 {
-  const double max_acc = planner_data_->max_stop_acceleration_threshold;
-  const double max_jerk = planner_data_->max_stop_jerk_threshold;
-  const double delay_response_time = planner_data_->delay_response_time;
+  if (!planner_param_.enable_yellow_passthrough) {
+    return false;
+  }
+  if (planner_param_.enable_signal_compliance_guard) {
+    // Color-independent one-shot decision has already run in isStopSignal.
+    return false;
+  }
 
+  // Explicit guard-OFF legacy rollback only. Production never selects this
+  // old period/jerk branch; its historical semantics remain reproducible.
   const double reachable_distance =
     planner_data_->current_velocity->twist.linear.x * planner_param_.yellow_lamp_period;
-
-  // Calculate distance until ego vehicle decide not to stop,
-  // taking into account the jerk and acceleration.
   const double pass_judge_line_distance = planning_utils::calcJudgeLineDistWithJerkLimit(
     planner_data_->current_velocity->twist.linear.x,
-    planner_data_->current_acceleration->accel.accel.linear.x, max_acc, max_jerk,
-    delay_response_time);
-
+    planner_data_->current_acceleration->accel.accel.linear.x,
+    planner_data_->max_stop_acceleration_threshold, planner_data_->max_stop_jerk_threshold,
+    planner_data_->delay_response_time);
   const bool distance_stoppable = pass_judge_line_distance < signed_arc_length;
   const bool slow_velocity =
     planner_data_->current_velocity->twist.linear.x < planner_param_.yellow_light_stop_velocity;

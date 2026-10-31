@@ -1,0 +1,81 @@
+<launch>
+  <!-- Compatibility entrypoint: v5 is also the ordinary launch default. -->
+  <arg name="models_root" default="$(env HOME)/.local/share/ajounice/traffic_light_models/v5_3d29ee7f" />
+  <arg name="inference_python" default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python" />
+  <arg name="device" default="0" />
+  <arg name="isolate_python" default="true" />
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)" />
+  <arg name="image_topic" default="/sensor/camera/front/compressed" />
+  <arg name="sensor_config" default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json" />
+  <arg name="map_version" default="101" />
+  <arg name="lanelet2_map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm" />
+  <arg name="lanelet2_projector_file" default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml" />
+  <arg name="lanelet2_projector_type" default="LocalCartesianUTM" />
+  <arg name="route_topic" default="/planning/mission_planning/route" />
+  <arg name="route_state_topic" default="/planning/route_state" />
+  <arg name="odometry_topic" default="/localization/kinematic_state" />
+  <arg name="output_topic" default="/perception/traffic_light_recognition/traffic_signals" />
+  <arg name="map_roi_topic" default="/perception/traffic_light_recognition/map_rois" />
+  <arg name="route_group_id_topic" default="/perception/traffic_light_recognition/route_group_id" />
+  <arg name="publish_debug_image" default="false" />
+  <arg name="near_rescue_enabled" default="true" />
+  <arg name="planner_compliance_observations" default="true" />
+  <arg name="observation_start_depth_m" default="$(eval 40.0 if str(arg('planner_compliance_observations')).lower() == 'true' else 0.0)" />
+  <arg name="observation_start_depth_d_m" default="$(eval 30.0 if float(arg('observation_start_depth_m')) > 0 else 0.0)" />
+  <arg name="preserve_unreadable_color_evidence" default="$(arg planner_compliance_observations)" />
+  <arg name="stamped_vote_window_size" default="0" />
+  <arg name="stamped_vote_max_age_sec" default="0.5" />
+  <arg name="stamped_vote_startup_passthrough" default="false" />
+  <arg name="detection_miss_hold_sec" default="0.2" />
+  <arg name="low_confidence_hold_sec" default="0.3" />
+  <arg name="no_lamps_hold_sec" default="0.2" />
+  <arg name="visual_continuation_sec" default="0.3" />
+  <arg name="route_progress_guard" default="true" />
+  <arg name="map_max_padding_px" default="120.0" />
+  <arg name="map_max_yaw_sigma_degrees" default="4.0" />
+  <arg name="map_max_vertical_padding_px" default="200.0" />
+  <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
+    <arg name="inference_python" value="$(arg inference_python)" />
+    <arg name="device" value="$(arg device)" />
+    <arg name="observation_start_depth_m" value="$(arg observation_start_depth_m)" />
+    <arg name="observation_start_depth_d_m" value="$(arg observation_start_depth_d_m)" />
+    <arg name="isolate_python" value="$(arg isolate_python)" />
+    <arg name="weights_path" value="$(arg models_root)/yolo_final/selected.pt" />
+    <arg name="cnn_checkpoint_path" value="$(arg models_root)/cnn_v5/best.pt" />
+    <arg name="cnn_device" value="$(eval 'cpu' if str(arg('device')) == 'cpu' else 'cuda:' + str(arg('device')))" />
+    <arg name="selection_mode" value="map_association" />
+    <arg name="classifier_mode" value="cnn" />
+    <arg name="detector_imgsz" value="960" />
+    <arg name="conf" value="0.25" />
+    <arg name="cnn_crop_margin_px" value="12" />
+    <arg name="cnn_min_bit_confidence" value="0.6" />
+    <arg name="repo_root" value="$(arg repo_root)" />
+    <arg name="image_topic" value="$(arg image_topic)" />
+    <arg name="sensor_config" value="$(arg sensor_config)" />
+    <arg name="lanelet2_map_file" value="$(arg lanelet2_map_file)" />
+    <arg name="map_version" value="$(arg map_version)" />
+    <arg name="lanelet2_projector_file" value="$(arg lanelet2_projector_file)" />
+    <arg name="lanelet2_projector_type" value="$(arg lanelet2_projector_type)" />
+    <arg name="route_topic" value="$(arg route_topic)" />
+    <arg name="route_state_topic" value="$(arg route_state_topic)" />
+    <arg name="odometry_topic" value="$(arg odometry_topic)" />
+    <arg name="output_topic" value="$(arg output_topic)" />
+    <arg name="map_roi_topic" value="$(arg map_roi_topic)" />
+    <arg name="route_group_id_topic" value="$(arg route_group_id_topic)" />
+    <arg name="publish_debug_image" value="$(arg publish_debug_image)" />
+    <arg name="near_rescue_enabled" value="$(arg near_rescue_enabled)" />
+    <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)" />
+    <arg name="preserve_unreadable_color_evidence" value="$(arg preserve_unreadable_color_evidence)" />
+    <arg name="stamped_vote_window_size" value="$(arg stamped_vote_window_size)" />
+    <arg name="stamped_vote_max_age_sec" value="$(arg stamped_vote_max_age_sec)" />
+    <arg name="stamped_vote_startup_passthrough" value="$(arg stamped_vote_startup_passthrough)" />
+    <arg name="detection_miss_hold_sec" value="$(arg detection_miss_hold_sec)" />
+    <arg name="low_confidence_hold_sec" value="$(arg low_confidence_hold_sec)" />
+    <arg name="no_lamps_hold_sec" value="$(arg no_lamps_hold_sec)" />
+    <arg name="visual_continuation_sec" value="$(arg visual_continuation_sec)" />
+    <arg name="route_progress_guard" value="$(arg route_progress_guard)" />
+    <arg name="map_max_padding_px" value="$(arg map_max_padding_px)" />
+    <arg name="map_max_yaw_sigma_degrees" value="$(arg map_max_yaw_sigma_degrees)" />
+    <arg name="map_max_vertical_padding_px" value="$(arg map_max_vertical_padding_px)" />
+  </include>
+</launch>

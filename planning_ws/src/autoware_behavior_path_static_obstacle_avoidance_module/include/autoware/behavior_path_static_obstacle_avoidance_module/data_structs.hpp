@@ -196,6 +196,8 @@ struct AvoidanceParameters
 
   // distance to avoid object detection
   bool use_static_detection_area{true};
+  // Extra lateral search width per side; does not inflate obstacle envelopes.
+  double detection_area_lateral_extra_margin{0.0};
   double object_check_min_forward_distance{0.0};
   double object_check_max_forward_distance{0.0};
   double object_check_backward_distance{0.0};
@@ -404,6 +406,9 @@ struct ObjectData  // avoidance target
   Point getPosition() const { return object.kinematics.initial_pose_with_covariance.pose.position; }
 
   PredictedObject object;
+
+  // Shared SOA/DOA decision, populated only in optimization-base mode.
+  std::optional<bool> dynamic_avoidance_owner;
 
   // object behavior.
   enum class Behavior {

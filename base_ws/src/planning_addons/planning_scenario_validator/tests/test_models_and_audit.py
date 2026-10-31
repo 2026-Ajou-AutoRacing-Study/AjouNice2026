@@ -25,10 +25,10 @@ class ModelsAndAuditTests(unittest.TestCase):
         self.document = gui.load_document(gui.MISSIONS / 'full_course/base/base5_e24_analysis_sample.yaml')
         self.sensor = ROOT / 'configs/sensors/Sensor_competition_local.json'
 
-    def test_new_execution_defaults_to_promoted_e24_without_rewriting_yaml(self):
+    def test_new_execution_defaults_to_promoted_e12_without_rewriting_yaml(self):
         old = gui.load_document(gui.MISSIONS / 'highway/base/example.yaml')
         self.assertNotIn('bevfusion_model', old['stack'])
-        self.assertEqual(models.selected_model(old['stack']), 'base5_e24')
+        self.assertEqual(models.selected_model(old['stack']), 'base5_e12')
         self.assertEqual(gui.build_document(old, gui.form_values(old)), old)
         self.assertEqual(models.PRESETS['e25']['thresholds'], [0.4, 0.15, 0.1])
 

@@ -16,12 +16,14 @@
 #define EXPERIMENTAL__SCENE_ROUNDABOUT_HPP_
 
 #include "../decision_result.hpp"
+#include "../go_after_stop_latch.hpp"
 #include "../object_manager.hpp"
 #include "../roundabout_lanelets.hpp"
 #include "../roundabout_stoplines.hpp"
 
 #include <autoware/behavior_velocity_intersection_module/result.hpp>
 #include <autoware/behavior_velocity_planner_common/utilization/state_machine.hpp>
+#include <diagnostic_msgs/DiagnosticArray.h>
 #include <autoware/behavior_velocity_rtc_interface/experimental/scene_module_interface_with_rtc.hpp>
 #include <autoware_lanelet2_extension/regulatory_elements/roundabout.hpp>
 
@@ -51,6 +53,8 @@ public:
       double max_jerk;
       double delay_response_time;
       bool enable_pass_judge_before_default_stopline;
+      bool latch_go_after_stop{false};
+      double go_after_stop_min_stop_duration{1.0};
     } common;
 
     struct TargetType
@@ -180,6 +184,8 @@ public:
   InternalDebugData & getInternalDebugData() const { return internal_debug_data_; }
 
 private:
+  ros::Publisher decision_state_pub_;
+  diagnostic_msgs::DiagnosticStatus decision_trace_;
   std::string logger_;
   std::shared_ptr<RoundaboutRos1Clock> clock_{std::make_shared<RoundaboutRos1Clock>()};
   /**
@@ -241,8 +247,10 @@ private:
    * following variables are state variables that depends on how the vehicle passed the roundabout
    * @{
    */
-  //! if true, this module never commands to STOP anymore
+  //! Geometric pass commitment; collision STOP may still be requested.
   bool is_permanent_go_{false};
+
+  GoAfterStopLatch go_after_stop_latch_;
 
   //! for checking if ego is over the pass judge lines because previously the situation was SAFE
   RoundaboutDecisionResult prev_decision_result_{RoundaboutInternalError{""}};

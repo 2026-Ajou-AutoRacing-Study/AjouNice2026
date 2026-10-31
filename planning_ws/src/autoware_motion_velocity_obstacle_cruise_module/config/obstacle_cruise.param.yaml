@@ -11,6 +11,7 @@
         safe_distance_margin : 5.0 # This is also used as a stop margin [m]
 
         pid_based_planner:
+          target_distance_scale: 0.4 # Scale the complete RSS target, then clamp to safe_distance_margin.
           use_velocity_limit_based_planner: true
           error_function_type: quadratic # choose from linear, quadratic
 
@@ -44,6 +45,11 @@
           min_accel_during_cruise: -2.0 # minimum acceleration during cruise to slow down [m/ss]
           min_cruise_target_vel: 0.0 # minimum target velocity during slow down [m/s]
           time_to_evaluate_rss: 0.0
+          rss_prediction:
+            enabled: true
+            start_relative_speed_kph: 30.0
+            full_relative_speed_kph: 80.0
+            max_time: 1.0
 
           lpf_normalized_error_cruise_dist_gain: 0.2
 

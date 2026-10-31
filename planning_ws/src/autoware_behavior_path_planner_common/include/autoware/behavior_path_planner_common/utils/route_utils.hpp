@@ -44,6 +44,13 @@ autoware_internal_planning_msgs::PathWithLaneId getCenterLinePath(
   double backward_path_length, double forward_path_length,
   const BehaviorPathPlannerParameters & parameters);
 
+// Query an ego-relative window without making its moving crop endpoints into
+// spline knots. The input must retain the original centerline/waypoint support.
+autoware_internal_planning_msgs::PathWithLaneId resampleCenterLinePathWithSupport(
+  const autoware_internal_planning_msgs::PathWithLaneId & source,
+  const geometry_msgs::Pose & pose, double backward_path_length, double forward_path_length,
+  const BehaviorPathPlannerParameters & parameters);
+
 autoware_internal_planning_msgs::PathWithLaneId getCenterLinePathFromLanelet(
   const lanelet::ConstLanelet & lanelet, const std::shared_ptr<const PlannerData> & planner_data);
 

@@ -1,0 +1,25 @@
+schema_version: 1
+map_version: 95
+status: source_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v95.osm
+map_sha256: a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+map_storage: separately_distributed_asset
+git_map_publication: excluded
+base_map_version: 94
+base_map_sha256: 3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf
+patch:
+  lanelet_id: 200311
+  centerline_way_id: 104535
+  node_id_range: [161505, 161551]
+  changed_node_count: 47
+  original_lanelet_s_interval_m: [109.49986854831008, 132.499827388474]
+  maximum_node_displacement_m: 0.01816328439357697
+  curvature_check_interval_m: [107, 135]
+  maximum_abs_1m_curvature_before: 0.06768795647838786
+  maximum_abs_1m_curvature_after: 0.0233918402937028
+  unchanged: [road_boundaries, lanelet_topology, speed_limits, elevations, other_nodes]
+provision_command: python3 scripts/map/prepare_kcity_v95.py --source /path/to/lanelet2_map_v95.osm
+verification_command: python3 scripts/map/prepare_kcity_v95.py --check
+runtime_adoption: source_only_install_and_restart_required
+live_driving_validation: not_run

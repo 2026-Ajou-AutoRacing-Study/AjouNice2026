@@ -5,13 +5,13 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /K-City v821
+        - /K-City v1011
         - /Mission Route1
         - /Competition Checkpoints1
         - /Final Trajectory1
         - /Perception Pipeline1
       Splitter Ratio: 0.5
-    Tree Height: 251
+    Tree Height: 191
   - Class: bringup/RosbagRecorder
     Name: Rosbag Recorder
   - Class: bringup/RouteControl
@@ -28,6 +28,29 @@ Toolbars:
 Visualization Manager:
   Class: ""
   Displays:
+    - Align Bottom: false
+      Background Alpha: 0.800000011920929
+      Background Color: 0; 0; 0
+      Class: rviz_2d_overlay_plugins/TextOverlay
+      Enabled: true
+      Foreground Alpha: 0.800000011920929
+      Foreground Color: 25; 255; 240
+      Invert Shadow: false
+      Name: Vehicle Speed and Brake
+      Overtake BG Color Properties: false
+      Overtake FG Color Properties: false
+      Overtake Position Properties: false
+      Topic: /planning/debug/vehicle_overlay
+      Value: true
+      font: DejaVu Sans Mono
+      height: 128
+      hor_alignment: left
+      hor_dist: 0
+      line width: 2
+      text size: 12
+      ver_alignment: top
+      ver_dist: 0
+      width: 128
     - Alpha: 0.20000000298023224
       Cell Size: 20
       Class: rviz/Grid
@@ -49,7 +72,7 @@ Visualization Manager:
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /map/lanelet_map
-      Name: K-City v82
+      Name: K-City v101
       Namespaces:
         features/lane_markings: true
         features/road_borders: true
@@ -118,7 +141,10 @@ Visualization Manager:
       Marker Topic: /planning/debug/final_trajectory/markers
       Name: Final Trajectory
       Namespaces:
-        {}
+        final_trajectory_ends: true
+        final_trajectory_horizon: true
+        final_trajectory_line: true
+        final_trajectory_points: true
       Queue Size: 10
       Value: true
     - Alpha: 1
@@ -276,7 +302,7 @@ Visualization Manager:
             {}
       Update Interval: 0
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front
       Max Value: 1
@@ -288,7 +314,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front_left
       Max Value: 1
@@ -300,7 +326,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/front_right
       Max Value: 1
@@ -312,7 +338,7 @@ Visualization Manager:
       Transport Hint: compressed
       Unreliable: false
       Value: true
-    - Class: rviz/Image
+    - Class: bringup/ScopedImage
       Enabled: true
       Image Topic: /sensor/camera/back
       Max Value: 1
@@ -349,7 +375,8 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 75.25112915039062
+      # Shared planviz/validator driving view: show roughly twice the road span.
+      Distance: 150
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -372,18 +399,18 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1016
+  Height: 1043
   Hide Left Dock: false
   Hide Right Dock: true
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000002000000000000016f000002d6fc0200000004fb000000100044006900730070006c006100790073010000010500000138000000c900fffffffb0000001e0052006f00730062006100670020005200650063006f00720064006500720100000243000000d2000000ad00fffffffb000000180052006f0075007400650020005300740061007400750073010000031b000000c00000007c00fffffffb0000000a005600690065007700730000000328000000b3000000a400ffffff00000002000004e3000000c2fc0100000004fb0000000a0049006d00610067006501000000000000013d0000007600fffffffb0000000a0049006d0061006700650100000143000001970000007600fffffffb0000000a0049006d00610067006501000002e0000001480000007600fffffffb0000000a0049006d006100670065010000042e000000b50000007600ffffff0000036e000002d600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000002000000000000016f00000250fc0200000004fb000000100044006900730070006c00610079007301000001a6000000fc000000c900fffffffb0000001e0052006f00730062006100670020005200650063006f007200640065007201000002a8000000ad000000ad00fffffffb000000180052006f0075007400650020005300740061007400750073010000035b0000009b0000007c00fffffffb0000000a005600690065007700730000000328000000b3000000a400ffffff000000020000050000000163fc0100000004fb0000000a0049006d00610067006501000000000000011e0000007600fffffffb0000000a0049006d0061006700650100000124000001c60000007600fffffffb0000000a0049006d00610067006501000002f0000001340000007600fffffffb0000000a0049006d006100670065010000042a000000d60000007600ffffff0000038b0000025000000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Rosbag Recorder:
     collapsed: false
   Route Status:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1251
-  X: 0
-  Y: 27
+  Width: 1280
+  X: 1280
+  Y: 0

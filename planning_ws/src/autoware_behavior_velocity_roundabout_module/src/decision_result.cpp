@@ -34,6 +34,11 @@ std::string formatDecisionResult(const RoundaboutDecisionResult & decision_resul
   if (std::holds_alternative<RoundaboutCollisionStop>(decision_result)) {
     return rtc + "CollisionStop:\n";
   }
+  if (std::holds_alternative<RoundaboutGoAfterStop>(decision_result)) {
+    const auto & state = std::get<RoundaboutGoAfterStop>(decision_result);
+    return rtc + "GoAfterStop: experimental GO latch active; collision_detected=" +
+           (state.collision_detected ? "true" : "false") + "\n";
+  }
   if (std::holds_alternative<RoundaboutSafe>(decision_result)) {
     return rtc + "Safe:\n";
   }

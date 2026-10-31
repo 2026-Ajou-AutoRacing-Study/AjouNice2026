@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[5]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 sys.path.insert(0, str(ROOT / 'docker/bevfusion'))
 from app.protocol import TYPE_PING, TYPE_PONG, recv_message, send_message
-from planning_scenario_validator.models import CANONICAL, trial_commands, verify_contract
+from planning_scenario_validator.models import (
+    CANONICAL, trial_commands, verify_contract, runtime_image_selection, runtime_contract)
 from planning_scenario_validator.runtime import atomic_json, stop_group
 
 
@@ -34,7 +35,7 @@ def check_ready(contract):
         connection.settimeout(2)
         send_message(connection, TYPE_PING)
         kind, metadata, _ = recv_message(connection)
-    if kind != TYPE_PONG or not metadata.get('model_loaded'):
+    if kind != TYPE_PONG or not metadata.get('model_loaded') or not metadata.get('ready', True):
         raise RuntimeError('Base5 서버가 모델을 준비하지 않았습니다')
     identity = metadata.get('runtime_identity', {})
     expected = {'checkpoint_sha256': contract['checkpoint_sha256'], 'config_sha256': contract['model_config_sha256'],
@@ -45,11 +46,40 @@ def check_ready(contract):
         expected['box_center_origin'] = 'lidar_bottom_v1'
     if any(identity.get(k) != v for k, v in expected.items()):
         raise RuntimeError('Base5 서버 모델/config/runtime 불일치: {}'.format(identity))
+    check_acceleration(contract, identity)
     if (metadata.get('point_intensity_source') != 'ros255' or metadata.get('classes') != ['vehicle', 'pedestrian', 'obstacle']
             or metadata.get('image_final_dim') != [512, 1056]
             or metadata.get('calibration', {}).get('config_sha256') != contract['sensor_sha256']):
         raise RuntimeError('Base5 서버 센서/기하/intensity/클래스 계약 불일치')
     return metadata
+
+
+def check_acceleration(contract, identity):
+    """Verify requested options, without misreporting permitted eager fallback."""
+    acceleration = contract.get('acceleration')
+    if not acceleration:
+        return
+    execution = identity.get('execution_optimization', {})
+    startup = execution.get('camera_tensorrt_startup', {})
+    policy = acceleration['camera_tensorrt_policy']
+    if startup.get('policy') != policy:
+        raise RuntimeError('Base5 TensorRT startup policy 불일치')
+    camera = execution.get('camera_tensorrt', {})
+    if startup.get('active_backend') == 'camera_tensorrt':
+        paths = acceleration['host_paths']
+        hashes = acceleration['files_sha256']
+        expected = {'engine_sha256': hashes.get(paths.get('BEVFUSION_CAMERA_TENSORRT_ENGINE')),
+                    'metadata_sha256': hashes.get(paths.get('BEVFUSION_CAMERA_TENSORRT_METADATA'))}
+        if (not all(camera.get(key) for key in ('enabled', 'loaded', 'healthy')) or
+                any(value is None or camera.get(key) != value for key, value in expected.items())):
+            raise RuntimeError('Base5 TensorRT engine/runtime identity 불일치')
+    elif startup.get('active_backend') != 'eager' or policy == 'require' or camera.get('enabled'):
+        raise RuntimeError('Base5 TensorRT 실제 backend 불일치')
+    requested = execution.get('head_runtime', {}).get('requested', {})
+    expected_head = {'attention_sdpa': acceleration['head_attention_sdpa'],
+                     'cache_bev_pos': acceleration['head_cache_bev_pos'], 'proposal_topk': False}
+    if requested != expected_head:
+        raise RuntimeError('Base5 SDPA/cache 요청 계약 불일치')
 
 
 def main():
@@ -59,7 +89,7 @@ def main():
     args = parser.parse_args()
     path = Path(args.contract)
     contract = json.loads(path.read_text())
-    if contract['preset'] not in ('base5_e24', 'base5_e9'):
+    if contract['preset'] not in ('base5_e12', 'base5_e24', 'base5_e9'):
         raise ValueError('Base5 전용 실행기입니다. E25는 run_bevfusion.sh를 사용하세요')
     verify_contract(contract, {'detector': 'bevfusion', 'bevfusion_model': contract['preset']}, contract['sensor_config'], ROOT)
     guard()
@@ -67,12 +97,15 @@ def main():
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 29515))
     name = 'planning-validator-base5-' + uuid.uuid4().hex[:12]
-    server_command, bridge_command = trial_commands(contract, ROOT, name)
-    bridge_command += ['publish_frame_timing:=' + str(args.publish_frame_timing).lower()]
-    image_id = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', contract['image']], text=True).strip()
+    image_selection = runtime_image_selection(contract)
+    image_id = image_selection['image_id']
     if contract.get('image_id', image_id) != image_id:
         raise RuntimeError('Docker image가 실행 준비 후 바뀌었습니다. 새 실험을 시작하세요')
+    effective = runtime_contract(contract, image_selection)
+    server_command, bridge_command = trial_commands(effective, ROOT, name)
+    bridge_command += ['publish_frame_timing:=' + str(args.publish_frame_timing).lower()]
     receipt = {'contract_fingerprint': contract['fingerprint'], 'image_id': image_id,
+               'runtime_image_selection': image_selection,
                'container': name, 'server_command': server_command, 'bridge_command': bridge_command}
     atomic_json(path.parent / 'model_process_receipt.json', receipt)
     server = bridge = None
@@ -89,7 +122,7 @@ def main():
                 raise RuntimeError('Base5 Docker 서버 종료: {}'.format(server.returncode))
             guard()
             try:
-                ready = check_ready(contract)
+                ready = check_ready(effective)
                 break
             except (OSError, EOFError):
                 if time.monotonic() >= deadline:
@@ -97,6 +130,8 @@ def main():
                 time.sleep(0.5)
         receipt['server_ready'] = ready
         atomic_json(path.parent / 'model_process_receipt.json', receipt)
+        print('Base5 actual acceleration: {}'.format(
+            ready.get('runtime_identity', {}).get('execution_optimization', {})), flush=True)
         print('Base5 bridge command: {}'.format(bridge_command), flush=True)
         bridge = subprocess.Popen(bridge_command, start_new_session=True)
         while bridge.poll() is None and server.poll() is None:

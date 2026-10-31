@@ -152,6 +152,6 @@ if __name__ == '__main__':
     p.add_argument('--predictions',type=Path,nargs='+',required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--contract-root',type=Path,default=ROOT/'artifacts/evaluation/bevfusion/teammate_manual_261004/e25')
-    p.add_argument('--sensor',type=Path,default=ROOT/'configs/sensors/Sensor_4.json')
+    p.add_argument('--sensor',type=Path,default=ROOT/'configs/sensors/legacy/Sensor_4.json')
     p.add_argument('--catalog',type=Path,default=ROOT/'dataset/morai_od/configs/morai_asset_bbox_offsets_status_size_v2.json')
     build(p.parse_args())

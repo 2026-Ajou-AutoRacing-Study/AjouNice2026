@@ -1,7 +1,6 @@
 # BASH_SOURCE identifies this checkout even if its directory/name differs.
 _AJOUNICE_ALIAS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export AJOUNICE_ROOT="${AJOUNICE_ROOT:-$(cd "$_AJOUNICE_ALIAS_DIR/.." && pwd)}"
-export POINTPAINTING_BUNDLE_ROOT="${POINTPAINTING_BUNDLE_ROOT:-$HOME/Downloads/260909_pointpainting_production_3model}"
 unset _AJOUNICE_ALIAS_DIR
 if [ -f "$AJOUNICE_ROOT/base_ws/install_aw149/setup.bash" ]; then
   source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh"
@@ -43,30 +42,33 @@ alias tf="rosrun rqt_tf_tree rqt_tf_tree"
 alias rosbag_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_raw.sh"'
 alias rosbag_cam_raw='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_cam_raw.sh"'
 
-# 260705 rosbag for eval 녹화 요청 스크립트
-alias rosbag_lio_eval='bash "$AJOUNICE_ROOT/scripts/rosbag/record/rosbag_for_eval.sh"'
+# Historical PointPainting/LIO aliases are not loaded by default.
+# Reproduction only: docs/legacy/context_261024/docs/common_alias.txt
 
 #-----------------------------------------------------
 # Personal-PC loopback profile. Ports match the competition profile; only IP differs.
+alias udp_dev='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
 alias udp='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_local.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json"'
+alias udp_competition='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile local'
 # Local MR/MRP localization load test: GPS+IMU only. MORAI must load the same
 # lightweight sensor JSON; Ego/Competition/Object/control stay on Ego Network.
-alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
-# Algorithm-PC adapter profile. On the field MORAI PC, load the original files
-# preserved under configs/morai_field_reference instead.
+alias udp_localization_light='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_local.json" enable_lidar:=false'
+# Algorithm-PC LAN adapter. Finals MORAI loads the organizer's scenario network;
+# do not overwrite it with the historical field-reference JSON.
+alias udp_lan_dev='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
 alias udp_lan='roslaunch sensor_interface morai_udp_interface.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json" network_config:="$AJOUNICE_ROOT/configs/network/ego_network_competition_lan.json"'
-alias udp22="roslaunch sensor_interface morai_udp_interface_22.launch"
+alias udp_lan_competition='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile lan'
+alias udp_lan_competition_teamlead='bash "$AJOUNICE_ROOT/scripts/runtime/run_competition_udp.sh" --profile teamlead'
 alias sensing="roslaunch bringup sensing.launch"
-alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
+alias sensing_localization_light='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/legacy/Sensor_localization_gt_lightweight.json" publish_lidar_tf:=false publish_camera_tf:=false'
 alias sensing_lan='roslaunch bringup sensing.launch sensor_config:="$AJOUNICE_ROOT/configs/sensors/Sensor_competition_lan.json"'
-alias pointpainting='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && POINTPAINTING_ACTIVATE_CONDA=false POINTPAINTING_WITH_TP=false POINTPAINTING_CFG="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/model.yaml" POINTPAINTING_CKPT="$POINTPAINTING_BUNDLE_ROOT/models/b3s_pp1_e34/detector.pth" POINTPAINTING_SEG_CKPT="$POINTPAINTING_BUNDLE_ROOT/segmentation/base3_lraspp_e30/segmentation.pth" rosrun morai_pointpainting_ros run_pointpainting.sh live'
-alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh"'
-# BEVFusion detections are measurement-stamped and arrive at roughly
-# 0.27-0.39 s age on the RTX 5060 Ti live pipeline.  Keep the fixed-rate EKF
-# output alive without changing measurement time semantics.
-alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5'
+alias bevfusion='bash "$AJOUNICE_ROOT/scripts/runtime/run_bevfusion.sh" --model e12'
+# Retain measurement timestamps; bound predicted age independently of detector Hz.
+# Host-specific latency measurements belong in evidence, not this runtime alias.
+alias tracking='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline object_pipeline.launch start_detector:=false prediction_model:=map_based maximum_tracking_internal_prediction_age_sec:=0.5 prediction_mixed_horizon_enabled:=true'
 alias od_gt='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch perception_object_pipeline morai_gt_detection.launch'
 alias traffic='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_node.launch'
+alias traffic_legacy='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch traffic_light_detection traffic_light_legacy.launch'
 
 # control----------------------------------------------
 alias traj_gen="roslaunch trajectory_generator trajectory_publisher.launch"
@@ -87,11 +89,14 @@ alias viewer_plot="roslaunch viewer viewer_plotjuggler.launch"
 
 # MR (2025 competition launcher) and field competition localization.
 # The competition contract does not provide /Ego_topic.
+# Optional: localization gnss_delay_ms:=20 (position advance, not an added wait).
+# Keep per-PC candidates explicit; bare localization remains compensation OFF.
 alias localization='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
-# Closed-loop experiment presets. These intentionally do not change the
-# production `localization` alias (sigma=0.10 m, Global Qxy=0.0005).
-alias localization_sigma_0p10_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
-alias localization_sigma_0p05_qxy_0p05='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false measurement_noise_config:="$AJOUNICE_ROOT/configs/localization/gnss_imu_gt_noise_sensor6_sigma_0p05.yaml" global_ekf_base_config:="$AJOUNICE_ROOT/configs/localization/robot_localization_gnss_imu_global_qxy_0p05.yaml"'
+alias localization_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=competition initial_position_source:=official_start use_heading_correction:=true heading_yaw_offset_deg:=-1.347 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
+# Read-only manual recorder, or the real validator's complete calibration mode.
+alias gnss_delay_record='bash "$AJOUNICE_ROOT/scripts/evaluation/localization/record_gnss_delay.sh"'
+alias gnss_delay_validator='bash "$AJOUNICE_ROOT/planning_validator" --gnss-delay-calibration'
+# Rejected Q/R experiment aliases are preserved in the context archive, not active.
 # MRP (2026 personal launcher) only. Estimator is shared; heading convention is already aligned.
 alias localization_mrp='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup localization_gnss_imu_gt_ctra.launch gt_source:=ego use_heading_correction:=false heading_yaw_offset_deg:=0.0 publish_sensor_tf:=false publish_control_state:=true use_quantized_gnss_control_state:=false control_translation_tau_sec:=0.5 control_yaw_tau_sec:=0.5'
 # Historical localization aliases are intentionally excluded from this common file.
@@ -189,14 +194,61 @@ field_log_list() {
   base="$(basename -- "$prefix")"
   echo "Current field log prefix: $prefix"
   find "$log_dir" -maxdepth 1 -type f -name "${base}_*" -exec ls -lh -- {} +
+  if [[ -d "${prefix}_console" ]]; then
+    find "${prefix}_console" -maxdepth 1 -type f -exec ls -lh -- {} +
+  fi
+}
+
+# Compact view is the default for sensing/localization/perception and planviz.
+# The wrapper resolves the original aliases in a child shell; never wrap twice.
+field() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" "$@"
+}
+
+origin() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/field_terminal.sh" --origin "$@"
 }
 
 # planning-----------------------------------------------
 alias planning='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch ajounice_planning_integration competition_planning.launch'
+# Shared binaries and launch graph; only the three smoother limits differ [m/s^2].
+alias planning6.0='planning max_lateral_acceleration:=6.0'
+alias planning6.5='planning max_lateral_acceleration:=6.5'
+alias planning5.8='planning max_lateral_acceleration:=5.8'
+alias planning5.5='planning max_lateral_acceleration:=5.5'
+alias planning5.3='planning max_lateral_acceleration:=5.3'
 alias planviz='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch'
+alias planviz_competition='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch bringup aw149_planning_rviz.launch show_morai_gt:=false'
 alias pvalidate='"$AJOUNICE_ROOT/planning_validator"'
 alias pvgui='"$AJOUNICE_ROOT/planning_validator_gui"'
 alias pvdash='"$AJOUNICE_ROOT/planning_validator_dashboard"'
+# Step 4 read-only input checks. No planner/controller startup or configuration writes.
+sensor_check() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/check_sensor_inputs.sh" "$@"
+}
+sensor_check_raw() {
+  bash "$AJOUNICE_ROOT/scripts/runtime/check_sensor_inputs_raw.sh" "$@"
+}
 alias judge='source "$AJOUNICE_ROOT/scripts/workspace/source_aw149.sh" && roslaunch competition_rule_monitor competition_rule_monitor.launch'
 alias planner='roslaunch bringup kcity_morai_competition_planner_rviz.launch'
 alias kroute='roslaunch bringup kcity_competition_route.launch'
+
+# Leave planning/roscore and the team's existing CTRL terminal unchanged.
+# Internal wrapper shells use the raw definitions above to avoid recursion.
+if [[ "${AJOUNICE_ORIGINAL_COMMANDS:-0}" != 1 ]]; then
+  alias udp='field udp'
+  alias udp_lan='field udp_lan'
+  alias udp_competition='field udp_competition'
+  alias udp_lan_competition='field udp_lan_competition'
+  alias udp_lan_competition_teamlead='field udp_lan_competition_teamlead'
+  alias sensing='field sensing'
+  alias sensing_lan='field sensing_lan'
+  alias localization='field localization'
+  alias localization_competition='field localization_competition'
+  alias localization_mrp='field localization_mrp'
+  alias bevfusion='field bevfusion'
+  alias tracking='field tracking'
+  alias traffic='field traffic'
+  alias planviz='field planviz'
+  alias planviz_competition='field planviz_competition'
+fi

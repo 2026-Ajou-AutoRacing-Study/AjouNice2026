@@ -11,6 +11,9 @@ import yaml
 from .config import load_campaign, resolve_path
 from .runtime import atomic_json, now
 from .models import resolve_contract, verify_contract
+from .traffic_light import (profile_name, runtime_mode, runtime_settings, candidate_assets,
+                            timed_policy_options, yellow_braking_options,
+                            YELLOW_POLICY_IMPLEMENTATION)
 from .localization_contract import (CONFIG_DEFAULTS, effective_localization_args,
                                     effective_gt_pose_args, resolve_localization_contract)
 
@@ -29,15 +32,39 @@ def prepare_execution(source, *, check_install=True):
     source = resolve_path(source)
     source_bytes = source.read_bytes()
     cfg = load_campaign(source, check_install=check_install)
+    if cfg.get('network_contract', {}).get('errors'):
+        raise ValueError('\n'.join(cfg['network_contract']['errors']))
     if source.read_bytes() != source_bytes:
         raise ValueError('사본 준비 중 YAML이 변경됐습니다. 다시 시작하세요')
     if is_snapshot(cfg['path']):
         raise ValueError('실행 사본은 편집용 YAML이 아닙니다. 원본 YAML로 새 실험을 시작하세요')
     document = yaml.safe_load(source_bytes)
-    if cfg['recording'].get('video', {}).get('enabled', False):
+    # Store resolved opt-in controls even when their displayed defaults are OFF.
+    # An older frozen snapshot retains its former boolean defaults without
+    # mutation; this does not reproduce an algorithm replaced in source.
+    # New snapshots freeze the selected values and record policy provenance.
+    options = cfg['traffic_light_options']
+    document.setdefault('stack', {}).update(
+        traffic_light_yellow_passthrough=options['yellow_passthrough'],
+        traffic_light_debug_view=options['debug_view'])
+    document['stack'].update(timed_policy_options(cfg['stack']))
+    document['stack'].update(yellow_braking_options(cfg['stack']))
+    document['stack'].update(cfg['traffic_light_temporal_options'])
+    document['stack']['traffic_light_profile'] = profile_name(cfg['stack'])
+    if cfg['stack'].get('traffic_light', False):
+        # Freeze the resolved selection, including the promoted default.
+        python, _ = runtime_settings(cfg['stack'], resolve_path('.'))
+        document['stack'].update(traffic_light_profile=profile_name(cfg['stack']),
+                                 traffic_light_runtime=runtime_mode(cfg['stack']),
+                                 traffic_light_python=python)
+        assets = candidate_assets(cfg['stack'], resolve_path('.'))
+        if assets is not None:
+            document['stack']['traffic_light_models_root'] = assets['root']
+    if (cfg['recording'].get('video', {}).get('enabled', False) or
+            (cfg['stack'].get('traffic_light', False) and options['debug_view'])):
         # Freeze the effective host display even for CLI authoring YAMLs that
         # omit it. Resuming under another DISPLAY must not select a new screen.
-        document['recording']['video']['display'] = cfg['recording']['video']['display']
+        document.setdefault('recording', {}).setdefault('video', {})['display'] = cfg['recording']['video']['display']
     root = resolve_path(document.get('output_root', 'planner_logs/validation'))
     root.mkdir(parents=True, exist_ok=True)
     label = cfg['name']
@@ -78,6 +105,11 @@ def prepare_execution(source, *, check_install=True):
         document['scenarios'].pop('include', None)
         for key in ('sensor_json', 'ego_network_json'):
             document['network'][key] = copy_input(cfg['network'][key], 'network/' + key + '.json')
+        if cfg.get('route'):
+            document['route']['definition_file'] = copy_input(
+                cfg['route']['definition_file'], 'routes/definition.yaml')
+            if files['routes/definition.yaml'] != cfg['route']['definition_sha256']:
+                raise ValueError('사본 준비 중 Route B 정의가 변경됐습니다.')
         if not cfg['recording'].get('bag_enabled', True) or 'selected_topics' in cfg['recording']:
             # A disabled/custom bag does not depend on a mutable external profile.
             destination = directory / 'topic_profile.json'
@@ -137,6 +169,15 @@ def prepare_execution(source, *, check_install=True):
             'total': len(cfg['cases']),
             'created_at': now(), 'source_yaml': str(cfg['path']), 'snapshot': path.name,
             'files': files, 'original_hashes': originals,
+            # Runtime policy provenance, not a selectable mode. Old manifests are
+            # unchanged and do not certify replay of a replaced runtime policy.
+            'traffic_light_yellow_policy': {
+                'implementation': (YELLOW_POLICY_IMPLEMENTATION
+                                   if cfg['traffic_light_temporal_options']['enable_signal_compliance_guard']
+                                   else 'legacy_autoware'),
+                'deceleration_mps2': document['stack']['signal_compliance_yellow_deceleration_mps2'],
+                'jerk_mps3': document['stack']['signal_compliance_yellow_jerk_mps3'],
+                'timed_candidate_active': False},
             'note': '편집용 YAML과 독립된 실행 사본. 재개는 이 폴더의 입력만 사용합니다.'})
         return load_execution(directory, check_install=check_install)
     except BaseException:
@@ -157,7 +198,7 @@ def load_execution(directory, *, check_install=True):
         if (not isinstance(state, dict) or not isinstance(state.get('config_path'), str)
                 or not isinstance(state.get('config_sha256'), str)):
             raise ValueError('이전 실험 state 형식이 잘못되었습니다. 결과는 보존합니다')
-        cfg = load_campaign(state['config_path'], check_install=check_install)
+        cfg = load_campaign(state['config_path'], check_install=check_install, legacy_traffic_defaults=True)
         if cfg['output'] != directory or sha256(cfg['path']) != state.get('config_sha256'):
             raise ValueError('이전 실험의 원본 YAML이 변경됐습니다. 기존 입력을 복원해야 재개할 수 있습니다')
         return cfg
@@ -176,6 +217,9 @@ def load_execution(directory, *, check_install=True):
         if directory not in path.parents or not path.is_file() or sha256(path) != digest:
             raise ValueError('실험 사본이 변경되거나 사라졌습니다: {}'.format(relative))
     cfg = load_campaign(directory / manifest['snapshot'], check_install=check_install)
+    if cfg.get('route') and (cfg['route']['definition_file'] != directory / 'routes/definition.yaml'
+                            or 'routes/definition.yaml' not in manifest['files']):
+        raise ValueError('Route B 정의의 실행 사본이 없습니다.')
     if 'model_contract.json' in manifest['files']:
         model = json.loads((directory / 'model_contract.json').read_text())
         if check_install:

@@ -17,7 +17,7 @@
       "cc": {
         "sensorName": "Camera_front",
         "sensorType": 1,
-        "sensorPeriod": 0.03333333333333333,
+        "sensorPeriod": 0.03333333507180214,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",
@@ -132,7 +132,7 @@
       "cc": {
         "sensorName": "Camera_front_left",
         "sensorType": 1,
-        "sensorPeriod": 0.03333333333333333,
+        "sensorPeriod": 0.03333333507180214,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",
@@ -247,7 +247,7 @@
       "cc": {
         "sensorName": "Camera_front_right",
         "sensorType": 1,
-        "sensorPeriod": 0.03333333333333333,
+        "sensorPeriod": 0.03333333507180214,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",
@@ -362,7 +362,7 @@
       "cc": {
         "sensorName": "Camera_back",
         "sensorType": 1,
-        "sensorPeriod": 0.03333333333333333,
+        "sensorPeriod": 0.03333333507180214,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",
@@ -558,7 +558,7 @@
       "gc": {
         "sensorName": "GPS",
         "sensorType": 4,
-        "sensorPeriod": 0.03333333333333333,
+        "sensorPeriod": 0.03333333507180214,
         "commType": 1,
         "udpConfig": {
           "hostIP": "192.168.0.1",

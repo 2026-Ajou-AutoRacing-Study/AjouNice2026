@@ -1,3 +1,10 @@
+avoidance_object_ownership:
+  # Instant speed hysteresis only; these values do not modify object velocity or prediction.
+  pedestrian_dynamic_enter_speed: 0.7
+  pedestrian_static_enter_speed: 0.2
+  # Speed-only hysteresis, applied immediately without timers or admission counts.
+  dynamic_enter_speed: 0.5
+  static_enter_speed: 0.2
 bidirectional_traffic:
   time_to_prepare_pull_over: 1.0
   min_distance_from_roadside: 0.2
@@ -182,10 +189,12 @@ avoidance:
       bicycle: true
       motorcycle: true
       pedestrian: true
-    object_check_goal_distance: 20.0
+    object_check_goal_distance: 0.0
     object_check_return_pose_distance: 20.0
     max_compensation_time: 5.0
     detection_area:
+      # Additional search width on each side; obstacle/clearance margins are independent.
+      lateral_extra_margin: 0.3
       static: false
       min_forward_distance: 50.0
       max_forward_distance: 150.0
@@ -322,8 +331,8 @@ avoidance:
       - 27.777777778
       - 38.8889
       max_accel_values:
-      - 5.0
-      - 5.0
+      - 6.5
+      - 6.5
       - 6.0
       - 4.0
       - 2.5
@@ -731,6 +740,16 @@ goal_planner:
   enable_simultaneous_execution_as_approved_module: true
   enable_simultaneous_execution_as_candidate_module: false
 lane_change:
+  overtake:
+    # Keep cooperative overtaking disabled; use the ordinary lane-change policy.
+    enable: false
+    assume_cooperative_npc: true
+    minimum_gap: 10.0
+    activation_distance: 15.0
+    minimum_ego_speed: 10.0
+    npc_reaction_time: 1.0
+    npc_max_deceleration: 3.0
+    feedback_timeout: 0.5
   time_limit: 50.0
   backward_lane_length: 200.0
   backward_length_buffer_for_end_of_lane: 3.0
@@ -742,7 +761,14 @@ lane_change:
     enable: true
     disable_near_goal: true
     stop_at_boundary: false
+  execution:
+    always_update_approved: false
   trajectory:
+    compact_sampling: true
+    # Exclude braking during the LC maneuver; preparation braking is still allowed.
+    allow_decelerating_lane_change: false
+    lateral_acceleration_samples: [1.0, 2.0, 3.0, 4.0, 5.0, 6.5]
+    prepare_duration_samples: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 4.0]
     max_prepare_duration: 4.0
     min_prepare_duration: 0.0
     lateral_jerk: 5.0
@@ -771,47 +797,47 @@ lane_change:
     enable_target_lane_bound_check: true
     stopped_object_velocity_threshold: 0.3
     prepare:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.8
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 1.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: along_path
     execution:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
-      rear_vehicle_reaction_time: 2.0
-      rear_vehicle_safety_time_margin: 1.0
-      lateral_distance_max_threshold: 2.0
-      longitudinal_distance_min_threshold: 3.0
-      longitudinal_velocity_delta_time: 0.0
-      extended_polygon_policy: rectangle
-    parked:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -2.0
-      rear_vehicle_reaction_time: 1.0
-      rear_vehicle_safety_time_margin: 0.8
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 1.0
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
+    parked:
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
+      rear_vehicle_reaction_time: 1.0
+      rear_vehicle_safety_time_margin: 0.5
+      lateral_distance_max_threshold: 0.5
+      longitudinal_distance_min_threshold: 3.0
+      longitudinal_velocity_delta_time: 0.0
+      extended_polygon_policy: rectangle
     cancel:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -2.0
-      rear_vehicle_reaction_time: 1.5
-      rear_vehicle_safety_time_margin: 0.8
+      expected_front_deceleration: -3.0
+      expected_rear_deceleration: -8.0
+      rear_vehicle_reaction_time: 0.0
+      rear_vehicle_safety_time_margin: 0.0
       lateral_distance_max_threshold: 1.0
       longitudinal_distance_min_threshold: 2.5
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle
     stuck:
-      expected_front_deceleration: -1.0
-      expected_rear_deceleration: -1.0
+      expected_front_deceleration: -6.0
+      expected_rear_deceleration: -6.0
       rear_vehicle_reaction_time: 2.0
-      rear_vehicle_safety_time_margin: 1.0
-      lateral_distance_max_threshold: 2.0
+      rear_vehicle_safety_time_margin: 0.5
+      lateral_distance_max_threshold: 0.5
       longitudinal_distance_min_threshold: 3.0
       longitudinal_velocity_delta_time: 0.0
       extended_polygon_policy: rectangle

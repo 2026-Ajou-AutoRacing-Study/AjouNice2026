@@ -1,0 +1,88 @@
+{
+  "map": "lanelet_map/lanelet2_map_v81.osm",
+  "sha256": "4ece7b1b549cd6920018195f8f3ec8ff6c4925ee3e290ca92d86ae17a2cac892",
+  "lanelets": 1315,
+  "new_lanelets": [
+    201478,
+    201479
+  ],
+  "new_ways": [
+    105619,
+    105620,
+    105621,
+    105622,
+    105623
+  ],
+  "new_nodes": [
+    233909,
+    233910,
+    233911,
+    233912,
+    233913
+  ],
+  "graph_changes_from_v80": [
+    201400,
+    201447,
+    201448,
+    201477
+  ],
+  "split_lanelet_graph": {
+    "201448": {
+      "previous": [
+        201476
+      ],
+      "following": [
+        201478
+      ],
+      "left": null,
+      "right": 201479,
+      "adjacent_left": null,
+      "adjacent_right": null
+    },
+    "201479": {
+      "previous": [
+        201477
+      ],
+      "following": [
+        201447
+      ],
+      "left": 201448,
+      "right": null,
+      "adjacent_left": null,
+      "adjacent_right": null
+    },
+    "201478": {
+      "previous": [
+        201448
+      ],
+      "following": [
+        201400
+      ],
+      "left": null,
+      "right": 201447,
+      "adjacent_left": null,
+      "adjacent_right": null
+    },
+    "201447": {
+      "previous": [
+        201479
+      ],
+      "following": [
+        201399
+      ],
+      "left": 201478,
+      "right": null,
+      "adjacent_left": null,
+      "adjacent_right": null
+    }
+  },
+  "bidirectional_lc_pairs_checked": 28,
+  "invalid_polygons": 0,
+  "highway_150_missing_previous_or_following": 0,
+  "speed_counts": {
+    "150": 51,
+    "59": 1127,
+    "45": 34,
+    "30": 14
+  }
+}

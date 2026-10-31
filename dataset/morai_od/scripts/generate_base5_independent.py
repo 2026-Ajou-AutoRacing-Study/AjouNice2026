@@ -491,7 +491,8 @@ def one_way_motion_path(pose,center,ego,bounds,motion,asset,setup_budget_sec=12.
         limitation='Single-frame appearance probe; reduced-speed animation realism and field units need live validation.')
 
 
-def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehicle_policy=None):
+def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehicle_policy=None,
+             asset_scale=None,asset_scale_policy=None):
     position={k:pose[k] for k in ('x','y','z')}
     container=asset['source_list']
     if container=='vehicleList':
@@ -541,10 +542,25 @@ def set_pose(actor,pose,uid,asset,scene,motion,motion_path=None,stationary_vehic
             actor['waypointEventList']=[dict(index=-1,waypointEventData=[]) for _ in points]
             scene['waypointDataList'][-1]['waypointData']=[
                 dict(pos=geo.world_to_morai_waypoint(p),rot=geo.formatted_rotation(0.)) for p in points]
+    if asset_scale is not None:
+        from base5_asset_scale import apply_actor
+        actor=apply_actor(actor,asset_scale,asset_scale_policy)
     scene[container].append(actor)
 
 def build(row,config,ctx,attempt=0):
     row=copy.deepcopy(row)
+    from base5_asset_scale import validate_plan as validate_scale_plan,planned_geometry,BASE as SCALE_BASE
+    scale_plan=validate_scale_plan(row,config)
+    if 'secondary_far_vehicle' in row:
+        # Explicit opt-in overlay: preserve the frozen Ego and every other
+        # actor, including the primary. Only the declared secondary may move.
+        from base5_secondary_far_vehicle import build as build_far_secondary
+        return build_far_secondary(row,config,ctx,attempt)
+    if 'primary_obstacle_range' in row:
+        # Bounds are explicit in the new frozen spec. Never apply a hidden
+        # range cap here or reinterpret an old manifest's distance contract.
+        from base5_primary_obstacle_range import validate_plan
+        validate_plan(row,config)
     from base5_placement_geometry import configure as configure_static_geometry
     ctx=configure_static_geometry(ctx,config,row)
     from base5_map_surface import configure
@@ -613,6 +629,9 @@ def build(row,config,ctx,attempt=0):
             details['dynamic_observation']=dict(phase=row['dynamic_observation_phase'],crossing=dynamic_crossing,
                 target_center=dynamic_target,ego_crossing_arc_displacement_m=target_arc-dynamic_crossing['route_arc_m'],
                 limitation='Map-anchored observation; not a validated trigger or actor trajectory. Terrain preparation required for motion.')
+    if row.get('static_mission_extent'):
+        from base5_static_mission_extent import anchor as extent_anchor
+        route,arc,base,details=extent_anchor(sys.modules[__name__],ctx,row,config,attempt)
     if row['family']=='highway':
         if row['topology']=='highway_three_lane':
             routes=[geo.route_from_link_path(ctx['links'],p) for p in geo.HIGHWAY_LANE_LINK_PATHS.values()]
@@ -654,7 +673,15 @@ def build(row,config,ctx,attempt=0):
     ego=dict(base,x=base['x']-math.sin(a)*offset,y=base['y']+math.cos(a)*offset,yaw=base['yaw']+yaw_delta)
     avoidance_ref=None;primary_pose=None
     if row.get('avoidance_phase'):
-        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],ctx,route,arc,base,asset,row,rng,yaw_attempt=attempt)
+        avoidance_ctx=ctx
+        if scale_plan:
+            native_size,native_off,_=geometry(asset,ctx)
+            scaled_size,scaled_off,assignment,_=planned_geometry(asset,row,0,
+                scale_plan['actor_identity'][0]['motion'],config,native_size,native_off)
+            if assignment and assignment['profile_id']!=SCALE_BASE:
+                avoidance_ctx=dict(ctx,geometry=dict(ctx['geometry'],**{asset['name']:
+                    dict(bbox_size_m=scaled_size,pivot_to_bbox_center_local_m=scaled_off)}))
+        ego,primary_pose,avoidance_ref=avoidance.observation(sys.modules[__name__],avoidance_ctx,route,arc,base,asset,row,rng,yaw_attempt=attempt,config=config)
         yaw_delta=ego['yaw']-base['yaw']
         offset=0. if row.get('avoidance_origin')=='generic_close' else avoidance_ref['lateral_center_offset_m']
         if avoidance_ref.get('road_relocation'):
@@ -679,6 +706,19 @@ def build(row,config,ctx,attempt=0):
     desired=None
     selected=population.choose(asset,poolkey,ctx['pools'],lambda a:geometry(a,ctx),row,rng)
     row['actors']=len(selected)
+    scaled_geometries={}
+    if scale_plan:
+        if len(selected)!=len(scale_plan['actor_identity']):
+            raise RuntimeError('Scale plan changed the frozen actor population')
+        for ordinal,selected_asset in enumerate(selected):
+            size,off,known=geometry(selected_asset,ctx)
+            size,off,assignment,proof=planned_geometry(selected_asset,row,ordinal,
+                scale_plan['actor_identity'][ordinal]['motion'],config,size,off)
+            scaled_geometries[ordinal]=(size,off,known or bool(assignment and assignment['profile_id']!=SCALE_BASE),assignment,proof)
+        if row.get('population_mode') in ('generic_regular','generic_dense'):
+            total=sum(population.cost(value[0]) for value in scaled_geometries.values())
+            if not row['population_budget_bounds'][0]<=total<=row['population_budget_bounds'][1]:
+                raise ValueError('Scaled frozen population exceeds declared size budget; actor list/profile cannot be relaxed')
     roundabout_poses=None;roundabout_proof=None
     if row.get('roundabout_phase'):
         roundabout_poses,roundabout_proof=roundabout_mission.place(sys.modules[__name__],ctx,ego,selected,row,config,rng)
@@ -695,6 +735,11 @@ def build(row,config,ctx,attempt=0):
             sum(a['motion'] not in ('static','standing') for a in actor_records),config,
             ctx.get('appearance_policy',{}) if config['capture'].get('asset_appearance_policy',False) else {})
         size,off,known=geometry(asset,ctx)
+        scale_assignment=None;scale_geometry=None
+        if scale_plan:
+            if actor_motion!=scale_plan['actor_identity'][i]['motion']:
+                raise RuntimeError('Scaled actor motion differs from its frozen source')
+            size,off,known,scale_assignment,scale_geometry=scaled_geometries[i]
         lower,upper=row['distance_bounds']
         if i: lower,upper=6.,45.
         if roundabout_poses is not None:lower,upper=0.,60.
@@ -875,6 +920,9 @@ def build(row,config,ctx,attempt=0):
         lon=math.cos(ea)*(center[0]-ego['x'])+math.sin(ea)*(center[1]-ego['y'])
         lat=-math.sin(ea)*(center[0]-ego['x'])+math.cos(ea)*(center[1]-ego['y'])
         actual_role=('front' if lon>=0 else 'rear') if abs(lon)>=abs(lat) else ('left' if lat>=0 else 'right')
+        if row.get('secondary_obstacle_front_support') is not None:
+            from base5_obstacle_front_support import verify_actual as verify_front_support
+            verify_front_support(row,i,actual,actual_role)
         if not i and not avoidance_ref and row['family'] in ('obstacle','pedestrian_related') and actual_role!=row['role']:
             raise ValueError('Actual Ego-relative direction differs from quota')
         if not i and row['family']=='highway' and not row.get('vehicle_close_phase') and ((lon<0)!=(row['role']=='rear')):
@@ -884,14 +932,19 @@ def build(row,config,ctx,attempt=0):
         height_initializer=None;ground_initializer=None
         if actor_motion in ('static','standing'):
             from base5_map_surface import initial_pose
-            runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx)
+            if scale_assignment and scale_assignment['profile_id']!=SCALE_BASE:
+                runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx,
+                    scale_assignment=scale_assignment,scale_policy=config['asset_scale_policy'])
+            else:
+                runtime_pose,height_initializer,ground_initializer=initial_pose(runtime_pose,asset,size,off,ctx)
         from base5_parked_npc_placement import screen as screen_parked_npc
         npc_support=screen_parked_npc(asset,actor_motion,size,ground_initializer,config.get('parked_npc_placement'),row)
         if npc_support and not npc_support['road_supported']:
             raise ValueError('Long parked NPC footprint outside estimated road support')
         stationary_policy=config['capture'].get('static_vehicle_policy')
         set_pose(copy.deepcopy(asset['template']),runtime_pose,uid,asset,scene,actor_motion,motion_path,
-                 stationary_vehicle_policy=stationary_policy)
+                 stationary_vehicle_policy=stationary_policy,asset_scale=scale_assignment,
+                 asset_scale_policy=config.get('asset_scale_policy'))
         footprints.append(swept if motion_path is not None else box)
         actor_records.append(dict(unique_id=uid,data_id=asset['data_id'],name=asset['name'],
             source_list=asset['source_list'],motion=actor_motion,position={k:runtime_pose[k] for k in ('x','y','z')},
@@ -903,6 +956,9 @@ def build(row,config,ctx,attempt=0):
             reference_frames=references(center,ego,base['yaw']),
             training_class='animal' if asset.get('ontology_class')=='Animal' else 'component_annotation',
             runtime_mapping_verified=False if selected_pool in ('animal','pet_person','stroller','rider') else True))
+        if scale_assignment is not None:
+            actor_records[-1]['asset_scale']=scale_assignment
+            actor_records[-1]['asset_scale_geometry']=scale_geometry
         if height_initializer is not None:actor_records[-1]['static_height_initializer']=height_initializer
         if support:actor_records[-1]['secondary_obstacle_support']=dict(support,actual_center_distance_m=actual)
         if config.get('regional_policy'):actor_records[-1]['placement_yaw_deg']=pose['yaw']
@@ -934,6 +990,13 @@ def build(row,config,ctx,attempt=0):
         split=split,split_group=group,split_limit='whole link; adjacent links can share 100m views; held-out mission bag required',
         ego_road_yaw_offset_deg=yaw_delta,ego_lateral_offset_m=offset,
         planned_primary_distance_m=desired,retry=attempt,live_validated=False)
+    from base5_layout_split import enabled as layout_split_enabled, provisional_split, POLICY as LAYOUT_POLICY
+    if layout_split_enabled(config):
+        meta['source_physical_link_split'] = split
+        meta['split'] = provisional_split(meta, config)
+        meta['split_group'] = None  # Never reinterpret a physical link as a layout group.
+        meta['split_limit'] = 'Known-map provisional layout split; finalize coverage-constrained group overlay before training.'
+        meta['layout_split_policy'] = LAYOUT_POLICY
     if row.get('population_mode'):
         charges=[population.cost(a['estimated_size']) for a in actor_records]
         meta['population_budget']=dict(mode=row['population_mode'],layout=row['population_layout'],
@@ -959,6 +1022,9 @@ def build(row,config,ctx,attempt=0):
     if row.get('shadow_observation_stage'):
         from base5_shadow_observation import validate_approach
         meta['shadow_approach_geometry']=validate_approach(sys.modules[__name__],ctx,meta)
+    if row.get('static_mission_extent'):
+        from base5_static_mission_extent import finish as extent_finish
+        extent_finish(sys.modules[__name__],ctx,meta,config)
     from base5_region_contract import validate as validate_region
     region_proof=validate_region(sys.modules[__name__],ctx,meta,config)
     if region_proof:meta['regional_placement']=region_proof

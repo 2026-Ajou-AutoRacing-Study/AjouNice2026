@@ -8,6 +8,8 @@
     <rosparam command="load" file="$(find trajectory_follower)/config/purepursuit_autoware.yaml"/>
     <param name="vehicle/wheelbase_m" value="3.0"/>
     <param name="vehicle/max_steer_rad" value="0.7"/>
+    <!-- Keep stale-source coverage independent of the production trajectory cache allowance. -->
+    <param name="safety/trajectory_source_timeout_s" value="0.5"/>
   </node>
 
   <node pkg="trajectory_follower"
@@ -18,6 +20,7 @@
     <rosparam command="load" file="$(find trajectory_follower)/config/trajectory_follower_autoware.yaml"/>
     <rosparam command="load" file="$(find trajectory_follower)/config/longi_pi_autoware.yaml"/>
     <param name="vehicle/max_steer_rad" value="0.7"/>
+    <param name="safety/trajectory_source_timeout_s" value="0.5"/>
   </node>
 
   <test test-name="autoware_freshness"

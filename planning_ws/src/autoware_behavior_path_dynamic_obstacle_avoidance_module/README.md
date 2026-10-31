@@ -2,11 +2,54 @@
 
 This module is under development.
 
+## AjouNice ROS1 output contract
+
+In `optimization_base`, BPP assigns each perception UUID to one owner using
+`avoidance_object_ownership` in `behavior_path_modules.yaml`: generic speed >= 0.5 m/s
+enters DOA immediately; an unambiguous pedestrian uses >= 0.7 m/s instead.
+Speed <= 0.2 m/s enters SOA immediately; the open interval retains the previous
+owner. A new UUID below its entry threshold starts with SOA. Speed is the
+planar magnitude of perception velocity, including reverse/crossing motion.
+There is no ownership/admission dwell timer, consecutive-update requirement,
+position-motion gate, or position-based forecast. Shared ownership is an ingress
+filter, not permission to create a lateral detour. Existing regulated/unregulated
+selection still rejects crossing traffic, distant objects, following vehicles,
+cut-in/cut-out cases, passed objects, out-of-range TTC and unsuitable lateral
+coverage. Supplied objects remain available unchanged to longitudinal/roundabout
+planners. Shared-mode eligibility is refreshed immediately on each planning update;
+legacy non-shared admission counters are unchanged. SOA releases both static
+memories on a dynamic handoff; DOA replaces cached upstream constraints for that
+UUID. Missing detections retain only the owner decision, without inventing
+occupancy; a new route or clock rewind clears ownership. Invalid velocity is
+conservatively assigned to DOA. SOA's existing geometry/margins are unchanged.
+
+Selected objects are exported as independent `direct_constraint` obstacles,
+alongside SOA obstacles in the BPP path's stamped obstacle scene. DOA does not
+indent the road exterior. The existing BPP publisher forwards these polygons to
+PO for side selection, optimization, and collision validation.
+
+Each constraint carries the perception UUID. An object already owned by an SOA
+direct constraint is not exported twice. Current footprint and accepted predicted
+footprints within `predicted_path.end_time_to_consider` form a conservative swept
+envelope, refreshed each planning cycle. Ego reservations cannot subtract object
+occupancy. The collision polygon has **zero extra clearance padding**. Explicit
+message margins are **hard 0.1 m / soft 0.7 m**; PO adds the soft margin to the
+hard margin for preferred clearance. The legacy padded regulated-object policy
+polygon is used only as an export gate outside the shared ownership mode, not as
+collision occupancy. This is a spatial
+envelope, not a time-indexed dynamic-obstacle optimizer.
+
+The cutout descriptions below document the upstream policy from which target
+selection and regulated-object eligibility originate; they do not describe the
+road-boundary output of this checkout. `test_doa_independent_constraints` covers
+road preservation, identity/ownership, complete occupancy, explicit margins, and
+prediction refresh.
+
 ## Purpose / Role
 
 This module provides avoidance functions for vehicles, pedestrians, and obstacles in the vicinity of the ego's path in combination with the [autoware_path_optimizer](https://autowarefoundation.github.io/autoware_universe/main/planning/autoware_path_optimizer/).
 Each module performs the following roles.
-Dynamic Avoidance module cuts off the drivable area according to the position and velocity of the target to be avoided.
+The upstream Dynamic Avoidance module cuts off the drivable area according to the position and velocity of the target to be avoided; this checkout exports independent constraints instead.
 Obstacle Avoidance module modifies the path to be followed so that it fits within the received drivable area.
 
 Static obstacle's avoidance functions are also provided by the [Static Avoidance module](../autoware_behavior_path_static_obstacle_avoidance_module/README.md), but these modules have different roles.

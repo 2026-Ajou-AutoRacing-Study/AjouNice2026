@@ -1,3 +1,4 @@
+#include <tuple>
 // Copyright 2023 TIER IV, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +17,13 @@
 
 #include "autoware/behavior_path_lane_change_module/base_class.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
+#include <autoware/behavior_path_planner_common/utils/path_safety_checker/safety_core.hpp>
+#include <autoware_planning_msgs/Trajectory.h>
+#include "autoware/behavior_path_lane_change_module/utils/execution_progress.hpp"
 
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -91,6 +97,7 @@ public:
   TurnSignalInfo updateOutputTurnSignal() const override;
 
   bool calcAbortPath() override;
+  bool calcAbortPathForTiming(double delay, double duration);
 
   PathSafetyStatus isApprovedPathSafe() const override;
 
@@ -107,6 +114,7 @@ public:
 
   bool isEgoOnPreparePhase() const override;
 
+
   bool isAbleToStopSafely() const override;
 
   bool hasFinishedAbort() const override;
@@ -122,8 +130,90 @@ public:
   TurnSignalInfo get_current_turn_signal_info() const final;
 
   bool hasMissedLaneChangePath() const override;
+  void refreshApprovedPlan() override;
 
 protected:
+  enum class OvertakePhase { Idle, Accelerating, Ready, Changing, Unavailable };
+  struct OvertakeState
+  {
+    OvertakePhase phase{OvertakePhase::Idle};
+    std::optional<unique_identifier_msgs::UUID> target;
+    double gap{0.0};
+    std::string reason{"idle"};
+  };
+  OvertakeState overtake_;
+  std::optional<PathWithLaneId> overtake_prepare_path_;
+  ros::Subscriber final_trajectory_sub_;
+  mutable std::mutex final_trajectory_mutex_;
+  autoware_planning_msgs::TrajectoryConstPtr final_trajectory_;
+  ros::Time final_trajectory_received_;
+  std::optional<ros::Time> abort_reentry_committed_;
+  mutable bool searching_abort_reentry_{false};
+  mutable std::map<std::string, size_t> abort_reentry_rejections_;
+  void refreshAbortReentry();
+  bool getAbortReentryPaths(LaneChangePaths & paths) const;
+  mutable std::string overtake_feedback_reason_{"unavailable"};
+  mutable bool hard_collision_detected_{false};
+  void receiveFinalTrajectory(const autoware_planning_msgs::TrajectoryConstPtr & message);
+  std::vector<utils::lane_change::ExecutionProgressPoint> executionProfile(
+    const LaneChangePath & candidate) const;
+  double executionRecoveryTime(
+    const Pose & pose, double speed,
+    const std::vector<utils::lane_change::ExecutionProgressPoint> & profile) const;
+  void updateExecutionManeuver(const LaneChangePath & candidate) const;
+  mutable utils::lane_change::ExecutionRecoveryMonitor feedback_recovery_, ego_recovery_;
+  mutable std::optional<Pose> recovery_maneuver_start_, recovery_maneuver_end_;
+  mutable double execution_required_recovery_time_{0.0};
+  mutable bool execution_replan_requested_{false};
+  mutable size_t search_prepare_metrics_{0}, search_generated_{0}, search_checked_{0}, search_safe_{0};
+  mutable bool search_budget_exhausted_{false};
+  std::string rolling_plan_reason_{"not_running"};
+  std::tuple<int, double, int, int, double, double> candidateRank(
+    const LaneChangePath & candidate) const;
+
+  void updateOvertake(bool is_approved);
+  bool buildOvertakePreparation(const ExtendedPredictedObject & object);
+  const ExtendedPredictedObject * findOvertakeTarget() const;
+  lane_change::TargetObjects allOvertakeObjects() const;
+  std::optional<std::vector<PoseWithVelocityStamped>> finalVelocityPrediction(
+    const LaneChangePath & candidate) const;
+  bool usesCooperativePolicy(const ExtendedPredictedObject & object) const;
+  const LaneChangePath & activeSafetyPath() const;
+  const char * overtakePhaseName() const;
+  enum class CandidateSearchMode { Any, Ahead, Other };
+  bool prepareCandidateForSearch(LaneChangePath & candidate, CandidateSearchMode mode) const;
+  mutable size_t ahead_candidates_checked_{0};
+  mutable size_t other_candidates_checked_{0};
+  mutable size_t unavailable_slot_candidates_{0};
+  mutable double required_slot_prediction_time_{0.0};
+  mutable std::string selected_merge_slot_{"none"};
+  mutable std::string feedback_candidate_frame_;
+  mutable std::string feedback_trajectory_frame_;
+  void publishApprovedSafetyDiagnostics(bool safe, bool trailing) const;
+
+  struct SafetyDiagnosticSample
+  {
+    std::string stage;
+    ExtendedPredictedObject object;
+    LaneChangePath candidate;
+    std::vector<PoseWithVelocityStamped> ego_prediction;
+    RSSparams execution_params;
+    utils::path_safety_checker::RSSCollisionTrace trace;
+    CollisionCheckDebug debug;
+    double prepare_end_time{0.0};
+  };
+  void captureSafetyDiagnostic(
+    const char * stage, const ExtendedPredictedObject & object,
+    const LaneChangePath & candidate, const std::vector<PoseWithVelocityStamped> & prediction,
+    const RSSparams & execution_params,
+    const utils::path_safety_checker::RSSCollisionTrace & trace,
+    const CollisionCheckDebug & debug, double prepare_end_time = 0.0) const;
+  void publishSafetyDiagnostics(
+    double search_ms, bool approved = false, bool safe = false, bool trailing = false) const;
+  ros::Publisher safety_diagnostics_pub_;
+  mutable std::vector<SafetyDiagnosticSample> safety_diagnostic_samples_;
+  mutable size_t safety_rejected_pairs_{0};
+
   lanelet::ConstLanelets get_lane_change_lanes(const lanelet::ConstLanelets & current_lanes) const;
 
   TurnSignalInfo get_terminal_turn_signal_info() const final;
@@ -148,13 +238,13 @@ protected:
     const std::vector<LaneChangePhaseMetrics> & prepare_metrics,
     const lane_change::TargetObjects & target_objects,
     const std::vector<std::vector<int64_t>> & sorted_lane_ids,
-    LaneChangePaths & candidate_paths) const;
+    LaneChangePaths & candidate_paths, CandidateSearchMode mode, double time_limit_ms) const;
 
   bool get_path_using_path_shifter(
     const std::vector<LaneChangePhaseMetrics> & prepare_metrics,
     const lane_change::TargetObjects & target_objects,
     const std::vector<std::vector<int64_t>> & sorted_lane_ids,
-    LaneChangePaths & candidate_paths) const;
+    LaneChangePaths & candidate_paths, CandidateSearchMode mode, double time_limit_ms) const;
 
   bool check_candidate_path_safety(
     const LaneChangePath & candidate_path, const lane_change::TargetObjects & target_objects) const;

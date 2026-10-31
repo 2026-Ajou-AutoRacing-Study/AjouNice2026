@@ -38,6 +38,7 @@
 #include <autoware_planning_msgs/PoseWithUuidStamped.h>
 #include <autoware_vehicle_msgs/HazardLightsCommand.h>
 #include <autoware_vehicle_msgs/TurnIndicatorsCommand.h>
+#include <std_msgs/Bool.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Odometry.h>
 #include <tier4_planning_msgs/Approval.h>
@@ -122,6 +123,8 @@ private:
 
   // publisher
   bpp_full_native::Publisher<PathWithLaneId> path_publisher_;
+  bpp_full_native::Publisher<PathWithLaneId> longitudinal_commitment_publisher_;
+  bpp_full_native::Publisher<std_msgs::Bool> lc_execution_publisher_;
   bpp_full_native::Publisher<autoware_planning_msgs::StaticObstacleScene> obstacle_scene_publisher_;
   bpp_full_native::Publisher<TurnIndicatorsCommand> turn_signal_publisher_;
   bpp_full_native::Publisher<HazardLightsCommand> hazard_signal_publisher_;

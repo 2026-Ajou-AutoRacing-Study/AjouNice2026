@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -194,12 +195,49 @@ void EBPathSmoother::initialize(const bool enable_debug_info, const CommonParam 
 void EBPathSmoother::resetPreviousData()
 {
   prev_eb_traj_points_ptr_ = nullptr;
+  osqp_solver_ptr_.reset();
+}
+
+bool EBPathSmoother::requiresHistoryReset(
+  const std::vector<TrajectoryPoint> & traj_points, const geometry_msgs::Pose & ego_pose) const
+{
+  if (!prev_eb_traj_points_ptr_ || prev_eb_traj_points_ptr_->size() < 2 ||
+      traj_points.size() < 2) {
+    return false;
+  }
+
+  const auto ego_seg_idx =
+    trajectory_utils::findEgoSegmentIndex(traj_points, ego_pose, ego_nearest_param_);
+  const auto cropped = autoware::motion_utils::cropPoints(
+    traj_points, ego_pose.position, ego_seg_idx,
+    eb_param_.num_points * eb_param_.delta_arc_length,
+    common_param_.output_backward_traj_length);
+  if (cropped.size() < 2) return true;
+
+  // Check the actual historical point that insertFixedPoint would retain. A
+  // path switch can leave a small error at Ego but a large jump at this point
+  // behind Ego. The EB joint cannot absorb more than its configured clearance.
+  const auto previous_idx = trajectory_utils::findEgoSegmentIndex(
+    *prev_eb_traj_points_ptr_, cropped.front().pose, ego_nearest_param_);
+  const auto & previous_point = prev_eb_traj_points_ptr_->at(previous_idx);
+  const double lateral_jump = std::abs(autoware::motion_utils::calcLateralOffset(
+    cropped, previous_point.pose.position, size_t{0}));
+  const double joint_clearance =
+    std::max(eb_param_.clearance_for_joint, eb_param_.clearance_for_smooth) +
+    eb_param_.clearance_for_fix;
+  return !std::isfinite(lateral_jump) || lateral_jump > joint_clearance + 1e-6;
 }
 
 std::vector<TrajectoryPoint> EBPathSmoother::smoothTrajectory(
   const std::vector<TrajectoryPoint> & traj_points, const geometry_msgs::Pose & ego_pose)
 {
   time_keeper_ptr_->tic(__func__);
+
+  // Also protect direct callers (e.g. offline centerline generation) that do
+  // not use the node's replan checker.
+  if (requiresHistoryReset(traj_points, ego_pose)) {
+    resetPreviousData();
+  }
 
   const auto get_prev_eb_traj_points = [&]() {
     if (prev_eb_traj_points_ptr_) {
@@ -328,6 +366,12 @@ void EBPathSmoother::updateConstraint(
         // NOTE: Only first point can be fixed since there is a lateral deviation
         //       between the two points.
         //       The front point is previous optimized one, and the others are the input ones.
+        return p.clearance_for_fix;
+      }
+      if (!is_goal_contained && static_cast<int>(i) >= std::max(0, pad_start_idx - 3)) {
+        // The optimized prefix is extended with the input path. Anchor its last
+        // three samples to that path so the join retains the input position,
+        // heading and discrete curvature instead of a free optimization edge.
         return p.clearance_for_fix;
       }
       if (is_goal_contained) {

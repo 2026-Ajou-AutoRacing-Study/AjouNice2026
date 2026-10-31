@@ -16,7 +16,7 @@ def lightweight_static(metadata):
                 for a in metadata.get('runtime_actors', [])))
 
 
-def static_decision(ground):
+def static_decision(ground, metadata=None):
     warnings, fatal = [], []
     for row in ground.get('actors', []):
         reason = row.get('reason')
@@ -26,6 +26,14 @@ def static_decision(ground):
         if reason in ('actor_annotation_above_ground', 'actor_annotation_deep_below_ground'):
             if gap is None or not math.isfinite(gap) or not row.get('plane'):
                 fatal.append('static_ground_invalid_measurement')
+            elif metadata is not None and reason == 'actor_annotation_deep_below_ground' and gap < -.40:
+                from base5_ground_support import static_surface_association
+                association = static_surface_association(row, ground, metadata)
+                if association is not None:
+                    warnings.append(dict(uid=row['uid'], reason='actor_ground_surface_association_unverified',
+                        gap_m=gap, surface_association=association))
+                else:
+                    fatal.append('static_ground_severe_below')
             elif gap > .40:
                 fatal.append('static_ground_severe_above')
             elif gap < -.40:

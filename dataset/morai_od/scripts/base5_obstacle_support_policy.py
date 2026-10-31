@@ -42,7 +42,12 @@ def sample(row, ordinal, asset, size, role, attempt):
     plan=row.get('secondary_obstacle_support')
     if not plan: return None
     from base5_obstacle_rich_floor import POLICY as RICH_POLICY, sample as rich_sample
-    if plan.get('policy')==RICH_POLICY:return rich_sample(row,ordinal,asset,size,role,attempt)
+    if plan.get('policy')==RICH_POLICY:
+        proof=rich_sample(row,ordinal,asset,size,role,attempt)
+        if row.get('secondary_obstacle_front_support') is not None:
+            from base5_obstacle_front_support import apply as front_support
+            return front_support(row,ordinal,asset,size,attempt,proof)
+        return proof
     if plan.get('policy')!=POLICY or plan.get('variant') not in ('near50','near70'):
         raise ValueError('Unknown secondary obstacle support policy')
     if not eligible(row) or 0 in plan['ordinals']:

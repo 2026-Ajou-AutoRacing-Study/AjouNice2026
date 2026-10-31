@@ -53,6 +53,11 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(ros::NodeHandle private_node)
 
   // publisher
   path_publisher_ = create_publisher<PathWithLaneId>("output/path", 1);
+  longitudinal_commitment_publisher_ = create_publisher<PathWithLaneId>(
+    "/planning/lane_change/longitudinal_commitment", 1);
+  lc_execution_publisher_ = create_publisher<std_msgs::Bool>(
+    "/planning/lane_change/executing", 1, true);
+  lc_execution_publisher_->publish(std_msgs::Bool{});
   obstacle_scene_publisher_ = create_publisher<autoware_planning_msgs::StaticObstacleScene>(
     "/planning/scenario_planning/lane_driving/behavior_planning/static_obstacle_scene", 10);
   turn_signal_publisher_ =
@@ -427,6 +432,9 @@ void BehaviorPathPlannerNode::run()
       planner_manager_->reset();
       planner_manager_->resetCurrentRouteLanelet(planner_data_);
       planner_data_->prev_modified_goal.reset();
+      if (planner_data_->avoidance_object_ownership) {
+        planner_data_->avoidance_object_ownership->clear();
+      }
     }
   }
   const auto controlled_by_autoware_autonomously =
@@ -439,6 +447,18 @@ void BehaviorPathPlannerNode::run()
 
   // run behavior planner
   const auto output = planner_manager_->run(planner_data_);
+
+  // Publish lifecycle independently of path validity, freshness or downstream
+  // geometry. ABORT is still the same approved RUNNING LC module.
+  const auto approved_lc_modules = planner_manager_->approved_modules();
+  const bool lc_executing = std::any_of(
+    approved_lc_modules.begin(), approved_lc_modules.end(), [](const auto & module) {
+      return (module->name() == "lane_change_left" || module->name() == "lane_change_right") &&
+        module->getCurrentStatus() == ModuleStatus::RUNNING;
+    });
+  std_msgs::Bool lc_execution;
+  lc_execution.data = lc_executing;
+  lc_execution_publisher_->publish(lc_execution);
 
   // path handling
   const auto path = getPath(output, planner_data_);
@@ -483,6 +503,17 @@ void BehaviorPathPlannerNode::run()
         scene.obstacles.push_back(msg);
       }
       obstacle_scene_publisher_->publish(scene);
+      // Publish the actual cropped output, never a candidate or an RTC flag.
+      // Empty output revokes ownership on normal completion/cancellation.
+      PathWithLaneId commitment;
+      commitment.header = path->header;
+      const auto approved = planner_manager_->approved_modules();
+      const bool lc_owns_speed = std::any_of(approved.begin(), approved.end(), [](const auto & m) {
+        return (m->name() == "lane_change_left" || m->name() == "lane_change_right") &&
+          m->getCurrentStatus() == ModuleStatus::RUNNING;
+      });
+      if (lc_owns_speed) commitment = *path;
+      longitudinal_commitment_publisher_->publish(commitment);
       path_publisher_->publish(*path);
       published_time_publisher_->publish_if_subscribed(path_publisher_.identity(), path->header.stamp);
     } else {

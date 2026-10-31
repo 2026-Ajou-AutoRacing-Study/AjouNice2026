@@ -1,7 +1,7 @@
 <launch>
   <!-- Compatibility alias. New deployments should use base3_online.launch. -->
   <arg name="sensor_config"
-       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor.json"/>
+       default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_local.json"/>
   <arg name="config"
        default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_sensor4.yaml"/>
   <arg name="start_rviz" default="true"/>

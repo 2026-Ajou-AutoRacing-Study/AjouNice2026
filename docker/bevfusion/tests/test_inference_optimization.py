@@ -63,7 +63,7 @@ def test_base5_rejects_default_and_partial_contract_before_loading(monkeypatch):
     from mmengine.config import Config
     config = Config(dict(metainfo=dict(classes=['vehicle', 'pedestrian', 'obstacle', 'animal']),
         model=dict(img_backbone=dict(init_cfg=None), bbox_head=dict(type='fake'))))
-    monkeypatch.setattr(bevfusion_model.Config, 'fromfile', lambda path: config)
+    monkeypatch.setattr(bevfusion_model.Config, 'fromfile', lambda path, **kwargs: config)
     monkeypatch.setattr(bevfusion_model, 'init_model', lambda *a, **kw: pytest.fail('Loaded invalid contract'))
     with pytest.raises(ValueError, match='explicit --base5-runtime'):
         bevfusion_model.BevFusionModel('config', 'checkpoint', {})

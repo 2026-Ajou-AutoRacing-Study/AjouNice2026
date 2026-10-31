@@ -287,7 +287,7 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for key in ('inputs','predictions','output'):p.add_argument('--'+key,type=Path,required=True)
     p.add_argument('--replays',type=Path,nargs='*',default=[])
-    p.add_argument('--sensor-config',type=Path,default=ROOT/'configs/sensors/Sensor_4.json')
+    p.add_argument('--sensor-config',type=Path,default=ROOT/'configs/sensors/legacy/Sensor_4.json')
     p.add_argument('--score-policy', dest='score_policies', action='append', nargs=4,
                    metavar=('NAME','VEHICLE','PEDESTRIAN','OBSTACLE'),
                    help='Explicit detector policy; repeat to compare thresholds. Existing E24 policies remain the default.')

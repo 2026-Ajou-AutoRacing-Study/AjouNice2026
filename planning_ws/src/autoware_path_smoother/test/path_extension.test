@@ -1,0 +1,35 @@
+<launch>
+  <node name="smoother" pkg="autoware_path_smoother" type="elastic_band_smoother_node" required="true">
+    <rosparam>
+      ego_nearest_dist_threshold: 3.0
+      ego_nearest_yaw_threshold: 1.046
+      common:
+        output_backward_traj_length: 5.0
+        output_delta_arc_length: 0.2
+      elastic_band:
+        common: {delta_arc_length: 0.5, num_points: 120}
+        option: {enable_warm_start: true, enable_optimization_validation: true}
+        clearance:
+          num_joint_points: 3
+          clearance_for_fix: 0.0
+          clearance_for_joint: 0.1
+          clearance_for_smooth: 0.1
+        weight: {lat_error_weight: 0.001, smooth_weight: 1.0}
+        qp: {max_iteration: 10000, eps_abs: 0.0000001, eps_rel: 0.0000001}
+        validation: {max_error: 3.0}
+    </rosparam>
+    <rosparam>
+      enable_debug_info: false
+      replan:
+        enable: true
+        max_path_shape_around_ego_lat_dist: 2.0
+        max_path_shape_forward_lon_dist: 100.0
+        max_path_shape_forward_lat_dist: 0.2
+        max_ego_moving_dist: 5.0
+        max_goal_moving_dist: 15.0
+        max_delta_time_sec: 0.0
+    </rosparam>
+  </node>
+  <test test-name="path_extension" pkg="autoware_path_smoother"
+        type="test_path_extension.py" time-limit="60"/>
+</launch>

@@ -67,7 +67,7 @@ def test_production_runtime_rejects_parallel_before_loading(monkeypatch):
     from mmengine.config import Config
     config = Config(dict(metainfo=dict(classes=['vehicle','pedestrian','obstacle']),
                          model=dict(img_backbone=dict(init_cfg=None),bbox_head=dict(type='fake'))))
-    monkeypatch.setattr(bevfusion_model.Config,'fromfile',lambda path:config)
+    monkeypatch.setattr(bevfusion_model.Config,'fromfile',lambda path, **kwargs:config)
     monkeypatch.setattr(bevfusion_model,'init_model',lambda *args,**kwargs:pytest.fail('Loaded unsafe contract'))
     with pytest.raises(ValueError,match='Base5-only'):
         bevfusion_model.BevFusionModel('config','checkpoint',{},parallel_camera=True)

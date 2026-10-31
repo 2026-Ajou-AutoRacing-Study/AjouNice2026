@@ -1,10 +1,11 @@
 <launch>
-  <!-- User-promoted E24, 2026-10-13. Canonical topics; E25 rollback stays separate.
+  <!-- Shared E12 production / E24 rollback transport. The launcher pins weights/options; E25 stays separate.
        AMP + camera parallel ON, compile OFF are owned by the GPU runner. -->
   <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_competition_lan.json"/>
   <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_production.yaml"/>
   <arg name="start_rviz" default="false"/>
   <arg name="publish_frame_timing" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <!-- Requires tagged producer and a fresh downstream stack; no hot migration. -->
   <arg name="box_center_output_origin" default="gravity_center_v1"/>
   <arg name="output_objects" default="/perception/object_recognition/detection/objects"/>
@@ -13,6 +14,7 @@
     <arg name="config" value="$(arg config)"/>
     <arg name="start_rviz" value="$(arg start_rviz)"/>
     <arg name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="box_center_output_origin" value="$(arg box_center_output_origin)"/>
     <arg name="output_objects" value="$(arg output_objects)"/>
     <arg name="vehicle_score_threshold" value="0.40"/>

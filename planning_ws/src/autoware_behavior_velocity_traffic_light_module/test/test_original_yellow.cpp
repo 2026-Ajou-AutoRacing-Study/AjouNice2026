@@ -42,6 +42,8 @@ protected:
     planner_param_.yellow_light_stop_velocity = 1.0;
     planner_param_.stop_time_hysteresis = 0.0;
     planner_param_.enable_pass_judge = false;
+    // Historical tests explicitly opt in; production now defaults to OFF.
+    planner_param_.enable_yellow_passthrough = true;
     planner_param_.enable_arrow_aware_yellow_passing = true;  // Key param for this test
     planner_param_.max_behind_dist_to_stop_for_restart_suppression = 0.0;
     planner_param_.min_behind_dist_to_stop_for_restart_suppression = 0.0;
@@ -147,6 +149,38 @@ protected:
   void setCompetitionFailOpen(const bool enabled)
   {
     module_->planner_param_.competition_fail_open = enabled;
+  }
+
+  void enableComplianceGuard()
+  {
+    module_->planner_param_.enable_signal_compliance_guard = true;
+    module_->planner_param_.signal_compliance_front_axle_offset_m = 3.0;
+    module_->planner_param_.competition_fail_open = true;
+    module_->planner_param_.yellow_light_is_go = true;
+    module_->planner_param_.enable_pass_judge = true;
+  }
+
+  bool callIsPassthrough(double distance) { return module_->isPassthrough(distance); }
+
+  void clearSignals() { planner_data_->traffic_light_id_map_raw_.clear(); }
+
+  void setYellowLightIsGo(bool enabled) { module_->planner_param_.yellow_light_is_go = enabled; }
+
+  void setTrafficSignalAt(const autoware_perception_msgs::TrafficLightGroup & signal, ros::Time stamp)
+  {
+    setTrafficSignal(signal);
+    planner_data_->traffic_light_id_map_raw_[12345].stamp = stamp;
+  }
+
+  void confirmComplianceGreen(const autoware_perception_msgs::TrafficLightGroup & signal)
+  {
+    const auto last_stamp = clock_->now();
+    setTrafficSignalAt(signal, last_stamp - ros::Duration(.2));
+    EXPECT_TRUE(callIsStopSignal());
+    setTrafficSignalAt(signal, last_stamp - ros::Duration(.1));
+    EXPECT_TRUE(callIsStopSignal());
+    setTrafficSignalAt(signal, last_stamp);
+    EXPECT_FALSE(callIsStopSignal());
   }
 
   void verifyTransition(
@@ -409,6 +443,70 @@ TEST_F(TrafficLightModuleTest, CompetitionFailOpenOnUnknownSignal)
 
   EXPECT_TRUE(callIsStopSignal());
   setCompetitionFailOpen(true);
+  EXPECT_FALSE(callIsStopSignal());
+}
+
+TEST_F(TrafficLightModuleTest, StrictComplianceCandidateOverridesLegacyYellow)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  enableComplianceGuard();
+  setCompetitionFailOpen(false);
+  EXPECT_TRUE(callIsStopSignal());
+  for (const bool include_red : {false, true}) {
+    autoware_perception_msgs::TrafficLightGroup yellow;
+    yellow.elements.push_back(createElement(Element::AMBER, Element::CIRCLE, Element::SOLID_ON));
+    if (include_red) {
+      yellow.elements.push_back(createElement(Element::RED, Element::CIRCLE, Element::SOLID_ON));
+    }
+    setTrafficSignal(yellow);
+    EXPECT_TRUE(callIsStopSignal());
+    EXPECT_FALSE(callIsPassthrough(.1));
+  }
+  autoware_perception_msgs::TrafficLightGroup unknown;
+  unknown.elements.push_back(createElement(Element::UNKNOWN, Element::UNKNOWN, Element::UNKNOWN));
+  setTrafficSignal(unknown);
+  EXPECT_TRUE(callIsStopSignal());
+}
+
+TEST_F(TrafficLightModuleTest, ComplianceCandidateDefaultsOffAndPreservesLegacyGo)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  EXPECT_FALSE(planner_param_.enable_signal_compliance_guard);
+  setCompetitionFailOpen(true);
+  EXPECT_FALSE(callIsStopSignal());
+  autoware_perception_msgs::TrafficLightGroup yellow;
+  yellow.elements.push_back(createElement(Element::AMBER, Element::CIRCLE, Element::SOLID_ON));
+  setYellowLightIsGo(true);
+  setTrafficSignal(yellow);
+  EXPECT_FALSE(callIsStopSignal());
+}
+
+TEST_F(TrafficLightModuleTest, ComplianceCandidateMissingAfterGreenDoesNotKeepOldTimestamp)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  enableComplianceGuard();
+  setCompetitionFailOpen(false);
+  autoware_perception_msgs::TrafficLightGroup green;
+  green.elements.push_back(createElement(Element::GREEN, Element::CIRCLE, Element::SOLID_ON));
+  confirmComplianceGreen(green);
+  clearSignals();
+  EXPECT_TRUE(callIsStopSignal());
+  EXPECT_FALSE(callIsPassthrough(.1));
+}
+
+TEST_F(TrafficLightModuleTest, ComplianceCandidateOneGreenAndRepeatedStampDoNotStart)
+{
+  using Element = autoware_perception_msgs::TrafficLightElement;
+  enableComplianceGuard();
+  autoware_perception_msgs::TrafficLightGroup green;
+  green.elements.push_back(createElement(Element::GREEN, Element::CIRCLE, Element::SOLID_ON));
+  const auto first_stamp = clock_->now() - ros::Duration(.2);
+  setTrafficSignalAt(green, first_stamp);
+  EXPECT_TRUE(callIsStopSignal());
+  EXPECT_TRUE(callIsStopSignal());
+  setTrafficSignalAt(green, first_stamp + ros::Duration(.1));
+  EXPECT_TRUE(callIsStopSignal());
+  setTrafficSignalAt(green, first_stamp + ros::Duration(.2));
   EXPECT_FALSE(callIsStopSignal());
 }
 

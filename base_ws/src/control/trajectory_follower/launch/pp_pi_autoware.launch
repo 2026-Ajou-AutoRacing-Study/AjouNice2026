@@ -17,7 +17,8 @@
   <node pkg="trajectory_follower"
         type="purepursuit_autoware"
         name="purepursuit_autoware"
-        output="screen"
+        launch-prefix="/bin/sh -c 'exec &quot;$@&quot; 2&gt;&amp;1' --"
+        output="log"
         required="true">
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pp_config)"/>
@@ -28,11 +29,16 @@
   <node pkg="trajectory_follower"
         type="longi_pi_autoware"
         name="longi_pi_autoware"
-        output="screen"
+        launch-prefix="/bin/sh -c 'exec &quot;$@&quot; 2&gt;&amp;1' --"
+        output="log"
         required="true">
     <rosparam command="load" file="$(arg common_config)"/>
     <rosparam command="load" file="$(arg pi_config)"/>
     <rosparam command="load" file="$(arg vehicle_config)"/>
     <param name="topics/kinematic_state" value="$(arg kinematic_state_topic)"/>
   </node>
+
+  <!-- Display observes final commands; original controller logs remain in ROS logs. -->
+  <node pkg="trajectory_follower" type="control_terminal.py" name="control_terminal"
+        output="screen"/>
 </launch>

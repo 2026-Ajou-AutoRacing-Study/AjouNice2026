@@ -1,0 +1,26 @@
+schema_version: 1
+map_version: 98
+status: runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v98.osm
+map_sha256: 25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0
+size_bytes: 31517761
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+source:
+  map_version: 97
+  map_file: kcity_map/lanelet_map/lanelet2_map_v97.osm
+  sha256: da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9
+changes:
+  way_id: 105522
+  lanelet_id: 201439
+  old_endpoint_node: 229565
+  shared_endpoint_node: 233927
+  next_lanelet_id: 200360
+  gap_before_m: 0.09050198892820942
+  gap_after_m: 0.0
+  other_geometry_attributes_and_topology: preserved
+  unused_old_node: retained
+map_storage: deterministically_derived_from_separately_distributed_v97
+git_map_publication: excluded
+provision_command: python3 scripts/map/prepare_kcity_v98.py
+verification_command: python3 scripts/map/prepare_kcity_v98.py --check
+closed_loop_validation: not_run

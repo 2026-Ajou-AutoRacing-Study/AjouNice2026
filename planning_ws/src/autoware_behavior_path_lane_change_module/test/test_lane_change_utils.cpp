@@ -23,6 +23,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <iterator>
+#include <limits>
+
 constexpr double epsilon = 1e-6;
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialSpeedProfileRespectsTransitionsAndDynamics)
@@ -67,6 +71,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
   odometry->pose.pose.orientation.w = 1;
   odometry->twist.twist.linear.x = 10;
   data->self_odometry_ptr = odometry;
+  data->current_acceleration = boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
   LaneChangePath path;
   path.type = lane_change::PathType::SpatialSpeedProfile;
   std::vector<double> s, caps;
@@ -83,7 +88,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
   // Deliberately stale nominal duration must not truncate the spatial prediction.
   path.info.duration = {0, 1};
   const auto predictions = utils::lane_change::convert_to_predicted_paths(data, path, 1, false);
-  ASSERT_EQ(predictions.size(), 1U);
+  ASSERT_EQ(predictions.size(), 2U);
   EXPECT_NEAR(predictions[0].back().pose.position.x, 100, 1e-5);
   EXPECT_GT(predictions[0].back().time, 2);
   for (const auto & state : predictions[0]) {
@@ -91,6 +96,145 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialCollisionPredictionUsesOutp
     EXPECT_NEAR(state.pose.position.x, expected.first, 1e-4);
     EXPECT_NEAR(state.velocity, expected.second, 1e-4);
   }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, PredictionAnchorPreservesPreparationAcceleration)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  for (const double acceleration : {2.0, 0.0, -2.0}) {
+    const double preparation_end = 20.0 + 2.0 * acceleration;
+    const double preparation_velocity = 10.0 + 2.0 * acceleration;
+    std::vector<double> s{0.0, preparation_end / 2.0, preparation_end,
+      preparation_end + 10.0, preparation_end + 20.0};
+    std::vector<double> v{150.0 / 3.6, 150.0 / 3.6, preparation_velocity,
+      std::sqrt(preparation_velocity * preparation_velocity + 30.0),
+      std::sqrt(preparation_velocity * preparation_velocity + 60.0)};
+    ASSERT_TRUE(reanchor_speed_profile(s, v, 10.0, acceleration, preparation_end));
+    EXPECT_DOUBLE_EQ(v.front(), 10.0);
+    const auto boundary = sample_speed_profile(s, v, 2.0);
+    EXPECT_NEAR(boundary.first, preparation_end, epsilon);
+    EXPECT_NEAR(boundary.second, preparation_velocity, epsilon);
+    for (const double t : {0.5, 1.0, 1.5}) {
+      const auto state = sample_speed_profile(s, v, t);
+      EXPECT_NEAR(state.first, 10.0 * t + 0.5 * acceleration * t * t, epsilon);
+      EXPECT_NEAR(state.second, 10.0 + acceleration * t, epsilon);
+    }
+    EXPECT_NEAR((v.back() * v.back() - v[v.size()-2] * v[v.size()-2]) / 20.0,
+      1.5, epsilon);
+  }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, PredictionAnchorRepairsPreparationEvenWhenFirstSpeedMatches)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  std::vector<double> s{0, 5, 10, 20};
+  std::vector<double> v{10, 150.0 / 3.6, 10, std::sqrt(130.0)};
+  EXPECT_TRUE(reanchor_speed_profile(s, v, 10, 0, 10));
+  EXPECT_DOUBLE_EQ(v[0], 10);
+  EXPECT_DOUBLE_EQ(v[1], 10);
+  EXPECT_DOUBLE_EQ(v[2], 10);
+  EXPECT_NEAR(v[3], std::sqrt(130.0), epsilon);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, PredictionAnchorUsesRemainingExecutionAndFloatRoundoff)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  std::vector<double> s{50, 60, 70};
+  std::vector<double> v{15, std::sqrt(255.0), std::sqrt(285.0)};
+  EXPECT_TRUE(reanchor_speed_profile(s, v, 17, 2, 20));
+  EXPECT_DOUBLE_EQ(v.front(), 17);
+  EXPECT_NEAR(v.back() * v.back(), 17 * 17 + 60, epsilon);
+  const double measured = 26.710689556636993;
+  v = {26.710710668240445, 27, 28};
+  const double original_energy_increment = v[1] * v[1] - v[0] * v[0];
+  EXPECT_FALSE(reanchor_speed_profile(s, v, measured, 0, 20));
+  EXPECT_DOUBLE_EQ(v.front(), measured);
+  EXPECT_NEAR(v[1] * v[1] - v[0] * v[0], original_energy_increment, epsilon);
+  v = {150.0/3.6, 150.0/3.6, 150.0/3.6};
+  EXPECT_FALSE(reanchor_speed_profile(s, v, 150.0/3.6, 0, 20));
+  EXPECT_DOUBLE_EQ(v.front(), 150.0/3.6);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, PredictionAnchorRejectsUnreachablePreparation)
+{
+  using namespace autoware::behavior_path_planner::utils::lane_change;
+  std::vector<double> s{0, 10, 20, 30}, v{40, 40, 10, 12};
+  EXPECT_THROW(reanchor_speed_profile(s, v, 10, -6, 20), std::logic_error);
+  s = {0, 10, 20}; v = {40, 40, 10};
+  EXPECT_TRUE(reanchor_speed_profile(s, v, 10, 1, 5));
+  ASSERT_EQ(s.size(), 4U);
+  EXPECT_DOUBLE_EQ(s[1], 5);
+  EXPECT_NEAR(v[1], std::sqrt(110.0), epsilon);
+  s = {0, 0, 1}; v = {10, 10, 11};
+  EXPECT_THROW(reanchor_speed_profile(s, v, 10, 0, 0), std::logic_error);
+  s = {0, 1, 2}; v = {10, std::numeric_limits<double>::quiet_NaN(), 11};
+  EXPECT_THROW(reanchor_speed_profile(s, v, 10, 0, 0), std::logic_error);
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, SpatialPredictionStartsMeasuredAndKeepsFrontGapPreparation)
+{
+  using namespace autoware::behavior_path_planner;
+  ros::param::set("/planning/scenario_planning/velocity_smoother/normal/max_jerk", 1.0);
+  ros::param::set("/planning/scenario_planning/velocity_smoother/normal/min_jerk", -1.0);
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  data->lc_param_ptr->trajectory.min_prepare_duration = 0;
+  data->lc_param_ptr->trajectory.max_longitudinal_acc = 3.7;
+  data->lc_param_ptr->trajectory.min_longitudinal_acc = -6;
+  data->lc_param_ptr->safety.collision_check.prediction_time_resolution = 0.5;
+  data->bpp_param_ptr->max_vel = 150.0/3.6;
+  data->bpp_param_ptr->max_acc = 3.7;
+  data->bpp_param_ptr->min_acc = -6;
+  data->bpp_param_ptr->ego_nearest_dist_threshold = 3;
+  data->bpp_param_ptr->ego_nearest_yaw_threshold = 1;
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->pose.pose.orientation.w = 1;
+  odometry->twist.twist.linear.x = 10;
+  data->self_odometry_ptr = odometry;
+  data->current_acceleration = boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
+  LaneChangePath path;
+  path.type = lane_change::PathType::SpatialSpeedProfile;
+  for (int i = 0; i <= 100; ++i) {
+    PathPointWithLaneId p;
+    p.point.pose.position.x = i;
+    p.point.pose.orientation.w = 1;
+    p.point.longitudinal_velocity_mps = i < 24 ? 150.0/3.6 : std::sqrt(196.0+3.0*(i-24));
+    path.path.points.push_back(p);
+  }
+  path.info.lane_changing_start = path.path.points[24].point.pose;
+  path.info.lane_changing_end = path.path.points.back().point.pose;
+  path.info.longitudinal_acceleration = {2.0, 1.5};
+  path.info.duration = {2.0, 4.0};
+  path.info.velocity = {14.0, 14.0};
+  path.info.terminal_lane_changing_velocity = path.path.points.back().point.longitudinal_velocity_mps;
+  const auto predictions = utils::lane_change::convert_to_predicted_paths(data, path, 1, false);
+  ASSERT_EQ(predictions.size(), 2U);
+  ASSERT_GT(predictions[0].size(), 5U);
+  for (const auto & prediction : predictions) EXPECT_DOUBLE_EQ(prediction.front().velocity, 10);
+  EXPECT_NEAR(predictions[0][2].velocity, 12, epsilon);
+  EXPECT_NEAR(predictions[0][2].pose.position.x, 11, epsilon);
+  EXPECT_NEAR(predictions[0][4].velocity, 14, epsilon);
+  EXPECT_NEAR(predictions[0][4].pose.position.x, 24, epsilon);
+  EXPECT_GT(predictions[0][5].velocity, 14);
+  // Safety conversion must not rewrite the published candidate or its acceleration policy.
+  EXPECT_FLOAT_EQ(path.path.points.front().point.longitudinal_velocity_mps, 150.0/3.6);
+  EXPECT_DOUBLE_EQ(path.info.longitudinal_acceleration.prepare, 2.0);
+  odometry->pose.pose.position.x = 40;
+  odometry->twist.twist.linear.x = 16;
+  path.type = lane_change::PathType::FrenetPlanner;
+  const auto approved = utils::lane_change::convert_to_predicted_paths(data, path, 1, true);
+  ASSERT_EQ(approved.size(), 2U);
+  for (const auto & prediction : approved) {
+    ASSERT_FALSE(prediction.empty());
+    EXPECT_DOUBLE_EQ(prediction.front().velocity, 16);
+    EXPECT_NEAR(prediction.front().pose.position.x, 40, epsilon);
+  }
+  odometry->pose.pose.position.x = 0;
+  odometry->twist.twist.linear.x = 10;
+  path.type = lane_change::PathType::SpatialSpeedProfile;
+  path.info.longitudinal_acceleration.prepare = -6;
+  EXPECT_TRUE(utils::lane_change::convert_to_predicted_paths(data, path, 1, false).empty());
 }
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExecutionLimits)
@@ -104,6 +248,7 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   odometry->twist.twist.linear.x = 30.0;
   data->self_odometry_ptr = odometry;
   auto & p = data->lc_param_ptr->trajectory;
+  p.allow_decelerating_lane_change = true;
   p.min_prepare_duration = 0;
   p.lon_acc_sampling_num = 20;
   p.min_longitudinal_acc = -8;
@@ -116,10 +261,13 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
   auto samples = calc_lon_acceleration_samples(data, 50, 0);
   ASSERT_EQ(samples.size(), 22U);
   EXPECT_DOUBLE_EQ(samples[0], 3.7);
-  EXPECT_DOUBLE_EQ(samples[1], -6.0);
-  std::sort(samples.begin(), samples.end());
+  EXPECT_NEAR(samples[1], 3.215, epsilon);
+  EXPECT_DOUBLE_EQ(samples.back(), -6.0);
   EXPECT_NE(std::find(samples.begin(), samples.end(), 0.0), samples.end());
-  for (size_t i = 1; i < samples.size(); ++i) EXPECT_LE(samples[i] - samples[i-1], 0.485 + epsilon);
+  for (size_t i = 1; i < samples.size(); ++i) {
+    EXPECT_LE(samples[i], samples[i - 1]);
+    EXPECT_LE(samples[i - 1] - samples[i], 0.485 + epsilon);
+  }
   EXPECT_DOUBLE_EQ(calc_lane_changing_acceleration(data, 30, 50, 3, 3.7), 3.7);
   EXPECT_DOUBLE_EQ(calc_lane_changing_acceleration(data, 30, 50, 3, -6), -6);
   EXPECT_NEAR(calc_lane_changing_acceleration(data, 5, 50, 3, -6), (2.78 - 5) / 3, epsilon);
@@ -140,6 +288,86 @@ TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionLongitudinalGridAndExec
       EXPECT_NEAR(metric.length, 30 * metric.duration + 0.5 * requested * metric.duration * metric.duration, epsilon);
     }
   }
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, DeceleratingLaneChangeToggleKeepsPreparationBraking)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change::calculation;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->twist.twist.linear.x = 20.0;
+  data->self_odometry_ptr = odometry;
+  auto & p = data->lc_param_ptr->trajectory;
+  EXPECT_FALSE(p.allow_decelerating_lane_change);
+  p.min_prepare_duration = 0.0;
+  p.prepare_duration_samples = {0.0, 2.0};
+  p.min_longitudinal_acc = -6.0;
+  p.max_longitudinal_acc = 3.7;
+  p.min_lane_changing_velocity = 2.78;
+  p.lon_acc_sampling_num = 10;
+  p.lat_acc_map.add(0.0, 1.0, 1.0);
+  p.lat_acc_sampling_num = 1;
+  p.lateral_jerk = 5.0;
+  data->bpp_param_ptr->min_acc = -6.0;
+  data->bpp_param_ptr->max_acc = 3.7;
+  data->bpp_param_ptr->max_vel = 40.0;
+
+  const auto preparation = calc_prepare_phase_metrics(data, 20.0, 40.0);
+  EXPECT_TRUE(std::any_of(preparation.begin(), preparation.end(), [](const auto & m) {
+    return m.duration > 0.0 && m.actual_lon_accel < 0.0 && m.velocity < 20.0;
+  }));
+  EXPECT_TRUE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0).empty());
+  EXPECT_FALSE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, 0.0, 1000.0).empty());
+  EXPECT_FALSE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, 2.0, 1000.0).empty());
+
+  p.allow_decelerating_lane_change = true;
+  const auto braking = calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0);
+  ASSERT_FALSE(braking.empty());
+  EXPECT_DOUBLE_EQ(braking.front().actual_lon_accel, -2.0);
+  EXPECT_LT(braking.front().velocity, 20.0);
+  p.allow_decelerating_lane_change = false;
+  EXPECT_TRUE(calc_shift_phase_metrics(data, 3.5, 20.0, 40.0, -2.0, 1000.0).empty());
+}
+
+TEST(BehaviorPathPlanningLaneChangeUtilsTest, CoastingAndGentleBrakingPrecedeRecordedTenKmhCandidate)
+{
+  using namespace autoware::behavior_path_planner;
+  using namespace utils::lane_change::calculation;
+  auto data = std::make_shared<lane_change::CommonData>();
+  data->lc_param_ptr = std::make_shared<lane_change::Parameters>();
+  data->bpp_param_ptr = std::make_shared<BehaviorPathPlannerParameters>();
+  auto odometry = boost::make_shared<nav_msgs::Odometry>();
+  odometry->twist.twist.linear.x = 16.162283930537324;
+  data->self_odometry_ptr = odometry;
+  auto & p = data->lc_param_ptr->trajectory;
+  p.min_prepare_duration = 0;
+  p.lon_acc_sampling_num = 20;
+  p.min_longitudinal_acc = -8;
+  p.max_longitudinal_acc = 3.7;
+  p.min_lane_changing_velocity = 2.78;
+  data->bpp_param_ptr->min_acc = -6;
+  data->bpp_param_ptr->max_acc = 3.25;
+  data->bpp_param_ptr->max_vel = 38.8889;
+
+  const auto samples = calc_lon_acceleration_samples(data, 38.8889, 0);
+  const auto coast = std::find(samples.begin(), samples.end(), 0.0);
+  ASSERT_NE(coast, samples.end());
+  ASSERT_NE(coast, samples.begin());
+  ASSERT_NE(std::next(coast), samples.end());
+  EXPECT_GT(*std::prev(coast), 0.0);
+  EXPECT_LT(*std::next(coast), 0.0);
+  EXPECT_GT(*std::next(coast), -0.5);
+  double previous = std::numeric_limits<double>::infinity();
+  for (const double sample : samples) {
+    const double acceleration = calc_lane_changing_acceleration(
+      data, odometry->twist.twist.linear.x, 38.8889, 3.981505290093833, sample);
+    EXPECT_LE(acceleration, previous + epsilon);
+    previous = acceleration;
+  }
+  EXPECT_NEAR(previous, -3.3611116790006683, epsilon);
 }
 
 TEST(BehaviorPathPlanningLaneChangeUtilsTest, CompetitionPredictionsMatchAccelerationAndStop)

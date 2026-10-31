@@ -1,0 +1,40 @@
+schema_version: 1
+map_version: 101
+status: runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v101.osm
+map_sha256: 574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29
+size_bytes: 31617932
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+source:
+  map_version: 100
+  map_file: lanelet2_map_v100.osm
+  sha256: 4f058bfa034e7fdb3361db84956364e7ef79843e4b30e1330f9731790151d24a
+  origin: user_supplied_downloads
+changes:
+  added_road_shoulder_lanelets:
+  - 234976
+  - 235226
+  shared_boundary_ways:
+  - 100237
+  - 100228
+  shared_boundary_type: line_thin/solid/white
+  added_nodes: 488
+  added_ways: 4
+  added_lanelets: 2
+  existing_nodes_unchanged: true
+  existing_relations_unchanged: true
+  original_road_routing_unchanged: true
+gis_source:
+  layer: A3_DRIVEWAYSECTION
+  feature_id: A3256W000002
+  update_date: '20250630'
+  outer_elevation: PolygonZ
+map_storage: separately_distributed_asset
+git_map_publication: excluded
+provision_command: python3 scripts/map/prepare_kcity_v101.py --source /path/to/lanelet2_map_v101.osm
+verification_command: python3 scripts/map/prepare_kcity_v101.py --check
+known_inherited_geometry_issues:
+- lanelet_id: 200289
+  issue: self_intersection
+  present_in_source_v100: true
+closed_loop_validation: not_run

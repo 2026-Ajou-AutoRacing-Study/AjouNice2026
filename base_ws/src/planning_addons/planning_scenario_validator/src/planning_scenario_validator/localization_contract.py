@@ -32,7 +32,7 @@ NONNEGATIVE_ARGS = {'control_translation_tau_sec', 'control_yaw_tau_sec',
                     'control_state_reset_translation_error_m',
                     'control_state_reset_yaw_error_deg', 'relocation_guard_cooldown_sec'}
 NONNEGATIVE_ARGS |= {'control_lateral_tau_sec', 'control_max_lateral_correction_rate_mps'}
-NONNEGATIVE_ARGS |= {'gnss_motion_compensation_sec',
+NONNEGATIVE_ARGS |= {'gnss_motion_compensation_sec', 'gnss_delay_ms',
                     'relocation_guard_stationary_speed_max_mps',
                     'relocation_guard_future_tolerance_sec',
                     'relocation_guard_reacquisition_grace_sec'}
@@ -155,6 +155,14 @@ def normalize_localization_launch_args(stack, resolve_path=None, *, check_paths=
                 raise ValueError('{}는 180도 이하여야 합니다'.format(label))
             if key == 'gnss_motion_compensation_sec' and result[key] > 0.1:
                 raise ValueError('{}는 0.1초 이하여야 합니다'.format(label))
+            if key == 'gnss_delay_ms' and result[key] > 100:
+                raise ValueError('{}는 100ms 이하여야 합니다'.format(label))
+    # Keep the optional millisecond interface out of defaults so existing
+    # snapshots/resume contracts retain their argument shape when it is absent.
+    # The legacy zero is harmless, but two compensation settings are ambiguous
+    # even when the explicitly supplied millisecond value itself is zero.
+    if 'gnss_delay_ms' in result and result.get('gnss_motion_compensation_sec', 0.0) != 0.0:
+        raise ValueError('gnss_delay_ms 사용 시 gnss_motion_compensation_sec는 0이어야 합니다')
     return result
 
 
@@ -265,7 +273,7 @@ None entries rather than being silently treated as verified installations.
         'controller_pi': str(root / 'base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml'),
         'vehicle': str(root / 'configs/vehicle/ioniq5.yaml'),
         'map_tf': str(root / 'configs/tf/morai_lanelet_static_tf.yaml'),
-        'official_start': str(root / 'base_ws/src/competition/competition_rule_monitor/config/kcity_v87_rules.yaml'),
+        'official_start': str(root / 'base_ws/src/competition/competition_rule_monitor/config/kcity_v101_rules.yaml'),
     })
     config_files = {key: {'path': path, 'sha256': _sha(path)} for key, path in configs.items()}
     for key, row in config_files.items():
@@ -287,6 +295,10 @@ None entries rather than being silently treated as verified installations.
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/localization_contract.py',
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/runner.py',
         'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/runtime.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/config.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/executions.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/network_contract.py',
+        'base_ws/src/planning_addons/planning_scenario_validator/src/planning_scenario_validator/startup_audit.py',
         'base_ws/src/planning_addons/planning_scenario_validator/launch/parking_hold.launch',
         'base_ws/src/control/trajectory_follower/launch/pp_pi_autoware.launch',
         'base_ws/src/sensor_interface/src/morai_ego_udp_receiver.cpp',
@@ -310,7 +322,8 @@ None entries rather than being silently treated as verified installations.
             installed_files[relative] = _sha(install_root / relative)
     installed_files['share/sensor_interface/launch/morai_udp_interface.launch'] = _sha(
         install_root / 'share/sensor_interface/launch/morai_udp_interface.launch')
-    for name in ('localization_contract', 'runner', 'runtime'):
+    for name in ('localization_contract', 'runner', 'runtime', 'config', 'executions',
+                 'network_contract', 'startup_audit'):
         relative = 'lib/python3/dist-packages/planning_scenario_validator/' + name + '.py'
         installed_files[relative] = _sha(install_root / relative)
     relative = 'share/planning_scenario_validator/launch/parking_hold.launch'

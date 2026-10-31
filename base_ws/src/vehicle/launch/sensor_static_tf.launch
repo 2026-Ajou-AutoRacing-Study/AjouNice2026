@@ -1,12 +1,12 @@
 <launch>
   <!--
-    Publish base_link -> sensor static TFs from the same Sensor.json that MORAI loads.
-    Keep the numeric sensor extrinsics in configs/sensors/Sensor.json, not in launch.
+    Publish base_link -> sensor static TFs from the same selected Sensor JSON as MORAI.
+    Keep numeric extrinsics in the canonical sensor profile, not in launch.
   -->
 
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="parent_frame" default="base_link"/>
   <arg name="publish_lidar" default="true"/>
   <arg name="publish_imu" default="true"/>

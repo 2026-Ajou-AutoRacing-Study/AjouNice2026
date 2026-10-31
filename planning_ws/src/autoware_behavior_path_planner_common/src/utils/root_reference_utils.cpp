@@ -152,9 +152,6 @@ BehaviorModuleOutput getReferencePath(
   const auto current_pose = planner_data->self_odometry->pose.pose;
   const auto p = planner_data->parameters;
 
-  // Set header
-  reference_path.header = route_handler->getRouteHeader();
-
   // calculate path with backward margin to avoid end points' instability by spline interpolation
   constexpr double extra_margin = 10.0;
   const double backward_length = p.backward_path_length + extra_margin;

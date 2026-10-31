@@ -82,7 +82,7 @@ def run_case(cfg, samples, shared, iterations, stage_iterations, memory_fraction
     for name,value in parameters.items():
         digest.update(name.encode());digest.update(value.detach().cpu().contiguous().numpy().tobytes())
     restore_view_geometry(model.view_transform);model.eval()
-    calibration=load_sensor4_calibration(Path(__file__).resolve().parents[4]/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(Path(__file__).resolve().parents[4]/'configs/sensors/Sensor_competition_local.json')
     pre=Base3OnlinePreprocessor(calibration,camera_workers=4,**preprocessing_options_from_config(cfg))
     rows=[];shapes={};handles=[]
     for name in ('pts_middle_encoder','view_transform','fusion_layer','pts_backbone','pts_neck'):

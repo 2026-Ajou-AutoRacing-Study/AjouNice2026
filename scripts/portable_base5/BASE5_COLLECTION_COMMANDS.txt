@@ -1,0 +1,48 @@
+Base5 Sunny13 수집 — 빌린 PC에서 실행할 명령
+
+이 파일은 새 안내 파일입니다. 기존 MORAI_START.txt와 사용자 메모는 수정하지 않습니다.
+실제 수집 시작 전 원격 3장 시험과 host qualification 통과가 필요합니다.
+아래 명령은 자동 실행되지 않습니다. 사용자가 각 터미널에서 실행합니다.
+
+1. MORAI
+기존 Start 명령으로 실행하고 K-City / Sunny / 13시로 설정합니다.
+Sensor_competition_local을 Load합니다.
+Capture Mode, 카메라 1~4 및 LiDAR 5의 Instance/GT 저장을 켭니다.
+ego_network_mr_base5_savesensordata_collision_local을 Load합니다.
+
+2. 새 터미널 1 — ROS (계속 열어 둡니다)
+bash /home/ddeungbuntu/ajounice_base5_capture/start_base5_ros.sh --run
+
+3. 새 터미널 2 — 브리지 (계속 열어 둡니다)
+bash /home/ddeungbuntu/ajounice_base5_capture/start_base5_bridge.sh --run
+
+브리지에 ws://127.0.0.1:9090 시작 메시지가 나오면 MORAI에서 Network Connect를 누릅니다.
+다른 ROS / UDP / 풀스택 / 제어기는 실행하지 않습니다.
+
+4. 새 터미널 3 — Sunny13 5K 시작 또는 정상 재개
+bash /home/ddeungbuntu/ajounice_base5_capture/start_base5_collection.sh --run --confirmed-environment sunny13
+
+본수집 출력은 다음 폴더입니다. 소량 시험과 별도이며 원본을 삭제하지 않습니다.
+/home/ddeungbuntu/ajounice_base5_capture/collections/sunny13_5k
+
+5. 상태 보기 — 선택 사항, 새 터미널
+bash /home/ddeungbuntu/ajounice_base5_capture/status_base5_collection.sh --watch
+
+6. 정상 일시중지 — 현재 최대 16장 묶음과 Park 종료까지 기다립니다.
+bash /home/ddeungbuntu/ajounice_base5_capture/pause_base5_collection.sh --run
+
+paused 종료가 확인된 뒤 재개할 때는 아래 명령으로 PAUSE만 감사 파일로 보존합니다.
+bash /home/ddeungbuntu/ajounice_base5_capture/pause_base5_collection.sh --resume-paused --run
+그 뒤 4번 본수집 명령을 다시 실행합니다. 이 명령만으로 수집이 자동 시작되지는 않습니다.
+
+중지 요청 뒤에도 Park 확인이 끝나기 전에는 ROS, 브리지, MORAI를 끄지 않습니다.
+STOP / halted / 안전 오류는 원인을 확인해야 하며 강제 재개하지 않습니다.
+완료 후 부족분이 있으면 성공분을 보존합니다. 부족 0이라고 자동으로 간주하지 않습니다.
+
+7. 5,000장 승인·부족 0·수집 종료 후 수동 CPU 후처리
+bash /home/ddeungbuntu/ajounice_base5_capture/finish_base5_collection.sh --run
+
+Q90 JPEG / upright GT / 3클래스 학습 입력 / 단일 tar.zst를 검증합니다.
+원본 PNG와 native 정답은 보존합니다. 100GiB 예산과 여유 10GiB를 검사합니다.
+이 후처리는 자동 실행되지 않으며, 실제 5K 완료 후의 전체 후처리는 아직 미실행입니다.
+자동 업로드·자동 로컬 수신도 이 명령에는 포함되지 않습니다.

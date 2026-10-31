@@ -1,0 +1,8 @@
+# Search/context discovery only. These files remain tracked and explicitly readable.
+**/legacy/**
+docs/bevfusion/evidence/**
+perception/pointpainting/**
+perception/detection3d/fastbev/**
+base_ws/src/morai_pointpainting_ros/**
+base_ws/src/morai_fastbev_ros/**
+tools/segmentation/**

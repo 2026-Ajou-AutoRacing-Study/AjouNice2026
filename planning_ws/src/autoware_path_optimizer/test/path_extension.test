@@ -1,0 +1,10 @@
+<launch>
+  <node name="optimizer" pkg="autoware_path_optimizer" type="path_optimizer_node" required="true">
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/configs/planning/vehicle_info.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/common/nearest_search.param.yaml"/>
+    <rosparam command="load" file="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/scenario_planning/lane_driving/motion_planning/autoware_path_optimizer/path_optimizer.param.yaml"/>
+    <param name="require_obstacle_scene" value="true"/>
+    <param name="obstacle_search_time_budget_ms" value="2000.0"/>
+  </node>
+  <test test-name="path_extension" pkg="autoware_path_optimizer" type="test_path_extension.py" time-limit="60"/>
+</launch>

@@ -91,3 +91,7 @@ endif()
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
 install(FILES package.xml plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
+# Keep provider headers ahead of the merged install include tree (also added by
+# transitive dependencies). Mixing installed LC layouts with a candidate DSO is invalid.
+target_include_directories(autoware_behavior_path_external_request_lane_change_module BEFORE PRIVATE ${LANE_CHANGE_INCLUDE_DIR})
