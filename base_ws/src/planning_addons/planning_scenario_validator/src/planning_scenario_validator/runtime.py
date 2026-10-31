@@ -354,7 +354,7 @@ class LiveMonitor:
                 object_id = int(obj.unique_id)
                 distance = self._ego_distance(obj.position)
                 detail = {"object_id": object_id, "receipt_monotonic": received_at,
-                          "distance_m": None if distance is None else round(distance, 3)}
+                          "distance_m": distance}
                 if object_id not in self.preparation_collisions:
                     self.event("PREPARATION_COLLISION", **detail)
                 self.preparation_collisions[object_id] = detail
@@ -432,7 +432,10 @@ class LiveMonitor:
         # Callbacks may add another contact while the runner evaluates a gate.
         rows = list(getattr(self, "preparation_collisions", {}).values())
         return [dict(row) for row in rows
-                if row["receipt_monotonic"] > after]
+                if row["receipt_monotonic"] > after
+                and (row.get("distance_m") is None
+                     or not math.isfinite(row["distance_m"])
+                     or row["distance_m"] < COLLISION_EGO_RADIUS_M)]
 
     def wait_stationary(self, *, after, timeout=15.0, hold_sec=1.0,
                         speed_max_mps=0.05,

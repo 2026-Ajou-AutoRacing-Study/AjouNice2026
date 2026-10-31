@@ -17,6 +17,7 @@
   <arg name="start_requester" default="true"/>
   <!-- Validator reports ordinary checks; static-scene speed intervention is opt-in. -->
   <arg name="enable_static_scene_guard" default="false"/>
+  <arg name="max_lateral_acceleration" default="6.2"/>
   <arg name="is_simulation" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
@@ -102,6 +103,14 @@
          value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
   </include>
   <!-- Base-owned runtime override; keep the ported Autoware source/config unchanged. -->
+  <!-- Apply the same speed-dependent limit to all three smoothers after YAML loading.
+       Lane-change candidate limits and Validator thresholds are separate policies. -->
+  <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
+  <rosparam param="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
+  <rosparam param="/planning/scenario_planning/velocity_smoother/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
   <param name="/planning_validator/enable_static_scene_guard"
          value="$(arg enable_static_scene_guard)" type="bool"/>
   <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/slot2">
