@@ -202,7 +202,7 @@ class Base3OnlinePreprocessor:
         expected_shape = (int(camera["height"]), int(camera["width"]))
         if image.shape[:2] != expected_shape:
             raise ValueError(
-                "{} image shape {} differs from Sensor.json {}".format(
+                "{} image shape {} differs from sensor configuration {}".format(
                     frame_id, image.shape[:2], expected_shape
                 )
             )

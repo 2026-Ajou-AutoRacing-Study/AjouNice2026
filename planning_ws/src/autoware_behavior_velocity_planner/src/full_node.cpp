@@ -24,6 +24,10 @@
 #include <tf2_eigen/tf2_eigen.h>
 
 #include <diagnostic_msgs/DiagnosticStatus.h>
+#include <std_msgs/Bool.h>
+#include <autoware/behavior_velocity_planner/recovery_stop_context.hpp>
+#include <cmath>
+#include <algorithm>
 #include <visualization_msgs/MarkerArray.h>
 
 #include <lanelet2_routing/Route.h>
@@ -70,6 +74,7 @@ FullBehaviorVelocityPlannerNode::FullBehaviorVelocityPlannerNode(ros::NodeHandle
   onParam();
 
   // Publishers
+  recovery_stop_pub_ = this->advertise<std_msgs::Bool>("/planning/recovery/behavior_stop",1);
   path_pub_ = this->create_publisher<autoware_planning_msgs::Path>("output/path", 1);
   debug_viz_pub_ = this->create_publisher<visualization_msgs::MarkerArray>("debug/path", 1);
   processing_time_publisher_ =
@@ -368,6 +373,12 @@ autoware_planning_msgs::Path FullBehaviorVelocityPlannerNode::generatePath(
   // Plan path velocity
   const auto velocity_planned_path = planner_manager_.planPathVelocity(
     std::make_shared<const PlannerData>(planner_data), *input_path_msg);
+
+  std_msgs::Bool blocked;
+  blocked.data = !planner_data.current_odometry || hasNewBehaviorStop(
+    input_path_msg->points, velocity_planned_path.points,
+    planner_data.current_odometry->pose.position);
+  recovery_stop_pub_.publish(blocked);
 
   // screening
   const auto filtered_path =

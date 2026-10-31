@@ -4,12 +4,14 @@
     default so the first gate can inspect /planning/trajectory safely.
   -->
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="101"/>
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="vehicle_config"
        default="$(arg repo_root)/configs/vehicle/ioniq5.yaml"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
@@ -36,8 +38,18 @@
   <arg name="pointpainting_pedestrian_score_threshold" default="0.15"/>
   <arg name="pointpainting_obstacle_score_threshold" default="0.10"/>
   <arg name="prediction_model" default="map_based"/>
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="true"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
   <!-- PointPainting Obstacle is UNKNOWN; prevent tracker jitter becoming motion. -->
   <arg name="force_unknown_stationary" default="true"/>
+  <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <arg name="hold_stationary_output_pose" default="true"/>
+  <arg name="planning_ownership_config" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml"/>
+  <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <!-- Preserve the planning baseline. BEVFusion hosts may explicitly override
        this to 0.5 s when measured detector age exceeds 0.25 s. -->
   <arg name="maximum_tracking_internal_prediction_age_sec" default="0.25"/>
@@ -46,8 +58,27 @@
        controls the planner plugin consuming traffic-light observations. -->
   <arg name="enable_traffic_light_planner" default="true"/>
   <arg name="traffic_light_inference_python"
-       default="/usr/bin/python3"/>
+       default="$(env HOME)/.local/share/ajounice/traffic_light_gpu/bin/python"/>
   <arg name="traffic_light_device" default="0"/>
+  <arg name="enable_signal_compliance_guard" default="true"/>
+  <arg name="enable_yellow_passthrough" default="true"/>
+  <arg name="signal_compliance_yellow_deceleration_mps2" default="6.0"/>
+  <arg name="signal_compliance_yellow_jerk_mps3" default="10.0"/>
+  <!-- Compatibility-only; planning uses the Lanelet-target decision-line policy. -->
+  <arg name="signal_compliance_enable_timed_yellow" default="false"/>
+  <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
+  <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
+  <arg name="signal_compliance_required_green_observations" default="1"/>
+  <arg name="traffic_light_debug_image" default="false"/>
+  <arg name="traffic_light_state_timeout_sec" default="1.0"/>
+  <arg name="traffic_light_detection_miss_hold_sec" default="0.2"/>
+  <arg name="planner_compliance_observations" default="true"/>
+  <arg name="signal_compliance_unknown_grace_sec" default="0.3"/>
+  <!-- Resolve a single paired policy before forwarding to perception/planning.
+       Traffic OFF, legacy observations and guard/plugin OFF cannot inherit grace. -->
+  <arg name="effective_signal_unknown_grace_sec"
+       value="$(eval arg('signal_compliance_unknown_grace_sec') if arg('start_traffic_light') and arg('planner_compliance_observations') and arg('enable_signal_compliance_guard') and arg('enable_traffic_light_planner') else 0.0)"/>
+  <arg name="route_progress_guard" default="true"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
   <arg name="start_controller" default="false"/>
@@ -84,6 +115,9 @@
 
   <group if="$(arg start_object_pipeline)">
     <include file="$(find perception_object_pipeline)/launch/object_pipeline.launch">
+      <arg name="hold_stationary_output_pose" value="$(arg hold_stationary_output_pose)"/>
+      <arg name="planning_ownership_config" value="$(arg planning_ownership_config)"/>
+      <arg name="map_version" value="$(arg map_version)"/>
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="use_sim_time" value="$(arg use_sim_time)"/>
       <arg name="start_detector" value="$(arg start_detector)"/>
@@ -104,6 +138,10 @@
       <arg name="prediction_model" value="$(arg prediction_model)"/>
       <arg name="force_unknown_stationary"
            value="$(arg force_unknown_stationary)"/>
+      <arg name="stationary_unknown_uuid_continuity"
+           value="$(arg stationary_unknown_uuid_continuity)"/>
+      <arg name="suppress_small_unknown_duplicate_birth"
+           value="$(arg suppress_small_unknown_duplicate_birth)"/>
       <!-- Keep the integrated compatibility path equivalent to `tracking`. -->
       <arg name="canonicalize_vehicle_orientation_to_motion" value="true"/>
       <arg name="orientation_canonicalization_min_speed_mps" value="1.0"/>
@@ -117,9 +155,14 @@
       <arg name="detection_velocity_fusion_mode" value="0"/>
       <arg name="tracking_publish_rate_hz" value="0.0"/>
       <arg name="prediction_time_step" value="0.1"/>
-      <arg name="prediction_horizon" value="3.0"/>
+      <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+      <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+      <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
+      <arg name="prediction_highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+      <arg name="prediction_highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
       <arg name="map_file"
-           value="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
+           value="$(arg map_file)"/>
       <arg name="projector_file"
            value="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
     </include>
@@ -129,18 +172,39 @@
     <include file="$(find traffic_light_detection)/launch/traffic_light_node.launch">
       <arg name="repo_root" value="$(arg repo_root)"/>
       <arg name="inference_python" value="$(arg traffic_light_inference_python)"/>
+      <arg name="map_version" value="$(arg map_version)"/>
+      <arg name="lanelet2_map_file" value="$(arg map_file)"/>
       <arg name="device" value="$(arg traffic_light_device)"/>
+      <arg name="sensor_config" value="$(arg sensor_config)"/>
+      <arg name="planner_compliance_observations" value="$(arg planner_compliance_observations)"/>
+      <arg name="preserve_unreadable_color_evidence" value="$(eval float(arg('effective_signal_unknown_grace_sec')) > 0.0)"/>
+      <arg name="stamped_vote_window_size" value="0"/>
+      <arg name="publish_debug_image" value="$(arg traffic_light_debug_image)"/>
+      <arg name="route_progress_guard" value="$(arg route_progress_guard)"/>
+      <arg name="detection_miss_hold_sec" value="$(arg traffic_light_detection_miss_hold_sec)"/>
     </include>
   </group>
 
   <include file="$(find ajounice_planning_integration)/launch/planning.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_version" value="$(arg map_version)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="start_requester" value="$(arg start_requester)"/>
     <arg name="behavior_path_forward_length" value="$(arg behavior_path_forward_length)"/>
     <arg name="intersection_attention_area_length" value="$(arg intersection_attention_area_length)"/>
     <arg name="enable_traffic_light_planner"
          value="$(arg enable_traffic_light_planner)"/>
+    <arg name="enable_signal_compliance_guard" value="$(arg enable_signal_compliance_guard)"/>
+    <arg name="enable_yellow_passthrough" value="$(arg enable_yellow_passthrough)"/>
+    <arg name="signal_compliance_yellow_deceleration_mps2" value="$(arg signal_compliance_yellow_deceleration_mps2)"/>
+    <arg name="signal_compliance_yellow_jerk_mps3" value="$(arg signal_compliance_yellow_jerk_mps3)"/>
+    <arg name="signal_compliance_enable_timed_yellow" value="$(arg signal_compliance_enable_timed_yellow)"/>
+    <arg name="signal_compliance_min_yellow_sec" value="$(arg signal_compliance_min_yellow_sec)"/>
+    <arg name="signal_compliance_yellow_time_margin_sec" value="$(arg signal_compliance_yellow_time_margin_sec)"/>
+    <arg name="signal_compliance_required_green_observations" value="$(arg signal_compliance_required_green_observations)"/>
+    <arg name="signal_compliance_unknown_grace_sec" value="$(arg effective_signal_unknown_grace_sec)"/>
+    <arg name="traffic_light_state_timeout_sec" value="$(arg traffic_light_state_timeout_sec)"/>
     <arg name="publish_fixed_autonomous_mode" value="$(arg publish_fixed_autonomous_mode)"/>
     <arg name="is_simulation" value="$(arg use_sim_time)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>

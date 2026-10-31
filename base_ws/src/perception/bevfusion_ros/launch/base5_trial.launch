@@ -1,12 +1,13 @@
 <launch>
   <!-- Private topic/namespace: never silently replace production E25. -->
-  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/Sensor_4.json"/>
+  <arg name="sensor_config" default="$(find bevfusion_ros)/../../../../configs/sensors/legacy/Sensor_4.json"/>
   <arg name="config" default="$(find bevfusion_ros)/../../../../configs/perception/bevfusion_base5_trial.yaml"/>
   <arg name="output_objects" default="/perception/base5_trial/detection/objects"/>
   <arg name="vehicle_score_threshold" default="0.40"/>
   <arg name="pedestrian_score_threshold" default="0.15"/>
   <arg name="obstacle_score_threshold" default="0.10"/>
   <arg name="publish_frame_timing" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="box_center_output_origin" default="legacy_passthrough"/>
   <group ns="base5_trial">
     <remap from="/perception/bevfusion/markers" to="/perception/base5_trial/markers"/>
@@ -25,6 +26,7 @@
       <arg name="pedestrian_score_threshold" value="$(arg pedestrian_score_threshold)"/>
       <arg name="obstacle_score_threshold" value="$(arg obstacle_score_threshold)"/>
       <arg name="publish_frame_timing" value="$(arg publish_frame_timing)"/>
+      <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
       <arg name="box_center_output_origin" value="$(arg box_center_output_origin)"/>
     </include>
   </group>

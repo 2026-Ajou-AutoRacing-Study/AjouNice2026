@@ -193,6 +193,8 @@ AvoidanceParameters getParameter(ros::NodeHandle * node)
   {
     const std::string ns = "avoidance.target_filtering.detection_area.";
     p.use_static_detection_area = get_or_declare_parameter<bool>(*node, ns + "static");
+    p.detection_area_lateral_extra_margin =
+      get_or_declare_parameter<double>(*node, ns + "lateral_extra_margin");
     p.object_check_min_forward_distance =
       get_or_declare_parameter<double>(*node, ns + "min_forward_distance");
     p.object_check_max_forward_distance =

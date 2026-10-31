@@ -1261,6 +1261,7 @@ Trajectory VelocitySmootherNode::toTrajectoryMsg(
 {
   auto trajectory = autoware::motion_utils::convertToTrajectory(points);
   trajectory.header = header ? *header : base_traj_raw_ptr_->header;
+  trajectory.boundary_recovery = base_traj_raw_ptr_->boundary_recovery;
   return trajectory;
 }
 

@@ -5,11 +5,11 @@
   <arg name="gt_source" default="ego"/>
   <arg name="initial_position_source" default="ego"/>
   <arg name="official_start_config"
-       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v85_rules.yaml"/>
+       default="$(arg repo_root)/base_ws/src/competition/competition_rule_monitor/config/kcity_v101_rules.yaml"/>
   <arg name="use_heading_correction" default="true"/>
   <arg name="heading_yaw_offset_deg" default="-1.347"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="measurement_noise_config"
        default="$(arg repo_root)/configs/localization/gnss_imu_gt_noise_sensor6_ideal.yaml"/>
   <arg name="localization_manager_config"
@@ -27,6 +27,9 @@
   <arg name="gnss_quantization_input_mode" default="off"/>
   <arg name="gnss_quantization_step_deg" default="0.0000016666666666666667"/>
   <arg name="gnss_motion_compensation_sec" default="0.0"/>
+  <!-- Empty retains the legacy seconds arg; e.g. gnss_delay_ms:=20 advances
+       the GNSS position by vx*0.020s without modifying UDP/header time. -->
+  <arg name="gnss_delay_ms" default=""/>
   <arg name="gnss_motion_max_age_sec" default="0.1"/>
   <!-- sensing.launch owns the shared sensor static TFs in the competition stack. -->
   <arg name="publish_sensor_tf" default="false"/>
@@ -108,6 +111,7 @@
     <arg name="gnss_quantization_input_mode" value="$(arg gnss_quantization_input_mode)"/>
     <arg name="gnss_quantization_step_deg" value="$(arg gnss_quantization_step_deg)"/>
     <arg name="gnss_motion_compensation_sec" value="$(arg gnss_motion_compensation_sec)"/>
+    <arg name="gnss_delay_ms" value="$(arg gnss_delay_ms)"/>
     <arg name="gnss_motion_max_age_sec" value="$(arg gnss_motion_max_age_sec)"/>
     <arg name="map_frame" value="$(arg map_frame)"/>
     <arg name="morai_map_frame" value="$(arg morai_map_frame)"/>

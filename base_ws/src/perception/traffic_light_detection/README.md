@@ -1,98 +1,230 @@
 # Traffic light detection runtime
 
-[인지 작업 안내](../../../../docs/perception/README.md)에서 신호등 작업을 선택한다.
-3D detector 학습·dataset 문서를 먼저 읽을 필요는 없다. 아래 설치 이력과 실제 대상 호스트의
-Python·CUDA·device 설정을 구분하고 현재 launch를 확인한다.
+현재 launch는 `launch/traffic_light_node.launch`다. 신호등 작업은 이 README와 실제 호스트의 resolved 인자에서 시작한다.
+BEVFusion 학습·dataset 문서를 먼저 읽을 필요는 없다.
 
-This package publishes
-`/perception/traffic_light_recognition/traffic_signals` for the AW149 planning
-stack. Its Python runtime is intentionally kept outside rosdep because the
-correct PyTorch wheel depends on the target GPU architecture.
+## 프로세스·Python 경계
 
-## Runtime split
+| 프로세스 | 현재 계약 |
+|---|---|
+| `traffic_light_route_group_id` | ROS Noetic `/usr/bin/python3`·system Lanelet2로 active-route regulatory-element ID 선택 |
+| `traffic_light_node` | `inference_python` interpreter의 YOLO GPU 추론 |
+| Output | AW149 표준 `/perception/traffic_light_recognition/traffic_signals` |
 
-The launch deliberately runs two processes:
-
-- `traffic_light_route_group_id` uses ROS Noetic's `/usr/bin/python3` and the
-  system Lanelet2 binding to select the next traffic-light regulatory-element
-  ID on the active route.
-- `traffic_light_node` uses the Python executable passed through
-  `inference_python` and performs YOLO inference on the GPU.
-
-This split is required on the RTX 5060 Ti host. Its CUDA-capable PyTorch uses
-Python 3.11, while the Ubuntu 20.04 Lanelet2 Python extension is built for
-Python 3.8. Running the complete planning stack in either Conda environment is
-unsupported; launch planning from the normal sourced ROS shell.
-
-The shared planning default remains the system interpreter used by the
-planning team:
-
-```text
-/usr/bin/python3
-```
-
-Hosts that require a newer CUDA/PyTorch runtime can override it without editing
-the launch file:
+기본 `inference_python`은 `~/.local/share/ajounice/traffic_light_gpu/bin/python`이다. 설치기를 먼저 실행한다.
+이 RTX5060Ti 호스트는 Python3.11 CUDA runtime과 Python3.8 Lanelet2 binding을 분리한다.
+planning 전체를 Conda에서 실행하지 말고 정상 sourced ROS shell을 사용한다.
 
 ```bash
 roslaunch traffic_light_detection traffic_light_node.launch \
-  inference_python:=$HOME/miniconda3/envs/traffic_light_gpu/bin/python device:=0
+  device:=0
 ```
 
-## Environment
+## 환경·입력
 
-On this RTX 5060 Ti host the isolated environment was created from the already
-validated CUDA 12.8 PointPainting environment, then reduced to an independent
-runtime contract:
+- GPU에 맞는 PyTorch wheel을 먼저 설치한 후 `requirements-runtime.txt`를 설치한다. CUDA/PyTorch는 rosdep 외부 계약이다.
+- 이 호스트의 확인 이력은 Python3.11.15·PyTorch2.7.1+cu128·Torchvision0.22.1+cu128·NumPy1.26.4·OpenCV4.8.1이다. 다른 GPU에 동일 wheel을 강제하지 않는다.
+- 팀 Ultralytics **8.4.143**을 유지한다. interpreter는 `scripts/workspace/source_aw149.sh` source 후 `rospy`·generated Autoware messages를 import해야 한다.
+- 설치기는 고정 v5 두 모델의 CUDA load와 관련 C++/launch 설치본을 확인한다. MORAI front1280×720·10Hz cadence·confidence는 유지한다.
+- 이 호스트의 warm-up 추론 35–45ms는 과거 실측이며 다른 GPU·LAN 전체 지연 보증이 아니다.
+- 최신 planning 통합 소스의 map 기본은 v96이다. 과거 v88 실험과 구분하고 부모 launch의 map/projector override도 확인한다. planning UDP time은 `use_sim_time=false`·기존 `is_simulation=false` 계약을 따른다.
+
+## Competition signal policy
+
+`config/traffic_signal_profiles.yaml`은 route matcher가 선택한 regulatory-element ID를 재사용 가능한 신호 program에 연결한다.
+Profile은 supported lamps·유효 Autoware element 조합·detector correction·fallback phase를 정의한다.
+출력은 표준 `TrafficLightGroup.elements[]`를 유지하며 A/B/C/D 동작을 detector code 변경 없이 설정한다.
+
+Route helper의 invalid match는 group ID `0`을 발행하며 지도 모드에서 다른 신호등으로 대체하지 않는다.
+별도 2초 message timeout은 helper process 상실에만 적용한다. 옛 route ID를 계속 유지하지 않는다.
+Planning은 기존 `competition_fail_open=true` 호환 정책을 준수 가드보다 먼저 적용한다.
+해당 신호 ID 미수신·원본 stamp가 1초를 초과한 경우 GO이며, 최신 UNKNOWN·적색은 가드의 STOP 판단이다.
+helper 실패로 group ID가 0이면 올바른 미션 ID의 신호를 공급하지 못하므로 이 미수신 경로와 구별해 분석한다.
+신호등 미실행과 노드/지도 helper 장애를 구별하는 안전 인증은 아니다.
+원시 correction 이유는 `/traffic_light_node/debug_policy_reason`에서 확인한다.
+
+환경 설치 명령과 정리 전 상세는 [보존 원문](docs/legacy/context_261024/README.md)에 있다.
+
+## 강건성·학습 작업
+
+운영 기준·후보 상태·구간별 관찰 계약은
+[신호등 CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)에서 관리한다.
+이 README에는 과거 실험 결과를 누적하지 않는다.
+v5 시험 배포는 [설치·GUI 선택 안내](../../../../docs/perception/traffic_light/V5_CANDIDATE_HANDOFF.md)를 따른다.
+`install_traffic_light_candidate.sh`는 두 가중치·전용 환경을 준비한다. 사용자 요청으로 v5가 현재 기본이다.
+
+## 지도 선택·CNN 실행 옵션
+
+기본은 `selection_mode:=map_association classifier_mode:=cnn detector_imgsz:=960`다.
+명시적 복귀는 `traffic_light_legacy.launch`(또는 `traffic_legacy`)다. 설치본이 옛 파일인지 확인한다.
 
 ```bash
-conda create -n traffic_light_gpu --clone openpcdet_rtx50
-conda activate traffic_light_gpu
-python -m pip install -r \
-  base_ws/src/perception/traffic_light_detection/requirements-runtime.txt
+roslaunch traffic_light_detection traffic_light_node.launch \
+  inference_python:=$HOME/miniconda3/envs/traffic_light_gpu/bin/python device:=0 \
+  selection_mode:=map_association classifier_mode:=cnn \
+  weights_path:=/absolute/path/to/explicit_research_detector.pt detector_imgsz:=960 \
+  cnn_checkpoint_path:=/absolute/path/to/explicit_research_checkpoint.pt cnn_device:=cuda:0 \
+  output_topic:=/trial/traffic_light_recognition/traffic_signals
 ```
 
-The RTX 5060 Ti runtime uses Python 3.11.15, PyTorch 2.7.1+cu128,
-Torchvision 0.22.1+cu128, NumPy 1.26.4, and OpenCV 4.8.1. Keep the traffic
-team's Ultralytics 8.4.143 version across hosts. Another GPU may use a different
-PyTorch/CUDA build, but the `inference_python` interpreter must import `rospy`
-and the generated Autoware messages after `scripts/workspace/source_aw149.sh`
-is sourced.
+`map_association`은 `/localization/kinematic_state`와 **기존** TF를 읽는 system-Python
+helper를 추가한다. `morai_map → map → base_link → camera_front` 연결이 필요하며,
+동적 TF는 JPEG stamp로 조회한다. TF/측위/route가 없거나 stale이면 명시적 missing이다.
+helper는 TF를 발행하거나 Ego/native API를 구독하지 않는다. 원본 camera profile의
+고정 extrinsic과 실제 camera TF가 다르면 자동 재보정하지 않는다.
+운영 제공자는 `bringup/sensing.launch → tf_pub/sensor_tf.launch →
+ioniq5/sensor_static_tf.launch → morai_sensor_static_tf.py`의 camera static TF와,
+`localization_gnss_imu_gt_ctra.launch → tf_pub/map_tf.launch`의 `map → morai_map`,
+localization EKF의 `map → odom → base_link`다. sensing은 camera TF 기본 ON이고
+localization의 sensor TF 기본은 OFF다. 설치 helper는
+`install_aw149/lib/ioniq5/morai_sensor_static_tf.py`이며 별도 LiDAR 전용 TF가
+camera frame을 대신 제공하지 않는다. 이름만 맞추는 새 정적 TF를 임의 추가하지 않는다.
 
-Install a platform-appropriate PyTorch build first, then install the remaining
-locked runtime:
+정적 geometry는 출처 SHA가 있는 `config/traffic_light_map_geometry.json`이다.
+네 미션 그룹 A077/B091/C016+C018/D052만 선택 가능하다. C의 두 head는 같은 프로그램이다.
+지도 모드에서는 route helper도 `allowed_group_ids`로 이 네 그룹만 남겨,
+옛 D-1이 '다음 신호' 자리를 점유하지 않게 한다. legacy 모드의 helper는 기존 그대로다.
+다른 차량 head는 identity 모호성을 거부하는 비교 대상일 뿐이며, 보행자·옛 D-1은
+미션 대상으로 승격하지 않는다. 다른 화면 박스로 전체 fallback하지 않는다.
+정면 각도·깊이·최소 투영 크기·공분산 기반 bounded padding을 검사한다. 투영은
+가림·실제 점등·완벽한 identity의 GT가 아니므로 실제 YOLO/측위 입력 검증이 남는다.
 
-```bash
-python3 -m pip install -r requirements-runtime.txt
-```
+지도 모드의 검색 상한은 수평 120px·수직 200px, yaw 불확실성 상한은4°다. 이전90px·3°와의
+[선택/비회귀 비교](../../../../docs/perception/traffic_light/261027_SELECTION_TOLERANCE_COMPARISON.md)를 본다.
+`traffic_light_node.launch`와 v5 호환 launch에서 `map_max_padding_px:=90 map_max_yaw_sigma_degrees:=3`으로 복귀한다.
+XY 최대 고유축 표준편차와
+GNSS Z 표준편차를 별도로 투영하며 Z가 수평 검색을 넓히지 않는다. 현재 Z 분산 1은
+EKF placeholder가 아니라 `vertical_stddev_m=1.0`의 명시적 GNSS 설정이므로 유지한다.
+기존 개발 val 66장의 저장 검출 박스 재생에서 수직 90px는 42개 정상 검출을 잃었고,
+180px는 66/66을 유지했다. 가로 housing의 종횡비/투영 종횡비도 0.4~2.5로 제한한다
+(동일 val의 실제 범위 0.830~0.966). 독립 폭/높이 비율만으로는 세로 보행자 모양의
+합성 박스가 통과했으며, 이 guard는 해당 합성 오류를 차단했다. 다른 head의 실제 승인
+박스를 사용한 음성 challenge는 **18개뿐**이며 여기서 오연결이 없었다는 한계가 있다.
+근거는 `artifacts/evaluation/traffic_light_robustness_261025/live_covariance_axis_review_v1.json`이다.
+이는 실제 ROS match율·미관측 주행 test 성능이 아니다. helper와 node는 같은
+`selector_config()` 계약과 packet version 2를 사용하며, 구버전 helper와 섞이면 missing으로
+거부하므로 시험 배치 전 둘 다 설치·재시작해야 한다.
 
-The GPU integration baseline processes the live 1280x720 MORAI front camera at
-the traffic-light team's validated 10 Hz decision cadence; warmed-up inference
-takes about 35--45 ms per frame on the RTX 5060 Ti. GPU enablement must not
-change the validated confidence or temporal decision semantics. The route
-helper publishes group ID `0` when its match is invalid, which makes the GPU
-node immediately use the existing distance fallback instead of retaining an
-old route ID. The separate 2-second message timeout only covers loss of the
-helper process itself.
+근접 재검출은 `near_rescue_enabled:=true`가 기본이다. 960에서 현재 미션 신호를 연결하지
+못했고 지도 투영 깊이3~15m·폭60px 이상인 경우에만 같은 원본을640으로 한 번 더 본다.
+동일 이미지 stamp·지도 freshness·현재 미션을 확인하며, 재검출 도중 미션이 바뀌거나
+packet이 만료되면 결과를 버린다. 다른 head 모호성·기하 검사·confidence0.25는 그대로다.
+이미 연결된 관측·CNN UNKNOWN·지도 누락은 재시도 대상이 아니다. raw Python과 legacy는
+기본 OFF다. 가중치·CNN·황색/신호 상실 정책은 바꾸지 않는다.
+[근접 보완 근거](../../../../docs/perception/traffic_light/261025_NEAR_SIGNAL_RECOVERY.md)를 본다.
+기존 방식과 대조할 때만 `near_rescue_enabled:=false map_max_vertical_padding_px:=180`을 쓴다.
+`debug_selection.near_rescue`와 `debug_runtime.frame_decision.near_rescue`에 시도/승인을 남긴다.
+추가 비용 `near_rescue_detector_and_association_sec`는 기존 selection 시간의 부분집합이다.
 
-새 환경에서는 `start_traffic_light` 활성화 전에 `weights/best.pt`의 CUDA 로드를 확인한다.
-현재 launch의 지도 기본값은 v85이며 부모 launch가 map/projector를 override할 수 있다.
-실제 resolved 인자를 확인한다. `morai_planning_stack.launch`의 UDP 시간 계약은
-`use_sim_time:=false`이며 planning의 기존 `is_simulation:=false` 동작을 유지한다.
+helper packet은 기본적으로 **동일 JPEG stamp**여야 하며 최대 30ms만 기다린다.
+실 CPU 부하·TF 후속 표본 지연에서 이 대기값의 실제 match/missing 비율은 별도 측정한다.
+현재 순수 테스트 통과만으로 실 운용 match율이 보장되지는 않는다.
+`debug_selection`에서 source stamp/head ID/기하 비용/누락 사유를 본다.
+`debug_classifier`는 CNN UNKNOWN과 확신 있는 소등을 구분하며 원본 detector box와
+실제 crop 좌표를 기록한다. CNN만 기본 12px crop margin을 적용한다
+(`cnn_crop_margin_px`); HSV의 기존 crop은 바꾸지 않는다. CNN 파일·계약·확신 실패는
+빈 관측이며 HSV로 몰래 전환하지 않는다. 현재 launch는 `planner_compliance_observations:=true`로
+상류 7/4 대신 원래 stamp의 관측을 전달하고 판단에서 허가 관측 1개를 확인한다. 원시 missing/UNKNOWN과 정책 출력은 구분한다.
+실주행 비교용 `stamped_vote_window_size:=3/7`은 관측 보존·지도 선택에서만 쓰는 **시험 후보**이며 기본은 `0`이다.
+같은 regulatory group의 원본 3개 중 2개 또는 7개 중 4개가 같아야 한다. 3/2의 지연·C head 전환 보완은 [영상 비교](../../../../docs/perception/traffic_light/261027_TEMPORAL_DRIVING_VIDEO_COMPARISON.md), 7/4의 남은 공백·R/Y 지연은 [추가 비교](../../../../docs/perception/traffic_light/261027_SEVEN_FOUR_DRIVING_COMPARISON.md)를 본다.
+7/4 재현 시험은 `stamped_vote_window_size:=7 stamped_vote_max_age_sec:=0.9 stamped_vote_startup_passthrough:=true`를 **함께** 명시했다. 첫 여섯 고유 입력은 즉시 전달하고 이후 4표를 요구한다. 기본 age0.5초만으로는 10Hz의 7장을 채우기 어렵다. 0.9초는 전체 표의 원본 age 상한이지 추가 고정 hold나 황색 잔여시간 보장이 아니다. 과거 HSV/profile 보정·RED fallback의 전면 복원도 아니다.
 
-## Competition signal phase profiles
+2026-10-27 [UNKNOWN 유예 비교](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_DRIVING_COMPARISON.md) 후
+사용자 승인으로 `signal_compliance_unknown_grace_sec:=0.3`을 운영 launch 기본으로 승격했다.
+직접 관측의 `preserve_unreadable_color_evidence:=true`를 함께 적용해 모순/부분 양성 색을
+빈 판독으로 숨기지 않는다. 양성 색 표식은 UNKNOWN shape/status이며 새 방향 허가가 아니다.
+전체 스택과 새 validator 실행은 이 두 값을 묶으며, traffic OFF·guard OFF·legacy는 유예0으로 정규화한다.
+예전 frozen snapshot에 새 설정이 없으면 유예0으로 재개하며 원본 snapshot을 수정하지 않는다.
+시험 wrapper의 guarded/legacy 기준선은 유예0을 명시한다. 새 기본값을 시험하려면 production 모드,
+명시적 비교는 `--mode guarded --temporal-direct true --unknown-grace-sec 0.3`을 사용한다.
+phase 투표는 운영0이다. 단독 legacy 인지와 별도 planning을 함께 실행할 경우 planning에도
+`signal_compliance_unknown_grace_sec:=0.0`을 명시한다. 다른 인지 노드에 planner 값만 혼합하지 않는다.
+R/Y를 이 유예로 덮지 않고 기존 판단에 바로 전달하나, 색 증거 자체가 없으면 마지막 G 원본 시각 뒤 최대0.3초 허가가 남을 수 있다.
+설치·재시작·되돌리기와 검증 한계는 [배포 정리](../../../../docs/perception/traffic_light/261027_UNKNOWN_GRACE_RELEASE.md)를 따른다.
 
-`config/traffic_signal_profiles.yaml` maps the Lanelet traffic-light regulatory
-element ID selected by the route matcher to a reusable signal-program profile.
-Each profile declares supported lamps, valid Autoware element combinations,
-detector corrections, and a route-compatible fail-open phase. This keeps the
-published message as standard `TrafficLightGroup.elements[]` while allowing
-competition-specific A/B/C/D behavior to be changed without editing detector
-code. The policy is intentionally fail-open for simulation competition use and
-must not be reused as a real-vehicle safety policy.
+`detector_imgsz` 기본은 960이며 비교 실험에서 다른 해상도를 명시할 수 있다.
+`debug_runtime`은 모델 경로/SHA·실제 device·imgsz·CNN 설정과 CUDA 메모리를 기록한다.
+장치는 실제 predictor/backend에서 읽고 출처도 기록한다. Ultralytics outer model이
+CPU에 남았다는 이유만으로 실제 추론을 CPU로 단정하거나 CUDA 메모리를 0으로 쓰지 않는다.
+또한 같은 source stamp로 원시/보정/최종 tuples·정책 이유와 decode/검출·박스 읽기/
+지도 대기/분류/출력의 monotonic callback wall time을 남긴다. CUDA event 시간과 다르다.
 
-The planning traffic-light module also enables `competition_fail_open`. Missing,
-stale, or entirely unknown signal input therefore permits motion instead of
-creating a permanent stop. Both controls are competition-only availability
-choices; the raw correction reason remains observable on
-`/traffic_light_node/debug_policy_reason`.
+오프라인 단계 분리는 저장소 `scripts/evaluation/evaluate_traffic_light_pipeline.py`를
+사용한다. `--dataset`의 JPEG/개발 pose, `--native-evidence`의 정확 head별 전후 응답,
+`--housing-qc`의 SHA-bound 승인 native ID+2D box를 따로 받는다. 지도 투영을 identity
+정답으로 재사용하지 않는다. 옛 C016 단독 강제 사진에서 C018을 선택하면 해당 GT는
+unknown이며 성공에 넣지 않는다. 원본 detector는 SHA를 고정하고 다른 모델에는
+`--allow-candidate-detector`가 필요하다. `--imgsz`와 `--cnn-checkpoint`를 명시하고,
+`--output`은 `artifacts/evaluation/` 아래 새 JSON만 허용한다. 이 도구는 ROS/RPC/학습을
+실행하지 않는다. 실제 native 상태 일치율·arrow·UNKNOWN·잘못된 대상·현재 정책 proxy를
+분리하지만 sparse 사진으로 smoother 지연이나 공식 황색 통행 규칙을 평가하지 않는다.
+
+## 2026-10-26 관측 보존과 정차 시야 보완
+
+운영 direct 경로는 `observed_phases`의 실제 램프만 전달한다. C의 화살표를 보고 직진G를
+추가하거나 D의Y를R로 바꾸지 않는다. 모순·완충되지 않은 무점등/저확신은 UNKNOWN이며 legacy 보정과 구분한다.
+`detection_miss_hold_sec:=0.2`는 같은 미션/head가 현재 지도에 유효하게 투영되는 단발 detector
+누락만 완충한다. `low_confidence_hold_sec:=0.3`은 같은 head의 CNN soft 저확신만 이동 중 완충하며
+최대 원본 age 0.5초를 추가로 요구한다. `0`이면 새 완충만 OFF다. 양쪽 모두 원본 stamp를 보존하고
+실제 R/Y·모순·TF/지도/identity 실패는 즉시 반영한다.
+
+`no_lamps_hold_sec:=0.2`는 현재 지도와 YOLO가 **동일 housing**을 선택했는데 CNN만
+`no_lamps` 또는 soft 저확신이 된 짧은 공백을 같은 기한으로 완충한다. 정차 중 R과 황색도 포함하며 새 정상 색은 첫 프레임에 반영한다.
+이전 관측의 처리 시각부터 최대0.2초·원본 age0.3초를 넘기지 않고 stamp도 그대로 보존한다.
+지속 소등은 UNKNOWN으로 돌아가며, 실제 소등 직후에는 이전 허가가 최대0.2초 남을 수 있다.
+저확신에 확실히 켜진 새 R/Y 등이 있으면 그 램프가 없던 과거 색으로 덮지 않는다.
+같은 정상 지도 연결의 공백은 이 공유0.2초가 우선이며, 종류가 바뀌어도 기한을 연장하지 않는다.
+황색 원본 stamp·planner의 황색 시작/잔여시간은 갱신하지 않는다.
+`no_lamps_hold_sec:=0`으로 이 보완만 끈다. [실제 관측열 비교·한계](../../../../docs/perception/traffic_light/261027_NO_LAMPS_BOUNDED_HOLD.md)를 본다.
+
+`visual_continuation_sec:=0.3`은 순간적인 지도 uncertainty 거부 때 최근 정상 연결의 동일 housing을
+현재 YOLO 박스와 대조하고 **현재 crop을 CNN으로 다시 읽는** 기본 보완이다. 이전 박스 IoU가 낮아도
+현재 영상 시각의 nominal 지도 투영과 현재 검출 박스의 중심·크기가 좁게 일치하면 같은 head를 이어 볼 수 있다.
+이전 색 hold가 아니며
+anchor0.3초/원본 age0.5초를 넘겨 갱신하지 않는다. TF·route·실제 화각 이탈/다른 head 경쟁은 거부한다.
+`visual_continuation_sec:=0`으로 이 보완만 끈다. [기존 연속 시험](../../../../docs/perception/traffic_light/261026_SIGNAL_JITTER_RUNTIME_REMEDIATION.md)과 [새 B bag 재생](../../../../docs/perception/traffic_light/261027_B_ROI_PROJECTION_CONTINUATION.md)의 검증 범위를 구분하고, planning 통합 상태는 CURRENT를 따른다.
+
+2026-10-28 사용자 선택으로 지도+직접 관측 launch는 **A/B/C40m, D30m부터 색을 판단에 전달**한다.
+`observation_start_depth_m:=40` / `observation_start_depth_d_m:=30`이며 카메라→신호 housing 전방 깊이다.
+한 번 시작하면 거리 증가·잠깐 누락으로 다시 닫지 않는다. 추가 완충은 없고, 첫 황색 STOP 정책도 유지한다.
+전체 복귀는 `observation_start_depth_m:=0`(D도 비활성). legacy/비직접 관측은 기본 비활성이다.
+같은 미션 내 teleport만으로 게이트가 초기화되지는 않으며, 40/30 조합의 새 폐루프 검증은 아직 별도다.
+
+Planning 기본 `defer_unseen_until_observed:=true`는 이번 미션에서 아직 유효 램프를 한 번도 읽지 못한
+UNKNOWN에 거리 경계 없이 정지점 적용을 미룬다. 적색·황색 및 관측 후 누락은 정지 판단을 유지한다.
+이 설정에는 첫 판독이 끝내 없을 때 적색 통과 위험이 있으므로 [CURRENT](../../../../docs/perception/traffic_light/CURRENT.md)의 운영 계약을 확인한다.
+이것은 perception의 `OFF` 라벨 자체를 GO 신호로 바꾸지 않는다.
+
+팀과 합의하여 정차 위치는 기존 지도와 planner 설정으로만 관리한다. 운영 기준은
+`planning_ws/src/autoware_launch/config/ros1/planning/behavior_velocity_modules.yaml`의
+`traffic_light.stop_margin: 0.0`이며 normal 모드와 독립 모듈 기본도 동일하다.
+정차 위치는 Lanelet ref_line의 실제 좌표로 관리하며 이 노드가 지도 OSM을 바꾸지 않는다.
+PR54의 별도 `traffic_signal_stop_lines.yaml`·추가 margin·통과선 분리 코드와 launch 인자는 제거했다.
+그 후 원본 MGeo 판정선 profile을 독립적으로 추가했다. 2026-10-27부터 황색 GO 판단은
+아래 Lanelet 제동거리 근사로 대체하고 MGeo선은 황색 ON의 실제 통과 완료 확인에만 유지한다.
+명시적 황색 OFF의 지도선 GO_OUT은 유지하며, 기본 ON은 원본선 crossing을 사용한다.
+이동 중 화각 이탈 문제는 여전히 남는다. 황색 기본 ON·허가1회가 현재값이며 과거 실험의 OFF/허가3회와 구별한다.
+
+## 황색 ON: Lanelet 정차 목표 기준 판단선 1회 확정
+
+기존 master `enable_yellow_passthrough`와 validator의 황색 체크박스는 유지하며 기본 ON이다.
+명시적 false는 기존 색 판단으로 복귀하며 동결 실행·개인 YAML의 명시값은 자동 변경하지 않는다.
+준수 가드 ON에서 켜면 b6·J10의 jerk 제동거리로 판단선을 계산한다.
+`signal_compliance_yellow_deceleration_mps2:=6.0`, `signal_compliance_yellow_jerk_mps3:=10.0`이 판단용 값이다.
+2026-10-28 사용자 요청으로 공통 응답지연은0.0초다(`system_delay`는0.5초 유지).
+후속 36/56km/h 실제 제동 비교 후 판단용 기본8·16만6·10으로 맞췄다. 기존 planner/controller 제한은 바꾸지 않았다.
+이는 시험한 race profile용 근사이며 normal profile의2.8·5에 대한 제동 인증이 아니다.
+기존 실행에 명시된8·16은 자동 변경하지 않는다. [실측·한계](../../../../docs/perception/traffic_light/261028_DECISION_LINE_PR_VALIDATION.md#calibration-261028)를 본다.
+거리는 이미 앞범퍼·stop_margin이 반영된 기존 Lanelet 정차 목표까지의 경로 거리다.
+앞차축3m를 다시 빼지 않는다. 신선한 방향 허가·주행 중 `목표거리<=제동거리`가 되면 GO를1회 확정한다.
+확정 전 Y/R은 STOP이며, STOP 이력은 가상선 전/후 정차·UNKNOWN으로 풀리지 않고 새 방향 허가에 해제한다.
+확정 GO는 후속 Y/R에도 유지하되 실제 정차하면 재판단한다. D의 원형G만으로는 허가하지 않는다.
+정차 중 미세 signed 속도 잡음 −0.1~0m/s는0으로 보고, 실제 역주행은 거부한다.
+
+예전 timed flag/minimum/margin 인자는 옛 YAML 호환용으로 받지만 시간제한 분기를 활성화하지 않는다.
+황색 지속시간을 가정하지 않으므로, 적색 전 실제 채점선 통과 보장은 아니다.
+이 정책은 적색 미위반을 보장하지 않는다. 기존 미수신/1초timeout GO 예외는 유지한다.
+`enable_signal_compliance_guard:=false`는 여전히 명시적 legacy 정책 복귀다.
+세부 조건·설정·검증 한계는 [교체 기록](../../../../docs/perception/traffic_light/261027_LANELET_YELLOW_BRAKING.md)을 본다.
+[최신 완충·원본 판정선 계약](../../../../docs/perception/traffic_light/261026_SIGNAL_SMOOTHING_AND_ORIGINAL_JUDGING_LINE.md)을 본다.
+[변경 결정과 이전 실험](../../../../docs/perception/traffic_light/261026_TIMED_YELLOW_CANDIDATE.md#standard-stop-margin)을 본다.

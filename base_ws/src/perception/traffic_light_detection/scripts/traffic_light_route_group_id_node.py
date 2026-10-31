@@ -22,6 +22,20 @@ INVALID_GROUP_ID = 0
 
 
 EXCLUDED_MAP_ERROR_IDS = {201395, 201396}
+MISSION_GROUP_IDS = frozenset((201351, 201365, 201290, 201326))
+
+
+def restrict_route_groups(lanelet_group_id, allowed_group_ids):
+    """Opt-in candidate filter: skip non-mission lights, not an invalid lease.
+
+    Empty list preserves the legacy route provider, including its D-1
+    passthrough. The image node independently enforces the same mission scope.
+    """
+    if not isinstance(allowed_group_ids, list) or any(
+            type(value) is not int or value not in MISSION_GROUP_IDS for value in allowed_group_ids):
+        raise ValueError('allowed_group_ids must be a list of explicit A/B/C/D mission IDs')
+    allowed = set(allowed_group_ids)
+    return {lane:group for lane,group in lanelet_group_id.items() if not allowed or group in allowed}
 
 
 class TrafficLightRouteGroupIdNode:
@@ -47,9 +61,16 @@ class TrafficLightRouteGroupIdNode:
             projector_type=projector_type,
             projector_file=projector_file,
             excluded_group_ids=EXCLUDED_MAP_ERROR_IDS,
+            route_progress_guard=rospy.get_param('~route_progress_guard', False),
+            route_progress_hysteresis_m=rospy.get_param('~route_progress_hysteresis_m', 1.0),
+            route_progress_max_lateral_m=rospy.get_param('~route_progress_max_lateral_m', 8.0),
+            route_progress_pose_jump_m=rospy.get_param('~route_progress_pose_jump_m', 8.0),
+            signal_judging_lines=rospy.get_param('~signal_judging_lines', None),
         )
         if not self._matcher.available:
             raise RuntimeError("Lanelet route matcher is unavailable in the ROS runtime")
+        self._matcher.lanelet_group_id = restrict_route_groups(
+            self._matcher.lanelet_group_id, rospy.get_param('~allowed_group_ids', []))
         self._matcher.start_subscribers(route_topic, odometry_topic, route_state_topic)
 
         self._publisher = rospy.Publisher(output_topic, UInt64, queue_size=1, latch=True)

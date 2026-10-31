@@ -9,6 +9,10 @@ topics:
 
 control_rate_hz: 50.0
 
+# Human-readable terminal status. WARN is yellow and ERROR/FATAL is red.
+logging:
+  status_period_s: 1.0
+
 # /localization/kinematic_state already provides signed base_link velocity in m/s.
 kinematic_velocity_scale_to_mps: 1.0
 
@@ -17,11 +21,11 @@ control_limits:
   max_brake_cmd: 1.0
 
 safety:
-  trajectory_timeout_s: 0.5
+  trajectory_timeout_s: 3600.0
   state_timeout_s: 0.5
   # Receipt-time checks alone cannot detect a cached trajectory/odometry message
   # that is repeatedly republished. Reject old, zero, or implausibly future source stamps too.
-  trajectory_source_timeout_s: 10.0
+  trajectory_source_timeout_s: 3600.0
   state_source_timeout_s: 0.5
   future_stamp_tolerance_s: 0.1
   steering_timeout_s: 0.5

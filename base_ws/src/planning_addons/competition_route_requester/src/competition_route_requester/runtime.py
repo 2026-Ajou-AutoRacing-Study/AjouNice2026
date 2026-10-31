@@ -116,6 +116,8 @@ class Inputs:
             return False, 'map, route state, or operation mode unavailable'
         if bytes(self.map.data[:64]).lstrip().startswith(b'<'):
             return False, 'raw OSM payload is not the planning binary map contract'
+        if str(self.map.version_map) != str(self.routes['map']['version']):
+            return False, 'route definition and loaded planning map versions differ'
         if not policy.fresh(now, stamp(self.mode.stamp), self.cfg['operation_mode_max_age']):
             return False, 'stale operation mode'
         if self.active is None:

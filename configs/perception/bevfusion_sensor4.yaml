@@ -1,5 +1,5 @@
-# Runtime policy only; all sensor geometry and topics come from Sensor.json.
-# 260729 기준 Sensor.json의 최신 원본은 configs/sensors/Sensor_6.json이다.
+# Runtime policy only; geometry/topics come from the selected canonical Sensor JSON.
+# Current local input: configs/sensors/Sensor_competition_local.json.
 operation: inference
 
 server_host: 127.0.0.1

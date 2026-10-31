@@ -18,6 +18,27 @@
 
 namespace autoware::path_optimizer
 {
+TEST(MptBoundInterpolation, RearCircleBeforeFirstReferenceUsesStartBounds)
+{
+  // Recorded failure: 40 references at 0.5 m spacing and a rear circle at -0.15 m.
+  std::vector<geometry_msgs::Point> points(40);
+  for (size_t i = 0; i < points.size(); ++i) points[i].x = 0.5 * i;
+  const autoware::interpolation::SplineInterpolationPoints2d spline(points);
+  const auto offset_index = spline.getOffsetIndex(0, -0.15);
+  ASSERT_EQ(offset_index, 0U);
+  EXPECT_EQ(detail::boundInterpolationStartIndex(offset_index, spline.getSize()), 0U);
+}
+
+TEST(MptBoundInterpolation, InteriorAndEndSegmentsRemainValid)
+{
+  EXPECT_EQ(detail::boundInterpolationStartIndex(1, 40), 0U);
+  EXPECT_EQ(detail::boundInterpolationStartIndex(12, 40), 11U);
+  EXPECT_EQ(detail::boundInterpolationStartIndex(39, 40), 38U);
+  EXPECT_EQ(detail::boundInterpolationStartIndex(40, 40), 38U);
+  EXPECT_EQ(detail::boundInterpolationStartIndex(0, 2), 0U);
+  EXPECT_THROW(detail::boundInterpolationStartIndex(0, 1), std::invalid_argument);
+}
+
 TEST(MptConstraintMatrix, CopiesEveryKinematicStateColumn)
 {
   constexpr size_t reference_count = 2;

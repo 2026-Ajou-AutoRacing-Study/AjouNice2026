@@ -13,17 +13,17 @@
 - gateway: `/planning/set_waypoint_route` (`autoware_internal_planning_msgs/SetWaypointRoute`), `/planning/mission_planning/mission_planner/set_preferred_primitive` (`autoware_planning_msgs/SetPreferredPrimitive`), `/planning/set_lanelet_route` (`autoware_planning_msgs/SetLaneletRoute`).
 - 출력 관찰: `/planning/mission_planning/route` (`autoware_planning_msgs/LaneletRoute`), `/planning/route_state` (`autoware_planning_msgs/RouteState`).
 - YAML은 ROS1 flat 구조이며 5개 case 중 하나만 startup에 고정한다.
-- 초기 A는 canonical 51개 또는 incoming 200892를 포함한 52개만 허용한다.
-- 이동 중 B 재시도는 200346 이전 현재 시작 lanelet에 해당하는 canonical B의 정확한 suffix를 허용한다. 이미 지난 lanelet을 첫 segment로 강제하지 않으며 중간 생략/순서 변경은 허용하지 않는다.
+- 초기 A는 canonical 48개 또는 incoming 200892를 포함한 49개만 허용한다.
+- 이동 중 B 재시도는 설정된 deadline 이전 현재 시작 lanelet에 해당하는 canonical B의 정확한 suffix를 허용한다. 이미 지난 lanelet을 첫 segment로 강제하지 않으며 중간 생략/순서 변경은 허용하지 않는다.
 - 서비스 거부와 결과 불명확을 구별한다. transport timeout, 응답 성공 후 route/trajectory 검증 실패는 `RECONCILIATION_REQUIRED`. 이때 Route A 유지로 단정하거나 자동 clear/retry하지 않는다.
 - 성공 증거는 route UUID/goal/순서, 응답 및 route 확인 이후 timestamp의 3개 새 trajectory와 validator 20개 flag다. Route UUID가 없는 trajectory의 완전한 인과성 또는 주행 안전 인증은 아니다.
-- 자동 운용 기본값은 A-only. 전체 planning과 실제 입력으로 승인되기 전에는 controller를 연결하지 않는다.
+- 자동 운용 기본값은 `route_a_to_b_with_fallback`이며, 실제 주행 검증 여부는 별도로 확인한다.
 
 이 명세는 requester의 동작과 안전 조건을 먼저 고정한다. ROS1 서비스명, 메시지 타입, 토픽명 및 launch 구성은 upstream 포팅 결과를 확인한 뒤 확정한다.
 
 ## 2. 목적과 범위
 
-`competition_route_requester`는 K-City v84 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
+`competition_route_requester`는 K-City v87 대회 주행을 위해 Route A/B 요청, 정상 전환 정책, 독립 감시 및 결승선 fallback을 단계적으로 검증하는 AjouNice 전용 addon이다.
 
 패키지 이름은 requester이지만 실행 책임은 하나의 거대한 requester node에 모으지 않는다. `route_requester`는 현재 차량 위치와 sparse waypoint, goal을 `SetWaypointRoute` 요청으로 전달하는 저수준 실행기이고, `route_supervisor`가 Route A/B 상태와 정상 전환 정책을 소유한다. fallback component는 별도로 격리한다.
 
@@ -93,7 +93,7 @@ RouteSelector는 main/MRM 요청을 하나의 Mission Planner로 전달하고 Mi
 
 case 변경 절차는 `YAML 수정 -> 전체 launch 재시작`으로 고정한다. 주행 중 rosparam 변경이나 별도 launch argument로 case를 바꾸지 않는다.
 
-운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=true`다. planner session이 시작되면 map, route state, operation mode와 최신 odometry를 기다린 뒤 현재 lanelet/arc로 초기 요청을 선택한다. 공식 S부터 `200178` s 8 m 전까지는 Route A, `200178` s 8 m부터 `200346` 진입 전까지는 Route B를 요청한다. 허용 구간 밖에서는 route를 요청하지 않는다. 이전 session의 route가 RouteSelector에 남아 있어도 이를 채택하지 않고 새 `SetWaypointRoute` 요청으로 교체하며 `ClearRoute`는 호출하지 않는다. 새 route stamp와 새 trajectory/validator를 확인해야 startup generation이 검증된다.
+운영 기본 case는 `route_a_to_b_with_fallback`이고 `auto_request_initial_route=true`다. planner session이 시작되면 map, route state, operation mode와 최신 odometry를 기다린 뒤 현재 lanelet/arc로 초기 요청을 선택한다. 공식 S부터 `200258` 진입 전까지는 Route A, `200258` 진입부터 `200892` 내부까지는 Route B를 요청한다. 허용 구간 밖에서는 route를 요청하지 않는다. 이전 session의 route가 RouteSelector에 남아 있어도 이를 채택하지 않고 새 `SetWaypointRoute` 요청으로 교체하며 `ClearRoute`는 호출하지 않는다. 새 route stamp와 새 trajectory/validator를 확인해야 startup generation이 검증된다.
 
 RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전용 표시기다. Route A 또는 Route B가 검증되면 해당 표시등만 켜지고, fallback이 활성화됐거나 새 route를 아직 검증 중이면 두 표시등 모두 꺼진다. RViz에서는 route 요청을 보내지 않는다.
 
@@ -102,7 +102,7 @@ RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전�
 | `route_operation_case` | 초기 route | 정상 A→B | 결승선 fallback | 시험 목적 |
 |---|---|---:|---:|---|
 | `route_a_only` | S–1 구간 A | off | off | Route A 단독 요청·주행 검증 |
-| `route_b_only` | 1–deadline 구간 B | off | off | `200178` s≥8m 이후 Route B 단독 검증 |
+| `route_b_only` | 1–deadline 구간 B | off | off | `startup_route_b_trigger` 구간에서 Route B 단독 검증 |
 | `route_a_to_b` | 위치 기반 A/B | on | off | 정상 A→B 재경로만 검증 |
 | `route_a_to_fallback` | S–1 구간 A | off | on | 정상 Route B 요청 없이 fallback만 검증 |
 | `route_a_to_b_with_fallback` | 위치 기반 A/B | on | on | 정상 A→B를 시도하고 실패 시 fallback 인계 검증 |
@@ -121,90 +121,43 @@ RViz `Route Status` 패널은 gateway 상태의 `verified_active`를 읽는 전�
 
 ## 5. 경로 정의
 
-경로 데이터의 단일 기준은 `config/kcity_v84_competition_route.yaml`이다.
+경로 데이터의 단일 기준은 `config/kcity_v87_competition_route.yaml`이다.
+이전 버전 설정과 설명 그림은 현재 배포에 포함하지 않는다.
 
-- map version: 73
-- map SHA-256: `0efa7cb3dfd249d5eb78c2e2552590037eb3b8725c58ebd433656e2d53a34610`
+- map version: 87
+- map SHA-256: `70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575`
 - 공식 START/END: `200892` 끝과 `200889` 시작의 경계
-- Route A UUID: `b41167dc-7d5c-5348-911c-f8bb09c3f10b`
-- Route A 임시 goal: `200181` 길이의 0.75 지점
-- Route B UUID: `3f4a58cf-2782-5548-a6f2-11648fa92944`
-- Route B 최종 goal: `200210`
-- Route B 준비 지점: `200178`, lanelet s 8 m 이상
-- Route B 적용 deadline: `200346` 도달 전
-- fallback UUID: `515dba0f-59b6-5ca9-9ce5-e09a3fef6900`
-- fallback hard cutoff: 합류 lanelet `201439`, lanelet s 2.0 m
-- fallback 요청: `SetLaneletRoute`, `201441`부터 goal `200210`까지의 27개 비순환 suffix
+- Route A: waypoint 16개, canonical 경로 48개 lanelet, goal `200181`
+- Route B: waypoint 15개, canonical 경로 58개 lanelet, goal `200210`
+- fallback: `201439`부터 goal `200210`까지 30개 lanelet
 
-start pose는 요청에 넣지 않는다. Mission Planner가 `/localization/kinematic_state`에 대응하는 ROS1 포팅 입력에서 현재 차량 위치를 취득한다.
+UUID, waypoint pose와 전체 lanelet 순서는 YAML에서 읽는다. `waypoint_refs`는
+서비스 요청 지점이며 `expected_path_lanelet_ids`는 응답 경로의 순서를 검증하는
+목록이다. 두 목록을 같은 의미로 해석하지 않는다. 공식 start에서 incoming
+`200892`가 포함되는 경우는 `accepted_start_prefixes`로 검증한다.
 
-공식 START/END의 MORAI 좌표 `(-131.689797551, -428.331022938, 28.543960282)`를 고정 TF로 변환하면 map 좌표 `(-0.130667331, 117.580315248, 28.543960282)`가 된다. 이 점은 v84에서 `200892` 중심선 끝과 `200889` 중심선 시작에 1 cm 이내로 동시에 일치한다. 따라서 requester의 start 검증은 `200892`와 `200889`를 모두 허용하되, 대회 진행 방향의 canonical 첫 lanelet은 `200889`로 둔다.
+### 5.1 초기 경로와 재경로 조건
 
-MORAI sample scene JSON의 Ego pose는 공식 좌표와 동일하지 않다. sample pose는 공식점보다 수평으로 약 0.422 m 진행한 `200889` 내부에 있고, 높이는 약 0.339 m 높으며 yaw는 약 1.217도 크다.
+초기 Route A/B 선택은 `startup_route_b_trigger`와 현재 odometry로 판단한다.
+현재 v101의 초기 선택·Route A→B 재경로 trigger는 Spawn 5번에서 주행 방향 뒤쪽 5 m인
+`200310`의 s=3.149898 m (map x=71.238562, y=540.694727)이고, deadline은
+`200315` 진입 전이다. 감지 anchor의 pose와 차로 진입 경계를
+혼동하지 않는다. 요청 start pose는 Mission Planner가 현재 odometry에서 취득한다.
 
-Route B 요청 시 차량은 이미 `200178`의 s 8 m 이상에 있어야 하므로 waypoint 목록에서는 `200178`을 제외한다. 이 조건은 A→B 재경로뿐 아니라 `route_b_only`에도 적용한다. 공식 START/END에서 Route B 전체를 한 번에 요청하면 `200889`를 재방문하는 loop가 생기므로 `route_b_only`를 공식 출발점에서 사용하지 않는다.
+고주로에서는 waypoint planner가 만든 병렬 route segment를 확인한 뒤
+`SetPreferredPrimitive`로 YAML의 선호 lanelet 순서를 적용한다. 실제 LC 시작과
+주변 차량에 대한 안전 판단은 BPP가 수행한다. 지도 병합 전 ID 목록을 재사용하지 않는다.
 
-#### Operation case와 RouteSelector 입력 구조
+### 5.2 fallback cutoff
 
-![Competition route operation cases](assets/kcity_v84_operation_cases.svg)
+cutoff는 `fallback_route.hard_cutoff_pose_ref`가 가리키는 pose다. v87에서
+`201439`의 local s는 43.191875 m이다. lanelet 병합으로
+시작점이 달라질 수 있으므로 이전 버전의 local s를 사용하지 않는다.
 
-이 그림은 다섯 operation case와 addon의 위치를 나타낸다. addon은 Mission Planner 출력 뒤에 route mux를 추가하지 않으며, 정상 A/B는 `SetWaypointRoute`, fallback은 `SetLaneletRoute`로 RouteSelector main 입력에 전달한다.
-
-### 5.1 경로 및 재경로 구간 도식
-
-![K-City v84 Route A/B와 재경로 구간](assets/kcity_v84_route_a_b.svg)
-
-도식의 선은 `config/kcity_v84_competition_route.yaml`에 기록된 lanelet 순서를 v84 OSM 중심선에 그대로 대응한 결과다.
-
-- 파란색: 공식 START/END 경계에서 trigger 전까지의 Route A 전용 구간
-- 청록색: `200178`부터 Route A 임시 goal이 있는 `200181`까지 Route A/B 공통 구간
-- 주황색: Route B가 `200892`로 재진입한 뒤 최종 goal `200210`까지 진행하는 연장 구간
-- 확대도의 분홍색 띠: `200258`의 s 8 m trigger 이후 `200315` 진입 전까지 Route B 요청과 검증을 끝내야 하는 구간
-- 빨간색 deadline 막대: Route B가 적용되어야 하는 `200346` 진입 전 경계
-- 빨간색 ③ 표식: YAML의 `deadline_pose_ref`인 `wp_200346`, 즉 `200346`의 s 8 m 감지 anchor
-
-공식 START/END는 `200892`와 `200889`의 공용 경계다. 시작 표식은 이 공식 좌표를 표시하며 실제 route 요청의 start pose는 현재 odometry다. Route A는 `200892`로 재진입하기 전 `200181`에서 끝나므로 start가 어느 쪽 lanelet으로 판정되어도 loop를 만들지 않는다.
-
-#### Route A 요청과 검증 경로
-
-고주로에서는 waypoint planner가 병렬 lanelet을 포함한 segment를 만든 뒤 `SetPreferredPrimitive`로 최종 선호 lanelet을 지정한다. v84의 최종 선호 순서는 `201457 → 201435 → 201466 → 200137 → 200187 → 201470 → 200130 → 201473 → 201439 → 200185 → 201453 → 201477 → 201479 → 201447 → 201399 → 201451`이다.
-
-Mission Planner가 발행하는 route segment의 `primitives`는 `/planning/mission_planning/route_marker`에 표시되는 주행 가능 후보이며 BPP가 사용하는 실제 route 정보다. K-City v84에서는 평행 구간 `201469/201470/201471`, `200127/200130/200134`, `201473/201474/201475`를 LC 후보로 구성하고 각각 `201470`, `200130`, `201473`을 선호한다. 병목 직후에는 `[200185,200360]` 후보 segment에서 `200185`를 따라 `201453`으로 연결한 뒤 `[201476,201477]`에서 `201477`을 선택한다. 이후 `[201448,201479]`에서는 `201479`, `[201478,201447]`에서는 `201447`을 선호한다.
-
-![K-City v84 Route A 상세](assets/kcity_v84_route_a_detail.svg)
-
-- 지도 숫자 `1`–`11`: `route_a.waypoint_refs`의 실제 요청 순서
-- `S`: 공식 `200892`→`200889` 경계의 현재 odometry이며 별도 start pose를 요청에 넣지 않음
-- `G`: `goal_route_a_200181`, lanelet `200181` 길이의 0.75 지점
-- 오른쪽 위 표: 요청 payload를 구성하는 16개 waypoint와 goal
-- 오른쪽 아래 표: 선호 차선 적용 뒤 수신 경로 순서를 검증하는 51개 canonical `expected_path_lanelet_ids`
-
-검증용 51개 lanelet ID는 sparse waypoint 요청 목록이 아니다. Mission Planner가 계산한 병렬 route segment에 `SetPreferredPrimitive`를 적용한 뒤 전체 선호 lanelet 순서가 예상 경로와 같은지 판정하기 위한 기준이다. 공식 start가 정확한 lanelet 경계이므로 planner가 incoming `200892`를 첫 lanelet으로 포함하면 `[200892] + canonical 51개 경로`도 허용한다.
-
-#### Route B 재경로 요청과 검증 경로
-
-![K-City v84 Route B 재경로 상세](assets/kcity_v84_route_b_detail.svg)
-
-- `S`: 요청 시점의 현재 pose, lanelet `200178`의 s 8 m 이상
-- 지도 숫자 `1`–`10`: `route_b.waypoint_refs`의 실제 요청 순서
-- `wp_200178`: 차량의 현재 start이므로 waypoint 요청에서 의도적으로 제외
-- `G`: `goal_200210`, lanelet `200210` 길이의 0.75 지점
-- 오른쪽 아래 표: 현재 start `200178`부터 goal `200210`까지 수신 경로를 검증하는 61개 lanelet 순서
-- `route_b_only`도 동일한 시작 조건과 요청·검증 데이터를 사용한다.
-
-#### 재경로 trigger와 적용 절차
-
-![K-City v84 Route A에서 Route B로의 재경로 절차](assets/kcity_v84_reroute_process.svg)
-
-1. Route A를 활성 상태로 유지하고 기존 route를 지우지 않는다.
-2. lanelet `200178`에서 s 8 m 이상 진입했는지 확인한다.
-3. odometry와 reroute availability가 각각 0.5초 이내 최신 값이고, availability가 0.5초 연속 true인지 확인한다.
-4. 현재 pose를 start로 사용해 Route B를 요청한다.
-5. waypoint 결과의 UUID, goal, 병렬 segment 구성을 확인한 뒤 `SetPreferredPrimitive`로 고주로 선호 차선을 적용한다.
-6. Route B UUID, goal `200210`, 최종 선호 lanelet 순서 및 새 trajectory를 검증한다.
-7. lanelet `200346` 진입 전 검증이 끝난 경우에만 Route B 적용 완료로 판단한다.
-
-실패나 timeout에서는 Route A를 유지하고 1초 뒤 guard부터 재확인한다. `deadline_pose_ref`인 `wp_200346`은 lanelet `200346`의 s 8 m 감지 anchor다. 실제 적용 deadline은 `200346` 진입 전이므로 도식에서 진입 막대와 s 8 m anchor를 분리했다.
+요청을 보내기 전 availability와 최신 입력을 확인하고, 성공 응답 뒤에도 UUID,
+goal, 선호 lanelet 순서와 새로운 trajectory/validator 출력을 검증해야 한다.
+검증이 끝나기 전에는 전환 완료로 판단하지 않는다. 응답이 불명확하거나
+성공 응답 후 검증이 실패하면 `RECONCILIATION_REQUIRED`로 처리한다.
 
 ## 6. 상태 기계
 
@@ -222,7 +175,7 @@ route_b_only:
 
 route_a_to_b:
   REQUEST_ROUTE_A -> ROUTE_A_ACTIVE
-  -> ARM_ROUTE_B_AT_200178 -> REQUEST_ROUTE_B -> VERIFY_ROUTE_B
+  -> ARM_ROUTE_B_AT_TRIGGER -> REQUEST_ROUTE_B -> VERIFY_ROUTE_B
   -> ROUTE_B_ACTIVE 또는 REROUTE_FAILED
 
 route_a_to_fallback:
@@ -232,7 +185,7 @@ route_a_to_fallback:
 
 route_a_to_b_with_fallback:
   REQUEST_ROUTE_A -> ROUTE_A_ACTIVE
-  -> ARM_ROUTE_B_AT_200178 -> REQUEST_ROUTE_B -> VERIFY_ROUTE_B
+  -> ARM_ROUTE_B_AT_TRIGGER -> REQUEST_ROUTE_B -> VERIFY_ROUTE_B
   -> 성공: ROUTE_B_ACTIVE
   -> cutoff까지 미확인: REQUEST_FALLBACK_LANELET_ROUTE
   -> VERIFY_FINISH_CAPABLE_ROUTE -> FINISH_ROUTE_ACTIVE
@@ -243,7 +196,7 @@ route_a_to_b_with_fallback:
 ### 6.1 Route A
 
 1. map, localization, RouteSelector 및 Mission Planner 준비를 확인한다.
-2. 최신 odometry가 공식 S부터 `200178` s 8 m 전까지의 시작 구간인지 확인한다.
+2. 최신 odometry가 공식 S부터 `200258` 진입 전까지의 시작 구간인지 확인한다.
 3. 현재 pose를 start로 사용해 Route A를 요청한다.
 4. 서비스 응답만으로 성공 처리하지 않는다.
 5. 요청 UUID를 가진 route publication과 새 trajectory 생성을 확인한 뒤 `ROUTE_A_ACTIVE`로 전환한다.
@@ -253,7 +206,7 @@ route_a_to_b_with_fallback:
 
 ### 6.2 Route B
 
-1. planner startup이 `200178` s 8 m 이후부터 `200346` 진입 전이면 Route B를 초기 route로 요청한다. Route A 주행 중에도 같은 구간에서 Route B를 준비한다.
+1. planner startup이 `200258` 진입 이후부터 `200892` 내부이면 Route B를 초기 route로 요청한다. Route A 주행 중 재경로는 별도의 `reroute_trigger`와 deadline을 따른다.
 2. 최신 reroute availability가 연속 hold time 동안 true인지 확인한다.
 3. 현재 pose를 start로 사용해 Route B를 요청한다.
 4. waypoint 결과의 UUID, goal, 병렬 segment 구성을 확인한 뒤 `SetPreferredPrimitive`로 고주로 선호 차선을 적용한다.
@@ -265,9 +218,9 @@ route_a_to_b_with_fallback:
 
 1. fallback을 포함한 두 case에서만 finish guard를 활성화한다.
 2. 현재 선택 route가 결승선 이후 goal `200210`까지 이어지는지 UUID, goal 및 lanelet suffix로 판정한다.
-3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 합류 lanelet `201439`의 s 2.0 m hard cutoff에서 fallback을 시작한다.
-4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, `200130` cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
-5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 30개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. `201439` s 2 m에서 요청해 병목 통로 끝까지 Mission의 최소 안전거리 30 m 이상을 유지한다.
+3. `route_a_to_fallback`에서는 정상 Route B waypoint 요청을 하지 않고 `fallback_route.hard_cutoff_pose_ref`의 hard cutoff에서 fallback을 시작한다.
+4. `route_a_to_b_with_fallback`에서는 Route B 적용을 먼저 시도하고, YAML의 fallback cutoff까지 결승선 통과 가능한 Route B가 확인되지 않은 경우에만 fallback으로 승격한다.
+5. fallback builder는 `fallback_route.expected_path_lanelet_ids`의 30개 segment와 goal `200210`을 가진 `SetLaneletRoute` 요청을 만든다. 요청 위치는 YAML의 cutoff pose를 따르며 Mission Planner의 reroute safety 검사를 통과해야 한다.
 6. requester는 진행 중인 정상 요청과 fallback 요청을 동시에 보내지 않으며 fallback 요청에 우선권을 준다.
 7. fallback 요청도 RouteSelector main 입력과 Mission Planner의 reroute availability 및 safety 검사를 그대로 통과해야 한다.
 8. Mission Planner가 발행한 새 route와 trajectory가 검증된 뒤에만 `FINISH_ROUTE_ACTIVE`로 판단한다.
@@ -284,7 +237,7 @@ requester의 trajectory age 상한은 canonical Planning Validator latency check
 - 서로 다른 route에는 서로 다른 고정 UUID를 사용한다.
 - 수신 route의 UUID와 goal만이 아니라 예상 lanelet 순서도 확인한다.
 - route 교체 후 새 trajectory가 확인되어야 성공으로 처리한다.
-- Route B는 `200346` 도달 전에 적용되어야 한다.
+- Route B는 `200315` 도달 전에 적용되어야 한다.
 - 최종 goal `200210`은 결승선 이후에 있어야 한다.
 - 대회 production에서는 `route_a_to_b_with_fallback` case를 사용한다.
 - fallback이 없는 `route_a_to_b`에서 Route B가 적용되지 못하면 명시적인 `REROUTE_FAILED`로 전환한다.
@@ -336,7 +289,7 @@ requester의 trajectory age 상한은 canonical Planning Validator latency check
 - reroute availability가 false인 동안 Route B를 요청하지 않는다.
 - Route B 실패 시 Route A가 계속 유지된다.
 - requester 실행 중 `ClearRoute` 호출이 한 번도 발생하지 않는다.
-- Route B가 `200346` 전에 적용되고 최종 goal이 `200210`으로 검증된다.
+- Route B가 `200315` 전에 적용되고 최종 goal이 `200210`으로 검증된다.
 - 선택된 case에서 사용하지 않는 reroute/fallback 로직이 서비스 호출이나 요청 생성을 하지 않는다.
 - 정의되지 않은 `route_operation_case`는 주행 시작 전에 거부된다.
 - 각 operation case가 표에 정의된 route 요청만 수행한다.

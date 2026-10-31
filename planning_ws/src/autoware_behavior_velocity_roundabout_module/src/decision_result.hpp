@@ -39,6 +39,13 @@ struct RoundaboutOverPassJudge
   std::string evasive_report;
 };
 
+// Experimental committed GO after an observed physical stop. Keep this distinct
+// from geometric OverPassJudge and from a fresh collision-free Safe decision.
+struct RoundaboutGoAfterStop
+{
+  bool collision_detected{false};
+};
+
 /**
  * @brief only collision is detected
  */
@@ -60,6 +67,7 @@ struct RoundaboutSafe
 using RoundaboutDecisionResult = std::variant<
   RoundaboutInternalError,  //! internal process error
   RoundaboutOverPassJudge,  //! over the pass judge lines
+  RoundaboutGoAfterStop,    //! experimental GO latch after stopping
   RoundaboutCollisionStop,  //! detected collision while FOV is clear
   RoundaboutSafe            //! judge as safe
   >;

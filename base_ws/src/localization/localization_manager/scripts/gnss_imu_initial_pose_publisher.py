@@ -387,11 +387,11 @@ class GnssImuInitialPosePublisher:
                 math.degrees(yaw), self.official_yaw_deg, error_deg,
             )
             if abs(error_deg) > self.max_official_yaw_error_deg:
-                rospy.logerr_throttle(
-                    2.0, "Refusing official START initialization: heading differs by %.3f deg",
+                rospy.logwarn_throttle(
+                    2.0, "Official START heading differs by %.3f deg; "
+                    "using observed corrected Competition heading",
                     error_deg,
                 )
-                return
         source_pose = tft.euler_matrix(0.0, 0.0, yaw)
         source_pose[0:3, 3] = position
         self.publish_once(

@@ -6,5 +6,5 @@ threshold와 dataset 경로를 새 실험에 자동 적용하지 않는다.
 
 현재 detector 기준은 [`../../../../docs/bevfusion/README.md`](../../../../docs/bevfusion/README.md),
 새 temporal 계획은
-[`../../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를
+[`../../../../docs/bevfusion/legacy/research_2609_2610/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md`](../../../../docs/bevfusion/legacy/research_2609_2610/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)를
 따른다.

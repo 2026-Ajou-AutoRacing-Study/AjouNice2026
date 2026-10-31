@@ -13,10 +13,14 @@
 // limitations under the License.
 
 #include "autoware/behavior_path_lane_change_module/manager.hpp"
+#include "autoware/behavior_path_lane_change_module/interface.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/reentry.hpp"
+#include "autoware/behavior_path_lane_change_module/utils/path.hpp"
 #include "autoware/behavior_path_lane_change_module/scene.hpp"
 #include "autoware/behavior_path_lane_change_module/structs/data.hpp"
 #include "autoware/behavior_path_lane_change_module/utils/utils.hpp"
 #include "autoware/behavior_path_planner_common/data_manager.hpp"
+#include "autoware/behavior_path_planner_common/utils/root_reference_utils.hpp"
 #include "autoware_test_utils/autoware_test_utils.hpp"
 #include "autoware_test_utils/mock_data_parser.hpp"
 
@@ -68,6 +72,9 @@ public:
 
     ego_pose_ = autoware::test_utils::createPose(-50.0, 1.75, 0.0, 0.0, 0.0, 0.0);
     planner_data_->self_odometry = set_odometry(ego_pose_);
+    // Candidate safety includes measured-motion prediction, which requires acceleration.
+    planner_data_->self_acceleration =
+      boost::make_shared<geometry_msgs::AccelWithCovarianceStamped>();
     const auto objects_file =
       ros::package::getPath("autoware_behavior_path_lane_change_module") +
       "/test_data/test_object_filter.yaml";
@@ -176,8 +183,7 @@ int main(int argc, char ** argv)
 {
   ros::init(argc, argv, "lane_change_scene_ros1_oracle");
   const int load_result = std::system(
-    "python3 \"$(rospack find autoware_behavior_path_lane_change_module)/scripts/"
-    "load_ros1_parameters.py\" /test_lane_change_scene "
+    "rosrun autoware_behavior_path_lane_change_module load_ros1_parameters.py /test_lane_change_scene "
     "--source \"$(rospack find autoware_behavior_path_lane_change_module)/config/"
     "lane_change.param.yaml\" "
     "--source \"$(rospack find autoware_test_utils)/config/test_common.param.yaml\" "
@@ -192,6 +198,28 @@ int main(int argc, char ** argv)
   if (load_result != 0) return EXIT_FAILURE;
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST_F(TestNormalLaneChange, GeneratedReferenceRetainsRouteHeaderBeforeModuleSafetyChecks)
+{
+  // The ROS1 mock route parser does not import Header. Supply a distinctive
+  // valid header here so the test detects both loss and hard-coded "map" fixes.
+  const auto filename=ros::package::getPath("autoware_behavior_path_lane_change_module") +
+    "/test_data/lane_change_test_route.yaml";
+  auto route=autoware::test_utils::parse<std::optional<LaneletRoute>>(filename);
+  ASSERT_TRUE(route);
+  route->header.frame_id="fixture_map";
+  route->header.stamp=ros::Time(123,456);
+  planner_data_->route_handler->setRoute(*route);
+  lanelet::ConstLanelet current;
+  ASSERT_TRUE(planner_data_->route_handler->getClosestLaneletWithinRoute(
+    planner_data_->self_odometry->pose.pose, &current));
+  const auto output=autoware::behavior_path_planner::utils::getReferencePath(current,planner_data_);
+  ASSERT_FALSE(output.path.points.empty());
+  const auto header=planner_data_->route_handler->getRouteHeader();
+  ASSERT_FALSE(header.frame_id.empty());
+  EXPECT_EQ(output.path.header.frame_id,header.frame_id);
+  EXPECT_EQ(output.path.header.stamp,header.stamp);
 }
 
 TEST_F(TestNormalLaneChange, testBaseClassInitialize)
@@ -408,4 +436,373 @@ TEST_F(TestNormalLaneChange, PendingSignalTimeCountsWithoutAValidCandidate)
   normal_lane_change_->update_transient_data(false);
   EXPECT_DOUBLE_EQ(get_common_data_ptr()->transient_data.lane_change_prepare_duration, 2.0);
   ros::Time::init();
+}
+
+// Exercise the real handoff transaction independently of map-dependent search results.
+class AbortReentryProbe : public NormalLaneChange
+{
+public:
+  using NormalLaneChange::NormalLaneChange;
+  mutable unsigned searches{0}, completion_checks{0};
+  unsigned finish_on_check{0};
+  bool valid{true}, safe{true}, fail{false};
+  bool hasFinishedAbort() const override {
+    ++completion_checks;
+    return finish_on_check && completion_checks >= finish_on_check;
+  }
+  std::pair<bool,bool> getSafePath(autoware::behavior_path_planner::LaneChangePath & path) const override {
+    ++searches;
+    if (fail) throw std::runtime_error("test search failure");
+    path.info.duration.lane_changing=7.0;
+    return {valid,safe};
+  }
+  void beginReturn() {
+    toAbortState();
+    abort_path_=std::make_shared<autoware::behavior_path_planner::LaneChangePath>();
+    abort_path_->info.duration.lane_changing=3.0;
+    status_.lane_change_path.info.duration.lane_changing=1.0;
+    is_abort_path_approved_=is_abort_approval_requested_=true;
+  }
+  bool returnIntact() const {
+    return abort_path_ && abort_path_->info.duration.lane_changing==3.0 &&
+      status_.lane_change_path.info.duration.lane_changing==1.0 &&
+      is_abort_path_approved_ && is_abort_approval_requested_;
+  }
+  bool committed() const {
+    return !abort_path_ && !is_abort_path_approved_ && !is_abort_approval_requested_ &&
+      status_.is_valid_path && status_.is_safe &&
+      status_.lane_change_path.info.duration.lane_changing==7.0 && abort_reentry_committed_;
+  }
+};
+
+TEST_F(TestNormalLaneChange, AbortReentryCommitsBeforeReturnCompletes)
+{
+  lc_param_ptr_->cancel.enable_on_lane_changing_phase=true;
+  AbortReentryProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.beginReturn(); probe.refreshApprovedPlan();
+  EXPECT_EQ(probe.searches,1U); EXPECT_FALSE(probe.isAbortState()); EXPECT_TRUE(probe.committed());
+}
+TEST_F(TestNormalLaneChange, AbortCompletionBeforeSearchUsesExistingFlow)
+{
+  lc_param_ptr_->cancel.enable_on_lane_changing_phase=true;
+  AbortReentryProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.beginReturn(); probe.finish_on_check=1; probe.refreshApprovedPlan();
+  EXPECT_EQ(probe.searches,0U); EXPECT_TRUE(probe.isAbortState()); EXPECT_TRUE(probe.returnIntact());
+}
+TEST_F(TestNormalLaneChange, AbortCompletionDuringSearchWinsOverCandidate)
+{
+  lc_param_ptr_->cancel.enable_on_lane_changing_phase=true;
+  AbortReentryProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.beginReturn(); probe.finish_on_check=2; probe.refreshApprovedPlan();
+  EXPECT_EQ(probe.searches,1U); EXPECT_TRUE(probe.isAbortState()); EXPECT_TRUE(probe.returnIntact());
+}
+TEST_F(TestNormalLaneChange, AbortReentryRejectsUnsafeInvalidAndFailedSearchWithoutChangingReturn)
+{
+  lc_param_ptr_->cancel.enable_on_lane_changing_phase=true;
+  for (unsigned mode=0;mode<3;++mode) {
+    AbortReentryProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+    probe.valid=mode!=0; probe.safe=mode!=1; probe.fail=mode==2;
+    probe.beginReturn(); probe.refreshApprovedPlan();
+    EXPECT_TRUE(probe.isAbortState()); EXPECT_TRUE(probe.returnIntact());
+  }
+}
+TEST_F(TestNormalLaneChange, ReentrySearchDoesNotRunForNormalInvalidPlan)
+{
+  AbortReentryProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.refreshApprovedPlan(); EXPECT_EQ(probe.searches,0U); EXPECT_EQ(probe.completion_checks,0U);
+}
+TEST(AbortReentryMotion, QuinticPreservesInitialMotionAndEndsAtTargetWithoutMotion)
+{
+  namespace lc=autoware::behavior_path_planner::utils::lane_change;
+  auto q=lc::ReentryQuintic::to_zero(3.5,0.4,-0.3,5.0);
+  ASSERT_TRUE(q); EXPECT_NEAR(q->at(0),3.5,1e-9); EXPECT_NEAR(q->at(0,1),0.4,1e-9);
+  EXPECT_NEAR(q->at(0,2),-0.3,1e-9);
+  for (unsigned derivative=0;derivative<3;++derivative) EXPECT_NEAR(q->at(5,derivative),0,1e-9);
+  EXPECT_FALSE(lc::ReentryQuintic::to_zero(0,0,0,0));
+}
+TEST(AbortReentryMotion, MeasuredLateralVelocityAndTurningAreNotResetToZero)
+{
+  namespace lc=autoware::behavior_path_planner::utils::lane_change;
+  const auto m=lc::reentry_motion(0.1,10,0.2,-1,0.1,0.05,1,0.01,0);
+  ASSERT_TRUE(m); EXPECT_GT(m->d_velocity,1.0);
+  EXPECT_NEAR(m->d_velocity,10*std::sin(0.1)+0.2*std::cos(0.1),1e-9);
+  EXPECT_NE(m->d_acceleration,0.0);
+  EXPECT_FALSE(lc::reentry_motion(0,-1,0,0,0,0,0,0,0));
+  EXPECT_FALSE(lc::reentry_motion(0,10,0,0,0,0,1,1,0));
+}
+
+TEST_F(TestNormalLaneChange, AbortCandidateStartsAtActualMovingPoseAndCarriesItsSpeed)
+{
+  namespace lc=autoware::behavior_path_planner::utils::lane_change;
+  ros::param::set("/planning/scenario_planning/velocity_smoother/normal/max_jerk",100.0);
+  ros::param::set("/planning/scenario_planning/velocity_smoother/normal/min_jerk",-10.0);
+  auto odom=set_odometry(autoware::test_utils::createPose(1.0,1.8,0,0,0,0.02));
+  odom->twist.twist.linear.x=8.0; odom->twist.twist.linear.y=0.1;
+  odom->twist.twist.angular.z=0.01;
+  planner_data_->self_odometry=odom;
+  normal_lane_change_->setData(planner_data_); set_previous_approved_path();
+  normal_lane_change_->update_lanes(false); normal_lane_change_->update_transient_data(false);
+  lc_param_ptr_->trajectory.lateral_jerk=5.0;
+  lc_param_ptr_->trajectory.lat_acc_map={};
+  lc_param_ptr_->trajectory.lat_acc_map.add(0.0,0.2,6.5);
+  lc_param_ptr_->trajectory.lat_acc_map.add(40.0,0.2,6.5);
+  std::optional<autoware::behavior_path_planner::LaneChangePath> candidate;
+  for (double duration:{4.0,5.0,6.0,7.0}) {
+    candidate=lc::make_abort_reentry_candidate(get_common_data_ptr(),duration,0.0);
+    if (candidate) break;
+  }
+  ASSERT_TRUE(candidate);
+  const auto & first=candidate->path.points.front().point;
+  EXPECT_DOUBLE_EQ(first.pose.position.x,odom->pose.pose.position.x);
+  EXPECT_DOUBLE_EQ(first.pose.position.y,odom->pose.pose.position.y);
+  EXPECT_NEAR(first.longitudinal_velocity_mps,8.0,1e-5);
+  EXPECT_NEAR(first.lateral_velocity_mps,0.1,1e-5);
+  EXPECT_TRUE(lc::contains_lane_change_maneuver(*candidate));
+}
+
+TEST(AbortReentryMotion, ConstantCurvaturePhysicalAccelerationKeepsZeroLateralDrift)
+{
+  namespace lc=autoware::behavior_path_planner::utils::lane_change;
+  auto m=lc::reentry_motion(0,10,0,0,1,0.1,0,0.01,0);
+  ASSERT_TRUE(m); EXPECT_NEAR(m->s_velocity,10,1e-9);
+  EXPECT_NEAR(m->d_velocity,0,1e-9); EXPECT_NEAR(m->d_acceleration,0,1e-9);
+  EXPECT_NEAR(m->slip_rate,0,1e-9);
+}
+
+TEST_F(TestNormalLaneChange, EmptyMandatoryPredictionsAreUnsafeForEveryCandidateType)
+{
+  class PredictionSafetyProbe : public NormalLaneChange
+  {
+  public:
+    using NormalLaneChange::NormalLaneChange;
+    using NormalLaneChange::isLaneChangePathSafe;
+  };
+  PredictionSafetyProbe probe(lc_param_ptr_, lc_type_, lc_direction_);
+  probe.setData(planner_data_);
+  autoware::behavior_path_planner::LaneChangePath path;
+  autoware::behavior_path_planner::CollisionCheckDebugMap debug;
+  const autoware::behavior_path_planner::lane_change::TargetObjects objects({}, {});
+  for (const auto type : {
+      autoware::behavior_path_planner::lane_change::PathType::ConstantJerk,
+      autoware::behavior_path_planner::lane_change::PathType::FrenetPlanner,
+      autoware::behavior_path_planner::lane_change::PathType::SpatialSpeedProfile}) {
+    path.type = type;
+    EXPECT_FALSE(probe.isLaneChangePathSafe(path, {}, objects,
+      lc_param_ptr_->safety.rss_params, debug).is_safe);
+    EXPECT_FALSE(probe.isLaneChangePathSafe(path, {{}}, objects,
+      lc_param_ptr_->safety.rss_params, debug).is_safe);
+  }
+}
+
+class ExecutionPolicyProbe : public NormalLaneChange
+{
+public:
+  using NormalLaneChange::NormalLaneChange;
+  mutable unsigned searches{0}, safety_checks{0};
+  unsigned return_checks{0}, stop_checks{0};
+  bool return_safe{false};
+  bool abort_finished{false};
+  bool preparing{false};
+  bool returning{false}, finished_outbound{false};
+  void seed() {
+    status_.is_valid_path=true; status_.is_safe=true;
+    status_.lane_change_path.info.duration.lane_changing=7.0;
+    unsafe_hysteresis_count_=3;
+    common_data_ptr_->transient_data.dist_to_terminal_end=1e6;
+    common_data_ptr_->transient_data.current_dist_buffer.min=0.0;
+  }
+  bool isEgoOnPreparePhase() const override { return preparing; }
+  void markReentry() { abort_reentry_committed_=ros::Time::now(); }
+  void useCommon(const CommonDataPtr & common) { common_data_ptr_=common; }
+  bool hasMissedLaneChangePath() const override { return false; }
+  bool hasFinishedLaneChange() const override { return finished_outbound; }
+  bool isAbortState() const override { return returning; }
+  bool isAbleToReturnCurrentLane() const override { return false; }
+  bool hasFinishedAbort() const override { return abort_finished; }
+  bool calcAbortPath() override { ++return_checks; return return_safe; }
+  bool isRequiredStop(bool) override { ++stop_checks; return true; }
+  autoware::behavior_path_planner::PathSafetyStatus isApprovedPathSafe() const override {
+    ++safety_checks; return {false,false};
+  }
+  std::pair<bool,bool> getSafePath(autoware::behavior_path_planner::LaneChangePath & path) const override {
+    ++searches; path.info.duration.lane_changing=99.0; return {true,true};
+  }
+  unsigned unsafeCount() const { return unsafe_hysteresis_count_; }
+};
+
+TEST_F(TestNormalLaneChange, ExecutingLaneChangeCannotBeReplacedEvenInAlwaysUpdateMode)
+{
+  lc_param_ptr_->always_update_approved=true;
+  ExecutionPolicyProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.seed(); probe.refreshApprovedPlan();
+  EXPECT_EQ(probe.searches,0U);
+  EXPECT_EQ(probe.safety_checks,0U); // postProcess owns execution safety.
+  EXPECT_DOUBLE_EQ(probe.getLaneChangePath().info.duration.lane_changing,7.0);
+  EXPECT_EQ(probe.unsafeCount(),3U);
+  // Even a speed-readiness prefix on a measured-state reentry is executing.
+  probe.preparing=true; probe.markReentry(); probe.refreshApprovedPlan();
+  EXPECT_EQ(probe.searches,0U);
+  EXPECT_DOUBLE_EQ(probe.getLaneChangePath().info.duration.lane_changing,7.0);
+}
+
+class ExecutionInterfaceProbe : public autoware::behavior_path_planner::LaneChangeInterface
+{
+public:
+  using LaneChangeInterface::LaneChangeInterface;
+  using LaneChangeInterface::canTransitFailureState;
+  using LaneChangeInterface::canTransitSuccessState;
+  using LaneChangeInterface::check_transit_failure;
+  void unsafe() { post_process_safety_status_={false,false}; }
+};
+
+TEST_F(TestNormalLaneChange, NoSafeReturnKeepsExecutingInsteadOfStoppingOrRestarting)
+{
+  using namespace autoware::behavior_path_planner;
+  lc_param_ptr_->cancel.enable_on_prepare_phase=true;
+  lc_param_ptr_->cancel.enable_on_lane_changing_phase=true;
+  auto module=std::make_unique<ExecutionPolicyProbe>(lc_param_ptr_,lc_type_,lc_direction_);
+  auto * probe=module.get(); probe->seed();
+  ros::NodeHandle node("/execution_policy_test");
+  SceneModuleInterface::MarkerInterfaceMap markers;
+  ExecutionInterfaceProbe interface("execution_policy_test",node,lc_param_ptr_,{},markers,nullptr,std::move(module));
+  normal_lane_change_->update_lanes(false);
+  interface.setData(planner_data_); probe->useCommon(get_common_data_ptr()); probe->seed();
+  interface.updateCurrentState();
+  ASSERT_EQ(interface.getCurrentStatus(),ModuleStatus::RUNNING);
+  interface.unsafe();
+  const auto transition=interface.check_transit_failure();
+  EXPECT_EQ(transition.first,LaneChangeStates::Warning);
+  EXPECT_EQ(transition.second,"AbortPathNotFound");
+  EXPECT_FALSE(interface.canTransitFailureState());
+  EXPECT_FALSE(probe->isStopState()); EXPECT_FALSE(probe->isAbortState());
+  EXPECT_GT(probe->return_checks,0U); EXPECT_EQ(probe->stop_checks,0U);
+  EXPECT_DOUBLE_EQ(probe->getLaneChangePath().info.duration.lane_changing,7.0);
+  // Even a usable return must not replace an LC already occupying the target.
+  const auto original_target=get_common_data_ptr()->lanes_polygon_ptr->target;
+  auto & entered_target=get_common_data_ptr()->lanes_polygon_ptr->target;
+  entered_target.clear();
+  for (const auto & xy : std::vector<std::pair<double,double>>{
+      {-100,-100},{0,-100},{0,100},{-100,100},{-100,-100}}) {
+    entered_target.emplace_back(xy.first,xy.second);
+  }
+  probe->return_safe=true;
+  const auto searches_before=probe->return_checks;
+  EXPECT_EQ(interface.check_transit_failure().first,LaneChangeStates::Normal);
+  EXPECT_EQ(interface.check_transit_failure().second,"UnsafeButTargetLaneEntered");
+  EXPECT_FALSE(interface.canTransitFailureState());
+  EXPECT_EQ(probe->return_checks,searches_before);
+  // The decision is current-state based, not an entry-history latch.
+  entered_target=original_target;
+  probe->return_safe=true;
+  lc_param_ptr_->cancel.enable_on_prepare_phase=false;
+  EXPECT_EQ(interface.check_transit_failure().first,LaneChangeStates::Abort);
+  probe->returning=true; probe->finished_outbound=true;
+  EXPECT_FALSE(interface.canTransitSuccessState());
+  EXPECT_EQ(interface.check_transit_failure().first,LaneChangeStates::Abort);
+  EXPECT_EQ(interface.check_transit_failure().second,"AbortingUnsafe");
+  const auto return_searches=probe->return_checks;
+  EXPECT_FALSE(interface.canTransitFailureState());
+  EXPECT_EQ(probe->return_checks,return_searches);
+  probe->abort_finished=true;
+  EXPECT_EQ(interface.check_transit_failure().second,"Aborted");
+}
+
+TEST_F(TestNormalLaneChange, ReturnAndReentryStartAtMeasuredStateAndEndInOppositeLanes)
+{
+  namespace lc=autoware::behavior_path_planner::utils::lane_change;
+  auto odom=set_odometry(autoware::test_utils::createPose(1.0,1.0,0,0,0,-0.02));
+  odom->twist.twist.linear.x=8.0; odom->twist.twist.linear.y=-0.1;
+  odom->twist.twist.angular.z=-0.01;
+  planner_data_->self_odometry=odom;
+  normal_lane_change_->setData(planner_data_); set_previous_approved_path();
+  normal_lane_change_->update_lanes(false); normal_lane_change_->update_transient_data(false);
+  lc_param_ptr_->trajectory.lateral_jerk=5.0;
+  lc_param_ptr_->cancel.max_lateral_jerk=5.0;
+  lc_param_ptr_->trajectory.lat_acc_map={};
+  lc_param_ptr_->trajectory.lat_acc_map.add(0.0,0.2,6.5);
+  lc_param_ptr_->trajectory.lat_acc_map.add(40.0,0.2,6.5);
+  const auto common=get_common_data_ptr();
+  // Swap the lane identities as well: production LEFT and mirrored RIGHT
+  // must use the same measured origin and opposite return/reentry destinations.
+  for (bool left:{false,true}) {
+  auto data=std::make_shared<autoware::behavior_path_planner::lane_change::CommonData>(*common);
+  if (left) {
+    data->lanes_ptr=std::make_shared<autoware::behavior_path_planner::lane_change::Lanes>(*common->lanes_ptr);
+    std::swap(data->lanes_ptr->current,data->lanes_ptr->target);
+    std::swap(data->lanes_ptr->current_lane_in_goal_section,data->lanes_ptr->target_lane_in_goal_section);
+    std::swap(data->current_lanes_path,data->target_lanes_path);
+    data->transient_data.target_lane_length=lanelet::geometry::length3d(
+      lanelet::LaneletSequence(data->lanes_ptr->target));
+  }
+  for (bool returning:{true,false}) {
+    std::optional<autoware::behavior_path_planner::LaneChangePath> candidate;
+    for (double duration:{4.0,5.0,6.0,7.0}) {
+      candidate=returning ? lc::make_abort_return_candidate(data,duration,0.0) :
+        lc::make_abort_reentry_candidate(data,duration,0.0);
+      if (candidate) break;
+    }
+    ASSERT_TRUE(candidate) << "returning=" << returning << " left=" << left;
+    const auto & first=candidate->path.points.front().point;
+    EXPECT_DOUBLE_EQ(first.pose.position.x,odom->pose.pose.position.x);
+    EXPECT_DOUBLE_EQ(first.pose.position.y,odom->pose.pose.position.y);
+    EXPECT_DOUBLE_EQ(first.pose.orientation.z,odom->pose.pose.orientation.z);
+    EXPECT_NEAR(first.longitudinal_velocity_mps,8.0,1e-5);
+    EXPECT_NEAR(first.lateral_velocity_mps,-0.1,1e-5);
+    const auto & destination=returning ? data->current_lanes_path : data->target_lanes_path;
+    EXPECT_NEAR(autoware::motion_utils::calcLateralOffset(
+      destination.points,candidate->info.lane_changing_end.position),0.0,0.05);
+  }
+  }
+}
+
+class ReturnCompletionProbe : public NormalLaneChange
+{
+public:
+  using NormalLaneChange::NormalLaneChange;
+  void seedReturn(const CommonDataPtr & common,const PathWithLaneId & path,size_t end) {
+    common_data_ptr_=common;
+    abort_path_=std::make_shared<autoware::behavior_path_planner::LaneChangePath>();
+    abort_path_->path=path;
+    abort_path_->info.shift_line.end=path.points.at(end).point.pose;
+  }
+};
+
+TEST_F(TestNormalLaneChange, PassingReturnEndOutsideOriginalLaneDoesNotCompleteAbort)
+{
+  normal_lane_change_->update_lanes(false);
+  const auto common=get_common_data_ptr();
+  const auto path=common->route_handler_ptr->getCenterLinePath(common->lanes_ptr->current,0.0,100.0);
+  ASSERT_GT(path.points.size(),5U);
+  ReturnCompletionProbe probe(lc_param_ptr_,lc_type_,lc_direction_);
+  probe.setData(planner_data_); probe.seedReturn(common,path,2);
+  auto odom=set_odometry(path.points.at(4).point.pose);
+  common->self_odometry_ptr=odom; planner_data_->self_odometry=odom;
+  EXPECT_TRUE(probe.hasFinishedAbort());
+  odom->pose.pose.position.y-=3.5;
+  EXPECT_FALSE(probe.hasFinishedAbort());
+  odom->pose.pose=path.points.at(4).point.pose;
+  odom->pose.pose.orientation=autoware::test_utils::createPose(0,0,0,0,0,0.5).orientation;
+  EXPECT_FALSE(probe.hasFinishedAbort());
+}
+
+TEST_F(TestNormalLaneChange, TargetEntryUsesCurrentBodyOverlapRatherThanCenterOrHistory)
+{
+  const auto common=get_common_data_ptr();
+  auto & target=common->lanes_polygon_ptr->target;
+  // Lane boundary x=0; the ego center remains outside while its nose enters.
+  target.clear();
+  target.emplace_back(0.0,-100.0); target.emplace_back(100.0,-100.0);
+  target.emplace_back(100.0,100.0); target.emplace_back(0.0,100.0);
+  target.emplace_back(0.0,-100.0);
+  const double front=common->bpp_param_ptr->vehicle_info.max_longitudinal_offset_m;
+  auto pose=autoware::test_utils::createPose(-front-0.1,0.0,0.0,0.0,0.0,0.0);
+  planner_data_->self_odometry=set_odometry(pose);
+  EXPECT_FALSE(normal_lane_change_->hasEgoEnteredTargetLane());
+  pose.position.x=-front+0.1;
+  planner_data_->self_odometry=set_odometry(pose);
+  ASSERT_LT(pose.position.x,0.0);
+  EXPECT_TRUE(normal_lane_change_->hasEgoEnteredTargetLane());
+  pose.position.x=-front-0.1;
+  planner_data_->self_odometry=set_odometry(pose);
+  EXPECT_FALSE(normal_lane_change_->hasEgoEnteredTargetLane());
 }

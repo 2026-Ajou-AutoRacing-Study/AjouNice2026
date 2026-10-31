@@ -4,6 +4,9 @@ traffic_light/stop_time_hysteresis: 0.1
 traffic_light/yellow_lamp_period: 2.75
 traffic_light/yellow_light_stop_velocity: 1.0
 traffic_light/enable_pass_judge: true
+traffic_light/enable_yellow_passthrough: true
+traffic_light/signal_compliance_yellow_deceleration_mps2: 6.0
+traffic_light/signal_compliance_yellow_jerk_mps3: 10.0
 traffic_light/enable_arrow_aware_yellow_passing: false
 traffic_light/enable_rtc: false
 traffic_light/restart_suppression/min_behind_distance_to_stop: 0.5

@@ -39,6 +39,7 @@
 #include <autoware_planning_msgs/Trajectory.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -73,6 +74,8 @@ private:
 
   // subscriber
   ros::Subscriber sub_trajectory_;
+  ros::Publisher recovery_external_stop_pub_;
+  autoware_perception_msgs::PredictedObjects::ConstPtr recovery_objects_;
   autoware_utils_rclcpp::InterProcessPollingSubscriber<
     autoware_perception_msgs::PredictedObjects>
     sub_predicted_objects_{this, "input/dynamic_objects"};

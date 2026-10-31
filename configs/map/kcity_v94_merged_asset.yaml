@@ -1,0 +1,58 @@
+schema_version: 1
+map_version: 94
+status: source_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v94.osm
+map_sha256: 3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf
+map_md5: ce5047b8abc12f5f26a68a42b6e49a50
+map_storage: team_drive
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+common_base:
+  map_file: kcity_map/lanelet_map/lanelet2_map_v87.osm
+  sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
+teammate_base:
+  map_file: kcity_map/lanelet_map/lanelet2_map_v88-2.osm
+  sha256: dcddeee7defb0ba169d1ec14882f0d8cd98d520839c788c745f22a9d6156be37
+  md5: a9dab5a24c5e712bd1a6aa84a190beef
+stopline_patch:
+  manifest: configs/map/kcity_v93_stopline_candidate.yaml
+  map_file: kcity_map/lanelet_map/lanelet2_map_v93.osm
+  sha256: 363f107d6a1460af6a71c1dc0c129f73f7a1da049686f5df159bf557cd3133e3
+  upstream_shifts_from_v87_m: {A: 0.75, B: 2.60, C: 0.35, D: 2.60}
+  applied_as: exact validated coordinates, not a second relative shift
+  changed_node_ids: [92992, 92993, 92998, 92999, 93020, 93021, 93034, 93035]
+teammate_changes_preserved: true
+non_stopline_change_from_teammate_asset: MetaInfo map_version 88 to 94 only
+teammate_speed_limits: {201451: 70, 201452: 70, 201448: 80, 201479: 80}
+node_count: 151258
+way_count: 4177
+relation_count: 1373
+lanelet_count: 1295
+regulatory_element_count: 78
+duplicate_ids: 0
+dangling_references: 0
+lanelet_parse_errors_with_runtime_extensions: 0
+vmb_validation: not_run
+merge_receipt: planner_logs/analysis/map_v94_merge_261026/merge_receipt.json
+rebuild_tool: scripts/map/merge_signal_stop_lines.py
+drive_remote: ajou_drive_private
+original_upload_remote: ajou_drive
+drive_root_folder_id: 12T1IuT2ZyIYG5IkMDvsPrN1zzf6O43IP
+drive_path: kcity_map/lanelet_map/lanelet2_map_v94.osm
+drive_upload_command_completed: true
+drive_post_upload_metadata_verified: true
+drive_post_upload_metadata_state: size_and_md5_match_via_dedicated_client
+drive_size_bytes: 31908471
+drive_file_id: 1xYkuxl-hTyXbBhOx10PROBzLHj1HaBhv
+required_remote_for_followup: ajou_drive_private
+public_client_fallback_allowed: false
+dedicated_remote_state: authenticated_and_read_verified
+runtime_defaults_changed: true
+runtime_default_scope: source_only_install_and_restart_required
+live_closed_loop_validation_after_merge: focused_A_pass_not_full_stack_certification
+focused_live_validation:
+  execution_id: traffic_light_compliance_A_map_candidate_261026_233610
+  conditions: local Sunny13, OD_GT, actual planning/controller, timed yellow OFF
+  goal_and_final_park: verified
+  final_green_departure_to_original_stopline_moving_rebrakes: 0
+  limitation: earlier red-wait latency/fail-open rebrake observed; B/C/D and LAN full-stack not certified
+inherited_stopline_measurement: v93 lineage, not a new v94 drive certification

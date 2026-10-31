@@ -29,6 +29,8 @@
 #include <pcl/common/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <std_msgs/Bool.h>
+#include <autoware/behavior_velocity_planner/recovery_stop_context.hpp>
 #include <functional>
 #include <memory>
 #include <string>
@@ -69,6 +71,7 @@ FullBehaviorVelocityPlannerNode::FullBehaviorVelocityPlannerNode(ros::NodeHandle
   onParam();
 
   // Publishers
+  recovery_stop_pub_ = this->advertise<std_msgs::Bool>("/planning/recovery/behavior_stop",1);
   path_pub_ = this->create_publisher<autoware_planning_msgs::Path>("output/path", 1);
   debug_viz_pub_ = this->create_publisher<visualization_msgs::MarkerArray>("debug/path", 1);
   processing_time_publisher_ =
@@ -341,7 +344,13 @@ void FullBehaviorVelocityPlannerNode::onTrigger(
   output_path_msg.left_bound = input_path_msg->left_bound;
   output_path_msg.right_bound = input_path_msg->right_bound;
 
-  for (const auto & p : output_path.restore()) {
+  const auto restored_output = output_path.restore();
+  std_msgs::Bool blocked;
+  blocked.data = !planner_data_.current_odometry || hasNewBehaviorStop(
+    input_path_msg->points, restored_output, planner_data_.current_odometry->pose.position);
+  recovery_stop_pub_.publish(blocked);
+
+  for (const auto & p : restored_output) {
     output_path_msg.points.push_back(p.point);
   }
 

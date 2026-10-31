@@ -20,11 +20,15 @@ def in_roi(center,roi=DEFAULT_ROI):
 
 
 def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=None,roi=DEFAULT_ROI,environment_tag=None,
-            box_geometry_policy=BOX_GEOMETRY_POLICY):
+            box_geometry_policy=BOX_GEOMETRY_POLICY, split_overlay=None):
     roi=list(map(float,roi))
     if len(roi)!=6 or not np.isfinite(roi).all() or any(a>=b for a,b in zip(roi[:3],roi[3:])):
         raise ValueError('Invalid LiDAR-frame training ROI')
     calibration=normalized_sensor_calibration(sensor)
+    overlay=None
+    if split_overlay is not None:
+        from base5_layout_split import read_overlay
+        overlay=read_overlay(split_overlay)
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     captures={};failed=[]
     for line in Path(ledger).read_text().splitlines():
@@ -39,11 +43,31 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
     for scene_id,entry in captures.items():
         if entry['status']!='accepted_candidate':review.append(scene_id);continue
         root=Path(entry['capture_root']);meta=json.loads((root/'metadata.json').read_text())
+        if entry.get('training_split_overlay'):
+            reference=entry['training_split_overlay']
+            if overlay is None:
+                from base5_layout_split import read_overlay
+                from base5_capture_safety import sha256
+                if sha256(reference['path'])!=reference['sha256']:
+                    raise ValueError('Derived ledger split overlay checksum differs')
+                overlay=read_overlay(reference['path'])
+            if overlay['overlay_sha256']!=reference['overlay_sha256']:
+                raise ValueError('Derived ledger and explicit split overlay differ')
+        from base5_layout_split import overlay_for_metadata
+        overlay=overlay_for_metadata(meta, overlay)
         if meta.get('calibration_only'):
             review.append(scene_id);continue # empty terrain probes are not training negatives
         if meta.get('sensor_source_sha256') not in (None,calibration['source_sha256']):
             raise ValueError('Capture/conversion sensor calibration checksum mismatch '+scene_id)
         audit=json.loads(Path(entry.get('audit_path',root/'audit.json')).read_text())
+        from base5_scale_capture_contract import registered_variants
+        variants=registered_variants(root,meta)
+        if variants or any('native_corner_geometry' in c or 'native_summary_size_m' in c for c in audit.get('components',[])):
+            from base5_capture_safety import sha256
+            from report_base5_compound_evidence import _validate_native_geometry
+            if sha256(root/'scenario.json')!=entry.get('scenario_sha256'):
+                raise ValueError('Scaled conversion scenario checksum differs '+scene_id)
+            _validate_native_geometry(root,audit['components'])
         if audit.get('review_reasons'):
             review.append(scene_id);continue
         if meta['runtime_actors']:
@@ -75,14 +99,26 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
                 cam2img=intrinsic.tolist(),lidar2cam=lidar2cam.tolist(),
                 lidar2img=(intrinsic@lidar2cam[:3]).tolist(),cam2lidar=np.linalg.inv(lidar2cam).tolist())
         group=meta.get('scene_group_id',entry.get('source_cell_id',scene_id))
+        source_group=group
+        effective_split=meta['split']
+        if overlay is not None:
+            from base5_layout_split import resolve
+            assignment=resolve(overlay,scene_id,entry,meta)
+            group=assignment['group_id'];effective_split=assignment['split']
         token=f'{environment_tag}:{group}' if environment_tag else scene_id
-        splits[meta['split']].append(dict(sample_idx=token,token=token,scene_id=group,
+        record=dict(sample_idx=token,token=token,scene_id=group,
             scene_group_id=group,environment_tag=environment_tag,timestamp=0.,
             lidar_points=dict(lidar_path=mapped(lidar[0]),num_pts_feats=4,lidar2ego=lidar2ego.tolist()),
-            images=images,instances=instances))
+            images=images,instances=instances)
+        if overlay is not None:
+            record.update(source_split=meta['split'],source_scene_group_id=source_group,
+                split_overlay_sha256=overlay['overlay_sha256'])
+        splits[effective_split].append(record)
     metainfo=dict(dataset='base5_independent',classes=CLASSES,box_dim=7,positive_policy=policy,
         sensor_sha256=calibration['source_sha256'],single_frame=True,velocity_target=False,point_cloud_range=roi,range_frame='lidar',
         box_geometry_policy=box_geometry_policy)
+    if overlay is not None:
+        metainfo['layout_split_overlay_sha256']=overlay['overlay_sha256']
     for split,rows in splits.items():
         with (output/f'morai_base5_infos_{split}.pkl').open('wb') as f:
             pickle.dump(dict(metainfo=metainfo,data_list=rows),f)
@@ -91,6 +127,9 @@ def convert(ledger, output, sensor, policy='lidar1_camera0', serialized_root=Non
         box_geometry_policy=box_geometry_policy,
         limitations=['Scene-disjoint link split is not a held-out real-driving test.',
                     'Unsupported components are excluded by explicit evidence policy; all remain in raw audit.'])
+    if overlay is not None:
+        report.update(split_overlay_sha256=overlay['overlay_sha256'],source_split_preserved=True,
+            split_policy=overlay['policy']['policy'])
     (output/'conversion_audit.json').write_text(json.dumps(report,indent=2)+'\n')
     (output/'calibration.json').write_text(json.dumps(calibration,indent=2)+'\n')
     return report
@@ -104,4 +143,5 @@ if __name__=='__main__':
     p.add_argument('--point-cloud-range',type=float,nargs=6,default=DEFAULT_ROI)
     p.add_argument('--environment-tag',help='Unique sample tokens while preserving scene groups across six environments')
     p.add_argument('--box-geometry-policy',choices=[BOX_GEOMETRY_POLICY,LEGACY_BOX_GEOMETRY_POLICY],default=BOX_GEOMETRY_POLICY)
-    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range,a.environment_tag,a.box_geometry_policy),indent=2))
+    p.add_argument('--split-overlay',type=Path,help='Qualified versioned overlay; never edit raw metadata split')
+    a=p.parse_args();print(json.dumps(convert(a.ledger,a.output,a.sensor_config,a.policy,a.serialized_root,a.point_cloud_range,a.environment_tag,a.box_geometry_policy,a.split_overlay),indent=2))

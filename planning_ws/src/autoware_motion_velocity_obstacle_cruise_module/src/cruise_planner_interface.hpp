@@ -44,6 +44,7 @@ public:
   }
 
   virtual ~CruisePlannerInterface() = default;
+  virtual void resetForLongitudinalHandoff() {}
 
   virtual std::vector<TrajectoryPoint> plan_cruise(
     const std::shared_ptr<const PlannerData> planner_data,

@@ -47,7 +47,7 @@ def main():
         ok, blob = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 95])
         assert ok
         images['image/' + frame] = blob.tobytes()
-    calibration = load_sensor4_calibration(root / 'configs/sensors/Sensor.json')
+    calibration = load_sensor4_calibration(root / 'configs/sensors/Sensor_competition_local.json')
     checkpoint = root / 'artifacts/detection3d/bevfusion/releases/base3_bf0_f40_e25/base3_bf0_f40_e25_inference.pth'
     report = dict(contract='Single existing sample, warmed up batch-1 AMP; no trained highres accuracy claim',
                   gpu=torch.cuda.get_device_name(), raw_points=len(points),

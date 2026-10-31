@@ -1,0 +1,29 @@
+# Build with build_vast_training_image.py's allowlisted context, not the repo root.
+ARG TRAINING_BASE_IMAGE=ajounice/bevfusion:team-cu128-v1
+FROM ${TRAINING_BASE_IMAGE}
+ARG SOURCE_REVISION
+ARG BASE_IMAGE_ID
+LABEL org.opencontainers.image.title="AjouNice Base5 offline training" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      ai.ajounice.base-image-id="${BASE_IMAGE_ID}"
+
+RUN python -m pip install --no-cache-dir wandb==0.22.3
+
+# Preserve the base image's compiled CUDA extensions; overlay audited source only.
+COPY third_party/mmdetection3d/ /opt/mmdetection3d/
+COPY perception/ /opt/ajounice/perception/
+COPY dataset/ /opt/ajounice/dataset/
+COPY docker/bevfusion/app/ /opt/ajounice/docker/bevfusion/app/
+COPY configs/sensors/ /opt/ajounice/configs/sensors/
+COPY source_inventory.json /opt/ajounice/source_inventory.json
+COPY verify_vast_training_image.py /opt/ajounice/verify_vast_training_image.py
+RUN mkdir -p /opt/ajounice/third_party \
+    && ln -s /opt/mmdetection3d /opt/ajounice/third_party/mmdetection3d
+
+ENV PYTHONPATH=/opt/ajounice:/opt/mmdetection3d:/opt/ajounice/docker/bevfusion \
+    OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 OPENBLAS_NUM_THREADS=1 \
+    PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WORKDIR /opt/ajounice
+RUN python verify_vast_training_image.py
+# Vast SSH launch mode replaces CMD/ENTRYPOINT. No training starts on boot.
+CMD ["bash"]

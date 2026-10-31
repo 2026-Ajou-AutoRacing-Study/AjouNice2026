@@ -16,6 +16,7 @@
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 
+#include <cmath>
 #include <vector>
 
 namespace autoware::path_optimizer
@@ -54,6 +55,14 @@ StateEquationGenerator::Matrix StateEquationGenerator::calcMatrix(
     // With the reference curvature included, the control variable is the absolute tire angle.
     // This is required for the steering constraint to represent the vehicle's physical limit.
     vehicle_model_ptr_->calculateStateEquationMatrix(Ad, Bd, Wd, p.curvature, p.delta_arc_length);
+
+    // Heading error is measured in each reference point's tangent frame. Subtract
+    // the actual rotation between those frames, rather than a left-endpoint
+    // curvature approximation. Keep the steering linearization terms unchanged.
+    const double yaw_difference = ref_points.at(i).getYaw() - p.getYaw();
+    const double reference_yaw_delta =
+      std::atan2(std::sin(yaw_difference), std::cos(yaw_difference));
+    Wd(1, 0) += p.curvature * p.delta_arc_length - reference_yaw_delta;
 
     A.block(i * D_x, (i - 1) * D_x, D_x, D_x) = Ad;
     B.block(i * D_x, (i - 1) * D_u, D_x, D_u) = Bd;

@@ -34,15 +34,24 @@ COMMENTS = {
     "default_case.timeout_sec": "제어기 준비 후 주행 제한(초). 로드/스택 준비 대기와 별개. 늦게 도착하면 FAIL.",
     "default_case.arrival_mode": "stop: 목적지에서 정지까지 확인. pass_through: 목적지 통과 확인.",
     "stack.pose_source": "localization: 실제 측위, maptf_morai: Ego GT 위치 대조. 빠른 대조는 planning 탭.",
+    'stack.localization_args.gnss_delay_ms': 'GNSS 지연 보상(ms), 0=OFF, 0~100. 추가 대기 없이 위치를 전진 보상. GUI 측위 옆에서 선택. 기존 초 단위 보상과 중복 지정하지 마세요.',
     "stack.detector": "bevfusion: 실제 인지, od_gt: GT 객체 대조. 빠른 대조는 planning 탭.",
-    'stack.bevfusion_model': 'base5_e24=production(기본) 0.40/0.10/0.10, e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.',
+    'stack.bevfusion_model': 'base5_e12=production(기본, TRT+SDPA/cache) 0.40/0.10/0.10, base5_e24/e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.',
     'recording.analysis_mode': 'true=인지 분석. 센서 원본+영상 필수, 마감 후 실제 bag 메시지 수 검사. 기본 basic 모드는 유지.',
     'recording.bag_enabled': 'false=rosbag 프로세스 자체를 실행하지 않음. 실시간 판정·JSON·CSV와 별도 영상 설정은 유지. 생략 시 기존처럼 true.',
     'recording.selected_topics': '직접 선택한 절대 토픽 목록. topic_profile 대신 사용. include_sensors가 true면 센서 5개를 추가.',
     "stack.traffic_light": "이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.",
+    "stack.traffic_light_yellow_passthrough": "기본 true인 판단선 1회 확정 master입니다. 정차 중·첫 관측 황색 출발은 허용하지 않습니다. false로 기존 색 판단에 복귀합니다.",
+    "stack.signal_compliance_enable_timed_yellow": "기본 false. 시간제한 후보는 이 값과 황색 통과 허용이 모두 true여야 작동합니다. 기존 GUI 황색 체크만으로 자동 활성화하지 않습니다.",
+    "stack.signal_compliance_min_yellow_sec": "기본 2.0초. 공식 보장이 아닌 명시적 최소 황색 가정입니다. 최초 황색 관측부터 이 시간을 새로 세지 않습니다.",
+    "stack.signal_compliance_yellow_time_margin_sec": "기본 0.2초. 지연/도달 시간 불확실성 여유이며 검증된 종단 지연 상한은 아닙니다. 최소 황색 시간보다 작아야 합니다.",
+    "stack.signal_compliance_required_green_observations": "기본 1. 서로 다른 신선한 허가 영상 확인 횟수(1~3)입니다. 원래 관측 stamp가 같은 유지 신호는 새 확인이 아닙니다.",
+    "stack.traffic_light_debug_view": "기본 false. true는 YOLO/CNN 디버그 창을 열고, bag ON일 때 디버그 JPEG도 기록합니다. 화면 영상 녹화와 별도입니다.",
     "stack.traffic_light_runtime": "system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.",
     "stack.traffic_light_python": "가상환경 bin/python 경로. conda activate는 필요 없습니다.",
     "stack.traffic_light_device": "GPU 한 개면 '0'. CPU 시험은 cpu. 신호등 off면 사용하지 않습니다.",
+    "stack.traffic_light_profile": "legacy=기존 방식 유지. v5_candidate=명시적 지도+CNN 시험. 후보 설치기 실행 후 새 실험에서 선택합니다.",
+    "stack.traffic_light_models_root": "후보 모델 설치 경로. 기본 ~/.local/share/ajounice/traffic_light_models/v5_3d29ee7f. 기존 실행 사본을 수정하지 않습니다.",
     "network": "MORAI GUI에 실제 Load/Connect한 Sensor/Ego Network와 같아야 합니다.",
     "morai.scenario_install_dir": "auto: 각 PC의 ~/MoraiLauncher_Lin을 찾습니다. 설치 위치가 다를 때만 수정.",
     "validation": "충돌은 1회라도 FAIL. 목적지 도착 반경/정지 기준은 기본값 유지.",
@@ -180,7 +189,8 @@ def updated_yaml(text, document):
     return text
 
 
-def quick_test_document(template, names, *, detector, pose_source, traffic_light):
+def quick_test_document(template, names, *, detector, pose_source, traffic_light,
+                        traffic_light_yellow_passthrough=None, traffic_light_debug_view=None):
     if not 1 <= len(names) <= 2 or len(set(names)) != len(names):
         raise ValueError("planning 빠른 테스트는 JSON 1~2개를 선택하세요")
     if detector not in ("bevfusion", "od_gt") or pose_source not in ("localization", "maptf_morai"):
@@ -194,5 +204,14 @@ def quick_test_document(template, names, *, detector, pose_source, traffic_light
         result["scenarios"]["randomization"]["enabled"] = False
     result["stack"].update(detector=detector, pose_source=pose_source,
                            traffic_light=bool(traffic_light))
+    # This is a temporary provider comparison, never a mutation of the authoring
+    # YAML. Inactive provider arguments must not block the other provider.
+    result['stack'].pop('localization_args' if pose_source == 'maptf_morai' else 'gt_pose_args', None)
+    for key, value in (('traffic_light_yellow_passthrough', traffic_light_yellow_passthrough),
+                       ('traffic_light_debug_view', traffic_light_debug_view)):
+        if value is not None:
+            if type(value) is not bool:
+                raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
+            result['stack'][key] = value
     result.setdefault("upload", {})["enabled"] = False
     return result

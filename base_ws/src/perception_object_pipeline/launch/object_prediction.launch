@@ -4,12 +4,23 @@
   <arg name="output_objects"
        default="/perception/object_recognition/objects"/>
   <arg name="prediction_time_step" default="0.1"/>
-  <arg name="prediction_horizon" default="3.0"/>
+  <!-- Empty overrides inherit config/map_based_prediction.yaml. -->
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="false"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="101"/>
+  <arg name="vehicle_only_corridor_enabled" default="false"/>
+  <arg name="vehicle_only_corridor_route_file"
+       default="$(arg repo_root)/base_ws/src/planning_addons/competition_route_requester/config/kcity_v$(arg map_version)_competition_route.yaml"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="publish_processing_diagnostics" default="false"/>
-  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v85.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
 
@@ -22,7 +33,8 @@
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
-      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <rosparam command="load" file="$(env AJOUNICE_ROOT)/base_ws/src/perception_object_pipeline/config/map_based_prediction.yaml"/>
+      <param if="$(eval arg('prediction_horizon') != '')" name="prediction_horizon" value="$(arg prediction_horizon)"/>
     </node>
   </group>
 
@@ -34,14 +46,24 @@
           respawn="false">
       <param name="publish_processing_diagnostics"
              value="$(arg publish_processing_diagnostics)"/>
+      <param name="diagnostics_auto_on_subscribe"
+             value="$(arg diagnostics_auto_on_subscribe)"/>
       <remap from="~input/objects" to="$(arg input_objects)"/>
       <remap from="~output/objects" to="$(arg output_objects)"/>
+      <remap from="~input/ego_odometry" to="/localization/kinematic_state"/>
       <rosparam command="load"
                 file="$(env AJOUNICE_ROOT)/base_ws/src/perception_object_pipeline/config/map_based_prediction.yaml"/>
       <param name="prediction_time_step" value="$(arg prediction_time_step)"/>
-      <param name="prediction_horizon" value="$(arg prediction_horizon)"/>
+      <param if="$(eval arg('prediction_horizon') != '')" name="prediction_horizon" value="$(arg prediction_horizon)"/>
       <param name="map_file" value="$(arg map_file)"/>
+      <param name="mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+      <param if="$(eval arg('prediction_highway_horizon') != '')" name="highway_prediction_horizon" value="$(arg prediction_highway_horizon)"/>
+      <param if="$(eval arg('prediction_highway_mode') != '')" name="highway_prediction_mode" value="$(arg prediction_highway_mode)"/>
+      <param if="$(eval arg('prediction_highway_current_lane_only') != '')" name="highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+      <param if="$(eval arg('prediction_highway_lane_switch_margin_m') != '')" name="highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
       <param name="projector_file" value="$(arg projector_file)"/>
+      <param name="vehicle_only_corridor_enabled" value="$(arg vehicle_only_corridor_enabled)"/>
+      <param name="vehicle_only_corridor_route_file" value="$(arg vehicle_only_corridor_route_file)"/>
     </node>
   </group>
 </launch>

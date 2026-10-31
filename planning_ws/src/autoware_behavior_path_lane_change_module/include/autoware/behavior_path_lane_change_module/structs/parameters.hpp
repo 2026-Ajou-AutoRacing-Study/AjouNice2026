@@ -136,6 +136,11 @@ struct TrajectoryParameters
   int lon_acc_sampling_num{10};
   int lat_acc_sampling_num{10};
   LateralAccelerationMap lat_acc_map{};
+  bool compact_sampling{false};
+  // Candidate policy only: preparation and safety braking remain permitted.
+  bool allow_decelerating_lane_change{false};
+  std::vector<double> prepare_duration_samples{};
+  std::vector<double> lateral_acceleration_samples{};
 };
 
 struct DelayParameters
@@ -153,6 +158,20 @@ struct TerminalPathParameters
   bool stop_at_boundary{false};
 };
 
+// Cooperative-NPC policy is opt-in. It applies only to the tracked vehicle
+// that ego has passed, never to an arbitrary front/rear object.
+struct OvertakeParameters
+{
+  bool enable{false};
+  bool assume_cooperative_npc{false};
+  double minimum_gap{10.0};
+  double activation_distance{15.0};
+  double minimum_ego_speed{10.0};
+  double npc_reaction_time{1.0};
+  double npc_max_deceleration{3.0};
+  double feedback_timeout{0.5};
+};
+
 struct Parameters
 {
   TrajectoryParameters trajectory{};
@@ -161,6 +180,7 @@ struct Parameters
   DelayParameters delay{};
   TerminalPathParameters terminal_path{};
   FrenetPlannerParameters frenet{};
+  OvertakeParameters overtake{};
 
   // lane change parameters
   double time_limit{50.0};
@@ -191,11 +211,17 @@ struct Parameters
   double th_finish_judge_lateral_diff{0.2};
   double th_finish_judge_yaw_diff{autoware_utils::deg2rad(3.0)};
 
+  // One time budget for allowed maneuver phase lag and persistent non-recovery.
+  double execution_recovery_time{1.0};
+  // false: preserve a safe approval; true: accept any continuous safe replacement.
+  bool always_update_approved{false};
+
   // path miss detection parameters
   double path_miss_threshold_longitudinal{5.0};
   bool enable_path_miss_detection{false};
 
-  // path miss velocity scaling parameters
+  // Legacy configuration keys retained for compatibility. Execution recovery
+  // now uses the single time budget above instead of a speed/metre table.
   std::vector<double> path_miss_velocity_points{0.0, 20.0};
   std::vector<double> path_miss_lateral_thresholds{2.0, 0.8};
 

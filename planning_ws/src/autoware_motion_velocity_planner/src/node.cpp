@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include "node.hpp"
+#include <autoware/motion_utils/trajectory/recovery_collision.hpp>
 #include <autoware/route_handler/route_handler.hpp>
 
 #include "autoware/motion_velocity_planner_common/utils.hpp"
@@ -51,6 +52,7 @@ MotionVelocityPlannerNode::MotionVelocityPlannerNode(ros::NodeHandle private_nod
   planner_data_(std::make_shared<PlannerData>(*this))
 {
   sub_trajectory_=subscribe("input/trajectory",1,&MotionVelocityPlannerNode::on_trajectory,this);
+  recovery_external_stop_pub_=advertise<std_msgs::Bool>("/planning/recovery/external_stop",1);
   sub_lanelet_map_=subscribe("input/vector_map",10,&MotionVelocityPlannerNode::on_lanelet_map,this);
   srv_load_plugin_=advertiseService("service/load_plugin",&MotionVelocityPlannerNode::on_load_plugin,this);
   srv_unload_plugin_=advertiseService("service/unload_plugin",&MotionVelocityPlannerNode::on_unload_plugin,this);
@@ -135,6 +137,7 @@ bool MotionVelocityPlannerNode::update_planner_data(
   processing_times["update_planner_data.accel"] = sw.toc(true);
 
   const auto predicted_objects_ptr = sub_predicted_objects_.take_data();
+  if (predicted_objects_ptr) recovery_objects_=predicted_objects_ptr;
   if (check_with_log(
         predicted_objects_ptr, "Waiting for predicted objects",
         required_subscriptions.predicted_objects))
@@ -304,10 +307,25 @@ void MotionVelocityPlannerNode::on_trajectory(
 
   autoware::motion_velocity_planner::TrajectoryPoints input_trajectory_points{
     input_trajectory_msg->points.begin(), input_trajectory_msg->points.end()};
+  planner_data_->boundary_recovery = input_trajectory_msg->boundary_recovery;
   autoware_planning_msgs::Trajectory output_trajectory_msg;
   try { output_trajectory_msg=generate_trajectory(input_trajectory_points,processing_times); }
   catch(const std::exception & error) { ROS_ERROR("MVP planning failed: %s",error.what()); return; }
   output_trajectory_msg.header = input_trajectory_msg->header;
+  output_trajectory_msg.boundary_recovery = input_trajectory_msg->boundary_recovery;
+  std_msgs::Bool blocked; blocked.data=planner_manager_.externalStop();
+  recovery_external_stop_pub_.publish(blocked);
+  if (input_trajectory_msg->boundary_recovery) {
+    const double age = recovery_objects_ ?
+      (ros::Time::now()-recovery_objects_->header.stamp).toSec() : 1e9;
+    if (!recovery_objects_ || age < -0.05 || age > 0.5 ||
+        recovery_objects_->header.frame_id != output_trajectory_msg.header.frame_id ||
+        !autoware::motion_utils::recoveryCollisionFree(output_trajectory_msg.points,
+          planner_data_->current_odometry.pose.pose,planner_data_->current_odometry.twist.twist.linear.x,
+          *recovery_objects_,planner_data_->vehicle_info_,std::max(0.0,age))) {
+      for (auto & p:output_trajectory_msg.points) p.longitudinal_velocity_mps=0.0;
+    }
+  }
   processing_times["generate_trajectory"] = stop_watch.toc(true);
 
   lk.unlock();

@@ -852,7 +852,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--map", type=str, required=True, help="Lanelet2 OSM path")
     parser.add_argument("--projector", type=str, default="lanelet_map/map_projector_info_v1.yaml")
-    parser.add_argument("--reference-csv", type=str, default="competition_route/v41/drive_course_v41_lanelets.csv")
+    parser.add_argument("--reference-csv", type=str, required=True)
     parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--output-prefix", type=str, default="drive_course")
     parser.add_argument("--utm-projection", type=str, default="+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs")

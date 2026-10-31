@@ -21,6 +21,8 @@
 #include <lanelet2_core/primitives/BasicRegulatoryElements.h>
 
 #include <limits>
+#include <cmath>
+#include <stdexcept>
 #include <memory>
 #include <set>
 #include <string>
@@ -52,6 +54,20 @@ RoundaboutModuleManager::RoundaboutModuleManager(ros::NodeHandle & node)
       require_parameter<double>(node, ns + ".common.path_interpolation_ds");
     rp.common.enable_pass_judge_before_default_stopline = require_parameter<bool>(
       node, ns + ".common.enable_pass_judge_before_default_stopline");
+    // Optional for existing profiles; disabled unless explicitly requested.
+    const auto latch_name = ns + ".common.latch_go_after_stop";
+    if (node.hasParam(autoware_utils_rclcpp::to_ros1_parameter_name(latch_name))) {
+      rp.common.latch_go_after_stop = require_parameter<bool>(node, latch_name);
+    }
+    const auto duration_name = ns + ".common.go_after_stop_min_stop_duration";
+    if (node.hasParam(autoware_utils_rclcpp::to_ros1_parameter_name(duration_name))) {
+      rp.common.go_after_stop_min_stop_duration = require_parameter<double>(node, duration_name);
+    }
+    if (
+      !std::isfinite(rp.common.go_after_stop_min_stop_duration) ||
+      rp.common.go_after_stop_min_stop_duration < 0.0) {
+      throw std::invalid_argument(duration_name + " must be finite and nonnegative");
+    }
   }
 
   // collision_detection

@@ -1,229 +1,125 @@
 # Tracking·Prediction production 현재 상태
 
-상태: **CURRENT**
-마지막 문서·launch 대조: 2026-10-14. 아래 9월 bag 실측은 당시 이력이다.
-현재 detector 선택은 [모델 CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)를 따른다.
-E24 현재 detection pose는 2026-10-14부터 geometric/gravity center다.
-원래 tensor의 bottom center와 혼합하지 않으며 detector·tracker·planner를 정지한 뒤
-새 stack으로 시작한다. [실제 ROS 검토](../../../../docs/bevfusion/261014_LIVE_PERCEPTION_CANDIDATE_REVIEW.md)를 따른다.
-Map-CV 차량 future의 기존 road-Z 수렴은 별도 정책이며 새 중심의 높이 offset을 끝까지
-보존한다고 인증하지 않는다. Coasting·경로 순위는 유지한다. 보행자 association 순위만
-아래 후속 검증을 거쳐 변경했으며 허용 범위와 생성·삭제는 유지한다.
+상태: CURRENT. 문서·launch 대조: 2026-10-29.
+Detector는 [BEVFusion CURRENT](../../../../docs/bevfusion/CURRENT.md#runtime)의 E12이며 E24/E25는 명시적 복귀다.
+현재 E12/E24 detection은 geometric/gravity center다. bottom center와 섞지 않고 fresh stack으로 전환한다.
+과거 bag 실측·긴 설명은 [정리 전 원문](legacy/context_261024/TRACKING_PREDICTION_CURRENT.md)에 보존했다.
 
-## Production 계약
+## Production 경계
 
 ```text
-BEVFusion Base5 E24 DetectedObjects
-  -> EKF tracker
-  -> UNKNOWN stationary policy
-  -> Lanelet2 Map-CV predictor
-  -> /perception/object_recognition/objects
+DetectedObjects → EKF → UNKNOWN stationary policy → Lanelet2 Map-CV → PredictedObjects
 ```
 
-운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector와 localization은 별도
-프로세스이며 동시에 다른 detector나 tracker를 같은 canonical topic에 발행하지 않는다.
+운영 진입점은 `docs/common_alias.txt`의 `tracking`이다. detector·localization은 별도 프로세스며 다른 detector/tracker를 같은 canonical topic에 동시에 발행하지 않는다.
 
-| 구간 | 현재값 |
+| 출력 경계 | Topic |
 |---|---|
 | Detection | `/perception/object_recognition/detection/objects` |
 | Measurement track | `/perception/object_recognition/tracking/measurement_objects` |
 | Motion-policy track | `/perception/object_recognition/tracking/objects` |
 | Prediction | `/perception/object_recognition/objects` |
-| World frame | `map` |
 
-## Tracker
+Production `tracking`/`tracking_prediction.launch`는 Route A/B 공통 구간에서 **판단에 보내는 Prediction만 vehicle-only**로 제한한다. 검출·measurement track·motion-policy track은 그대로 남으므로 이 정책은 객체 분류나 tracker 자체를 고치는 기능이 아니다. C 신호 동적 횡단 객체를 지난 lanelet `200258`의 30m 지점(지도 약 **71,587**)에서 ON, 고주로 끝 lanelet `200088` 종단(약 **202,160**)에서 OFF다. 로터리·고주로 전체를 포함하고 GPS 음영 예제의 가장 가까운 객체까지 해제 지점에서 약 118m다. 전체 그림은 `python3 scripts/evaluation/render_vehicle_only_corridor_map.py --map-version 94 --output /tmp/vehicle_only_corridor.png`로 생성한다. 현재 이 경계는 샘플 장면·v94 bag 기반으로 선택한 것으로 대회 객체 위치의 보장은 아니다.
 
-- 운영 object pipeline은 `pedestrian_gaussian_association_ranking=true`다. 기존 gate를 통과한
-  pedestrian 후보만 Gaussian XY 순위로 정렬한다. 차량·UNKNOWN 비용과 pedestrian 2m 제한,
-  확인·birth·coasting은 그대로다. generic core/standalone launch 기본은 OFF다.
-  [후속 근거](../../../../docs/bevfusion/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)의
-  새 두 사람·실제 ROS·완주 bag에서 사람 대응을 유지하고 ID 교체를 줄였다. 반려동물 동반
-  객체는 별도 관측하며 작은 박스 감소를 정상 구성 객체 누락/중복 제거로 확정하지 않는다.
-  `tracking pedestrian_gaussian_association_ranking:=false` 또는 wrapper의
-  `tracker_pedestrian_gaussian_association_ranking:=false`로 복귀한다. fresh tracker로 비교한다.
+v88/v94 지도 SHA와 Route A/B 경로 일치·ego `map` pose·수신 freshness(0.5초)·주행 방향/횡거리(≤12m)가 모두 맞을 때만 필터링한다. 불명확하면 **fail-open**으로 모든 class를 전달한다. 상태는 `/map_based_prediction/diagnostics/vehicle_only_active`에 `Bool`로 나온다. 임시 복귀는 `tracking vehicle_only_corridor_enabled:=false` 후 fresh stack 재시작이다. standalone `object_prediction.launch`는 기본 OFF다. [경계·저장 bag·로컬 MORAI 대조군](../../../../docs/bevfusion/evidence/261027_VEHICLE_ONLY_PREDICTION_CORRIDOR.md)의 ON/OFF 시험을 실제 측위+실검출+LAN 풀스택 안전성 인증으로 확대 해석하지 않는다.
 
-- Production ROS bridge는 tracker 입력 전에 같은 class의 rotated BEV IoU `0.50` NMS를
-  적용한다. Barricade duplicate가 unmatched detection으로 남아 새 ID를 만드는 현상을
-  막기 위한 production 기본값이며 tracker association gate 변경은 아니다.
-- Confirmed-track 삭제는 detector frame 수가 아니라 message stamp 경과시간을 사용한다.
-  moving track은 `0.50 s`, UNKNOWN 및 2 m/s 이하 CAR/TRUCK은 `1.00 s`까지 bounded
-  coasting한다. Tentative track은 기존 strict 정책을 유지하며 pedestrian에는 긴 정적
-  lifetime을 적용하지 않는다.
-- 이미 mature track이 association된 frame에서는 중심 `0.75 m` 이내의 유사한 큰
-  unmatched box가 두 번째 ID를 만들지 못하게 한다. 이는 detector NMS를 통과한
-  low-IoU shape outlier에 대한 tracker-side 안전장치이며 전역 association gate `5 m`를
-  넓힌 것이 아니다.
-- 같은 E25 detection을 고정해 1배속 회귀한 결과, ID switch는 회전교차로
-  `1 -> 0`, 고주로 합류 `0 -> 0`, 고주로 순항 `0 -> 0`이었다. 고주로 순항은
-  coasting에 따른 FP가 `19 -> 26`으로 소폭 증가했으므로 false occupancy를 계속
-  감시하되, 로터리·고주로에 대한 유의미한 ID 연속성 회귀는 확인되지 않았다.
-- Pedestrian confirmed track은 정적·동적 모두 `0.50 s`만 coasting한다. 저속
-  CAR/TRUCK/UNKNOWN용 `1.00 s` lifetime과 최소 크기 `1.0 m`인 duplicate-birth guard를
-  pedestrian에 확대하지 않는다. 거리 변화 bag의 4명은 4개 ID로 안정적이었지만,
-  횡단 bag의 1명은 3개 ID가 발생했다. 실제 횡단보도 planning 실패가 재현되기 전에는
-  가까운 두 사람을 합칠 위험이 있는 pedestrian 전용 suppression을 추가하지 않는다.
+World frame은 `map`이다. 내부 measurement state·30Hz predicted copy·마지막 detector 관측 age를 구분한다. MORAI `/Object_topic`은 대회에 없으므로 `od_gt`는 부하 분리용 통제 실험이지 production fallback이 아니다.
 
-- motion model: CTRV(`prediction_model=1`).
-- detector position measurement noise: `0.40 m`.
-- detector velocity fusion: `off`; production E24도 7D detector다.
-- detector measurement timestamp state를 current time으로 강제 보상하지 않는다.
-- EKF 내부 scheduler가 30 Hz로 prediction copy를 발행한다.
-- production `tracking` alias의 maximum measurement age는 `0.50 s`다. generic
-  `object_pipeline.launch`와 standalone `tracking_prediction.launch` 기본값 `0.25 s`는
-  연구/직접 실행 호환값이며 운영 alias를 대체하지 않는다.
-- Vehicle yaw는 1.0 m/s 이상에서 motion 방향과 canonicalize하고 enter/exit
-  hysteresis는 `100/80 deg`다.
-- 외부 fixed-rate adapter는 `0 Hz`, 즉 비활성이다.
+## Tracker 운영값
 
-0.50초는 detector frame 지연이나 간헐적 skip에서 track이 즉시 끊기지 않게 하는
-운영 허용치다. 0.50초 동안 새 관측 없이 정확하다는 뜻이 아니므로 detector age와
-prediction coverage를 함께 감시한다.
+| 항목 | 현재 계약 |
+|---|---|
+| 내부 모델 | CTRV(`prediction_model=1`), position noise 0.40m, detector velocity fusion OFF(7D detector) |
+| 출력 시계 | 입력 measurement timestamp state를 current time으로 강제 보상하지 않음. 내부 scheduler 30Hz, 외부 fixed-rate adapter 0Hz |
+| Measurement age | `tracking` alias 0.50s. generic/standalone launch 0.25s는 직접 실행 호환값이며 alias를 대체하지 않음 |
+| Confirmed coasting | moving/pedestrian 0.50s, UNKNOWN 및 2m/s 이하 CAR/TRUCK 1.00s. stamp 경과시간 기준. tentative는 strict 유지 |
+| 중복 입력 | ROS bridge의 same-class rotated BEV IoU 0.50 NMS |
+| Duplicate birth guard | association된 mature track 중심 0.75m 이내 유사한 큰 unmatched box 억제. 전역 gate 5m 확장이 아니며 작은 pedestrian에 확대하지 않음 |
+| 소형 UNKNOWN birth 후보 | `suppress_small_unknown_duplicate_birth=false` 기본 OFF 확정. 5개 실제 ON 대조와 근접 별개 객체의 측정오차 반례를 검토해 승격하지 않음. 명시적 ON 시험 후보로 남김 |
+| 정지 UNKNOWN UUID 연속성 | `stationary_unknown_uuid_continuity=true` 운영 launch 기본 ON. 최근 사라진 정지 객체의 유일한 재검출에 출력 UUID만 계승. `false`로 기존 ID 정책 복귀. EKF state·박스·수명은 불변 |
+| 차량 yaw | 1.0m/s 이상 motion 방향 canonicalize, enter/exit hysteresis 100/80deg |
+| 보행자 순위 | 운영 pipeline `pedestrian_gaussian_association_ranking=true`. 기존 2m gate·birth·수명·차량/UNKNOWN 비용은 유지. generic core/standalone 기본 OFF |
+| 보행자 속도·분류 | **PR 후보**: 기존 EKF 추정 속도·방향·예측 길이를 유지하며 속도 완충 후보는 배포에 포함하지 않음. 공유 SOA/DOA 소유권만 명확한 PED에 동적 진입 ≥0.7m/s·정적 복귀 ≤0.2m/s, 중간은 이전 상태 유지. 시간/관측횟수 대기 없음. 차량·UNKNOWN은 기존 0.5/0.2 유지. 관련 로컬 설치본·기본값 일치 확인 완료, live 재시작은 하지 않음 |
+| UNKNOWN·정적 출력 위치 | `force_unknown_stationary=true`는 UNKNOWN 출력 속도·가속도·yaw rate를 0으로 함. `hold_stationary_output_pose=true` 운영 기본 ON은 known 관측 이력 없는 UNKNOWN 및 정적으로 판정된 CAR/TRUCK/PED의 출력 XY/yaw를 마지막 실제 관측 반영 위치에 유지. 새 관측은 즉시 갱신하며 내부 EKF·속도·association·수명은 유지. UNKNOWN hold는 `force_unknown_stationary=false`에서 해제 |
 
-## Obstacle/UNKNOWN 정책
+보행자 순위 복귀는 `tracking pedestrian_gaussian_association_ranking:=false`이며 fresh tracker로 비교한다. [보행자 근거](../../../../docs/bevfusion/evidence/261014_PEDESTRIAN_ASSOCIATION_AND_LIDAR_MOTION_FOLLOWUP.md)를 따른다.
+0.50초 허용치는 새 관측 없이 정확하다는 뜻이 아니다. detector age·coasting·prediction coverage를 함께 본다. association은 cost 정렬 후 greedy matching이며 Hungarian이 아니다. 정적 출력 위치는 같은 판단 YAML의 `avoidance_object_ownership` 네 값을 읽기만 한다(차량 ≥0.5/≤0.2, PED ≥0.7/≤0.2m/s, 중간은 이전 상태·신규는 정적, 비정상 속도는 동적). 추가 대기시간·객체 삭제·병합은 없다. 복귀는 `tracking hold_stationary_output_pose:=false` 후 재시작이며 통합 launch도 같은 인자를 받는다. 직접 C++/node 기본은 호환용 OFF이고 운영 launch가 ON을 전달한다. 추적기 submodule 갱신·C++ 재빌드·launch 설치·재시작이 필요하다. 25개 native 검사와 로컬 음영 OFF 65초 TIMEOUT/ON 30.35초 PASS·보행자 출발 ON 20.94초 PASS(충돌 0)를 확인했다. 음영 CPU p95가 97.25%/79.565%로 달라 후보 단독 인과·LAN/전체 코스 안전 인증은 아니다. 실제 차량 출발은 미검증이며 UNKNOWN 이동체 누락·정지 객체의 가짜 동적 판정은 남는다. 근거: luv 로컬 `planner_logs/analysis/261029_stationary_output/{shared_final_result.json,shared_replay/result.json}`.
+분류 설정은 `planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml`의 `avoidance_object_ownership/{pedestrian_dynamic_enter_speed,pedestrian_static_enter_speed}`다. PED 진입을 0.5로 바꾸면 기존 분류로 복귀한다. 유효한 유일 최고 확률 PED만 별도 기준을 사용하고, 빈/잘못된/동점 분류는 일반 기준을 따른다. 동적 상태의 class가 바뀌어도 중간 속도에서 임의로 정적으로 바꾸지 않는다. 기존 두 인자 C++ 생성자는 호환 유지, production PlannerData는 별도 PED 값을 전달한다. 입력 객체·예측을 수정하지 않으며 횡단보도는 이 소유권과 별도로 경로를 검사한다. 공용 헤더와 BPP·SOA·DOA 등 소비자를 함께 재빌드해야 하며 updater에 해당 설치 묶음을 포함한다. 임의 최저 속도 강제, 고정 목표속도, 추가 시간 조건은 넣지 않는다.
 
-`force_unknown_stationary=true`다. 최신 관측은 pose와 box를 갱신하지만 tracker가 만든
-가짜 속도·가속도·yaw rate는 prediction 전에 0으로 만든다. 따라서 정적 obstacle은
-현재 위치가 반복되는 stationary path가 되고, Vehicle/Pedestrian은 이 정책의 영향을
-받지 않는다.
+이전 tau0.6 완충 후보는 정지 오판을 줄였으나 실제 출발 시 속도·예측 길이를 낮춰 추가 지연이 생겼으므로 채택하지 않고 로컬 시험 변경으로만 보존했다. 해당 실제 횡단은 ID3 충돌 실패였고 raw 복귀만으로 충돌 해소를 인증하지 않는다(`planner_logs/analysis/261029_pedestrian_live/`). 새 실제 C++ 분류는 기록8개·횡단 기록1개·0.8/3.89m/s 대조4개에서 확인했다: 정지 주 track의 가짜 동적 누적2.614→0.951초, 추가 박스1.839초는 남음. 기존 걷기 추가 진입 지연0~0.073초, 횡단 기록은0.116초이며 이전 완충보다0.200초 빨랐다. 비보행자9,249관측·전체 입력 직렬화·속도·경로는 불변, 보행 중 새 정적 재탈락0이었다. 이는 저장 입력 진단이지 새 실제 주행 성공이 아니다. 실제 저속 GT는 약1.1m/s까지 있고0.3~0.8m/s 지속 실측은 없다. 0.7 미만 지속 보행·큰 정지 속도 잡음·추가 박스·정지 후 속도 꼬리는 한계로 남긴다. 근거는 `planner_logs/analysis/261029_pedestrian_latency_release/`이며 새 MORAI·팀 병합은 수행하지 않았다.
 
-대회에서는 `/Object_topic`이 없으므로 `od_gt`는 production fallback이 아니다. 로컬
-부하 분리와 통제 실험에서만 detector replacement로 사용한다.
+## Map-CV 운영값
 
-## Map-CV
+| 항목 | 현재 계약 |
+|---|---|
+| Map | 팀 production 소스는 `kcity_map/lanelet_map/lanelet2_map_v101.osm`로 고정. 실제 설치본·기존 프로세스의 `map_file`도 별도 확인. 아래 v100 실험은 그 당시 로컬 설정의 기록 |
+| Horizon | **로터리/일반 최대 3초·고주로 최대 10초**, 실제 지도 종단이 먼저면 그 시간까지만 Map-CV. 매칭 자체 실패만 baseline CTRV. step 0.1s |
+| Lane match | 최소 속도 0.5m/s, 거리 ≤3.0m, yaw 오차 ≤45deg |
+| 경로 | 일반/로터리는 start lanelet 최대 3개·최종 path 최대 6개 유지. 고주로 native는 `highway_current_lane_only=true`: 현재 중심이 속한 차로의 후속 경로 1개. centerline lateral convergence 1.5s |
+| 중복 hypothesis | 같은 downstream lanelet·전체 horizon 0.75m 이내 경로를 하나로 묶음 |
+| Confidence | heuristic route score 정규화. calibrated probability가 아님 |
+| Fallback | map 경로 없는 차량은 signed 속도 CTRV, 비차량은 Cartesian CV |
 
-- `tracking` alias가 사용하는 `object_pipeline.launch`의 map 기본값:
-  `kcity_map/lanelet_map/lanelet2_map_v85.osm`. 실제 실행의 `map_file` override도 확인한다.
-- horizon/time step: `3.0 s / 0.1 s`, 현재 pose 포함 31개 pose.
-- minimum map-following speed: `0.5 m/s`.
-- lane match: 거리 최대 `3.0 m`, yaw 오차 최대 `45 deg`.
-- centerline lateral convergence: `1.5 s`.
-- start lanelet 최대 3개, 최종 path 최대 6개.
-- 같은 downstream Lanelet이며 horizon 전체가 `0.75 m` 이내인 중복 궤적은 하나의
-  물리 hypothesis로 묶는다.
-- confidence는 heuristic route score를 남은 hypothesis 사이에서 정규화한다. 실제
-  calibrated probability로 해석하지 않는다.
-- 지도 경로를 못 쓰는 차량은 signed 속도를 보존하는 CTRV fallback을 사용한다.
-  비차량은 Cartesian CV다. 차량 yaw rate가 0일 때만 두 방식이 같은 직선이 된다.
-- 경로 arc index와 고정 지도 segment·bounded route geometry를 재사용하고 독립 메시지
-  복사·동일 순서 DFS로 계산 비용을 줄인다. 6 bag의 10,433 tracking frame·11,021객체를
-  두 번 비교해 직렬화 출력이 정확히 같다. 이 PC의 설치본까지 갱신했으며 예측 정책 변경은 아니다.
+일반/로터리는 현재 위치·yaw로 start lanelet을 순위화하고 routing graph successor를 열거한다. 고주로 단일 경로는 현재 중심의 실제 차로 경계·UUID별 이력으로 선택하고, 전방 후속 중 현재 차로 방향을 가장 잘 잇는 하나만 따른다. 실제 새 차로 진입 후 전환하며 `highway_lane_switch_margin_m=0.2`의 공간 여유로 경계 흔들림을 완충한다. 지도 차로 polygon이 겹치면 현재 중심선 정합이 이 여유 이상 우세해진 차로로 전환한다. 미래 분기를 미리 맞히는 정책이 아니며 출력 confidence 1은 단일 후보 정규화이지 정답 확률이 아니다. `tracking prediction_highway_current_lane_only:=false`로 기존 복수 경로 복귀 후 재시작한다.
+단일 경로 적용 지역은 현재 주변의 명시적 고주로(`speed_limit=150`) 차로로 제한하고, 짧은 지도 연결부에서 복수 경로가 깜박이지 않도록 UUID별 지역 이탈에 최대0.3초 여유를 둔다. 기존 10/3초 지역 판단은 유지하므로 이웃 후속 차로의 메타데이터가 다르면 단일 3초 경로일 수 있다. CTRV 곡률·GT·NPC goal·ego 경로·lanelet ID별 보정은 쓰지 않으며 지도·판단 코드는 변경하지 않는다. Centerline Map-CV와 road-Z 수렴을 유지하며 gravity-center 높이 offset의 미래 보존을 인증하지 않는다.
+사용자는 2026-10-29에 이 고주로 정책의 기본 ON·PR 병합을 승인했다. 단위/메시지 보존 검사와 실제 ROS 입력에서 단일 경로 출력을 확인했지만, 로컬 v100 폐루프 시험은 검출 약3.8Hz·이동 중 native Ego와 측위 위치의 큰 불일치가 섞여 최신 팀 v101/LAN 완주 인증으로 사용하지 않는다. 실제 정차·충돌 이력은 보존하며 CPU가 유일 원인이라고 단정하지 않는다. 중심이 새 차로에 진입하기 전 분기 의도를 미리 맞히지 못하고, 현재 차로 정합 불가·정책 예외에는 기존 예측으로 복귀하므로 모든 경계 프레임에서 한 경로를 보장하지 않는다. 원본 입력·실제 영상·시각 정합 감사는 로컬 `planner_logs/analysis/261029_highway_live/`에 보존했다. 공유 경계의 수치 틈은 기존 차로 polygon 내부·실제 후속 차로·좌우 경계 접속·UUID 이력이 모두 확인되는 2cm 이내에서만 완충하며 진짜 도로 종단·횡방향 이탈에는 적용하지 않는다. 이 이음부 보완은 단위/기록 재생 검증이며 별도 실제 주행 검증은 미완료다. 측위/시간 보정은 추가하지 않는다.
+geometry cache·arc index·독립 메시지 복사·동일 순서 DFS는 출력 동등성을 검증한 계산 최적화다.
+[오프라인 CPU 근거](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)를 따른다.
+현재 통합 설정의 LC는 최고 confidence 정확한 동점 전체, Cruise inside/outside는 1개, 로터리는 ≥0.05 경로를 검사한다. 실제 consumed object/path는 별도 계측해야 하며 RViz Top-K 노출로 추정하지 않는다.
 
-현재 predictor는 CTRV 곡률로 lane rank를 고르는 구조가 아니다. 현재 위치·yaw로
-start Lanelet을 점수화하고 routing graph successor와 연결성을 따라 경로를 열거한다.
-따라서 고주로 인접 차선 Top-1 의도 추정은 tracker history 없이 완전히 해결되지 않는다.
+## 승격 범위와 선택적 후보
 
-모든 planner가 Top-1만 쓰지는 않는다. 현재 통합 설정의 LC는 최고점 정확한 동점 전체,
-Cruise inside/outside는 1개, 로터리는 confidence 0.05 이상 경로를 검사 대상으로 삼는다.
-[49절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014)의
-시작 lanelet 이력은 진단 실행기에만 있고 발행 경로·confidence·production은 변경하지 않았다.
-추가 관측 적합도·횡이동 후보는 [50절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014)의
-별도 bag/30Hz 회귀까지 확인했다. 소수 큰 순위 악화 때문에 운영 정책에는 적용하지 않았다.
-[오프라인 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)의
-계산 최적화는 소스·이 PC의 설치본에 반영했다. 별도 private ROS의 30Hz 600개 입력은
-진단 OFF/ON 모두 누락 없이 기준 wire를 유지했다. 팀장님 배포·실제 폐루프는 미검증이다.
+### 정지 UNKNOWN UUID 연속성 후보
 
-## 최신 팀장님 풀주행 확인 (2026-10-14)
+사용자 승인으로 운영 `tracking`·`tracking_prediction.launch`·통합 `morai_planning_stack.launch`는 UUID 계승 기본 ON이다. `tracking stationary_unknown_uuid_continuity:=false` 또는 통합 launch의 같은 인자로 기존 ID 정책에 복귀할 수 있다. node 직접 실행의 기본값은 OFF이며 `force_unknown_stationary=false`이면 사용하지 않는다. 동시 존재하는 두 객체를 합치거나 검출·track을 삭제하지 않는다.
+이전 UNKNOWN의 0.6초 이상 위치·속도 안정성과, 재검출의 공백 2초 이하·중심 0.35m 이하·footprint IoU≥0.35·형상/높이 일치를 요구한다. 현재 또는 과거 같은 raw track 생애에 1m 이내 다른 raw ID를 봤으면 계승 근거에서 제외한다. 잘못된 이웃 형상·class도 근접 이력에서 지우지 않는다. stamp/단조 publisher seq 역행·긴 callback 공백·동일 stamp의 변경된 입력은 이력을 초기화한다. 정상 uint32 seq wrap은 허용한다.
+신규 선별 34개 bag의 raw 41,206개에서 Woodbox4/7만 계승했고, 별도 LAN 풀주행 raw 11,153개에서는 전체 출력이 동일했다. 위치·크기·class·공분산·속도·stamp·출력 수명은 변경하지 않았으며 detector AP 개선을 뜻하지 않는다.
+실제 격리 ROS 1,086틱의 measurement는 같고 정책/Map-CV의 순차 ID는 3→1이었다. 고정 ego의 실제 BPP/SOA/MPT 대조에서 Woodbox7 후반 전부-0속도 출력은 두 번 모두 38→0틱, 성공 대조군은 0→0이었다. 초기 1틱은 남고, 동일 v99 지도 fixture와 기록 odom에서 계산한 acceleration을 사용했으므로 실제 MORAI 완주 인증이 아니다.
+한 번도 함께 보이지 않은 별개 UNKNOWN이 위치 오차로 같은 형상·위치처럼 보이는 경우는 입력만으로 완전 식별할 수 없다. seq가 항상 0인 publisher의 짧은 tracker-only 재시작도 식별할 수 없다. 다른 네 실패는 단일 객체 최적화·목적지 제외 등 별도 원인이며, 동시 검출 중복 전체를 해결했다고 보지 않는다. NMS·gate·coasting·안전 마진은 유지한다.
+재현과 원문은 로컬 `planner_logs/analysis/261029_duplicate_cases/`의 `uuid_continuity_v2/summary.json`, `uuid_raw_regression/summary.json`, `actual_ros/comparison.json`, `case_audit/planner_replay_REPORT.md`에 보존했다. 재학습은 필요 없으며 새 패키지 설치 후 tracker/policy를 새로 실행해야 한다.
+2026-10-29 후속 강화·반례·최종 source hash는 로컬 `planner_logs/analysis/261029_duplicate_followup/helper_review/`에 보존했다. `processing_time_ms` 기존 선택적 진단 JSON의 `uuid_continuity`에 계승·거절·초기화와 변경 객체 수를 남긴다. 콘솔 출력·새 topic·GT 입력은 추가하지 않는다.
+추가 실제 MORAI 대조는 E12/TRT·측위·실제 판단/제어와 로컬 v100에서 4장면×OFF/ON 8회 모두 완주·충돌 0이었다. Woodbox4는 raw ID 2개→전달 ID 1개·SOA 기억 2→1개, Woodbox7은 raw 3개→전달 2개·기억 3→2개로 실제 계승됐다. 같은 주행의 기존 motion policy 대비 UUID 계승 이외 변경은 없었다. Woodbox7의 남은 재검출은 XY 1.063m·IoU 0.0565로 달라 계승을 거절했으며 gate를 넓히지 않았다. OFF도 모두 완주했고 목표 5m 밖 전부-0 궤적은 양쪽 모두 0이므로 역사적 중도 정지의 완치나 v101·전체 코스 인증이 아니다. 원형·목표·지도·모델·판단 설정을 맞춘 실제 기록과 영상은 로컬 `planner_logs/validation/duplicate_live_paired_261029_083146/`, 독립 감사는 `planner_logs/analysis/261029_duplicate_live/audit_paired/`에 보존했다. 사용자 승인 범위는 UUID 계승만 기본 ON이며 소형 birth 후보는 OFF다.
 
-`full_baseline_00_sample_20261014_012302_01`의 bag·영상·시나리오·실행 파라미터를
-`rosbags/eval/perception/261014_teammate_fullstack/`에 복사했다. Music 원본은 보존했고
-bag SHA256은 `15698fa7c6ec264775c3b0e004980ad46a70cdf057f15e344416a7fd06dfb4d8`이다.
-개별 근거는 `planner_logs/analysis/full_baseline_00_sample_20261014_012302_01/`의
-`audit_v3/audit.json`, `map_v4/geometry_and_node_cost.json`,
-`map_v1/frozen_history_candidate.json`에 둔다. 학습·생성기·운영 정책은 변경하지 않았다.
+설치된 세 진입점의 기본 ON/명시 OFF 복귀 6개 roslaunch expansion도 확인했다. 강제 ON 인자 없이 설치 launch 기본값을 사용한 Woodbox4 추가 실제 주행은 완주·충돌 0·최종 P 확인, raw ID 3→전달 2개와 실제 계승 1회를 기록했다. 소형 후보는 OFF·거리 0.75m였다. 로컬 v100 단일 장면의 배포 경로 확인이지 전체 production 옵션·v101 풀주행 인증은 아니다. `planner_logs/analysis/261029_duplicate_distance_sweep/default_release_independent/`가 독립 근거다.
 
-- 제어 시작/종료 events 사이 약 162.3초에 완주했고, 저장된 CollisionData의 접촉 목록은
-  비어 있다. 해당 구간의 detection은 9.93 Hz, tracking/prediction은 30.00 Hz,
-  최종 trajectory는 9.80 Hz이며 이 토픽들에 0.25초 초과 수신 공백은 없다.
-- 저장된 실행 파라미터에서 LC `use_all_predicted_paths=false`, Cruise outside 1개,
-  로터리 confidence 0.05를 확인했다. 정확한 최고점 동점은 0건이다. 이는 실행 설정 확인이며,
-  모듈이 실제 선택한 object/path index를 기록한 것은 아니다. Top-2가 RViz에 보이는 것과
-  planner가 그것을 소비하는 것은 여전히 구분한다.
-- Scalar/arc-index를 전체 5,461 tracking frame에서 비교해 ROS payload가 정확히 같았다.
-  기록본과 대응 가능한 5,417 prediction payload도 publisher별 `header.seq`만 정규화하면
-  정확히 같다. 소스가 최적화된 버전으로 배포됐음을 이 사실만으로 추정하지 않는다.
-- 로컬 CPU의 arc-index 기준 이후 추가 최적화는 평균 `2.160 -> 0.982 ms`, p95
-  `6.002 -> 2.576 ms`다. 팀장님 PC의 live/LAN 전체 지연이 아니다. 별도 후보 프로세스
-  반복의 최대는 86.976ms이며 GC가 85.285ms를 차지했다. 최대 지연 해결이나 GC OFF를
-  주장하지 않는다. 소스·지도·bag 해시와 분모는 [근거](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#cpu)에 둔다.
-- 같은 Man1에 낮은-IoU 중복 UUID가 붙은 50/4,870프레임과 5개 ID 분절을 확인했다.
-  원본 코어에서 중복 검출 birth→관측 경쟁→기존 ID coasting 만료를 재현했다. 가까운 두
-  사람을 합칠 반례 때문에 threshold/guard를 강화하지 않는다. association 후보는
-  [당시 검토](../../../../docs/bevfusion/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md#tracking) 후
-  위 연결 순위만 후속 적용했다. 해당 과거 bag의 기록 자체는 변경하지 않았다.
-- 고정한 lane-history 후보는 3초 조건부 위치 오차 평균 `4.625 -> 4.623 m`로 거의
-  같고, 변경된 30표본 중 5m 초과 개선 12·악화 9였다. 새 bag으로 재튜닝하지 않았으며
-  기존 운영 미적용 결론을 유지한다. 원거리 저점수 갱신 후보는 raw 센서/저점수 검출이
-  없어서 이 bag만으로 검증할 수 없다.
-- 주행 중 trajectory validator 1,589건 중 7건이 invalid였다(최대 감속 4, 전방 길이 3).
-  주행 중 latency invalid는 0건이고, 시작 전 초기 궤적에서 1건 있었다. MPT 실패 진단도
-  있으므로 완주를 모든 중간 계산의 정상 판정으로 해석하지 않는다. 음영 구간에 배치
-  객체가 없는 이 주행은 그 구간의 객체 상호작용을 검증하지 않는다.
+### 기존 0.75m birth 억제 거리
 
-다음 latency 관측에는 `/perception/base5_trial/status`와
-`/perception/base5_trial/latency_ms`도 필요하다. Base5 trial launch가 canonical 상태
-토픽을 이 namespace로 remap하지만 이번 녹화는 canonical 이름만 요청해 둘 다 빠졌다.
-Detection header→bag 수신 age 평균 237 ms는 scan 누적·전처리·큐·추론 등을 포함할 수
-있으며, 순수 GPU 추론 시간으로 부르거나 고정값을 빼서 보정하지 않는다. 정확한
-Map-CV 입력/출력 stamp·frame·UUID 대응 4,870건의 수신 차이는 평균 3.91 ms지만,
-subscriber별 녹화 순서 차이로 음수 7건도 있어 callback CPU와 같지 않다.
+같은 C++ 코어·34사례·18,039입력을 0.75/1.0/1.25m로 비교했으며 **확정 track 전체 출력은 모두 동일**했다. 늘어난 거리에서는 미확정 UNKNOWN birth 2개만 줄었고 기존 실패 5개·객체 포착 범위·확정 중복은 개선되지 않았다. 반면 74조건×3거리 합성 대조에서는 mature 객체 옆에 늦게 등장한 별개 비겹침 장애물의 새 track을 지속 억제했다. 1.0m는 중심 간격 0.8/1.0m, 1.25m는 1.2m에서도 누락이 생겼으므로 전역 거리는 **0.75m 유지**다. 실제 발생률이나 모든 근접 장면의 보장은 아니다. 근거는 로컬 `planner_logs/analysis/261029_duplicate_distance_sweep/native/REPORT.txt`와 `adjacent_controls/report.json`이다.
 
-추가 녹화는 [노드 지연 실행기](../../../../scripts/README.md#후단과-노드-지연-분석)를
-따른다. Map-CV/UNKNOWN callback 진단은 `publish_processing_diagnostics:=true`로 선택하며
-기본 OFF다. 기존 validator는 수정하지 않았고 디버그를 자동 활성화하지도 않는다.
-C++ 포팅은 lane projection/route geometry 등 CPU 비용이 큰 부분부터 검토하되,
-동일 입력에서 UUID·class·shape·시각·경로 순서·confidence·31개 pose 동등성,
-empty/저속/off-lane fallback, 전체 콜백의 p95/p99·최대 지연·관측 age·queue/drop을
-확인한다. 이미 작은 직렬화 비용만 줄이는 작업보다 센서 누적과 큐, planner 개별
-processing-time 진단을 먼저 분리한다.
+### 소형 UNKNOWN 중복 birth 후보
 
-## 검증과 미구현 항목
+`tracking suppress_small_unknown_duplicate_birth:=true`로 새 스택을 실행한다. 기존 `suppress_duplicate_track_birth=true`도 필요하며 두 후보는 독립적으로 비교한다. 이미 존재하는 두 track을 합치지 않는다. 같은 프레임에 실제 검출을 받은 유일한 mature UNKNOWN과, 새 unmatched UNKNOWN의 raw XY 크기가 모두 1m 미만·XYZ≥0.15m·중심≤0.25m·높이 차≤0.3m·정렬 치수비≤1.5·회전 IoU≥0.45일 때만 새 birth를 막는다. known-class 이력이나 복수 대응이 있으면 적용하지 않는다.
+신규 34bag의 기록 검출 코어 재생에서 UNKNOWN birth 146→145, 중복 GT 대응 frame 863→797이며 0.5/1/2m coverage는 동일했다. 영향은 PE_Drum 한 사례이고 나머지 33개는 동일하다. 추가 21사례 10,082입력의 state·공분산과 14장면 catalog AP는 동일했다. 더 넓은 후보는 보조 객체의 0.5m coverage를 떨어뜨려 제외했다. `planner_logs/analysis/261029_duplicate_followup/native_small_final_summary.json`이 비교·한계·고정 source 근거다.
+native 121개·소형 가드 14개 시험은 통과했지만 측정오차가 있는 근접 실객체는 구별 불가하다. 추가 현재 코어 합성 대조에서 실제 0.4m 물체 둘의 중심 간격 0.6m에 각 +0.23/−0.23m 오차를 주어 관측 간격 0.14m·IoU 0.481로 만들면 기존 NMS 0.5는 둘을 보존하지만 소형 ON은 20회 연속 신규 생성을 막아 확정 2→1개였다. 무오차 대조는 OFF/ON 모두 2개다. 관측된 실제 발생률이 아닌 입력 모호성 반례이며, 기존 1.0/1.25m 거리 확대 반례와도 별개다. 제한된 Drum 개선만으로 이 위험을 감수해 기본 승격하지 않고 OFF를 유지한다.
+이전 8회와 추가 원실패 5개 ON 실제 주행 모두 소형 억제 발동 0회였다. 새 5개는 OFF 3PASS/2STUCK 대비 ON 2PASS/2STUCK/1COLLISION, 최종 정지/P 5/5였다. Barricade의 PASS→충돌 변화도 억제 발동이 없어 삭제 부작용이나 기능 효과로 단정하지 않는다. 원형·목적지·goal 제외거리는 같고 실제 주요 파라미터 차이는 해당 플래그 하나였다. 충돌 후 안전 중단·P 확인과 정상 재개로 나머지를 수행했으며 안전 gate·판정 이력을 우회하지 않았다. 현재 로컬 v100·독립 센서 입력 대조이고 ON 5개 완주 인증이나 최신 팀 지도/코드 인증이 아니다. 로컬 `planner_logs/analysis/261029_small_guard_on/{decision.json,comparison/summary.json,nearby_counterexample_results.xml}`에 조건·부하 혼재·원본 bag/영상 경로를 보존했다.
 
-모델 선택은 Detection만 보지 않고 같은 mission bag의 Tracking center/AVE, speed error,
-Map-CV 1/2/3초 top-1 및 minFDE-K를 함께 본다. 최신 detector 및 tracker 근거는
-[근거 인덱스](../../../../docs/bevfusion/README.md#evaluation)를 따른다.
-과거 velocity A/B는 [9월 근거](../../../../docs/bevfusion/260919_HIGHWAY_TRACKER_VELOCITY_ABLATION.md)에서만 재현한다.
+### 기존 후보와 지도 예측 계약
 
-2026-10-12 원거리 실제 ROS 기억 A/B는 현재 bounded coasting을 유지하고 1/2초 확대를
-채택하지 않았다. 자세한 분모·중복·잔류 제한은
-[41절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-far-bag-coasting-261012)을 따른다.
-실제 planner의 기억이나 안전성을 이번 tracker 시험으로 인증하지 않는다.
+- 현재 source 기본 10초는 팀 planning `3e598eb5` 통합으로 넘어온 `config/map_based_prediction.yaml`의 고주로 설정이다. 일반 3초는 유지하며 설치·tracking 재시작 전 live 값은 별도로 확인한다. 이전 8초 시험을 새 10초 폐루프 인증으로 전용하지 않는다.
+- 이전 승인·검증 기록(2026-10-24): 사용자·판단팀은 고주로 최대 8초·로터리 최대 3초를 승인했고 NPC 소멸 종단이 먼저면 5.6초·1.8초처럼 가용 Map-CV만 출력했다. CTRV 8초·직선 연장·끝점 padding은 쓰지 않았다. [당시 설정·근거](HIGHWAY_EIGHT_SECOND_HANDOFF.md)는 그 revision의 기록이며 현재 10초 기본값의 근거로 대체하지 않는다.
+- 고주로 저속/정지도 지도 근거가 있으면 Map-CV를 사용한다. 방향 매칭 실패는 명확한 고주로 위치·도로 방향 합의가 있을 때 미래 경로만 복구한다. 현재 상태·score·수명은 불변이며 오검출 판별기가 아니다. 소멸차선의 종단을 무조건 지도 결함으로 단정하지 않는다. 기존 3/6초 시험은 [당시 기록](MIXED_PREDICTION_HORIZON.md)에 보존한다.
+- [관측 일관성 후보](OBSERVATION_CONSISTENCY_REVIEW.md)의 `shape_consistent_association_ranking=false`, `guard_inconsistent_class_transitions=false`를 유지한다. [실제 ROS·Cruise 확인](OBSERVATION_CONSISTENCY_ROS_VALIDATION.md)은 LC·로터리·최종 제어 폐루프 인증이 아니다.
+- 긴 coasting 0.75/1/2초, mature 차량 전용 확대, 빠른 차량 승격, 저점수 EKF 갱신, 초기 방향 guard, 재취득 공분산/reset, lane history·횡이동 순위 후보는 운영 미적용이다.
+- 저장 검출 재생·실제 코어·격리 ROS·새 bag·실제 LAN·planner 폐루프를 서로 대체하지 않는다. E12 코어 결과를 새 TRT ROS 30Hz 인증으로 전용하지 않는다.
+- detector 9D velocity fusion·temporal lane association·planning track-age gate는 별도 후속이다. 전역 5~7m 병합·속도 강제 양수화·원거리 라벨 삭제는 적용하지 않는다.
 
-2026-10-13 E24 고정 실제 ROS A/B에서 중복 birth guard OFF는 근접 대응 887/897을
-늘리지 못하고 O02 전체 미대응을 531→748로 늘렸다. 빠른 차량 승격 ON은 R01 관측
-1건만 개선해 기존 OFF를 유지한다. [bag·planning 검토 46절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-tracker-planning-policy-review-261013)을 따른다.
-30Hz tracking의 새 출력 stamp를 최신 detector 관측으로 해석하지 않는다. 설치 binary의
-소스 반영 여부와 실제 관측 age를 별도로 확인한다.
+## 진단과 근거 선택
 
-2026-10-14 [차량 초기 방향과 재취득 검증](../../../../docs/bevfusion/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md)은
-실제 코어와 격리 ROS의 측정·출력 시계를 분리했다. 초기 방향 가드는 시험 원형이며
-운영에 설치하지 않았다. P+R 연결 후보는 ID 유지 이득에도 복구 속도·미래 위치 악화가
-남아 보류한다. 5~7m 전역 병합이나 차량 속도 강제 양수화는 적용하지 않는다.
-같은 검토에서 입력 generation별 완료 확인·완성 패킷 commit으로 정상 pending 입력의
-경합·TF 실패 손상을 수정했다. source와 이 PC 설치본에 반영했고 정상 1,825개 입력의
-네 모드×5,486개 ROS 출력은 수정 전과 wire-exact다. 팀 planning 후속 통합은 별도다.
+`publish_association_diagnostics` 강제 ON 기본은 false다. 최신 binary의 `diagnostics_auto_on_subscribe=true`는
+녹화기가 구독할 때 `/perception/object_recognition/tracking/diagnostics/association` JSON을 발행한다.
+입력 stamp/index·ID/UUID·연결/생성/억제/coasting/삭제·class vote와 최대 256행/누락수를 기록하며 정책은 바꾸지 않는다.
+`snapshot_phase`·`candidate_scope`를 함께 읽고 최근접 한 후보의 gate 이유를 전체 후보로 일반화하지 않는다.
+구독자 없이는 상세 수집/직렬화하지 않으며 `tracking diagnostics_auto_on_subscribe:=false`로 자동 모드를 끈다.
+인자는 motion-policy·Map-CV에도 전달된다. 구버전 실행 노드는 자동 교체·재시작되지 않는다.
+기존 `measurement_objects`는 30Hz copy이므로 assignment 진단을 대체하지 않는다.
+processing 진단의 강제 ON 기본도 OFF다. [LAN 계측 절차](../../../../scripts/README.md#lan-두-pc를-함께-계측하기)를 따른다.
 
-같은 날 [독립 차량·패킷 검증](../../../../docs/bevfusion/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md)의
-새 고주로/회전 6회와 E24 3,325개 새 장면 입력을 대조했다. 방향 가드는 정상 출력과
-정확히 같지만 신뢰 이력이 아직 없는 생성 후 0.152초의 반전 1개는 수정하지 못했다.
-재취득 공분산 분리/reset도 ID 이득과 별개로 실제 Map-CV 개별 악화가 남아 운영 미적용이다.
-실제 50의 단일 source batch와 수신 age 감소를 확인하고 2026-10-14 사용자 승인으로
-LiDAR 운영 기본값을 50에 전환했다. 900 RPM·첫 패킷 stamp는 유지하며 51은 명시적 복귀 값이다.
-이 전환은 tracker 가드·복구 후보의 활성화나 LAN 풀스택 검증 완료를 뜻하지 않는다.
+| 검토 | 근거 |
+|---|---|
+| E12 14장면 tracker·속도·3/5/6초·CV/CTRV | [64절](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-tracking-map-horizon-261023), [65절](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#e12-map-motion-ablation-261023) |
+| 낮은 score EKF·planner path 소비·lane 후보 | [48절](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013), [49절](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-path-consumers-261014), [50절](../../../../docs/bevfusion/evidence/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-map-cv-candidates-261014) |
+| 입력 경합·TF pending 수정·차량 재취득 후보 | [차량 검증](../../../../docs/bevfusion/evidence/261014_VEHICLE_DIRECTION_REACQUISITION_REVIEW.md), [독립 검증](../../../../docs/bevfusion/evidence/261014_INDEPENDENT_VEHICLE_AND_LIDAR_50_51_REVIEW.md) |
+| 과거 완주 bag·분모·한계·C++ 전환 gate | [정리 전 상세](legacy/context_261024/TRACKING_PREDICTION_CURRENT.md#최신-팀장님-풀주행-확인-2026-10-14), [노드 검토](../../../../docs/bevfusion/evidence/261014_OFFLINE_SENSOR_TRACKING_NODE_REVIEW.md) |
 
-다음은 현재 production 기본 경로로 채택하지 않은 후속 과제다.
-일부 시험 코드·옵션이 존재하는 것과 production 활성화는 다르다.
-
-[원거리 개선 계획](../../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)에 따라
-저장 검출 다음에 실제 EKF의 독립 코어 복사본으로 낮은 score 갱신 12프로필을 비교했다.
-이동·클래스 안정·XY 갱신 원형만 후보로 유지하며 [48절](../../../../docs/bevfusion/261010_BASE5_INPUT_POOL_OPTIMIZATION_EVIDENCE.md#base5-low-score-core-probe-261013)에 효과와 한계를 기록했다.
-설치된 코어·ROS node·launch는 미변경이고 production은 여전히 높은 score만 입력한다. 지도 보조는 미구현이다.
-현재 Map-CV는 검출 삭제 필터가 아니며, 현재 Lane Change의 최고 confidence 동점 처리를 실제 실행값과 대조한다.
-현재 코어의 association은 cost 정렬 후 greedy matching이다. Hungarian으로 설명하지 않는다.
-
-- 기본 horizon 5초와 로터리 3~4초의 map-zone-aware 전환.
-- tracker history를 이용한 temporal lane association과 Top-1 안정화.
-- detector 9D velocity를 tracker update에 fusion.
-- Planning의 추월 gap 판단을 위한 track-age/confidence gate.
-
-위 항목은 localization 및 Base4 velocity pilot과 동시에 바꾸지 않는다. 기존 v60
-PointPainting/Map-CV 수치와 초기 도입 계획은 [`legacy/`](legacy/)에만 보존한다.
+LiDAR 50/51·900RPM·첫 패킷 stamp는 센서 담당 계약이다. 이 문서 정리로 센서·설치본·실행 상태를 변경하지 않았다.

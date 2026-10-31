@@ -10,6 +10,33 @@
 
 namespace autoware::path_optimizer
 {
+class FullFootprintRoadChecker
+{
+  using Point = boost::geometry::model::d2::point_xy<double>;
+  using Polygon = boost::geometry::model::polygon<Point>;
+  Polygon road_;
+  bool valid_{false};
+public:
+  FullFootprintRoadChecker(const std::vector<geometry_msgs::Point> & left,
+                          const std::vector<geometry_msgs::Point> & right) {
+    for (const auto & p:left) road_.outer().emplace_back(p.x,p.y);
+    for (auto i=right.rbegin();i!=right.rend();++i) road_.outer().emplace_back(i->x,i->y);
+    boost::geometry::correct(road_);
+    valid_=left.size()>1 && right.size()>1 && boost::geometry::is_valid(road_);
+  }
+  bool contains(const geometry_msgs::Pose & pose,
+                const autoware::vehicle_info_utils::VehicleInfo & v) const {
+    if(!valid_)return false;
+    Polygon footprint;
+    const double yaw=tf2::getYaw(pose.orientation),c=std::cos(yaw),s=std::sin(yaw);
+    for(const auto & p:std::vector<Point>{{v.wheel_base_m+v.front_overhang_m,v.vehicle_width_m/2},
+        {v.wheel_base_m+v.front_overhang_m,-v.vehicle_width_m/2},
+        {-v.rear_overhang_m,-v.vehicle_width_m/2},{-v.rear_overhang_m,v.vehicle_width_m/2}})
+      footprint.outer().emplace_back(pose.position.x+c*p.x()-s*p.y(),pose.position.y+s*p.x()+c*p.y());
+    boost::geometry::correct(footprint);
+    return boost::geometry::covered_by(footprint,road_);
+  }
+};
 inline bool isAlignedWithEgoPose(
   const geometry_msgs::Pose & planned, const geometry_msgs::Pose & measured)
 {
@@ -20,9 +47,12 @@ inline bool isAlignedWithEgoPose(
 }
 
 inline std::optional<size_t> firstCurvatureViolation(
-  const std::vector<TrajectoryPoint> & points, size_t start, size_t end, double limit)
+  const std::vector<TrajectoryPoint> & points, size_t start, size_t end, double wide_limit)
 {
   if (points.size() < 3) return std::nullopt;
+  // Adjacent-point curvature has its own geometric threshold [1/m]. The wider
+  // estimate below still uses the vehicle-model limit supplied by the caller.
+  constexpr double local_curvature_limit = 0.4;
   std::vector<double> arc(points.size(), 0.0);
   for (size_t i = 1; i < points.size(); ++i) {
     arc[i] = arc[i - 1] + std::hypot(points[i].pose.position.x - points[i - 1].pose.position.x,
@@ -42,7 +72,7 @@ inline std::optional<size_t> firstCurvatureViolation(
       const double local_curvature = 2.0 * std::abs(
         (local_b.x-local_a.x)*(local_c.y-local_a.y) -
         (local_b.y-local_a.y)*(local_c.x-local_a.x)) / local_denominator;
-      if (!std::isfinite(local_curvature) || local_curvature > limit + 1e-3) return i;
+      if (!std::isfinite(local_curvature) || local_curvature > local_curvature_limit) return i;
     }
     size_t lo = i - 1, hi = i + 1;
     while (lo > 0 && arc[i] - arc[lo] < 1.0) --lo;
@@ -54,7 +84,7 @@ inline std::optional<size_t> firstCurvatureViolation(
       std::hypot(c.x-a.x,c.y-a.y);
     if (denominator < 1e-8) continue;
     const double curvature = 2.0 * std::abs((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)) / denominator;
-    if (!std::isfinite(curvature) || curvature > limit + 1e-3) return i;
+    if (!std::isfinite(curvature) || curvature > wide_limit + 1e-3) return i;
   }
   return std::nullopt;
 }

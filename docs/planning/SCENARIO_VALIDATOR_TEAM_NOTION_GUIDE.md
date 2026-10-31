@@ -166,7 +166,7 @@ bash scripts/map/download_kcity_map_assets.sh
 /usr/bin/python3 scripts/map/check_runtime_map_version.py
 ```
 
-현재 브랜치의 기준 맵은 lanelet2_map_v85.osm입니다. 다운로드 스크립트는 맵을 받은 뒤 원격과 비교하고, 위 검사는 런타임 참조와 맵 해시를 확인합니다. 다운로드 도중 껐으면 같은 명령으로 다시 받으면 됩니다.
+현재 브랜치의 기준 맵은 lanelet2_map_v87.osm이며 Git checkout에 포함됩니다. 위 검사는 런타임 참조와 맵 해시를 확인합니다. 별도 Drive 자산의 다운로드 도중 껐으면 같은 명령으로 다시 받으면 됩니다.
 
 기존 파일이 원격과 다르면 immutable 오류가 날 수 있습니다. 기존 맵을 무조건 덮어쓰거나 폴더 전체를 지우지 말고, 충돌한 파일을 백업한 뒤 다시 받아 주세요.
 

@@ -112,7 +112,7 @@ def main():
     reference_node, node_digest = reference_module(ref, prefix+"scripts/map_based_prediction_node.py", "cpu_reference_node")
     reference_policy, policy_digest = reference_module(ref, prefix+"src/perception_object_pipeline/object_motion_policy.py", "perception_object_pipeline.cpu_reference_policy")
     config = yaml.safe_load((PACKAGE/"config/map_based_prediction.yaml").read_text())
-    map_file = ROOT/"kcity_map/lanelet_map/lanelet2_map_v85.osm"
+    map_file = ROOT/"kcity_map/lanelet_map/lanelet2_map_v87.osm"
     projector = ROOT/"kcity_map/lanelet_map/map_projector_info_v1.yaml"
     modes = ("reference", "candidate") if args.timing_mode == "paired" else (args.timing_mode,)
     cores = {"reference": reference_core, "candidate": candidate_core}
@@ -140,7 +140,7 @@ def main():
                   "Deserialization is outside callback timing; message generation and explicit wire serialization are timed separately.",
                   "Normal GC remains enabled; all tails included; cProfile only in a separate pass.",
                   "First 30 input frames excluded from timing, never from full wire equality.",
-                  "Map uses current v85 and production config for every case, not a claim to reproduce historic map output."]}
+                  "Map uses current v87 and production config for every case, not a claim to reproduce historic map output."]}
     profile_samples = []
     for bag_path in args.bag:
         frames = []

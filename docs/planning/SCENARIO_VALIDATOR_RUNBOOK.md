@@ -1,5 +1,63 @@
 # 시나리오 검증기 짧은 사용법
 
+## 시간제한 황색 후보 설정 (2026-10-26)
+
+새 시간제한 정책은 **기본 OFF인 시험 후보**다. 기존 GUI의 `황색 통과 허용`은 계속
+master switch이며 아래 `signal_compliance_enable_timed_yellow`까지 모두 true일 때만
+시간제한 후보가 선택된다. GUI 체크만 켠다고 이 후보를 자동 선택하지 않는다.
+고급 값은 편집용 YAML의 `stack`에 넣으며 GUI 저장·빠른 시험에서도 보존한다.
+
+```yaml
+stack:
+  traffic_light_yellow_passthrough: true
+  signal_compliance_enable_timed_yellow: true
+  signal_compliance_min_yellow_sec: 2.0
+  signal_compliance_yellow_time_margin_sec: 0.2
+  signal_compliance_required_green_observations: 3
+```
+
+`2.0초`는 공식 보장값이 아닌 최소 황색 가정이다. `0.2초`도 검증된 종단 지연 상한이 아니다.
+최초 황색 관측부터 이 시간을 새로 세는 의미가 아니며 주행 검증·패널티 보장은 별도다.
+허가 확인 횟수는 정수 1~3(기본 3), 최소 황색은 0초 초과 10초 이하,
+시간 여유는 0 이상 최소 황색 미만이다. 문자열·NaN·무한대·bool 숫자는 거부한다.
+새 실행 사본은 네 값을 명시적으로 동결한다. 구 snapshot은 수정하지 않고 새 값이 없으면
+기존 3회·시간제한 OFF 의미를 유지하며, 기존 hash/resume 보호는 완화하지 않는다.
+
+## 신호등 검증·전방 디버그 화면 (2026-10-26)
+
+기본 탭의 같은 행에 **신호등 인지 / 황색 통과 허용 / 신호등 디버그 화면 / 화면 영상 녹화**가 있다.
+새 두 체크는 기본 OFF다. 황색 체크는 선 전의 통과 예외만 허용하며, OFF여도 이미 앞축이 선을 넘은
+차량을 해당 신호만으로 교차로 안에 묶지 않는다. ON은 황색 잔여시간/무패널티 보장이 아니다.
+현재 샘플 A/B/C 황색과 D의 두 황색은 관측상 약 3초이며 대회 고정값으로 가정하지 않는다.
+설치 후 기존 GUI를 정상 종료하고 `./planning_validator_gui`로 다시 연다.
+신호등만 먼저 보려면 전체 코스 개인 YAML에서 탐지 `od_gt`·측위 `localization`, 신호등 ON·디버그 ON·영상 ON,
+황색 OFF로 **새 실험 시작**한다. 기본 bag에는 디버그 영상 토픽도 요청하며 bag OFF는 유지한다.
+다른 수동 스택과 동시에 실행하지 않는다. 영상은 전체 화면이므로 디버그 창이 보이게 둔다.
+원본 JPEG까지 원하면 토픽 선택에 `/sensor/camera/front/compressed`를 추가한다.
+세부 옵션·과거 snapshot 구분은 [배포 안내](../perception/traffic_light/V5_CANDIDATE_HANDOFF.md#validator-황색-스위치전방-디버그-녹화)를 따른다.
+
+팀장님 PC의 임시 LAN-to-LAN 개발 오류는 [전용 확인 절차](SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 봅니다.
+대회용 절차가 아니며 현장점검에서 검증된 실행·네트워크 설정은 변경하지 않습니다.
+
+## LAN 종료코드 2와 시작 전 실패 로그
+
+`--check`와 새 실행 준비는 실제 ScenarioLoad 슬롯의 `hostIP`와 YAML의
+`morai.scenario_load_host`가 서로 다른 구체적 IPv4인지 검사한다. `_local`/`_lan` 파일명보다
+실제 JSON 내용을 기준으로 한다. 불일치한 과거 사본을 수정하지 말고 원본 YAML을 고쳐 새 실험을 만든다.
+Sensor/Ego의 수신 IP가 다르면 여러 NIC를 의도한 것인지 경고하며, 실제 수신을 인증하지 않는다.
+
+이미 수동 `udp_lan`·인지·planning·제어 등이 실행 중이면 기존 publisher 충돌로 시작이 거부된다.
+MORAI GUI의 Connect와 ROS 스택 실행은 별개다. 수동 스택은 정상 종료하고 validator가 소유하게 한다.
+외부 노드를 강제 종료하거나 중복 제어를 허용하는 방식으로 검사를 우회하지 않는다.
+
+장면이 시작되기 전 실패도 결과 루트의 `startup_error.json`, `startup_status.json`,
+`stack_logs/startup_error.log`에 단계와 원문 오류를 남긴다. GUI 실행의 전체 출력은
+`stack_logs/runner_console.log`에 보존한다. GUI 종료 상태도 숫자만 아니라 실패 단계/원인을 표시한다.
+`traffic_light_preflight.log`의 PASS는 모델 검사 결과이며 자식 프로세스의 정상 종료까지 뜻하지 않는다.
+실제 종료코드·PASS 이후 프로세스 실패 여부는 `stack_logs/traffic_light_preflight.json`을 확인한다.
+정상 재시도 완료 뒤에는 `startup_status.json`이 COMPLETED이고, 과거 실패 파일은 증거로 남는다.
+이 진단 보완은 모델·threshold·planner·localization 튜닝을 바꾸지 않는다.
+
 ## 측위 에이전트의 GPS 음영 A/B (2026-10-14)
 
 GUI 녹화 모드에 **측위 분석 (센서 원본 제외)**를 추가했습니다. GNSS·IMU·Competition·

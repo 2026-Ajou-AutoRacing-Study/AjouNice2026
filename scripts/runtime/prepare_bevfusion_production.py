@@ -29,8 +29,8 @@ def prepare(args):
             if digest(args.source_checkpoint)!=p['sha256']:raise ValueError('Source checkpoint hash differs')
             shutil.copyfile(args.source_checkpoint,target)
         else:
-            if args.model=='e25':
-                raise ValueError('E25 rollback requires existing weights or --source-checkpoint; the legacy setup downloads its pinned archive')
+            if args.model!='e24':
+                raise ValueError('Selected model requires existing weights or --source-checkpoint; use install_base5_production.sh for the E12 ZIP or the legacy E25 setup')
             # Tokens stay in the user's rclone config, never in a command or receipt.
             remote_path='model/bevfusion/production/base5_e24_261013/E24.pth'
             subprocess.run(['rclone','copyto',args.remote+':'+remote_path,str(target),
@@ -45,7 +45,7 @@ def prepare(args):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model',choices=('e24','e25'),default='e24')
+    parser.add_argument('--model',choices=('e12','e24','e25'),default='e12')
     parser.add_argument('--source-checkpoint',type=Path)
     parser.add_argument('--remote',default='ajou_drive')
     parser.add_argument('--drive-root',default=DRIVE_ROOT)

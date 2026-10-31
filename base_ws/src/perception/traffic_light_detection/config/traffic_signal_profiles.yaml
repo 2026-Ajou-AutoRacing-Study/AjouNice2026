@@ -18,10 +18,17 @@ signal_assignments:
 profiles:
   simple_3color:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE]
+    # Production direct observations: preserve genuine lamps; contradictory
+    # combinations abstain rather than inventing an observed red/green.
+    observed_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE]
     valid_phases:
       - [RED_CIRCLE]
       - [YELLOW_CIRCLE]
       - [GREEN_CIRCLE]
+    # Historical normalization below is used only by explicit legacy smoothing.
     corrections:
       # A/B phase order is R -> G -> Y -> R; neither R+G nor R+Y ever occurs,
       # so both are false positives. Prefer the observed red, same rule as C/D-2.
@@ -31,6 +38,12 @@ profiles:
 
   straight_left_combined:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
+    observed_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE]
+      - [GREEN_LEFT_ARROW]
+      - [GREEN_CIRCLE, GREEN_LEFT_ARROW]
     valid_phases:
       - [RED_CIRCLE]
       - [YELLOW_CIRCLE]
@@ -48,10 +61,17 @@ profiles:
 
   straight_or_protected_left:
     supported_lamps: [RED_CIRCLE, YELLOW_CIRCLE, GREEN_CIRCLE, GREEN_LEFT_ARROW]
-    # D-2 has two yellow phases, told apart by the red lamp alone:
-    #   YELLOW_CIRCLE            = end of straight green -> STOP for our route
-    #   RED_CIRCLE+YELLOW_CIRCLE = end of protected left -> GO (already turning)
-    # No dependence on the preceding phase.
+    observed_phases:
+      - [RED_CIRCLE]
+      - [YELLOW_CIRCLE]
+      - [GREEN_CIRCLE]
+      - [GREEN_LEFT_ARROW]
+      - [RED_CIRCLE, GREEN_LEFT_ARROW]
+      - [RED_CIRCLE, YELLOW_CIRCLE]
+    # Phase identification only; departure/passthrough is decided downstream.
+    #   YELLOW_CIRCLE            = end of straight green -> normalized RED
+    #   RED_CIRCLE+YELLOW_CIRCLE = end of protected left -> preserve both lamps
+    # A preserved R+Y is not, by itself, authorization for a new departure.
     valid_phases:
       - [RED_CIRCLE]
       - [GREEN_CIRCLE]

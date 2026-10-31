@@ -11,6 +11,7 @@ import math
 import random
 
 import generate_base5_independent as gen
+import base5_layout_split as layout_split
 from base5_map_surface import configure, ego_road_support
 from base5_region_contract import location, regions
 
@@ -33,6 +34,7 @@ def eligible(spec):
 
 def allowed_intervals(ctx,config):
     configure(ctx,config.get('placement_ground'));regions(gen,ctx)
+    known_map=layout_split.enabled(config)
     out=defaultdict(list)
     for a,b in zip(ctx['arc'][:-1],ctx['arc'][1:]):
         if b-a < 1e-6: continue
@@ -42,7 +44,7 @@ def allowed_intervals(ctx,config):
         end=gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],float(b)-1e-7)
         if begin.get('link_idx') != end.get('link_idx'):continue
         if not ego_road_support(ctx['map_surface_index'],pose)['road_supported']:continue
-        area=location(gen,ctx,[pose['x'],pose['y']]);split=split_for(pose['link_idx'])
+        area=location(gen,ctx,[pose['x'],pose['y']]);split='all' if known_map else split_for(pose['link_idx'])
         for scope in (['background','other'] if area=='other' else ['background']):
             key=(scope,split)
             if out[key] and abs(out[key][-1][1]-a)<1e-7:out[key][-1][1]=float(b)
@@ -106,13 +108,14 @@ def feasible_intervals(ctx,intervals,spec):
 
 
 def assign_plans(items,intervals,ctx=None):
+    known_map=any(split=='all' for _,split in intervals)
     buckets=defaultdict(list)
     for slot,spec,split in items:
         if eligible(spec):
             # Balance within compatible range/sector, not across incompatible
             # far-front and near-side layouts on the same curved road.
             layout=(spec['role'],tuple(spec.get('distance_bounds') or []),bool(spec.get('avoidance_phase')))
-            buckets[(spec['family'],split,layout)].append((slot,spec))
+            buckets[(spec['family'],'all' if known_map else split,layout)].append((slot,spec))
     for (family,split,layout),values in buckets.items():
         allowed=intervals[('background' if family=='background' else 'other',split)]
         if ctx is not None:allowed=feasible_intervals(ctx,allowed,values[0][1])
@@ -132,10 +135,16 @@ def assign_plans(items,intervals,ctx=None):
                 quota_intervals_m=slice_intervals(allowed,length*i/len(values),length*(i+1)/len(values)),
                 intervals_m=windows[0],local_retry_windows_m=windows,
                 retry_window_policy='12m initial / 24m after64 / 48m after256; same allowed split and region')
+            if known_map:
+                spec['spatial_sampling_plan'].update(split_policy=layout_split.POLICY,
+                    retry_window_policy='12/24/48m local windows; all permitted links, same region; finalize layout overlay')
 
 
 def sample_anchor(ctx,plan,seed,attempt):
     if plan['policy'] != POLICY:raise ValueError('Unknown spatial policy')
+    known_map=plan.get('split_policy')==layout_split.POLICY
+    if plan.get('split_policy') not in (None,layout_split.POLICY) or (plan['split']=='all') != known_map:
+        raise ValueError('Unknown or inconsistent spatial split policy')
     level=0 if attempt<64 else 1 if attempt<256 else 2
     windows=plan.get('local_retry_windows_m',[plan['intervals_m']]*3)
     pieces=windows[level];length=sum(b-a for a,b in pieces)
@@ -146,7 +155,7 @@ def sample_anchor(ctx,plan,seed,attempt):
         distance -= b-a
     else:arc=pieces[-1][1]
     pose=gen.geo.continuous_route_pose_at_arc(ctx['route'],ctx['arc'],arc)
-    if split_for(pose['link_idx']) != plan['split']:raise ValueError('Sampled anchor changed physical-link split')
+    if not known_map and split_for(pose['link_idx']) != plan['split']:raise ValueError('Sampled anchor changed physical-link split')
     if plan['scope']=='other' and location(gen,ctx,[pose['x'],pose['y']])!='other':
         raise ValueError('Sampled anchor crossed reserved region')
     return ctx['route'],ctx['arc'],pose,dict(spatial_stratum='route_general',
@@ -157,6 +166,9 @@ def sample_anchor(ctx,plan,seed,attempt):
 def build(row,config,ctx,attempt=0):
     plan=row.get('spatial_sampling_plan')
     if not plan:return ORIGINAL_BUILD(row,config,ctx,attempt)
+    known_map=plan.get('split_policy')==layout_split.POLICY
+    if known_map != layout_split.enabled(config):
+        raise ValueError('Spatial plan/config split policy differs')
     anchor=sample_anchor(ctx,plan,row['seed'],attempt)
     original=gen.anchor_bank
     def bank(context,topology):
@@ -165,7 +177,7 @@ def build(row,config,ctx,attempt=0):
     gen.anchor_bank=bank
     try:scene,meta=ORIGINAL_BUILD(row,config,ctx,attempt)
     finally:gen.anchor_bank=original
-    if meta['split'] != plan['split']:raise ValueError('Final spatial split changed')
+    if not known_map and meta['split'] != plan['split']:raise ValueError('Final spatial split changed')
     meta['continuous_ego_sampling']=dict(meta['details']['continuous_anchor'],
         base_xy_m=[meta['base']['x'],meta['base']['y']],
         final_xy_m=[meta['ego']['x'],meta['ego']['y']],

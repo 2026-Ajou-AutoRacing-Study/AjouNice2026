@@ -8,4 +8,8 @@ source_validator_workspace() {
   source "$AJOUNICE_VALIDATOR_ROOT/scripts/workspace/source_aw149.sh"
 }
 source_validator_workspace
+if [[ "${1:-}" == "--gnss-delay-calibration" ]]; then
+  shift
+  exec /usr/bin/python3 "$AJOUNICE_VALIDATOR_ROOT/scripts/evaluation/localization/run_gnss_delay_validator.py" "$@"
+fi
 exec /usr/bin/python3 "$AJOUNICE_VALIDATOR_ROOT/base_ws/src/planning_addons/planning_scenario_validator/scripts/planning_validator.py" "$@"

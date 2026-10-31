@@ -94,6 +94,53 @@ auto get_planner_data() -> std::shared_ptr<PlannerData>
   return std::make_shared<PlannerData>(planner_data);
 }
 
+TEST(StaticObstacleAvoidanceUtils, ExtraDetectionWidthIncludesBothSideObjectsWithoutInflatingThem)
+{
+  auto data = get_planner_data();
+  data->parameters.vehicle_info.vehicle_width_m = 1.892;
+  data->parameters.vehicle_info.max_longitudinal_offset_m = 3.845;
+  data->parameters.vehicle_info.rear_overhang_m = 0.790;
+  PathWithLaneId path;
+  for (int i = 0; i <= 30; ++i) {
+    autoware_internal_planning_msgs::PathPointWithLaneId point;
+    point.point.pose.position.x = i;
+    point.point.pose.orientation.w = 1.0;
+    path.points.push_back(point);
+  }
+  auto input = boost::make_shared<PredictedObjects>();
+  for (const double lateral : {-2.8, -2.2, 2.2, 2.8}) {
+    PredictedObject object;
+    object.kinematics.initial_pose_with_covariance.pose.position.x = 10.0;
+    object.kinematics.initial_pose_with_covariance.pose.position.y = lateral;
+    object.kinematics.initial_pose_with_covariance.pose.orientation.w = 1.0;
+    object.shape.type = autoware_perception_msgs::Shape::BOUNDING_BOX;
+    object.shape.dimensions = create_vector3(0.75, 0.75, 0.43);
+    input->objects.push_back(object);
+  }
+  data->dynamic_object = input;
+  auto parameters = std::make_shared<AvoidanceParameters>();
+  parameters->resample_interval_for_output = 4.0;
+  ObjectParameter object_parameters;
+  object_parameters.envelope_buffer_margin = 0.05;
+  object_parameters.lateral_hard_margin = 0.05;
+  object_parameters.lateral_hard_margin_for_parked_vehicle = 0.05;
+  object_parameters.lateral_soft_margin = 0.55;
+  parameters->object_parameters[ObjectClassification::UNKNOWN] = object_parameters;
+  AvoidancePlanningData planning;
+  DebugData debug;
+  auto baseline = separateObjectsByPath(path, path, data, planning, parameters, 30.0, debug);
+  EXPECT_TRUE(baseline.first.objects.empty());
+  parameters->detection_area_lateral_extra_margin = 0.3;
+  auto expanded = separateObjectsByPath(path, path, data, planning, parameters, 30.0, debug);
+  ASSERT_EQ(expanded.first.objects.size(), 2U);
+  EXPECT_EQ(expanded.second.objects.size(), 2U);
+  for (const auto & object : expanded.first.objects) {
+    EXPECT_DOUBLE_EQ(std::abs(object.kinematics.initial_pose_with_covariance.pose.position.y), 2.2);
+    EXPECT_DOUBLE_EQ(object.shape.dimensions.x, 0.75);
+    EXPECT_DOUBLE_EQ(object.shape.dimensions.y, 0.75);
+  }
+}
+
 auto get_parameters() -> std::shared_ptr<AvoidanceParameters>
 {
   AvoidanceParameters parameters;
@@ -1739,3 +1786,81 @@ TEST(TestUtils, RedundantObstacleConstraintsAreRestoredWhenCoverageChanges)
   EXPECT_EQ(generateObstaclePolygonsForDrivableArea({small}, params, 1.89).size(), 1UL);
 }
 }  // namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+
+namespace autoware::behavior_path_planner::utils::static_obstacle_avoidance
+{
+TEST(StaticMotionHandoff, NewMovingObservationClearsBothMemoriesWithoutDwell)
+{
+  auto params=std::make_shared<AvoidanceParameters>();
+  params->path_generation_method="optimization_base";
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold=2.0;
+  params->object_parameters[ObjectClassification::CAR].moving_time_threshold=.5;
+  Pose pose;pose.orientation.w=1;
+  Shape shape;shape.type=Shape::BOUNDING_BOX;shape.dimensions=create_vector3(4.5,2,1.5);
+  auto stopped=create_test_object(pose,create_vector3(1.974,0,0),shape,ObjectClassification::CAR);
+  stopped.object.object_id.uuid[0]=15;
+  ObjectDataArray stored{stopped},clip{stopped};
+  auto moving=stopped;
+  moving.object.kinematics.initial_twist_with_covariance.twist.linear.x=9.927;
+  moving.move_time=0.0; // First recovered observation, not 0.5 seconds later.
+  AvoidancePlanningData fresh;fresh.other_objects.push_back(moving);
+  EXPECT_TRUE(filtering_utils::isMovingObject(moving,params));
+  releaseMovingClipObjects(fresh,stored,clip,params);
+  EXPECT_TRUE(stored.empty());EXPECT_TRUE(clip.empty());
+  compensateLostTargetObjects(fresh,stored,nullptr);
+  EXPECT_TRUE(fresh.target_objects.empty());
+  // If it actually stops again, the same ID is eligible immediately.
+  EXPECT_FALSE(filtering_utils::isMovingObject(stopped,params));
+}
+TEST(StaticMotionHandoff, AbsenceOrInvalidMotionDoesNotDeleteAnOccludedStaticObject)
+{
+  auto params=std::make_shared<AvoidanceParameters>();params->path_generation_method="optimization_base";
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold=2;
+  Pose pose;pose.orientation.w=1;Shape shape;
+  auto object=create_test_object(pose,Vector3{},shape,ObjectClassification::CAR);
+  ObjectDataArray stored{object},clip{object};AvoidancePlanningData fresh;
+  releaseMovingClipObjects(fresh,stored,clip,params);
+  EXPECT_EQ(stored.size(),1u);EXPECT_EQ(clip.size(),1u);
+  object.object.kinematics.initial_twist_with_covariance.twist.linear.x=
+    std::numeric_limits<double>::quiet_NaN();
+  fresh.other_objects.push_back(object);
+  releaseMovingClipObjects(fresh,stored,clip,params);
+  EXPECT_EQ(stored.size(),1u);EXPECT_EQ(clip.size(),1u);
+}
+TEST(StaticMotionHandoff, OtherGenerationModesRetainTheirExistingMovingConfirmation)
+{
+  auto params=std::make_shared<AvoidanceParameters>();params->path_generation_method="shift_line_base";
+  params->object_parameters[ObjectClassification::CAR].moving_time_threshold=.5;
+  Pose pose;Shape shape;
+  auto object=create_test_object(pose,create_vector3(20,0,0),shape,ObjectClassification::CAR);
+  object.move_time=0;
+  EXPECT_FALSE(filtering_utils::isMovingObject(object,params));
+  object.move_time=.6;
+  EXPECT_TRUE(filtering_utils::isMovingObject(object,params));
+}
+
+TEST(StaticMotionHandoff, SharedSpeedOwnerOverridesClassThresholdAndReleasesBothMemories)
+{
+  auto params = std::make_shared<AvoidanceParameters>();
+  params->path_generation_method = "optimization_base";
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold = 2.0;
+  Pose pose;
+  Shape shape;
+  auto object = create_test_object(
+    pose, create_vector3(0.5, 0, 0), shape, ObjectClassification::CAR);
+  ObjectDataArray stored{object}, clip{object};
+  object.dynamic_avoidance_owner = true;
+  EXPECT_TRUE(filtering_utils::isMovingObject(object, params));
+  AvoidancePlanningData fresh;
+  fresh.other_objects.push_back(object);
+  releaseMovingClipObjects(fresh, stored, clip, params);
+  EXPECT_TRUE(stored.empty());
+  EXPECT_TRUE(clip.empty());
+
+  // A stopped/held-static owner is eligible immediately, regardless of old class policy.
+  params->object_parameters[ObjectClassification::CAR].moving_speed_threshold = 0.1;
+  object.dynamic_avoidance_owner = false;
+  object.move_time = 100.0;
+  EXPECT_FALSE(filtering_utils::isMovingObject(object, params));
+}
+}

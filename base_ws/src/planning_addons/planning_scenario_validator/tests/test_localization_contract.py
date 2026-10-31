@@ -28,6 +28,7 @@ class LocalizationContractTests(unittest.TestCase):
         self.assertEqual(args['control_translation_tau_sec'], 0.5)
         self.assertEqual(args['control_yaw_tau_sec'], 0.5)
         self.assertFalse(args['use_quantized_gnss_control_state'])
+        self.assertNotIn('gnss_delay_ms', args)
 
     def test_every_allowlisted_argument_is_a_real_bringup_launch_argument(self):
         launch = ET.parse(ROOT / 'base_ws/src/bringup/launch/localization_gnss_imu_gt_ctra.launch')
@@ -94,6 +95,55 @@ class LocalizationContractTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 normalize_localization_launch_args({
                     'pose_source': 'localization', 'localization_args': {key: value}})
+
+    def test_optional_gnss_delay_ms_accepts_bounded_numbers(self):
+        for value in (0, 0.0, 12, 19.5, 100):
+            with self.subTest(value=value):
+                result = normalize_localization_launch_args({
+                    'pose_source': 'localization',
+                    'localization_args': {'gnss_delay_ms': value}})
+                self.assertEqual(result, {'gnss_delay_ms': float(value)})
+        for value in (-0.001, 100.001, True, False, '20', '', None,
+                      float('inf'), float('-inf'), float('nan'), 10 ** 1000):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalize_localization_launch_args({
+                    'pose_source': 'localization',
+                    'localization_args': {'gnss_delay_ms': value}})
+
+    def test_gnss_delay_ms_rejects_nonzero_legacy_compensation(self):
+        for delay_ms in (0, 20):
+            for explicit in ({'gnss_delay_ms': delay_ms, 'gnss_motion_compensation_sec': 0.02},
+                             {'gnss_motion_compensation_sec': 0.02, 'gnss_delay_ms': delay_ms}):
+                with self.subTest(explicit=explicit), self.assertRaisesRegex(ValueError, '0이어야'):
+                    normalize_localization_launch_args({
+                        'pose_source': 'localization', 'localization_args': explicit})
+        explicit = {'gnss_delay_ms': 20, 'gnss_motion_compensation_sec': 0.0}
+        self.assertEqual(normalize_localization_launch_args({
+            'pose_source': 'localization', 'localization_args': explicit}), explicit)
+
+    def test_gnss_delay_ms_is_explicit_in_effective_args_and_real_launch(self):
+        cfg = load_campaign(EXAMPLE, check_install=False)
+        cfg['localization_launch_args'] = normalize_localization_launch_args({
+            'pose_source': 'localization', 'localization_args': {'gnss_delay_ms': 20}})
+        effective = effective_localization_args(cfg, ROOT)
+        self.assertEqual(effective['gnss_delay_ms'], 20.0)
+        self.assertEqual(effective['gnss_motion_compensation_sec'], 0.0)
+        launch = ET.parse(ROOT / 'base_ws/src/bringup/launch/localization_gnss_imu_gt_ctra.launch')
+        names = {node.attrib['name'] for node in launch.findall('arg')}
+        self.assertLessEqual(set(effective), names)
+
+    def test_load_campaign_preserves_explicit_gnss_delay_ms(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'delay.yaml'
+            document = yaml.safe_load(EXAMPLE.read_text())
+            document['stack']['localization_args'] = {'gnss_delay_ms': 20}
+            path.write_text(yaml.safe_dump(document))
+            cfg = load_campaign(path, check_install=False)
+            self.assertEqual(cfg['localization_launch_args'], {'gnss_delay_ms': 20.0})
+            document['stack']['localization_args']['gnss_motion_compensation_sec'] = 0.02
+            path.write_text(yaml.safe_dump(document))
+            with self.assertRaisesRegex(ConfigError, '0이어야'):
+                load_campaign(path, check_install=False)
 
     def test_explicit_corrected_gt_and_legacy_gt_are_distinct(self):
         self.assertEqual(normalize_gt_pose_launch_args({'pose_source': 'maptf_morai'}), {})
@@ -166,15 +216,21 @@ class LocalizationContractTests(unittest.TestCase):
 
     def test_semantic_args_and_installed_artifacts_are_resume_identity(self):
         cfg = load_campaign(EXAMPLE, check_install=False)
-        first = resolve_localization_contract(cfg, ROOT)
-        candidate = copy.deepcopy(cfg)
-        candidate['localization_launch_args']['control_yaw_tau_sec'] = 0.2
-        second = resolve_localization_contract(candidate, ROOT)
-        self.assertNotEqual(first['fingerprint'], second['fingerprint'])
-        self.assertIn('controller_pi', first['config_files'])
-        self.assertIn('lib/trajectory_follower/longi_pi_autoware', first['installed_files_sha256'])
         with tempfile.TemporaryDirectory() as directory:
-            missing_install = resolve_localization_contract(cfg, ROOT, install_root=directory)
+            # Real installed files are not guaranteed in a fresh CI checkout.
+            # Use an explicit artifact to test identity, not the developer PC.
+            install = Path(directory) / 'installed'
+            binary = install / 'lib/trajectory_follower/longi_pi_autoware'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'fixture-controller-build')
+            first = resolve_localization_contract(cfg, ROOT, install_root=install)
+            candidate = copy.deepcopy(cfg)
+            candidate['localization_launch_args']['control_yaw_tau_sec'] = 0.2
+            second = resolve_localization_contract(candidate, ROOT, install_root=install)
+            self.assertNotEqual(first['fingerprint'], second['fingerprint'])
+            self.assertIn('controller_pi', first['config_files'])
+            self.assertIsNotNone(first['installed_files_sha256']['lib/trajectory_follower/longi_pi_autoware'])
+            missing_install = resolve_localization_contract(cfg, ROOT, install_root=Path(directory) / 'missing')
             self.assertNotEqual(first['fingerprint'], missing_install['fingerprint'])
             self.assertTrue(missing_install['missing_installed_files'])
 

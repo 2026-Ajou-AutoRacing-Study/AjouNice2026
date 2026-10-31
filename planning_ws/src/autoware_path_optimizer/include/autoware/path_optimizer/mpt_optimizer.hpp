@@ -45,6 +45,8 @@ namespace autoware::path_optimizer
 {
 namespace detail
 {
+size_t boundInterpolationStartIndex(size_t offset_index, size_t reference_count);
+
 void assignHardConstraintStateBlock(
   Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
   size_t reference_count, size_t state_count);
@@ -209,6 +211,7 @@ public:
     }
   }
   History history() const { return {prev_ref_points_ptr_, prev_optimized_traj_points_ptr_}; }
+  const std::string & lastRejectionReason() const { return last_rejection_reason_; }
   void restoreHistory(const History & history) {
     prev_ref_points_ptr_ = history.reference;
     prev_optimized_traj_points_ptr_ = history.trajectory;
@@ -226,6 +229,7 @@ public:
   }
 
 private:
+  std::string last_rejection_reason_;
   struct ValueMatrix
   {
     Eigen::SparseMatrix<double> Q;

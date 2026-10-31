@@ -64,13 +64,16 @@ def digest(path):
 
 
 def input_contract(cfg):
-    return {"yaml": digest(cfg["path"]),
+    contract = {"yaml": digest(cfg["path"]),
             "scenarios": {str(case.source): case.source_sha256 for case in cfg["cases"]},
             "network": {key: digest(cfg["network"][key]) for key in ("sensor_json", "ego_network_json")},
             "topic_profile": (None if not cfg['recording'].get('bag_enabled', True) else
                               hashlib.sha256(json.dumps(cfg['recording']['topics']).encode()).hexdigest()
                               if 'selected_topics' in cfg['recording'] else
                               digest(resolve_path(cfg["recording"]["topic_profile"])))}
+    if cfg.get('route'):
+        contract['route_definition'] = digest(cfg['route']['definition_file'])
+    return contract
 
 
 def plan(paths, *, check_install=True):

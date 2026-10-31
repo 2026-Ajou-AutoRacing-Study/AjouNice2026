@@ -8,13 +8,28 @@ option/debug/enable_pub_extra_debug_marker: false
 option/debug/enable_debug_info: false
 option/debug/enable_calculation_time_info: true
 common/output_delta_arc_length: 0.2
+# Spatial Gaussian XY smoothing after MPT, followed by cubic resampling.
+# Sigma is in metres (not samples or seconds). Use akima for legacy comparison.
+output_resampling/method: gaussian
+output_resampling/gaussian_sigma_m: 0.25
 # Retry budget between seeds/refinements as well as side candidates.
 # A single solver call can still exceed the budget.
 obstacle_search_time_budget_ms: 100.0
 # Positive magnitude for braking on a still-aligned path when obstacle optimization fails.
 obstacle_fallback_deceleration: 7.0
+# Enter only on sustained stopped optimizer failure with fresh autonomous and
+# behavior/object-stop context. Active recovery retries indefinitely; every cycle
+# tries normal hard road bounds first. Only road bounds may relax: collision and
+# vehicle constraints remain, with no recovery-specific velocity cap.
+recovery/enabled: true
+recovery/stopped_speed_kph: 1.0
+recovery/stopped_duration: 2.0
+recovery/failed_duration: 2.0
+recovery/minimum_failed_cycles: 5
+recovery/maximum_sample_gap: 0.5
+recovery/input_max_age: 0.5
 # Extend the base horizon to cover observed obstacle margins, the vehicle and return.
-obstacle_optimization/max_forward_length: 60.0
+obstacle_optimization/max_forward_length: 90.0
 obstacle_optimization/return_length: 15.0
 # Collapse only nearby, same-side duplicate footprints before enumerating pass sides.
 # Raw polygons remain authoritative for candidate and final collision checks.
@@ -44,13 +59,13 @@ mpt/clearance/hard_clearance_from_road: 0.1
 mpt/clearance/soft_clearance_from_road: 0.0
 mpt/weight/soft_collision_free_weight: 1.0
 # L1 penalty on preferred obstacle clearance; hard clearance remains a separate constraint.
-mpt/weight/obstacle_clearance_weight: 100.0
-mpt/weight/lat_error_weight: 1.0
+mpt/weight/obstacle_clearance_weight: 200.0
+mpt/weight/lat_error_weight: 0.5
 mpt/weight/yaw_error_weight: 0.0
 mpt/weight/yaw_error_rate_weight: 0.0
-mpt/weight/steer_input_weight: 1.0
+mpt/weight/steer_input_weight: 0.7
 # Penalize adjacent steering changes; this is not a time-domain steering-rate bound.
-mpt/weight/steer_rate_weight: 10.0
+mpt/weight/steer_rate_weight: 60.0
 mpt/weight/terminal_lat_error_weight: 100.0
 mpt/weight/terminal_yaw_error_weight: 1.0
 mpt/weight/goal_lat_error_weight: 1000.0
@@ -62,9 +77,9 @@ mpt/avoidance/avoidance_cost_margin: 0.0
 mpt/avoidance/avoidance_cost_band_length: 2.0
 mpt/avoidance/avoidance_cost_decrease_rate: 0.05
 mpt/avoidance/min_drivable_width: 0.2
-mpt/avoidance/weight/lat_error_weight: 1.0
+mpt/avoidance/weight/lat_error_weight: 0.5
 mpt/avoidance/weight/yaw_error_weight: 1.5
-mpt/avoidance/weight/steer_input_weight: 1.0
+mpt/avoidance/weight/steer_input_weight: 0.7
 mpt/collision_free_constraints/option/l_inf_norm: true
 mpt/collision_free_constraints/option/soft_constraint: true
 mpt/collision_free_constraints/option/hard_constraint: true

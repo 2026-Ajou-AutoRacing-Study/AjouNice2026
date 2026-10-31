@@ -14,7 +14,7 @@ class PolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v85_competition_route.yaml').read_text())
+        cls.routes = yaml.safe_load((PACKAGE/'config/kcity_v101_competition_route.yaml').read_text())
         cls.geometry = Geometry(REPO, cls.routes)
 
     def test_all_five_cases(self):
@@ -68,14 +68,15 @@ class PolicyTest(unittest.TestCase):
 
     def test_route_a_to_b_reroute_trigger(self):
         r = self.routes
-        self.assertFalse(policy.in_window(r, 'route_b', 200258, 7.9))
-        self.assertTrue(policy.in_window(r, 'route_b', 200258, 8))
+        self.assertFalse(policy.in_window(r, 'route_b', 200310, 3.149898 - 0.01))
+        self.assertTrue(policy.in_window(r, 'route_b', 200310, 3.149898))
         self.assertFalse(policy.in_window(r, 'route_b', 200348, 1))
         self.assertFalse(policy.in_window(r, 'route_b', 200346, 8))
         self.assertTrue(policy.in_window(r, 'route_b', 200261, 0))
         self.assertTrue(policy.in_window(r, 'route_b', 200311, 0))
-        self.assertFalse(policy.in_window(r, 'fallback_route', 201439, 1.9))
-        self.assertTrue(policy.in_window(r, 'fallback_route', 201439, 2.0))
+        cutoff = r['poses'][r['fallback_route']['hard_cutoff_pose_ref']]['lanelet_s_m']
+        self.assertFalse(policy.in_window(r, 'fallback_route', 201439, cutoff - 0.1))
+        self.assertTrue(policy.in_window(r, 'fallback_route', 201439, cutoff))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200360, 8))
         self.assertFalse(policy.in_window(r, 'fallback_route', 200183, 10))
 
@@ -126,45 +127,50 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[1:]), final[1:])
         self.assertEqual(policy.preferred_sequence(self.routes, 'route_b', initial[4:]), final[4:])
 
-    def test_v83_highway_lane_change_contract(self):
-        """Prefer the leftmost highway corridor through the mandatory bottleneck."""
-        for key in ('route_a', 'route_b'):
-            initial = self.routes[key]['waypoint_path_lanelet_ids']
+    def test_v101_merged_preferred_corridor(self):
+        for key in ('route_a', 'route_b', 'fallback_route'):
             preferred = self.routes[key]['expected_path_lanelet_ids']
-
-            # Keep the same leftmost corridor before and after 201444, so
-            # entering it early cannot demand a return to the middle 200187.
-            initial_window = initial[initial.index(200138):initial.index(201439) + 1]
             self.assertEqual(
-                initial_window,
-                [200138, 201444, 201469, 200127, 201473, 201439],
-            )
-            preferred_window = preferred[preferred.index(201459):preferred.index(201399) + 1]
-            self.assertEqual(
-                preferred_window,
-                [201459, 201436, 201465, 200138, 201444, 201469, 200127,
-                 201473, 201439, 200185, 201453, 201477, 201479, 201447,
-                 201399],
-            )
-
-            # Preserve both bottleneck exits in the route corridor by following the
-            # connected 200185 -> 201453 branch before selecting 201477.
-            initial_bottleneck = initial[initial.index(201439):initial.index(201477)]
-            self.assertEqual(initial_bottleneck, [201439, 200185, 201453])
-            initial_split = initial[initial.index(201477):initial.index(201399) + 1]
-            self.assertEqual(initial_split, [201477, 201479, 201447, 201399])
-
+                preferred[preferred.index(201439):preferred.index(201451) + 1],
+                [201439, 200360, 201479, 201451])
+            self.assertFalse(set(preferred) & {201477, 201447, 201399, 201453,
+                                               201476, 201478, 201400})
+            if key == 'fallback_route':
+                continue
             refs = self.routes[key]['waypoint_refs']
-            self.assertLess(refs.index('wp_200187_merged'), refs.index('wp_201473'))
-            self.assertLess(refs.index('wp_201473'), refs.index('wp_200185'))
-            self.assertNotIn('wp_201444_mid', refs)
-            self.assertEqual(self.routes['poses']['wp_200187_merged']['lanelet_id'], 200187)
-            self.assertEqual(self.routes['poses']['wp_200185']['lanelet_id'], 200185)
+            self.assertLess(refs.index('wp_201473'), refs.index('wp_200360_straight'))
+            self.assertLess(refs.index('wp_200360_straight'), refs.index('wp_201479_straight'))
+            self.assertLess(refs.index('wp_201479_straight'), refs.index('wp_201451_exit'))
+            initial = self.routes[key]['waypoint_path_lanelet_ids']
+            self.assertEqual(initial[initial.index(200138):initial.index(201439) + 1],
+                             [200138, 201444, 201469, 201439])
+
+    def test_route_b_alternative_prefix_still_enforces_local_preference(self):
+        observed = [201456, 201438, 201468, 200138, 201444, 201469,
+                    201439, 200185, 201448, 201451, 200088]
+        target = policy.preferred_sequence(self.routes, 'route_b', observed)
+        self.assertEqual(target, observed[:7] + [200360, 201479] + observed[9:])
+        definition = self.routes['route_b']
+        goal = self.routes['poses'][definition['goal_ref']]
+        args = [self.routes, 'route_b', definition['uuid'], observed,
+                (goal['x'], goal['y']), .5]
+        self.assertTrue(policy.route_matches(*args, field='waypoint_path_lanelet_ids'))
+        self.assertFalse(policy.route_matches(*args))
+        args[3] = target
+        self.assertTrue(policy.route_matches(*args))
+
+    def test_preferred_override_chains_and_conflicts_are_rejected(self):
+        for overrides in ({200185: 201448, 201448: 201479},
+                          {200360: 200185}, {'200185': 200360}):
+            routes = copy.deepcopy(self.routes)
+            routes['route_b']['preferred_lanelet_overrides'] = overrides
+            with self.assertRaises(ValueError):
+                policy.validate(self.cfg, routes)
 
     def test_route_a_accepts_start_to_trigger_suffixes(self):
         initial = self.routes['route_a']['waypoint_path_lanelet_ids']
         final = self.routes['route_a']['expected_path_lanelet_ids']
-        trigger_index = initial.index(200258)
+        trigger_index = initial.index(self.routes['poses'][self.routes['startup_route_b_trigger']['pose_ref']]['lanelet_id'])
         for index in (1, 2, trigger_index):
             self.assertIn(initial[index:], policy.accepted_sequences(
                 self.routes, 'route_a', 'waypoint_path_lanelet_ids'))
@@ -172,12 +178,13 @@ class PolicyTest(unittest.TestCase):
                              final[index:])
 
     def test_geometry_and_hash(self):
-        for ref in ('wp_200178', 'wp_200258', 'wp_201473', 'wp_200185',
-                    'wp_201447_after_lc', 'fallback_cutoff_201439'):
+        for ref in ('wp_200178', 'wp_200258', 'wp_201473', 'wp_200360_straight',
+                    'wp_201479_straight', 'wp_201451_exit', 'fallback_cutoff_201439'):
             p = self.routes['poses'][ref]
             lane, arc = self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg']))
             self.assertEqual(lane, p['lanelet_id'])
-            self.assertAlmostEqual(arc, p['lanelet_s_m'], places=4)
+            # v101 VMB coordinate rounding accumulates below 0.5 mm along the line.
+            self.assertAlmostEqual(arc, p['lanelet_s_m'], delta=0.0005)
         # Progress guards locate preferred lanes, not intermediate waypoint lanes.
         p = self.routes['poses']['wp_200137']
         self.assertIsNone(self.geometry.locate(p['x'], p['y'], math.radians(p['yaw_deg'])))
@@ -228,7 +235,7 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(policy.next_normal(case, None, 200178, 8, self.routes),
                              None if case == 'route_b_only' else 'route_a')
             for lane in (200337, 200287, 200348, 200346, 200291, 200292,
-                         200305, 200841, 200950, 200310, 200308):
+                         200305, 200841, 200950):
                 self.assertEqual(policy.next_normal(case, None, lane, 100, self.routes),
                                  None if case == 'route_b_only' else 'route_a')
             self.assertEqual(policy.next_normal(case, None, 200258, 0, self.routes),
@@ -240,7 +247,7 @@ class PolicyTest(unittest.TestCase):
             self.assertEqual(policy.next_normal(case, None, 200892, 18.858427, self.routes),
                              None if case == 'route_b_only' else 'route_a')
             self.assertIsNone(policy.next_normal(case, None, 200220, 0, self.routes))
-            self.assertEqual(policy.next_normal(case, 'route_a', 200258, 8, self.routes),
+            self.assertEqual(policy.next_normal(case, 'route_a', 200310, 3.149898, self.routes),
                              'route_b' if case in policy.NORMAL else None)
             self.assertIsNone(policy.next_normal(case, 'route_a', 200889, 8, self.routes))
             self.assertIsNone(policy.next_normal(case, 'route_a', 200311, 8, self.routes))

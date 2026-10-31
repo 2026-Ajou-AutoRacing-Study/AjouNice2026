@@ -48,6 +48,9 @@ def bounded_vehicle_pose_matches(pos,expected,initializer=None,ground=None):
 
 def audit(manifest_path):
     m=json.loads(Path(manifest_path).read_text()); families=Counter();missions=Counter();bins=Counter()
+    if m['config'].get('asset_scale_policy'):
+        from base5_asset_scale import bind_config
+        m['config']=bind_config(m['config'])
     groups=Counter();assets=Counter();roles=Counter();splits=Counter();retries=[];unknown=Counter();hashes=set();errors=[]
     links={r['idx']:r for r in gen.geo.load_json(gen.geo.DEFAULT_MGEO/'link_set.json')}
     corridors={c['spawn_uid']:c for c in gen.sample_highway_corridors(links)}
@@ -61,6 +64,9 @@ def audit(manifest_path):
     roundabout_phases=Counter();roundabout_density=Counter();roundabout_ctx=None
     for entry in m['scenes']:
         s=json.loads(Path(entry['scenario']).read_text());meta=json.loads(Path(entry['metadata']).read_text());r=meta['spec']
+        if r.get('asset_scale_plan') or any(a.get('asset_scale') is not None for a in meta['runtime_actors']):
+            from base5_asset_scale import verify_metadata as verify_asset_scale
+            verify_asset_scale(s,meta,m['config'],inventory)
         if m['config'].get('regional_policy'):
             from base5_region_contract import validate as validate_region
             if dynamic_ctx is None:dynamic_ctx=gen.context(gen.geo.DEFAULT_RUNTIME_ASSET_DIR,gen.geo.DEFAULT_MGEO)
@@ -209,7 +215,13 @@ def audit(manifest_path):
                     from base5_placement_geometry import configure as configure_static_geometry
                     actor_ctx=configure_static_geometry(height_ctx,m['config'],r)
                     size,offset,_=gen.geometry(height_assets[a['data_id']],actor_ctx)
-                    expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,actor_ctx)
+                    from base5_asset_scale import planned_geometry,BASE as SCALE_BASE
+                    size,offset,scale_assignment,_=planned_geometry(height_assets[a['data_id']],r,i,a['motion'],m['config'],size,offset)
+                    if scale_assignment and scale_assignment['profile_id']!=SCALE_BASE:
+                        expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,actor_ctx,
+                            scale_assignment=scale_assignment,scale_policy=m['config']['asset_scale_policy'])
+                    else:
+                        expected_pose,expected_init,expected_ground=initial_pose(pose,height_assets[a['data_id']],size,offset,actor_ctx)
                     if not equivalent(expected_init,a.get('static_height_initializer')) or not equivalent(expected_ground,proof):
                         errors.append((entry['id'],'final XY map height differs from sources'))
                     legacy=.36 if a['source_list']=='vehicleList' else 0.
@@ -380,6 +392,9 @@ def audit(manifest_path):
                 expected=Counter(str((r['family'],r['avoidance_gap_bounds_m'])) for r in gen.specs(m['config'])
                     if r.get('avoidance_phase')=='alongside' and r.get('avoidance_origin')!='generic_close')
                 if avoidance_bins!=expected:errors.append(('all','character adjusted frozen gap-bin quota'))
+    if m['config'].get('asset_scale_policy'):
+        from base5_asset_scale import verify_frozen_policy
+        verify_frozen_policy(m['config']['asset_scale_policy'])
     return dict(status='OFFLINE_PASS' if not errors else 'OFFLINE_FAIL',live_validation=False,
         scenes=len(m['scenes']),unique_payloads=len(hashes),families=dict(families),mission_counts=dict(missions),
         sample_bounded_highway_vehicle_count=bounded_vehicles,

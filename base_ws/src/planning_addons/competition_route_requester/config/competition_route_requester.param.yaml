@@ -1,6 +1,6 @@
-# Runtime ROS1 configuration. Change the case here and restart all three nodes.
+# K-City v101; unchanged v88 policy and corridor, explicit merged signal-stop asset.
 route_operation_case: route_a_to_b_with_fallback
-route_definition_file: kcity_v85_competition_route.yaml
+route_definition_file: kcity_v101_competition_route.yaml
 set_waypoint_route_service_name: /planning/set_waypoint_route
 set_lanelet_route_service_name: /planning/set_lanelet_route
 set_preferred_primitive_service_name: /planning/mission_planning/mission_planner/set_preferred_primitive
@@ -21,7 +21,7 @@ reroute_available_hold_time: 0.5
 service_timeout: 5.0
 route_verification_timeout: 5.0
 trajectory_verification_timeout: 60.0
-trajectory_max_age: 1.0  # canonical Planning Validator latency threshold와 동일; controller freshness 0.5s는 별도다.
+trajectory_max_age: 1.0
 goal_tolerance_m: 0.5
 route_a_refresh_max_speed_mps: 0.1
 retry_initial_interval: 2.0

@@ -21,8 +21,13 @@ def movers(meta):
     return Counter(a['motion'] for a in meta['runtime_actors'] if a['motion'] not in ('static', 'standing'))
 
 
-def compatible(source, candidate, pool_by_id):
+def compatible(source, candidate, pool_by_id, *, allow_frozen_scale=False):
     """Keep mission context, semantic pool, split and actual moving modes, not exact cells."""
+    if not allow_frozen_scale and any(
+            'asset_scale_plan' in value.get('spec', {}) or any(
+                actor.get('asset_scale') is not None for actor in value.get('runtime_actors', []))
+            for value in (source, candidate)):
+        return False  # Frozen scale is owned by its exact-spec adapter, never donors.
     a, b = source['spec'], candidate['spec']
     if (a['family'], bool(a['mission']), source['split']) != (b['family'], bool(b['mission']), candidate['split']):
         return False

@@ -19,7 +19,9 @@ adaptive:
   long_ld_lateral_error_threshold: 0.5
   min_lookahead_distance: 3.3 # 2.6
   max_lookahead_distance: 17.0
-  # At 50 Hz, 70 deg/s permits at most 1.4 degrees per control tick.
+  # Simulation supports instantaneous tire steering. Read once at node startup.
+  enable_steering_rate_limit: false
+  # Used only when enable_steering_rate_limit is true (3.6 deg/tick at 50 Hz).
   max_steering_rate_deg_s: 180.0
   # Hold the previous command when the requested steering change is smaller than this.
   steering_deadband_deg: 0.2

@@ -85,8 +85,8 @@ motion state로 짧게 외삽해 Planning 입력의 timestamp와 cadence를 일�
 - Map-CV는 v60 Lanelet graph를 유지한다.
 - MORAI와 Lanelet map 사이의 고정 횡방향 bias는
   `configs/tf/morai_lanelet_static_tf.yaml`의 runtime-origin TF를 통해 보정한다.
-- Legacy 결과 재현이 필요할 때만
-  `configs/tf/morai_lanelet_static_tf_v23_refined_legacy.yaml`을 사용한다.
+- Legacy 결과 재현에는 당시 평가에 보관된 TF가 필요하다. 이전 지도용 TF 설정은
+  현재 배포에 포함하지 않는다.
 - 수정 TF는 Prediction 횡방향 p50을 약 `3~9 cm` 개선했지만, 종방향 오차가 더
   크기 때문에 일반 FDE 변화는 작았다.
 

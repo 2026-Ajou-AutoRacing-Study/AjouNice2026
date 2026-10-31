@@ -1,0 +1,22 @@
+schema_version: 1
+map_version: 88
+status: explicit_candidate_not_runtime_default
+map_file: kcity_map/lanelet_map/lanelet2_map_v88.osm
+map_sha256: 3cfb4dde4dbbbb44fc86f4e45c747576565793db48b04a631a61ab34af265d44
+map_md5: 8e74ca03cc6b90452e23e38f48b6a68e
+source_map_file: kcity_map/lanelet_map/lanelet2_map_v87.osm
+source_map_sha256: 70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575
+projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+drive_path: kcity_map/lanelet_map/lanelet2_map_v88.osm
+upstream_shifts_m: {A: 0.75, B: 0.0, C: 0.75, D: 0.0}
+changed_node_ids: [92992, 92993, 93034, 93035]
+stop_margin_m: 0.0
+lanelet_count: 1302
+regulatory_element_count: 78
+closed_loop_trials: 5
+closed_loop_pass: 5
+collisions: 0
+validation_scope: local MORAI Sunny13, localization + OD_GT + v5 + real ROS1 planner/PP-PI
+runtime_default_promoted: false
+team_lan_4090_bevfusion_full_stack_verified: false
+evidence_directory: artifacts/evaluation/traffic_light_robustness_261025

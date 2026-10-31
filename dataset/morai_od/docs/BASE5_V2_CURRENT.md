@@ -1,122 +1,102 @@
 # Base5 데이터와 수집의 현재 기준
 
-문서 상태: CURRENT. 근거 확인: 2026-10-13.
-Base5-only 학습용 Sunny13 5K는 완료했고, 다른 다섯 환경의 새 25K는 생성·준비만 완료했다.
-학습 모델·checkpoint·추론 설정은 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)에서 관리한다.
+문서 상태: CURRENT. 데이터 근거 확인: 2026-10-21. 문서 정리: 2026-10-24.
+현재 지원 입력은 **30,750장 / train 26,136 / val 4,614**다.
+정규 Sunny/Foggy 11·13·15시 30,000장과 Sunny 장애물 추가 보강 750장을
+**10개 원래 root/infos**로 연결한다. aggregate payload를 복제하지 않는다.
+구 E24 Sunny13 5K, 부모 성공분, native 선택 5K를 다시 더하지 않는다.
+모델·checkpoint·실제 학습 상태는 [모델 CURRENT](../../../docs/bevfusion/CURRENT.md)를 따른다.
+데이터 준비·CPU 검사 통과는 학습·새 수집 시작 허가가 아니다.
 
 <a id="data"></a>
 
-## 승인 데이터와 계획
+## 승인 데이터와 실제 입력
 
-| 항목 | 현재 상태 |
+| 지원 cohort | 장면 / train / val | 완료 근거 |
+|---|---:|---|
+| Sunny11 | 5,000 / 4,250 / 750 | [본수집·보충·전달](261018_base5_unified_generation_capture.md#sunny11-local-retrieved-261019) |
+| Sunny13 v158a | 5,000 / 4,250 / 750 | [마지막 동물 장면·최종 ledger](261018_base5_unified_generation_capture.md#borrowed-terminal-animal-completion) |
+| Sunny15 v159 | 5,000 / 4,250 / 750 | [최종 선택·JPEG·Vast 전달](261018_base5_unified_generation_capture.md#sunny15-training-package) |
+| Foggy11 | 5,000 / 4,250 / 750 | [날씨 52장 교체·마감·전달](261019_base5_foggy13_reinforcement_and_capture.md#foggy11-weather-repair-261021) |
+| Foggy13 기존 지원분 | 4,999 / 4,249 / 750 | [GT 0인 Bollard04 제외·원본 보존](261019_base5_foggy13_reinforcement_and_capture.md#foggy13-supported-training-export-261020) |
+| Foggy13 별도 신규 WoodBox | 1 / 1 / 0 | [새 촬영·중복 0·Vast 복원](261019_base5_foggy13_reinforcement_and_capture.md#foggy13-terminal-one-30750-261021) |
+| Foggy15 | 5,000 / 4,250 / 750 | [마지막 두 장·JPEG 회수](261019_base5_foggy13_reinforcement_and_capture.md#foggy15-terminal-two-and-jpeg-retrieval-261021) |
+| Sunny11·13·15 장애물 각 250 | 750 / 636 / 114 | [3개 cohort의 native·split·전달](261019_base5_foggy13_reinforcement_and_capture.md#sunny-obstacle-supplement-750-261021) |
+
+전체 전달·준비 receipt는 `artifacts/evaluation/base5_full30750_training_261021_v1/`의
+`TARGET_READY.json`과 `FINAL_PREPARATION.json`이다. 10/21 준비 시점에 12 epoch·compile OFF·
+일반 코사인 설정과 실제 19개 child/95개 경로의 Concat CPU 구성을 검사했다.
+그 시점에는 학습 준비만 승인됐고 실제 시작은 승인하지 않았다. 이후 상태는 모델 CURRENT를 확인한다.
+
+다음은 로컬 학습 입력 경로다. 모두 `artifacts/evaluation/` 아래이며 native raw 위치와 다르다.
+
+| 입력 | evaluation 아래 경로 |
 |---|---|
-| 완료 환경 | Sunny13, 승인 5,000장 / 부족 0 |
-| Canonical raw | `~/morai_cap/base5_v2_261008/final_appearance_5k_v132_release/collection_5k_sunny13_flexible_v140` |
-| Canonical 선택 | 위 경로의 selected ledger 하나. 부모 성공분을 다시 연결하지 않음 |
-| 완료 경위 | 기존 4,974장 보존 + 같은 패밀리의 새 정상 장면 26장. 실제 대체 내용은 adopted manifest/mapping |
-| 실제 동작 구성 | 정적 4,822장 / 실제 이동 178장 |
-| Split | train 4,255 / val 745. 장면·group 계보를 보존 |
-| 다음 환경 | sunny11/15, foggy11/13/15 각각 새 배치 5K. 총 30K 계획이며 실제 30K 완료가 아님 |
-| 다음 준비본 | `~/morai_cap/base5_obstacle_improvement_261013/candidate_v150c/future_suite`의 독립 25K offline 계획. v142/v149 보존 |
-| Sunny13 동결 release | 같은 실험 root의 `release_v150_sunny13/release.json`. 버스 4/4, 정적 보충 64/64, 이동 8/8, `bulk_ready=true` |
-| 본수집 상태 | 미실행. 새 Sunny13는 CPU prepare-only 0장. 다른 날씨는 실제 UI 확인과 소량 검증 필요 |
+| Sunny11 | `base5_sunny11_training_retrieved_261019_v1/dataset/` |
+| Sunny13 | `base5_sunny13_training_retrieved_261018_v1/dataset/` |
+| Sunny15 | `base5_sunny15_training_export_261018_v2/sunny15/training3_jpeg_portable/` |
+| Foggy11 | `base5_foggy11_training_export_261021_v3/qualified/foggy11/training3_jpeg_portable/` |
+| Foggy13 기존 4,999 | `base5_foggy13_training_export_261020_v1/qualified_supported_v2/foggy13/training3_jpeg_portable/` |
+| Foggy13 신규 1 | `base5_foggy13_terminal_one_261021_v1/training_export_v1/qualified/foggy13_completion/training3_jpeg_portable/` |
+| Foggy15 | `base5_foggy15_training_retrieved_261021_v1/dataset/` |
+| Sunny 보강 3개 | `base5_sunny_supplement_training_retrieved_261021_v1/<환경>/dataset/` |
 
-완료 기준과 부모 보존은 [v140 최종 근거](261010_base5_flexible_deficit_replacement.md)를 따른다.
-다섯 환경의 새 geometry·CPU preflight·소량 live 검증은
-[수집기 근거](261010_base5_postcollection_collector_work.md)에서 확인한다.
-다른 환경의 상태가 바뀌면 실제 journal을 확인한 뒤 이 표를 갱신한다.
-
-## 배치 계약
-
-| 구역·객체군 | 범용 | 미션 |
-|---|---:|---:|
-| 고주로 차량 | 740 | 600 |
-| 로터리 차량 | 0 | 350 |
-| 기타 차량 | 80 | 50 |
-| 장애물 계열 | 770 | 600 |
-| 사람·동물·복합 계열 | 830 | 250 |
-| 독립 GPS 음영 구간 | 0 | 500 |
-| 배경 | 230 | 0 |
-| 합계 | 2,650 | 2,350 |
-
-배경 230장까지 범용 합계에 포함한 장면 수다. 일반/미션 카테고리와 실제 유효 GT 수를 혼동하지 않는다.
-고주로·로터리는 보조 actor도 일반 차량만 사용한다. 음영은 별도 family이며 안의 객체를
-바깥에서 보는 접근 장면도 포함한다. 정적 회피·음영은 허용된 전체 asset 후보를 고려한다.
-범용 혼합의 배치 수·크기 budget과 실제 보이는 객체/유효 component GT 수는 다르다.
-122종 primary coverage는 해당 release와 adopted manifest의 실제 할당으로 확인한다.
-
-현재 보강은 비율·primary 할당·거리/방향·미션 phase·split과 기존 actor 목록을 유지한다.
-범용 regular/dense의 일부에 19종 물리 장애물을 최대 하나 더하고 기존 0~20/20~30m 보조를 보호한다.
-장애물 보강은 30m 이상 보조만 근·중거리로 옮기며 미션·고주로·로터리·음영·single·배경은 변경하지 않는다.
-같은 승인 ID 43장 대조에서 근거리 GT 64→98, LiDAR 20점 이상 39→55이고 Vehicle 36/Pedestrian 69는 유지됐다.
-이는 배치·센서 지원의 증거이며 재학습 AP 개선의 인증은 아니다.
-
-별도 긴 NPC 보완은 정적 회피·음영의 길이 8m 이상 정지 물리 차량에만 적용한다. 차체의 도로 지지를
-추정하지 못한 배치만 다시 생성하고 필요한 actor의 yaw fallback을 명시한다. 새 Sunny13에서
-24장 재배치·15개 actor 방향 fallback이며 4,976개 payload는 유지했다. 자산·거리/방향 계약·split은 보존한다.
-고주로·로터리의 경로 기반 차량, 일반 범용 차량, passive OBJ·사람·동물·복합체의 자유 yaw와 이동 경로는 유지한다.
-[정지 NPC 검증](261013_base5_parked_npc_support_evidence.md)에 실제 근거와 지도 추정의 한계를 기록했다.
-
-v142 baseline의 공간 정책을 유지하므로 범용은 고정 기준점만 반복하는 대신
-허용 도로를 따라 연속 Ego 위치를 샘플링한다.
-같은 slot의 환경 A/B라고 부르지 않으며 물리 link·final support·100m 시야 중복을 따로 감사한다.
-보강 배치·새 정책은 현재 성공분을 폐기하는 이유가 아니다.
-
-다음 25K는 [현재 후보 런북](261013_base5_obstacle_support_runbook.md)과 [보강 근거](261013_base5_obstacle_support_experiments.md)를 따른다.
-[원거리 개선 계획](../../../docs/bevfusion/261013_BASE5_RANGE_AND_TRACKING_IMPROVEMENT_PLAN.md)의 비차량 0~40m 집중·40~50m 소량 유지·50m 이상 quota 축소는 후속 후보이며 v150에 적용하지 않았다.
-개수·거리 비율은 실측으로 수정하되 실제 보이는 원거리 GT를 삭제하거나 Vehicle로 바꾸지 않는다.
-MR 통제권을 별도로 받은 뒤 live 실험한다. 새 후보는 기존 release를 덮어쓰지 않고 검증·동결 후 사용한다.
-`fresh_suite_final_v142`는 이전 baseline으로 보존한다. 새 Sunny13는 원래 30K에 자동 합산하지 않는다.
+최종 선택은 각 완료 출력의 `selected_ledger.jsonl` 하나이며, 학습은 실제 선택 기반
+`layout_split_final/manifest.json`과 `derived_selected_ledger.jsonl`을 따른다.
+Sunny15는 `base5_sunny15_completion_261018/last_cell_v1/`, 빌린 PC Sunny13는
+`~/ajounice_base5_capture/collections/sunny13_5k_terminal_animal_v1/`가 최종 선택이다.
+다른 환경의 전체 ledger·원격 원본·압축본·검증 SHA는 위 완료 근거에서 확인한다.
 
 <a id="capture"></a>
 
-## 수집과 복구
+## 생성·수집·복구 계약
 
-현재 보강 후보는 [보강 런북](261013_base5_obstacle_support_runbook.md)을 따른다.
-구 v142 통신·대시보드의 baseline 이력은 [fresh 런북](261010_base5_fresh_environment_runbook.md)에 보존한다.
-기존 Sunny13 수집/보충 재현은 당시 source·runtime 계약을 사용하며 현재 코드로 강제 resume하지 않는다.
+운영 프로필 정리 후 과거 수집 JSON은 `configs/*/legacy/`에 보관한다. 이미 배포한 동결
+bundle로 재개하며 기존 소스·SHA를 고쳐 쓰지 않는다. 옛 root 경로를 요구하는 수집기를
+소스에서 재현할 때는 정리 전 `78d4f929` tree를 별도로 사용한다.
 
-- SaveSensorData 수집과 UDP/ROS 실주행 streaming을 구분한다. 기존 master/guarded bridge를 중복 실행하지 않는다.
-- MR UI의 날씨와 시간을 확인한다. manifest 생성만으로 UI 환경이 변경되지는 않는다.
-- release·코드·manifest·동결 QA 해시를 확인한다. `--complete`는 본수집 뒤 유한 보충까지 연결한다.
-- 성공분·실패 raw·부모 journal을 보존하고 새 후보의 변경 내용을 mapping에 기록한다.
-- 동일 실패 payload 반복·보충 상한 초기화·부모 ledger 중복 연결을 금지한다.
-- ordinary 장면 부족분과 통신/Park/CollisionData 무수신의 안전 중단을 구분한다.
-  실제 접촉은 증거와 안전한 종료가 검증된 장면만 실패·부족분으로 넘긴다. 불확실한 접촉을 우회하지 않는다.
-- 정적은 원래 캡처의 QA를 유지하며 높이 확인만을 위한 추가 재취득을 남발하지 않는다.
-- 사거리 실제 이동은 수동 높이 lookup의 출발→도착 두 waypoint·선형 이동을 따른다.
-  음영의 이동은 독립 terrain/reference 준비를 유지한다. 자동 지면 추종 기능이 아니다.
+새 생성의 단일 진입점은 `scripts/portable_base5/generation.py`다. 6환경은 같은 공통 정책·
+11단계·구현 SHA를 사용하며 환경과 seed만 새 identity로 기록한다.
+현재 보강 프로파일은 `configs/dataset/base5_midrange_reinforcement_v163.json`이다.
+파일 존재·CPU 생성·소량 native 검증만으로 본수집을 승인하지 않는다.
+실행·수집·유연 보충은 [공통 실행 근거](261018_base5_unified_generation_capture.md),
+Foggy13·후속 환경·750장 보강은 [마감 근거](261019_base5_foggy13_reinforcement_and_capture.md)를 따른다.
+
+- 기존 v158a/v159의 배치·capture split 차이는 역사로 보존하며 재생성하지 않는다.
+- 동결 scripts의 파일 목록·source/runtime·config·manifest·release SHA를 보존한다.
+  새 도구는 공통 portable 경로에 추가한다. 구 output을 변경된 코드로 강제 resume하지 않는다.
+- 고정 입력 전체 SHA는 시작·재개·종료 경계에서 확인하고 새 후보·native QA는 실제 검사한다.
+  종료 integrity 실패·SIGKILL·Park 미확인을 정상 완료로 인증하지 않는다.
+- 성공·실패 raw·부모 journal·소진한 시도·adopted mapping을 보존한다.
+  부족분을 미검사 상태로 되돌리거나 부모 ledger를 중복 연결하지 않는다.
+- ordinary 부족분과 통신·Park·CollisionData 무수신의 안전 중단을 구분한다.
   심각한 부유·실제 이동·충돌·Ego 정지 검사를 우회하지 않는다.
-
-v150의 64+8장 QA 포함 가중 예상은 5K 약 8.14시간/31.25GiB다. 운영 예산은 8~12시간/45GiB이며
-실제 본수집 rate로 갱신한다. v149와 표본이 달라 순수 속도 개선율로 해석하지 않는다. 현재 여유 약 110GiB로 25K 전체 보관은 부족하다.
-실제 상태·디스크·충돌 수신·안전 로그는 실행 중 다시 확인한다. 다른 agent가 MORAI를 쓰면 동시에 수집하지 않는다.
+- 정적 full-RPY 본수집과 격리형 strict-direction 복구의 QA 경계를 유지한다.
+  실제 이동은 최종 방향·실측 지지 영역·수동 높이의 두 waypoint 선형 이동을 따른다.
+- SaveSensorData 수집과 UDP/ROS streaming을 혼동하지 않는다. 중복 collector·master·bridge를 실행하지 않는다.
+  MR UI의 날씨·시간·annotation과 원형 전용 프로세스를 확인한다.
+- 수집·MORAI 조작·전송·삭제·학습은 해당 사용자 승인 범위에서만 실행한다.
 
 <a id="gt"></a>
 
-## GT와 학습 입력
+## GT·원본 보존
 
-원본 PNG·native annotation·parent/component 관계는 보존한다. 카메라 RGB의 학습·분석·공유 입력은
-원본을 무손실 보존한 상태에서 만든 Q90 JPEG다. mask/depth 등 보조 데이터는 JPEG로 변환하지 않는다.
-다른 PC용 완료 묶음의 JPEG 전달·원격 검증 후 RGB PNG 정리는 후속 설계다. 현재 원본 해시 기반 resume 중 자동 삭제하지 않는다.
-학습 GT는 native full RPY의 8모서리를 포함하는 upright 7D enclosure를 사용하며 중심·yaw·구성요소를 임의 합치지 않는다.
+native GT·parent/component·원래 vehicle/pedestrian/obstacle/animal 의미를 보존한다.
+학습은 native full-RPY의 upright 7D enclosure와 Animal→Pedestrian의 3클래스 파생 정책이다.
+OBJ 차량은 Vehicle이며 복합 component의 BBox를 부모 하나로 합치지 않는다.
+실제 8Points를 치수표로 덮어쓰거나 scale을 재곱하지 않는다. 자산 eligibility는 [MR 자산 계약](MR_ASSET_COLLECTION_CURRENT.md)을 따른다.
 
-현재 native JPEG/upright 전달본은
-`artifacts/handoff/base5_sunny13_jpeg90_upright_v1_261011_release`다.
-512 입력의 유효 GT 11,052개와 이전 320 crop의 10,959개는 서로 다른 파생 버전이다.
-가시성 미확인과 실제 비가시를 동일하게 취급하거나 낮은 LiDAR 점 수만으로 전부 버리지 않는다.
+RGB 학습 입력은 원본이 온전할 때 전수 검증한 **Q90 JPEG**다. mask/depth는 변환하지 않는다.
+Q90은 손실 변환이며 PNG의 무손실 백업이 아니다. native GT·비RGB·실패·비선택 원본은 보존한다.
+과거 승인된 PNG/cache 정리는 해당 완료 근거의 receipt만 따른다. 새 삭제 승인으로 확대하지 않는다.
+빌린 PC PNG·native GT 보존 지시와 환경별 실제 삭제 0/삭제 완료 이력을 구분한다.
+삭제된 RGB가 포함된 과거 SHA 증거는 고쳐 쓰지 않으며 완료 세션을 강제로 resume하지 않는다.
+원문 Object velocity·trace는 진단 metadata이지 완전한 동기 velocity GT가 아니다.
+현재 single-frame 7D OD에 velocity supervision을 넣지 않는다.
+전방 80~100m LiDAR 0점 편차의 센서 변경은 [후속 검토](261019_base5_foggy13_reinforcement_and_capture.md#front-far-sensor-followup-261019)이며 현 데이터에 섞지 않는다.
 
-수집 원본의 vehicle/pedestrian/obstacle/animal 의미는 유지한다.
-현재 학습은 Animal만 Pedestrian으로 매핑한 3클래스다. OBJ 차량은 Vehicle이고 복합 자산의 component별 의미·BBox를 보존한다.
-자산 종류·family·Scenario container·모델 클래스는 같은 개념이 아니다.
-원문 Object velocity와 trace는 진단 metadata이며 완전한 SaveSensorData 동기 속도 GT가 아니다.
-현재 single-frame 7D OD 학습에 velocity supervision을 넣지 않는다. bag별 단위·기준점 정책은 별도로 확인한다.
+## 이력과 재현
 
-[JPEG/GT 변환 근거](../../../docs/bevfusion/README.md#evaluation)와 [MR 자산 계약](MR_ASSET_COLLECTION_CURRENT.md)을 참고한다.
-원본 5K와 새 pilot을 섞지 않으며 이미 끝난 학습 source를 문서 개편 때문에 재변환하지 않는다.
-
-## 이력과 갱신
-
-현재 상태는 이 문서의 기존 항목만 갱신한다. v105~v140 진행 이력은
-[무손실 원문 스냅샷](../../../docs/perception/legacy/context_261012/README.md)에 보존했다.
-과거 계획·ETA·중간 부족분을 현재 값으로 복구하지 않는다.
+구 E24·Base1~4·초기 Base5·확대 중단·중간 부족분·과거 ETA는 [legacy 계보](legacy/README.md)에 격리했다.
+정리 전 CURRENT의 세부 수치·경로는 [원문 snapshot](legacy/context_261024/BASE5_V2_CURRENT.before.md)에 보존했다.
+명시적인 재현에만 당시 source·catalog·단위·hash를 선택한다. 과거 CURRENT/계획을 현재 값으로 복구하지 않는다.

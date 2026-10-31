@@ -46,8 +46,8 @@ def duplicate_edges(points: List[Tuple[float, float]], tolerance: float) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--osm", default=str(ROOT / "lanelet_map/lanelet2_map_v68.osm"))
-    parser.add_argument("--output", default=str(ROOT / "reports/polygon_geometry_audit_v24.csv"))
+    parser.add_argument("--osm", default=str(ROOT / "lanelet_map/lanelet2_map_v87.osm"))
+    parser.add_argument("--output", default=str(ROOT / "reports/polygon_geometry_audit.csv"))
     parser.add_argument("--origin-lat", type=float, default=DEFAULT_ORIGIN_LAT)
     parser.add_argument("--origin-lon", type=float, default=DEFAULT_ORIGIN_LON)
     parser.add_argument("--duplicate-tolerance-m", type=float, default=0.02)

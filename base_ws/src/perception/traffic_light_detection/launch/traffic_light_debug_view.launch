@@ -1,0 +1,17 @@
+<launch>
+  <!-- Read-only viewer; does not start inference, sensors, planning or control.
+       The existing Validator desktop/video recorder captures this DISPLAY. -->
+  <arg name="image_topic" default="/traffic_light_node/debug_image/compressed" />
+  <arg name="display" default="$(optenv DISPLAY :0)" />
+  <arg name="stale_sec" default="0.5" />
+  <arg name="window_width" default="1100" />
+  <arg name="window_height" default="850" />
+  <node pkg="traffic_light_detection" type="traffic_light_debug_view.py"
+        name="traffic_light_debug_view" launch-prefix="/usr/bin/python3" output="screen">
+    <env name="DISPLAY" value="$(arg display)" />
+    <param name="image_topic" value="$(arg image_topic)" />
+    <param name="stale_sec" value="$(arg stale_sec)" />
+    <param name="window_width" value="$(arg window_width)" />
+    <param name="window_height" value="$(arg window_height)" />
+  </node>
+</launch>

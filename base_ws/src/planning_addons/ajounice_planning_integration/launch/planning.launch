@@ -1,14 +1,23 @@
 <launch>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="101"/>
+  <!-- Keep the selected map and requester together; valid explicit paths are allowed. -->
+  <arg name="map_file" default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
+  <!-- Unknown versions require an explicit matching checksum; actual SHA validation stays enabled. -->
+  <arg name="map_sha256" default="$(eval {'87': '70f2cdf7ee9dee3333d6553787525890c0a73c4fbcdfdcc9fc95a5c92c687575', '94': '3d11cd820b2f4d755960ae565dbc267e4cf5826307ef2df1149e10922c138cbf', '95': 'a9d931eca722ab81596bce0685147b337dd7fdc3320ebeae13d0ff03ef2f2b6e', '96': '98d0bcbd382212176a9e9efa13c778b1009e27794ef57681d977d957c9708ffd', '97': 'da22c593a980a8fe02e136a004e1918ccf46a82381024854a4fa344eb992e0d9', '98': '25087b24cf9c2a65f366b33b885bcc07ff644ad7b241d8f671a24a03460dc7d0', '101': '574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29'}.get(str(arg('map_version')), ''))"/>
+  <arg name="route_requester_config_file" default="$(arg repo_root)/base_ws/src/planning_addons/competition_route_requester/config/competition_route_requester_v$(arg map_version).param.yaml"/>
   <rosparam command="load" ns="/planning/longitudinal_acceleration_limits"
             file="$(arg repo_root)/configs/planning/longitudinal_acceleration_limits.yaml"/>
   <!-- Flat rear-axle-frame values, cross-checked against the vehicle mesh record. -->
   <arg name="vehicle_param_path"
        default="$(arg repo_root)/configs/planning/vehicle_info.yaml"/>
   <arg name="mission_planner_param_path"
-       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v85.yaml"/>
+       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/mission_planner_kcity_v101.yaml"/>
   <!-- Passive until the RViz Route A button calls the gateway service. -->
   <arg name="start_requester" default="true"/>
+  <!-- Validator reports ordinary checks; static-scene speed intervention is opt-in. -->
+  <arg name="enable_static_scene_guard" default="false"/>
+  <arg name="max_lateral_acceleration" default="6.2"/>
   <arg name="is_simulation" default="false"/>
   <arg name="behavior_path_forward_length" default="400.0"/>
   <arg name="intersection_attention_area_length" default="100.0"/>
@@ -16,6 +25,38 @@
        load tests may explicitly bypass traffic lights without launching a
        fake signal publisher. -->
   <arg name="enable_traffic_light_planner" default="true"/>
+  <!-- Production compliance policy; false is an explicit legacy-policy rollback. -->
+  <arg name="enable_signal_compliance_guard" default="true"/>
+  <!-- Decision-line policy ON; explicit false restores ordinary color decisions. -->
+  <arg name="enable_yellow_passthrough" default="true"/>
+  <!-- Yellow-only stopping approximation; does NOT change global/controller deceleration. -->
+  <arg name="signal_compliance_yellow_deceleration_mps2" default="6.0"/>
+  <arg name="signal_compliance_yellow_jerk_mps3" default="10.0"/>
+  <!-- Deprecated timed-candidate arguments remain accepted for existing launch commands.
+       They no longer enable a separate timing branch or assume a yellow duration. -->
+  <arg name="signal_compliance_enable_timed_yellow" default="false"/>
+  <arg name="signal_compliance_min_yellow_sec" default="2.0"/>
+  <arg name="signal_compliance_yellow_time_margin_sec" default="0.2"/>
+  <arg name="signal_compliance_required_green_observations" default="1"/>
+  <!-- Production: pure unreadable gaps after a real direction grant, bounded
+       by BOTH original green source age and receipt age. 0 disables this grace. -->
+  <arg name="signal_compliance_unknown_grace_sec" default="0.3"/>
+  <!-- Competition: before the first readable lamp, a fresh UNKNOWN does not
+       insert a stop point. Explicit red/yellow and later UNKNOWN still stop. -->
+  <arg name="defer_unseen_until_observed" default="true"/>
+  <!-- Optional conservative rollback: stop near the line before first sighting. -->
+  <arg name="defer_far_unseen_unknown" default="false"/>
+  <arg name="far_unseen_min_stop_distance_m" default="40.0"/>
+  <arg name="far_unseen_response_margin_sec" default="1.0"/>
+  <!-- configs/planning/vehicle_info.yaml: base_link is the rear axle center. -->
+  <arg name="signal_compliance_front_axle_offset_m" default="3.0"/>
+  <!-- Data freshness, not an estimate of remaining yellow time. -->
+  <arg name="traffic_light_state_timeout_sec" default="1.0"/>
+  <arg name="traffic_light_judging_lines_config"
+       default="$(find traffic_light_detection)/config/traffic_signal_judging_lines.yaml"/>
+  <!-- Keep normal LC logging; explicit development trials may select a scoped trace config. -->
+  <arg name="planning_rosconsole_config"
+       default="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
   <arg name="behavior_velocity_launch_modules_with_traffic_light"
        default="[autoware::behavior_velocity_planner::experimental::CrosswalkModulePlugin, autoware::behavior_velocity_planner::experimental::WalkwayModulePlugin, autoware::behavior_velocity_planner::experimental::TrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::RoundaboutModulePlugin, autoware::behavior_velocity_planner::experimental::MergeFromPrivateModulePlugin, autoware::behavior_velocity_planner::experimental::BlindSpotModulePlugin, autoware::behavior_velocity_planner::experimental::VirtualTrafficLightModulePlugin, autoware::behavior_velocity_planner::experimental::NoStoppingAreaModulePlugin, autoware::behavior_velocity_planner::experimental::StopLineModulePlugin, autoware::behavior_velocity_planner::experimental::SpeedBumpModulePlugin, autoware::behavior_velocity_planner::experimental::NoDrivableLaneModulePlugin]"/>
   <arg name="behavior_velocity_launch_modules_without_traffic_light"
@@ -36,20 +77,24 @@
            file="$(find ajounice_planning_integration)/launch/fixed_autonomous_operation_mode.launch"/>
   <include file="$(find ajounice_planning_integration)/launch/map.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="map_sha256" value="$(arg map_sha256)"/>
   </include>
   <include file="$(find tier4_planning_launch)/launch/planning.launch">
     <!-- LC runtime log level; detailed candidate traces are opt-in. -->
     <env name="ROSCONSOLE_CONFIG_FILE"
-         value="$(env AJOUNICE_ROOT)/base_ws/src/planning_addons/ajounice_planning_integration/config/lane_change_diagnostics.rosconsole"/>
+         value="$(arg planning_rosconsole_config)"/>
     <arg name="vehicle_param_path" value="$(arg vehicle_param_path)"/>
     <arg name="mission_planner_param_path" value="$(arg mission_planner_param_path)"/>
     <arg name="is_simulation" value="$(arg is_simulation)"/>
     <arg name="use_ground_pointcloud" value="$(arg use_ground_pointcloud)"/>
     <arg name="use_occupancy_grid" value="$(arg use_occupancy_grid)"/>
     <arg name="start_parking" value="false"/>
-    <!-- Keep object/map based modules; remove cloud/grid consumers. -->
+    <!-- External-request lane changes require an explicit request/approval.
+         Exclude them from this autonomous profile so reaching the preferred
+         lane cannot start an unsolicited lane change away from it. -->
     <arg name="behavior_path_launch_modules"
-         value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeRightModuleManager, autoware::behavior_path_planner::ExternalRequestLaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
+         value="[autoware::behavior_path_planner::StaticObstacleAvoidanceModuleManager, autoware::behavior_path_planner::DynamicObstacleAvoidanceModuleManager, autoware::behavior_path_planner::SideShiftModuleManager, autoware::behavior_path_planner::BidirectionalTrafficModuleManager, autoware::behavior_path_planner::SamplingPlannerModuleManager, autoware::behavior_path_planner::LaneChangeRightModuleManager, autoware::behavior_path_planner::LaneChangeLeftModuleManager, autoware::behavior_path_planner::AvoidanceByLaneChangeModuleManager]"/>
     <arg name="behavior_velocity_launch_modules"
          value="$(arg behavior_velocity_launch_modules)"/>
     <arg name="motion_velocity_launch_modules"
@@ -58,14 +103,61 @@
          value="[autoware::planning_validator::full_source::TrajectoryChecker, autoware::planning_validator::full_source::LatencyChecker]"/>
   </include>
   <!-- Base-owned runtime override; keep the ported Autoware source/config unchanged. -->
+  <!-- Apply the same speed-dependent limit to all three smoothers after YAML loading.
+       Lane-change candidate limits and Validator thresholds are separate policies. -->
+  <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
+  <rosparam param="/planning/scenario_planning/lane_driving/motion_planning/motion_velocity_planner/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
+  <rosparam param="/planning/scenario_planning/velocity_smoother/lateral_acceleration_limits"
+            subst_value="true">[$(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration), $(arg max_lateral_acceleration)]</rosparam>
+  <param name="/planning_validator/enable_static_scene_guard"
+         value="$(arg enable_static_scene_guard)" type="bool"/>
+  <rosparam param="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/slot2">
+    [side_shift, avoidance_by_lane_change, static_obstacle_avoidance, lane_change_left, lane_change_right, bidirectional_traffic]
+  </rosparam>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/forward_path_length"
          value="$(arg behavior_path_forward_length)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/intersection/common/attention_area_length"
          value="$(arg intersection_attention_area_length)"/>
   <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_path_planner/avoidance/target_filtering/unstable_classification_time"
          value="$(arg static_avoidance_unknown_stability_time)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/enable_signal_compliance_guard"
+         value="$(arg enable_signal_compliance_guard)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/enable_yellow_passthrough"
+         value="$(arg enable_yellow_passthrough)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_deceleration_mps2"
+         value="$(arg signal_compliance_yellow_deceleration_mps2)" type="double"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_jerk_mps3"
+         value="$(arg signal_compliance_yellow_jerk_mps3)" type="double"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_enable_timed_yellow"
+         value="false"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_min_yellow_sec"
+         value="$(arg signal_compliance_min_yellow_sec)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_yellow_time_margin_sec"
+         value="$(arg signal_compliance_yellow_time_margin_sec)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_required_green_observations"
+         value="$(arg signal_compliance_required_green_observations)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_unknown_grace_sec"
+         value="$(eval arg('signal_compliance_unknown_grace_sec') if arg('enable_signal_compliance_guard') and arg('enable_traffic_light_planner') else 0.0)" type="double"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_far_unseen_unknown"
+         value="$(eval arg('enable_signal_compliance_guard') and arg('defer_far_unseen_unknown'))"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/defer_unseen_until_observed"
+         value="$(eval arg('enable_signal_compliance_guard') and arg('defer_unseen_until_observed'))"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_min_stop_distance_m"
+         value="$(arg far_unseen_min_stop_distance_m)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/far_unseen_response_margin_sec"
+         value="$(arg far_unseen_response_margin_sec)"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/signal_compliance_front_axle_offset_m"
+         value="$(arg signal_compliance_front_axle_offset_m)"/>
+  <!-- Independent original MGeo judging line, NOT the camera-friendly Lanelet stop target. -->
+  <rosparam file="$(arg traffic_light_judging_lines_config)" command="load"
+            ns="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light"/>
+  <param name="/planning/scenario_planning/lane_driving/behavior_planning/behavior_velocity_planner/traffic_light/tl_state_timeout"
+         value="$(arg traffic_light_state_timeout_sec)"/>
   <include if="$(arg start_requester)" file="$(find competition_route_requester)/launch/competition_route_requester.launch">
     <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="config_file" value="$(arg route_requester_config_file)"/>
   </include>
   <!-- No follower, empty objects/grid/cloud, TF, or localization publisher. -->
 </launch>

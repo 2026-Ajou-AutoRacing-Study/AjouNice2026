@@ -23,7 +23,8 @@ spec.loader.exec_module(module)
 
 
 class Publisher:
-    def __init__(self,fail=False):self.messages=[];self.fail=fail
+    def __init__(self,fail=False):self.messages=[];self.fail=fail;self.connections=0
+    def get_num_connections(self):return self.connections
     def publish(self,message):
         if self.fail:raise RuntimeError('diagnostic publisher failed')
         self.messages.append(message)
@@ -217,9 +218,69 @@ class FrameTimingTest(unittest.TestCase):
             root=ET.parse(PACKAGE/'launch'/(name+'.launch')).getroot()
             args={item.attrib['name']:item.attrib.get('default')for item in root.findall('arg')}
             self.assertEqual(args['publish_frame_timing'],'false')
+            self.assertEqual(args['diagnostics_auto_on_subscribe'],'true')
         root=ET.parse(PACKAGE/'launch/base5_trial.launch').getroot()
         remaps={item.attrib['from']:item.attrib['to']for item in root.findall('group/remap')}
         self.assertEqual(remaps['/perception/bevfusion/frame_timing'],'/perception/base5_trial/frame_timing')
+
+    def test_auto_capture_follows_subscribers_without_swapping_ledger(self):
+        obj=bridge(True);obj.publish_frame_timing=False;obj.diagnostics_auto_on_subscribe=True
+        ledger=obj.frame_timing
+        for connections in (0,1,2,1,0,1):
+            obj.frame_timing_pub.connections=connections
+            self.assertIs(obj._frame_timing_for_input(),ledger if connections else None)
+            self.assertIs(obj.frame_timing,ledger)
+        obj.diagnostics_auto_on_subscribe=False
+        self.assertIsNone(obj._frame_timing_for_input())
+        obj.publish_frame_timing=True
+        self.assertIs(obj._frame_timing_for_input(),ledger)
+
+    def test_auto_timed_frame_finishes_after_last_observer_disconnects(self):
+        obj=bridge(True);obj.publish_frame_timing=False;obj.diagnostics_auto_on_subscribe=True
+        msg=cloud()
+        for name in obj.camera_order:
+            image=CompressedImage(format='jpeg',data=b'original-jpeg')
+            image.header.stamp=msg.header.stamp;obj._camera_callback(image,name)
+        obj.frame_timing_pub.connections=1
+        with patch.object(module.time,'monotonic',return_value=20.):
+            obj._lidar_callback(msg)
+            frame=obj.raw_pending;obj.raw_pending=None
+            obj.frame_timing_pub.connections=0
+            obj._request_and_publish(obj._prepare_frame(*frame))
+        self.assertEqual(len(obj.objects_pub.messages),1)
+        self.assertEqual(len(obj.frame_timing_pub.messages),1)
+        self.assertFalse(obj.frame_timing.frames);self.assertFalse(obj.frame_timing.active)
+        with patch.object(module.time,'monotonic',return_value=21.):
+            obj._lidar_callback(msg)
+        self.assertFalse(obj.frame_timing.frames)
+
+    def test_auto_unobserved_overwrite_releases_prior_timed_pending(self):
+        obj=bridge(True);obj.publish_frame_timing=False;obj.diagnostics_auto_on_subscribe=True
+        msg=cloud()
+        for name in obj.camera_order:
+            image=CompressedImage();image.header.stamp=msg.header.stamp;obj._camera_callback(image,name)
+        obj.frame_timing_pub.connections=1
+        with patch.object(module.time,'monotonic',return_value=20.):obj._lidar_callback(msg)
+        obj.frame_timing_pub.connections=0
+        with patch.object(module.time,'monotonic',return_value=21.):obj._lidar_callback(msg)
+        self.assertFalse(obj.frame_timing.frames)
+        self.assertEqual(obj.frame_timing.counters['raw_overwrite'],1)
+
+    def test_automatic_capture_preserves_request_and_detection_wire(self):
+        results=[]
+        for auto,connections in ((False,0),(True,0),(True,1),(True,2)):
+            obj=bridge(True);obj.publish_frame_timing=False;obj.diagnostics_auto_on_subscribe=auto
+            obj.frame_timing_pub.connections=connections;msg=cloud()
+            for name in obj.camera_order:
+                image=CompressedImage(format='jpeg',data=b'input-'+name.encode())
+                image.header.stamp=msg.header.stamp;obj._camera_callback(image,name)
+            with patch.object(module.time,'monotonic',return_value=20.):
+                obj._lidar_callback(msg)
+                prepared=obj._prepare_frame(*obj.raw_pending)
+                obj._request_and_publish(prepared)
+            results.append((obj.transport.requests,[wire(m) for m in obj.objects_pub.messages]))
+            self.assertEqual(len(obj.frame_timing_pub.messages),int(auto and connections>0))
+        self.assertTrue(all(r==results[0] for r in results[1:]))
 
 
 if __name__=='__main__':unittest.main()

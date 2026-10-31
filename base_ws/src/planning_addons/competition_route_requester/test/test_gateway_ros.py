@@ -33,8 +33,8 @@ REPO = PACKAGE.parents[3]
 class GatewayROS(unittest.TestCase):
     def setUp(self):
         self.cfg = yaml.safe_load((PACKAGE/'config/competition_route_requester.param.yaml').read_text())
-        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v85_competition_route.yaml').read_text())
-        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v85_competition_route.yaml'),
+        self.routes = yaml.safe_load((PACKAGE/'config/kcity_v101_competition_route.yaml').read_text())
+        self.cfg.update(route_definition_file=str(PACKAGE/'config/kcity_v101_competition_route.yaml'),
                         service_timeout=.2, route_verification_timeout=.4, trajectory_verification_timeout=.5)
         if self._testMethodName in ('test_b_trigger_transport', 'test_fallback_transport',
                                     'test_manual_a_restart_from_b',
@@ -109,7 +109,9 @@ class GatewayROS(unittest.TestCase):
         self.pubs['odometry_topic'].publish(odom)
         self.pubs['operation_mode_topic'].publish(mode)
         self.pubs['route_state_topic'].publish(state)
-        self.pubs['map_topic'].publish(LaneletMapBin(data=b'mock binary; not a map-loader test'))
+        self.pubs['map_topic'].publish(LaneletMapBin(
+            version_map=str(self.routes['map']['version']),
+            data=b'mock binary; not a map-loader test'))
         availability = RerouteAvailability(availability=True)
         availability.stamp.sec, availability.stamp.nanosec = now.secs, now.nsecs
         self.pubs['reroute_availability_topic'].publish(availability)
@@ -186,6 +188,15 @@ class GatewayROS(unittest.TestCase):
         response.status.success = True
         return response
 
+    def test_mixed_map_version_is_rejected_before_route_rpc(self):
+        self.timer.shutdown()
+        self.gateway.map.version_map = '87'
+        allowed, reason = self.gateway.guard('route_a')
+        self.assertFalse(allowed)
+        self.assertIn('map versions differ', reason)
+        self.assertFalse(self.client('route_a').accepted)
+        self.assertEqual(self.calls, 0)
+
     def test_a_service_and_fresh_output(self):
         self.assertTrue(self.client('route_a').accepted)
         self.wait(lambda: not self.gateway.busy)
@@ -248,9 +259,10 @@ class GatewayROS(unittest.TestCase):
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_b')
 
-    def test_startup_route_b_before_a_to_b_reroute_threshold_is_verified(self):
-        target_arc = 6.0
-        points = self.gateway.geometry.lanes[200258][0]
+    def test_startup_route_b_after_spawn5_trigger_is_verified(self):
+        trigger = self.routes['poses'][self.routes['startup_route_b_trigger']['pose_ref']]
+        target_arc = self.routes['startup_route_b_trigger']['minimum_lanelet_s_m'] + 0.1
+        points = self.gateway.geometry.lanes[trigger['lanelet_id']][0]
         traversed = 0.0
         for first, second in zip(points, points[1:]):
             dx, dy = second[0] - first[0], second[1] - first[1]
@@ -263,12 +275,12 @@ class GatewayROS(unittest.TestCase):
                 break
             traversed += segment_length
         else:
-            self.fail('lanelet 200258 centerline is shorter than the test arc')
+            self.fail('trigger lanelet centerline is shorter than the test arc')
         self.wait(lambda: self.gateway.progress() is not None and
-                  self.gateway.progress()[0] == 200258)
+                  self.gateway.progress()[0] == trigger['lanelet_id'])
         lane, arc = self.gateway.progress()
-        self.assertEqual(lane, 200258)
-        self.assertLess(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
+        self.assertEqual(lane, trigger['lanelet_id'])
+        self.assertGreater(arc, self.routes['reroute_trigger']['minimum_lanelet_s_m'])
         self.assertTrue(self.gateway.guard('route_b')[0])
 
         response = self.client('route_b')
@@ -350,7 +362,26 @@ class GatewayROS(unittest.TestCase):
         self.assertTrue(self.client('route_a').accepted)
         self.wait(lambda: not self.gateway.busy)
         self.assertEqual(self.gateway.active, 'route_a')
-        self.ego_pose = self.routes['poses'][ref]
+        # Positive transport tests must be inside the trigger window. The frozen
+        # boundary anchor can project a fraction of a millimetre before the exact
+        # threshold after OSM coordinate rounding; threshold tests live in policy.
+        reference = self.routes['poses'][ref]
+        target_s = (self.routes['reroute_trigger']['minimum_lanelet_s_m']
+                    if key == 'route_b' else reference['lanelet_s_m']) + 1.0
+        points = self.gateway.geometry.lanes[reference['lanelet_id']][0]
+        traversed = 0.0
+        for first, second in zip(points, points[1:]):
+            dx, dy = second[0] - first[0], second[1] - first[1]
+            length = math.hypot(dx, dy)
+            if length > 0.0 and traversed + length >= target_s:
+                ratio = (target_s - traversed) / length
+                self.ego_pose = dict(reference, x=first[0] + ratio * dx,
+                                     y=first[1] + ratio * dy,
+                                     yaw_deg=math.degrees(math.atan2(dy, dx)))
+                break
+            traversed += length
+        else:
+            self.fail('configured trigger lane is shorter than the interior probe')
         self.wait(lambda: self.gateway.guard(key)[0])
         self.assertTrue(self.client(key).accepted)
         self.wait(lambda: not self.gateway.busy)
@@ -360,7 +391,7 @@ class GatewayROS(unittest.TestCase):
 
     def test_b_trigger_transport(self):
         # Pose advances to trigger. This checks policy/transport, not Mission safety.
-        self.transition('route_b', 'wp_200258')
+        self.transition('route_b', self.routes['reroute_trigger']['pose_ref'])
 
     def test_fallback_transport(self):
         self.transition('fallback_route', self.routes['fallback_route']['hard_cutoff_pose_ref'])

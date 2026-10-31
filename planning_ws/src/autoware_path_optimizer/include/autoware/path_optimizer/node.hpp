@@ -20,6 +20,12 @@
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 #include "autoware/path_optimizer/obstacle_clustering.hpp"
 #include "autoware/path_optimizer/replan_checker.hpp"
+#include "autoware/path_optimizer/recovery_state.hpp"
+#include <autoware_perception_msgs/PredictedObjects.h>
+#include <std_msgs/Bool.h>
+#include <std_msgs/Int8.h>
+#include <std_msgs/String.h>
+#include <autoware_adapi_v1_msgs/OperationModeState.h>
 #include "autoware/path_optimizer/type_alias.hpp"
 #include "autoware_utils/ros/logger_level_configure.hpp"
 #include "autoware_utils/ros/polling_subscriber.hpp"
@@ -83,6 +89,38 @@ protected:  // for the static_centerline_generator package
   std::optional<rclcpp::Time> last_successful_optimization_time_;
   std::optional<std::vector<TrajectoryPoint>> last_validated_output_;
   bool using_final_geometry_{false};
+  bool using_recovery_geometry_{false};
+  bool normal_obstacle_search_complete_{false};
+  bool enable_obstacle_fallback_{true};
+  RecoveryState recovery_state_;
+  double recovery_cycle_time_{0.0};
+  bool recovery_permitted_{false};
+  bool normal_fresh_solution_{false};
+  bool normal_optimization_failed_{false};
+  bool selected_previous_{false};
+  bool selected_stop_{false};
+  double recovery_input_max_age_{0.5};
+  bool external_stop_{true};
+  bool behavior_stop_{true};
+  ros::Time behavior_stop_received_;
+  ros::Subscriber behavior_stop_sub_;
+  bool autonomous_{false};
+  ros::Time operation_mode_received_;
+  bool external_control_{false};
+  bool drive_gear_{false};
+  ros::Time gear_received_;
+  ros::Subscriber gear_sub_;
+  ros::Time control_mode_received_;
+  ros::Subscriber control_mode_sub_;
+  ros::Time external_stop_received_;
+  ros::Subscriber external_stop_sub_, recovery_objects_sub_;
+  ros::Subscriber recovery_operation_sub_;
+  autoware_perception_msgs::PredictedObjects::ConstPtr recovery_objects_;
+  ros::Publisher recovery_status_pub_;
+  bool validateNormal(const PlannerData &, const std::vector<TrajectoryPoint> &) const;
+  bool validateRecovery(const PlannerData &, const std::vector<TrajectoryPoint> &) const;
+  void publishRecoveryStatus(const PlannerData &);
+  double retained_optimization_forward_length_{0.0};
   bool use_footprint_polygon_for_outside_drivable_area_check_;
   std::string outside_drivable_area_check_footprint_;
 
@@ -107,16 +145,25 @@ protected:  // for the static_centerline_generator package
   ros::WallTimer scene_timeout_timer_;
   bool require_obstacle_scene_{false};
   double obstacle_search_time_budget_ms_{100.0};
+  double obstacle_continuity_weight_{3.0};
+  std::string output_resampling_method_{"gaussian"};
+  double output_gaussian_sigma_m_{0.25};
+  bool obstacle_candidate_trace_enabled_{false};
+  std::string obstacle_candidate_trace_;
+  std::string optimization_reset_reason_;
+  rclcpp::Publisher<StringStamped>::SharedPtr obstacle_candidate_trace_pub_;
   double obstacle_fallback_deceleration_{7.0};
   double obstacle_max_forward_length_{60.0};
   double obstacle_return_length_{15.0};
   ObstacleClusteringParameters obstacle_clustering_param_;
   size_t obstacle_search_cursor_{0};
+  size_t relaxed_obstacle_search_cursor_{0};
   std::map<uint64_t, autoware_planning_msgs::StaticObstacleScene> obstacle_scenes_;
   PathConstPtr pending_path_;
   ros::WallTime pending_path_since_;
   rclcpp::Publisher<Odometry>::SharedPtr planning_odometry_pub_;
-  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(const PlannerData & data);
+  std::optional<std::vector<TrajectoryPoint>> optimizeObstacleCandidates(
+    const PlannerData & data, double search_budget_ms);
   bool stopBeforeObstacle(const PlannerData & data, std::vector<TrajectoryPoint> & points) const;
   autoware_utils_rclcpp::InterProcessPollingSubscriber<Odometry> ego_odom_sub_{
     private_node_handle_ptr(), "input/odometry"};
