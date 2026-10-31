@@ -1,3 +1,4 @@
+#include "autoware/behavior_path_lane_change_module/utils/candidate_sampling.hpp"
 
 // Copyright 2024 TIER IV, Inc.
 //
@@ -459,17 +460,11 @@ std::vector<double> calc_lon_acceleration_samples(
   const auto & min_accel = min_max_accel.first;
   const auto & max_accel = min_max_accel.second;
 
-  // Competition mode explores front and rear gaps even far from a lane end.
+  // Explore front and rear gaps even far from a lane end, in descending
+  // acceleration order. The search accepts the first safe candidate, so
+  // stronger braking must not precede coasting or gentler braking samples.
   if (common_data_ptr->lc_param_ptr->trajectory.min_prepare_duration <= eps) {
-    const auto values = calc_acceleration_values(min_accel, max_accel, sampling_num);
-    std::vector<double> ordered;
-    // Cover both extremes before refining, so a time budget does not spend all
-    // its work on the accelerating half of the grid.
-    for (size_t i = 0; i < (values.size() + 1) / 2; ++i) {
-      ordered.push_back(values[i]);
-      if (values.size() - 1 - i != i) ordered.push_back(values[values.size() - 1 - i]);
-    }
-    return ordered;
+    return calc_acceleration_values(min_accel, max_accel, sampling_num);
   }
   const auto & current_pose = common_data_ptr->get_ego_pose();
   const auto & target_lanes = common_data_ptr->lanes_ptr->target;
@@ -568,6 +563,12 @@ std::vector<double> calc_prepare_durations(const CommonDataPtr & common_data_ptr
     const double latest = lc_param_ptr->trajectory.max_prepare_duration;
     std::vector<double> durations;
     if (!std::isfinite(earliest) || earliest < 0.0 || earliest > latest) return durations;
+    if (!lc_param_ptr->trajectory.prepare_duration_samples.empty()) {
+      for (const double t : lc_param_ptr->trajectory.prepare_duration_samples) {
+        if (t + eps >= earliest && t <= latest + eps) durations.push_back(t);
+      }
+      return durations;
+    }
     // Try an immediate safe maneuver first, then delayed alternatives if the
     // target lane has not started yet or current traffic prevents starting now.
     for (double duration = earliest; duration < latest - eps; duration += 0.5) {
@@ -651,13 +652,6 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
   const auto & min_lc_vel = common_data_ptr->lc_param_ptr->trajectory.min_lane_changing_velocity;
   const auto & max_vel = common_data_ptr->bpp_param_ptr->max_vel;
 
-  // get lateral acceleration range
-  const auto [min_lateral_acc, max_lateral_acc] =
-    common_data_ptr->lc_param_ptr->trajectory.lat_acc_map.find(initial_velocity);
-  const auto lateral_acc_resolution =
-    std::abs(max_lateral_acc - min_lateral_acc) /
-    common_data_ptr->lc_param_ptr->trajectory.lat_acc_sampling_num;
-
   std::vector<PhaseMetrics> metrics;
 
   auto is_skip = [&](const double lane_changing_length) {
@@ -671,14 +665,16 @@ std::vector<PhaseMetrics> calc_shift_phase_metrics(
     return false;
   };
 
-  for (double lat_acc = min_lateral_acc; lat_acc < max_lateral_acc + eps;
-       lat_acc += lateral_acc_resolution) {
+  for (const double lat_acc : lateral_acceleration_samples(
+         common_data_ptr->lc_param_ptr->trajectory, initial_velocity)) {
     const auto lane_changing_duration = autoware::motion_utils::calc_shift_time_from_jerk(
       shift_length, common_data_ptr->lc_param_ptr->trajectory.lateral_jerk, lat_acc);
 
     const double lane_changing_accel = calc_lane_changing_acceleration(
       common_data_ptr, initial_velocity, max_path_velocity, lane_changing_duration, lon_accel);
     if (!std::isfinite(lane_changing_accel)) continue;
+    if (!common_data_ptr->lc_param_ptr->trajectory.allow_decelerating_lane_change &&
+        lane_changing_accel < -1e-6) continue;
 
     const auto lane_changing_length = calculation::calc_phase_length(
       initial_velocity, max_vel, lane_changing_accel, lane_changing_duration);

@@ -101,20 +101,28 @@ class InitialPoseProvenanceTest(unittest.TestCase):
         np.testing.assert_allclose(pose[0:3, 3], node.official_position)
         self.assertAlmostEqual(math.degrees(tft.euler_from_matrix(pose)[2]), node.official_yaw_deg)
 
-    def test_official_start_rejects_wrong_scenario_heading(self):
+    def test_official_start_warns_but_uses_observed_corrected_heading(self):
         node = publisher(position_source="official_start")
         node.gnss_callback(gnss_status(10.0))
-        with patch.object(MODULE.rospy, "loginfo_once"), patch.object(MODULE.rospy, "logerr_throttle"):
+        with patch.object(MODULE.rospy, "loginfo_once"), \
+                patch.object(MODULE.rospy, "logwarn_throttle") as warning:
             node.heading_callback(status(10.0, heading=100.0))
-        self.assertFalse(node.publish_once.called)
+        warning.assert_called_once()
+        self.assertIn("using observed corrected Competition heading", warning.call_args.args[1])
+        pose = node.publish_once.call_args.args[2]
+        np.testing.assert_array_equal(pose[0:3, 3], node.official_position)
+        self.assertAlmostEqual(math.degrees(tft.euler_from_matrix(pose)[2]), 98.653)
 
-    def test_official_start_rejects_missing_heading_correction(self):
+    def test_official_start_warns_but_does_not_override_heading_configuration(self):
         node = publisher(position_source="official_start")
         node.use_heading_correction = False
         node.gnss_callback(gnss_status(10.0))
-        with patch.object(MODULE.rospy, "loginfo_once"), patch.object(MODULE.rospy, "logerr_throttle"):
+        with patch.object(MODULE.rospy, "loginfo_once"), \
+                patch.object(MODULE.rospy, "logwarn_throttle") as warning:
             node.heading_callback(status(10.0, heading=62.645126221))
-        self.assertFalse(node.publish_once.called)
+        warning.assert_called_once()
+        pose = node.publish_once.call_args.args[2]
+        self.assertAlmostEqual(math.degrees(tft.euler_from_matrix(pose)[2]), 62.645126221)
 
     def test_official_start_waits_for_fresh_nearby_gnss(self):
         node = publisher(position_source="official_start")

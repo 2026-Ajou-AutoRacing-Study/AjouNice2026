@@ -7,7 +7,7 @@
 
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
   <arg name="sensor_config"
-       default="$(arg repo_root)/configs/sensors/Sensor.json"/>
+       default="$(arg repo_root)/configs/sensors/Sensor_competition_local.json"/>
   <arg name="sensor_parent_frame" default="base_link"/>
   <arg name="publish_lidar_tf" default="true"/>
   <arg name="publish_imu_tf" default="true"/>

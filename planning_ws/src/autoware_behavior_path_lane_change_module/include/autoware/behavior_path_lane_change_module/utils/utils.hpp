@@ -177,6 +177,10 @@ bool is_delay_lane_change(
 lanelet::BasicPolygon2d create_polygon(
   const lanelet::ConstLanelets & lanes, const double start_dist, const double end_dist);
 
+std::optional<PredictedPathWithPolygon> transform_predicted_path(
+  const autoware_perception_msgs::PredictedPath & path,
+  const autoware_perception_msgs::Shape & shape, double velocity, double time_resolution);
+
 ExtendedPredictedObject transform(
   const PredictedObject & object, const LaneChangeParameters & lane_change_parameters);
 
@@ -457,6 +461,14 @@ bool object_path_overlaps_lanes(
 std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
   const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
   const size_t deceleration_sampling_num, const bool is_approved = false);
+
+// Only executed-output observations may hold a stationary pose. New maneuver
+// candidates still require a finite traversable speed profile.
+std::vector<std::vector<PoseWithVelocityStamped>> convert_to_predicted_paths(
+  const CommonDataPtr & common_data_ptr, const LaneChangePath & lane_change_path,
+  const size_t deceleration_sampling_num, const bool is_approved,
+  const double stationary_horizon);
+
 
 /**
  * @brief Validates whether a given pose is a valid starting point for a lane change.

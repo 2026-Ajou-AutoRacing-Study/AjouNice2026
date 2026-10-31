@@ -201,7 +201,10 @@ class BevFusionRosBridge:
         self.shutting_down = False
         self.frame_timing = None
         self.frame_timing_pub = None
-        if bool(rospy.get_param('~publish_frame_timing', False)):
+        self.publish_frame_timing = bool(rospy.get_param('~publish_frame_timing', False))
+        self.diagnostics_auto_on_subscribe = bool(
+            rospy.get_param('~diagnostics_auto_on_subscribe', True))
+        if self.publish_frame_timing or self.diagnostics_auto_on_subscribe:
             self.frame_timing = FrameTimingLedger(capacity=16)
             self.frame_timing_pub = rospy.Publisher(
                 '/perception/bevfusion/frame_timing', String, queue_size=1)
@@ -358,8 +361,25 @@ class BevFusionRosBridge:
         with self.buffer_lock:
             self.camera_buffers[frame].append(message)
 
-    def _lidar_callback(self, message):
+    def _frame_timing_for_input(self):
+        """Decide per input, never swap the shared ledger under worker threads."""
         ledger = getattr(self, 'frame_timing', None)
+        if ledger is None:
+            return None
+        # Legacy test/embedded instances with an explicitly injected ledger
+        # retain their forced-on behavior. Real nodes always define both flags.
+        if getattr(self, 'publish_frame_timing', True):
+            return ledger
+        if not getattr(self, 'diagnostics_auto_on_subscribe', True):
+            return None
+        try:
+            return ledger if self.frame_timing_pub.get_num_connections() > 0 else None
+        except Exception:
+            # An optional observer must never reject a sensor frame.
+            return None
+
+    def _lidar_callback(self, message):
+        ledger = self._frame_timing_for_input()
         ticket = ledger.begin(message.header.stamp.to_nsec(), message.header.frame_id,
                               rospy.Time.now().to_nsec()) if ledger else None
         lidar_stamp = stamp_seconds(message)
@@ -419,8 +439,10 @@ class BevFusionRosBridge:
         with self.pipeline_condition:
             if self.raw_pending is not None:
                 self.dropped_raw += 1
-                if ledger:
-                    ledger.discard(self.raw_pending[-1], 'raw_overwrite')
+                # A newly untimed input can still replace a timed pending one.
+                pending_ledger = getattr(self, 'frame_timing', None)
+                if pending_ledger:
+                    pending_ledger.discard(self.raw_pending[-1], 'raw_overwrite')
             self.raw_pending = (
                 message,
                 selected,
@@ -633,7 +655,7 @@ class BevFusionRosBridge:
             raise ValueError("could not decode image for {}".format(frame))
         if image.shape[:2] != self.camera_shapes[frame]:
             raise ValueError(
-                "{} image shape {} differs from Sensor.json {}".format(
+                "{} image shape {} differs from sensor configuration {}".format(
                     frame, image.shape[:2], self.camera_shapes[frame]
                 )
             )

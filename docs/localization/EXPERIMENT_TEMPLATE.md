@@ -2,7 +2,10 @@
 
 상태: **TEMPLATE**
 
-새 실험 문서는 이 파일을 복사해 `YYMMDD_<topic>_evidence.md`로 만든다.
+새 실험은 이 형식으로 provenance를 기록한다. per-run 기록과 원본 snapshot은
+Git 제외 `planner_logs/analysis/`에 두고 현재 결론만 `CURRENT_EVIDENCE.md`에 연결한다.
+명시적 역사 보관이 필요하면 `legacy/evidence/YYMMDD_<topic>_evidence.md`로 분리한다.
+완료된 실험 로그·중간 epoch 기록을 이 디렉터리의 새 현재 진입점으로 늘리지 않는다.
 
 ## 결론
 

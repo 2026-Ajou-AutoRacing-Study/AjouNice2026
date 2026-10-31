@@ -27,7 +27,7 @@ class LocalizationSnapshotTests(unittest.TestCase):
             'base_ws/src/control/trajectory_follower/config/purepursuit_autoware.yaml',
             'base_ws/src/control/trajectory_follower/config/longi_pi_autoware.yaml',
             'configs/vehicle/ioniq5.yaml', 'configs/tf/morai_lanelet_static_tf.yaml',
-            'base_ws/src/competition/competition_rule_monitor/config/kcity_v87_rules.yaml',
+            'base_ws/src/competition/competition_rule_monitor/config/kcity_v101_rules.yaml',
         ):
             self.write(relative, 'fixture: true\n')
         self.source_node = self.write('base_ws/src/localization/localization_manager/scripts/fixture.py', '# source fixture\n')

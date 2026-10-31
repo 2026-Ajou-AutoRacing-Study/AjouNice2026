@@ -18,9 +18,10 @@ class TrafficRuntimeTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.example = gui.load_document(gui.EXAMPLES / "static_pair_stress_gt.yaml")
+        self.example['stack']['traffic_light_profile'] = 'legacy'
 
     def test_default_and_legacy_roundtrip(self):
-        self.assertEqual(runtime_settings({}, self.root), ("/usr/bin/python3", "0"))
+        self.assertEqual(runtime_settings({'traffic_light_profile':'legacy'}, self.root), ("/usr/bin/python3", "0"))
         for stack in ({}, {"traffic_light_python": "/my/conda/bin/python", "traffic_light_device": 0},
                       {"traffic_light_runtime": "system", "traffic_light_python": "/my/conda/bin/python"}):
             source = copy.deepcopy(self.example)
@@ -48,7 +49,7 @@ class TrafficRuntimeTests(unittest.TestCase):
         self.assertEqual(path, str(self.root / ".local/share/ajounice/traffic_light_gpu/bin/python"))
         link = self.root / "python"
         link.symlink_to("/usr/bin/python3")
-        self.assertEqual(runtime_settings({"traffic_light_python": "python"}, self.root, check_exists=True)[0], str(link))
+        self.assertEqual(runtime_settings({"traffic_light_profile":"legacy", "traffic_light_python": "python"}, self.root, check_exists=True)[0], str(link))
 
     def test_off_does_not_require_an_environment_but_invalid_choices_fail(self):
         stack = {"traffic_light": False, "traffic_light_python": "/missing/bin/python"}
@@ -82,7 +83,7 @@ class TrafficRuntimeTests(unittest.TestCase):
             checked.assert_not_called()
         python = self.root / "custom python"
         python.symlink_to("/usr/bin/python3")
-        cfg["stack"].update(traffic_light=True, traffic_light_python=str(python))
+        cfg["stack"].update(traffic_light=True, traffic_light_profile='legacy', traffic_light_python=str(python))
         with patch.object(runner.subprocess, "run", return_value=Mock(returncode=0, stdout="PASS\n")) as checked:
             runner._check_traffic_light(cfg)
             command = checked.call_args.args[0]
@@ -91,7 +92,7 @@ class TrafficRuntimeTests(unittest.TestCase):
         self.assertEqual((self.root / "stack_logs/traffic_light_preflight.log").read_text(), "PASS\n")
 
     def test_preflight_failure_and_timeout_abort(self):
-        cfg = {"output": self.root, "stack": {"traffic_light": True}}
+        cfg = {"output": self.root, "stack": {"traffic_light": True, 'traffic_light_profile':'legacy'}}
         with patch.object(runner.subprocess, "run", return_value=Mock(returncode=1, stdout="CUDA missing")):
             with self.assertRaisesRegex(runner.RuntimeFailure, "주행"):
                 runner._check_traffic_light(cfg)
@@ -103,7 +104,7 @@ class TrafficRuntimeTests(unittest.TestCase):
         python = self.root / "custom python"
         python.symlink_to("/usr/bin/python3")
         cfg = {"stack": {"pose_source": "maptf_morai", "detector": "od_gt", "traffic_light": True,
-                         "traffic_light_python": str(python), "traffic_light_device": "cpu"},
+                         "traffic_light_profile":"legacy", "traffic_light_python": str(python), "traffic_light_device": "cpu"},
                "network": {"sensor_json": "sensor.json"}, "document": {}}
         processes, monitor = Mock(), Mock()
         runner._start_case_stack(cfg, processes, monitor)

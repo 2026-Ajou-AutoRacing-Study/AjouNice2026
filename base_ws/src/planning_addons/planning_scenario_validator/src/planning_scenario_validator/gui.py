@@ -23,13 +23,15 @@ from .config import (CONFIG_SCHEMA_VERSION, DEFAULT_UPLOAD_REMOTE, EXECUTION_CON
                      UPLOAD_PROFILES, resolve_path, validate_campaign_document)
 from .config import load_campaign, scenario_sources
 from .layout import normalize_bar_setting, resolve_bar_height
-from .traffic_light import DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings
+from .traffic_light import (DEFAULT_PYTHON, LABEL_MODES, MODE_LABELS, runtime_mode, runtime_settings,
+                            PROFILE_LABELS, LABEL_PROFILES, DEFAULT_MODELS_ROOT, profile_name)
 from . import executions
 from . import batch
 from .authoring import annotated_yaml, pasted_yaml_path, quick_test_document, updated_yaml
 from .scenario_selection import choose_scenarios
 from .models import PRESETS, LABEL_PRESETS, DEFAULT_MODEL
 from . import recording_options as bag_options
+from .startup_audit import stream_console
 
 
 PACKAGE = ROOT / "base_ws/src/planning_addons/planning_scenario_validator"
@@ -55,8 +57,13 @@ UPLOAD_LABEL_PROFILES = {label: key for key, label in UPLOAD_PROFILE_LABELS.item
 EDITABLE_FIELDS = {
     'campaign_name': ('campaign_name',), 'glob': ('scenarios', 'glob'),
     'repeat': ('scenarios', 'repeat'), 'pose_source': ('stack', 'pose_source'),
+    'gnss_delay_ms': ('stack', 'localization_args', 'gnss_delay_ms'),
     'detector': ('stack', 'detector'), 'traffic_light': ('stack', 'traffic_light'),
+    'traffic_light_yellow_passthrough': ('stack', 'traffic_light_yellow_passthrough'),
+    'traffic_light_debug_view': ('stack', 'traffic_light_debug_view'),
     'bevfusion_model': ('stack', 'bevfusion_model'),
+    'traffic_light_profile': ('stack', 'traffic_light_profile'),
+    'traffic_light_models_root': ('stack', 'traffic_light_models_root'),
     'selected_topics': ('recording', 'selected_topics'),
     'video': ('recording', 'video', 'enabled'),
     'upload_enabled': ('upload', 'enabled'), 'upload_profile': ('upload', 'profile'),
@@ -173,14 +180,21 @@ def form_values(document):
         "repeat": scene.get("repeat", 1),
         "timeout_sec": case.get("timeout_sec", 180),
         "pose_source": stack.get("pose_source", "localization"),
+        "gnss_delay_ms": gnss_delay_form_value(stack),
         "detector": stack.get("detector", "od_gt"),
         'bevfusion_model': PRESETS[stack.get('bevfusion_model', DEFAULT_MODEL)]['label'],
         'recording_mode': bag_options.mode_label(recording),
         'selected_topics': json.dumps(recording['selected_topics'], ensure_ascii=False) if 'selected_topics' in recording else '',
         "traffic_light": stack.get("traffic_light", False),
+        "traffic_light_yellow_passthrough": stack.get('traffic_light_yellow_passthrough', True),
+        "traffic_light_debug_view": stack.get('traffic_light_debug_view', False),
         "traffic_light_runtime": MODE_LABELS[runtime_mode(stack)],
-        "traffic_light_python": stack.get("traffic_light_python", DEFAULT_PYTHON) if stack.get("traffic_light_python") != "/usr/bin/python3" else DEFAULT_PYTHON,
+        "traffic_light_python": (DEFAULT_PYTHON if stack.get('traffic_light_python') == '/usr/bin/python3'
+                                 or (profile_name(stack) == 'v5_candidate' and stack.get('traffic_light_runtime') == 'system')
+                                 else stack.get('traffic_light_python', DEFAULT_PYTHON)),
         "traffic_light_device": str(stack.get("traffic_light_device", "0")),
+        "traffic_light_profile": PROFILE_LABELS[profile_name(stack)],
+        "traffic_light_models_root": stack.get('traffic_light_models_root', DEFAULT_MODELS_ROOT),
         "topic_profile": recording.get("topic_profile", ""),
         "include_sensors": recording.get("include_sensors", False),
         "video": recording.get("video", {}).get("enabled", False),
@@ -210,6 +224,39 @@ def finite_number(value, label, *, positive=False):
     return number
 
 
+def gnss_delay_form_value(stack):
+    arguments = stack.get('localization_args', {})
+    return (arguments['gnss_delay_ms'] if 'gnss_delay_ms' in arguments else
+            float(arguments.get('gnss_motion_compensation_sec', 0.)) * 1000.)
+
+
+def apply_gnss_delay_edit(document, template, requested):
+    """Edit only GUI-owned timing keys, preserving untouched legacy YAMLs."""
+    if isinstance(requested, bool):
+        raise ValueError('GNSS 지연 보상은 0~100ms 숫자여야 합니다')
+    value = finite_number(requested, 'GNSS 지연 보상(ms)')
+    if not 0. <= value <= 100.:
+        raise ValueError('GNSS 지연 보상은 0~100ms 범위여야 합니다')
+    stack = document['stack']
+    if stack.get('pose_source') == 'maptf_morai':
+        arguments = stack.get('localization_args', {})
+        if arguments:
+            if set(arguments) - {'gnss_delay_ms', 'gnss_motion_compensation_sec'}:
+                raise ValueError('GT 측위에는 localization_args를 적용할 수 없습니다. '
+                                 '고급 측위 설정을 보존했으니 YAML에서 별도 대조 설정을 만드세요.')
+            stack.pop('localization_args')
+            return [('stack', 'localization_args')]
+        return []
+    if value == float(gnss_delay_form_value(template.get('stack', {}))):
+        return []  # Opening/saving old seconds-only YAML is not a migration.
+    arguments = stack.setdefault('localization_args', {})
+    arguments['gnss_delay_ms'] = value
+    arguments.pop('gnss_motion_compensation_sec', None)
+    # Both units participate in 3-way conflict checks, never silently add/override.
+    return [('stack', 'localization_args', key)
+            for key in ('gnss_delay_ms', 'gnss_motion_compensation_sec')]
+
+
 def build_document(template, values):
     """Transform form values into a validated personal YAML document."""
     result = copy.deepcopy(template)
@@ -230,6 +277,7 @@ def build_document(template, values):
     stack = result.setdefault("stack", {})
     for key in ("pose_source", "detector"):
         stack[key] = str(values[key])
+    apply_gnss_delay_edit(result, template, values.get('gnss_delay_ms', gnss_delay_form_value(template.get('stack', {}))))
     stack["traffic_light"] = bool(values["traffic_light"])
     model = LABEL_PRESETS.get(values.get('bevfusion_model', PRESETS[DEFAULT_MODEL]['label']))
     if model is None:
@@ -240,12 +288,27 @@ def build_document(template, values):
     if mode is None:
         raise ValueError("신호등 실행 환경을 선택하세요")
     old = form_values(template)
+    for key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
+        value = values.get(key, old[key])
+        if type(value) is not bool:
+            raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
+        if key in stack or value != old[key]:
+            stack[key] = value
     # Never change existing resume hashes merely by opening/saving an old YAML.
     if any(str(values[key]) != str(old[key]) for key in (
             "traffic_light_runtime", "traffic_light_python", "traffic_light_device")):
         stack["traffic_light_runtime"] = mode
         stack["traffic_light_python"] = str(values["traffic_light_python"]).strip()
         stack["traffic_light_device"] = str(values["traffic_light_device"]).strip()
+    runtime_settings(stack, ROOT)
+    selected_profile = LABEL_PROFILES.get(values.get('traffic_light_profile', PROFILE_LABELS['v5_candidate']))
+    if selected_profile is None:
+        raise ValueError('신호등 모델을 선택하세요')
+    if selected_profile != profile_name(template.get('stack', {})):
+        stack['traffic_light_profile'] = selected_profile
+    model_root = str(values.get('traffic_light_models_root', DEFAULT_MODELS_ROOT)).strip()
+    if model_root != str(old['traffic_light_models_root']):
+        stack['traffic_light_models_root'] = model_root
     runtime_settings(stack, ROOT)
     recording = result.setdefault("recording", {})
     recording["topic_profile"] = str(values["topic_profile"]).strip()
@@ -292,7 +355,8 @@ def build_document(template, values):
         if "profile" in upload or enabled or profile != "basic":
             upload["profile"] = profile
     result["resume"] = True
-    bag_options.ensure_video_display(recording)
+    bag_options.ensure_video_display(recording, required=(stack.get('traffic_light', False)
+        and stack.get('traffic_light_debug_view', False)))
     return result
 
 
@@ -309,6 +373,8 @@ def operator_document(template, latest, values, include):
     baseline = form_values(template)
     proposed = copy.deepcopy(template)
     for key, path in EDITABLE_FIELDS.items():
+        if key == 'gnss_delay_ms':
+            continue  # Numeric equality and legacy-unit migration are handled below.
         if str(values[key]) == str(baseline[key]):
             continue
         value = values[key]
@@ -325,11 +391,18 @@ def operator_document(template, latest, values, include):
             value = LABEL_PRESETS.get(str(value))
             if value is None:
                 raise ValueError('모델 프리셋을 선택하세요')
+        elif key == 'traffic_light_profile':
+            value = LABEL_PROFILES.get(str(value))
+            if value is None:
+                raise ValueError('신호등 모델을 선택하세요')
         elif key == 'selected_topics':
             if not value:
                 proposed.setdefault('recording', {}).pop('selected_topics', None)
                 continue
             value = bag_options.checked_topics(json.loads(value))
+        elif key in ('traffic_light_yellow_passthrough', 'traffic_light_debug_view'):
+            if type(value) is not bool:
+                raise ValueError('stack.{}는 true/false여야 합니다'.format(key))
         elif key in ('traffic_light', 'video', 'include_sensors', 'upload_enabled'):
             value = bool(value)
         else:
@@ -343,6 +416,15 @@ def operator_document(template, latest, values, include):
     else:
         proposed['scenarios']['include'] = list(include)
     paths = list(EDITABLE_FIELDS.values()) + [('scenarios', 'include')]
+    paths += apply_gnss_delay_edit(proposed, template, values.get('gnss_delay_ms', baseline['gnss_delay_ms']))
+    # An explicit opt-in can select the managed interpreter, but merely
+    # opening/saving old YAMLs must not migrate their runtime or resume hash.
+    if (values['traffic_light_profile'] != baseline['traffic_light_profile']
+            and proposed['stack'].get('traffic_light_profile') == 'v5_candidate'
+            and runtime_mode(template.get('stack', {})) == 'system'):
+        proposed['stack'].update(traffic_light_runtime='virtualenv',
+                                 traffic_light_python=DEFAULT_PYTHON)
+        paths += [('stack', 'traffic_light_runtime'), ('stack', 'traffic_light_python')]
     if values['recording_mode'] != baseline['recording_mode']:
         apply_recording_mode(proposed, values['recording_mode'])
         paths += bag_options.RECORDING_PATHS + [('recording', 'video', 'enabled')]
@@ -384,7 +466,9 @@ def operator_document(template, latest, values, include):
         result.setdefault('upload', {})['rclone_remote'] = DEFAULT_UPLOAD_REMOTE
     # A video-OFF agent YAML may contain enabled only; the checkbox must also
     # supply the hidden X11 address, without replacing explicit VSCode settings.
-    bag_options.ensure_video_display(result.get('recording', {}))
+    stack = result.get('stack', {})
+    bag_options.ensure_video_display(result.get('recording', {}), required=(stack.get('traffic_light', False)
+        and stack.get('traffic_light_debug_view', False)))
     validate_campaign_document(result)
     return result
 
@@ -541,7 +625,11 @@ def result_counts(state):
 
 
 def completion_label(code, state):
-    """CLI exit 0 can include legitimate FAIL cases: never call that a pass."""
+    """Show startup causes separately from legitimate per-case drive failures."""
+    if code not in (0, 130) and state and state.get('startup_error'):
+        failure = state['startup_error']
+        return '실행 준비 실패 [{}] {} | 종료 코드 {} · stack_logs/startup_error.log 확인'.format(
+            failure.get('phase', 'UNKNOWN'), failure.get('error', ''), code)
     if state is None:
         return "실행 종료 (코드 {}). 결과 파일 없음 — 로그를 확인하세요.".format(code)
     counts = result_counts(state)
@@ -676,6 +764,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             quick_vars['detector'].set(values['detector'])
             quick_vars['pose_source'].set(values['pose_source'])
             quick_vars['traffic_light'].set(values['traffic_light'])
+            quick_vars['traffic_light_yellow_passthrough'].set(values['traffic_light_yellow_passthrough'])
+            quick_vars['traffic_light_debug_view'].set(values['traffic_light_debug_view'])
             if changed_source and quick_table.selection():
                 quick_table.selection_remove(quick_table.selection())
             refresh_quick_choices()
@@ -835,6 +925,22 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         add_field(advanced, row - 3, "goal_" + key, label)
     add_field(advanced, 4, "timeout_sec", "공통 주행 제한 (초)")
     add_field(basic, 4, "pose_source", "측위", choices=["localization", "maptf_morai"])
+    gnss_bar = ttk.Frame(basic)
+    gnss_bar.grid(row=4, column=2, sticky='w', padx=6)
+    ttk.Label(gnss_bar, text='GNSS 보상(ms)').pack(side='left')
+    vars_['gnss_delay_ms'] = tk.StringVar()
+    field_widgets['gnss_delay_ms'] = ttk.Spinbox(
+        gnss_bar, textvariable=vars_['gnss_delay_ms'], from_=0, to=100, increment=1, width=6)
+    field_widgets['gnss_delay_ms'].pack(side='left', padx=4)
+    ttk.Label(gnss_bar, text='0=끄기').pack(side='left')
+
+    def update_gnss_widget(*_):
+        running = active.get('ui_running', False) or any(
+            active.get(key) and active[key].poll() is None for key in ('process', 'check_process'))
+        field_widgets['gnss_delay_ms'].configure(
+            state='normal' if vars_['pose_source'].get() == 'localization' and not running else 'disabled')
+
+    vars_['pose_source'].trace_add('write', update_gnss_widget)
     add_field(basic, 5, "detector", "객체 탐지", choices=["od_gt", "bevfusion"])
     add_field(basic, 6, 'bevfusion_model', 'BEVFusion 모델', choices=[v['label'] for v in PRESETS.values()])
     vars_['selected_topics'] = tk.StringVar()
@@ -845,7 +951,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     topics_button.grid(row=7, column=2, padx=4)
     toggle_bar = ttk.Frame(basic)
     toggle_bar.grid(row=8, column=0, columnspan=3, sticky='w', pady=4)
-    for key, label in (('traffic_light', '신호등 인지'), ('video', '화면 영상 녹화'),
+    for key, label in (('traffic_light', '신호등 인지'),
+                       ('traffic_light_yellow_passthrough', '황색 통과 허용'),
+                       ('traffic_light_debug_view', '신호등 디버그 화면'), ('video', '화면 영상 녹화'),
                        ('upload_enabled', 'Drive 자동 업로드')):
         vars_[key] = tk.BooleanVar()
         widget = ttk.Checkbutton(toggle_bar, text=label, variable=vars_[key])
@@ -876,7 +984,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         field_widgets['video'].configure(state='disabled' if label == bag_options.ANALYSIS or running else 'normal')
         topics_button.configure(state='normal' if enabled and not running else 'disabled')
         try:
-            topics = bag_options.effective_topics(form_recording(), resolve_path)
+            topics = bag_options.effective_topics(form_recording(), resolve_path,
+                traffic_light_debug=vars_['traffic_light'].get() and vars_['traffic_light_debug_view'].get())
             sensor_count = len(set(topics) & set(bag_options.SENSORS))
             text = ('bag OFF · 실시간 판정·JSON·CSV 유지 · 영상은 별도 선택' if not enabled else
                     'bag {}개 토픽 · 원본 센서 {}/5개 · {}'.format(len(topics), sensor_count,
@@ -903,7 +1012,8 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         try:
             if any(active.get(key) and active[key].poll() is None for key in ('process', 'check_process')):
                 raise ValueError('실행/검사 중에는 녹화 토픽을 변경할 수 없습니다. 종료 후 다음 실행에 적용하세요.')
-            current = bag_options.effective_topics(form_recording(), resolve_path)
+            current = bag_options.effective_topics(form_recording(), resolve_path,
+                traffic_light_debug=vars_['traffic_light'].get() and vars_['traffic_light_debug_view'].get())
             selected = bag_options.choose_topics(root, bag_options.topic_catalog(ROOT, current), current)
             if selected is not None:
                 vars_['recording_mode'].set(bag_options.CUSTOM)
@@ -915,7 +1025,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             show_error('녹화 토픽 선택', error)
     field_widgets['recording_mode'].bind('<<ComboboxSelected>>', select_recording_mode)
     vars_['upload_profile'].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
-    for key in ('include_sensors', 'selected_topics', 'video'):
+    for key in ('include_sensors', 'selected_topics', 'video', 'traffic_light', 'traffic_light_debug_view'):
         vars_[key].trace_add('write', lambda *_: None if active.get('loading') else update_recording_widgets())
 
     for row, key, label in ((10, 'topic_profile', 'rosbag 토픽 JSON'), (11, 'sensor_json', 'MORAI Sensor JSON'),
@@ -929,14 +1039,25 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
                              choices=list(MODE_LABELS.values()))
     traffic_python = add_field(traffic_tab, 1, "traffic_light_python", "가상환경 Python")
     add_field(traffic_tab, 2, "traffic_light_device", "신호등 장치 (0/cpu)")
+    traffic_profile = add_field(traffic_tab, 3, 'traffic_light_profile', '신호등 모델',
+                                choices=list(PROFILE_LABELS.values()))
+    add_field(traffic_tab, 4, 'traffic_light_models_root', '후보 모델 설치 경로')
     ttk.Label(traffic_tab, text="시스템 선택: /usr/bin/python3 (기존 환경 유지). 가상환경 선택: 위 실행 파일 사용.\n"
               "GPU 번호 0이 기본값입니다. CPU 시험은 cpu로 입력하세요. 신호등 off이면 환경이 없어도 실행됩니다.",
-              wraplength=750).grid(row=3, column=0, columnspan=3, sticky="w", pady=8)
+              wraplength=750).grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
 
     ttk.Label(traffic_tab, text="설치는 최초 1회입니다. Conda activate는 필요 없습니다.\n"
               "실행 버튼을 누르면 선택한 Python으로 모델/GPU/ROS import를 먼저 검사합니다.\n"
               "환경 변경은 원본 YAML에 저장하고 새 실험을 시작하세요. 이전 기록은 당시 환경 설정으로 재개합니다.", wraplength=750).grid(
-        row=5, column=0, columnspan=3, sticky="w", pady=8)
+        row=7, column=0, columnspan=3, sticky="w", pady=8)
+
+    def select_traffic_profile(_event=None):
+        if LABEL_PROFILES.get(vars_['traffic_light_profile'].get()) == 'v5_candidate':
+            if vars_['traffic_light_runtime'].get() == MODE_LABELS['system']:
+                vars_['traffic_light_runtime'].set(MODE_LABELS['virtualenv'])
+                vars_['traffic_light_python'].set(DEFAULT_PYTHON)
+        changed()
+    traffic_profile.bind('<<ComboboxSelected>>', select_traffic_profile)
 
     def update_traffic_widgets(*_):
         traffic_mode.configure(state="disabled")
@@ -1015,10 +1136,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         status.set("{}: {}".format(label, error))
         messagebox.showerror(label, str(error))
 
-    def command_reader(process, label):
+    def command_reader(process, label, log_path=None):
         try:
-            for line in process.stdout:
-                events.put(("line", line.rstrip("\n")))
+            stream_console(process, lambda line: events.put(('line', line)), log_path)
         except Exception as error:
             events.put(("line", "출력 수집 오류: {}".format(error)))
         finally:
@@ -1124,6 +1244,12 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
     quick_traffic = ttk.Checkbutton(quick_options, text='신호등', variable=quick_vars['traffic_light'])
     quick_traffic.pack(side='left', padx=6)
     batch_buttons.append(quick_traffic)
+    for key, label in (('traffic_light_yellow_passthrough', '황색 통과 허용'),
+                       ('traffic_light_debug_view', '신호등 디버그 화면')):
+        quick_vars[key] = tk.BooleanVar()
+        widget = ttk.Checkbutton(quick_options, text=label, variable=quick_vars[key])
+        widget.pack(side='left', padx=6)
+        batch_buttons.append(widget)
 
     def start_quick():
         try:
@@ -1132,7 +1258,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             template, _ = collect()
             document = quick_test_document(template, list(quick_table.selection()),
                 detector=quick_vars['detector'].get(), pose_source=quick_vars['pose_source'].get(),
-                traffic_light=quick_vars['traffic_light'].get())
+                traffic_light=quick_vars['traffic_light'].get(),
+                traffic_light_yellow_passthrough=quick_vars['traffic_light_yellow_passthrough'].get(),
+                traffic_light_debug_view=quick_vars['traffic_light_debug_view'].get())
             validate_campaign_document(document)
             path = PACKAGE / 'config/internal/generated' / ('planning_quick_{}.yaml'.format(os.getpid()))
             save_personal(document, path)
@@ -1182,8 +1310,9 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         except Exception as error:
             show_error("실행 준비 실패", error)
             return
-        video_enabled = document["recording"]["video"]["enabled"]
-        split = document["recording"]["video"].get("window_layout") == "split"
+        video = document.get("recording", {}).get("video", {})
+        video_enabled = video.get("enabled", False)
+        split = video.get("window_layout") == "split"
         note = ("전체 화면을 녹화하며 RViz·MORAI를 반반 배치하고 GUI를 하단 모니터 바로 바꿉니다. "
                 "창 배치가 실패하면 수동으로 조정해 주세요. 중단은 GUI 버튼 또는 터미널 Ctrl+C입니다."
                 if video_enabled and split else
@@ -1209,10 +1338,11 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
         active.update(process=process, execution=cfg, document=document, stopping=False, mode="single")
         refresh_history()
         set_running_ui(True)
-        if video_enabled and document["recording"]["video"].get("window_layout") == "split":
-            set_compact_mode(True, document["recording"]["video"].get("bottom_bar_px", "auto"))
+        if video_enabled and video.get("window_layout") == "split":
+            set_compact_mode(True, video.get("bottom_bar_px", "auto"))
         status.set("주행 검증 실행 중: {}".format(cfg['name']))
-        threading.Thread(target=command_reader, args=(process, "run"), daemon=True).start()
+        threading.Thread(target=command_reader,
+            args=(process, "run", cfg['output'] / 'stack_logs/runner_console.log'), daemon=True).start()
 
     def stop(*, force=False):
         process = active["process"]
@@ -1609,6 +1739,7 @@ def main(*, on_ready=None, runner_executable=None, batch_executable=None):
             widget = field_widgets[key]
             widget.configure(state='disabled' if running else ('readonly' if isinstance(widget, ttk.Combobox) else 'normal'))
         update_recording_widgets()
+        update_gnss_widget()
         for label in ('YAML 저장', '불러오기/새로고침', "새 실험 시작"):
             control_buttons[label].configure(state="disabled" if running else "normal")
         for index in (0, 1):

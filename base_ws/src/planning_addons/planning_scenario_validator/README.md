@@ -1,14 +1,27 @@
 # Planning scenario validator
 
+팀장님 PC의 임시 LAN-to-LAN 개발 오류는 [전용 짧은 안내](../../../../docs/planning/SCENARIO_VALIDATOR_LAN_QUICK_CHECK.md)를 봅니다. 대회에서는 검증된 현장점검 실행 절차·설정을 유지합니다.
+
 공유·실행 브랜치는 `planning/autoware-universe-to-ros1`이다. 업데이트는 캠페인·스택 종료 → pull → planning/base 증분 빌드 → 환경 재source·노드 재실행 순서다. 초기 설치/clean을 매번 반복하지 않는다. 복붙 명령은 [팀원 안내 4-1](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md#4-1-다음부터는-pull-후-증분-빌드)에 있다.
 
-2026-10-13 Base5 통합본의 기본 detector는 E24 production이다. 기존 팀 Docker 이미지를 재사용하고
+2026-10-23 사용자 승인으로 기본 detector는 전체 30,750장 E12 최적화 production이다. 기존 팀 이미지 위 TRT overlay와 PC별 engine을 준비하고
 `bash scripts/runtime/install_base5_production.sh`로 Drive 가중치 다운로드·검증·증분 빌드를 수행한다.
-[E24 배포 안내](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
-GUI 기본값과 모델 없는 새 YAML은 E24이며 명시적인 `e25`는 복귀 모델이다. 기존 실행 결과는 모델·코드
-계약이 다르면 강제 resume하지 않는다. 아래의 공용 이미지/E25 초기 설치는 E24 가중치 설치를 대신하지 않는다.
+[production 배포 안내](../../../../docs/bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+GUI 기본값과 모델 없는 새 YAML은 E12이며 명시적인 `e24`/`e25`는 복귀 모델이다. 가속기 미준비는 같은 E12 eager로 시작한다. 기존 실행 결과는 모델·코드
+계약이 다르면 강제 resume하지 않는다. 아래의 공용 이미지/E25 초기 설치는 E12 가중치 설치를 대신하지 않는다.
 
 팀원이 만든 MORAI scenario JSON 폴더를 대상으로, 실제 localization → 인지 → tracking/prediction → planning → controller 폐루프 주행을 시나리오별로 검증한다. CLI와 얇은 설정 GUI를 제공하지만 MORAI MR의 최초 네트워크 Connect에는 MORAI GUI가 필요하다. 각 시나리오의 실시간 판정 결과를 저장하며, bag과 화면 영상은 선택한 녹화 설정에 따라 별도로 남긴다.
+
+GNSS 지연 측정 전용 모드는 `./planning_validator --gnss-delay-calibration`
+(`ajou` 뒤에는 `gnss_delay_validator`)이다. **rc + MORAI만 연결**해 두면 실제
+localization/od_gt/planner/controller 주행·소형 bag 녹화·stop/P 검증·지연 추정을 이어서 수행한다.
+기존 수동 스택은 강제 종료하지 않고 중복이면 거부한다. 결과가 충분할 때만 ms 후보를 내며
+설정에 자동 적용하지 않는다. 네트워크·원본 보존·분석 조건과 OFF/ON 대조는
+[localization CURRENT](../../../../docs/localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#원큐-측정-녹화와-validator)를 따른다.
+
+일반 GUI에서도 **실행 탭 → 측위 오른쪽 `GNSS 보상(ms)`**에 0~100을 입력할 수 있다.
+0은 OFF, 예를 들어 15는 `stack.localization_args.gnss_delay_ms: 15`로 저장돼 다음 새 실행에 적용된다.
+GT 측위에서는 입력이 비활성화된다. 실행 중에는 변경할 수 없고, 기존 초 단위 설정은 무수정 저장 시 보존한다.
 
 처음 쓰는 팀원은 [노션 공유용 첫 설치·실행 안내](../../../../docs/planning/SCENARIO_VALIDATOR_TEAM_NOTION_GUIDE.md)부터 따라 한다. Clone/브랜치 전환, ROS 빌드, 맵·공용 Docker 이미지·E25 다운로드, MORAI 연결과 GUI 실행을 한 문서에 정리했다. `install.sh --gui`는 GUI 도구 검사와 Network 생성이며 전체 설치를 대신하지 않는다.
 
@@ -220,6 +233,21 @@ Google Drive 공유는 캠페인 YAML의 `upload.enabled`, `upload.profile`, `up
 로컬 bag과 영상은 어느 모드에서나 보존된다. Drive 업로드 오류는 주행 PASS/FAIL과 별개로 `campaign_state.json`의 `upload_errors`와 GUI에 기록된다. 원본 YAML의 업로드 설정을 바꾸면 다음 새 실험에 적용하며, 기존 실험 재개는 당시 사본의 업로드 설정을 유지한다. 특정 과거 bag만 재주행 없이 추가 업로드하는 기능은 아직 없다.
 
 ## 운영 계약
+
+고속 구간에서 대회 Route B의 선호 차선을 사용하되 기존 검증 목적지를 유지하려면
+개인 YAML에 다음을 지정한다. 현재 작업용 설정은 `highway/workspace/highway_125_route_b.yaml`이다.
+
+```yaml
+route:
+  name: route_b
+  definition_file: base_ws/src/planning_addons/competition_route_requester/config/kcity_v87_competition_route.yaml
+```
+
+실행기는 현재 위치부터 `default_case.goal`까지의 B 구간만 선택하고, 해당 차로의 중심점을
+경유점으로 요청한다. 최종 route의 모든 선호 차선이 B 목록과 순서대로 일치하고 새 궤적이
+준비되어야 주행을 시작한다. 후보 차선이 없거나 순서가 다르면 기존 차선을 그대로 사용하는
+대신 실행 오류로 중단한다. `route_profile.json`과 결과 JSON에 요청·확인한 차선 목록을 남기며,
+경로 정의 YAML도 실행 사본에 고정한다. 이 설정이 없는 다른 미션과 과거 실행 사본의 동작은 유지한다.
 
 - 실행 전 ROS graph에 기존 `/ctrl_cmd`, `/planning/trajectory`, localization, detector publisher가 있으면 중복 실행을 막는다. 기존 수동 스택을 종료한 뒤 사용한다.
 - custom goal은 `/planning/set_waypoint_route`로 보낸다. 대회 Route A/B requester는 실행하지 않는다.

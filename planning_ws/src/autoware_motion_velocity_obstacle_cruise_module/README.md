@@ -67,13 +67,69 @@ These values are parameterized as follows. Other common values such as ego's min
 | `cruise_planning.min_ego_accel_for_rss`    | double | ego's acceleration for minimum safe braking distance [m/ss]                   |
 | `cruise_planning.min_object_accel_for_rss` | double | front obstacle's acceleration for minimum safe braking distance [m/ss]        |
 | `cruise_planning.safe_distance_margin`     | double | safety margin for minimum safe braking distance [m]                           |
+| `cruise_planning.pid_based_planner.target_distance_scale` | double | Positive multiplier of the entire PID RSS target, including the margin. Source YAMLs use 0.4; omitted parameter defaults to 1.0. |
+
+For PID cruise, the target is
+`max(safe_distance_margin, target_distance_scale * d_braking)`.
+The margin is included in `d_braking` and also provides the minimum target gap
+after scaling (5 m in the source YAMLs).
+This parameter affects both PID output modes and does not alter the optimization planner.
+The integrated ROS1 launch currently uses a 3 m floor; the standalone package
+YAMLs use 5 m. The loaded `safe_distance_margin` determines the actual floor.
+
+### Relative-speed RSS anticipation (ROS1 PID)
+
+`pid_based_planner.rss_prediction` enables earlier speed reduction for a fast
+approach without changing the RSS target or PID gains. For each candidate,
+closing speed is ego speed minus the obstacle's **along-trajectory** speed.
+The integrated and package YAMLs enable this policy:
+
+| Parameter | Value | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Use relative-speed anticipation; omitted defaults to false. |
+| `start_relative_speed_kph` | `30.0` | No anticipation at or below this closing speed. |
+| `full_relative_speed_kph` | `80.0` | Reach `max_time` here, with a linear ramp from the start. |
+| `max_time` | `1.0` | Maximum anticipation time in seconds. |
+
+For 130/50 km/h, the nominal time is 1 s and nominal approach distance is
+22.22 m. Equal-speed and opening targets receive no correction. When disabled,
+`time_to_evaluate_rss` supplies a fixed time (currently 0 s); the same distance
+guards apply to that fixed-time mode.
+
+Let `d` be the actual signed along-path collision-point distance, `c` the
+positive closing speed, `T` the nominal anticipation time, and `A=c*T`.
+The nominal projected distance is `d-A`. If `d-A <= 0`, the additional
+correction is zero and ordinary actual-distance following remains active.
+For `A < d < 2*A`, the correction fades as
+`A * smoothstep((d-A)/A)`, where `smoothstep(x)=x*x*(3-2*x)`.
+For `d >= 2*A`, the full correction `A` applies. This continuous, zero-slope
+fade avoids a step at either boundary; no fixed physical following-gap cutoff
+is introduced. Falling below the RSS target alone does **not** disable braking.
+
+Candidate selection uses the smallest corrected error
+`d - RSS_target - correction`. Both PID output modes normalize that error by
+`max(actual_distance, 0.1 m)`, never by the projected distance. The 0.1 m
+denominator floor is numerical protection, not a following-gap setting.
+At zero anticipation, positive distances >= 0.1 m retain the original behavior.
+The distance LPF and TTC continue to use physical distance. PID/LPF history
+still resets on a selected UUID change or lane-change handoff.
+
+The cruise debug array preserves indices 0-14 and appends nominal prediction
+time [s] at 15, projected distance before fading [m] at 16, and applied
+distance-error correction [m] at 17. These expose whether anticipation was
+disabled by low closing speed or by the close-distance guard.
+The thresholds, maximum time and fixed time must be finite; times and the
+start threshold must be nonnegative, and the full threshold must exceed start.
+Source YAML changes take effect on restart; a source build/test is not proof
+that the running installed module or a closed-loop MORAI run uses the change.
 
 The detailed formulation is as follows.
 
 $$
 \begin{align}
-d_{error} & = d - d_{braking} \\
-d_{normalized} & = lpf(d_{error} / d_{obstacle}) \\
+d_{target} & = \max(l_{margin}, scale \cdot d_{braking}) \\
+d_{error} & = d - d_{target} - C_{prediction} \\
+d_{normalized} & = lpf(d_{error} / \max(d_{obstacle}, 0.1)) \\
 d_{quad, normalized} & = sign(d_{normalized}) *d_{normalized}*d_{normalized} \\
 v_{pid} & = pid(d_{quad, normalized}) \\
 v_{add} & = v_{pid} > 0 ? v_{pid}* w_{acc} : v_{pid} \\

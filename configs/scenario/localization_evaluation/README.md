@@ -34,7 +34,7 @@ python3 scripts/scenario/build_localization_full_route_scenario.py
 
 MORAI MR에서는 각각 `0_loc_shadow_clear`, `0_loc_shadow_cargobox`로 로드한다.
 Ego Network는 `ego_network_competition_local.json`, Sensor는
-`Sensor_localization_gt_lightweight.json`을 사용한다. `localization`의
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`을 사용한다. `localization`의
 `gt_source=competition`을 유지하고 `/Ego_topic`은 평가 oracle로만 기록한다.
 출발 전 정상 GNSS와 초기 state를 확인하고, 음영 중 정지하면 최소 25초 더 녹화한다.
 이 장면은 계획된 정지·회피가 반드시 성공한다는 보장이 아니라 측위 실패 재현용이다.

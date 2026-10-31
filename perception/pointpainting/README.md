@@ -1,12 +1,12 @@
 # MORAI PointPainting — historical implementation
 
 > **상태: LEGACY/ROLLBACK.** 현재 production detector는 BEVFusion
-> `B3-BF0-F40 E25`다. PointPainting을 새 기본값이나 Base4 설계 출발점으로 사용하지
+> 전체 30,750장 E12다(E24/E25는 명시적 복귀). PointPainting을 새 기본값이나 Base4 설계 출발점으로 사용하지
 > 않는다.
 
-이 디렉터리의 코드, config와 release 기록은 과거 실험 재현 및 rollback을 위해
+이 디렉터리의 코드, config와 release 기록은 과거 실험 재현 및 호환을 위해
 보존한다. 현재 작업은 [인지 작업 안내](../../docs/perception/README.md)에서 선택한다.
-명시적인 Base4 재현 작업에서만 [당시 velocity/temporal 계획](../../docs/bevfusion/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)을 읽는다.
+명시적인 Base4 재현 작업에서만 [당시 velocity/temporal 계획](../../docs/bevfusion/legacy/research_2609_2610/260920_BASE4_TEMPORAL_HIGHWAY_PILOT_PLAN.md)을 읽는다.
 그 계획을 현재 Base5의 다음 작업으로 자동 선택하지 않는다.
 
 - 과거 연구 문서: [`docs/legacy/README.md`](docs/legacy/README.md)

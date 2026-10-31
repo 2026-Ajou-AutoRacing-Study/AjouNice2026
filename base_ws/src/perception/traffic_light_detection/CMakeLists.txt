@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   std_msgs
+  tf2_ros
   autoware_perception_msgs
 )
 
@@ -21,16 +22,27 @@ catkin_package(CATKIN_DEPENDS
   rospy
   sensor_msgs
   std_msgs
+  tf2_ros
 )
 
 catkin_install_python(PROGRAMS
   scripts/lanelet_route_matcher.py
+  scripts/signal_judging_line_geometry.py
   scripts/light_color_utils.py
   scripts/signal_phase_policy.py
   scripts/signal_smoother.py
   scripts/ros_time.py
   scripts/traffic_light_node.py
+  scripts/traffic_light_debug_view.py
   scripts/traffic_light_route_group_id_node.py
+  scripts/traffic_light_map_selector.py
+  scripts/traffic_light_near_rescue.py
+  scripts/traffic_light_observation_handoff.py
+  scripts/traffic_light_visual_continuation.py
+  scripts/traffic_light_stamped_vote.py
+  scripts/traffic_light_unreadable_evidence.py
+  scripts/traffic_light_map_roi_node.py
+  scripts/traffic_light_cnn_classifier.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -41,6 +53,7 @@ install(DIRECTORY config launch weights
 install(FILES
   README.md
   requirements-runtime.txt
+  requirements-candidate.txt
   traffic_light_group_id_table.json
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

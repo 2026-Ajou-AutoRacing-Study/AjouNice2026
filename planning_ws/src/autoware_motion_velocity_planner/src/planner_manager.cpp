@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include "planner_manager.hpp"
+#include <cmath>
 
 #include <autoware/motion_velocity_planner_common/utils.hpp>
 #include <autoware_utils_system/stop_watch.hpp>
@@ -91,13 +92,28 @@ std::vector<VelocityPlanningResult> FullSourceMotionVelocityPlannerManager::plan
 {
   autoware_utils_system::StopWatch<std::chrono::milliseconds> stop_watch;
   std::vector<VelocityPlanningResult> results;
+  external_stop_ = false;
   for (auto & plugin : loaded_plugins_) {
     const auto plugin_name = plugin->getShortModuleName();
+    const bool boundary = plugin_name.find("BoundaryDeparturePrevention") != std::string::npos ||
+      plugin_name.find("boundary_departure_prevention") != std::string::npos;
+    // Only this trajectory carries permission. All object/traffic planners run.
+    if (boundary && planner_data->boundary_recovery) continue;
     stop_watch.tic(plugin_name);
 
     VelocityPlanningResult res =
       plugin->plan(raw_trajectory_points, smoothed_trajectory_points, planner_data);
     results.push_back(res);
+    if (!boundary) {
+      const auto & ego = planner_data->current_odometry.pose.pose;
+      for (const auto & p : res.stop_points) {
+        if (std::hypot(p.x-ego.position.x,p.y-ego.position.y)<15.0) external_stop_=true;
+      }
+      for (const auto & interval : res.slowdown_intervals)
+        if (interval.velocity < 0.1 && std::hypot(interval.from.x-ego.position.x,
+            interval.from.y-ego.position.y)<15.0) external_stop_=true;
+      if (res.velocity_limit && res.velocity_limit->max_velocity < 0.1) external_stop_=true;
+    }
 
     plugin->publishPlanningFactor();
     auto debug_trajectory = raw_trajectory_points;

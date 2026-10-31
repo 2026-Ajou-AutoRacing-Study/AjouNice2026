@@ -151,6 +151,7 @@ avoidance:
       force_avoid_stopped_vehicle_in_intersection: false
       policy: ignore
     detection_area:
+      lateral_extra_margin: 0.0  # [m] Extra search width per side.
       backward_distance: 10.0
       max_forward_distance: 150.0
       min_forward_distance: 50.0
@@ -163,7 +164,7 @@ avoidance:
     max_compensation_time: 5.0
     merging_vehicle:
       th_overhang_distance: 0.0
-    object_check_goal_distance: 20.0
+    object_check_goal_distance: 0.0
     object_check_return_pose_distance: 20.0
     parked_vehicle:
       min_road_shoulder_width: 0.5

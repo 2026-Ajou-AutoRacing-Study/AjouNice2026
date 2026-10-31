@@ -1,0 +1,13 @@
+**
+!docker/
+!docker/bevfusion/
+!docker/bevfusion/Dockerfile.production-tensorrt
+!docker/bevfusion/Dockerfile.production-tensorrt.dockerignore
+!docker/bevfusion/requirements/
+!docker/bevfusion/requirements/tensorrt-inference-experiment.txt
+!docker/bevfusion/app/
+!docker/bevfusion/app/*.py
+!docker/bevfusion/scripts/
+!docker/bevfusion/scripts/setup_production_tensorrt.py
+!docker/bevfusion/scripts/run_inference_server.sh
+!docker/bevfusion/scripts/healthcheck.py

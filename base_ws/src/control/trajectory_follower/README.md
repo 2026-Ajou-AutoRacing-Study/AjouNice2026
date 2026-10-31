@@ -106,7 +106,44 @@ rostopic info /ctrl_cmd
 정상 출력은 `longlCmdType: 1`이며 `accel`, `brake`, `steering`을 사용한다.
 `/ctrl_cmd` publisher는 `longi_pi` 하나만 있어야 한다.
 
+### 터미널 상태 로그
+
+`traj_fol_a`는 별도 `field` 접두사 없이 고정 폭 숫자 한 줄을 표시한다.
+
+```text
+00.0 CTRL  23.45kph  6.55mps2 +12.3°
+01.0 CTRL 134.55kph  0.25mps2  +2.1°
+```
+
+속도는 `/Competition_topic.velocity.x`만, Ay는 `/sensor/imu`의
+`linear_acceleration.y`를 사용한다. 조향은 최종 `/ctrl_cmd` 명령의 타이어 각도다.
+정상은 초록 1초 주기, 조향 ±40도 포화는 문구 변경 없이 노랑 0.2초 주기다.
+경고·오류 진입과 첫 정상 복구는 주기와 무관하게 즉시 표시한다.
+기존 상세 ROS 로그는 파일에 보존한다. 오류·미수신 처리와 시험 범위는
+[`TERMINAL_LOG_CURRENT.md`](TERMINAL_LOG_CURRENT.md)를 참고한다.
+
 ## 기능과 역할
+
+### Spawn 위치 점프 시 1초 제동
+
+Autoware 종방향 제어기는 플래너의 전역 측위 토픽
+`/localization/kinematic_state`를 별도로 감시한다. 같은 좌표계의 연속된 최신
+메시지 사이 XY 거리가 7 m 이상이고 정상 이동 상한도 초과하면 즉시 기존 safety stop 명령
+(`accel=0`, 기본 `brake=1`, `steering=0`)을 내고 실제 경과 시간 1초 동안 유지한다.
+브레이크 증가율 제한보다 우선하며 PI 적분·가속 FF·가속도 추정 상태를 초기화한다.
+유지 중 다시 점프하면 마지막 점프부터 1초로 연장한다. 첫 위치, 오래된 메시지,
+중복·역순 메시지, 좌표계 변경은 위치 점프로 처리하지 않는다.
+이는 Spawn 여부를 직접 확인하지 않는 위치 불연속 감지이므로 측위 리셋에도 적용된다.
+1초 후 기존 입력 유효성 검사를 통과하면 정상 제어로 돌아오며, 정지 완료 자체를
+보장하는 조건은 아니다. 제어기가 Smooth 측위를 써도 감지는 전역 측위로 한다.
+설정은 `longi_pi_autoware.yaml`의 `safety.pose_jump`
+(`enabled`, `state_topic`, `distance_m`, `brake_duration_s`)이며 제어기 재시작 후 적용된다.
+
+정상 이동 상한은 `max(이전 속력, 현재 속력) × 메시지 시각 차이 +
+0.5 × max_acceleration_mps2 × 시각 차이² + motion_tolerance_m`다.
+기본 가속도 여유는 10 m/s², 위치 여유는 1 m다. 이 값은 차량 제어의 가속도
+한계를 바꾸지 않는다. 예를 들어 80 km/h에서 0.35초 수신 공백 뒤의 약 7.8 m
+이동은 정상 범위로 통과한다. 장시간 입력 공백은 기존 freshness watchdog이 처리한다.
 
 - `purepursuit`: trajectory와 공통 kinematic state로 조향각을 계산해
   `/control/command/steering`으로 publish한다.

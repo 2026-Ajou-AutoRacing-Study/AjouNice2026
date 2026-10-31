@@ -1,16 +1,16 @@
 # competition_route_requester
 
-K-City v87의 Route A/B와 fallback 요청을 관리하는 ROS1 planning addon이다.
-현재 배포에는 v87 지도와 설정만 포함한다.
+K-City v101의 Route A/B와 fallback 요청을 관리하는 ROS1 planning addon이다.
+공용 YAML과 기본 planning은 v101 지도·SHA·Route A/B를 함께 선택한다. v88 리퀘스터와 launch는 제거했다. v87 설정은 명시적 복귀용으로 보존한다.
 
 ## 실행과 설정
 
-- [`config/kcity_v87_competition_route.yaml`](config/kcity_v87_competition_route.yaml): 지도 경로·SHA, waypoint, Route A/B/fallback 검증 순서
-- [`config/competition_route_requester.param.yaml`](config/competition_route_requester.param.yaml): 기본 운용 설정. v87 Route A/B를 선택한다.
-- [`config/competition_route_requester_v87.param.yaml`](config/competition_route_requester_v87.param.yaml): 명시적 v87 운용 설정
+- [`config/kcity_v101_competition_route.yaml`](config/kcity_v101_competition_route.yaml): 지도 경로·SHA, waypoint, Route A/B/fallback 검증 순서
+- [`config/competition_route_requester.param.yaml`](config/competition_route_requester.param.yaml): 기본 운용 설정. v101 Route A/B를 선택한다.
+- [`config/competition_route_requester_v101.param.yaml`](config/competition_route_requester_v101.param.yaml): 명시적 v101 운용 설정
 - [`docs/SPEC.md`](docs/SPEC.md): 요청·검증·상태 전환 계약
 
-`competition_planning.launch`와 `competition_planning_v87.launch`가 공용
+`competition_planning.launch`와 `competition_planning_v101.launch`가 공용
 requester 실행 코드를 사용한다. 기본 운용 case는
 `route_a_to_b_with_fallback`이며, case 변경은 YAML 수정 후 세 노드를
 함께 재시작해야 적용된다.
@@ -37,3 +37,25 @@ RViz의 `Route Status`는 `verified_active`를 기준으로 Route A/B를 표시�
 
 이전 버전 route 설정, 설명 그림과 일회성 생성 도구는 배포에서 제외한다.
 작업 중 생성한 그림과 검증 기록은 Git 제외 경로인 `planner_logs/analysis/`에 둔다.
+
+## v101 Route A/B 전환 위치
+
+초기 Route B 선택과 Route A→B 재경로 기준은 Spawn 5번에서 주행 방향
+뒤쪽 5 m다. 지도 좌표 `(71.238562, 540.694727)`, lanelet `200310`의
+`s=3.149898 m`이며 `poses.spawn5_minus_5m`에 기록한다. 실행 중인 세 노드는
+설정 변경 후 함께 재시작해야 한다. 전환 요청에는 기존 availability 조건도 적용된다.
+
+## v101 선호 차선
+
+Route A/B와 fallback 모두 `201439 → 200360 → 201479 → 201451`을 사용한다.
+200360은 앞쪽 병합 직선, 201479는 뒤쪽 병합 직선이다. 각 속도는 150/80/70 km/h다.
+Route B가 다른 상류 차선을 선택해도 `preferred_lanelet_overrides`가 해당 구간의
+201441/201446을 201439로, 200185/201448을 200360/201479로 선택한다.
+병목 끝에서는 `201439 → 200360` 후속 연결을 바로 사용하며, 200185 진입 후
+오른쪽 LC로 복귀하는 경로를 정상 선호 경로로 인정하지 않는다.
+대상 lanelet이 해당 segment의 후보에 없는 경우 요청은 실패 처리한다.
+
+v101 Mission Planner는 `200185`·`201448`을 route primitive 후보에서도 제외한다.
+병목 뒤 두 segment의 후보는 각각 `[200360]`, `[201479]`뿐이므로,
+평행 차선으로 진입한 뒤 LC로 복귀하는 경로를 제공하지 않는다.
+해당 제외 차선을 선호하는 waypoint 경로가 생성되면 요청을 거부한다.

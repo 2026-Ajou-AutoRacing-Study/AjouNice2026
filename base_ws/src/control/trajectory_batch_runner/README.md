@@ -21,8 +21,10 @@
 MORAI에서 다음 항목은 batch 시작 전에 한 번 준비한다.
 
 1. Lane Change는 K-City 고속주로, 장애물 회피는 K-City 시험 환경을 연다.
-2. F4에서 `configs/network/ego_network_1.json`을 로드하고 Connect한다.
-3. F3에서 `configs/sensors/Sensor_5.json`을 로드하고 Connect한다.
+2. F4에서 `configs/network/ego_network_competition_local.json`을 로드하고 Connect한다.
+3. 이 batch의 과거 센서 조건을 재현하려면 F3에서 `configs/sensors/legacy/Sensor_5.json`을
+   로드하고 Connect한다. 현재 production 주행 센서의 선택 기준은
+   [`configs/sensors/README.md`](../../../../configs/sensors/README.md)를 따른다.
 4. Ego를 External Control 상태로 준비한다.
 5. manifest에 지정한 scenario JSON과 `EgoNetwork/<stem>_MN.json`을 MORAI의
    Scenario 저장 위치에 함께 둔다.
@@ -193,7 +195,7 @@ base_ws/src/control/trajectory_generator/traj_sample/obstacle_avoidance/
    제어 모드를 AV-ExternalCtrl(`currentControlMode=2`)로 설정한다. trajectory와 manifest의
    `speed_kph`는 controller의 주행 목표속도로 유지되며 초기 저장 속도와 구분된다.
 6. manifest의 `scenario_file` 이름으로 `configs/scenario/`에 저장한다.
-7. `configs/network/ego_network_1.json`을
+7. `configs/network/ego_network_competition_local.json`을
    `configs/scenario/EgoNetwork/<scenario_stem>_MN.json`으로 함께 생성한다.
 
 예를 들어 manifest의 `scenario_file`이 `lc_start_200128.json`이면

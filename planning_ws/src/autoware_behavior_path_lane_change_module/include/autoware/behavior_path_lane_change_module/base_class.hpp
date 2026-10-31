@@ -83,6 +83,8 @@ public:
 
   virtual void updateLaneChangeStatus() = 0;
 
+  virtual void refreshApprovedPlan() {}
+
   virtual std::pair<bool, bool> getSafePath(LaneChangePath & safe_path) const = 0;
 
   virtual BehaviorModuleOutput generateOutput() = 0;
@@ -116,6 +118,9 @@ public:
   virtual BehaviorModuleOutput getTerminalLaneChangePath() const = 0;
 
   virtual bool isEgoOnPreparePhase() const = 0;
+
+  // Non-virtual: preserve the provider ABI used by other LC specializations.
+  bool hasEgoEnteredTargetLane() const;
 
   virtual bool isRequiredStop(const bool is_trailing_object) = 0;
 

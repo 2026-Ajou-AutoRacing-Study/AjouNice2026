@@ -142,6 +142,8 @@ void StaticObstacleAvoidanceModuleManager::updateModuleParams(
     const std::string ns = "avoidance.target_filtering.detection_area.";
     update_param<bool>(parameters, ns + "static", p->use_static_detection_area);
     update_param<double>(
+      parameters, ns + "lateral_extra_margin", p->detection_area_lateral_extra_margin);
+    update_param<double>(
       parameters, ns + "min_forward_distance", p->object_check_min_forward_distance);
     update_param<double>(
       parameters, ns + "max_forward_distance", p->object_check_max_forward_distance);

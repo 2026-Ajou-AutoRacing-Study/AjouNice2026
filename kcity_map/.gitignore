@@ -44,6 +44,8 @@ competition_route/**/tmp/
 # v87 is explicitly published to Git for branch-complete deployment.
 # The team Drive rejected this release with storageQuotaExceeded.
 !/lanelet_map/lanelet2_map_v87.osm
+# Current versioned map release.
+!/lanelet_map/lanelet2_map_v88.osm
 /lanelet_map/*.pcd
 /competition_route/v*/
 /example_map/

@@ -141,7 +141,7 @@ def ego_road_support(surface,pose):
         limitation='MGeo road support screening; not curb/collider certification. Park and live stationary gate still required.')
 
 
-def initial_pose(pose,asset,size,offset,ctx):
+def initial_pose(pose,asset,size,offset,ctx,scale_assignment=None,scale_policy=None):
     """Final XY lookup then asset pivot; no blanket positive Z margin."""
     from base5_static_height import saved_height_candidate
     result=dict(pose);ground=None;legacy=.36 if asset['source_list']=='vehicleList' else 0.
@@ -158,7 +158,11 @@ def initial_pose(pose,asset,size,offset,ctx):
             source_map_boundary_sha256=ctx['static_height_reference_sources'].get('map_boundary_sha256'),
             footprint=footprint_profile(surface,profile_pose,size,offset))
         if ground['usable']:result['z']=ground['height_m']
-    initializer=saved_height_candidate(asset,ctx)
+    if scale_assignment is not None:
+        from base5_asset_scale import height_initializer
+        initializer=height_initializer(scale_assignment,scale_policy,size,offset)
+    else:
+        initializer=saved_height_candidate(asset,ctx)
     if initializer['usable']:result['z']+=initializer['pivot_height_candidate_m']-legacy
     if ground:
         ground['input_z_delta_m']=float(result['z']-pose['z'])

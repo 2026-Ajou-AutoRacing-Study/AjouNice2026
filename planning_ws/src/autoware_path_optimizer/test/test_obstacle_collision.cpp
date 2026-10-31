@@ -100,6 +100,21 @@ TEST(ObstacleFootprint, LocalKinkCannotBeHiddenByMetreWideCurvature)
   points[6].pose.position.x = -0.04;
   EXPECT_TRUE(firstCurvatureViolation(points, 1, 10, 0.25));
 }
+TEST(ObstacleFootprint, LocalCurvatureUsesIndependentPointFourThreshold)
+{
+  std::vector<TrajectoryPoint> points;
+  for (int i = 0; i < 11; ++i) points.push_back(point(0.2 * i, 0.0));
+  // A narrow bump has a small metre-scale curvature. Its adjacent-point
+  // curvature is about 0.3894/m, above the vehicle limit but below 0.4/m.
+  points[5].pose.position.y = 0.0078;
+  EXPECT_FALSE(firstCurvatureViolation(points, 1, 10, 0.279699877));
+
+  // Increase only that bump: about 0.4093/m must still be rejected locally.
+  points[5].pose.position.y = 0.0082;
+  const auto violation = firstCurvatureViolation(points, 1, 10, 0.279699877);
+  ASSERT_TRUE(violation);
+  EXPECT_EQ(*violation, 5U);
+}
 TEST(ObstacleFootprint, VehicleCornerNotJustCenterline)
 {
   EXPECT_TRUE(firstObstacleCollision({point(0,0)},0,{box(3.7,0.8,1,1)},vehicle()));

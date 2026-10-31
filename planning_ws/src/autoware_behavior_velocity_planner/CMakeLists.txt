@@ -18,10 +18,12 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   roscpp
   sensor_msgs
+  std_msgs
   tf2_eigen
   tf2_ros
 )
 find_package(PCL REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -30,7 +32,7 @@ catkin_package(
     autoware_map_msgs autoware_motion_utils autoware_perception_msgs autoware_planning_msgs autoware_route_handler
     autoware_vehicle_info_utils
     autoware_velocity_smoother
-    diagnostic_msgs geometry_msgs nav_msgs pluginlib pcl_conversions pcl_ros roscpp sensor_msgs tf2_ros
+    diagnostic_msgs geometry_msgs nav_msgs pluginlib pcl_conversions pcl_ros roscpp sensor_msgs std_msgs tf2_ros
   DEPENDS PCL
 )
 
@@ -74,7 +76,7 @@ add_library(autoware_behavior_velocity_planner_manager SHARED
 target_include_directories(autoware_behavior_velocity_planner_manager PUBLIC
   include ${BVPC_COMMON_INCLUDE_DIR} ${AUTOWARE_TRAJECTORY_INCLUDE_DIR} ${catkin_INCLUDE_DIRS})
 target_link_libraries(autoware_behavior_velocity_planner_manager PUBLIC
-  "${AUTOWARE_TRAJECTORY_LIBRARY}" ${catkin_LIBRARIES})
+  "${AUTOWARE_TRAJECTORY_LIBRARY}" ${catkin_LIBRARIES} PRIVATE nlohmann_json::nlohmann_json)
 target_compile_features(autoware_behavior_velocity_planner_manager PUBLIC cxx_std_17)
 
 add_library(autoware_behavior_velocity_planner_node SHARED
@@ -97,6 +99,12 @@ target_link_libraries(behavior_velocity_planner_experimental_node
   autoware_behavior_velocity_planner_node ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_recovery_stop_context test/test_recovery_stop_context.cpp)
+  if(TARGET test_recovery_stop_context)
+    target_include_directories(test_recovery_stop_context PRIVATE include ${catkin_INCLUDE_DIRS})
+    target_link_libraries(test_recovery_stop_context ${catkin_LIBRARIES})
+    target_compile_features(test_recovery_stop_context PRIVATE cxx_std_17)
+  endif()
   catkin_add_gtest(test_behavior_velocity_planner_manager test/test_planner_manager.cpp)
   if(TARGET test_behavior_velocity_planner_manager)
     target_compile_definitions(test_behavior_velocity_planner_manager PRIVATE
@@ -209,6 +217,7 @@ target_link_libraries(behavior_velocity_planner_full_experimental_node autoware_
 install(TARGETS autoware_behavior_velocity_planner_full_source behavior_velocity_planner_full_node behavior_velocity_planner_full_experimental_node
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION} RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(FILES include/autoware/behavior_velocity_planner/full_node.hpp
+  include/autoware/behavior_velocity_planner/recovery_stop_context.hpp
   include/autoware/behavior_velocity_planner/full_native_support.hpp
   include/autoware/behavior_velocity_planner/test_utils.hpp
   DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/autoware/behavior_velocity_planner)

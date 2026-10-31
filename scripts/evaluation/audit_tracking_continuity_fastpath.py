@@ -264,7 +264,7 @@ def main():
         sources[name] = (payload['input_frames'], dict(path=str(path), sha256=sha(path)))
     old, _ = prepared_cases(ROOT/'artifacts/evaluation/bevfusion/base5_rosbag_continuous_261012/inputs',
         ROOT/'artifacts/evaluation/bevfusion/base5_compile_bag_261012/E24_amp_parallel_v1/predictions.json.gz',
-        ROOT/'configs/sensors/Sensor_4.json')
+        ROOT/'configs/sensors/legacy/Sensor_4.json')
     for name, case in old.items():
         sources['old_'+name] = (case['frames'], dict(raw_bag=case['raw_bag'], input_frames=len(case['frames'])))
     _, latest, excluded = load(a.teammate_bag)

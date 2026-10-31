@@ -14,6 +14,7 @@
 
 #include "autoware/path_optimizer/obstacle_interval.hpp"
 #include "autoware/path_optimizer/obstacle_collision.hpp"
+#include <autoware/motion_utils/trajectory/static_obstacle_escape.hpp>
 
 #include "autoware/path_optimizer/mpt_optimizer.hpp"
 
@@ -29,6 +30,8 @@
 #include <autoware_utils_math/normalization.hpp>
 #include "autoware/path_optimizer/ros1_compat.hpp"
 #include <tf2/utils.h>
+#include <nlohmann/json.hpp>
+#include <std_msgs/String.h>
 
 #include <algorithm>
 #include <chrono>
@@ -46,6 +49,17 @@ namespace autoware::path_optimizer
 {
 namespace
 {
+ros::Publisher & qp_failure_publisher()
+{
+  static ros::NodeHandle node("~");
+  static auto publisher = node.advertise<std_msgs::String>("debug/mpt_qp_failure", 1);
+  return publisher;
+}
+ros::Time & qp_input_stamp()
+{
+  static ros::Time stamp;
+  return stamp;
+}
 std::tuple<std::vector<double>, std::vector<double>> calcVehicleCirclesByUniformCircle(
   const autoware::vehicle_info_utils::VehicleInfo & vehicle_info, const size_t circle_num,
   const double radius_ratio)
@@ -197,6 +211,16 @@ double calcLateralDistToBounds(
 
 namespace detail
 {
+size_t boundInterpolationStartIndex(const size_t offset_index, const size_t reference_count)
+{
+  if (reference_count < 2) {
+    throw std::invalid_argument("Bound interpolation requires at least two reference points");
+  }
+  // A rear circle can lie before the first reference. Saturate before subtracting
+  // so size_t does not wrap and select the last segment's unrelated road bounds.
+  return std::min(offset_index == 0 ? size_t{0} : offset_index - 1, reference_count - 2);
+}
+
 void assignHardConstraintStateBlock(
   Eigen::MatrixXd & destination, const Eigen::SparseMatrix<double> & source,
   const size_t reference_count, const size_t state_count)
@@ -499,6 +523,7 @@ MPTOptimizer::MPTOptimizer(
   osqp_solver_ptr_ = std::make_unique<autoware::osqp_interface::OSQPInterface>(osqp_epsilon_);
 
   // publisher
+  (void)qp_failure_publisher();
   debug_fixed_traj_pub_ = node->create_publisher<Trajectory>("~/debug/mpt_fixed_traj", 1);
   debug_ref_traj_pub_ = node->create_publisher<Trajectory>("~/debug/mpt_ref_traj", 1);
   debug_mpt_traj_pub_ = node->create_publisher<Trajectory>("~/debug/mpt_traj", 1);
@@ -571,22 +596,36 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
 
   const auto & p = planner_data;
+  qp_input_stamp() = p.header.stamp;
   const auto & traj_points = p.traj_points;
   candidate_trial_ = !p.obstacles.empty();
+  last_rejection_reason_.clear();
   exactly_checked_ego_index_.reset();
   const auto reject_candidate = [&](const char * reason) -> std::optional<std::vector<TrajectoryPoint>> {
+    last_rejection_reason_ = reason;
     if (candidate_trial_ && std::getenv("AJOUNICE_OBSTACLE_DIAG")) {
       RCLCPP_INFO(logger_, "[MPT candidate] t=%.3f rejected: %s", p.header.stamp.toSec(), reason);
     }
     return std::nullopt;
   };
 
+  if (p.relax_road_bounds &&
+      (!mpt_param_.hard_constraint || !mpt_param_.soft_constraint ||
+       mpt_param_.use_acados)) {
+    return reject_candidate("soft road retry requires OSQP with hard obstacles and soft constraints");
+  }
+
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
+  if (candidate_trial_ && !initial_overlaps) return reject_candidate("invalid obstacle geometry");
+  const bool allow_initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint;
   // Reject a disconnected side before spline, road bounds and QP assembly.
   // Evaluate against this seed's reference frame; no previous-side latch is used.
   if (candidate_trial_ && !traj_points.empty()) {
     const auto idx = trajectory_utils::findEgoIndex(traj_points, p.ego_pose, ego_nearest_param_);
     const double yaw = tf2::getYaw(traj_points[idx].pose.orientation);
     for (size_t o = 0; o < p.obstacles.size(); ++o) {
+      if (allow_initial_overlap && initial_overlaps->at(o)) continue;
       if (oppositeSideAtMeasuredState(
             p.obstacles[o].polygon, p.ego_pose, yaw, p.pass_left.at(o),
             mpt_param_.delta_arc_length)) {
@@ -606,10 +645,10 @@ std::optional<std::vector<TrajectoryPoint>> MPTOptimizer::optimizeTrajectory(
   if (candidate_trial_) {
     TrajectoryPoint measured;
     measured.pose = p.ego_pose;
-    if (firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
+    if (!allow_initial_overlap && firstObstacleCollision({measured}, 0, p.obstacles, vehicle_info_)) {
       return reject_candidate("measured footprint overlaps obstacle");
     }
-    if (!measuredFootprintInsideRoad(
+    if (!p.relax_road_bounds && !measuredFootprintInsideRoad(
           p.ego_pose, p.left_bound, p.right_bound, vehicle_info_, mpt_param_.hard_clearance_from_road)) {
       return reject_candidate("measured footprint outside current road");
     }
@@ -1198,7 +1237,9 @@ MPTOptimizer::calcReferencePoints(
   const double forward_traj_length = std::max(
     mpt_param_.num_points * mpt_param_.delta_arc_length, p.optimization_forward_length);
   const double backward_traj_length = traj_param_.output_backward_traj_length;
-  const size_t point_count = p.obstacles.empty() ? static_cast<size_t>(mpt_param_.num_points) :
+  const bool extended_window = !p.obstacles.empty() ||
+    p.optimization_forward_length > mpt_param_.num_points * mpt_param_.delta_arc_length;
+  const size_t point_count = !extended_window ? static_cast<size_t>(mpt_param_.num_points) :
     static_cast<size_t>(std::ceil((forward_traj_length + backward_traj_length) /
       mpt_param_.delta_arc_length)) + 1;
 
@@ -1253,6 +1294,17 @@ MPTOptimizer::calcReferencePoints(
   updateBounds(ref_points, p.left_bound, p.right_bound, p.ego_pose, p.ego_vel);
   updateVehicleBounds(ref_points, ref_points_spline, p.left_bound, p.right_bound);
   for (auto & ref : ref_points) ref.soft_bounds_on_constraints = ref.bounds_on_constraints;
+  if (p.relax_road_bounds) {
+    // Save the actual road limits above for the slack objective. Remove ONLY
+    // their hard inequalities; the obstacle loop below then builds hard
+    // separating bounds independently of the road, rather than disabling the
+    // combined hard_constraint switch (which would also release obstacles).
+    for (auto & ref : ref_points) {
+      for (auto & bounds : ref.bounds_on_constraints) {
+        bounds = Bounds{-autoware::osqp_interface::INF, autoware::osqp_interface::INF};
+      }
+    }
+  }
   // Independent obstacle constraints: roads remain unchanged. Each candidate chooses a
   // separating side per polygon; the vehicle circle must lie beyond its support plane.
   const size_t obstacle_ego_idx = trajectory_utils::findEgoIndex(ref_points, p.ego_pose, ego_nearest_param_);
@@ -1260,6 +1312,8 @@ MPTOptimizer::calcReferencePoints(
   // gaps between circles uncovered. Obstacle constraints must cover the whole
   // rectangle; otherwise relinearization cannot remove those corner collisions.
   const auto obstacle_radii = obstacleCoveringRadii(vehicle_info_, vehicle_circle_longitudinal_offsets_);
+  const auto initial_overlaps = autoware::motion_utils::initialObstacleOverlaps(
+    p.ego_pose, p.obstacles, vehicle_info_);
   for (size_t ref_idx = obstacle_ego_idx; ref_idx < ref_points.size(); ++ref_idx) {
     auto & ref = ref_points.at(ref_idx);
     for (size_t c = 0; c < vehicle_circle_radiuses_.size(); ++c) {
@@ -1277,7 +1331,12 @@ MPTOptimizer::calcReferencePoints(
           if (p.pass_left.at(o)) bounds.lower_bound = std::max(bounds.lower_bound, interval.second + offset);
           else bounds.upper_bound = std::min(bounds.upper_bound, interval.first - offset);
         };
-        if (hard) tighten(ref.bounds_on_constraints.at(c), *hard);
+        // A measured hard-margin violation is an initial condition, not a
+        // contradictory hard inequality. Keep the existing soft clearance cost
+        // so steering is optimized away from this obstacle. Others stay hard.
+        const bool initial_overlap = p.allow_initial_obstacle_overlap && mpt_param_.soft_constraint &&
+          initial_overlaps && initial_overlaps->at(o);
+        if (hard && !initial_overlap) tighten(ref.bounds_on_constraints.at(c), *hard);
         if (soft) tighten(ref.soft_bounds_on_constraints.at(c), *soft);
       }
     }
@@ -1356,6 +1415,18 @@ MPTOptimizer::calcReferencePoints(
 
   if (point_count < ref_points.size()) {
     ref_points.resize(point_count);
+  }
+
+  if (ref_points.size() >= 6 &&
+      !geometry_utils::isSamePoint(ref_points.back(), smoothed_points.back())) {
+    // Dock to the input *inside* the constrained solve. Three coincident
+    // terminal poses retain its discrete tangent/curvature; zero yaw error
+    // also makes the final steering inputs follow the reference curvature.
+    // Road/obstacle inequalities and vehicle dynamics remain in force. An
+    // unreachable return must fail this QP, not be hidden by a long spline gap.
+    for (size_t i = ref_points.size() - 3; i < ref_points.size(); ++i) {
+      ref_points.at(i).fixed_kinematic_state = KinematicState{0.0, 0.0};
+    }
   }
 
   ref_points_spline = autoware::interpolation::SplineInterpolationPoints2d(ref_points);
@@ -1886,9 +1957,8 @@ void MPTOptimizer::updateVehicleBounds(
         const double collision_check_s = ref_points_spline.getAccumulatedLength(p_idx) + lon_offset;
         const size_t collision_check_idx = ref_points_spline.getOffsetIndex(p_idx, lon_offset);
 
-        const size_t prev_idx = std::clamp(
-          collision_check_idx - 1, static_cast<size_t>(0),
-          static_cast<size_t>(ref_points_spline.getSize() - 2));
+        const size_t prev_idx = detail::boundInterpolationStartIndex(
+          collision_check_idx, ref_points_spline.getSize());
         const size_t next_idx = prev_idx + 1;
 
         const auto & prev_bounds = ref_points.at(prev_idx).bounds;
@@ -2419,6 +2489,60 @@ std::optional<Eigen::VectorXd> MPTOptimizer::calcOptimizedSteerAngles(
   prev_solution_status_ = solution_status;
   if (solution_status != 1) {
     if (!candidate_trial_) osqp_solver_ptr_->logUnsolvedStatus("[MPT]");
+    // Snapshot the exact failed problem. Constraint relaxation is done offline;
+    // no diagnostic solve or relaxed trajectory is used by the running planner.
+    static size_t saved_normal_failures = 0;
+    if (!candidate_trial_ && qp_failure_publisher().getNumSubscribers() &&
+        saved_normal_failures < 4) {
+      ++saved_normal_failures;
+      using Json = nlohmann::json;
+      const size_t circles = vehicle_circle_longitudinal_offsets_.size();
+      Json snapshot{{"stamp", ros::Time::now().toSec()},
+        {"input_stamp", qp_input_stamp().toSec()}, {"status", solution_status},
+        {"epsilon", osqp_epsilon_}, {"n", H.rows()}, {"m", A.rows()},
+        {"reference_count", N_ref}, {"state_dimension", D_x},
+        {"f", f}, {"lower", lower_bound}, {"upper", upper_bound},
+        {"H", Json::array()}, {"A", Json::array()}, {"families", Json::array()},
+        {"references", Json::array()}, {"circle_offsets", vehicle_circle_longitudinal_offsets_},
+        {"circle_radii", vehicle_circle_radiuses_}};
+      if (u0) snapshot["manual_warm_start_shift"] = toStdVector(*u0);
+      for (Eigen::Index i = 0; i < H.rows(); ++i) {
+        for (Eigen::Index j = i; j < H.cols(); ++j) {
+          if (H(i,j) != 0.0) snapshot["H"].push_back({i,j,H(i,j)});
+        }
+      }
+      for (Eigen::Index i = 0; i < A.rows(); ++i) {
+        for (Eigen::Index j = 0; j < A.cols(); ++j) {
+          if (A(i,j) != 0.0) snapshot["A"].push_back({i,j,A(i,j)});
+        }
+      }
+      size_t row = 0;
+      const auto family = [&](const char * name, size_t count, int circle) {
+        snapshot["families"].push_back({{"name", name}, {"start", row},
+          {"count", count}, {"circle", circle}});
+        row += count;
+      };
+      family("dynamics", N_x, -1);
+      for (size_t c = 0; c < circles; ++c) {
+        if (mpt_param_.soft_constraint) family("soft_road", 3*N_ref, c);
+        if (mpt_param_.hard_constraint) family("hard_road", N_ref, c);
+      }
+      const size_t fixed_count = std::count_if(ref_points.begin(), ref_points.end(),
+        [](const auto & ref) { return ref.fixed_kinematic_state.has_value(); });
+      family("fixed_state", fixed_count*D_x, -1);
+      if (mpt_param_.steer_limit_constraint) family("steering_limit", N_u, -1);
+      snapshot["labeled_rows"] = row;
+      for (size_t i = 0; i < ref_points.size(); ++i) {
+        const auto & ref = ref_points[i];
+        Json item{{"index", i}, {"x", ref.pose.position.x}, {"y", ref.pose.position.y},
+          {"beta", ref.beta}};
+        if (ref.fixed_kinematic_state) item["fixed"] =
+          {ref.fixed_kinematic_state->lat, ref.fixed_kinematic_state->yaw};
+        snapshot["references"].push_back(item);
+      }
+      std_msgs::String message; message.data = snapshot.dump();
+      qp_failure_publisher().publish(message);
+    }
     // Replay-only diagnosis: remove one constraint family at a time from the exact failed QP.
     // This does not change the published trajectory and is inert unless explicitly enabled.
     if (std::getenv("AJOUNICE_MPT_QP_DIAG") != nullptr) {

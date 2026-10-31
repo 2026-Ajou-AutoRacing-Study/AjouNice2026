@@ -122,7 +122,7 @@ def preprocessing_check(root,samples,calibration,hw):
     if normalized is None:
         sys.path.insert(0,str(root/'dataset/morai_od/scripts'))
         import dynamic_capture_metadata as normalized
-    reference=normalized.normalized_sensor_calibration(root/'configs/sensors/Sensor.json')
+    reference=normalized.normalized_sensor_calibration(root/'configs/sensors/Sensor_competition_local.json')
     tests=[];host_method=host_e25_function(root)
     for sample in samples:
         native=[];metas={};blobs=sample['images']
@@ -189,7 +189,7 @@ def main():
     if a.output.exists():raise ValueError('Use a new output file')
     torch.set_num_threads(4);cv2.setNumThreads(1)
     torch.backends.cudnn.benchmark=True;torch.backends.cuda.matmul.allow_tf32=True
-    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor_competition_local.json')
     manifest,samples=load_samples(a.samples)
     if a.codec=='jpeg90':
         for sample in samples:

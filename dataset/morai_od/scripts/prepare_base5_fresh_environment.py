@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 
 import base5_spatial_diversity as spatial
+import base5_layout_split as layout_split
 from base5_capture_safety import atomic_json, sha256
 from run_base5_failure_aware_replenishment_fast import prewarm
 from run_base5_motion_contract_repair import motion_matches
@@ -30,7 +31,7 @@ def bounded_candidate(spec, config, ctx, reference, split, reasons, maximum=MAX_
     for retry in range(maximum):
         try:
             scene,meta=spatial.build(spec,config,ctx,retry)
-            if meta['split']!=split:raise ValueError('Original logical-slot split changed')
+            if split is not None and meta['split']!=split:raise ValueError('Original logical-slot split changed')
             primary=lambda m:m['runtime_actors'][0]['data_id'] if m['runtime_actors'] else None
             if primary(meta)!=primary(reference):raise ValueError('Original primary assignment changed')
             moving=lambda m:any(a['motion'] not in ('static','standing') for a in m['runtime_actors'])
@@ -42,12 +43,19 @@ def bounded_candidate(spec, config, ctx, reference, split, reasons, maximum=MAX_
     raise ValueError('Offline proposal budget exhausted: '+json.dumps(dict(local),sort_keys=True))
 
 
-def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=False):
+def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=False,known_map_layout_split=False):
     if not 1<=limit<=5000:raise ValueError('Generate 1–5000 slots per environment')
     if environment not in ('sunny11','sunny15','foggy11','foggy13','foggy15') and not (environment=='sunny13' and allow_new_sunny13):
         raise ValueError('Only the remaining five environments; Sunny13 stays preserved')
     if output.exists():raise FileExistsError('Fresh environment directory required')
     original=json.loads(source.read_text());source_hash=sha256(source);config=copy.deepcopy(original['config'])
+    if known_map_layout_split:
+        config[layout_split.CONFIG_KEY]=layout_split.configuration()
+    known_map=layout_split.enabled(config)
+    if config.get('obstacle_front_support_policy'):
+        raise ValueError('Generate each fresh environment from the v150 source first, then run '
+            'prepare_base5_obstacle_front_support.py on that complete environment deck. '
+            'Do not reseed a frozen v151 allocation or silently remove its plan.')
     generator_hash=sha256(__file__);adapter_hash=sha256(spatial.__file__)
     config['dataset_id']='base5_fresh_v141_'+environment;config['environment_tag']=environment
     config['collection_environment']=dict(weather=environment[:-2],hour=int(environment[-2:]),
@@ -71,7 +79,7 @@ def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=
     for slot,spec,split in items[:limit]:
         old,reference=references[slot]
         try:
-            scene,meta,retry,local=bounded_candidate(spec,config,ctx,reference,split,failures)
+            scene,meta,retry,local=bounded_candidate(spec,config,ctx,reference,None if known_map else split,failures)
         except ValueError as exc:
             atomic_json(output/'failure.json',dict(slot=slot,reasons=dict(failures),completed=len(entries),
                 isolated_failure=str(exc),maximum_offline_proposals=MAX_OFFLINE_PROPOSALS))
@@ -84,18 +92,23 @@ def generate(source,output,environment,seed=261010,limit=5000,allow_new_sunny13=
         meta['logical_quota_slot_id']=slot;meta['scene_group_id']='fresh_v141:'+ident
         meta['environment_split_contract']=dict(policy='physical-link split + unique geometry identity',
             original_slot_split=split,geometry_is_weather_pair=False)
+        if known_map:
+            meta['environment_split_contract'].update(policy=layout_split.POLICY,
+                final_layout_overlay_required=True,logical_slot_split_preserved=False)
         meta['fresh_environment_provenance']=dict(source_manifest_sha256=source_hash,
             source_payload_sha256=old['scenario_sha256'],source_slot_id=slot,
             environment=environment,geometry_seed=spec['seed'],generator_adapter_sha256=adapter_hash)
         sp=output/'scenarios'/(ident+'.json');mp=output/'scenarios'/(ident+'_metadata.json')
         atomic_json(sp,scene);atomic_json(mp,meta)
         entry=copy.deepcopy(old);entry.update(id=ident,scenario=str(sp.resolve()),metadata=str(mp.resolve()),
-            scenario_sha256=sha256(sp),split=split,logical_quota_slot_id=slot)
+            scenario_sha256=sha256(sp),split=meta['split'],logical_quota_slot_id=slot)
         if entry['scenario_sha256']==old['scenario_sha256']:raise ValueError('Fresh geometry copied original payload')
         entries.append(entry)
         if len(entries)%100==0:print(environment,len(entries),f'{time.monotonic()-start:.1f}s',flush=True)
     doc=copy.deepcopy(original);doc.update(dataset_id=config['dataset_id'],config=config,count=len(entries),scenes=entries,
         status='FRESH_GEOMETRY_OFFLINE; live qualification and UI weather confirmation pending')
+    if known_map:
+        doc.update(layout_split_overlay_required=True,bulk_ready=False)
     if sha256(__file__)!=generator_hash or sha256(spatial.__file__)!=adapter_hash:
         raise ValueError('Generator edited during generation; outputs remain diagnostic only')
     doc['provenance'].update(fresh_source_manifest_sha256=source_hash,
@@ -126,4 +139,5 @@ if __name__=='__main__':
     p.add_argument('--output',type=Path,required=True);p.add_argument('--environment',required=True)
     p.add_argument('--seed',type=int,default=261010);p.add_argument('--limit',type=int,default=5000)
     p.add_argument('--allow-new-sunny13-plan',action='store_true',help='Explicit new-output offline preview; preserve completed Sunny13')
-    a=p.parse_args();print(generate(a.manifest,a.output,a.environment,a.seed,a.limit,a.allow_new_sunny13_plan))
+    p.add_argument('--known-map-layout-split',action='store_true',help='New all-link geometry; finalize a coverage-constrained layout overlay before training')
+    a=p.parse_args();print(generate(a.manifest,a.output,a.environment,a.seed,a.limit,a.allow_new_sunny13_plan,a.known_map_layout_split))

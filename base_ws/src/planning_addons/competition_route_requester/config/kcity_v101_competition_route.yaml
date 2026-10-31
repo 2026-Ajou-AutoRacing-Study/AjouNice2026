@@ -1,0 +1,495 @@
+# K-City v101: Route A/B trigger is 5 m behind Spawn point 5 along its heading.
+schema_version: 1
+frame_id: map
+map:
+  version: 101
+  file: kcity_map/lanelet_map/lanelet2_map_v101.osm
+  projector_file: kcity_map/lanelet_map/map_projector_info_v1.yaml
+  sha256: 574d0db7ba7aa2fbca55253e1ed467bdb4bfb2afeea78dd0b760227d47edeb29
+start:
+  source: 2026 competition official START / END
+  morai_map_pose:
+    x: -131.68979755061446
+    y: -428.3310229377821
+    z: 28.543960281954277
+    yaw_deg: 61.298126221
+  map_pose:
+    x: -0.130667330614472
+    y: 117.580315248218
+    z: 28.543960281954277
+    yaw_deg: 61.298126221
+  location: lanelet_boundary
+  incoming_lanelet_id: 200892
+  incoming_lanelet_end_s_m: 18.858427
+  outgoing_lanelet_id: 200889
+  accepted_start_lanelet_ids:
+  - 200892
+  - 200889
+  expected_pose_tolerance_m: 6.0
+poses:
+  spawn5_minus_5m:
+    lanelet_id: 200310
+    lanelet_s_m: 3.149898
+    x: 71.238561925
+    y: 540.694727475
+    z: 28.38303916
+    yaw_deg: 90.321304321
+  wp_200178:
+    lanelet_id: 200178
+    lanelet_s_m: 8.0
+    x: 22.403230951
+    y: 203.754521585
+    z: 28.426545152
+    yaw_deg: 152.142116
+  wp_200258:
+    lanelet_id: 200258
+    lanelet_s_m: 8.0
+    x: 71.117209049
+    y: 565.421965596
+    z: 28.392022
+    yaw_deg: 90.205013
+  wp_200346:
+    lanelet_id: 200346
+    lanelet_s_m: 8.0
+    x: 55.372342969
+    y: 322.566233491
+    z: 28.395550038
+    yaw_deg: 62.908626
+  wp_200315:
+    lanelet_id: 200315
+    lanelet_s_m: 8.0
+    x: 97.857900365
+    y: 644.733659115
+    z: 28.377580051
+    yaw_deg: 0.786433
+  wp_200311:
+    lanelet_id: 200311
+    lanelet_s_m: 8.0
+    x: 133.972899406
+    y: 668.836010783
+    z: 28.456207034
+    yaw_deg: 96.630231
+  wp_201095:
+    lanelet_id: 201095
+    lanelet_s_m: 8.0
+    x: 35.49889821
+    y: 870.908058982
+    z: 28.366444863
+    yaw_deg: 46.92203
+  wp_201086:
+    lanelet_id: 201086
+    lanelet_s_m: 8.0
+    x: 128.21974937
+    y: 891.682962259
+    z: 28.340098952
+    yaw_deg: -0.512511
+  wp_201456:
+    lanelet_id: 201456
+    progress_lanelet_id: 201459
+    lanelet_s_m: 6.941124
+    x: 193.719537498018
+    y: 794.406736074068
+    z: 28.279813150509
+    yaw_deg: -89.445018136352
+  wp_201457:
+    lanelet_id: 201457
+    progress_lanelet_id: 201459
+    lanelet_s_m: 6.962072
+    x: 197.514181666943
+    y: 794.443555153763
+    z: 28.307469848509
+    yaw_deg: -89.692880892303
+  wp_201435:
+    lanelet_id: 201466
+    progress_lanelet_id: 201465
+    lanelet_s_m: 8.000007
+    x: 201.72468131966
+    y: 685.706024773819
+    z: 28.317004917702
+    yaw_deg: -89.694218832455
+  wp_200137:
+    lanelet_id: 200137
+    progress_lanelet_id: 200138
+    lanelet_s_m: 8.0
+    x: 202.038190605702
+    y: 627.131948773689
+    z: 28.327082722824
+    yaw_deg: -89.687751483112
+  wp_200187_merged:
+    lanelet_id: 200187
+    progress_lanelet_id: 201444
+    lanelet_s_m: 8
+    x: 202.479680196914
+    y: 544.514405404006
+    z: 28.361151182323
+    yaw_deg: -89.75049687707
+  wp_201473:
+    lanelet_id: 201439
+    lanelet_s_m: 20.503814
+    x: 206.804010511488
+    y: 382.500387737332
+    z: 28.383963510434
+    yaw_deg: -89.435890439524
+  fallback_cutoff_201439:
+    lanelet_id: 201439
+    lanelet_s_m: 43.191875
+    x: 207.011017895976
+    y: 359.81310131127
+    z: 28.379596995979
+    yaw_deg: -89.904812576402
+  wp_200183:
+    lanelet_id: 200183
+    lanelet_s_m: 8.0
+    x: 202.157329135
+    y: 132.337284715
+    z: 28.114087922
+    yaw_deg: -94.24327
+  wp_200181:
+    lanelet_id: 200181
+    lanelet_s_m: 8.0
+    x: -21.534942897
+    y: 78.705997954
+    z: 28.466761132
+    yaw_deg: 65.009025
+  goal_route_a_200181:
+    lanelet_id: 200181
+    lanelet_ratio: 0.75
+    x: -13.382585757
+    y: 93.78275452
+    z: 28.489031327
+    yaw_deg: 60.815021
+  goal_200210:
+    lanelet_id: 200210
+    lanelet_ratio: 0.75
+    x: 140.571582282
+    y: 448.911321375
+    z: 28.376972856
+    yaw_deg: 89.559814
+  wp_200360_straight:
+    lanelet_id: 200360
+    lanelet_s_m: 20.0
+    x: 205.18066366884747
+    y: 308.145740420023
+    z: 28.368795329585865
+    yaw_deg: -95.4027212576416
+  wp_201479_straight:
+    lanelet_id: 201479
+    lanelet_s_m: 35.0
+    x: 201.94460586822288
+    y: 238.27947940773572
+    z: 28.34045275515079
+    yaw_deg: -89.89940459558696
+  wp_201451_exit:
+    lanelet_id: 201451
+    lanelet_s_m: 8.0
+    x: 201.71230365494242
+    y: 198.32894719987485
+    z: 28.361448239626903
+    yaw_deg: -89.95890116608368
+route_a:
+  uuid: 5ab4ea76-f661-5324-a3f5-00a828e0ca6a
+  allow_modification: false
+  waypoint_refs:
+  - wp_200178
+  - wp_200346
+  - wp_200315
+  - wp_200311
+  - wp_201095
+  - wp_201086
+  - wp_201456
+  - wp_201457
+  - wp_201435
+  - wp_200137
+  - wp_200187_merged
+  - wp_201473
+  - wp_200360_straight
+  - wp_201479_straight
+  - wp_201451_exit
+  - wp_200183
+  - wp_200181
+  goal_ref: goal_route_a_200181
+  accepted_start_prefixes:
+  - - 200889
+  - - 200892
+    - 200889
+  waypoint_path_lanelet_ids:
+  - 200889
+  - 200392
+  - 200178
+  - 200337
+  - 200287
+  - 200348
+  - 200346
+  - 200291
+  - 200292
+  - 200305
+  - 200841
+  - 200950
+  - 200310
+  - 200308
+  - 200258
+  - 200261
+  - 200315
+  - 200445
+  - 200311
+  - 200968
+  - 201095
+  - 201098
+  - 201096
+  - 201087
+  - 201086
+  - 201459
+  - 201465
+  - 200138
+  - 201444
+  - 201469
+  - 201439
+  - 200360
+  - 201479
+  - 201451
+  - 200088
+  - 201401
+  - 200183
+  - 200037
+  - 200471
+  - 201071
+  - 201432
+  - 200182
+  - 200361
+  - 200181
+  expected_path_lanelet_ids:
+  - 200889
+  - 200392
+  - 200178
+  - 200337
+  - 200287
+  - 200348
+  - 200346
+  - 200291
+  - 200292
+  - 200305
+  - 200841
+  - 200950
+  - 200310
+  - 200308
+  - 200258
+  - 200261
+  - 200315
+  - 200445
+  - 200311
+  - 200968
+  - 201095
+  - 201098
+  - 201096
+  - 201087
+  - 201086
+  - 201459
+  - 201465
+  - 200138
+  - 201444
+  - 201469
+  - 201439
+  - 200360
+  - 201479
+  - 201451
+  - 200088
+  - 201401
+  - 200183
+  - 200037
+  - 200471
+  - 201071
+  - 201432
+  - 200182
+  - 200361
+  - 200181
+  preferred_lanelet_overrides:
+    # Keep the bottleneck exit on the direct successor 201439 -> 200360.
+    201441: 201439
+    201446: 201439
+    200185: 200360
+    201448: 201479
+route_b:
+  uuid: 84d38674-1280-5349-9edd-b95c09b35bb5
+  allow_modification: false
+  waypoint_refs:
+  - wp_200346
+  - wp_200315
+  - wp_200311
+  - wp_201095
+  - wp_201086
+  - wp_201456
+  - wp_201457
+  - wp_201435
+  - wp_200137
+  - wp_200187_merged
+  - wp_201473
+  - wp_200360_straight
+  - wp_201479_straight
+  - wp_201451_exit
+  - wp_200183
+  - wp_200181
+  goal_ref: goal_200210
+  waypoint_path_lanelet_ids:
+  - 200178
+  - 200337
+  - 200287
+  - 200348
+  - 200346
+  - 200291
+  - 200292
+  - 200305
+  - 200841
+  - 200950
+  - 200310
+  - 200308
+  - 200258
+  - 200261
+  - 200315
+  - 200445
+  - 200311
+  - 200968
+  - 201095
+  - 201098
+  - 201096
+  - 201087
+  - 201086
+  - 201459
+  - 201465
+  - 200138
+  - 201444
+  - 201469
+  - 201439
+  - 200360
+  - 201479
+  - 201451
+  - 200088
+  - 201401
+  - 200183
+  - 200037
+  - 200471
+  - 201071
+  - 201432
+  - 200182
+  - 200361
+  - 200181
+  - 200892
+  - 200889
+  - 200220
+  - 200168
+  - 200180
+  - 200165
+  - 200202
+  - 200221
+  - 200401
+  - 200207
+  - 200249
+  - 200210
+  expected_path_lanelet_ids:
+  - 200178
+  - 200337
+  - 200287
+  - 200348
+  - 200346
+  - 200291
+  - 200292
+  - 200305
+  - 200841
+  - 200950
+  - 200310
+  - 200308
+  - 200258
+  - 200261
+  - 200315
+  - 200445
+  - 200311
+  - 200968
+  - 201095
+  - 201098
+  - 201096
+  - 201087
+  - 201086
+  - 201459
+  - 201465
+  - 200138
+  - 201444
+  - 201469
+  - 201439
+  - 200360
+  - 201479
+  - 201451
+  - 200088
+  - 201401
+  - 200183
+  - 200037
+  - 200471
+  - 201071
+  - 201432
+  - 200182
+  - 200361
+  - 200181
+  - 200892
+  - 200889
+  - 200220
+  - 200168
+  - 200180
+  - 200165
+  - 200202
+  - 200221
+  - 200401
+  - 200207
+  - 200249
+  - 200210
+  preferred_lanelet_overrides:
+    # Route B may retain another upstream branch; normalize both exit sections.
+    201441: 201439
+    201446: 201439
+    200185: 200360
+    201448: 201479
+fallback_route:
+  uuid: 0085f55e-5534-5f48-9962-30f4bd30d55f
+  request_type: set_lanelet_route
+  allow_modification: false
+  hard_cutoff_pose_ref: fallback_cutoff_201439
+  goal_ref: goal_200210
+  expected_path_lanelet_ids:
+  - 201439
+  - 200360
+  - 201479
+  - 201451
+  - 200088
+  - 201401
+  - 200183
+  - 200037
+  - 200471
+  - 201071
+  - 201432
+  - 200182
+  - 200361
+  - 200181
+  - 200892
+  - 200889
+  - 200220
+  - 200168
+  - 200180
+  - 200165
+  - 200202
+  - 200221
+  - 200401
+  - 200207
+  - 200249
+  - 200210
+# Spawn 5 MORAI pose (-60.34860724, -0.21668933), yaw 90.321304321 deg.
+# Subtract 5 m along heading, then apply map<-morai_map translation.
+startup_route_b_trigger:
+  pose_ref: spawn5_minus_5m
+  minimum_lanelet_s_m: 3.149898
+  end_lanelet_id: 200892
+reroute_trigger:
+  pose_ref: spawn5_minus_5m
+  minimum_lanelet_s_m: 3.149898
+  deadline_pose_ref: wp_200315
+validation:
+  checkpoint_radius_m: 3.0
+  route_pose_tolerance_m: 0.5
+  require_expected_lanelet_order: true
+  require_unique_lanelets: true

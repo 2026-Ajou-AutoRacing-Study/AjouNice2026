@@ -1,9 +1,12 @@
 <library path="lib/libbringup_rviz_plugins">
+  <class name="bringup/ScopedImage" type="bringup::ScopedImageDisplay" base_class_type="rviz::Display">
+    <description>RViz Image with per-display compressed transport parameter services.</description>
+  </class>
   <class name="bringup/RosbagRecorder"
          type="bringup::RosbagRecorderPanel"
          base_class_type="rviz::Panel">
     <description>
-      Start and stop a timestamped planning/perception rosbag from RViz.
+      Record all ROS topics except images, point clouds and visualization payloads to a timestamped bag from RViz.
     </description>
   </class>
   <class name="bringup/RouteControl"
@@ -12,5 +15,11 @@
     <description>
       Show the currently verified competition route in RViz.
     </description>
+  </class>
+  <class name="bringup/RouteEditor" type="bringup::RouteEditorPanel" base_class_type="rviz::Panel">
+    <description>Edit Route A/B waypoints, save drafts and request a planning route.</description>
+  </class>
+  <class name="bringup/RoutePoint" type="bringup::RoutePointTool" base_class_type="rviz::Tool">
+    <description>Click the map to insert a route waypoint (P).</description>
   </class>
 </library>

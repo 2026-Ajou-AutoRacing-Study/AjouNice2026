@@ -1,0 +1,94 @@
+{
+  "schema": "base5_reinforcement_profile_v2",
+  "policy": "generic-native-support-range-reallocation-v2",
+  "name": "base5-midrange-observable-obstacles-v162",
+  "seed": 261019162,
+  "evidence": [
+    {
+      "path": "/home/luv/AjouNice2026/artifacts/evaluation/base5_foggy13_design_261019/training_review/analysis.json",
+      "sha256": "62324a945a4cd880ecd288e0b27fd2e256b530284e083f642179cdce6b2bd389"
+    },
+    {
+      "path": "/home/luv/AjouNice2026/artifacts/evaluation/base5_foggy13_design_261019/data_audit/report.json",
+      "sha256": "f718f928221454a590f4ac27306f33c2d931a87ccc454b4cdda7febc50ad0723"
+    },
+    {
+      "path": "/home/luv/AjouNice2026/artifacts/evaluation/base5_foggy13_design_261019/data_audit/paired_rgb_report_v2/report.json",
+      "sha256": "b865af8507a44c8dd3832c4ac01a373498a9c4da577131ce8f4b3ad3456738a1"
+    },
+    {
+      "path": "/home/luv/AjouNice2026/artifacts/evaluation/base5_foggy13_design_261019/data_audit/camera_only_four/rgb_report_v1/report.json",
+      "sha256": "f56eea8cdb22838aeb211e50ce613a978a13eff5dcd775bc6f21bc1b6ccb7f30"
+    }
+  ],
+  "maximum_changed_scenes": 224,
+  "minimum_remaining_near_actors": 2500,
+  "maximum_near_loss_fraction": 0.08,
+  "unchanged_classes": {
+    "vehicle": "80–100m final GT already increased from 219 to 318/304 per 5K. Front/rear AP and LiDAR-support disparity need separate diagnosis; paired Foggy90m and zero-return89–97m retain RGB silhouettes. Preserve far front/rear quotas, lane geometry and assets rather than indiscriminately moving targets closer.",
+    "pedestrian": "20–40m human GT remains substantial and paired Foggy27–49m retains RGB silhouettes even with zero LiDAR returns. Human/animal/Pet1 subgroup recall differences and compound-camera ambiguity are tracked separately; weak small-sample recall alone does not justify replacing human quotas or changing component GT. Existing moving/standing/animal/compound diversity stays unchanged."
+  },
+  "rules": [
+    {
+      "id": "low-and-volume-20-30",
+      "assets": {
+        "CargoBox": 24,
+        "WoodBox": 12,
+        "TrafficBarrel": 10,
+        "PE_Drum": 10,
+        "PE_Firewall_Orange": 10,
+        "PE_Firewall_White": 10,
+        "Steel_Barricade": 10,
+        "Concrete_Barricade01": 10,
+        "Concrete_Barricade02": 10,
+        "concrete-barrier": 8,
+        "RedBarrel": 8,
+        "YellowBarrel": 8
+      },
+      "source_bounds_m": [
+        0,
+        20
+      ],
+      "target_bounds_m": [
+        20,
+        30
+      ],
+      "roles": [
+        "front",
+        "rear"
+      ],
+      "maximum_asset_near_fraction": 0.18,
+      "minimum_asset_near_remaining": 60
+    },
+    {
+      "id": "larger-visible-30-45",
+      "assets": {
+        "WoodBox": 8,
+        "TrafficBarrel": 8,
+        "PE_Firewall_Orange": 8,
+        "PE_Firewall_White": 8,
+        "Steel_Barricade": 8,
+        "Concrete_Barricade02": 8,
+        "concrete-barrier": 8
+      },
+      "source_bounds_m": [
+        0,
+        20
+      ],
+      "target_bounds_m": [
+        30,
+        45
+      ],
+      "roles": [
+        "front",
+        "rear"
+      ],
+      "maximum_asset_near_fraction": 0.2,
+      "minimum_asset_near_remaining": 60
+    }
+  ],
+  "cpu_feasibility": {
+    "maximum_attempts": 512,
+    "maximum_candidate_tests": 512
+  }
+}

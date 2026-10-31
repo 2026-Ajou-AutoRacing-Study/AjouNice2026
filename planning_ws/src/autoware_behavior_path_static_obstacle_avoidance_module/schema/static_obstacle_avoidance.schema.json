@@ -697,6 +697,12 @@
             "detection_area": {
               "type": "object",
               "properties": {
+                "lateral_extra_margin": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "description": "Additional lateral object search width per side, independent of obstacle margins.",
+                  "default": 0.0
+                },
                 "static": {
                   "type": "boolean",
                   "description": "If true, the detection area longitudinal range is calculated based on current ego speed.",

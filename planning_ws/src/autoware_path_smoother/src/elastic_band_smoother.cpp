@@ -186,7 +186,9 @@ void ElasticBandSmoother::onPath(const PathConstPtr path_ptr)
   PlannerData planner_data(
     input_traj_points, ego_state_ptr->pose.pose, ego_state_ptr->twist.twist.linear.x);
   const bool is_replan_required = [&]() {
-    if (replan_checker_ptr_->isResetRequired(planner_data)) {
+    if (eb_path_smoother_ptr_->requiresHistoryReset(
+          input_traj_points, ego_state_ptr->pose.pose) ||
+        replan_checker_ptr_->isResetRequired(planner_data)) {
       // NOTE: always replan when resetting previous optimization
       resetPreviousData();
       return true;
@@ -342,13 +344,17 @@ std::vector<TrajectoryPoint> ElasticBandSmoother::extendTrajectory(
   const size_t joint_start_traj_seg_idx =
     trajectory_utils::findEgoSegmentIndex(traj_points, joint_start_pose, ego_nearest_param_);
 
-  // crop trajectory for extension
-  constexpr double joint_traj_max_length_for_smoothing = 15.0;
-  constexpr double joint_traj_min_length_for_smoothing = 5.0;
-  const auto joint_end_traj_point_idx = trajectory_utils::getPointIndexAfter(
-    traj_points, joint_start_pose.position, joint_start_traj_seg_idx,
-    joint_traj_max_length_for_smoothing, joint_traj_min_length_for_smoothing);
-  if (!joint_end_traj_point_idx) {
+  // Keep every input sample after the optimized prefix. Skipping 5--15 m
+  // replaced curved input geometry with one long interpolation segment and
+  // introduced curvature peaks at its far end. EB anchors its terminal samples
+  // to the input path, so no artificial gap is needed for the join.
+  size_t joint_end_traj_point_idx = joint_start_traj_seg_idx + 1;
+  while (joint_end_traj_point_idx < traj_points.size() &&
+         autoware_utils_geometry::calc_distance2d(
+           traj_points.at(joint_end_traj_point_idx), joint_start_pose) < 1e-4) {
+    ++joint_end_traj_point_idx;
+  }
+  if (joint_end_traj_point_idx >= traj_points.size()) {
     return trajectory_utils::resampleTrajectoryPoints(
       optimized_traj_points, common_param_.output_delta_arc_length);
   }
@@ -356,7 +362,7 @@ std::vector<TrajectoryPoint> ElasticBandSmoother::extendTrajectory(
   // calculate full trajectory points
   const auto full_traj_points = [&]() {
     auto extended_traj_points = std::vector<TrajectoryPoint>{
-      traj_points.begin() + *joint_end_traj_point_idx, traj_points.end()};
+      traj_points.begin() + joint_end_traj_point_idx, traj_points.end()};
 
     if (!extended_traj_points.empty() && !optimized_traj_points.empty()) {
       // NOTE: Without this code, if optimized_traj_points's back is non zero velocity and
@@ -374,7 +380,7 @@ std::vector<TrajectoryPoint> ElasticBandSmoother::extendTrajectory(
     full_traj_points, common_param_.output_delta_arc_length);
 
   // update stop velocity on joint
-  for (size_t i = joint_start_traj_seg_idx + 1; i <= *joint_end_traj_point_idx; ++i) {
+  for (size_t i = joint_start_traj_seg_idx + 1; i <= joint_end_traj_point_idx; ++i) {
     if (hasZeroVelocity(traj_points.at(i))) {
       if (i != 0 && !hasZeroVelocity(traj_points.at(i - 1))) {
         // Here is when current point is 0 velocity, but previous point is not 0 velocity.

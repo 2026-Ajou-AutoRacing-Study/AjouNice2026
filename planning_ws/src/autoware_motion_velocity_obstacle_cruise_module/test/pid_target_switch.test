@@ -1,0 +1,4 @@
+<launch>
+  <test test-name="pid_target_switch" pkg="autoware_motion_velocity_obstacle_cruise_module"
+        type="test_pid_target_switch" time-limit="60"/>
+</launch>

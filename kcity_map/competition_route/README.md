@@ -21,3 +21,5 @@ python3 scripts/kcity_map_workflow/generate_drive_course_from_map.py \
   --out-dir competition_route/v87 \
   --output-prefix drive_course_v87
 ```
+
+과거 제작 이력은 [legacy 안내](../legacy/README.md)로 분리했다. 현재 route를 과거 산출물로 대체하지 않는다.

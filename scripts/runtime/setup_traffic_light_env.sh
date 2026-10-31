@@ -6,19 +6,24 @@ PREFIX="$HOME/.local/share/ajounice/traffic_light_gpu"
 CONDA_BIN=""
 CHECK_ONLY=false
 DEVICE=0
+MODEL_ARGS=()
+CNN_CHECKPOINT=""
 usage() {
-  echo "사용: bash scripts/runtime/setup_traffic_light_env.sh [--prefix 경로] [--conda-exe 경로] [--device 0|cpu] [--check]"
+  echo "사용: bash scripts/runtime/setup_traffic_light_env.sh [--prefix 경로] [--conda-exe 경로] [--device 0|cpu] [--check] [--weights PT --cnn-checkpoint PT --imgsz 960]"
   echo "기본: ~/.local/share/ajounice/traffic_light_gpu (Python 3.11 / Torch 2.7.1 cu128)"
   echo "--check: 설치/변경 없이 해당 환경의 모델·GPU·ROS import만 검사"
 }
 while (($#)); do
   case "$1" in
-    --prefix|--conda-exe|--device)
+    --prefix|--conda-exe|--device|--weights|--cnn-checkpoint|--imgsz|--expected-weights-sha256|--expected-cnn-sha256)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       case "$1" in
         --prefix) PREFIX="$2" ;;
         --conda-exe) CONDA_BIN="$2" ;;
         --device) DEVICE="$2" ;;
+        --device) DEVICE="$2" ;;
+        --cnn-checkpoint) CNN_CHECKPOINT="$2"; MODEL_ARGS+=("$1" "$2") ;;
+        *) MODEL_ARGS+=("$1" "$2") ;;
       esac
       shift 2 ;;
     --check) CHECK_ONLY=true; shift ;;
@@ -71,6 +76,10 @@ if ! $CHECK_ONLY; then
       rospkg==1.6.1 catkin-pkg==1.1.0 PyYAML==6.0.3
     env -u PYTHONPATH -u PYTHONHOME "$PREFIX/bin/python" -m pip --isolated check
   fi
+  if [[ -n "$CNN_CHECKPOINT" && ! -f "$PREFIX/.ajounice-v5-inputs-ready" ]]; then
+    env -u PYTHONPATH -u PYTHONHOME PYTHONNOUSERSITE=1 "$PREFIX/bin/python" -m pip --isolated install \
+      -r "$ROOT/base_ws/src/perception/traffic_light_detection/requirements-candidate.txt"
+  fi
 fi
 [[ -x "$PREFIX/bin/python" ]] || { echo "Python이 없습니다: $PREFIX/bin/python" >&2; exit 2; }
 # Source ROS only after package installation; pure-Python ROS messages can be
@@ -81,6 +90,9 @@ source "$ROOT/scripts/workspace/source_aw149.sh"
 set -u
 export PYTHONNOUSERSITE=1
 "$PREFIX/bin/python" -s "$ROOT/scripts/runtime/check_traffic_light_env.py" \
-  --device "$DEVICE" --check-ros --require-team-versions --isolate-python
-if ! $CHECK_ONLY; then touch "$PREFIX/.ajounice-team-v1-ready"; fi
+  --device "$DEVICE" --check-ros --require-team-versions --isolate-python "${MODEL_ARGS[@]}"
+if ! $CHECK_ONLY; then
+  touch "$PREFIX/.ajounice-team-v1-ready"
+  if [[ -n "$CNN_CHECKPOINT" ]]; then touch "$PREFIX/.ajounice-v5-inputs-ready"; fi
+fi
 echo "설치/검사 완료. GUI에서 가상환경 Python 선택: $PREFIX/bin/python (장치: $DEVICE)"

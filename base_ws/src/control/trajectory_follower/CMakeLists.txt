@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-add_message_files(FILES PurePursuitDebug.msg)
+add_message_files(FILES PurePursuitDebug.msg TerminalState.msg)
 
 generate_messages(DEPENDENCIES std_msgs)
 
@@ -47,6 +47,7 @@ target_link_libraries(purepursuit_autoware adaptive_pure_pursuit_core ${catkin_L
 target_link_libraries(longi_pi_autoware ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_control_terminal.py)
   catkin_add_gtest(test_adaptive_pure_pursuit_core test/test_adaptive_pure_pursuit_core.cpp)
   if(TARGET test_adaptive_pure_pursuit_core)
     target_link_libraries(test_adaptive_pure_pursuit_core adaptive_pure_pursuit_core)
@@ -56,6 +57,7 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_longitudinal_pi_utils test/test_longitudinal_pi_utils.cpp)
   find_package(rostest REQUIRED)
   add_rostest(test/autoware_freshness.test)
+  add_rostest(test/control_terminal.test)
 endif()
 
 install(TARGETS purepursuit longi_pi purepursuit_autoware longi_pi_autoware adaptive_pure_pursuit_core
@@ -71,3 +73,6 @@ install(DIRECTORY include/
 install(DIRECTORY config launch msg
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
+
+catkin_install_python(PROGRAMS scripts/control_terminal.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

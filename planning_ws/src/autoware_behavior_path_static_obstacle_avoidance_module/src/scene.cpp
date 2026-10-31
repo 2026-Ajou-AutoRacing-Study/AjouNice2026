@@ -481,7 +481,25 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
     data.current_lanelets, parameters_, data.distance_to_red_traffic_light);
 
   // filter only for the latest detected objects.
+  if (parameters_->path_generation_method == "optimization_base" &&
+      planner_data_->avoidance_object_ownership) {
+    const auto dynamic_owned = [&](const auto & object) {
+      return planner_data_->avoidance_object_ownership->isDynamic(object.object.object_id)
+        .value_or(false);
+    };
+    // Remove both static memories before envelope creation/dropout compensation.
+    stored_objects_.erase(
+      std::remove_if(stored_objects_.begin(), stored_objects_.end(), dynamic_owned),
+      stored_objects_.end());
+    clip_objects_.erase(
+      std::remove_if(clip_objects_.begin(), clip_objects_.end(), dynamic_owned), clip_objects_.end());
+  }
   fillAvoidanceTargetObjects(data, debug);
+
+  if (parameters_->path_generation_method == "optimization_base") {
+    utils::static_obstacle_avoidance::releaseMovingClipObjects(
+      data, stored_objects_, clip_objects_, parameters_);
+  }
 
   auto current_target_objects_snapshot = data.target_objects;
 
@@ -609,6 +627,11 @@ ObjectData StaticObstacleAvoidanceModule::createObjectData(
   ObjectData object_data{};
 
   object_data.object = object;
+  if (parameters_->path_generation_method == "optimization_base" &&
+      planner_data_->avoidance_object_ownership) {
+    object_data.dynamic_avoidance_owner =
+      planner_data_->avoidance_object_ownership->isDynamic(object.object_id);
+  }
 
   const auto lower = parameters_->lower_distance_for_polygon_expansion;
   const auto upper = parameters_->upper_distance_for_polygon_expansion;

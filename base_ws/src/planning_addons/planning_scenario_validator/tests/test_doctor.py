@@ -34,11 +34,26 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(all(row['remedy'] for row in failed))
 
     def test_explicit_gpu_and_live_only(self):
-        self.cfg['stack']['detector'] = 'bevfusion'
+        self.cfg['stack'].update(detector='bevfusion', bevfusion_model='e25')
         with patch.object(doctor, 'command', return_value=(True, 'ok')) as command, patch.object(doctor, 'bev_settings', return_value=('test:image', Path('/missing-checkpoint'), '0'*64)), patch.object(doctor, 'observe_topics', return_value=[]) as topics:
             doctor.inspect_environment(self.cfg, gpu=True, live=True)
         self.assertTrue(any(call.args[0][:2] == ['docker', 'run'] for call in command.call_args_list))
         topics.assert_called_once_with(self.cfg)
+
+    def test_missing_managed_trt_image_warns_and_checks_same_e12_baseline(self):
+        self.cfg['stack'].update(detector='bevfusion', bevfusion_model='base5_e12')
+        contract = dict(image='optional:trt', checkpoint_path='/missing-e12.pth',
+                        checkpoint_sha256='0' * 64, label='E12 production')
+        selection = dict(image='baseline:e12', fallback=True,
+                         reason='managed_optional_trt_image_unavailable_same_e12_eager')
+        with patch.object(doctor, 'command', return_value=(True, 'ok')) as command, \
+             patch.object(doctor, 'resolve_contract', return_value=contract), \
+             patch.object(doctor, 'runtime_image_selection', return_value=selection):
+            rows = doctor.inspect_environment(self.cfg)
+        self.assertTrue(any(row['check'] == '선택적 TensorRT 이미지' and row['status'] == 'WARN'
+                            for row in rows))
+        self.assertTrue(any('baseline:e12' in call.args[0] for call in command.call_args_list))
+        self.assertFalse(any(call.args[0][:2] == ['docker', 'run'] for call in command.call_args_list))
 
     def test_shell_settings_are_never_executed(self):
         with tempfile.TemporaryDirectory() as directory:

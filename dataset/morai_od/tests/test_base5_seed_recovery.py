@@ -64,12 +64,14 @@ class SeedTest(unittest.TestCase):
             row=dict(id='a',status='review',audit=dict(review_reasons=['actor_annotation_above_ground'],
                 ground_support=dict(actors=[dict(reason='actor_annotation_above_ground',plane=dict(coefficients=[0,0,0]))])))
             def prepare(manifest,captures,out):
-                out.mkdir();loop.atomic_json(out/'manifest.json',dict(scenes=[dict(id='a_ground')]))
+                out.mkdir();loop.atomic_json(out/'manifest.json',dict(scenes=[dict(id='a_ground',metadata=str(root/'meta.json'))]))
                 return out/'manifest.json'
             def capture(command,**kwargs):
                 out=Path(command[command.index('--output')+1]);out.mkdir(exist_ok=True)
                 loop.atomic_json(out/'shutdown_safety.json',dict(park_verified=True))
-                (out/'ledger.jsonl').write_text(json.dumps(dict(id='a_ground',status='accepted_candidate'))+'\n')
+                raw=out/'captures'/'a_ground';raw.mkdir(parents=True)
+                loop.atomic_json(raw/'metadata.json',loop.gen.geo.load_json(root/'meta.json'))
+                (out/'ledger.jsonl').write_text(json.dumps(dict(id='a_ground',status='accepted_candidate',capture_root=str(raw)))+'\n')
                 return Child()
             with patch.object(loop,'validate_seed',return_value=(row,root/'batch',dict(park_verified=True))),patch.object(loop,'height_retry',side_effect=prepare),patch.object(loop.subprocess,'Popen',side_effect=capture) as child:
                 self.assertEqual(loop.execute(source,[0],root/'out',seed_capture=root/'seed.json'),0)

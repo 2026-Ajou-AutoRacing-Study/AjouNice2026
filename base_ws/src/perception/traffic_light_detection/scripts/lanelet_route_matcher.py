@@ -29,9 +29,11 @@ route를 그대로 구독하고, lanelet2 지도 자체에서 lanelet -> regulat
 None을 반환하도록 만들어져서, 호출하는 쪽이 안전하게 fallback_group_id를 쓸 수 있다.
 """
 import math
+import threading
 import xml.etree.ElementTree as ET
 
 import rospy
+from signal_judging_line_geometry import parse_judging_lines, route_judging_progress
 
 try:
     from lanelet2 import core, geometry, io, projection, traffic_rules
@@ -55,6 +57,23 @@ except ImportError:  # pragma: no cover
 
 
 DEFAULT_CROSSING_MARGIN_M = 0.0
+
+
+def _polyline_projection(points, x, y):
+    """Return distance, metric progress, length and tangent on an ordered line."""
+    best, length = None, 0.
+    for a, b in zip(points, points[1:]):
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        size = math.hypot(dx, dy)
+        if size <= 1e-9:
+            continue
+        fraction = max(0., min(1., ((x-a[0])*dx+(y-a[1])*dy)/(size*size)))
+        distance = math.hypot(x-a[0]-fraction*dx, y-a[1]-fraction*dy)
+        row = (distance, length+fraction*size, dx/size, dy/size)
+        if best is None or row[0] < best[0]:
+            best = row
+        length += size
+    return None if best is None else (best[0], best[1], length, best[2], best[3])
 
 
 def _load_projector(map_file, projector_type, projector_file):
@@ -220,7 +239,11 @@ class LaneletRouteGroupIdMatcher:
     def __init__(self, map_file, projector_type, projector_file, excluded_group_ids=None,
                  projector_type_default="LocalCartesianUTM", pose_stale_sec=2.0,
                  crossing_margin_m=DEFAULT_CROSSING_MARGIN_M,
-                 crossing_reference="bulb"):
+                 crossing_reference="bulb", route_progress_guard=False,
+                 route_progress_hysteresis_m=1.0,
+                 route_progress_max_lateral_m=8.0,
+                 route_progress_pose_jump_m=8.0,
+                 signal_judging_lines=None):
         if crossing_reference not in ("bulb", "stopline"):
             raise ValueError('crossing_reference는 "bulb" 또는 "stopline"이어야 합니다')
         self.available = False
@@ -231,6 +254,29 @@ class LaneletRouteGroupIdMatcher:
         self.pose_stale_sec = pose_stale_sec
         self.crossing_margin_m = crossing_margin_m
         self.crossing_reference = crossing_reference
+        if type(route_progress_guard) is not bool:
+            raise ValueError('route_progress_guard must be an explicit bool')
+        for name, value in (("hysteresis", route_progress_hysteresis_m),
+                            ("max_lateral", route_progress_max_lateral_m),
+                            ("pose_jump", route_progress_pose_jump_m)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError('route progress {} must be finite and positive'.format(name))
+        self.route_progress_guard = route_progress_guard
+        self.route_progress_hysteresis_m = float(route_progress_hysteresis_m)
+        self.route_progress_max_lateral_m = float(route_progress_max_lateral_m)
+        self.route_progress_pose_jump_m = float(route_progress_pose_jump_m)
+        self._judging_lines,self._judging_line_errors=parse_judging_lines(signal_judging_lines)
+        if signal_judging_lines is None and route_progress_guard:
+            rospy.logwarn('[lanelet_route_matcher] optional judging geometry absent; using legacy Lanelet release reference')
+        for error in self._judging_line_errors:
+            rospy.logwarn('[lanelet_route_matcher] judging geometry ignored: %s',error)
+        self._route_identity = None
+        self._route_progress_lock = threading.RLock()
+        self._route_geometry = []
+        self._route_events = []
+        self._stopline_positions = {}
+        self._ego_yaw = None
+        self._reset_route_progress('startup')
 
         self._route_segments = None
         self._route_stamp = None
@@ -322,6 +368,90 @@ class LaneletRouteGroupIdMatcher:
 
             self.crossing_info[gid] = (mid_x, mid_y, dir_x, dir_y)
 
+        if self.route_progress_guard:
+            for key, (lat, lon) in _parse_reference_latlon(map_file, 'ref_line').items():
+                p = self.projector.forward(core.GPSPoint(lat, lon, 0.))
+                self._stopline_positions[int(key)] = (p.x, p.y)
+
+    def _reset_route_progress(self, reason):
+        self._progress_s = None
+        self._progress_xy = None
+        self._progress_debug = {'reason': reason, 'progress_m': None}
+
+    def _build_route_progress_geometry(self):
+        """Cache actual ordered route geometry; repeated lane IDs stay distinct."""
+        self._route_geometry, self._route_events = [], []
+        start = 0.
+        for index, ids in enumerate(self._route_segments or []):
+            alternatives = []
+            for lane_id in ids:
+                try:
+                    points = [(float(p.x), float(p.y)) for p in self.map.laneletLayer[lane_id].centerline]
+                except (KeyError, IndexError, RuntimeError):
+                    self._route_geometry, self._route_events = [], []
+                    self._progress_debug['reason'] = 'route_lanelet_missing_from_map'
+                    return
+                projection = _polyline_projection(points, points[0][0], points[0][1]) if points else None
+                if projection is None:
+                    self._route_geometry, self._route_events = [], []
+                    self._progress_debug['reason'] = 'invalid_route_centerline'
+                    return
+                alternatives.append((lane_id, points, projection[2]))
+            if not alternatives:
+                continue
+            preferred_length = alternatives[0][2]
+            self._route_geometry.append((index, start, preferred_length, alternatives))
+            occurrences = {}
+            for lane_id, points, length in alternatives:
+                gid = self.lanelet_group_id.get(lane_id)
+                if gid is None:
+                    continue
+                reference = self._stopline_positions.get(gid)
+                if reference is None:
+                    self._route_geometry, self._route_events = [], []
+                    self._progress_debug['reason'] = 'route_signal_stopline_missing'
+                    return
+                projection = _polyline_projection(points, *reference)
+                # A regulatory association is not permission to project a
+                # remote/wrong stopline onto an arbitrary route segment.
+                if projection[0] > 20.:
+                    self._route_geometry, self._route_events = [], []
+                    self._progress_debug['reason'] = 'route_signal_stopline_not_on_lane'
+                    return
+                occurrences.setdefault(gid, []).append(start+preferred_length*projection[1]/length)
+            for gid, distances in occurrences.items():
+                event_s = sum(distances)/len(distances)
+                # Merge the same stopline attached to adjacent route lanes,
+                # but retain genuinely repeated visits after a route loop.
+                previous = next((event for event in reversed(self._route_events)
+                                 if event['group_id'] == gid), None)
+                if previous is not None and index-previous['segment_index'] <= 1 and abs(event_s-previous['progress_m']) <= 10.:
+                    previous['progress_m'] = max(previous['progress_m'], event_s)
+                    previous['segment_index'] = index
+                else:
+                    self._route_events.append(dict(group_id=gid, segment_index=index, progress_m=event_s))
+            start += preferred_length
+        self._route_events.sort(key=lambda event: event['progress_m'])
+        # Changing the stopping target must not retire the mission before its
+        # original-MGeo crossing. Keep route occurrence order rather than sort
+        # again: an unavailable crossing must not promote a later signal.
+        for event in self._route_events:
+            original=self._judging_lines.get(event['group_id'])
+            if original is None:
+                continue  # Absent/invalid optional profile: legacy compatibility.
+            event['virtual_progress_m']=event['progress_m']
+            crossing=route_judging_progress(original,self._route_geometry,event['progress_m'])
+            event['judging_line_reference']='original_MGeo'
+            if crossing is None:
+                # A short route ending before the paint does not prove that the
+                # signal was crossed. New/cleared routes reset this retention.
+                event['progress_m']=float('inf')
+                event['judging_line_reason']='original_judging_line_not_on_route'
+                rospy.logwarn('[lanelet_route_matcher] reg=%d original line absent from route; retaining mission until route reset',event['group_id'])
+            else:
+                event['progress_m']=crossing
+                event['judging_line_reason']='finite_original_line_route_intersection'
+
     def start_subscribers(self, route_topic, odom_topic, route_state_topic="/planning/route_state"):
         if not self.available:
             return
@@ -338,25 +468,78 @@ class LaneletRouteGroupIdMatcher:
         )
 
     def _route_callback(self, msg):
+        if getattr(self, 'route_progress_guard', False):
+            with self._route_progress_lock:
+                return self._update_route(msg)
+        return self._update_route(msg)
+
+    def _update_route(self, msg):
         segments = []
         for seg in msg.segments:
             ids = [int(seg.preferred_primitive.id)] + [
                 int(p.id) for p in seg.primitives if int(p.id) != int(seg.preferred_primitive.id)
             ]
             segments.append(ids)
+        # Header timestamp refreshes do not reset progress. UUID or actual
+        # topology changes do; identical latched/periodic messages do not.
+        uuid = getattr(getattr(msg, 'uuid', None), 'uuid', ())
+        identity = (tuple(uuid), tuple(tuple(ids) for ids in segments))
+        changed = identity != getattr(self, '_route_identity', None)
         self._route_segments = segments
+        self._route_identity = identity
+        if getattr(self, 'route_progress_guard', False) and changed:
+            position = getattr(getattr(msg, 'start_pose', None), 'position', None)
+            self._route_start_xy = ((position.x, position.y) if position is not None
+                                    else None)
+            self._reset_route_progress('new_route')
+            self._build_route_progress_geometry()
         rospy.loginfo(f"[lanelet_route_matcher] 새 route 수신: {len(segments)}개 구간")
 
     def _route_state_callback(self, msg):
+        if getattr(self, 'route_progress_guard', False):
+            with self._route_progress_lock:
+                return self._update_route_state(msg)
+        return self._update_route_state(msg)
+
+    def _update_route_state(self, msg):
         from autoware_planning_msgs.msg import RouteState
 
         self._route_active = msg.state in (RouteState.SET, RouteState.REROUTING)
         if not self._route_active:
             self._route_segments = None
+            if getattr(self, 'route_progress_guard', False):
+                self._route_identity = None
+                self._route_geometry, self._route_events = [], []
+                self._reset_route_progress('route_unset')
 
     def _odom_callback(self, msg):
-        self._ego_xy = (msg.pose.pose.position.x, msg.pose.pose.position.y)
-        self._ego_stamp = rospy.Time.now()
+        if getattr(self, 'route_progress_guard', False):
+            with self._route_progress_lock:
+                return self._update_odom(msg)
+        return self._update_odom(msg)
+
+    def _update_odom(self, msg):
+        now = rospy.Time.now()
+        xy = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        if getattr(self, 'route_progress_guard', False):
+            old, stamp = self._ego_xy, self._ego_stamp
+            if old is not None and stamp is not None:
+                dt = (now-stamp).to_sec()
+                try:
+                    speed = abs(float(msg.twist.twist.linear.x))
+                except (AttributeError, TypeError, ValueError):
+                    speed = 0.
+                if dt < 0 or dt > self.pose_stale_sec:
+                    self._reset_route_progress('localization_time_discontinuity')
+                elif math.hypot(xy[0]-old[0], xy[1]-old[1]) > max(self.route_progress_pose_jump_m, 3.*speed*dt+3.):
+                    self._reset_route_progress('localization_pose_jump')
+            q = getattr(msg.pose.pose, 'orientation', None)
+            if q is not None:
+                norm = math.sqrt(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w)
+                self._ego_yaw = (math.atan2(2*(q.w*q.z+q.x*q.y), 1.-2*(q.y*q.y+q.z*q.z))
+                                 if math.isfinite(norm) and .99 <= norm <= 1.01 else None)
+        self._ego_xy = xy
+        self._ego_stamp = now
 
     def _is_fresh(self, stamp, max_age_sec):
         if stamp is None:
@@ -372,6 +555,12 @@ class LaneletRouteGroupIdMatcher:
         return dot > self.crossing_margin_m
 
     def get_group_id(self):
+        if getattr(self, 'route_progress_guard', False):
+            with self._route_progress_lock:
+                return self._get_group_id()
+        return self._get_group_id()
+
+    def _get_group_id(self):
         if not self.available:
             return None
         if not self._route_active or not self._route_segments:
@@ -380,6 +569,9 @@ class LaneletRouteGroupIdMatcher:
             return None
 
         ex, ey = self._ego_xy
+
+        if getattr(self, 'route_progress_guard', False):
+            return self._route_progress_group_id(ex, ey)
 
         seen_gids = set()
         for primitive_ids in self._route_segments:
@@ -391,3 +583,61 @@ class LaneletRouteGroupIdMatcher:
                 if not self._has_crossed(gid, ex, ey):
                     return gid
         return None
+
+    def _route_progress_group_id(self, ex, ey):
+        """Select the next stopline occurrence on the active route, not a pole half-plane."""
+        if not self._route_geometry or not all(math.isfinite(v) for v in (ex, ey)):
+            return None
+        previous = self._progress_s
+        movement = (math.hypot(ex-self._progress_xy[0], ey-self._progress_xy[1])
+                    if self._progress_xy is not None else 0.)
+        candidates = []
+        for index, start, preferred_length, alternatives in self._route_geometry:
+            for lane_id, points, length in alternatives:
+                projection = _polyline_projection(points, ex, ey)
+                distance, along, _, dx, dy = projection
+                if distance > self.route_progress_max_lateral_m:
+                    continue
+                progress = start+preferred_length*along/length
+                # Do not jump to a physically adjacent but much later part of
+                # a looping route. CP relocation explicitly clears this window.
+                if previous is not None and not previous-max(10., 3.*movement+5.) <= progress <= previous+max(30., 3.*movement+5.):
+                    continue
+                alignment = 1. if self._ego_yaw is None else math.cos(self._ego_yaw)*dx+math.sin(self._ego_yaw)*dy
+                if alignment < -.1:
+                    continue
+                cost = distance*distance+4.*(1.-alignment)
+                if previous is not None:
+                    cost += .0001*(progress-previous)**2
+                candidates.append((cost, progress, index, lane_id, distance))
+        if not candidates:
+            self._progress_debug = dict(reason='localization_not_on_active_route', progress_m=previous)
+            return None
+        best = min(candidates)
+        if previous is None:
+            start_xy = getattr(self, '_route_start_xy', None)
+            if start_xy is None:
+                start_xy = self._route_geometry[0][3][0][1][0]
+            at_route_start = math.hypot(ex-start_xy[0], ey-start_xy[1]) <= self.route_progress_max_lateral_m
+            if not at_route_start and any(abs(row[1]-best[1]) > 30. and row[0] <= best[0]+.25
+                                          for row in candidates):
+                # Identical geometry revisited in a loop cannot establish lap
+                # identity from a mid-route pose alone. Do not guess a phase.
+                self._progress_debug = dict(reason='route_progress_occurrence_ambiguous', progress_m=None)
+                return None
+        _, progress, index, lane_id, lateral = best
+        # Metric progress is monotonic only within one continuous pose/route
+        # epoch. This suppresses noisy stopline re-selection without making a
+        # permanent global blacklist that would break CP return or a new lap.
+        self._progress_s = progress if previous is None else max(previous, progress)
+        self._progress_xy = (ex, ey)
+        threshold = self.crossing_margin_m+self.route_progress_hysteresis_m
+        remaining = [event for event in self._route_events if self._progress_s <= event['progress_m']+threshold]
+        selected = remaining[0]['group_id'] if remaining else None
+        self._progress_debug = dict(reason='next_route_stopline' if remaining else 'all_route_stoplines_passed',
+                                    progress_m=self._progress_s, segment_index=index,
+                                    lanelet_id=lane_id, lateral_m=lateral, group_id=selected)
+        if remaining and 'judging_line_reference' in remaining[0]:
+            self._progress_debug.update(judging_line_reference=remaining[0]['judging_line_reference'],
+                judging_line_reason=remaining[0]['judging_line_reason'])
+        return selected

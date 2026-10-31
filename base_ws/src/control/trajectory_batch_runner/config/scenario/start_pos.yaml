@@ -10,7 +10,7 @@ paths:
     # 이 JSON을 그대로 복사한 뒤 Ego 시작 pose와 속도만 변경한다.
     scenario_template_json: "configs/scenario/start_pos.json"
     # F4에서 검증한 Ego/control UDP 포트를 scenario별 sidecar로 복제한다.
-    scenario_network_template_json: "configs/network/ego_network_1.json"
+    scenario_network_template_json: "configs/network/ego_network_competition_local.json"
 
 scenario_generation:
   start_pose_source: "trajectory_first_row"

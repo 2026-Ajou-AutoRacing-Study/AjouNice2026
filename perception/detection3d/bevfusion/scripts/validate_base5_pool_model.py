@@ -61,7 +61,7 @@ def main():
             infos[item.get('token',item['scene_id'])]=item
     missing=[v['meta']['id'] for v in samples if v['meta']['id'] not in infos]
     if missing:raise ValueError('Missing GT: '+str(missing))
-    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor.json')
+    calibration=load_sensor4_calibration(a.root/'configs/sensors/Sensor_competition_local.json')
     result=dict(gpu=torch.cuda.get_device_name(),source=manifest,cost_only=True,
                 equivalence=[],training=[],contract='Fresh 4-class real-GT wiring only; no convergence/AP; no checkpoints saved.')
     def save():

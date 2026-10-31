@@ -17,9 +17,24 @@
        default="/perception/object_recognition/objects"/>
   <!-- PointPainting Obstacle maps to UNKNOWN. Suppress fake motion by default. -->
   <arg name="force_unknown_stationary" default="true"/>
+  <!-- Qualified identity-only recovery; false restores legacy output IDs.
+       No object deletion, geometry change or extended coasting. -->
+  <arg name="stationary_unknown_uuid_continuity" default="true"/>
+  <!-- Hold only output pose between observations; do not modify the EKF state. -->
+  <arg name="hold_stationary_output_pose" default="true"/>
+  <arg name="planning_ownership_config" default="$(env AJOUNICE_ROOT)/planning_ws/src/autoware_launch/config/ros1/planning/behavior_path_modules.yaml"/>
   <arg name="prediction_time_step" default="0.1"/>
-  <arg name="prediction_horizon" default="3.0"/>
+  <arg name="prediction_horizon" default=""/>
+  <arg name="prediction_mixed_horizon_enabled" default="false"/>
+  <arg name="prediction_highway_horizon" default=""/>
+  <arg name="prediction_highway_mode" default=""/>
+  <arg name="prediction_highway_current_lane_only" default=""/>
+  <arg name="prediction_highway_lane_switch_margin_m" default=""/>
+  <!-- The route-verified C-to-shadow corridor filters only planner-facing predictions. -->
+  <arg name="vehicle_only_corridor_enabled" default="true"/>
   <arg name="publish_processing_diagnostics" default="false"/>
+  <arg name="publish_association_diagnostics" default="false"/>
+  <arg name="diagnostics_auto_on_subscribe" default="true"/>
   <arg name="prediction_model" default="ctrv"/>
   <arg name="canonicalize_vehicle_orientation_to_motion" default="true"/>
   <arg name="orientation_canonicalization_min_speed_mps" default="1.0"/>
@@ -37,8 +52,11 @@
   <arg name="confirmed_stationary_track_max_coast_time_sec" default="1.00"/>
   <arg name="lifecycle_stationary_speed_threshold_mps" default="2.0"/>
   <arg name="suppress_duplicate_track_birth" default="true"/>
+  <arg name="suppress_small_unknown_duplicate_birth" default="false"/>
   <!-- Qualified pedestrian-only ranking; eligibility/lifetime remain legacy. -->
   <arg name="pedestrian_gaussian_association_ranking" default="true"/>
+  <arg name="shape_consistent_association_ranking" default="false"/>
+  <arg name="guard_inconsistent_class_transitions" default="false"/>
   <arg name="fast_confirmed_vehicle_promotion" default="false"/>
   <arg name="vehicle_promotion_min_confidence" default="0.60"/>
   <arg name="duplicate_birth_suppression_distance_m" default="0.75"/>
@@ -80,8 +98,9 @@
   <!-- Detector-specific launch arguments. -->
   <arg name="python_executable" default=""/>
   <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="map_version" default="101"/>
   <arg name="map_file"
-       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v87.osm"/>
+       default="$(arg repo_root)/kcity_map/lanelet_map/lanelet2_map_v$(arg map_version).osm"/>
   <arg name="projector_file"
        default="$(arg repo_root)/kcity_map/lanelet_map/map_projector_info_v1.yaml"/>
   <arg name="fastbev_checkpoint"
@@ -199,8 +218,17 @@
   </group>
 
   <include file="$(find ekf_multi_object_tracking)/launch/ekf_multi_class_object_tracking.launch">
+    <arg name="hold_stationary_output_pose" value="$(arg hold_stationary_output_pose)"/>
+    <arg name="hold_unknown_coasting_pose" value="$(eval arg('hold_stationary_output_pose') and arg('force_unknown_stationary'))"/>
+    <arg name="planning_ownership_config" value="$(arg planning_ownership_config)"/>
+    <arg name="publish_association_diagnostics" value="$(arg publish_association_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="pedestrian_gaussian_association_ranking"
          value="$(arg pedestrian_gaussian_association_ranking)"/>
+    <arg name="shape_consistent_association_ranking"
+         value="$(arg shape_consistent_association_ranking)"/>
+    <arg name="guard_inconsistent_class_transitions"
+         value="$(arg guard_inconsistent_class_transitions)"/>
     <arg name="input_objects" value="$(arg detection_objects)"/>
     <arg name="output_objects" value="$(arg measurement_tracked_objects)"/>
     <arg name="world_frame_id" value="$(arg world_frame_id)"/>
@@ -231,6 +259,8 @@
          value="$(arg lifecycle_stationary_speed_threshold_mps)"/>
     <arg name="suppress_duplicate_track_birth"
          value="$(arg suppress_duplicate_track_birth)"/>
+    <arg name="suppress_small_unknown_duplicate_birth"
+         value="$(arg suppress_small_unknown_duplicate_birth)"/>
     <arg name="fast_confirmed_vehicle_promotion"
          value="$(arg fast_confirmed_vehicle_promotion)"/>
     <arg name="vehicle_promotion_min_confidence"
@@ -300,8 +330,12 @@
            to="$(eval arg('tracked_objects') if float(arg('tracking_publish_rate_hz')) &lt;= 0.0 else arg('motion_policy_objects'))"/>
     <param name="force_unknown_stationary"
            value="$(arg force_unknown_stationary)"/>
+    <param name="stationary_unknown_uuid_continuity"
+           value="$(arg stationary_unknown_uuid_continuity)"/>
     <param name="publish_processing_diagnostics"
            value="$(arg publish_processing_diagnostics)"/>
+    <param name="diagnostics_auto_on_subscribe"
+           value="$(arg diagnostics_auto_on_subscribe)"/>
   </node>
 
   <group if="$(eval float(arg('tracking_publish_rate_hz')) &gt; 0.0)">
@@ -319,12 +353,20 @@
   </group>
 
   <include file="$(find perception_object_pipeline)/launch/object_prediction.launch">
+    <arg name="map_version" value="$(arg map_version)"/>
     <arg name="input_objects" value="$(arg tracked_objects)"/>
     <arg name="output_objects" value="$(arg predicted_objects)"/>
     <arg name="prediction_time_step" value="$(arg prediction_time_step)"/>
     <arg name="prediction_horizon" value="$(arg prediction_horizon)"/>
+    <arg name="prediction_mixed_horizon_enabled" value="$(arg prediction_mixed_horizon_enabled)"/>
+    <arg name="prediction_highway_horizon" value="$(arg prediction_highway_horizon)"/>
+    <arg name="prediction_highway_mode" value="$(arg prediction_highway_mode)"/>
+    <arg name="prediction_highway_current_lane_only" value="$(arg prediction_highway_current_lane_only)"/>
+    <arg name="prediction_highway_lane_switch_margin_m" value="$(arg prediction_highway_lane_switch_margin_m)"/>
+    <arg name="vehicle_only_corridor_enabled" value="$(arg vehicle_only_corridor_enabled)"/>
     <arg name="prediction_model" value="$(arg prediction_model)"/>
     <arg name="publish_processing_diagnostics" value="$(arg publish_processing_diagnostics)"/>
+    <arg name="diagnostics_auto_on_subscribe" value="$(arg diagnostics_auto_on_subscribe)"/>
     <arg name="repo_root" value="$(arg repo_root)"/>
     <arg name="map_file" value="$(arg map_file)"/>
     <arg name="projector_file" value="$(arg projector_file)"/>

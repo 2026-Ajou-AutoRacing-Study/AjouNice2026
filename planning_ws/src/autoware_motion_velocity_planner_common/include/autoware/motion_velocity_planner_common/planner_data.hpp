@@ -197,6 +197,7 @@ struct PlannerData
     lanelet::Id id, bool keep_last_observation = false) const;
 
   nav_msgs::Odometry current_odometry;
+  bool boundary_recovery{false};
   nav_msgs::OccupancyGrid occupancy_grid_map;
   std::shared_ptr<autoware::route_handler::RouteHandler> route_handler;
   geometry_msgs::AccelWithCovarianceStamped current_acceleration;

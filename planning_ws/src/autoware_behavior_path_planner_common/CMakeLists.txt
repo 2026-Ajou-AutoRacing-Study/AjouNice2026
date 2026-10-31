@@ -117,6 +117,11 @@ add_library(${PROJECT_NAME} SHARED
 target_link_libraries(${PROJECT_NAME} ${MOTION_UTILS_LIBRARY} ${INTERPOLATION_LIBRARY} ${VEHICLE_INFO_UTILS_LIBRARY} ${ROUTE_HANDLER_LIBRARY} ${PLANNING_FACTOR_INTERFACE_LIBRARY} ${OBJECTS_OF_INTEREST_MARKER_INTERFACE_LIBRARY} ${RTC_INTERFACE_LIBRARY} ${LANELET2_UTILS_LIBRARY} ${BOUNDARY_DEPARTURE_CHECKER_LIBRARY} ${FREESPACE_ALGORITHMS_LIBRARY} ${OBJECT_RECOGNITION_UTILS_LIBRARY} ${LANELET2_CORE_LIBRARY} ${catkin_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_avoidance_object_ownership test/test_avoidance_object_ownership.cpp)
+  if(TARGET test_avoidance_object_ownership)
+    target_compile_features(test_avoidance_object_ownership PRIVATE cxx_std_17)
+    target_link_libraries(test_avoidance_object_ownership gtest_main ${PROJECT_NAME} ${catkin_LIBRARIES})
+  endif()
   catkin_add_gtest(test_path_shifter test/test_path_shifter.cpp)
   if(TARGET test_path_shifter)
     # Retained fixture is part of this export, not the upstream checkout.

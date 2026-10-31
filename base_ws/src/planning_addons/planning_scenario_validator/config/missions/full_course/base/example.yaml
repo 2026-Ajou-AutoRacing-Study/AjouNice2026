@@ -22,8 +22,8 @@ stack:
   detector: bevfusion
   # 이 미션에서 신호등 판단/인지 사용 여부. true는 Python 환경 설치가 필요합니다.
   traffic_light: true
-  # base5_e24=production(기본) 0.40/0.10/0.10, e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.
-  bevfusion_model: base5_e24
+  # base5_e12=production(기본, TRT+SDPA/cache) 0.40/0.10/0.10, base5_e24/e25=명시적 복귀, base5_e9=val best 비교 0.30/0.20/0.12.
+  bevfusion_model: base5_e12
   # system=기존 /usr/bin/python3, virtualenv=아래 Python. 팀원이 설치한 환경에 맞춥니다.
   traffic_light_runtime: virtualenv
   # 가상환경 bin/python 경로. conda activate는 필요 없습니다.

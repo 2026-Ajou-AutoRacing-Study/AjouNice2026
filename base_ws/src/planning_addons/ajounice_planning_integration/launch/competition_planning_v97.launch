@@ -1,0 +1,11 @@
+<launch>
+  <!-- v97 profile; ordinary planning uses the same map and requester.
+       The v96 Route A/B policy and corridor are preserved. -->
+  <arg name="repo_root" default="$(env AJOUNICE_ROOT)"/>
+  <arg name="enable_traffic_light_planner" default="true"/>
+  <include file="$(find ajounice_planning_integration)/launch/planning.launch">
+    <arg name="repo_root" value="$(arg repo_root)"/>
+    <arg name="map_version" value="97"/>
+    <arg name="enable_traffic_light_planner" value="$(arg enable_traffic_light_planner)"/>
+  </include>
+</launch>

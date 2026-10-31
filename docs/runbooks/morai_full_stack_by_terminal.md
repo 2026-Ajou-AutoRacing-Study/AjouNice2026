@@ -1,5 +1,28 @@
 # MORAI full stack 터미널별 실행법
 
+## RViz camera / compact log update (2026-10-30)
+
+`planviz`와 `planviz_competition`의 4카메라는 같은 compressed JPEG 토픽·RViz decoder를
+유지하고, `bringup/ScopedImage`가 카메라 표시마다 설정 서비스 namespace만 분리한다.
+기존 `/aw149_planning_rviz/compressed/set_parameters` 중복 등록 3회를 원인에서 제거한다.
+이 업데이트는 새 C++ display를 포함하므로 **pull만 하지 말고 bringup을 재빌드**한 뒤
+RViz를 다시 실행한다. 실행 중인 RViz/주행 스택을 둔 채 라이브러리를 교체하지 않는다.
+기존 정상 설치가 있는 PC의 증분 빌드 예시(클린 빌드 불필요):
+
+```bash
+cd ~/AjouNice2026
+source scripts/workspace/source_aw149.sh
+catkin_make_isolated --install --pkg bringup --source "$PWD/base_ws/src" --build "$PWD/base_ws/build_aw149" --devel "$PWD/base_ws/devel_aw149" --install-space "$PWD/base_ws/install_aw149" -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3 --make-args -j2 -l2
+```
+
+요약 `RVZ map P50 T10Hz`는 지도 입력·측위 50Hz·표시용 궤적 10Hz다.
+32열에서도 핵심 값과 `past3`가 함께 보이도록 줄였다. `past3`는 이번 실행 중 원문에서
+오류로 분류한 누적 3줄이며 원문/상태 파일에 보존된다. RViz 입력 상태가 현재 INFO로
+회복됐으면 과거 이력만으로 노란색을 강제하지 않는다. 새 오류는 즉시 빨강, 입력 대기·stale
+또는 현재 상태를 확인할 수 없으면 기존 주의/오류 표시를 유지한다. **입력 정상은 GUI 전체
+기능 정상 인증이 아니다.** 다른 인지·측위 터미널의 오류 이력 정책은 변경하지 않는다.
+이 변경은 지도·주행 궤적·제어·인지 입력·가중치를 바꾸지 않는다.
+
 ## 범위
 
 이 문서는 하나의 shell wrapper가 아니다. 각 구성요소를 별도 터미널에서 실행해
@@ -8,9 +31,9 @@
 기준 구성은 다음과 같다.
 
 ```text
-MORAI sensors/Ego
+MORAI sensors/Competition (production: no Ego GT)
   -> UDP bridge
-  -> Base5 E24 BEVFusion
+  -> Base5 E12 BEVFusion
   -> EKF multi-object tracking
   -> UNKNOWN stationary policy
   -> Map-CV prediction
@@ -19,13 +42,17 @@ MORAI sensors/Ego
   -> MORAI /ctrl_cmd UDP
 ```
 
-실제 대회 client PC 연결 전 점검 순서와 Go/No-Go 기준은
+본선 연결은 [최신 통신 계약](../competition/FINAL_NETWORK_CURRENT.md)을 우선한다.
+시나리오 Load 시 운영측 네트워크가 자동 설정되고 Collision/Competition은
+판정프로그램이 중계한다. 이하 alias 표는 기존 실행 진입점이며 새 본선 중계 경로의
+검증 완료를 뜻하지 않는다. 실제 대회 client PC 연결 전 과거 점검 참고는
 [`260915_field_inspection_checklist.md`](../competition/260915_field_inspection_checklist.md)를
 함께 사용한다.
 
-2026-10-13 사용자 요청으로 production detector는 Base5 E24, class threshold는
-Vehicle/Pedestrian/Obstacle `0.40/0.10/0.10`이다. 최초 weights·증분 빌드는
-[E24 배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
+현재 production detector는 전체 30,750장 Base5 E12이며 class threshold는
+Vehicle/Pedestrian/Obstacle `0.40/0.10/0.10`이다. 실제 모델 기준은
+[모델 CURRENT](../bevfusion/CURRENT.md), 최초 weights·증분 빌드는
+[배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다.
 E25 명시적 복귀는 `bevfusion --model e25`이며 실제 24GB 풀스택 점검은 별도다.
 
 프로젝트 용어에서 `MRP`는 2026 개인용 launcher, `MR`은 2025 대회용 launcher를
@@ -41,18 +68,143 @@ cd "$HOME/AjouNice2026"
 test -f scripts/workspace/source_aw149.sh
 test -f base_ws/install_aw149/setup.bash
 test -f planning_ws/install_isolated/setup.bash
-test -f kcity_map/lanelet_map/lanelet2_map_v87.osm
+test -f kcity_map/lanelet_map/lanelet2_map_v101.osm
 ```
 
 MORAI에서는 다음을 확인한다.
 
-1. v84 map과 원하는 competition scenario를 연다.
+1. MORAI의 공식 K-City 맵과 원하는 competition scenario를 연다. 알고리즘 지도는 Lanelet v101다.
 2. Sensor Network와 Ego Network를 현재 PC 설정에 맞게 연결한다.
 3. 실제 제어 전에 Ego control mode를 `AV-ExternalCtrl`로 둔다.
 4. 차량은 Route A 공식 시작 위치에서 정지 상태로 둔다.
 
-## 대회 현장 권장: alias + `tee` 로그 세션
+9월 현장점검 원본 경로는 [현장 파일 안내](../../configs/morai_field_reference/README.md)에 있다.
+이 원본으로 본선 시나리오 네트워크를 덮어쓰지 않는다. 본선에서는 운영측의
+keyboard/P 초기 준비와 네트워크 확인 뒤 출발 절차를 따른다.
 
+## 기본 터미널: 영어·짧은 요약 화면
+
+인지·측위·센싱과 planviz는 기존 명령만 실행해도 요약 화면이 기본이다.
+기존 `field <명령>`도 호환되며 중복 wrapper나 노드를 만들지 않는다.
+원래 명령 인자·ROS 로그 레벨·주행 정책은 유지하고 stdout/stderr는 원문 파일에 저장한다.
+원문 화면은 `origin <명령> [인자]`로 실행한다. planning·roscore 출력과 팀에서 만든
+제어기 CTRL 화면은 그대로 유지한다. 제어기 알고리즘·launch·표시 형식은 여기서 바꾸지 않는다.
+
+각 터미널에서 `ajou` 후 해당 한 줄을 실행한다.
+
+| 구성요소 | 대회 LAN 명령 |
+|---|---|
+| UDP 센서·상태 수신 | `udp_lan_competition` |
+| 센서 좌표계 TF | `sensing_lan` |
+| 공식 START 측위 | `localization initial_position_source:=official_start` |
+| E12 객체 검출 | `bevfusion` |
+| 추적·지도 예측 | `tracking` |
+| 신호등 | `traffic` |
+| 공용 RViz | `planviz show_morai_gt:=false` |
+
+무GT 전용 별도 alias는 `localization_competition`과 `planviz_competition`이며
+각각 위 official_start·GT OFF 인자를 기본으로 넣는다. 개발용 기존 명령은 유지한다.
+HUD 속도는 Competition이며 GT OFF에서는 녹화 대상의 Ego/Object도 제외한다.
+GT 기반 `od_gt`·`localization_mrp`·개발용 `judge`는 본선에서 실행하지 않는다.
+
+로컬 무GT 시험은 앞의 두 개를 `udp_competition`·`sensing`으로 바꾼다.
+`udp_competition`/`udp_lan_competition`만 Ego·Object 수신을 모두 차단한다.
+팀장님 LAN 무GT 시험에서는 `udp_lan_competition_teamlead`를 사용한다.
+기존 `udp`/`udp_lan`은 개발용 Ego·Object ON 그대로이며,
+기존 팀장님 개발망의 명시적 JSON 경로 인자도 그대로 유지한다.
+C++ 재설치와 상세 실행은
+[UDP 인계 문서](../competition/FINAL_RUNTIME_HANDOFF.md)를 따른다.
+roscore는 `rc`, 판단은 `planning`, 화면은 `planviz`, 제어는 `traj_fol_a`로 기존 순서대로 실행한다.
+공식 START 초기화를 중간 checkpoint에 적용하지 않는다.
+GNSS 지연 보상은 해당 환경에서 검증할 때만 `localization
+initial_position_source:=official_start gnss_delay_ms:=20`처럼 선택한다(기본0ms).
+팀장님 LAN10ms·희중님 LAN20ms·luv 로컬E12/RViz OFF30ms는 서로 다른 bag의 **시험 후보**다.
+실제 운동 보상 의미·기존 초 인자 충돌·검증 한계는
+[localization CURRENT](../localization/COMPETITION_LOCALIZATION_CURRENT_STATE.md#gnss-지연-보상-선택-ms-실행-인자)를 따른다.
+이미 실행 중인 프로세스는 바뀌지 않는다. 새로 실행한 터미널에서 표시가 적용된다.
+
+기본1초에 한 줄, 보통 최대48칸이며 터미널이 더 좁으면 표시 폭을 줄인다.
+가로 폭은 화면 표시만의 옵션이다. 24칸 미만 터미널이나 잘못된 폭 인자로 실행을
+거부하지 않는다. 매우 좁은 폭은 최소12칸으로 보정하고 0·음수·문자열은 자동 폭으로 복귀한다.
+시각은 `00`~`59`의 초만 표시한다(파일에는 전체 시각 보존).
+`WARN/ERROR` 접두어는 없고 **초록=수신 상태, 노랑=주의, 빨강=누락·실패, 회색=감시 미연결/새 로그 없음**이다.
+새 오류 종류는 즉시 최대3종까지 추가 표시한다. 같은 문제 반복은 `xN`으로 합친다.
+한 구간의 오류는 뒤에 INFO가 와도 먼저 표시하며 이후 `pastN`으로 이전 오류 행 수를 남긴다.
+이는 고장 지속/복구 판정이 아니다. `idle`/`log` 대신 기존 소형 ROS 토픽을 읽어 상태를 표시한다.
+토픽 감시 초기화는 별도 스레드이며 실패해도 본 노드를 중단하지 않는다. `monitor off; see raw`는
+**감시기 연결 실패**이지 알고리즘 사망 판정이 아니다. 감시가 없으면 `no new logs Ns`(회색)로 표시한다.
+색을 지원하지 않는 터미널·파일 redirect·`NO_COLOR` 설정에서는 같은 영어 문구만 나온다.
+
+| 화면 예시 | 의미 |
+|---|---|
+| `UDP C30 G16 I50 L5.8` | Competition·GPS·IMU·LiDAR scan 수신 Hz; LiDAR 8Hz 미만은 주의색. `L-wait`는 감시 시작 뒤 scan 미수신 |
+| `TF static 7/7` | 필요한 정적 센서 TF 7개 수신; 정적 TF는 시간 경과로 stale 처리하지 않음 |
+| `LOC 50Hz GPS shadow` | 측위 출력은 수신 중이며 GPS 값은 음영(0,0). GPS 메시지 자체 단절과 구분 |
+| `LOC start refused 536m` / `pose reset x3` | 공식 START 초기화 거부 / Smooth 위치 보정 리셋. 반드시 원문·시작 위치 확인 |
+| `OD V3 P1 O2 5.8Hz 260ms` | 최신 프레임 차량·보행자·기타 장애물 수, 출력 Hz, 원본 header부터의 age. 순수 GPU 추론 ms가 아님 |
+| `TRK V3 P1 O2 30.0Hz 5ms` | 추적 객체 수·출력률·header age. OD가 이 속도로 새 관측을 만든다는 뜻이 아님 |
+| `OD sync 137ms` | 카메라·LiDAR 시각 불일치로 입력 폐기 |
+| `OD inference failed` | 추론 요청 실패 |
+| `LOC gps-z hold` | 마지막 GPS 높이 유지; 음영에서 의도된 상태일 수도 있음 |
+| `UDP port busy` | 포트 점유 |
+| `TF TF unavailable` | 좌표변환 연결·시각 확인 |
+| `TRK map gate failed` | 차량 전용 구간 필터 우회 상태 |
+| `TL D RC+GLA 6.7Hz 45ms` | D(`D-2`) 적색 원형+녹색 좌화살표 관측. 판단 GO/STOP을 임의 추정하지 않음 |
+| `TL A far` / `TL no mission` | 거리 gate 밖 / 다가오는 미션 없음. D 종료 뒤 group0의 ROI 경고는 새 실패로 표시하지 않음 |
+| `TL B no-box` / `route/pose?` / `TF unavailable` | 활성 미션의 선택 미확인 / route·pose 확인 / 좌표변환 실패. 원인 확인 필요 |
+| `TL route selector stale` | 별도 미션 선택 토픽 단절. 현재 이미지가 계속 와도 정상 `no mission`으로 숨기지 않음 |
+| `OD output stale 1.2s` | 수신 또는 원본 시각이 오래됨. 프로세스 사망과 동일한 뜻은 아님 |
+| `RVZ map ready pose 50Hz path 10.0Hz` | 지도 MarkerArray·측위·최종 경로 입력 수신. 실제 GUI 렌더링 정상이나 주행 안전 인증은 아님 |
+| `RVZ waiting pose` / `map wait` / `path wait` | 해당 화면 입력 대기. planning·route 시작 전 `path wait`는 가능하며 자동 실행/복구하지 않음 |
+| `RVZ path empty` / `path stale 1.2s` | 빈 경로 / 경로 입력 시각 또는 수신이 오래됨 |
+| `RVZ display unavailable` / `rendering issue` | DISPLAY·Qt 또는 렌더링 오류. 원문 파일에서 상세 확인 |
+
+감시기는 이미지·PointCloud·객체 예측경로를 구독하지 않는다. 기존 객체/신호 debug·상태와
+packet Header를 읽고, planviz는 latched 지도 MarkerArray의 개수와 최종 Path의 Header·점 개수만 읽는다.
+지도 polygon·경로 점 배열은 역직렬화하지 않는다. planviz의 지도 수신 상태는 latched 데이터라 stale로 표시하지 않는다.
+새 publisher·제어·ROS parameter 변경은 없다. 표시용 수신률 한계는 주행 안전 임계값을 바꾸지 않는다.
+`V/P/O`의 O는 기타 분류를 포함하며, 검출이 0개인 정상 출력도 `V0 P0 O0`으로 구분한다.
+
+원문 파일은 공유 세션의 `artifacts/field_logs/<세션>_console/*_raw.log`에 새 파일로 저장한다.
+이번 변경 이후에는 같은 이름의 `*_status.jsonl`에 표시 문구·색 등급·전체 시각도 저장한다.
+이 sidecar 기록 실패는 별도 주의만 표시하고 알고리즘을 중단하지 않는다. 기존 녹화에 이 파일이 소급 생성되지는 않는다.
+첫 요약 명령에서 세션이 없으면 만든다. 새 공유 세션은 `field_log_new`, 원문 경로는 `field_log_list`로 확인한다.
+원문을 수동 tee로 저장하려면 `origin <명령> 2>&1 | field_log_tee 이름`을 사용한다.
+기본 요약 명령을 다시 `field_log_tee`에 연결하지 않는다.
+원문 파일을 처음 열 수 없어도 빨간 `raw write failed`를 표시하며 알고리즘은 시작한다.
+공유 세션 pointer 생성 실패도 독립 세션으로 계속하며, 실행 도중 기록 실패도 스택을 중단하지 않는다.
+원문 증거가 없는 상태이므로 기록 복구가 필요하다. 자식 종료 후 기록 실패 코드2는 별도로 반환할 수 있다.
+Ctrl-C/TERM/SIGHUP은 이번 실행의 자식 프로세스 그룹으로 전달한다. 기본20초 후 미종료 그룹만 강제 종료한다.
+이 기능은 읽기 전용 표시·토픽 관측이며 차량 정지·P 장치가 아니다.
+
+폭은 `AJOUNICE_FIELD_LOG_WIDTH`(안전하게 자동 보정), 주기는 `AJOUNICE_FIELD_LOG_INTERVAL`로 바꿀 수 있다.
+잘못된 주기·종료 대기시간은 각각1초·20초로 복귀하며 주행 실행을 거부하지 않는다.
+재빌드·가상환경 없이 시스템 Python3로 실행한다.
+선택적 관측을 끄려면 wrapper 실행 전에 `export AJOUNICE_FIELD_TOPIC_STATUS=0`을 설정한다.
+`python3 scripts/runtime/field_console.py demo`는 ROS 없이 모의 출력을 보여 준다.
+`python3 scripts/evaluation/render_field_console_preview.py`는 Pillow로 요약 터미널의 모의 PNG를 만든다.
+
+현장에서 구별할 대표 사례:
+
+| 표시 | 의미·확인 순서 |
+|---|---|
+| `waiting Competition` / `Competition stale` | MORAI Ego Network 연결·프로필·포트 확인. 카메라가 보여도 상태 통신 연결을 보장하지 않음 |
+| `start refused` | 노드는 살아 있어도 공식 시작점에서 멀어 초기화 거부. 중간 checkpoint에 official_start를 강제로 적용하지 않음 |
+| `weights missing` / `CNN unavailable` | 설치 경로·모델 파일 확인. 신호등 정책을 GO로 바꿔 덮지 않음 |
+| `TRT off` | 최적화 경로 사용 불가; 실제 원문에서 fallback/종료를 구분. 곧바로 전체 노드 사망이라는 뜻은 아님 |
+| `GPU failed` / `inference failed` | GPU 메모리·추론 서버/요청 실패; 현재 출력 age도 함께 확인 |
+| `port busy` / `detector duplicate` | 중복 실행·포트 점유 확인. 광범위 pkill로 해결하지 않음 |
+| `master unreachable` / `node exited` / `exception` | ROS master 또는 실제 프로세스 종료 확인. 표시만 없거나 stale인 경우와 구별 |
+| `raw write failed` / `disk full` | 파일 기록 실패·공간 부족. 표시기는 주행 노드를 끄지 않으므로 정차 후 공간/파일 확인 |
+
+2026-10-29 로컬 1PC 실주행의 정지·D 출력·기록 범위 근거는
+[`shadow_stop_audit.md`](../../artifacts/evaluation/field_run_261029/shadow_stop_audit.md)에 기록했다.
+이 저속 LiDAR/시간축 불일치 기록만으로 운영 제동·측위·주행 파라미터를 튜닝하지 않는다.
+
+## 원문 화면·수동 `tee` 기록이 필요할 때
+
+기본 요약 화면도 원문 로그를 자동 저장한다. 아래는 원문을 화면에도 보여주는
+선택적 대안이며, 위 실행과 중복해서 스택을 켜는 절차가 아니다.
 `tee`를 사용하면 화면 출력과 파일 저장이 동시에 이루어진다. 모든 터미널은 같은
 로그 세션을 사용해야 하므로 Terminal 1에서 반드시 `field_log_new`를 먼저 실행한다.
 그 외 터미널에서 세션이 없거나 다른 로그 경로가 잡히면 `field_log_tee`가 오류를 내고
@@ -105,11 +257,11 @@ host, ROS 환경을 기록하고 `/tmp/ajounice_field_log_prefix`를 원자적�
 ajou
 set -o pipefail
 
-udp_lan 2>&1 | field_log_tee udp_lan
+origin udp_lan enable_ego_vehicle_status:=false 2>&1 | field_log_tee udp_lan
 ```
 
-camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd` UDP
-송신을 담당한다.
+camera/IMU/GPS 수신, Velodyne LiDAR 변환, Competition 상태 수신과 `/ctrl_cmd` UDP
+송신을 담당한다. 이 대회 명령은 `/Ego_topic` 수신·광고를 끈다.
 
 ### Terminal 3: sensing static TF + 차량 모델
 
@@ -117,7 +269,7 @@ camera/IMU/GPS 수신, Velodyne LiDAR 변환, `/Ego_topic` 수신과 `/ctrl_cmd`
 ajou
 set -o pipefail
 
-sensing_lan 2>&1 | field_log_tee sensing
+origin sensing_lan 2>&1 | field_log_tee sensing
 ```
 
 `udp_lan`에는 sensor static TF가 포함되지 않으므로 생략하면 안 된다. 이 launch의
@@ -130,11 +282,13 @@ sensing_lan 2>&1 | field_log_tee sensing
 ajou
 set -o pipefail
 
-localization 2>&1 | field_log_tee localization
+origin localization initial_position_source:=official_start 2>&1 | field_log_tee localization
 ```
 
 이 alias는 `localization_gnss_imu_gt_ctra.launch`를 실행한다. `sensing_lan`이 sensor
 static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `false`로 유지한다.
+위 명령은 공식 START 출발용이다. 개발 alias의 기본 Ego 위치를 사용하지 않으며,
+`Published GNSS+IMU initial pose from official_start`와 초기 pose 발행을 확인한다. 중간 위치·checkpoint에 강제로 적용하지 않는다.
 
 ### Terminal 5: BEVFusion detection
 
@@ -142,7 +296,7 @@ static TF를 담당하므로 localization의 `publish_sensor_tf` 기본값은 `f
 ajou
 set -o pipefail
 
-bevfusion 2>&1 | field_log_tee bevfusion
+origin bevfusion 2>&1 | field_log_tee bevfusion
 ```
 
 이 alias는 Docker inference server와 ROS bridge의 생명주기를 함께 관리한다. canonical
@@ -164,7 +318,7 @@ docker compose -f docker/bevfusion/compose.yaml logs --follow --tail=100 inferen
 ajou
 set -o pipefail
 
-tracking 2>&1 | field_log_tee tracking
+origin tracking 2>&1 | field_log_tee tracking
 ```
 
 ### Terminal 7: traffic-light recognition
@@ -173,7 +327,7 @@ tracking 2>&1 | field_log_tee tracking
 ajou
 set -o pipefail
 
-traffic 2>&1 | field_log_tee traffic
+origin traffic 2>&1 | field_log_tee traffic
 ```
 
 ### Terminal 8: planning
@@ -194,7 +348,7 @@ follower/control은 포함하지 않는다.
 ajou
 set -o pipefail
 
-planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
+origin planviz show_morai_gt:=false 2>&1 | field_log_tee planviz
 ```
 
 실대회 production에서는 GT overlay를 끈다. MORAI 개발 중 `/Object_topic` 비교가
@@ -245,7 +399,7 @@ sensing/UDP 순서로 내린 뒤 roscore를 마지막에 종료한다.
 
 한 PC에서 MORAI와 폐루프 localization/control을 함께 실행할 때만 사용하는
 비-production 구성이다. MORAI에는
-`Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`을 로드한다. 이 파일은 MR과 MRP의
 `SaveFile/Sensor` 양쪽에 둘 수 있으며 GPS와 IMU만 생성한다.
 
 ### 고정 시나리오와 시험 계약
@@ -266,7 +420,7 @@ MR `SaveFile/Scenario/R_KR_PR_K-city_2025`에서는 목록 상단에 보이도�
 다른 PC에 생성되지 않는다.
 원본 sample의 Ego 시작점, 전체 코스와 GPS 음영 영역은 유지하고 NPC, 보행자,
 장애물과 모든 actor spawn을 제거했다. Sensor는
-`Sensor_localization_gt_lightweight.json`, Ego Network는
+`configs/sensors/legacy/Sensor_localization_gt_lightweight.json`, Ego Network는
 `ego_network_competition_local.json`을 로드한다. control mode는
 `AV-ExternalCtrl`로 설정한다.
 
@@ -335,10 +489,12 @@ tracking
 
 ```bash
 ajou
-planning enable_traffic_light_planner:=false
+planning
 ```
 
-`traffic` alias는 실행하지 않는다.
+`traffic` alias는 실행하지 않는다. 기존 competition fail-open 기본값에서 신호 미수신·timeout은 GO다.
+새 alias/인자는 필요 없다. 신선한 적색·UNKNOWN에는 기존 정지 판단을 유지하며, 노드 다운도 timeout GO가
+될 수 있다는 정책 경계는 구분한다. 기존 `enable_traffic_light_planner:=false` 강제 우회 인자도 그대로 지원한다.
 
 ### Terminal 8: Planning RViz
 
@@ -435,8 +591,8 @@ Bag은 Camera, LiDAR, PointCloud topic을 포함하지 않는다. 주행 후
 
 ## E25 복귀용 수동 통합 launch 참고
 
-아래 절차는 E25 복귀용 구 입력 계약이다. 현재 E24 production은 위의 alias별 실행과
-[E24 설치 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
+아래 절차는 E25 복귀용 구 입력의 로컬 재현 계약이다. 현재 E12 production·대회 실행은 위의 alias별 실행과
+[배포 안내](../bevfusion/BASE5_BEVFUSION_PRODUCTION_HANDOFF.md)를 따른다. 위 현장
 절차와 섞으면 localization, detector, tracking, traffic-light 또는 control publisher가
 중복될 수 있으므로 둘 중 하나만 사용한다.
 
@@ -553,7 +709,7 @@ export AJOUNICE_ROOT="$PWD"
 source scripts/workspace/source_aw149.sh
 source docs/common_alias.txt
 
-localization
+localization initial_position_source:=official_start
 ```
 
 alias는 `gt_source=competition`, heading correction `-1.347 deg`,
@@ -688,10 +844,10 @@ stack은 멈추지 않지만, 빈 debug display를 production 기능으로 오�
 권장하지 않는다. RViz의 rosbag-record topic 목록에 `/Object_topic`이 있어도 없는
 topic만 기록되지 않을 뿐 다른 topic 기록은 계속된다.
 
-주의할 점은 `/Object_topic`과 `/Ego_topic`이 서로 다른 계약이라는 것이다. 현재
-MORAI 통합 launch의 localization은 `/Ego_topic`을 사용한다. 대회에서 주최 측이
-제공하기로 한 Ego/localization 계약은 별도로 반드시 확인되어야 하며,
-`/Object_topic`이 없어도 된다는 결론을 `/Ego_topic`에도 확대하면 안 된다.
+`/Object_topic`과 `/Ego_topic`은 별도 계약이지만 현재 대회 실행은 둘 모두 필수 입력으로
+사용하지 않는다. 통합 launch의 GT localization은 기본 OFF이며, 위 별도 localization이
+Competition과 공식 START 초기화를 사용한다. 개발용 Ego 초기화·`od_gt`·GT overlay를
+대회에 함께 켜지 않는다. 초기화 조건과 남은 LAN 검증은 Localization CURRENT를 따른다.
 
 ## 종료 순서
 
