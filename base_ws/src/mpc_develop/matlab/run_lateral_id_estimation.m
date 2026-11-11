@@ -7,18 +7,38 @@ csvFolder = ...
     '/home/kdy/AjouNice2026/planner_logs/analysis/mpc_develop/imported_recent_20261108_1417';
 
 files = dir(fullfile(csvFolder, '*_lateral_id.csv'));
-assert(~isempty(files), 'CSV 파일을 찾지 못했습니다.');
+assert(numel(files) == 12, '기존 CSV가 12개가 아닙니다. 폴더 내용을 확인하세요.');
+
+% 새 파일 중 기존 학습 데이터와 중복되지 않는 세 개만 추가한다.
+newFolder = ...
+    '/home/kdy/AjouNice2026/planner_logs/analysis/mpc_develop/imported_20261110';
+newNames = {
+    'planbag_pv_highway_S6_70_S_23254497_P_20261102_025845_lateral_id.csv'
+    'planbag_scenario_078_sunny_intersection_1obj_P_20261102_065126_lateral_id.csv'
+    'planbag_rb_150_T5_S0_V22_O0_P_20261102_040935_lateral_id.csv'
+};
+for i = 1:numel(newNames)
+    newFile = dir(fullfile(newFolder, newNames{i}));
+    assert(numel(newFile) == 1, '새 CSV를 찾지 못했습니다: %s', newNames{i});
+    files(end+1) = newFile;
+end
 
 Ts = 0.05;          % CSV 변환 시 사용한 20 Hz
 minSamples = 40;    % 너무 짧은 구간 제거: 2초
 
-%% 2. bag 단위로 추정용 / 검증용 분리
-rng(7);  % 매번 같은 분리 결과 사용
-fileOrder = randperm(numel(files));
-numberOfEstimationBags = ceil(0.7 * numel(files));
-
-isEstimationBag = false(numel(files), 1);
-isEstimationBag(fileOrder(1:numberOfEstimationBags)) = true;
+%% 2. 기존 검증 bag과 새 검증 bag 두 개를 고정
+validationNames = {
+    'planbag_full_source_mix_037_P_20261031_231526_lateral_id.csv'
+    'planbag_pv_highway_S6_70_S_57f13556_P_20261102_030146_lateral_id.csv'
+    'planbag_scenario_197_sunny_intersection_1obj_P_20261102_084142_lateral_id.csv'
+    'planbag_pv_highway_S6_70_S_23254497_P_20261102_025845_lateral_id.csv'
+    'planbag_scenario_078_sunny_intersection_1obj_P_20261102_065126_lateral_id.csv'
+};
+isValidationBag = ismember({files.name}, validationNames);
+assert(nnz(isValidationBag) == numel(validationNames), '검증용 CSV를 모두 찾지 못했습니다.');
+isEstimationBag = ~isValidationBag;
+fprintf('추정용 CSV: %d개\n', nnz(isEstimationBag));
+fprintf('검증용 CSV: %d개\n', nnz(isValidationBag));
 
 uEst = {};
 yEst = {};
@@ -84,7 +104,6 @@ plot(zEst);
 sgtitle('Estimation data: delta, vx, yaw rate, ay, vy');
 
 %% 6. 기존 Pacejka E=0 모델 생성
-% create_lateral_id_model.m 안의 명목 차량값을 사용
 initialModel = create_lateral_id_model();
 
 %% 7. 타이어 B/C/D 파라미터 추정
@@ -100,6 +119,11 @@ validationExperiment = 1;
 plot_lateral_model_comparison(zVal, estimatedModel, validationExperiment);
 
 figure;
-resid(zVal, estimatedModel);
+% Fit used many experiments, so the model stores one initial-state set per
+% training experiment. Analyze the selected validation experiment separately
+% with zero initial states rather than reusing the training initial states.
+% This residual plot can be affected by initial transients.
+resid(getexp(zVal, validationExperiment), estimatedModel, ...
+    residOptions('InitialCondition', 'z'));
 
 present(estimatedModel)

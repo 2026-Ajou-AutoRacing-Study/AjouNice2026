@@ -44,13 +44,15 @@ The model contract is:
 % x = [vy, yaw_rate]
 ```
 
+The model outputs CG lateral velocity. The reference point and axis convention
+of the recorded Ego velocity must be verified before treating it as CG ground truth.
+
 For identification, remove standstill/low-speed samples before forming
 `iddata`. The model has a numerical `vx` guard only to avoid division by zero;
 it does not make a dynamic-bicycle model valid at low speed.
 
 After estimation, `run_lateral_id_estimation.m` plots measured outputs in
-black, a no-slip kinematic bicycle in blue, and the identified dynamic model
-in red. Change `validationExperiment` and rerun section 8, or call:
+black and the identified dynamic model in red. Change `validationExperiment` and rerun section 8, or call:
 
 ```matlab
 [fig, results] = plot_lateral_model_comparison(zVal, estimatedModel, 2);
@@ -61,56 +63,39 @@ passed to the function. With `estimatedModel` these are the estimated values;
 with `initialModel` they are initial guesses. `results.tireParameters` contains
 the same full-precision values.
 
-The kinematic baseline uses the identified model's `lf` and `lr` and the same
-measured steering and body longitudinal velocity. Its lateral acceleration
-uses the numerical derivative of lateral velocity and can amplify measurement
-noise. Its fit values use the same normalized error formula as `compare`;
-the dynamic response uses MATLAB `compare` initial-condition handling.
+The dynamic response uses MATLAB `compare` initial-condition handling.
 The black curve is recorded measurement, not necessarily noise-free ground truth.
 
-## Experimental Pacejka E comparison
+## Ego velocity reference diagnostic (experimental)
 
-`run_pacejka_e_comparison` uses the same bag split and 20 Hz data as
-`run_lateral_id_estimation.m`. It fits a fresh E=0 baseline, then one
-candidate initialized from that baseline with Ef/Er = 0.
-Both E parameters use experimental bounds [-2,1]. The output folder contains
-the split, data, fitted models, parameters, and per-experiment validation fit
-and RMSE. Selecting E based on validation data makes that data a model-selection
-set; use independent bag(s) for a final unbiased assessment.
+`extract_ego_imu_csv.py` exports raw Ego position/velocity/heading and IMU
+samples from a ROS1 bag into separate `ego.csv` and `imu.csv`; the lateral ID
+CSV alone has no positions and cannot answer the reference-point question.
+The extractor preserves original topic timestamps and refuses to overwrite.
 
 ```matlab
-run_pacejka_e_comparison  % creates a timestamped analysis output folder
-% After loading a candidate and data.mat from that folder:
-plot_lateral_model_comparison(zVal, candidate, 1)
+d = '/home/kdy/AjouNice2026/planner_logs/analysis/mpc_develop/ego_reference_037';
+r = diagnose_ego_reference(fullfile(d,'ego.csv'),fullfile(d,'imu.csv'));
 ```
 
-To compare the measured signals (black), E=0 baseline (blue), and free-E
-candidate (red) directly on a single validation experiment:
+This assumes position is rear-axle, world heading and x-forward/y-left;
+none is established by the computation. Heading convention, offsets, sensor
+timestamps, filtering, actual sideslip, road gradient, and outliers can bias
+results. The angle-based world/body selection assumes small sideslip; its
+choice is not proof. The one-variable regressions and heading shift are
+correlated explanations, not causal identification. Only the longest continuous
+(overlap gap <= 0.15 s) section is analyzed; filter edges are excluded from
+fits. Results from a validation bag cannot establish an independent final test.
 
-```matlab
-plot_pacejka_e_comparison(zVal, baseline, candidate, 5)
-```
-
-Both models use MATLAB `compare`'s default initial-condition handling. They
-were not guaranteed to converge in the 20-iteration trial, and the validation
-bags are a model-selection set, not a final independent test.
-
-The studies assume the existing CSV steering units, velocity frame, and IMU
-conventions. They do not establish physical tire parameters or fix those
-unverified signal assumptions. E=0 and free-E models share the same nominal
-fixed vehicle mass, yaw inertia, and axle distances.
-
-## Linear tire force comparison
-
-`dynamic_bicycle_linear_tire.m` keeps the current bicycle state equations,
-exact slip-angle geometry, and input/output order but replaces the Pacejka
-force by `FyF = CalphaF*alphaF`, `FyR = CalphaR*alphaR`. The two positive
-cornering stiffness parameters are per axle in N/rad and are estimated with
-`nlgreyest`. The default starting value is 130000 N/rad for each axle; this
-is a guess, not a measured quantity. The model is not globally linear because
-it retains atan2, cos, and measured time-varying vx.
-
-Run `run_linear_tire_estimation.m` to use the same bag-separated data and
-vehicle assumptions as the existing E=0 experiment. The model and comparison
-remain in the MATLAB workspace; inspect solver termination and compare all
-held-out experiments before drawing conclusions.
+`create_reference_id_model(cfg, baseline)` is opt-in. `cfg.vySource` defaults
+to `velocity`, `cfg.x_ego=NaN` retains CG output, `cfg.x_imu=1.528`,
+`cfg.y_imu=0`, and `cfg.applyImuOffset=false` preserves the original ay.
+With a finite x_ego the vy output is corrected; set applyImuOffset true to
+also correct ay. The longitudinal geometry uses L-lf. `initial_vy_cg` performs
+the initial reference conversion. `compare_reference_fit` initializes each
+training experiment from measured vy/r and estimates free initial states.
+Position-derivative fitting requires raw ego/imu exports for every bag. Run
+`diagnose_ego_reference` for each, convert each with `position_reference_iddata`,
+then merge experiments into bag-separated zEst and zVal. Set `vySource` to
+`position_derivative` and `positionDataPrepared=true`; x_ego is fixed at zero.
+This path cannot consume the older position-free lateral ID CSVs.
